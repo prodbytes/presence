@@ -26,13 +26,24 @@ in the app bar**, which flip between full screens.
 - **Flipping:** tapping a tab or swiping sideways moves between screens
   (`TabBar` + `TabBarView`). The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
-- **Camera** (the start tab): the camera feeds fill the **whole screen**,
-  edge to edge and under the app bar, which is transparent over the camera,
-  with a dark gradient scrim to keep the title and tabs readable.
-  - Several cameras share the screen in a grid with hairline gaps.
+- **Camera** (the start tab): **one camera at a time** fills the **whole
+  screen**, edge to edge and under the app bar, which is transparent over
+  the camera, with a dark gradient scrim to keep the title and tabs
+  readable. There are **no overlays** on the video: no camera name, and no
+  list of other cameras.
+  - It opens the **default camera**: the first back camera, or else the
+    first camera (on web, the one the browser picks by default).
   - The **Clip** trigger is an extended floating action button (bottom
     right), shown only on the Camera tab and only when a camera is open.
     Material says to hide a FAB that can't act, rather than disable it.
+  - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
+    quieter secondary button. It's shown only when the device has more than
+    one camera. It switches back ↔ front where the camera's facing is known
+    (skipping extra back lenses), and otherwise goes to the next camera.
+    The old camera is fully closed before the next one opens, because most
+    phones allow only one open camera. The new camera starts its rolling
+    recording from scratch, so a clip right after a flip has less "before"
+    history.
   - After a clip, a snackbar says "Clip requested", with a **View** action
     that jumps to Events.
 - **Events:** the event stream, full screen. On wide screens it's centered
@@ -66,8 +77,7 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 ### Camera screen
 
 - The **Clip** floating action button starts a clip. See [Clips](#clips).
-- On load, the app opens every camera available to the device and shows each
-  one as a live tile. On web, the browser asks for camera and microphone
+- On load, the app lists the device's cameras and opens the default one. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
 - The grid has ceil(√n) columns, and the tiles fill the panel.
@@ -281,14 +291,13 @@ Android uses the standard dashcam technique instead
   latest keyframe), turned upright and saved as JPEG.
 - **Playback:** `video_player` (ExoPlayer), with the same before-then-full
   continuation and exact window end as web. Tap to pause and play.
-- **Several cameras:** phones that can't run cameras concurrently (all
-  before Android 11, and most after) open the first back camera. The others
-  are listed in a compact line under the live feeds, with the reason. They
-  get grid tiles only when no camera is live.
+- **One camera at a time:** Flip closes the open camera (waiting for
+  Camera2's closed callback, with a 3 s timeout) before opening the next.
+  This works on phones without concurrent-camera support, and was verified
+  on the S40 (back camera 0 ↔ front camera 1).
 - **Screen off / background:** Android refuses to open cameras while the
-  screen is off or the app is in the background. Failed cameras are reopened
-  automatically when the app returns to the foreground (permanent limits,
-  like the one above, aren't retried).
+  screen is off or the app is in the background. A camera that failed to
+  open is reopened automatically when the app returns to the foreground.
 - **Audio timestamps** come from the sample count, anchored to the camera
   clock, and are strictly increasing: MP4 rejects audio that goes back in
   time even by a few ms. The muxer also skips any non-increasing sample
@@ -343,8 +352,8 @@ Android uses the standard dashcam technique instead
   noticeable CPU with several cameras.
 - Nothing is deleted automatically: storage grows by roughly 10 MB per
   camera per clip until a retention policy is added.
-- Android opens only one camera on phones without concurrent-camera
-  support.
+- Only one camera records at a time. Clips come from the camera being
+  shown.
 - Android preview orientation assumes the phone is held in its natural
   (portrait) orientation.
 - **Verified on a DOOGEE S40 (Android 9, MT6739):**

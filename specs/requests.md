@@ -163,3 +163,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     and Settings screens, and Login as a disabled icon button. Verified on web
     (headless Chrome) and on the DOOGEE S40. The title link was removed;
     phones group unavailable cameras into one line.
+37. **Restart the app on Android.** Restarted it through `adb`.
+38. **Remove the "Back camera 0" message from the camera, use the default
+    camera, and add a flip button beside Clip.** The camera screen now shows
+    one camera (the default: the first back camera), with no overlays. A
+    **Flip camera** button next to Clip switches back ↔ front, closing the
+    old camera fully before opening the next. The camera layer became a
+    `CameraBackend` that lists devices and opens one at a time, on both
+    platforms. Verified on the S40: flip went from camera 0 to camera 1 in
+    ~330 ms, and front-camera clips have thumbnails.

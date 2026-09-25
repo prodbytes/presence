@@ -10,12 +10,12 @@ import 'package:presence_app/main.dart';
 import 'fakes.dart';
 
 void main() {
-  Future<void> pumpApp(WidgetTester tester, CameraOpener open) async {
+  Future<void> pumpApp(WidgetTester tester, CameraBackend cameras) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      PresenceApp(openCameras: open, mediaIo: fakeMediaIo),
+      PresenceApp(cameras: cameras, mediaIo: fakeMediaIo),
     );
     await tester.pumpAndSettle();
     await settleStorage(tester);
@@ -37,32 +37,24 @@ void main() {
     expect(find.byTooltip('Clip'), findsNothing);
   });
 
-  testWidgets(
-    'clip publishes a ClipRequested card per camera with a thumbnail',
-    (tester) async {
-      final front = FakeCameraSource('Front door');
-      final yard = FakeCameraSource('Back yard');
-      await pumpApp(tester, openFakes([front, yard]));
+  testWidgets('clip publishes a ClipRequested card with a thumbnail', (
+    tester,
+  ) async {
+    final front = FakeCameraSource('Front door');
+    await pumpApp(tester, openFakes([front]));
 
-      await pressClip(tester);
+    await pressClip(tester);
 
-      expect(inEvents(find.text('Clip requested')), findsNWidgets(2));
-      expect(inEvents(find.text('Front door')), findsOneWidget);
-      expect(inEvents(find.text('Back yard')), findsOneWidget);
-      expect(
-        inEvents(find.byKey(const Key('clip-thumbnail'))),
-        findsNWidgets(2),
-      );
-      expect(inEvents(find.text('Saving previous 15 s…')), findsNWidgets(2));
+    expect(inEvents(find.text('Clip requested')), findsOneWidget);
+    expect(inEvents(find.text('Front door')), findsOneWidget);
+    expect(inEvents(find.byKey(const Key('clip-thumbnail'))), findsOneWidget);
+    expect(inEvents(find.text('Saving previous 15 s…')), findsOneWidget);
 
-      // Default window: 15 s before and 15 s after the press.
-      for (final camera in [front, yard]) {
-        expect(camera.requests, hasLength(1));
-        expect(camera.requests.single.before, const Duration(seconds: 15));
-        expect(camera.requests.single.after, const Duration(seconds: 15));
-      }
-    },
-  );
+    // Default window: 15 s before and 15 s after the press.
+    expect(front.requests, hasLength(1));
+    expect(front.requests.single.before, const Duration(seconds: 15));
+    expect(front.requests.single.after, const Duration(seconds: 15));
+  });
 
   testWidgets('before-part is playable at once, full clip once recorded', (
     tester,
@@ -142,28 +134,26 @@ void main() {
     expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
   });
 
-  testWidgets("a slow camera doesn't hold up the others", (tester) async {
-    final fast = FakeCameraSource('Front door', immediatePast: media);
-    final slow = FakeCameraSource('Back yard');
-    await pumpApp(tester, openFakes([fast, slow]));
+  testWidgets('a slow before part still publishes after the wait cap', (
+    tester,
+  ) async {
+    final camera = FakeCameraSource('Front door');
+    await pumpApp(tester, openFakes([camera]));
 
     await tester.tap(find.byTooltip('Clip'));
     await tester.pump(const Duration(milliseconds: 50));
-    // Switching tabs takes a few hundred ms, still inside the 2 s wait.
     await showEvents(tester);
-    expect(inEvents(find.text('Front door')), findsOneWidget);
-    expect(inEvents(find.text('Back yard')), findsNothing);
+    expect(inEvents(find.text('Clip requested')), findsNothing);
 
-    // After the wait cap, the slow camera's event appears anyway.
+    // After the wait cap, the event appears anyway…
     await tester.pump(CameraRig.pastWait);
     await tester.pumpAndSettle();
-    expect(inEvents(find.text('Back yard')), findsOneWidget);
     expect(inEvents(find.text('Saving previous 15 s…')), findsOneWidget);
 
-    // And becomes playable once its before part arrives.
-    slow.pastCompleters.single.complete(media);
+    // …and becomes playable once its before part arrives.
+    camera.pastCompleters.single.complete(media);
     await tester.pumpAndSettle();
-    expect(inEvents(find.byKey(const Key('clip-play'))), findsNWidgets(2));
+    expect(inEvents(find.byKey(const Key('clip-play'))), findsOneWidget);
     await settleStorage(tester);
   });
 
@@ -227,20 +217,17 @@ void main() {
     expect(inEvents(find.text('Saving previous 60 s…')), findsOneWidget);
   });
 
-  testWidgets('cameras that failed to open are retried on resume', (
+  testWidgets('a camera that failed to open is retried on resume', (
     tester,
   ) async {
-    var opens = 0;
-    final live = FakeCameraSource('Back camera');
-    await pumpApp(tester, (_) async {
-      opens++;
-      return opens == 1
-          ? [UnavailableCameraSource('0', 'Back camera', 'Blocked')]
-          : [live];
-    });
+    final camera = FakeCameraSource('Back camera');
+    final backend = openFakes([camera])..openError = 'Blocked';
+    await pumpApp(tester, backend);
     expect(find.byKey(const Key('preview-Back camera')), findsNothing);
+    expect(find.textContaining('Blocked'), findsOneWidget);
 
     // Background, then foreground again.
+    backend.openError = null;
     for (final state in [
       AppLifecycleState.inactive,
       AppLifecycleState.hidden,
@@ -253,36 +240,65 @@ void main() {
     }
     await tester.pumpAndSettle();
 
-    expect(opens, 2);
+    expect(backend.opened, ['cam-Back camera', 'cam-Back camera']);
     expect(find.byKey(const Key('preview-Back camera')), findsOneWidget);
   });
 
-  testWidgets('permanent camera limits are listed, not retried', (
+  testWidgets('opens only the default (back) camera, with no overlays', (
     tester,
   ) async {
-    var opens = 0;
-    await pumpApp(tester, (_) async {
-      opens++;
-      return [
-        FakeCameraSource('Back camera'),
-        UnavailableCameraSource(
-          '1',
-          'Front camera',
-          "This phone can't run several cameras at once",
-          retryable: false,
-        ),
-      ];
-    });
+    final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
+    final back = FakeCameraSource('Main', facing: CameraFacing.back);
+    final backend = openFakes([front, back]);
+    await pumpApp(tester, backend);
 
-    // The live camera gets the grid; the other is a compact line below.
-    expect(find.byKey(const Key('preview-Back camera')), findsOneWidget);
-    expect(find.byKey(const ValueKey('unavailable-1')), findsOneWidget);
-    expect(find.byType(CameraTile), findsOneWidget);
+    expect(backend.opened, ['cam-Main']);
+    expect(find.byKey(const Key('preview-Main')), findsOneWidget);
+    expect(find.byKey(const Key('preview-Selfie')), findsNothing);
+    // No camera name (or any other text) over the camera.
+    final camera = find.byKey(const Key('camera-page'));
+    expect(
+      find.descendant(of: camera, matching: find.byType(Text)),
+      findsNothing,
+    );
+  });
 
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+  testWidgets('flip switches between back and front cameras', (tester) async {
+    final back = FakeCameraSource('Main', facing: CameraFacing.back);
+    final wide = FakeCameraSource('Wide', facing: CameraFacing.back);
+    final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
+    final backend = openFakes([back, wide, front]);
+    await pumpApp(tester, backend);
+
+    // Beside the Clip button.
+    final flip = tester.getCenter(find.byTooltip('Flip camera'));
+    final clip = tester.getCenter(find.byTooltip('Clip'));
+    expect(flip.dx, lessThan(clip.dx));
+    expect((flip.dy - clip.dy).abs(), lessThan(1));
+
+    await tester.tap(find.byTooltip('Flip camera'));
     await tester.pumpAndSettle();
-    expect(opens, 1);
+    // Back → front, skipping the second back camera; the old one is closed.
+    expect(backend.opened, ['cam-Main', 'cam-Selfie']);
+    expect(back.disposed, isTrue);
+    expect(find.byKey(const Key('preview-Selfie')), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Flip camera'));
+    await tester.pumpAndSettle();
+    expect(backend.opened.last, 'cam-Main');
+
+    // Clips come from the camera being shown.
+    await tester.tap(find.byTooltip('Flip camera'));
+    await tester.pumpAndSettle();
+    await pressClip(tester);
+    expect(front.requests, hasLength(1));
+    expect(inEvents(find.text('Selfie')), findsOneWidget);
+  });
+
+  testWidgets('no flip button with a single camera', (tester) async {
+    await pumpApp(tester, openFakes([FakeCameraSource('Only')]));
+    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byTooltip('Flip camera'), findsNothing);
   });
 
   testWidgets('cameras are released when the app goes away', (tester) async {

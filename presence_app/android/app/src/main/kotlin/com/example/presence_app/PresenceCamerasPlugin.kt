@@ -8,7 +8,6 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.MethodCall
@@ -49,11 +48,19 @@ class PresenceCamerasPlugin(
                 "clipFull" -> reply(result, camera(call)?.clipFull(call.longArg("token"))) { it?.toMap() }
                 "captureFrame" -> reply(result, camera(call)?.captureFrame()) { it }
                 "close" -> {
-                    open.remove(call.argument<String>("id"))?.let { (cam, texture) ->
-                        cam.close()
-                        texture.release()
+                    val entry = open.remove(call.argument<String>("id"))
+                    if (entry == null) {
+                        result.success(null)
+                    } else {
+                        // Reply once the device is really closed: phones allow
+                        // one open camera, and the next open would fail.
+                        entry.first.close().whenComplete { _, _ ->
+                            main.post {
+                                entry.second.release()
+                                result.success(null)
+                            }
+                        }
                     }
-                    result.success(null)
                 }
                 else -> result.notImplemented()
             }
@@ -96,25 +103,15 @@ class PresenceCamerasPlugin(
     private fun granted(permission: String) =
         activity.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
 
-    /**
-     * Every camera, back ones first. Phones that can't run cameras
-     * concurrently (most, and every phone before Android 11) get only the
-     * first one opened; the rest are listed with the reason.
-     */
+    /** Every camera, back ones first (the first is the default). */
     private fun listCameras(): List<Map<String, Any?>> {
         val ids = manager.cameraIdList.sortedBy { facing(it) == CameraMetadata.LENS_FACING_FRONT }
-        val concurrent = if (Build.VERSION.SDK_INT >= 30) {
-            manager.concurrentCameraIds.any { it.size >= ids.size }
-        } else {
-            false
-        }
-        return ids.mapIndexed { i, id ->
+        return ids.map { id ->
             val front = facing(id) == CameraMetadata.LENS_FACING_FRONT
             mapOf(
                 "id" to id,
                 "label" to (if (front) "Front camera" else "Back camera") + if (ids.size > 2) " $id" else "",
-                "available" to (i == 0 || concurrent),
-                "reason" to if (i == 0 || concurrent) null else "Off: this phone runs one camera at a time",
+                "front" to front,
             )
         }
     }

@@ -10,58 +10,92 @@ import '../clips.dart';
 import 'camera_source.dart';
 import 'recorder_pool.dart';
 
-/// Opens every camera the browser exposes, each with a rolling recording.
-Future<List<CameraSource>> openDeviceCameras(
-  Duration Function() preRoll,
-) async {
-  final media = web.window.navigator.mediaDevices;
+/// The browser's cameras, one open at a time, each always recording.
+class DeviceCameras implements CameraBackend {
+  /// Whether microphone permission was granted; recordings then have audio.
+  bool _microphone = false;
 
-  // Browsers hide device labels (and sometimes devices) until the page has
-  // permission, so ask once up front: camera and microphone together, so
-  // there's a single prompt. Without a microphone, record video only.
-  web.MediaStream probe;
-  try {
-    probe = await media
-        .getUserMedia(
-          web.MediaStreamConstraints(video: true.toJS, audio: true.toJS),
-        )
-        .toDart;
-  } catch (_) {
-    probe = await media
-        .getUserMedia(web.MediaStreamConstraints(video: true.toJS))
-        .toDart;
-  }
-  final devices = (await media.enumerateDevices().toDart).toDart
-      .where((d) => d.kind == 'videoinput' && d.deviceId.isNotEmpty)
-      .toList();
-  for (final track in probe.getVideoTracks().toDart) {
-    track.stop();
-  }
-  // Cameras rarely have their own microphone, so every camera records the
-  // default microphone. Each gets its own clone of the track.
-  final microphone = probe.getAudioTracks().toDart.firstOrNull;
-
-  final sources = <CameraSource>[];
-  for (final device in devices) {
-    final label = device.label.trim().isEmpty ? 'Camera' : device.label;
+  @override
+  Future<List<CameraDevice>> listCameras() async {
+    final media = web.window.navigator.mediaDevices;
+    // Browsers hide device labels (and sometimes devices) until the page has
+    // permission, so ask once up front: camera and microphone together, so
+    // there's a single prompt. Without a microphone, record video only.
+    web.MediaStream probe;
     try {
-      final stream = await media
+      probe = await media
           .getUserMedia(
-            web.MediaStreamConstraints(
-              video: web.MediaTrackConstraints(
-                deviceId: {'exact': device.deviceId}.jsify()!,
-              ),
-            ),
+            web.MediaStreamConstraints(video: true.toJS, audio: true.toJS),
           )
           .toDart;
-      if (microphone != null) stream.addTrack(microphone.clone());
-      sources.add(WebCameraSource(device.deviceId, label, stream, preRoll));
-    } catch (e) {
-      sources.add(UnavailableCameraSource(device.deviceId, label, e));
+    } catch (_) {
+      probe = await media
+          .getUserMedia(web.MediaStreamConstraints(video: true.toJS))
+          .toDart;
     }
+    _microphone = probe.getAudioTracks().toDart.isNotEmpty;
+    // The browser's default camera is the one the probe opened: list it first.
+    final defaultId = probe
+        .getVideoTracks()
+        .toDart
+        .firstOrNull
+        ?.getSettings()
+        .deviceId;
+    for (final track in probe.getTracks().toDart) {
+      track.stop();
+    }
+
+    final devices = (await media.enumerateDevices().toDart).toDart
+        .where((d) => d.kind == 'videoinput' && d.deviceId.isNotEmpty)
+        .map(
+          (d) => CameraDevice(
+            id: d.deviceId,
+            label: d.label.trim().isEmpty ? 'Camera' : d.label,
+            facing: _facingFromLabel(d.label),
+          ),
+        )
+        .toList();
+    devices.sort(
+      (a, b) => (a.id == defaultId ? 0 : 1) - (b.id == defaultId ? 0 : 1),
+    );
+    return devices;
   }
-  microphone?.stop();
-  return sources;
+
+  @override
+  Future<CameraSource> open(
+    CameraDevice device,
+    Duration Function() preRoll,
+  ) async {
+    final media = web.window.navigator.mediaDevices;
+    web.MediaStreamConstraints constraints({required bool audio}) =>
+        web.MediaStreamConstraints(
+          video: web.MediaTrackConstraints(
+            deviceId: {'exact': device.id}.jsify()!,
+          ),
+          audio: audio.toJS,
+        );
+    web.MediaStream stream;
+    try {
+      stream = await media.getUserMedia(constraints(audio: _microphone)).toDart;
+    } catch (_) {
+      if (!_microphone) rethrow;
+      // Microphone busy or gone: record video only.
+      stream = await media.getUserMedia(constraints(audio: false)).toDart;
+    }
+    return WebCameraSource(device.id, device.label, stream, preRoll);
+  }
+
+  /// Browsers don't say which way a camera faces, but labels often do.
+  static CameraFacing _facingFromLabel(String label) {
+    final l = label.toLowerCase();
+    if (l.contains('front') || l.contains('user') || l.contains('facetime')) {
+      return CameraFacing.front;
+    }
+    if (l.contains('back') || l.contains('rear') || l.contains('environment')) {
+      return CameraFacing.back;
+    }
+    return CameraFacing.unknown;
+  }
 }
 
 /// Recording format for a stream, cheapest to encode first: each camera runs
@@ -179,7 +213,7 @@ class WebCameraSource implements CameraSource {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     _ticker.cancel();
     for (final t in _releaseTimers) {
       t.cancel();

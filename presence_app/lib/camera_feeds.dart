@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import 'cameras/cameras.dart';
@@ -8,98 +6,141 @@ import 'events.dart';
 import 'settings.dart';
 import 'theme.dart';
 
-/// The open cameras. Owned by the app so cameras (and their rolling
-/// recordings) stay open across rebuilds.
+/// The camera being shown and recorded: one at a time, starting with the
+/// device's default camera, switchable with [flip]. Owned by the app so the
+/// camera (and its rolling recording) stays open across rebuilds.
 class CameraRig extends ChangeNotifier {
-  CameraRig({required this._open, required this.settings}) {
+  CameraRig({required this._backend, required this.settings}) {
     // Android refuses cameras while the screen is off or the app is in the
-    // background: when the app comes back, reopen any that failed.
+    // background: when the app comes back, reopen the camera if it failed.
     _lifecycle = AppLifecycleListener(onResume: _retryFailed);
   }
 
   late final AppLifecycleListener _lifecycle;
 
-  final CameraOpener _open;
+  final CameraBackend _backend;
   final ClipSettings settings;
 
-  List<CameraSource>? _sources;
+  List<CameraDevice> _devices = const [];
+  CameraDevice? _current;
+  CameraSource? _active;
   Object? _error;
+  bool _busy = true;
   bool _disposed = false;
 
-  /// Null while loading.
-  List<CameraSource>? get sources => _sources;
+  /// Every camera the device has.
+  List<CameraDevice> get devices => _devices;
+
+  /// The camera selected for display (open, opening, or failed to open).
+  CameraDevice? get current => _current;
+
+  /// The open camera, or null while opening or after a failure.
+  CameraSource? get active => _active;
+
   Object? get error => _error;
 
-  bool get canClip =>
-      _sources?.any((s) => s is! UnavailableCameraSource) ?? false;
+  /// True while listing, opening or switching cameras.
+  bool get busy => _busy;
 
+  bool get canClip => _active != null && !_busy;
+
+  bool get canFlip => _devices.length > 1 && !_busy;
+
+  /// Lists the cameras and opens the default one: the first back camera, or
+  /// else the first camera (on web, the browser's default).
   Future<void> load() async {
-    _closeSources();
-    _sources = null;
-    _error = null;
-    notifyListeners();
+    await _closeActive();
+    _set(busy: true, error: null);
     try {
-      final sources = await _open(() => settings.before);
-      if (_disposed) {
-        for (final s in sources) {
-          s.dispose();
-        }
+      _devices = await _backend.listCameras();
+    } catch (e) {
+      _devices = const [];
+      _current = null;
+      if (!_disposed) _set(busy: false, error: e);
+      return;
+    }
+    if (_disposed) return;
+    _current = _devices.isEmpty
+        ? null
+        : _devices.firstWhere(
+            (d) => d.facing == CameraFacing.back,
+            orElse: () => _devices.first,
+          );
+    await _openCurrent();
+  }
+
+  /// Switches to the next camera: the other facing where the device knows
+  /// it (back ↔ front), otherwise the next one in the list.
+  Future<void> flip() async {
+    final current = _current;
+    if (!canFlip || current == null) return;
+    final start = _devices.indexOf(current);
+    final ordered = [
+      for (var i = 1; i < _devices.length; i++)
+        _devices[(start + i) % _devices.length],
+    ];
+    _current = current.facing == CameraFacing.unknown
+        ? ordered.first
+        : ordered.firstWhere(
+            (d) => d.facing != current.facing,
+            orElse: () => ordered.first,
+          );
+    await _closeActive();
+    await _openCurrent();
+  }
+
+  Future<void> _openCurrent() async {
+    final device = _current;
+    if (device == null) {
+      _set(busy: false, error: null);
+      return;
+    }
+    _set(busy: true, error: null);
+    try {
+      final source = await _backend.open(device, () => settings.before);
+      if (_disposed || _current != device) {
+        await source.dispose();
         return;
       }
-      _sources = sources;
+      _active = source;
+      _set(busy: false, error: null);
     } catch (e) {
-      if (_disposed) return;
-      _error = e;
+      if (!_disposed) _set(busy: false, error: e);
     }
+  }
+
+  Future<void> _closeActive() async {
+    final source = _active;
+    _active = null;
+    if (source != null) {
+      notifyListeners();
+      await source.dispose();
+    }
+  }
+
+  void _set({required bool busy, required Object? error}) {
+    _busy = busy;
+    _error = error;
     notifyListeners();
   }
 
-  /// How long a Clip press waits for a camera's "before" recording before
+  /// How long a Clip press waits for the camera's "before" recording before
   /// publishing its event anyway (it then becomes playable when it arrives).
   static const Duration pastWait = Duration(seconds: 2);
 
-  /// Starts a clip on every camera and publishes a [ClipRequested] event for
-  /// each, with the camera's current frame as its thumbnail.
+  /// Starts a clip on the open camera and publishes a [ClipRequested] event,
+  /// with the camera's current frame as its thumbnail.
   ///
-  /// Each event is published once its camera's "before" recording is ready
-  /// (normally a few milliseconds), so the event is playable the moment it
-  /// appears. The same event is later updated with the full clip.
+  /// The event is published once the "before" recording is ready (normally
+  /// a few milliseconds), so it's playable the moment it appears. The same
+  /// event is later updated with the full clip.
   Future<void> requestClips(AppEventBus bus) async {
+    final camera = _active;
+    if (camera == null) return;
     final before = settings.before;
     final after = settings.after;
-    final cameras = (_sources ?? const <CameraSource>[])
-        .where((s) => s is! UnavailableCameraSource)
-        .toList();
-
-    // Start every clip before anything slower, so they share one moment.
     final requestedAt = DateTime.now();
-    final captures = [
-      for (final camera in cameras)
-        camera.requestClip(before: before, after: after),
-    ];
-
-    // Cameras publish independently: a slow one doesn't hold up the others.
-    await Future.wait([
-      for (final (i, camera) in cameras.indexed)
-        _publishWhenPlayable(
-          bus,
-          camera,
-          captures[i],
-          requestedAt: requestedAt,
-          before: before,
-          after: after,
-        ),
-    ]);
-  }
-
-  Future<void> _publishWhenPlayable(
-    AppEventBus bus,
-    CameraSource camera,
-    ClipCapture capture, {
-    required DateTime requestedAt,
-    required Duration before,
-    required Duration after,
-  }) async {
+    final capture = camera.requestClip(before: before, after: after);
     final (thumbnail, past) = await (
       camera.captureFrame(),
       capture.past
@@ -124,30 +165,28 @@ class CameraRig extends ChangeNotifier {
   }
 
   void _retryFailed() {
-    final sources = _sources;
-    final failed =
-        _error != null ||
-        (sources?.any((s) => s is UnavailableCameraSource && s.retryable) ??
-            false);
-    if (failed) load();
-  }
-
-  void _closeSources() {
-    for (final s in _sources ?? const <CameraSource>[]) {
-      s.dispose();
+    if (_error == null || _busy) return;
+    if (_devices.isEmpty) {
+      load();
+    } else {
+      _openCurrent();
     }
   }
+
+  /// Retries after a failure: reopens the selected camera, or relists.
+  Future<void> retry() => _devices.isEmpty ? load() : _openCurrent();
 
   @override
   void dispose() {
     _disposed = true;
     _lifecycle.dispose();
-    _closeSources();
+    _active?.dispose();
+    _active = null;
     super.dispose();
   }
 }
 
-/// Shows every open camera in a grid.
+/// The open camera, full screen and without overlays.
 class CameraFeedsView extends StatelessWidget {
   const CameraFeedsView({super.key, required this.rig});
 
@@ -155,172 +194,39 @@ class CameraFeedsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: rig,
-      builder: (context, _) {
-        final error = rig.error;
-        if (error != null) {
-          return FeedMessage(
-            icon: Icons.error_outline,
-            message: 'Could not access cameras\n${describeCameraError(error)}',
-            action: TextButton(onPressed: rig.load, child: const Text('Retry')),
-          );
-        }
-        final sources = rig.sources;
-        if (sources == null) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (sources.isEmpty) {
+    return ColoredBox(
+      color: Gruvbox.bg0Hard,
+      child: ListenableBuilder(
+        listenable: rig,
+        builder: (context, _) {
+          final active = rig.active;
+          if (active != null) {
+            return SizedBox.expand(
+              key: ObjectKey(active),
+              child: active.buildPreview(context),
+            );
+          }
+          final error = rig.error;
+          if (error != null) {
+            return FeedMessage(
+              icon: Icons.error_outline,
+              message:
+                  'Could not open the camera\n${describeCameraError(error)}',
+              action: TextButton(
+                onPressed: rig.retry,
+                child: const Text('Retry'),
+              ),
+            );
+          }
+          if (rig.busy) {
+            return const Center(child: CircularProgressIndicator());
+          }
           return FeedMessage(
             icon: Icons.videocam_off_outlined,
-            message: 'No camera feeds',
+            message: 'No camera found',
             action: TextButton(onPressed: rig.load, child: const Text('Retry')),
           );
-        }
-        return _CameraGrid(sources: sources);
-      },
-    );
-  }
-}
-
-/// Live cameras fill the grid. Cameras that couldn't open are listed in a
-/// compact line below, unless none opened (then their errors fill the grid).
-class _CameraGrid extends StatelessWidget {
-  const _CameraGrid({required this.sources});
-
-  final List<CameraSource> sources;
-
-  @override
-  Widget build(BuildContext context) {
-    final live = sources.where((s) => s is! UnavailableCameraSource).toList();
-    final unavailable = sources.whereType<UnavailableCameraSource>().toList();
-    if (live.isEmpty || unavailable.isEmpty) return _Grid(sources: sources);
-    // One line per reason: "Back camera 2, Front camera 1: …".
-    final byReason = <String, List<UnavailableCameraSource>>{};
-    for (final camera in unavailable) {
-      byReason
-          .putIfAbsent(describeCameraError(camera.error), () => [])
-          .add(camera);
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(child: _Grid(sources: live)),
-        for (final MapEntry(key: reason, value: cameras) in byReason.entries)
-          Padding(
-            // Clear of the Clip button in the bottom-right corner.
-            padding: const EdgeInsets.fromLTRB(12, 8, 136, 8),
-            child: Text(
-              '${cameras.map((c) => c.label).join(', ')}: $reason',
-              key: ValueKey('unavailable-${cameras.first.id}'),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Grid extends StatelessWidget {
-  const _Grid({required this.sources});
-
-  final List<CameraSource> sources;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = math.sqrt(sources.length).ceil();
-        final rows = (sources.length / columns).ceil();
-        // Full screen: edge to edge, with hairline gaps between cameras.
-        const spacing = 2.0;
-        final tileWidth =
-            (constraints.maxWidth - spacing * (columns - 1)) / columns;
-        final tileHeight =
-            (constraints.maxHeight - spacing * (rows - 1)) / rows;
-        return GridView.count(
-          padding: EdgeInsets.zero,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: columns,
-          mainAxisSpacing: spacing,
-          crossAxisSpacing: spacing,
-          childAspectRatio: tileHeight > 0 ? tileWidth / tileHeight : 16 / 9,
-          children: [
-            for (final source in sources)
-              CameraTile(key: ObjectKey(source), source: source),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// A single live camera feed.
-class CameraTile extends StatelessWidget {
-  const CameraTile({super.key, required this.source});
-
-  final CameraSource source;
-
-  @override
-  Widget build(BuildContext context) {
-    final src = source;
-    return ClipRect(
-      child: ColoredBox(
-        color: Gruvbox.bg0Hard,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            if (src is UnavailableCameraSource)
-              // Tiles can be small (phones): shrink the message to fit.
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: SizedBox(
-                    width: 200,
-                    child: FeedMessage(
-                      icon: Icons.videocam_off_outlined,
-                      message: describeCameraError(src.error),
-                    ),
-                  ),
-                ),
-              )
-            else
-              src.buildPreview(context),
-            Positioned(
-              left: 8,
-              bottom: 8,
-              child: _CameraLabel(text: src.label),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CameraLabel extends StatelessWidget {
-  const _CameraLabel({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: Gruvbox.bg0.withValues(alpha: 0.75),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        child: Text(
-          text,
-          style: const TextStyle(color: Gruvbox.fg, fontSize: 12),
-        ),
+        },
       ),
     );
   }

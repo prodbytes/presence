@@ -15,10 +15,10 @@ void main() {
 }
 
 class PresenceApp extends StatefulWidget {
-  const PresenceApp({super.key, this.openCameras, this.storage, this.mediaIo});
+  const PresenceApp({super.key, this.cameras, this.storage, this.mediaIo});
 
-  /// Overrides camera access (used by tests); defaults to all device cameras.
-  final CameraOpener? openCameras;
+  /// Overrides camera access (used by tests); defaults to the device's.
+  final CameraBackend? cameras;
 
   /// Where app data is saved (used by tests); defaults to IndexedDB on web.
   final IdbFactory? storage;
@@ -58,7 +58,7 @@ class _PresenceAppState extends State<PresenceApp> {
     );
     _bus.publish(AppEvent.appStarted());
     _rig = CameraRig(
-      open: widget.openCameras ?? openDeviceCameras,
+      backend: widget.cameras ?? DeviceCameras(),
       settings: _settings,
     )..load();
     _persistence
@@ -242,15 +242,31 @@ class _HomeScreenState extends State<HomeScreen>
       floatingActionButton: _onCamera
           ? ListenableBuilder(
               listenable: widget.rig,
-              // Hidden, not disabled, when there's nothing to clip.
-              builder: (context, _) => widget.rig.canClip
-                  ? FloatingActionButton.extended(
+              // Each button is hidden, not disabled, when it can't act.
+              builder: (context, _) => Row(
+                mainAxisSize: MainAxisSize.min,
+                spacing: 12,
+                children: [
+                  if (widget.rig.devices.length > 1)
+                    FloatingActionButton(
+                      heroTag: 'flip-camera',
+                      tooltip: 'Flip camera',
+                      // Secondary action: quieter than Clip.
+                      backgroundColor: scheme.surfaceContainerHigh,
+                      foregroundColor: scheme.onSurface,
+                      onPressed: widget.rig.canFlip ? widget.rig.flip : null,
+                      child: const Icon(Icons.cameraswitch),
+                    ),
+                  if (widget.rig.canClip)
+                    FloatingActionButton.extended(
+                      heroTag: 'clip',
                       tooltip: 'Clip',
                       icon: const Icon(Icons.camera),
                       label: const Text('Clip'),
                       onPressed: _clip,
-                    )
-                  : const SizedBox.shrink(),
+                    ),
+                ],
+              ),
             )
           : null,
     );
