@@ -292,3 +292,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     only after a clip, or the restored motion cooldown after a reload.
     Verified in Chrome (Ready, then 4:48 → 4:28 → 4:22 across a reload,
     matching the 19:11:33 event) and on the S40 (Ready on launch).
+70. **Pressing Clip starts a 15 s countdown. That's not right: only
+    automatic triggers (detections) should start the countdown.**
+    (2026-09-25) Removed the readiness pill's "saving" state. A Clip press
+    now leaves the pill as it is (Ready, or the running motion cooldown);
+    only motion clips start a countdown. The snackbar still says the clip
+    is saving.
