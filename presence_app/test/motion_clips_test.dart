@@ -4,7 +4,7 @@ import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/events.dart';
-import 'package:presence_app/settings.dart';
+import 'package:presence_app/config.dart';
 
 import 'fakes.dart';
 import 'motion_test.dart' show frame;
@@ -20,7 +20,7 @@ void main() {
   );
 
   late DateTime now;
-  late ClipSettings settings;
+  late ConfigController config;
   late AppEventBus bus;
   late List<ClipRequested> clips;
   late FakeCameraSource camera;
@@ -28,7 +28,7 @@ void main() {
 
   setUp(() async {
     now = DateTime(2026, 9, 25, 12);
-    settings = ClipSettings();
+    config = ConfigController();
     bus = AppEventBus();
     clips = [];
     bus.stream.listen((e) {
@@ -37,7 +37,7 @@ void main() {
     camera = FakeCameraSource('Main', immediatePast: media);
     rig = CameraRig(
       backend: openFakes([camera]),
-      settings: settings,
+      config: config,
       bus: bus,
       now: () => now,
     );
@@ -79,13 +79,13 @@ void main() {
     expect(clips.single.trigger, ClipTrigger.motion);
     expect(clips.single.title, 'Motion detected');
     // Same clip as a manual one: this camera, the configured window.
-    expect(camera.requests.single.before, settings.before);
-    expect(camera.requests.single.after, settings.after);
+    expect(camera.requests.single.before, config.clip.before);
+    expect(camera.requests.single.after, config.clip.after);
     expect(clips.single.clip.playable, isTrue);
   });
 
   test('motion below the threshold does nothing', () async {
-    settings.motionThreshold = 40;
+    config.update((c) => c.copyWith(motion: c.motion.copyWith(threshold: 40)));
     await settle();
     await send(movement(5)); // at most 37.5 % < 40 %
     expect(clips, isEmpty);
@@ -114,7 +114,11 @@ void main() {
   });
 
   test('the cooldown is configurable', () async {
-    settings.motionCooldown = const Duration(minutes: 1);
+    config.update(
+      (c) => c.copyWith(
+        motion: c.motion.copyWith(cooldown: const Duration(minutes: 1)),
+      ),
+    );
     await settle();
     await send(movement(4));
     now = now.add(const Duration(minutes: 1, seconds: 1));
@@ -134,7 +138,7 @@ void main() {
   });
 
   test('turned off, motion never clips', () async {
-    settings.motionEnabled = false;
+    config.update((c) => c.copyWith(motion: c.motion.copyWith(enabled: false)));
     await settle();
     await send(movement(10));
     expect(clips, isEmpty);

@@ -237,6 +237,36 @@ requested", and its stored event has `trigger: "motion"`.
     falls back to preview + recording only, and motion is unavailable for
     that camera.
 
+### Configuration
+
+All user configuration is one immutable object, **`PresenceConfig`**
+([lib/config.dart](../presence_app/lib/config.dart)), grouped by area:
+
+| Group | Values (default, range) |
+|---|---|
+| `clip` (`ClipConfig`) | `before` (15 s, 5–60 s, 5 s steps), `after` (15 s, 5–60 s) |
+| `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps) |
+| `motion` (`MotionConfig`) | `enabled` (on), `threshold` (10 %, 1–50 %), `cooldown` (5 min, 1–60 min) |
+
+- Each group owns its defaults and limits. `copyWith` clamps values into
+  range. Groups and the whole config have value equality.
+- **`ConfigController`** (a `ChangeNotifier`, owned by the app) holds the
+  current config. Change it with `update((c) => c.copyWith(…))`; it
+  notifies only on real changes. The Settings screen, the camera rig
+  (clip windows, brightness, motion), motion detection and persistence all
+  read it.
+- Settings controls apply each change to the **current** config at call
+  time. Two changes before the next rebuild (for example, quick successive
+  drags) both stick.
+- **Stored** as one versioned JSON record (`settings` store, key
+  `config`: `{version, clip, camera, motion}`). `fromJson` tolerates
+  missing or invalid fields (defaults) and out-of-range values (clamped).
+  On upgrade, the flat `clip` settings record written by earlier versions is
+  read once, through `PresenceConfig.fromLegacy`.
+- Internal tuning constants (the motion pixel threshold, the 2 s wait cap
+  for the before part, 3 frames to trigger, frame sizes) remain code
+  constants, not user configuration.
+
 ### Settings screen
 
 - The **Settings** tab.
@@ -259,9 +289,9 @@ requested", and its stored event has `trigger: "motion"`.
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
-- **All settings are persistent:** clip lengths, brightness, and the motion
-  switch, threshold and cooldown (`ClipSettings`). They're saved to local
-  storage on every change and restored on launch.
+- **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
+  brightness, and the motion switch, threshold and cooldown) is saved to
+  local storage on every change and restored on launch.
 
 ## Storage
 
@@ -294,7 +324,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
-| `settings` | name (`clip`) | before/after lengths, brightness, motion switch/threshold/cooldown |
+| `settings` | name (`config`) | the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade) |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The

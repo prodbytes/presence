@@ -7,7 +7,7 @@ import 'cameras/cameras.dart';
 import 'clips.dart';
 import 'events.dart';
 import 'motion.dart';
-import 'settings.dart';
+import 'config.dart';
 import 'theme.dart';
 
 /// Whether a clip taken now would be complete, shown beside the Clip button.
@@ -58,12 +58,12 @@ class ClipReadiness {
 class CameraRig extends ChangeNotifier {
   CameraRig({
     required this._backend,
-    required this.settings,
+    required this.config,
     this.bus,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        _motion = MotionDetector(now: now) {
-    settings.addListener(_applyBrightness);
+    config.addListener(_applyBrightness);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
     _lifecycle = AppLifecycleListener(onResume: _retryFailed);
@@ -72,7 +72,7 @@ class CameraRig extends ChangeNotifier {
   late final AppLifecycleListener _lifecycle;
 
   final CameraBackend _backend;
-  final ClipSettings settings;
+  final ConfigController config;
 
   /// Where automatic (motion) clips are published.
   final AppEventBus? bus;
@@ -123,7 +123,7 @@ class CameraRig extends ChangeNotifier {
       );
     }
     final buffered = now.difference(opened);
-    final needed = settings.before;
+    final needed = config.clip.before;
     if (buffered < needed) {
       return ClipReadiness(
         ClipReadinessState.buffering,
@@ -143,8 +143,8 @@ class CameraRig extends ChangeNotifier {
   /// clips are off). Both the readiness countdown and the trigger use this.
   DateTime? get motionCooldownEnds {
     final last = _lastMotionClip;
-    if (last == null || !settings.motionEnabled) return null;
-    final ends = last.add(settings.motionCooldown);
+    if (last == null || !config.motion.enabled) return null;
+    final ends = last.add(config.motion.cooldown);
     return _now().isBefore(ends) ? ends : null;
   }
 
@@ -235,7 +235,7 @@ class CameraRig extends ChangeNotifier {
     }
     _set(busy: true, error: null);
     try {
-      final source = await _backend.open(device, () => settings.before);
+      final source = await _backend.open(device, () => config.clip.before);
       if (_disposed || _current != device) {
         await source.dispose();
         return;
@@ -256,7 +256,7 @@ class CameraRig extends ChangeNotifier {
   /// Sends the brightness setting to the open camera when it changes.
   void _applyBrightness() {
     final source = _active;
-    final ev = settings.brightness;
+    final ev = config.camera.brightness;
     if (source == null || ev == _appliedBrightness) return;
     _appliedBrightness = ev;
     source.setBrightness(ev).ignore();
@@ -273,11 +273,11 @@ class CameraRig extends ChangeNotifier {
   void _onMotionFrame(Uint8List luma) {
     final score = _motion.add(luma);
     motionLevel.value = score;
-    if (score == null || !settings.motionEnabled) {
+    if (score == null || !config.motion.enabled) {
       _framesOverThreshold = 0;
       return;
     }
-    _framesOverThreshold = score >= settings.motionThreshold
+    _framesOverThreshold = score >= config.motion.threshold
         ? _framesOverThreshold + 1
         : 0;
     if (_framesOverThreshold < motionFramesToTrigger) return;
@@ -332,8 +332,8 @@ class CameraRig extends ChangeNotifier {
   }) async {
     final camera = _active;
     if (camera == null) return;
-    final before = settings.before;
-    final after = settings.after;
+    final before = config.clip.before;
+    final after = config.clip.after;
     final requestedAt = _now();
     final capture = camera.requestClip(before: before, after: after);
     final (thumbnail, past) = await (
@@ -379,7 +379,7 @@ class CameraRig extends ChangeNotifier {
     _latestClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();
-    settings.removeListener(_applyBrightness);
+    config.removeListener(_applyBrightness);
     _lifecycle.dispose();
     _active?.dispose();
     _active = null;

@@ -5,7 +5,7 @@ import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
-import 'package:presence_app/settings.dart';
+import 'package:presence_app/config.dart';
 
 import 'fakes.dart';
 import 'motion_test.dart' show frame;
@@ -36,7 +36,7 @@ void main() {
       );
       rig = CameraRig(
         backend: openFakes([back, front]),
-        settings: ClipSettings(),
+        config: ConfigController(),
         bus: bus,
         now: () => now,
       );
@@ -178,7 +178,9 @@ void main() {
       await motionClip();
       back.fullCompleters.single.complete(media);
       await Future<void>.delayed(Duration.zero);
-      rig.settings.motionEnabled = false;
+      rig.config.update(
+        (c) => c.copyWith(motion: c.motion.copyWith(enabled: false)),
+      );
       expect(rig.readiness.state, ClipReadinessState.ready);
     });
 
@@ -192,7 +194,11 @@ void main() {
     test('raising "before" needs more history', () {
       now = now.add(const Duration(seconds: 20));
       expect(rig.readiness.state, ClipReadinessState.ready);
-      rig.settings.before = const Duration(seconds: 30);
+      rig.config.update(
+        (c) => c.copyWith(
+          clip: c.clip.copyWith(before: const Duration(seconds: 30)),
+        ),
+      );
       expect(rig.readiness.state, ClipReadinessState.buffering);
       expect(rig.readiness.remaining, const Duration(seconds: 10));
     });
