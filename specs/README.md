@@ -101,20 +101,29 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 
 Pressing **Clip** records a clip from **every** open camera at once:
 
-1. For each camera, the app publishes a **`ClipRequested`** event on the bus.
-   Its card shows the camera's current frame as a thumbnail, the camera name,
-   the time, and a status line.
-2. The **previous 15 s** (the "before" part) are saved almost at once and are
-   playable immediately. Status: "Previous 15 s ready · recording next 15 s…".
-3. Once the **next 15 s** (the "after" part) have been recorded, the whole
-   clip is saved as one continuous 30 s recording. Status: "30 s clip ready".
-4. Tapping a playable card opens the player. It plays the before part first,
+1. For each camera, the app publishes a **`ClipRequested`** event on the bus
+   once that camera's **previous 15 s** (the "before" part) are recorded,
+   normally within milliseconds. So the event is **playable the moment it
+   appears**. Its card shows the camera's current frame as a thumbnail, the
+   camera name, the time, and a status line: "Previous 15 s ready ·
+   recording next 15 s…".
+   - Cameras publish independently: a slow camera doesn't hold up the
+     others.
+   - If a camera's before part takes longer than 2 s (`CameraRig.pastWait`),
+     its event is published anyway ("Saving previous 15 s…") and becomes
+     playable when the before part arrives.
+2. Once the **next 15 s** (the "after" part) have been recorded, **the same
+   event is updated with the full clip**, one continuous 30 s recording. No
+   new event is added. The card updates in place ("30 s clip ready"), and the
+   stored event record changes from `clipState: partial` to
+   `clipState: complete`.
+3. Tapping a playable card opens the player. It plays the before part first,
    then continues into the full clip at the moment of the press, so a clip
    always plays **before + after = 30 s** by default. If the after part isn't
    recorded yet when the before part ends, the player waits ("Recording the
    next 15 s…") and continues as soon as it's ready. Seeking is kept inside
    the clip window, and replaying after the end starts from the beginning.
-5. **Playback has audio.** The player is never muted. If the browser blocks
+4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap
    on play starts it with audio.
 
@@ -180,7 +189,7 @@ with the mapping in
 | Store | Key | Holds |
 |-------|-----|-------|
 | `cameras` | `id` (the browser's device ID) | label, last seen |
-| `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, and for clips the clip ID |
+| `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
 | `settings` | name (`clip`) | before/after lengths |
@@ -197,8 +206,9 @@ its data is cleared.
 2. The before part is saved as soon as it exists, so it survives a refresh
    during the after part.
 3. When the full clip exists, it's saved, and the before-only file is
-   deleted in the same transaction (the full clip contains it). State
-   becomes `complete`.
+   deleted in the same transaction (the full clip contains it). The clip's
+   state becomes `complete`, and the event record is updated to
+   `clipState: complete`.
 4. If saving fails (for example, storage is full), the clip card says "not
    saved" with the reason. The clip still plays for the rest of the session.
 

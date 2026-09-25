@@ -126,3 +126,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     catch it, because there the shift is 64-bit. Fixed with a literal
     `0xFFFFFFFF`, rebuilt the server, and confirmed the browser console is
     clean and the app renders.
+34. **Make the clip playable the moment its event appears, and update the
+    event with the full clip once the next segment is captured.** Clip now
+    publishes each camera's `ClipRequested` once its before part is ready
+    (capped at 2 s, per camera), so the event starts out playable. When the
+    full clip arrives, the same event is updated in place and in storage
+    (`clipState: complete`).

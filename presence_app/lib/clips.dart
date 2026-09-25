@@ -15,23 +15,29 @@ class VideoClip extends ChangeNotifier {
     required this.before,
     required this.after,
     required ClipCapture this.capture,
+    this.past,
     this.thumbnail,
     this.supported = true,
     String? id,
   }) : id = id ?? AppEvent.newId(),
-       interrupted = false {
-    capture!.past.then(
-      (media) {
-        past = media;
-        pastDone = true;
-        notifyListeners();
-      },
-      onError: (Object e) {
-        pastDone = true;
-        error = e;
-        notifyListeners();
-      },
-    );
+       interrupted = false,
+       pastDone = past != null {
+    // [past] is passed in when it's already recorded, so the clip is
+    // playable from the start; otherwise it arrives later.
+    if (past == null) {
+      capture!.past.then(
+        (media) {
+          past = media;
+          pastDone = true;
+          notifyListeners();
+        },
+        onError: (Object e) {
+          pastDone = true;
+          error = e;
+          notifyListeners();
+        },
+      );
+    }
     capture!.full.then(
       (media) {
         full = media;
@@ -84,7 +90,7 @@ class VideoClip extends ChangeNotifier {
 
   ClipMedia? past;
   ClipMedia? full;
-  bool pastDone = false;
+  bool pastDone;
   bool fullDone = false;
   Object? error;
 
@@ -139,8 +145,16 @@ class ClipRequested extends AppEvent {
 
   final VideoClip clip;
 
+  /// `partial` while only the "before" part exists, `complete` once the
+  /// event has been updated with the full clip.
+  String get clipState => clip.full != null ? 'complete' : 'partial';
+
   @override
-  Map<String, Object?> toRecord() => {...super.toRecord(), 'clipId': clip.id};
+  Map<String, Object?> toRecord() => {
+    ...super.toRecord(),
+    'clipId': clip.id,
+    'clipState': clipState,
+  };
 
   @override
   Widget buildCard(BuildContext context) => ClipEventCard(event: this);

@@ -49,8 +49,16 @@ class CameraRig extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// How long a Clip press waits for a camera's "before" recording before
+  /// publishing its event anyway (it then becomes playable when it arrives).
+  static const Duration pastWait = Duration(seconds: 2);
+
   /// Starts a clip on every camera and publishes a [ClipRequested] event for
   /// each, with the camera's current frame as its thumbnail.
+  ///
+  /// Each event is published once its camera's "before" recording is ready
+  /// (normally a few milliseconds), so the event is playable the moment it
+  /// appears. The same event is later updated with the full clip.
   Future<void> requestClips(AppEventBus bus) async {
     final before = settings.before;
     final after = settings.after;
@@ -64,24 +72,50 @@ class CameraRig extends ChangeNotifier {
       for (final camera in cameras)
         camera.requestClip(before: before, after: after),
     ];
-    final frames = await Future.wait(cameras.map((c) => c.captureFrame()));
 
-    for (final (i, camera) in cameras.indexed) {
-      bus.publish(
-        ClipRequested(
-          VideoClip(
-            cameraId: camera.id,
-            cameraLabel: camera.label,
-            before: before,
-            after: after,
-            capture: captures[i],
-            thumbnail: frames[i],
-            supported: camera.supportsVideo,
-          ),
-          time: requestedAt,
+    // Cameras publish independently: a slow one doesn't hold up the others.
+    await Future.wait([
+      for (final (i, camera) in cameras.indexed)
+        _publishWhenPlayable(
+          bus,
+          camera,
+          captures[i],
+          requestedAt: requestedAt,
+          before: before,
+          after: after,
         ),
-      );
-    }
+    ]);
+  }
+
+  Future<void> _publishWhenPlayable(
+    AppEventBus bus,
+    CameraSource camera,
+    ClipCapture capture, {
+    required DateTime requestedAt,
+    required Duration before,
+    required Duration after,
+  }) async {
+    final (thumbnail, past) = await (
+      camera.captureFrame(),
+      capture.past
+          .timeout(pastWait, onTimeout: () => null)
+          .then<ClipMedia?>((m) => m, onError: (Object _) => null),
+    ).wait;
+    bus.publish(
+      ClipRequested(
+        VideoClip(
+          cameraId: camera.id,
+          cameraLabel: camera.label,
+          before: before,
+          after: after,
+          capture: capture,
+          past: past,
+          thumbnail: thumbnail,
+          supported: camera.supportsVideo,
+        ),
+        time: requestedAt,
+      ),
+    );
   }
 
   void _closeSources() {
