@@ -9,11 +9,16 @@ import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'fakes.dart';
+import 'motion_test.dart' show frame;
 
 void main() {
   late IdbFactory storage;
 
   setUp(() => storage = newIdbFactoryMemory());
+
+  // The clock the app sees; tests may move it.
+  late DateTime clock;
+  setUp(() => clock = DateTime(2026, 9, 25, 12));
 
   Future<void> launch(
     WidgetTester tester, {
@@ -29,6 +34,7 @@ void main() {
         cameras: openFakes(cameras),
         storage: storage,
         mediaIo: fakeMediaIo,
+        now: () => clock,
       ),
     );
     await tester.pumpAndSettle();
@@ -286,6 +292,60 @@ void main() {
     expect(find.text('22 % of the picture'), findsOneWidget);
     expect(find.text('12 min'), findsOneWidget);
   });
+
+  testWidgets(
+    'the motion cooldown survives a restart, with its exact countdown',
+    (tester) async {
+      Future<void> frames(FakeCameraSource camera, List<dynamic> list) async {
+        for (final f in list) {
+          clock = clock.add(const Duration(milliseconds: 200));
+          camera.motion.add(f);
+          await tester.pump();
+        }
+        await tester.pump(const Duration(milliseconds: 600));
+      }
+
+      var step = 0;
+      List<dynamic> movement() => [
+        for (var i = 0; i < 4; i++)
+          frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
+      ];
+      const media = ClipMedia(
+        url: 'blob:m',
+        start: Duration.zero,
+        end: Duration(seconds: 15),
+      );
+
+      var camera = FakeCameraSource('Main', immediatePast: media);
+      await launch(tester, cameras: [camera]);
+      await frames(camera, List.filled(20, frame())); // warm-up
+      await frames(camera, movement());
+      final triggeredAt = clock.subtract(const Duration(milliseconds: 200));
+      expect(camera.fullCompleters, hasLength(1), reason: 'motion clip taken');
+      camera.fullCompleters.single.complete(media);
+      await settleStorage(tester);
+
+      // Two minutes later, the app restarts.
+      clock = triggeredAt.add(const Duration(minutes: 2));
+      camera = FakeCameraSource('Main', immediatePast: media);
+      await refresh(tester, cameras: [camera]);
+      await tester.pump(const Duration(milliseconds: 600));
+
+      // The pill shows exactly what's left of the 5-minute cooldown.
+      expect(find.text('3:00'), findsOneWidget);
+
+      // Motion stays blocked until the cooldown ends…
+      await frames(camera, List.filled(20, frame()));
+      await frames(camera, movement());
+      expect(camera.fullCompleters, isEmpty);
+
+      // …and clips again once it has.
+      clock = triggeredAt.add(const Duration(minutes: 5));
+      await frames(camera, movement());
+      expect(camera.fullCompleters, hasLength(1));
+      await settleStorage(tester);
+    },
+  );
 
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);
