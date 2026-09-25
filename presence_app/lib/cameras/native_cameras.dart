@@ -13,52 +13,43 @@ import 'camera_source.dart';
 /// from it as MP4 files.
 const _channel = MethodChannel('presence/cameras');
 
-/// Opens every camera the phone can run at once. Phones that can't run
-/// several cameras together get the first one, and the rest are listed as
-/// unavailable, with the reason.
-Future<List<CameraSource>> openDeviceCameras(
-  Duration Function() preRoll,
-) async {
-  final permissions = Map<String, Object?>.from(
-    await _channel.invokeMethod<Map<Object?, Object?>>('requestPermissions') ??
-        const {},
-  );
-  if (permissions['camera'] != true) {
-    throw const CameraAccessDenied();
+/// The phone's cameras, one open at a time (most phones can't run two),
+/// each always recording.
+class DeviceCameras implements CameraBackend {
+  @override
+  Future<List<CameraDevice>> listCameras() async {
+    final permissions = Map<String, Object?>.from(
+      await _channel.invokeMethod<Map<Object?, Object?>>(
+            'requestPermissions',
+          ) ??
+          const {},
+    );
+    if (permissions['camera'] != true) throw const CameraAccessDenied();
+
+    final listed = await _channel.invokeListMethod<Map<Object?, Object?>>(
+      'listCameras',
+    );
+    return [
+      for (final raw in listed ?? const <Map<Object?, Object?>>[])
+        CameraDevice(
+          id: raw['id']! as String,
+          label: raw['label']! as String,
+          facing: raw['front'] == true ? CameraFacing.front : CameraFacing.back,
+        ),
+    ];
   }
 
-  final listed = await _channel.invokeListMethod<Map<Object?, Object?>>(
-    'listCameras',
-  );
-  final sources = <CameraSource>[];
-  for (final raw in listed ?? const <Map<Object?, Object?>>[]) {
-    final camera = Map<String, Object?>.from(raw);
-    final id = camera['id']! as String;
-    final label = camera['label']! as String;
-    if (camera['available'] != true) {
-      sources.add(
-        UnavailableCameraSource(
-          id,
-          label,
-          camera['reason'] ?? '',
-          retryable: false,
-        ),
-      );
-      continue;
-    }
-    try {
-      final opened = Map<String, Object?>.from(
-        (await _channel.invokeMapMethod<Object?, Object?>('open', {
-          'id': id,
-          'preRollMs': preRoll().inMilliseconds,
-        }))!,
-      );
-      sources.add(_AndroidCameraSource(id, label, opened, preRoll));
-    } on PlatformException catch (e) {
-      sources.add(UnavailableCameraSource(id, label, e.message ?? e.code));
-    }
+  @override
+  Future<CameraSource> open(
+    CameraDevice device,
+    Duration Function() preRoll,
+  ) async {
+    final opened = await _channel.invokeMapMethod<String, Object?>('open', {
+      'id': device.id,
+      'preRollMs': preRoll().inMilliseconds,
+    });
+    return _AndroidCameraSource(device.id, device.label, opened!, preRoll);
   }
-  return sources;
 }
 
 class CameraAccessDenied implements Exception {
@@ -163,9 +154,10 @@ class _AndroidCameraSource implements CameraSource {
   }
 
   @override
-  void dispose() {
+  Future<void> dispose() async {
     _ticker.cancel();
-    _invoke<void>('close').ignore();
+    // Replies once the camera is fully closed, so the next can open.
+    await _invoke<void>('close');
   }
 }
 

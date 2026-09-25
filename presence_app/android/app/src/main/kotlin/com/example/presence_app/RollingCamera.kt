@@ -78,6 +78,9 @@ class RollingCamera(
     private var previewSurface: Surface? = null
     @Volatile private var running = true
 
+    /** Completes when the camera device has closed (or never opened). */
+    private val closed = CompletableFuture<Unit>()
+
     private val pending = mutableMapOf<Long, Clip>()
     private var nextClip = 0L
 
@@ -130,6 +133,10 @@ class RollingCamera(
                     },
                     cameraHandler,
                 )
+            }
+
+            override fun onClosed(camera: CameraDevice) {
+                closed.complete(Unit)
             }
 
             override fun onDisconnected(camera: CameraDevice) {
@@ -223,10 +230,11 @@ class RollingCamera(
         }
     }, frameExecutor)
 
-    fun close() {
+    /** Closes everything; completes once the camera device has closed. */
+    fun close(): CompletableFuture<Unit> {
         running = false
         runCatching { session?.close() }
-        runCatching { device?.close() }
+        if (device == null) closed.complete(Unit) else runCatching { device?.close() }
         runCatching { audioRecord?.stop() }
         runCatching { audioRecord?.release() }
         runCatching { videoEncoder?.stop() }
@@ -234,10 +242,15 @@ class RollingCamera(
         runCatching { audioEncoder?.stop() }
         runCatching { audioEncoder?.release() }
         runCatching { previewSurface?.release() }
-        cameraThread.quitSafely()
         clipExecutor.shutdown()
         frameExecutor.shutdown()
         waitExecutor.shutdown()
+        // The closed callback arrives on the camera thread: stop it only
+        // afterwards. Don't wait forever on a device that never reports back
+        // (orTimeout needs Android 12, so time out by hand).
+        cameraHandler.postDelayed({ closed.complete(Unit) }, 3_000)
+        closed.whenComplete { _, _ -> cameraThread.quitSafely() }
+        return closed
     }
 
     private fun startVideoEncoder(): Surface {

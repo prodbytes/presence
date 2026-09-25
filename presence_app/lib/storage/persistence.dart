@@ -44,6 +44,7 @@ class Persistence {
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
   CameraRig? _rig;
+  List<CameraDevice>? _saved;
   bool _disposed = false;
 
   static const String _clipSettings = 'clip';
@@ -116,8 +117,12 @@ class Persistence {
   }
 
   void _saveCameras() {
-    final sources = _rig?.sources;
-    if (sources == null) return;
+    final sources = _rig?.devices;
+    // The rig notifies on every change; the device list rarely changes.
+    if (sources == null || sources.isEmpty || identical(sources, _saved)) {
+      return;
+    }
+    _saved = sources;
     final now = DateTime.now().millisecondsSinceEpoch;
     _track(() async {
       final store = await _store;

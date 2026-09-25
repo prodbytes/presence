@@ -24,8 +24,13 @@ class FakeCameraSource implements CameraSource {
     this.label, {
     this.supportsVideo = true,
     this.immediatePast,
+    this.facing = CameraFacing.back,
     String? id,
   }) : id = id ?? 'cam-$label';
+
+  final CameraFacing facing;
+
+  CameraDevice get device => CameraDevice(id: id, label: label, facing: facing);
 
   /// When set, the "before" recording is ready as soon as a clip is
   /// requested, like the real recorder; otherwise the test completes it.
@@ -64,13 +69,46 @@ class FakeCameraSource implements CameraSource {
   }
 
   @override
-  void dispose() => disposed = true;
+  Future<void> dispose() async => disposed = true;
 }
 
-CameraOpener openFakes(List<CameraSource> sources) =>
-    (_) async => sources;
+/// Cameras that open instantly as the given fakes, in order.
+class FakeCameraBackend implements CameraBackend {
+  FakeCameraBackend(this.cameras, {this.listError, this.openError});
 
-Future<List<CameraSource>> noCameras(Duration Function() _) async => [];
+  final List<FakeCameraSource> cameras;
+
+  /// Thrown by [listCameras] while set.
+  Object? listError;
+
+  /// Thrown by [open] while set.
+  Object? openError;
+
+  int lists = 0;
+  final List<String> opened = [];
+
+  @override
+  Future<List<CameraDevice>> listCameras() async {
+    lists++;
+    if (listError case final e?) throw e;
+    return [for (final c in cameras) c.device];
+  }
+
+  @override
+  Future<CameraSource> open(
+    CameraDevice device,
+    Duration Function() preRoll,
+  ) async {
+    opened.add(device.id);
+    if (openError case final e?) throw e;
+    return cameras.firstWhere((c) => c.id == device.id);
+  }
+}
+
+FakeCameraBackend openFakes(List<FakeCameraSource> cameras) =>
+    FakeCameraBackend(cameras);
+
+FakeCameraBackend get noCameras => FakeCameraBackend([]);
 
 /// The in-memory storage backend completes its work on timers, which widget
 /// tests only run when fake time advances.

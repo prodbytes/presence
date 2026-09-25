@@ -12,12 +12,12 @@ void main() {
   Future<void> pumpAt(
     WidgetTester tester,
     Size size, {
-    CameraOpener openCameras = noCameras,
+    CameraBackend? cameras,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(PresenceApp(openCameras: openCameras));
+    await tester.pumpWidget(PresenceApp(cameras: cameras ?? noCameras));
     await tester.pump();
     // Let the startup writes to (in-memory) storage finish.
     await tester.pump(const Duration(seconds: 1));
@@ -112,7 +112,7 @@ void main() {
     await pumpAt(
       tester,
       const Size(1280, 800),
-      openCameras: openFakes([FakeCameraSource('Front door')]),
+      cameras: openFakes([FakeCameraSource('Front door')]),
     );
     await tester.pumpAndSettle();
     expect(find.byTooltip('Clip'), findsOneWidget);
@@ -191,24 +191,20 @@ void main() {
   ) async {
     await pumpAt(tester, const Size(1280, 800));
 
-    expect(find.text('No camera feeds'), findsOneWidget);
+    expect(find.text('No camera found'), findsOneWidget);
   });
 
   testWidgets('shows camera access errors with a retry', (tester) async {
-    var calls = 0;
-    await pumpAt(
-      tester,
-      const Size(1280, 800),
-      openCameras: (_) async {
-        calls++;
-        throw Exception('Camera access was denied');
-      },
+    final backend = FakeCameraBackend(
+      [],
+      listError: Exception('Camera access was denied'),
     );
+    await pumpAt(tester, const Size(1280, 800), cameras: backend);
 
     expect(find.textContaining('Camera access was denied'), findsOneWidget);
 
     await tester.tap(find.text('Retry'));
     await tester.pump();
-    expect(calls, 2);
+    expect(backend.lists, 2);
   });
 }

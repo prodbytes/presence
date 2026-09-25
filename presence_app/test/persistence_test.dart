@@ -17,7 +17,7 @@ void main() {
 
   Future<void> launch(
     WidgetTester tester, {
-    List<CameraSource> cameras = const [],
+    List<FakeCameraSource> cameras = const [],
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -26,7 +26,7 @@ void main() {
       PresenceApp(
         // A new key forces a fresh app, like a page reload.
         key: UniqueKey(),
-        openCameras: openFakes(cameras),
+        cameras: openFakes(cameras),
         storage: storage,
         mediaIo: fakeMediaIo,
       ),
@@ -39,7 +39,7 @@ void main() {
   /// Closes the app and opens it again on the same storage.
   Future<void> refresh(
     WidgetTester tester, {
-    List<CameraSource> cameras = const [],
+    List<FakeCameraSource> cameras = const [],
   }) async {
     await tester.pumpWidget(const SizedBox());
     await settleStorage(tester);

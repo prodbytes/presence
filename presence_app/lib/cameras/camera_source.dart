@@ -92,51 +92,34 @@ abstract class CameraSource {
   /// Starts a clip around the current moment.
   ClipCapture requestClip({required Duration before, required Duration after});
 
-  void dispose();
+  /// Stops recording and releases the camera. Completes once the camera is
+  /// fully closed, so another one can be opened (phones allow only one).
+  Future<void> dispose();
 }
 
-/// A camera that was found but couldn't be opened (for example, because
-/// another app is using it). Shown as an error tile.
-class UnavailableCameraSource implements CameraSource {
-  UnavailableCameraSource(
-    this.id,
-    this.label,
-    this.error, {
-    this.retryable = true,
+/// Which way a camera faces, when the platform knows.
+enum CameraFacing { back, front, unknown }
+
+/// A camera the device has, before it's opened.
+class CameraDevice {
+  const CameraDevice({
+    required this.id,
+    required this.label,
+    this.facing = CameraFacing.unknown,
   });
 
-  @override
+  /// Stable across launches (on web, the browser's device ID).
   final String id;
-
-  @override
   final String label;
-  final Object error;
-
-  /// False for permanent limits (like a phone that can't run several
-  /// cameras at once); true for failures worth retrying.
-  final bool retryable;
-
-  @override
-  bool get supportsVideo => false;
-
-  @override
-  Widget buildPreview(BuildContext context) => const SizedBox.shrink();
-
-  @override
-  Future<Uint8List?> captureFrame() async => null;
-
-  @override
-  ClipCapture requestClip({
-    required Duration before,
-    required Duration after,
-  }) => ClipCapture.unsupported;
-
-  @override
-  void dispose() {}
+  final CameraFacing facing;
 }
 
-/// Opens every camera on the device. [preRoll] is read whenever the rolling
-/// recording needs to know how much history to keep.
-typedef CameraOpener = Future<List<CameraSource>> Function(
-  Duration Function() preRoll,
-);
+/// The platform's cameras: lists them, and opens one at a time.
+abstract class CameraBackend {
+  /// Every camera, asking for camera (and microphone) permission first.
+  Future<List<CameraDevice>> listCameras();
+
+  /// Opens [device], always recording. [preRoll] is read whenever the
+  /// rolling recording needs to know how much history to keep.
+  Future<CameraSource> open(CameraDevice device, Duration Function() preRoll);
+}
