@@ -56,7 +56,7 @@ void main() {
       final camera = tester.getCenter(find.byTooltip('Camera'));
       final events = tester.getCenter(find.byTooltip('Events'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
-      final login = tester.getCenter(find.byTooltip('Login (coming soon)'));
+      final login = tester.getCenter(find.byKey(const Key('account-button')));
       for (final c in [camera, events, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
         expect(c.dx, greaterThan(size.width / 2 - 40));
@@ -94,16 +94,49 @@ void main() {
     expect(tabs(tester).index, HomeTab.events.index);
   });
 
-  testWidgets('login is shown but disabled', (tester) async {
-    await pumpAt(tester, const Size(1280, 800));
+  testWidgets(
+    'without a client ID, the account sheet says sign-in is not set up',
+    (tester) async {
+      await pumpAt(tester, const Size(1280, 800));
 
-    final login = tester.widget<IconButton>(
-      find.ancestor(
-        of: find.byIcon(Icons.person),
-        matching: find.byType(IconButton),
-      ),
+      await tester.tap(find.byTooltip('Sign in'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('account-sheet')), findsOneWidget);
+      expect(find.textContaining("isn't set up yet"), findsOneWidget);
+      expect(find.byKey(const Key('google-sign-in')), findsNothing);
+    },
+  );
+
+  testWidgets('sign in and out from the account sheet', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      PresenceApp(cameras: noCameras, auth: FakeAuthService()),
     );
-    expect(login.onPressed, isNull);
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.byTooltip('Sign in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('google-sign-in')));
+    await tester.pumpAndSettle();
+
+    // Signed in: the sheet shows who, and the button shows the avatar.
+    expect(find.text('julio@nu01.com'), findsOneWidget);
+    expect(find.byKey(const Key('sign-out')), findsOneWidget);
+    expect(find.byTooltip('Account: Julio'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('sign-out')));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Sign in'), findsOneWidget);
+
+    // Both show on the event stream.
+    Navigator.of(tester.element(find.byKey(const Key('account-sheet')))).pop();
+    await tester.pumpAndSettle();
+    await openTab(tester, 'Events');
+    expect(find.text('Signed in'), findsOneWidget);
+    expect(find.text('Signed out'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
   });
 
   testWidgets('clip button is only on the camera tab, with a camera', (

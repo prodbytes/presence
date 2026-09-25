@@ -292,3 +292,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     only after a clip, or the restored motion cooldown after a reload.
     Verified in Chrome (Ready, then 4:48 → 4:28 → 4:22 across a reload,
     matching the 19:11:33 event) and on the S40 (Ready on launch).
+61. **Enable sign in with Google.** Chosen: plain `google_sign_in` (no
+    Firebase), app ID `com.nu01.presence`, with the assistant walking the
+    user through the credentials. Renamed the app ID on Android and iOS, and
+    added an `AuthService` with a Google implementation (GIS button on web,
+    Credential Manager on Android, the SDK on iOS), an account button and
+    sheet, silent session restore, and sign-in/out events.
+62. **First install the Google Cloud CLI and help me authenticate.**
+    Installed `gcloud-cli` (586.0.0) via Homebrew and ran the browser login
+    (julio@nu01.com). Using the existing Presence project `presence-492410`.
+    Gave console steps for the consent screen and the web, Android (debug
+    SHA-1) and iOS OAuth clients.

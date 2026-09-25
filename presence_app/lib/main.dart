@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'auth/account_sheet.dart';
+import 'auth/auth_service.dart';
+import 'auth/google_auth_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'config.dart';
@@ -25,10 +28,14 @@ class PresenceApp extends StatefulWidget {
     this.storage,
     this.mediaIo,
     this.now,
+    this.auth,
   });
 
   /// Overrides the clock (used by tests).
   final DateTime Function()? now;
+
+  /// Overrides sign-in (used by tests); defaults to Google.
+  final AuthService? auth;
 
   /// Overrides camera access (used by tests); defaults to the device's.
   final CameraBackend? cameras;
@@ -70,6 +77,9 @@ class _PresenceAppState extends State<PresenceApp> {
           : (store) => IdbMediaStore(store, mediaIo),
     );
     _bus.publish(AppEvent.appStarted());
+    _auth = widget.auth ?? GoogleAuthService();
+    _auth.addListener(_onAuthChanged);
+    _auth.init().ignore();
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
       config: _config,
@@ -84,13 +94,31 @@ class _PresenceAppState extends State<PresenceApp> {
     requestPersistentStorage().ignore();
   }
 
+  late final AuthService _auth;
+  String? _signedInAs;
+
+  /// Sign-ins and sign-outs go on the event stream too.
+  void _onAuthChanged() {
+    final email = _auth.user?.email;
+    if (email == _signedInAs) return;
+    final previous = _signedInAs;
+    _signedInAs = email;
+    _bus.publish(
+      email != null
+          ? AppEvent(icon: Icons.login, title: 'Signed in', detail: email)
+          : AppEvent(icon: Icons.logout, title: 'Signed out', detail: previous),
+    );
+  }
+
   @override
   void dispose() {
+    _auth.removeListener(_onAuthChanged);
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
     _bus.close();
     _config.dispose();
+    _auth.dispose();
     super.dispose();
   }
 
@@ -102,7 +130,7 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(log: _log, rig: _rig, config: _config),
+        home: HomeScreen(log: _log, rig: _rig, config: _config, auth: _auth),
       ),
     );
   }
@@ -129,11 +157,13 @@ class HomeScreen extends StatefulWidget {
     required this.log,
     required this.rig,
     required this.config,
+    required this.auth,
   });
 
   final EventLog log;
   final CameraRig rig;
   final ConfigController config;
+  final AuthService auth;
 
   /// Width of each icon tab: Material's 48 dp minimum touch target, which
   /// leaves room for the title on 320 dp phones.
@@ -244,12 +274,8 @@ class _HomeScreenState extends State<HomeScreen>
               ],
             ),
           ),
-          // Not a destination yet, so not a tab: shown, but disabled.
-          const IconButton(
-            tooltip: 'Login (coming soon)',
-            icon: Icon(Icons.person),
-            onPressed: null,
-          ),
+          // Account (sign in with Google): an action, not a tab.
+          AccountButton(auth: widget.auth),
           const SizedBox(width: 4),
         ],
       ),
