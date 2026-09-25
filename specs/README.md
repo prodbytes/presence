@@ -47,16 +47,20 @@ in the app bar**, which flip between full screens.
   - **Readiness indicator:** the last item on the right of the button row
     (Flip, Clip, then readiness). It shows whether a clip taken now would be
     complete:
-    - **"Buffering 12 s"** (progress ring): the camera hasn't recorded a
-      full *before* period yet (just opened, flipped, or *before* was
-      raised). A clip now would have less history.
+    - **"12 s"** with a **progress ring** (buffering): the camera hasn't
+      recorded a full *before* period yet (just opened, flipped, or *before*
+      was raised). A clip now would have less history.
     - **"Ready"** (green dot): a clip now gets its full *before* part.
     - **"12 s"** (red dot, only the countdown): a clip's *after* part is
       being recorded. It counts down to 0, then returns to Ready once the
       full clip is saved.
 
-    It refreshes twice a second, and its screen-reader label spells the
-    state out ("Saving clip, 12 seconds left").
+    Both countdowns show only the number, and the ring or the red dot tells
+    them apart. That keeps Flip, Clip and the pill on one row on a 320 dp
+    phone, where "Buffering 15 s" overflowed. The pill refreshes twice a
+    second, and its tooltip and screen-reader label spell the state out
+    ("Buffering history, 12 seconds until a full clip", "Saving clip, 12
+    seconds left").
   - **When any clip starts** (the Clip button or motion), a brief snackbar
     (4 s) says "Clip started · saving the next 15 s" or "Motion detected ·
     saving the next 15 s", with a **View** action that jumps to Events. It's

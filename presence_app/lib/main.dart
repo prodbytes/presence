@@ -385,7 +385,8 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
             color: scheme.onSurfaceVariant,
           ),
         ),
-        'Buffering $seconds s',
+        // Countdown only (fits phones); the ring says it's buffering.
+        '$seconds s',
         'Buffering history, $seconds seconds until a full clip',
       ),
       ClipReadinessState.saving => (
@@ -400,32 +401,35 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         'Camera not ready',
       ),
     };
-    return Semantics(
-      label: semantics,
-      liveRegion: true,
-      child: Container(
-        key: const Key('readiness'),
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 8,
-          children: [
-            leading,
-            ExcludeSemantics(
-              child: Text(
-                label,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: scheme.onSurface,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+    return Tooltip(
+      message: semantics,
+      child: Semantics(
+        label: semantics,
+        liveRegion: true,
+        child: Container(
+          key: const Key('readiness'),
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 8,
+            children: [
+              leading,
+              ExcludeSemantics(
+                child: Text(
+                  label,
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: scheme.onSurface,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

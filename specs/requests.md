@@ -255,5 +255,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     0 s → Ready. Also saw a real motion clip trigger on the phone.
 52. **No "saving" in the label, only the countdown; make it the last button
     on the right.** The saving state shows only "12 s" with the red dot, and
-    the row is Flip, Clip, then readiness. A test checks that the widest
-    label fits on a 320 dp phone.
+    the row is Flip, Clip, then readiness. The new 320 dp phone test caught
+    "Buffering 15 s" overflowing the row by 128 px, so buffering also shows
+    only the countdown (with its progress ring). The tooltip and
+    screen-reader label keep the full wording.

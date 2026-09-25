@@ -133,7 +133,11 @@ void main() {
       final clip = tester.getCenter(find.byTooltip('Clip'));
       expect(pill.dx, greaterThan(clip.dx));
       expect((pill.dy - clip.dy).abs(), lessThan(1));
-      expect(find.textContaining('Buffering'), findsOneWidget);
+      expect(find.text('15 s'), findsOneWidget);
+      expect(
+        find.byTooltip('Buffering history, 15 seconds until a full clip'),
+        findsOneWidget,
+      );
 
       await advance(tester, const Duration(seconds: 16));
       expect(find.text('Ready'), findsOneWidget);
@@ -156,8 +160,8 @@ void main() {
       await tester.pumpAndSettle();
       await settleStorage(tester);
 
-      // Flip, Clip and "Buffering 15 s" in one row, without overflowing.
-      expect(find.text('Buffering 15 s'), findsOneWidget);
+      // Flip, Clip and the buffering countdown in one row, no overflow.
+      expect(find.text('15 s'), findsOneWidget);
       expect(find.byTooltip('Flip camera'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final pill = tester.getRect(find.byKey(const Key('readiness')));
