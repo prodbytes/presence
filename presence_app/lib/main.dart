@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
-import 'auth/auth_gate.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'camera_feeds.dart';
@@ -85,9 +84,8 @@ class _PresenceAppState extends State<PresenceApp> {
       config: _config,
       bus: _bus,
       now: widget.now,
-    );
-    // Cameras open only once someone is signed in (see _onAuthChanged).
-    _auth.init().then((_) => _onAuthChanged()).ignore();
+    )..load();
+    _auth.init().ignore();
     _persistence
       ..attachRig(_rig)
       ..restore(_log).catchError((Object e) {
@@ -98,17 +96,10 @@ class _PresenceAppState extends State<PresenceApp> {
 
   late final AuthService _auth;
   String? _signedInAs;
-  bool _camerasOn = false;
 
-  /// Sign-ins and sign-outs go on the event stream too, and start or stop
-  /// the cameras: nothing records while no one is signed in.
+  /// Sign-ins and sign-outs go on the event stream too.
   void _onAuthChanged() {
     final email = _auth.user?.email;
-    final signedIn = email != null;
-    if (signedIn != _camerasOn) {
-      _camerasOn = signedIn;
-      (signedIn ? _rig.load() : _rig.unload()).ignore();
-    }
     if (email == _signedInAs) return;
     final previous = _signedInAs;
     _signedInAs = email;
@@ -139,15 +130,7 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: AuthGate(
-          auth: _auth,
-          signedIn: HomeScreen(
-            log: _log,
-            rig: _rig,
-            config: _config,
-            auth: _auth,
-          ),
-        ),
+        home: HomeScreen(log: _log, rig: _rig, config: _config, auth: _auth),
       ),
     );
   }
@@ -168,6 +151,10 @@ enum HomeTab {
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), the event stream and the
 /// settings. Swiping sideways flips too.
+///
+/// Signed out, the camera still shows, but the navigation is hidden: the
+/// app bar has only the title and a sign-in button, and the screen stays on
+/// the camera.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -199,8 +186,32 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
 
+  bool get _signedIn => widget.auth.user != null;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.auth.addListener(_onAuthChanged);
+  }
+
+  String? _shownError;
+
+  /// Signing out hides the navigation, so go back to the camera. Sign-in
+  /// errors pop a message (there's no sign-in screen to show them on).
+  void _onAuthChanged() {
+    if (!_signedIn) _tabs.index = HomeTab.camera.index;
+    final error = widget.auth.error;
+    if (error != null && error != _shownError && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
+    }
+    _shownError = error;
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    widget.auth.removeListener(_onAuthChanged);
     _clipEvents?.cancel();
     _tabs.dispose();
     super.dispose();
@@ -232,10 +243,13 @@ class _HomeScreenState extends State<HomeScreen>
           // action, snackbars otherwise stay until dismissed.)
           persist: false,
           duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () => _tabs.animateTo(HomeTab.events.index),
-          ),
+          // The events tab is only there when signed in.
+          action: _signedIn
+              ? SnackBarAction(
+                  label: 'View',
+                  onPressed: () => _tabs.animateTo(HomeTab.events.index),
+                )
+              : null,
         ),
       );
   }
@@ -275,29 +289,38 @@ class _HomeScreenState extends State<HomeScreen>
               )
             : null,
         actions: [
-          SizedBox(
-            width: HomeScreen.tabWidth * HomeTab.values.length,
-            child: TabBar(
-              controller: _tabs,
-              dividerHeight: 0,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelPadding: EdgeInsets.zero,
-              tabs: [
-                for (final tab in HomeTab.values)
-                  Tooltip(
-                    message: tab.label,
-                    child: Tab(icon: Icon(tab.icon, semanticLabel: tab.label)),
-                  ),
-              ],
+          if (!_signedIn) ...[
+            SignInAction(auth: widget.auth),
+            const SizedBox(width: 12),
+          ] else ...[
+            SizedBox(
+              width: HomeScreen.tabWidth * HomeTab.values.length,
+              child: TabBar(
+                controller: _tabs,
+                dividerHeight: 0,
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelPadding: EdgeInsets.zero,
+                tabs: [
+                  for (final tab in HomeTab.values)
+                    Tooltip(
+                      message: tab.label,
+                      child: Tab(
+                        icon: Icon(tab.icon, semanticLabel: tab.label),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          // Account (sign in with Google): an action, not a tab.
-          AccountButton(auth: widget.auth),
-          const SizedBox(width: 4),
+            // Account (who's signed in, sign out): an action, not a tab.
+            AccountButton(auth: widget.auth),
+            const SizedBox(width: 4),
+          ],
         ],
       ),
       body: TabBarView(
         controller: _tabs,
+        // No swiping to the other tabs while they're hidden.
+        physics: _signedIn ? null : const NeverScrollableScrollPhysics(),
         children: [
           _KeepAlive(
             child: CameraFeedsView(

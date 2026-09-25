@@ -245,26 +245,29 @@ requested", and its stored event has `trigger: "motion"`.
 ### Sign-in
 
 Sign in with Google, through the `google_sign_in` package
-([lib/auth/](../presence_app/lib/auth)). The app requires it
-([auth_gate.dart](../presence_app/lib/auth/auth_gate.dart)):
+([lib/auth/](../presence_app/lib/auth)). Signing in unlocks the navigation;
+there's no separate sign-in screen:
 
 - **At launch** the app checks for a session quietly
   (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
-  Manager on Android, the saved session on iOS), showing only the logo and a
-  spinner while it checks.
-- **Signed out:** the whole screen is the sign-in prompt: logo, "Presence",
-  "Sign in to continue", and **Sign in with Google**. There are no tabs, and
-  the camera stays off. On web the button is Google's own (GIS
-  `renderButton`, with FedCM), as Google Identity Services requires; on
-  Android and iOS it's an app button that starts Google's sign-in
-  (Credential Manager's Sign in with Google sheet / the Google SDK). If no
-  client ID is configured, the prompt says sign-in isn't set up.
-- **Signed in:** the usual app (Camera / Events / Settings tabs). The camera
-  opens on sign-in and closes on sign-out.
-- **Account button** (app bar, last on the right): your avatar, with the
-  tooltip "Signed in as <name> · <email>". It opens a bottom sheet with
-  avatar, name, email and **Sign out**; signing out closes the sheet and
-  returns to the sign-in prompt.
+  Manager's authorized accounts on Android, the saved session on iOS). The
+  camera opens right away either way.
+- **Signed out:** the camera shows full screen with its controls (flip,
+  Clip, readiness), always recording as usual, but the **navigation is
+  hidden**: the app bar has only the "Presence" title and **Sign in with
+  Google**. You can't switch or swipe to Events or Settings, and the clip
+  message has no "View" action. On web the button is Google's own (GIS
+  `renderButton` with FedCM, medium size to fit the app bar), as Google
+  Identity Services requires. On Android and iOS it's an app button that
+  starts Google's sign-in: Credential Manager's Sign in with Google sheet,
+  or the Google SDK. While the launch check runs, the button is hidden. If
+  no client ID is configured, a person icon opens a sheet saying sign-in
+  isn't set up. Sign-in errors pop a message.
+- **Signed in:** all the buttons: the Camera / Events / Settings tabs and
+  the **account button**, your avatar with the tooltip "Signed in as
+  <name> · <email>". It opens a bottom sheet with avatar, name, email and
+  **Sign out**. Signing out closes the sheet, returns to the camera and
+  hides the navigation again. The camera keeps running.
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Sign-in only identifies the user for now: there's no backend, and data
@@ -278,7 +281,7 @@ julio@nu01.com), with OAuth clients:
 | Client | Identifies | In the app |
 |---|---|---|
 | Web application | JavaScript origin `http://localhost:8080` (and later `https://presence.nu01.com`) | `GoogleConfig.webClientId`: the web client ID, and Android's server client ID |
-| Android | package `com.nu01.presence` + signing-key SHA-1 | nothing: matched by package and key |
+| Android | package `com.nu01.presence` + signing-key SHA-1 | nothing: matched by package and key (its ID is kept in `.env` as `GOOGLE_ANDROID_CLIENT_ID`, for reference only) |
 | iOS | bundle ID `com.nu01.presence` | `GoogleConfig.iosClientId`, plus its reversed ID as a URL scheme |
 
 Client IDs are public identifiers, not secrets, but they're kept out of
@@ -293,7 +296,7 @@ which forwards **only** an allowlist (`GOOGLE_WEB_CLIENT_ID`,
 app, and the web bundle is readable, so `.env` can also hold secrets such
 as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
 uses and never receives: only a future backend would. Without `.env`, the
-sign-in screen says sign-in isn't set up. The Android debug key SHA-1 on the development Mac
+account sheet says sign-in isn't set up. The Android debug key SHA-1 on the development Mac
 is `B8:90:8F:2F:A4:85:36:0D:32:34:86:22:2E:EE:B4:AD:6D:9A:42:A4`. A release
 key will need its own Android client.
 

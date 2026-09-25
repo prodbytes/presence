@@ -335,3 +335,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     allowlist in `scripts/dart-defines.sh`. The client secret stays in
     `.env` only: the app doesn't need it, and passing it to Flutter would
     publish it in the web bundle.
+68. **Here is the Android OAuth client ID; add it to .env under its own
+    name.** (2026-09-25) Added `GOOGLE_ANDROID_CLIENT_ID` to `.env` and
+    `.env.example`. It's for reference only and isn't passed to the app:
+    Google matches Android's client by package name and signing-key SHA-1.
+    Tested sign-in on the S40.
+69. **Don't create a separate login screen: let the camera show and only
+    hide the navigation. When the user is signed in, show all buttons.**
+    (2026-09-25) Removed the sign-in screen and the gate. The camera opens
+    and records at launch whether or not anyone is signed in. Signed out,
+    the app bar has only the title and Sign in with Google (Google's button
+    on web), the tabs are hidden, swiping is off, and sign-in errors pop a
+    message. Signed in, the tabs and the account button (identity tooltip)
+    show. Verified on the S40 (320 dp): the signed-out app bar fits, and
+    the button opens Google's sign-in sheet.

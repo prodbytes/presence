@@ -32,6 +32,31 @@ class AccountButton extends StatelessWidget {
   }
 }
 
+/// The app bar's sign-in control while signed out: "Sign in with Google"
+/// (Google's own button on web). Nothing while the launch check runs; if
+/// sign-in isn't set up, a person icon whose sheet says so.
+class SignInAction extends StatelessWidget {
+  const SignInAction({super.key, required this.auth});
+
+  final AuthService auth;
+
+  @override
+  Widget build(BuildContext context) {
+    if (auth.checking) return const SizedBox.shrink();
+    if (!auth.available) return AccountButton(auth: auth);
+    return Center(
+      child:
+          auth.buildSignInButton() ??
+          FilledButton.icon(
+            key: const Key('google-sign-in'),
+            icon: const Icon(Icons.login, size: 18),
+            label: const Text('Sign in with Google'),
+            onPressed: auth.signIn,
+          ),
+    );
+  }
+}
+
 /// Sign in with Google, or show who is signed in and offer sign-out.
 class AccountSheet extends StatelessWidget {
   const AccountSheet({super.key, required this.auth});

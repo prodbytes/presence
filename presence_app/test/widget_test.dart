@@ -108,21 +108,21 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('without a client ID: only the sign-in screen, saying so', (
+  testWidgets('without a client ID: the camera, no tabs, and a note', (
     tester,
   ) async {
     final backend = openFakes([FakeCameraSource('Main')]);
     // The real Google service: tests configure no client ID.
     await pumpGate(tester, PresenceApp(cameras: backend));
 
-    expect(find.byKey(const Key('sign-in-screen')), findsOneWidget);
-    expect(find.byKey(const Key('sign-in-unavailable')), findsOneWidget);
-    expect(find.textContaining("isn't set up yet"), findsOneWidget);
+    expect(backend.opened, hasLength(1), reason: 'the camera still shows');
     expect(find.byType(TabBar), findsNothing);
-    expect(backend.opened, isEmpty, reason: 'no camera while signed out');
+    await tester.tap(find.byKey(const Key('account-button')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining("isn't set up yet"), findsOneWidget);
   });
 
-  testWidgets('signed out: only the Google prompt; sign in, then out', (
+  testWidgets('signed out: camera and sign-in only; signed in: all buttons', (
     tester,
   ) async {
     final camera = FakeCameraSource('Main');
@@ -132,50 +132,54 @@ void main() {
       PresenceApp(cameras: backend, auth: FakeAuthService()),
     );
 
-    // Only the sign-in prompt: no tabs, no camera.
-    expect(find.byKey(const Key('sign-in-screen')), findsOneWidget);
+    // Signed out: the camera (and its controls) show; navigation doesn't.
+    expect(backend.opened, [camera.id]);
+    expect(find.byKey(const Key('camera-page')), findsOneWidget);
+    expect(find.byTooltip('Clip'), findsOneWidget);
     expect(find.byType(TabBar), findsNothing);
-    expect(backend.opened, isEmpty);
+    expect(find.byKey(const Key('account-button')), findsNothing);
+    expect(find.byKey(const Key('sign-in-screen')), findsNothing);
 
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
-    // Signed in: the usual app, with the identity on the user icon.
-    expect(find.byKey(const Key('sign-in-screen')), findsNothing);
+    // Signed in: the tabs and the account button, with the identity.
     expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(
       find.byTooltip('Signed in as Julio · julio@nu01.com'),
       findsOneWidget,
     );
-    expect(backend.opened, [camera.id]);
+    await openTab(tester, 'Events');
+    expect(find.text('Signed in'), findsOneWidget);
 
-    // Sign out from the account sheet: back to the prompt, camera closed.
+    // Sign out from the account sheet: back to the camera, tabs hidden,
+    // the camera still running.
     await tester.tap(find.byKey(const Key('account-button')));
     await tester.pumpAndSettle();
-    expect(find.text('julio@nu01.com'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('account-sheet')),
+        matching: find.text('julio@nu01.com'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('sign-in-screen')), findsOneWidget);
-    expect(find.byType(TabBar), findsNothing);
-    expect(camera.disposed, isTrue);
     expect(find.byKey(const Key('account-sheet')), findsNothing);
-
-    // Signing in again reopens the camera; both show on the event stream.
-    await tester.tap(find.byKey(const Key('google-sign-in')));
-    await tester.pumpAndSettle();
-    expect(backend.opened, [camera.id, camera.id]);
-    await openTab(tester, 'Events');
-    expect(find.text('Signed in'), findsNWidgets(2));
-    expect(find.text('Signed out'), findsOneWidget);
+    expect(find.byType(TabBar), findsNothing);
+    expect(find.byKey(const Key('camera-page')), findsOneWidget);
+    expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+    expect(camera.disposed, isFalse);
+    expect(backend.opened, [camera.id]);
     await tester.pump(const Duration(seconds: 1));
   });
 
-  testWidgets('a restored session goes straight to the app', (tester) async {
+  testWidgets('a restored session shows all buttons at once', (tester) async {
     await pumpGate(
       tester,
       PresenceApp(cameras: noCameras, auth: FakeAuthService.signedIn()),
     );
-    expect(find.byKey(const Key('sign-in-screen')), findsNothing);
     expect(find.byType(TabBar), findsOneWidget);
     expect(
       find.byTooltip('Signed in as Julio · julio@nu01.com'),

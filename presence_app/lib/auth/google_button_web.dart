@@ -5,7 +5,7 @@ import 'package:google_sign_in_web/web_only.dart' as gsi;
 Widget? googleSignInButton() => gsi.renderButton(
   configuration: gsi.GSIButtonConfiguration(
     theme: gsi.GSIButtonTheme.filledBlack,
-    size: gsi.GSIButtonSize.large,
+    size: gsi.GSIButtonSize.medium, // Fits the app bar.
     text: gsi.GSIButtonText.signinWith,
     shape: gsi.GSIButtonShape.pill,
   ),
