@@ -26,6 +26,23 @@ class ClipSettings extends ChangeNotifier {
   }
 
   static Duration _clamp(Duration d) => d < min ? min : (d > max ? max : d);
+
+  static const double minBrightness = -2;
+  static const double maxBrightness = 2;
+  static const double brightnessStep = 0.5;
+
+  /// Brighter by default: small phone sensors run dark indoors.
+  static const double defaultBrightness = 1;
+
+  double _brightness = defaultBrightness;
+
+  /// Camera brightness as exposure compensation, in EV. Applied live to the
+  /// open camera, where the camera supports it.
+  double get brightness => _brightness;
+  set brightness(double ev) {
+    _brightness = ev.clamp(minBrightness, maxBrightness).toDouble();
+    notifyListeners();
+  }
 }
 
 /// The Settings screen (the Settings tab).
@@ -43,6 +60,14 @@ class SettingsView extends StatelessWidget {
         key: const Key('settings-page'),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
+          Text('Camera', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _BrightnessSlider(
+            key: const Key('brightness-slider'),
+            value: settings.brightness,
+            onChanged: (ev) => settings.brightness = ev,
+          ),
+          const SizedBox(height: 16),
           Text('Clips', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
           _DurationSlider(
@@ -68,6 +93,46 @@ class SettingsView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BrightnessSlider extends StatelessWidget {
+  const _BrightnessSlider({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  static String format(double ev) =>
+      ev == 0 ? '0 EV' : '${ev > 0 ? '+' : ''}${ev.toStringAsFixed(1)} EV';
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Expanded(child: Text('Brightness')),
+            Text(format(value)),
+          ],
+        ),
+        Slider(
+          value: value,
+          min: ClipSettings.minBrightness,
+          max: ClipSettings.maxBrightness,
+          divisions:
+              ((ClipSettings.maxBrightness - ClipSettings.minBrightness) /
+                      ClipSettings.brightnessStep)
+                  .round(),
+          label: format(value),
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 }

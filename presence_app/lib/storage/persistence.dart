@@ -59,6 +59,9 @@ class Persistence {
       settings
         ..before = Duration(milliseconds: saved['beforeMs']! as int)
         ..after = Duration(milliseconds: saved['afterMs']! as int);
+      if (saved['brightnessEv'] case final num ev) {
+        settings.brightness = ev.toDouble();
+      }
     }
     if (_disposed) return;
     settings.addListener(_saveSettings);
@@ -112,6 +115,7 @@ class Persistence {
       await store.putSettings(_clipSettings, {
         'beforeMs': settings.before.inMilliseconds,
         'afterMs': settings.after.inMilliseconds,
+        'brightnessEv': settings.brightness,
       });
     }());
   }

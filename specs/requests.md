@@ -186,3 +186,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     SDK missing, so Android Studio was nearly installed before a re-run showed
     the existing SDK was fine; and `-runFirstLaunch` must come after
     `-license accept`, not before.
+39. **Run on the USB-connected iPhone.** Not possible yet: Xcode isn't
+    installed (only the Command Line Tools), there's no iOS camera layer yet
+    (Swift/AVFoundation, like the Kotlin one), and signing needs an Apple
+    team and a real bundle ID.
+40. **Sync git.** Fetched: all branches matched `origin`. PRs #1–#9 are
+    open and stacked.
+41. **Rebuild and run the app again on Android.** Rebuilt and reinstalled.
+    The camera, the tabs, and the Flip and Clip buttons all worked.
+42. **The camera is extremely dark; make it brighter if there's a flag.** The
+    cause was a fixed 30 fps capture range, which caps exposure at 1/30 s.
+    The capture now uses a variable range (5–30 fps on the S40) and +1 EV
+    exposure compensation by default, plus a Brightness slider in Settings
+    (−2 to +2 EV, live, saved). Measured on the S40: average luma went from
+    17 to 68.

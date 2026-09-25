@@ -120,6 +120,10 @@ class _AndroidCameraSource implements CameraSource {
   }
 
   @override
+  Future<void> setBrightness(double ev) =>
+      _invoke<void>('setBrightness', {'ev': ev});
+
+  @override
   Future<Uint8List?> captureFrame() async {
     try {
       return await _invoke<Uint8List>('captureFrame');

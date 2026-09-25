@@ -68,6 +68,11 @@ class FakeCameraSource implements CameraSource {
     return ClipCapture(past: past.future, full: full.future);
   }
 
+  final List<double> brightness = [];
+
+  @override
+  Future<void> setBrightness(double ev) async => brightness.add(ev);
+
   @override
   Future<void> dispose() async => disposed = true;
 }

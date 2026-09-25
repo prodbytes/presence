@@ -175,14 +175,21 @@ recorders (`RecorderPool` in
 ### Settings screen
 
 - The **Settings** tab.
+- **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
+  steps, default **+1 EV**. It's applied live to the open camera, and to its
+  recordings, as auto-exposure compensation. Cameras opened later, after a
+  flip or restart, get the current value. On Android it's clamped to what
+  the camera supports (the S40: −2 to +2 EV). On web it uses the browser's
+  `exposureCompensation` constraint, where the camera supports it, and does
+  nothing elsewhere.
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
   - **Before the press**, default 15 s. This also sets how much history the
     cameras keep recording.
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
-- Settings (`ClipSettings`) are saved to local storage and restored on
-  launch.
+- Settings (`ClipSettings`: clip lengths and brightness) are saved to local
+  storage and restored on launch.
 
 ## Storage
 
@@ -280,8 +287,16 @@ Android uses the standard dashcam technique instead
 ([android/app/src/main/kotlin/…](../presence_app/android/app/src/main/kotlin/com/example/presence_app)):
 
 - **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
-  and a hardware **H.264** encoder, 30 fps, up to 1280×720, with a keyframe
-  every second. The default microphone (`AudioRecord`) feeds an **AAC**
+  and a hardware **H.264** encoder, up to 1280×720, with a keyframe every
+  second.
+  - **Frame rate is variable, up to 30 fps** (for example 5–30 on the S40).
+    A fixed 30 fps caps exposure at 1/30 s, which made the S40's picture
+    almost black indoors (average luma 17). With 5–30 fps and +1 EV it
+    measured 68, about 4× brighter. The trade-off: in dim light, frames
+    expose longer, so motion blurs and the frame rate drops. In good light
+    it stays at 30 fps. Keyframes may then be further apart, so clip files
+    can start a little earlier before their window (the window offsets
+    still cut them exactly). The default microphone (`AudioRecord`) feeds an **AAC**
   encoder. Audio and video share the camera's clock.
 - **`SampleRing`:** the encoded samples are kept in an in-memory ring buffer,
   holding *before* + 1 s of history, pruned a whole GOP at a time.
