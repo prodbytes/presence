@@ -366,6 +366,11 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
     final scheme = theme.colorScheme;
     final readiness = widget.rig.readiness;
     final seconds = (readiness.remaining.inMilliseconds / 1000).ceil();
+    // Minutes and seconds for the motion cooldown ("4:59"), seconds below
+    // a minute ("45 s").
+    final countdown = seconds >= 60
+        ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
+        : '$seconds s';
     final (
       Widget leading,
       String label,
@@ -394,6 +399,14 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         // Just the countdown; the red dot says it's recording.
         '$seconds s',
         'Saving clip, $seconds seconds left',
+      ),
+      ClipReadinessState.cooldown => (
+        // Red while the motion clip is still saving, then amber.
+        _Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
+        countdown,
+        readiness.recording
+            ? 'Motion clip saving; motion can clip again in $countdown'
+            : 'Motion can clip again in $countdown',
       ),
       ClipReadinessState.unavailable => (
         _Dot(color: scheme.outline),

@@ -24,6 +24,10 @@ enum ClipReadinessState {
 
   /// A clip's "after" part is being recorded; counts down until it's saved.
   saving,
+
+  /// A motion clip was taken: counts down the motion cooldown, after which
+  /// motion can take another clip. (The Clip button always works.)
+  cooldown,
 }
 
 class ClipReadiness {
@@ -31,12 +35,17 @@ class ClipReadiness {
     this.state, {
     this.remaining = Duration.zero,
     this.progress = 1,
+    this.recording = false,
   });
+
+  /// During [ClipReadinessState.cooldown]: the motion clip's "after" part
+  /// is still being recorded.
+  final bool recording;
 
   final ClipReadinessState state;
 
-  /// Time left: until buffered (buffering) or until the clip is saved
-  /// (saving).
+  /// Time left: until buffered (buffering), until the clip is saved
+  /// (saving), or until motion can clip again (cooldown).
   final Duration remaining;
 
   /// 0–1 while buffering.
@@ -89,11 +98,28 @@ class CameraRig extends ChangeNotifier {
     final now = _now();
     final clip = _latestClip;
     final ends = _latestClipEnds;
-    if (clip != null && ends != null && !clip.fullDone) {
-      final left = ends.difference(now);
+    final saving = clip != null && ends != null && !clip.fullDone;
+
+    // A manual clip shows its own short countdown, even during a cooldown.
+    if (saving && _latestClipTrigger == ClipTrigger.manual) {
       return ClipReadiness(
         ClipReadinessState.saving,
-        remaining: left.isNegative ? Duration.zero : left,
+        remaining: _left(ends, now),
+      );
+    }
+    // After a motion clip: the cooldown, which is when motion may clip again.
+    final cooldownEnds = motionCooldownEnds;
+    if (cooldownEnds != null && now.isBefore(cooldownEnds)) {
+      return ClipReadiness(
+        ClipReadinessState.cooldown,
+        remaining: cooldownEnds.difference(now),
+        recording: saving,
+      );
+    }
+    if (saving) {
+      return ClipReadiness(
+        ClipReadinessState.saving,
+        remaining: _left(ends, now),
       );
     }
     final buffered = now.difference(opened);
@@ -107,6 +133,22 @@ class CameraRig extends ChangeNotifier {
     }
     return const ClipReadiness(ClipReadinessState.ready);
   }
+
+  static Duration _left(DateTime ends, DateTime now) {
+    final left = ends.difference(now);
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  /// When motion may take its next clip, or null if it may now (or motion
+  /// clips are off). Both the readiness countdown and the trigger use this.
+  DateTime? get motionCooldownEnds {
+    final last = _lastMotionClip;
+    if (last == null || !settings.motionEnabled) return null;
+    final ends = last.add(settings.motionCooldown);
+    return _now().isBefore(ends) ? ends : null;
+  }
+
+  ClipTrigger? _latestClipTrigger;
 
   /// The latest motion score of the open camera (0–100 % of the picture
   /// changing), or null when there's no score (warming up, no camera).
@@ -240,10 +282,10 @@ class CameraRig extends ChangeNotifier {
         : 0;
     if (_framesOverThreshold < motionFramesToTrigger) return;
 
-    // At most one automatic clip per cooldown period.
-    final last = _lastMotionClip;
+    // At most one automatic clip per cooldown: only once its countdown has
+    // reached zero.
+    if (motionCooldownEnds != null) return;
     final now = _now();
-    if (last != null && now.difference(last) < settings.motionCooldown) return;
     final target = bus;
     if (target == null || !canClip || _motionClipStarting) return;
 
@@ -314,6 +356,7 @@ class CameraRig extends ChangeNotifier {
     _latestClip?.removeListener(notifyListeners);
     _latestClip = clip..addListener(notifyListeners);
     _latestClipEnds = requestedAt.add(after);
+    _latestClipTrigger = trigger;
     notifyListeners();
     bus.publish(ClipRequested(clip, trigger: trigger, time: requestedAt));
   }

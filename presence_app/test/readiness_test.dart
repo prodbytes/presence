@@ -82,6 +82,106 @@ void main() {
       expect(rig.readiness.state, ClipReadinessState.ready);
     });
 
+    var warmedUp = false;
+    var step = 0; // Keeps the square alternating across bursts.
+    setUp(() {
+      warmedUp = false; // Each test gets a fresh rig.
+      step = 0;
+    });
+
+    /// Movement that triggers on its 3rd frame; returns the trigger time.
+    /// The detector's warm-up (still frames) runs only the first time.
+    Future<DateTime> motionClip() async {
+      if (!warmedUp) {
+        for (var i = 0; i < 20; i++) {
+          now = now.add(const Duration(milliseconds: 200));
+          back.motion.add(frame());
+          await Future<void>.delayed(Duration.zero);
+        }
+        warmedUp = true;
+      }
+      DateTime? third;
+      for (var i = 0; i < 3; i++) {
+        now = now.add(const Duration(milliseconds: 200));
+        back.motion.add(frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24));
+        await Future<void>.delayed(Duration.zero);
+        if (i == 2) third = now;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      return third!;
+    }
+
+    test('a motion clip starts the cooldown countdown', () async {
+      now = now.add(const Duration(seconds: 20));
+      final triggered = await motionClip();
+      expect(back.fullCompleters, hasLength(1));
+
+      var r = rig.readiness;
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.remaining, const Duration(minutes: 5));
+      expect(now, triggered);
+      expect(r.recording, isTrue, reason: 'still saving the after part');
+
+      back.fullCompleters.single.complete(media);
+      await Future<void>.delayed(Duration.zero);
+      r = rig.readiness;
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.recording, isFalse);
+
+      now = triggered.add(const Duration(minutes: 4, seconds: 59));
+      expect(rig.readiness.remaining, const Duration(seconds: 1));
+    });
+
+    test('motion retriggers only when the countdown reaches zero', () async {
+      now = now.add(const Duration(seconds: 20));
+      final start = await motionClip();
+      back.fullCompleters.single.complete(media);
+
+      // Motion ending one second before zero: no clip.
+      now = start.add(
+        const Duration(minutes: 4, seconds: 58, milliseconds: 400),
+      );
+      await motionClip();
+      expect(back.fullCompleters, hasLength(1));
+      expect(rig.readiness.state, ClipReadinessState.cooldown);
+
+      // At zero: ready, and motion clips again.
+      now = start.add(const Duration(minutes: 5));
+      expect(rig.readiness.state, ClipReadinessState.ready);
+      expect(rig.motionCooldownEnds, isNull);
+      now = now.subtract(const Duration(milliseconds: 600));
+      await motionClip();
+      expect(back.fullCompleters, hasLength(2));
+      expect(rig.readiness.state, ClipReadinessState.cooldown);
+    });
+
+    test('a manual clip during the cooldown shows its own countdown', () async {
+      now = now.add(const Duration(seconds: 20));
+      final triggered = await motionClip();
+      back.fullCompleters.single.complete(media);
+      now = triggered.add(const Duration(minutes: 1));
+
+      await rig.requestClips(bus);
+      var r = rig.readiness;
+      expect(r.state, ClipReadinessState.saving);
+      expect(r.remaining, const Duration(seconds: 15));
+
+      back.fullCompleters.last.complete(media);
+      await Future<void>.delayed(Duration.zero);
+      r = rig.readiness;
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.remaining, const Duration(minutes: 4));
+    });
+
+    test('with motion clips off, there is no cooldown', () async {
+      now = now.add(const Duration(seconds: 20));
+      await motionClip();
+      back.fullCompleters.single.complete(media);
+      await Future<void>.delayed(Duration.zero);
+      rig.settings.motionEnabled = false;
+      expect(rig.readiness.state, ClipReadinessState.ready);
+    });
+
     test('flipping starts buffering again', () async {
       now = now.add(const Duration(seconds: 20));
       expect(rig.readiness.state, ClipReadinessState.ready);
@@ -215,7 +315,8 @@ void main() {
         find.text('Motion detected · saving the next 15 s'),
         findsOneWidget,
       );
-      expect(find.text('15 s'), findsOneWidget);
+      // The pill counts down the motion cooldown (5 minutes by default).
+      expect(find.text('5:00'), findsOneWidget);
       await settleStorage(tester);
     });
   });
