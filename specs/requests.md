@@ -317,3 +317,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     Credential Manager on Android), the camera only while signed in, and the
     tooltip "Signed in as <name> · <email>". Sign-out closes the account
     sheet.
+65. **Why don't you go ahead and create the Android and iOS keys?**
+    (2026-09-25) Not possible from the CLI without Firebase: Google has no
+    public API or `gcloud` command for Android or iOS OAuth clients (the
+    IAP API makes only IAP web clients). Opened the console's Create OAuth
+    client page for project `presence-492410`, with the values to enter.
