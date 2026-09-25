@@ -322,3 +322,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     public API or `gcloud` command for Android or iOS OAuth clients (the
     IAP API makes only IAP web clients). Opened the console's Create OAuth
     client page for project `presence-492410`, with the values to enter.
+66. **Go ahead and do the clicks.** (2026-09-25) Not possible from this
+    session: it has no tool that controls the user's signed-in browser, and a
+    browser it starts itself isn't signed in to Google (and Google blocks
+    sign-in from automated browsers). The OAuth clients stay a manual
+    console step.
