@@ -119,3 +119,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     Events, clips and settings are restored on launch, and interrupted clips
     keep their before part. Defaults chosen: delete the before-only file once
     the full clip is saved; keep everything (no retention limit yet).
+33. **Getting an error (a RangeError): check, rebuild, fix, and check the
+    logs.** The browser console showed the app failing at startup:
+    `AppEvent.newId()` used `nextInt(1 << 32)`, and on web, shifts are
+    32-bit, so `1 << 32` is 0 and `nextInt(0)` throws. The VM tests couldn't
+    catch it, because there the shift is 64-bit. Fixed with a literal
+    `0xFFFFFFFF`, rebuilt the server, and confirmed the browser console is
+    clean and the app renders.

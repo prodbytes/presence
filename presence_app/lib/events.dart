@@ -82,7 +82,8 @@ class AppEvent {
   /// randomness so events in the same microsecond don't collide.
   static String newId() {
     final now = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
-    final noise = _random.nextInt(1 << 32).toRadixString(36).padLeft(7, '0');
+    // Not `1 << 32`: on web, shifts are 32-bit and that evaluates to 0.
+    final noise = _random.nextInt(0xFFFFFFFF).toRadixString(36).padLeft(7, '0');
     return '$now-$noise';
   }
 
