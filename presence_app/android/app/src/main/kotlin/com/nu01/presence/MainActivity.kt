@@ -1,4 +1,4 @@
-package com.example.presence_app
+package com.nu01.presence
 
 import android.os.Bundle
 import android.view.WindowManager

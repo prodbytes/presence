@@ -15,7 +15,11 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
-      PresenceApp(cameras: cameras, mediaIo: fakeMediaIo),
+      PresenceApp(
+        cameras: cameras,
+        mediaIo: fakeMediaIo,
+        auth: FakeAuthService.signedIn(),
+      ),
     );
     await tester.pumpAndSettle();
     await settleStorage(tester);

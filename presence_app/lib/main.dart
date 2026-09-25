@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'auth/account_sheet.dart';
+import 'auth/auth_service.dart';
+import 'auth/google_auth_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'config.dart';
@@ -25,10 +28,14 @@ class PresenceApp extends StatefulWidget {
     this.storage,
     this.mediaIo,
     this.now,
+    this.auth,
   });
 
   /// Overrides the clock (used by tests).
   final DateTime Function()? now;
+
+  /// Overrides sign-in (used by tests); defaults to Google.
+  final AuthService? auth;
 
   /// Overrides camera access (used by tests); defaults to the device's.
   final CameraBackend? cameras;
@@ -70,12 +77,15 @@ class _PresenceAppState extends State<PresenceApp> {
           : (store) => IdbMediaStore(store, mediaIo),
     );
     _bus.publish(AppEvent.appStarted());
+    _auth = widget.auth ?? GoogleAuthService();
+    _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
       config: _config,
       bus: _bus,
       now: widget.now,
     )..load();
+    _auth.init().ignore();
     _persistence
       ..attachRig(_rig)
       ..restore(_log).catchError((Object e) {
@@ -84,13 +94,31 @@ class _PresenceAppState extends State<PresenceApp> {
     requestPersistentStorage().ignore();
   }
 
+  late final AuthService _auth;
+  String? _signedInAs;
+
+  /// Sign-ins and sign-outs go on the event stream too.
+  void _onAuthChanged() {
+    final email = _auth.user?.email;
+    if (email == _signedInAs) return;
+    final previous = _signedInAs;
+    _signedInAs = email;
+    _bus.publish(
+      email != null
+          ? AppEvent(icon: Icons.login, title: 'Signed in', detail: email)
+          : AppEvent(icon: Icons.logout, title: 'Signed out', detail: previous),
+    );
+  }
+
   @override
   void dispose() {
+    _auth.removeListener(_onAuthChanged);
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
     _bus.close();
     _config.dispose();
+    _auth.dispose();
     super.dispose();
   }
 
@@ -102,7 +130,7 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(log: _log, rig: _rig, config: _config),
+        home: HomeScreen(log: _log, rig: _rig, config: _config, auth: _auth),
       ),
     );
   }
@@ -123,17 +151,23 @@ enum HomeTab {
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), the event stream and the
 /// settings. Swiping sideways flips too.
+///
+/// Signed out, the camera still shows, but the navigation is hidden: the
+/// app bar has only the title and a sign-in button, and the screen stays on
+/// the camera.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     required this.log,
     required this.rig,
     required this.config,
+    required this.auth,
   });
 
   final EventLog log;
   final CameraRig rig;
   final ConfigController config;
+  final AuthService auth;
 
   /// Width of each icon tab: Material's 48 dp minimum touch target, which
   /// leaves room for the title on 320 dp phones.
@@ -152,8 +186,32 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
 
+  bool get _signedIn => widget.auth.user != null;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.auth.addListener(_onAuthChanged);
+  }
+
+  String? _shownError;
+
+  /// Signing out hides the navigation, so go back to the camera. Sign-in
+  /// errors pop a message (there's no sign-in screen to show them on).
+  void _onAuthChanged() {
+    if (!_signedIn) _tabs.index = HomeTab.camera.index;
+    final error = widget.auth.error;
+    if (error != null && error != _shownError && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
+    }
+    _shownError = error;
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    widget.auth.removeListener(_onAuthChanged);
     _clipEvents?.cancel();
     _tabs.dispose();
     super.dispose();
@@ -186,10 +244,13 @@ class _HomeScreenState extends State<HomeScreen>
           // until dismissed.)
           persist: false,
           duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'View',
-            onPressed: () => _tabs.animateTo(HomeTab.events.index),
-          ),
+          // The events tab is only there when signed in.
+          action: _signedIn
+              ? SnackBarAction(
+                  label: 'View',
+                  onPressed: () => _tabs.animateTo(HomeTab.events.index),
+                )
+              : null,
         ),
       );
   }
@@ -229,33 +290,38 @@ class _HomeScreenState extends State<HomeScreen>
               )
             : null,
         actions: [
-          SizedBox(
-            width: HomeScreen.tabWidth * HomeTab.values.length,
-            child: TabBar(
-              controller: _tabs,
-              dividerHeight: 0,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelPadding: EdgeInsets.zero,
-              tabs: [
-                for (final tab in HomeTab.values)
-                  Tooltip(
-                    message: tab.label,
-                    child: Tab(icon: Icon(tab.icon, semanticLabel: tab.label)),
-                  ),
-              ],
+          if (!_signedIn) ...[
+            SignInAction(auth: widget.auth),
+            const SizedBox(width: 12),
+          ] else ...[
+            SizedBox(
+              width: HomeScreen.tabWidth * HomeTab.values.length,
+              child: TabBar(
+                controller: _tabs,
+                dividerHeight: 0,
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelPadding: EdgeInsets.zero,
+                tabs: [
+                  for (final tab in HomeTab.values)
+                    Tooltip(
+                      message: tab.label,
+                      child: Tab(
+                        icon: Icon(tab.icon, semanticLabel: tab.label),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          // Not a destination yet, so not a tab: shown, but disabled.
-          const IconButton(
-            tooltip: 'Login (coming soon)',
-            icon: Icon(Icons.person),
-            onPressed: null,
-          ),
-          const SizedBox(width: 4),
+            // Account (who's signed in, sign out): an action, not a tab.
+            AccountButton(auth: widget.auth),
+            const SizedBox(width: 4),
+          ],
         ],
       ),
       body: TabBarView(
         controller: _tabs,
+        // No swiping to the other tabs while they're hidden.
+        physics: _signedIn ? null : const NeverScrollableScrollPhysics(),
         children: [
           _KeepAlive(
             child: CameraFeedsView(

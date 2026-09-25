@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/auth/auth_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/storage/media_store.dart';
@@ -155,4 +156,50 @@ Future<void> clipAndShowEvents(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await settleStorage(tester);
   await showEvents(tester);
+}
+
+/// Sign-in without Google: signIn() signs in as [account].
+class FakeAuthService extends AuthService {
+  FakeAuthService({
+    this.account = const AuthUser(
+      id: '1',
+      email: 'julio@nu01.com',
+      name: 'Julio',
+    ),
+    bool signedIn = false,
+  }) : _user = signedIn ? account : null;
+
+  /// Already signed in at launch (a restored session).
+  FakeAuthService.signedIn() : this(signedIn: true);
+
+  final AuthUser account;
+  AuthUser? _user;
+
+  @override
+  bool get checking => false;
+
+  @override
+  AuthUser? get user => _user;
+  @override
+  bool get available => true;
+  @override
+  String? get unavailableReason => null;
+  @override
+  String? get error => null;
+  @override
+  Future<void> init() async {}
+  @override
+  Future<void> signIn() async {
+    _user = account;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> signOut() async {
+    _user = null;
+    notifyListeners();
+  }
+
+  @override
+  Widget? buildSignInButton() => null;
 }

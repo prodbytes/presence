@@ -298,9 +298,70 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     each feature or bug fix gets a new branch from an up-to-date `main` and
     its own PR (stacking only when truly dependent), and merges happen only
     on the user's say-so.
+61. **Enable sign in with Google.** Chosen: plain `google_sign_in` (no
+    Firebase), app ID `com.nu01.presence`, with the assistant walking the
+    user through the credentials. Renamed the app ID on Android and iOS, and
+    added an `AuthService` with a Google implementation (GIS button on web,
+    Credential Manager on Android, the SDK on iOS), an account button and
+    sheet, silent session restore, and sign-in/out events.
+62. **First install the Google Cloud CLI and help me authenticate.**
+    Installed `gcloud-cli` (586.0.0) via Homebrew and ran the browser login
+    (julio@nu01.com). Using the existing Presence project `presence-492410`.
+    Gave console steps for the consent screen and the web, Android (debug
+    SHA-1) and iOS OAuth clients.
+63. **Can't you do all that? Don't add Firebase to the project; just create
+    the OAuth IDs.** Checked the CLI routes: Google Sign-In OAuth clients
+    can't be created from `gcloud` without Firebase (`gcloud iam
+    oauth-clients` is Workforce Identity, the IAP brand API is deprecated),
+    so they're made in the Cloud console. The consent screen already exists.
+    Firebase was not added.
+64. **When the app loads, check if the user is signed in: if so, show the
+    tabs as usual, with the user icon and an identity tooltip; if not, show
+    only the Google sign-in prompt. Use the latest Google sign-in best
+    practices (FedCM etc.).** Added an auth gate: a quiet session check with
+    a splash, a full-screen sign-in prompt (GIS button with FedCM on web,
+    Credential Manager on Android), the camera only while signed in, and the
+    tooltip "Signed in as <name> · <email>". Sign-out closes the account
+    sheet.
+65. **Why don't you go ahead and create the Android and iOS keys?**
+    (2026-09-25) Not possible from the CLI without Firebase: Google has no
+    public API or `gcloud` command for Android or iOS OAuth clients (the
+    IAP API makes only IAP web clients). Opened the console's Create OAuth
+    client page for project `presence-492410`, with the values to enter.
+66. **Go ahead and do the clicks.** (2026-09-25) Not possible from this
+    session: it has no tool that controls the user's signed-in browser, and a
+    browser it starts itself isn't signed in to Google (and Google blocks
+    sign-in from automated browsers). The OAuth clients stay a manual
+    console step.
+67. **Here is the web OAuth client ID, and the secret. Don't store them in
+    source: store them in .env and load them on server start.**
+    (2026-09-25) Added a gitignored `.env` (with a committed
+    `.env.example`). `scripts/flutter-web.sh` and a new
+    `scripts/flutter-run.sh` pass the client IDs to Flutter via an
+    allowlist in `scripts/dart-defines.sh`. The client secret stays in
+    `.env` only: the app doesn't need it, and passing it to Flutter would
+    publish it in the web bundle.
+68. **Here is the Android OAuth client ID; add it to .env under its own
+    name.** (2026-09-25) Added `GOOGLE_ANDROID_CLIENT_ID` to `.env` and
+    `.env.example`. It's for reference only and isn't passed to the app:
+    Google matches Android's client by package name and signing-key SHA-1.
+    Tested sign-in on the S40.
+69. **Don't create a separate login screen: let the camera show and only
+    hide the navigation. When the user is signed in, show all buttons.**
+    (2026-09-25) Removed the sign-in screen and the gate. The camera opens
+    and records at launch whether or not anyone is signed in. Signed out,
+    the app bar has only the title and Sign in with Google (Google's button
+    on web), the tabs are hidden, swiping is off, and sign-in errors pop a
+    message. Signed in, the tabs and the account button (identity tooltip)
+    show. Verified on the S40 (320 dp): the signed-out app bar fits, and
+    the button opens Google's sign-in sheet.
 70. **Pressing Clip starts a 15 s countdown. That's not right: only
     automatic triggers (detections) should start the countdown.**
     (2026-09-25) Removed the readiness pill's "saving" state. A Clip press
     now leaves the pill as it is (Ready, or the running motion cooldown);
     only motion clips start a countdown. The snackbar still says the clip
     is saving.
+71. **Merge it all.** (2026-09-25) Merged #21 (branch rule), #23 (only
+    motion clips count down) and #22 (sign in with Google) into `main`,
+    resolving request-log conflicts. 80/80 tests pass on the merged code.
+    iOS sign-in still needs its client ID in `.env`.

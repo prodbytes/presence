@@ -190,6 +190,7 @@ void main() {
           cameras: openFakes([camera]),
           mediaIo: fakeMediaIo,
           now: () => now,
+          auth: FakeAuthService.signedIn(),
         ),
       );
       await tester.pumpAndSettle();
@@ -229,6 +230,7 @@ void main() {
           cameras: openFakes([back, front]),
           mediaIo: fakeMediaIo,
           now: () => now,
+          auth: FakeAuthService.signedIn(),
         ),
       );
       await tester.pumpAndSettle();
