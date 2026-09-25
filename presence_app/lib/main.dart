@@ -7,6 +7,7 @@ import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
 import 'storage/media_platform.dart';
+import 'storage/media_store.dart';
 import 'storage/persistence.dart';
 import 'theme.dart';
 
@@ -45,11 +46,16 @@ class _PresenceAppState extends State<PresenceApp> {
     // Subscribe before publishing: a broadcast stream drops events that
     // have no listener yet.
     _log = EventLog(_bus.stream);
+    final mediaIo = widget.mediaIo;
     _persistence = Persistence(
-      factory: widget.storage ?? newDefaultIdbFactory(),
+      factory: widget.storage != null
+          ? Future.value(widget.storage)
+          : newDefaultIdbFactory(),
       bus: _bus,
       settings: _settings,
-      io: widget.mediaIo ?? const MediaIo(),
+      mediaStore: mediaIo == null
+          ? null
+          : (store) => IdbMediaStore(store, mediaIo),
     );
     _bus.publish(AppEvent.appStarted());
     _rig = CameraRig(

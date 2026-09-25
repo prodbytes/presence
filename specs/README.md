@@ -175,6 +175,11 @@ refresh. It's accessed through [`idb_shim`](https://pub.dev/packages/idb_shim)
 with the mapping in
 [lib/storage/persistence.dart](../presence_app/lib/storage/persistence.dart)).
 
+On **web**, all app data is in IndexedDB, as described below. On
+**Android**, the same stores live in a sembast database on disk, and
+recordings are files instead of `media` rows (see [Android](#android)).
+Everything goes through `EventStore` and `MediaStore`.
+
 **Why IndexedDB (not drift/SQLite or `localStorage`):**
 - `localStorage` holds only ~5 MB of strings. One 30 s clip is ~10 MB per
   camera.
@@ -235,10 +240,10 @@ there's no retention limit yet.
     `getUserMedia` stream per camera (plus the microphone), a `<video>`
     element for the preview, canvas snapshots for thumbnails, and
     `MediaRecorder` for the rolling recordings and clips.
-  - **Android/iOS** use the official `camera` plugin, for previews and
-    thumbnails only: the plugin can't keep a rolling recording, so clip cards
-    there say video clips aren't supported.
-  - macOS and Linux desktop have no camera implementation.
+  - **Android** uses a native Kotlin camera layer (`PresenceCamerasPlugin`,
+    on the `presence/cameras` method channel; see [Android](#android)).
+    It has the same always-on recording, clips, audio and playback as web.
+  - iOS, macOS and Linux have no camera implementation yet.
 - The Android, iOS, Linux and macOS scaffolding from `flutter create` is kept.
 - iOS: `Info.plist` declares `NSCameraUsageDescription`, which the camera
   plugin needs. There's no microphone key yet, because the native side
@@ -246,6 +251,38 @@ there's no retention limit yet.
   Running on a physical iPhone requires full Xcode, a connected or paired
   iPhone with Developer Mode on, and a signing team. The bundle ID is still
   the placeholder `com.example.presenceApp`.
+
+### Android
+
+The web approach (overlapping `MediaRecorder`s) doesn't exist on Android, so
+Android uses the standard dashcam technique instead
+([android/app/src/main/kotlin/…](../presence_app/android/app/src/main/kotlin/com/example/presence_app)):
+
+- **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
+  and a hardware **H.264** encoder, 30 fps, up to 1280×720, with a keyframe
+  every second. The default microphone (`AudioRecord`) feeds an **AAC**
+  encoder. Audio and video share the camera's clock.
+- **`SampleRing`:** the encoded samples are kept in an in-memory ring buffer,
+  holding *before* + 1 s of history, pruned a whole GOP at a time.
+- **On Clip:** the before part is muxed from the ring into an MP4 at once
+  (`MediaMuxer`). The full clip is muxed once the after period has been
+  buffered. Files start at the keyframe at or before the window, and the
+  window offsets are returned, the same "file + window" model as web.
+  Clips in progress pin their samples, so they can't be pruned.
+- **Thumbnail:** the latest frame, taken from the ring with
+  `MediaMetadataRetriever`, turned upright and saved as JPEG.
+- **Playback:** `video_player` (ExoPlayer), with the same before-then-full
+  continuation and exact window end as web. Tap to pause and play.
+- **Several cameras:** phones that can't run cameras concurrently (all
+  before Android 11, and most after) open the first back camera. The others
+  show as unavailable tiles, with the reason.
+- **Permissions:** camera and microphone are requested at launch. Without
+  the microphone, recording is video-only. The screen is kept on.
+- **Storage:** metadata goes in a persistent sembast database (via
+  `idb_shim`) in the app's private storage. Recordings are MP4 files in the
+  app's private `clips/` folder, not database rows, because sembast keeps
+  its whole database in memory. If private storage is unavailable, data is
+  kept in memory for the session.
 
 ## Development environment
 
@@ -263,6 +300,12 @@ there's no retention limit yet.
   and the web app.
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
   (Dart 3.13.0).
+- **Android builds on macOS:** Homebrew's `android-commandlinetools` cask
+  (SDK at `/opt/homebrew/share/android-commandlinetools`, with
+  platform-tools, platform 36 and build-tools 36), and JDK 21
+  (`openjdk@21`), configured with `flutter config --android-sdk` and
+  `--jdk-dir`. Gradle fetches the NDK and extra platforms on the first
+  build. The dev container doesn't include the Android SDK.
 
 ## Workflow
 
@@ -280,8 +323,10 @@ there's no retention limit yet.
   noticeable CPU with several cameras.
 - Nothing is deleted automatically: storage grows by roughly 10 MB per
   camera per clip until a retention policy is added.
-- On Android/iOS, storage is in memory only (a fresh database each launch),
-  since clips aren't recorded there yet.
+- Android opens only one camera on phones without concurrent-camera
+  support.
+- Android preview orientation assumes the phone is held in its natural
+  (portrait) orientation.
 - Persistence has been verified with unit and widget tests against an
   in-memory IndexedDB, but not yet in a real browser.
 - The browser's native video controls show the whole recording file, which

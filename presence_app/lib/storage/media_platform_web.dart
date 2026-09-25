@@ -4,8 +4,14 @@ import 'dart:typed_data';
 import 'package:idb_shim/idb_browser.dart';
 import 'package:web/web.dart' as web;
 
+import 'event_store.dart';
+import 'media_store.dart';
+
 /// The browser's IndexedDB.
-IdbFactory newDefaultIdbFactory() => idbFactoryBrowser;
+Future<IdbFactory> newDefaultIdbFactory() async => idbFactoryBrowser;
+
+/// Recordings live in IndexedDB alongside the rest of the data.
+MediaStore newDefaultMediaStore(EventStore store) => IdbMediaStore(store);
 
 /// Reads a recording held at an in-memory (Blob object) URL.
 Future<Uint8List> readMediaBytes(String url) async {

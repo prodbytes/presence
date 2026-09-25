@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:camera/camera.dart' show CameraException;
 import 'package:flutter/material.dart';
 
 import 'cameras/cameras.dart';
@@ -295,8 +294,7 @@ class FeedMessage extends StatelessWidget {
 }
 
 String describeCameraError(Object error) {
-  if (error is CameraException) {
-    return error.description ?? error.code;
-  }
-  return error.toString();
+  // Browser errors (DOMException) carry a readable message in toString.
+  final text = error.toString();
+  return text.startsWith('Exception: ') ? text.substring(11) : text;
 }

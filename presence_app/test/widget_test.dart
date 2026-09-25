@@ -1,4 +1,3 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/link.dart';
@@ -208,7 +207,7 @@ void main() {
       const Size(1280, 800),
       openCameras: (_) async {
         calls++;
-        throw CameraException('permissionDenied', 'Camera access was denied');
+        throw Exception('Camera access was denied');
       },
     );
 

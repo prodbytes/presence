@@ -132,3 +132,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (capped at 2 s, per camera), so the event starts out playable. When the
     full clip arrives, the same event is updated in place and in storage
     (`clipState: complete`).
+35. **Port the app to Android and run it on the connected USB Android
+    device.** Found a DOOGEE S40 on USB. The user chose to install the
+    Android SDK via Homebrew (plus JDK 21) and to port clips fully. Added a
+    native Kotlin camera layer: Camera2 + H.264/AAC encoders into an
+    in-memory ring buffer, clips muxed to MP4. Also video_player playback,
+    and file-based clip storage with a persistent sembast database. Removed
+    the `camera` plugin.
