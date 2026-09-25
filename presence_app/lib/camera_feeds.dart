@@ -195,17 +195,25 @@ class _CameraGrid extends StatelessWidget {
     final live = sources.where((s) => s is! UnavailableCameraSource).toList();
     final unavailable = sources.whereType<UnavailableCameraSource>().toList();
     if (live.isEmpty || unavailable.isEmpty) return _Grid(sources: sources);
+    // One line per reason: "Back camera 2, Front camera 1: …".
+    final byReason = <String, List<UnavailableCameraSource>>{};
+    for (final camera in unavailable) {
+      byReason
+          .putIfAbsent(describeCameraError(camera.error), () => [])
+          .add(camera);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(child: _Grid(sources: live)),
-        for (final camera in unavailable)
+        for (final MapEntry(key: reason, value: cameras) in byReason.entries)
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            // Clear of the Clip button in the bottom-right corner.
+            padding: const EdgeInsets.fromLTRB(12, 8, 136, 8),
             child: Text(
-              '${camera.label}: ${describeCameraError(camera.error)}',
-              key: ValueKey('unavailable-${camera.id}'),
-              maxLines: 2,
+              '${cameras.map((c) => c.label).join(', ')}: $reason',
+              key: ValueKey('unavailable-${cameras.first.id}'),
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -228,13 +236,15 @@ class _Grid extends StatelessWidget {
       builder: (context, constraints) {
         final columns = math.sqrt(sources.length).ceil();
         final rows = (sources.length / columns).ceil();
-        const spacing = 8.0;
+        // Full screen: edge to edge, with hairline gaps between cameras.
+        const spacing = 2.0;
         final tileWidth =
-            (constraints.maxWidth - spacing * (columns + 1)) / columns;
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
         final tileHeight =
-            (constraints.maxHeight - spacing * (rows + 1)) / rows;
+            (constraints.maxHeight - spacing * (rows - 1)) / rows;
         return GridView.count(
-          padding: const EdgeInsets.all(spacing),
+          padding: EdgeInsets.zero,
+          physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: columns,
           mainAxisSpacing: spacing,
           crossAxisSpacing: spacing,
@@ -258,8 +268,7 @@ class CameraTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final src = source;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+    return ClipRect(
       child: ColoredBox(
         color: Gruvbox.bg0Hard,
         child: Stack(

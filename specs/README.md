@@ -12,22 +12,36 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 ## User interface
 
-The app is a Flutter app ([presence_app/](../presence_app)). The main screen
-has two panels:
+The app is a Flutter app ([presence_app/](../presence_app)). The same UI
+runs on Android and web. It follows Material 3 top-level navigation: **tabs
+in the app bar**, which flip between full screens.
 
-| Panel | Position | Contents |
-|-------|----------|----------|
-| Cameras | Left, takes all remaining width | Titled with the app name. Live feeds from every camera on the device, in a grid. |
-| Events | Right, always 360 px wide | Timeline of events, newest first. |
-
-- On screens at least 720 px wide, the layout is the same at every size:
-  the Events panel is always 360 px wide on the right, and the Cameras panel
-  fills the rest.
-- **Phones:** below 720 px wide, side by side can't fit (a 320 dp phone
-  would give the Cameras panel no room at all), so the panels stack. Cameras
-  is on top, filling the space, and Events is below at a fixed height (up to
-  300 px, at most 40% of the screen).
-- Header buttons are tonal filled icon buttons, 8 px apart.
+- **App bar:** the title **Presence** (accent color, plain text) on the left.
+  In the top right are three icon tabs, in order **Camera**, **Events** and
+  **Settings**, then a **Login** icon button.
+  - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
+    An indicator marks the selected tab.
+  - **Login** is shown but **disabled** ("Login (coming soon)"). It isn't a
+    tab, because Material advises against destinations that go nowhere.
+- **Flipping:** tapping a tab or swiping sideways moves between screens
+  (`TabBar` + `TabBarView`). The Camera screen is kept alive while other tabs
+  are shown, so its live video isn't torn down.
+- **Camera** (the start tab): the camera feeds fill the **whole screen**,
+  edge to edge and under the app bar, which is transparent over the camera,
+  with a dark gradient scrim to keep the title and tabs readable.
+  - Several cameras share the screen in a grid with hairline gaps.
+  - The **Clip** trigger is an extended floating action button (bottom
+    right), shown only on the Camera tab and only when a camera is open.
+    Material says to hide a FAB that can't act, rather than disable it.
+  - After a clip, a snackbar says "Clip requested", with a **View** action
+    that jumps to Events.
+- **Events:** the event stream, full screen. On wide screens it's centered
+  at a readable width (max 560 px), so clip thumbnails don't stretch across
+  the desktop.
+- **Settings:** the clip settings as a normal screen (no longer a drawer),
+  same 560 px readable width.
+- The title no longer links to presence.nu01.com. On a full-screen camera,
+  an accidental tap would open a browser. `url_launcher` was removed.
 - The Flutter demo UI was removed entirely.
 
 ### Theme
@@ -49,13 +63,9 @@ The colors follow **Gruvbox dark, soft contrast**, defined in
 
 The web manifest's `theme_color` and `background_color` are also `#32302f`.
 
-### Cameras panel
+### Camera screen
 
-- The panel title is the app name, **Presence**, in the accent color. It links
-  to https://presence.nu01.com and opens in a new tab. On web it's a real link,
-  so middle-click and "open in new tab" work.
-- The header has a **Clip** button (camera icon) at its top right. It's
-  disabled until at least one camera is open. See [Clips](#clips).
+- The **Clip** floating action button starts a clip. See [Clips](#clips).
 - On load, the app opens every camera available to the device and shows each
   one as a live tile. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
@@ -75,12 +85,8 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
   - **Per-tile error:** if one camera fails to open (for example, it's in use),
     only that tile shows the error.
 
-### Events panel
+### Events screen
 
-- The header has two icon buttons at its top right, in this order:
-  - **Settings** (gear icon) opens the [Settings pane](#settings-pane).
-  - **Login** (person icon) is a placeholder for now. It shows a tooltip but
-    takes no action.
 - Events appear in a vertically scrolling timeline, newest at the top. Each
   entry is just a card, with no dot or rail beside it, and cards are 8 px
   apart.
@@ -130,7 +136,7 @@ Pressing **Clip** records a clip from **every** open camera at once:
    autoplay with sound, the player stays paused on its controls, and one tap
    on play starts it with audio.
 
-The before and after lengths are configurable in the Settings pane.
+The before and after lengths are configurable on the Settings screen.
 
 **How "always recording" works (web).** Browser recordings (`MediaRecorder`)
 can't be trimmed or joined, so each camera runs a rolling pool of overlapping
@@ -156,10 +162,9 @@ recorders (`RecorderPool` in
 - Clips (thumbnails and recordings) are saved to local storage and survive a
   page refresh. See [Storage](#storage).
 
-### Settings pane
+### Settings screen
 
-- Opened by the **Settings** button, hidden to start with. It's an end drawer
-  that slides in from the right and has a close button.
+- The **Settings** tab.
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
   - **Before the press**, default 15 s. This also sets how much history the
     cameras keep recording.
@@ -236,7 +241,6 @@ there's no retention limit yet.
 - Web is the primary development target. `devbox services up` (or
   `devbox run web` on its own) serves it at http://localhost:8080. The port can
   be changed with `FLUTTER_WEB_PORT`.
-- Links open through the `url_launcher` package.
 - Cameras are platform-specific, behind the `CameraSource` interface
   ([lib/cameras/](../presence_app/lib/cameras)):
   - **Web** uses browser APIs directly through `package:web`: one

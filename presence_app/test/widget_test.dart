@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:url_launcher/link.dart';
 
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
@@ -24,130 +23,117 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('uses the gruvbox soft dark palette', (tester) async {
-    await pumpAt(tester, const Size(1280, 800));
+  Future<void> openTab(WidgetTester tester, String label) async {
+    await tester.tap(find.byTooltip(label));
+    await tester.pumpAndSettle();
+  }
 
-    final theme = Theme.of(tester.element(find.byType(MonitorPage)));
-    expect(theme.brightness, Brightness.dark);
-    expect(theme.scaffoldBackgroundColor, Gruvbox.bg0Soft);
-    expect(theme.colorScheme.onSurface, Gruvbox.fg);
-    expect(theme.colorScheme.primary, Gruvbox.yellow);
-  });
+  TabController tabs(WidgetTester tester) =>
+      tester.widget<TabBar>(find.byType(TabBar)).controller!;
 
-  testWidgets('camera feeds panel is left of the events panel', (tester) async {
-    await pumpAt(tester, const Size(1280, 800));
+  for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+    final name = '${size.width.toInt()}x${size.height.toInt()}';
 
-    final cameras = tester.getRect(find.byKey(const Key('camera-feeds-panel')));
-    final events = tester.getRect(find.byKey(const Key('events-panel')));
+    testWidgets('opens on the full-screen camera at $name', (tester) async {
+      await pumpAt(tester, size);
 
-    expect(cameras.right, lessThan(events.left));
-    expect(cameras.width, greaterThan(events.width));
-  });
-
-  testWidgets('cameras panel title is the app name linking to the site', (
-    tester,
-  ) async {
-    await pumpAt(tester, const Size(1280, 800));
-
-    final cameras = find.byKey(const Key('camera-feeds-panel'));
-    final title = find.descendant(of: cameras, matching: find.text('Presence'));
-    expect(title, findsOneWidget);
-    expect(find.text('Cameras'), findsNothing);
-
-    final link = tester.widget<Link>(
-      find.ancestor(of: title, matching: find.byType(Link)),
-    );
-    expect(link.uri, Uri.parse('https://presence.nu01.com'));
-    expect(link.target, LinkTarget.blank);
-  });
-
-  testWidgets('cameras panel header has the clip button', (tester) async {
-    await pumpAt(tester, const Size(1280, 800));
-
-    final cameras = find.byKey(const Key('camera-feeds-panel'));
-    final events = find.byKey(const Key('events-panel'));
-
-    expect(
-      find.descendant(of: cameras, matching: find.byTooltip('Clip')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: events, matching: find.byTooltip('Clip')),
-      findsNothing,
-    );
-  });
-
-  testWidgets('events panel has settings then login buttons', (tester) async {
-    await pumpAt(tester, const Size(1280, 800));
-
-    final events = find.byKey(const Key('events-panel'));
-    Rect iconRect(IconData icon) => tester.getRect(
-      find.descendant(of: events, matching: find.byIcon(icon)),
-    );
-
-    expect(
-      iconRect(Icons.settings).left,
-      lessThan(iconRect(Icons.person).left),
-    );
-    expect(find.byTooltip('Settings'), findsOneWidget);
-    expect(find.byTooltip('Login'), findsOneWidget);
-  });
-
-  for (final width in [900.0, 1280.0, 1920.0]) {
-    testWidgets('events panel is fixed width at ${width.toInt()} px', (
-      tester,
-    ) async {
-      await pumpAt(tester, Size(width, 800));
-
-      final cameras = tester.getRect(
-        find.byKey(const Key('camera-feeds-panel')),
+      expect(tabs(tester).index, HomeTab.camera.index);
+      // The camera fills the whole screen, under the app bar.
+      expect(
+        tester.getRect(find.byKey(const Key('camera-page'))),
+        Offset.zero & size,
       );
-      final events = tester.getRect(find.byKey(const Key('events-panel')));
+      // The title overlays the camera, top left.
+      final title = tester.getRect(find.text('Presence'));
+      expect(title.top, lessThan(kToolbarHeight));
+      expect(title.left, lessThan(size.width / 2));
+      expect(tester.takeException(), isNull);
+    });
 
-      expect(events.width, MonitorPage.eventsPanelWidth);
-      expect(events.right, width - MonitorPage.gap);
-      // Cameras take everything else.
-      expect(cameras.left, MonitorPage.gap);
-      expect(cameras.right, events.left - MonitorPage.gap);
+    testWidgets('tabs sit in the top right at $name', (tester) async {
+      await pumpAt(tester, size);
+
+      final camera = tester.getCenter(find.byTooltip('Camera'));
+      final events = tester.getCenter(find.byTooltip('Events'));
+      final settings = tester.getCenter(find.byTooltip('Settings'));
+      final login = tester.getCenter(find.byTooltip('Login (coming soon)'));
+      for (final c in [camera, events, settings, login]) {
+        expect(c.dy, lessThan(kToolbarHeight));
+        expect(c.dx, greaterThan(size.width / 2 - 40));
+      }
+      expect(camera.dx, lessThan(events.dx));
+      expect(events.dx, lessThan(settings.dx));
+      expect(settings.dx, lessThan(login.dx));
     });
   }
 
-  testWidgets('phones stack the panels without overflowing', (tester) async {
-    // A DOOGEE S40 in portrait: 320×640 logical pixels.
+  testWidgets('each tab flips to its own screen', (tester) async {
+    await pumpAt(tester, const Size(1280, 800));
+    expect(find.byKey(const Key('camera-page')), findsOneWidget);
+
+    await openTab(tester, 'Events');
+    expect(tabs(tester).index, HomeTab.events.index);
+    expect(find.byKey(const Key('events-page')), findsOneWidget);
+    expect(find.text('Application started'), findsOneWidget);
+
+    await openTab(tester, 'Settings');
+    expect(tabs(tester).index, HomeTab.settings.index);
+    expect(find.byKey(const Key('settings-page')), findsOneWidget);
+    expect(find.text('Before the press'), findsOneWidget);
+
+    await openTab(tester, 'Camera');
+    expect(tabs(tester).index, HomeTab.camera.index);
+    expect(find.byKey(const Key('camera-page')), findsOneWidget);
+  });
+
+  testWidgets('swiping flips between tabs', (tester) async {
     await pumpAt(tester, const Size(320, 640));
 
-    final cameras = tester.getRect(find.byKey(const Key('camera-feeds-panel')));
-    final events = tester.getRect(find.byKey(const Key('events-panel')));
-    expect(tester.takeException(), isNull);
-    expect(cameras.bottom, lessThan(events.top));
-    expect(cameras.width, events.width);
-    expect(events.height, lessThanOrEqualTo(MonitorPage.stackedEventsHeight));
-    expect(cameras.height, greaterThan(events.height));
+    await tester.fling(find.byType(TabBarView), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(tabs(tester).index, HomeTab.events.index);
   });
 
-  testWidgets('header buttons are visibly separated', (tester) async {
+  testWidgets('login is shown but disabled', (tester) async {
     await pumpAt(tester, const Size(1280, 800));
 
-    final events = find.byKey(const Key('events-panel'));
-    Rect buttonRect(String tooltip) => tester.getRect(
-      find.descendant(of: events, matching: find.byTooltip(tooltip)),
+    final login = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byIcon(Icons.person),
+        matching: find.byType(IconButton),
+      ),
     );
-
-    final settings = buttonRect('Settings');
-    final login = buttonRect('Login');
-
-    expect(login.left - settings.right, greaterThanOrEqualTo(8));
+    expect(login.onPressed, isNull);
   });
 
-  testWidgets('pushes an application started event on load', (tester) async {
+  testWidgets('clip button is only on the camera tab, with a camera', (
+    tester,
+  ) async {
+    await pumpAt(
+      tester,
+      const Size(1280, 800),
+      openCameras: openFakes([FakeCameraSource('Front door')]),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Clip'), findsOneWidget);
+
+    await openTab(tester, 'Events');
+    expect(find.byTooltip('Clip'), findsNothing);
+  });
+
+  testWidgets('no clip button without a camera', (tester) async {
+    await pumpAt(tester, const Size(1280, 800));
+    expect(find.byTooltip('Clip'), findsNothing);
+  });
+
+  testWidgets('uses the gruvbox soft dark palette', (tester) async {
     await pumpAt(tester, const Size(1280, 800));
 
-    final events = find.byKey(const Key('events-panel'));
-    expect(
-      find.descendant(of: events, matching: find.text('Application started')),
-      findsOneWidget,
-    );
-    expect(find.text('No events'), findsNothing);
+    final theme = Theme.of(tester.element(find.byType(HomeScreen)));
+    expect(theme.brightness, Brightness.dark);
+    expect(theme.colorScheme.surface, Gruvbox.bg0Soft);
+    expect(theme.colorScheme.onSurface, Gruvbox.fg);
+    expect(theme.colorScheme.primary, Gruvbox.yellow);
   });
 
   testWidgets('any widget can publish to the bus via its scope', (
@@ -155,16 +141,11 @@ void main() {
   ) async {
     await pumpAt(tester, const Size(1280, 800));
 
-    final context = tester.element(find.byType(CameraFeedsPanel));
-    AppEventBusScope.of(context)
+    AppEventBusScope.of(tester.element(find.byType(HomeScreen)))
         .publish(AppEvent(icon: Icons.videocam, title: 'Motion detected'));
-    await tester.pumpAndSettle();
+    await openTab(tester, 'Events');
 
-    final events = find.byKey(const Key('events-panel'));
-    expect(
-      find.descendant(of: events, matching: find.text('Motion detected')),
-      findsOneWidget,
-    );
+    expect(find.text('Motion detected'), findsOneWidget);
     // Newest first: the new event sits above the startup event.
     expect(
       tester.getTopLeft(find.text('Motion detected')).dy,

@@ -152,3 +152,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     Verified on the device: recording, the 15.7 s before part and 30.1 s
     full clip with real audio, the thumbnail, persistence across relaunches,
     and playback.
+36. **Change the UI completely.** The start screen is the camera, full
+    screen, with a "Presence" title overlaid. The top right has Camera
+    (selected), Events, Settings and Login. Each flips to its own screen, as
+    traditional Android tabs following Material guidelines. For now: the
+    camera with the clip trigger, the events stream, the settings, and login
+    disabled. On Android and web.
+    Implemented as app-bar tabs with `TabBarView` (tap or swipe), with a
+    Clip FAB on the Camera tab, a snackbar with "View", readable-width Events
+    and Settings screens, and Login as a disabled icon button. Verified on web
+    (headless Chrome) and on the DOOGEE S40. The title link was removed;
+    phones group unavailable cameras into one line.

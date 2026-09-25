@@ -1,8 +1,5 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
-import 'package:url_launcher/link.dart';
 
 import 'camera_feeds.dart';
 import 'cameras/cameras.dart';
@@ -90,16 +87,29 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: MonitorPage(log: _log, rig: _rig, settings: _settings),
+        home: HomeScreen(log: _log, rig: _rig, settings: _settings),
       ),
     );
   }
 }
 
-/// Main screen: camera feeds fill the left, events sit in a fixed-width
-/// panel on the right. Settings open as an end drawer.
-class MonitorPage extends StatelessWidget {
-  const MonitorPage({
+/// The top-level destinations, as tabs in the app bar.
+enum HomeTab {
+  camera('Camera', Icons.videocam),
+  events('Events', Icons.notifications),
+  settings('Settings', Icons.settings);
+
+  const HomeTab(this.label, this.icon);
+
+  final String label;
+  final IconData icon;
+}
+
+/// The app's one screen: a tab bar in the top right of the app bar flips
+/// between the full-screen camera (the start tab), the event stream and the
+/// settings. Swiping sideways flips too.
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({
     super.key,
     required this.log,
     required this.rig,
@@ -110,195 +120,178 @@ class MonitorPage extends StatelessWidget {
   final CameraRig rig;
   final ClipSettings settings;
 
-  static const double eventsPanelWidth = 360;
-  static const double gap = 12;
-
-  /// Below this width the panels can't sit side by side (the Cameras panel
-  /// would get less room than the Events panel), so they stack: phones.
-  static const double stackedBreakpoint = eventsPanelWidth * 2;
-
-  /// Height of the Events panel when stacked: fixed, up to 40% of the screen.
-  static const double stackedEventsHeight = 300;
+  /// Width of each icon tab: Material's 48 dp minimum touch target, which
+  /// leaves room for the title on 320 dp phones.
+  static const double tabWidth = 48;
 
   @override
-  Widget build(BuildContext context) {
-    const gap = MonitorPage.gap;
-    return Scaffold(
-      endDrawer: SettingsPane(settings: settings),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(gap),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth < stackedBreakpoint) {
-                return Column(
-                  children: [
-                    Expanded(child: CameraFeedsPanel(rig: rig)),
-                    const SizedBox(height: gap),
-                    SizedBox(
-                      height: math.min(
-                        stackedEventsHeight,
-                        constraints.maxHeight * 0.4,
-                      ),
-                      child: EventsPanel(log: log),
-                    ),
-                  ],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: CameraFeedsPanel(rig: rig)),
-                  const SizedBox(width: gap),
-                  SizedBox(
-                    width: eventsPanelWidth,
-                    child: EventsPanel(log: log),
-                  ),
-                ],
-              );
-            },
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs = TabController(
+    length: HomeTab.values.length,
+    vsync: this,
+  )..addListener(() => setState(() {}));
+
+  bool get _onCamera => _tabs.index == HomeTab.camera.index;
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  Future<void> _clip() async {
+    await widget.rig.requestClips(AppEventBusScope.of(context));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: const Text('Clip requested'),
+          action: SnackBarAction(
+            label: 'View',
+            onPressed: () => _tabs.animateTo(HomeTab.events.index),
           ),
         ),
-      ),
-    );
+      );
   }
-}
-
-class CameraFeedsPanel extends StatelessWidget {
-  const CameraFeedsPanel({super.key, required this.rig});
-
-  final CameraRig rig;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      key: const Key('camera-feeds-panel'),
-      title: const AppTitleLink(),
-      actions: [
-        ListenableBuilder(
-          listenable: rig,
-          builder: (context, _) => IconButton.filledTonal(
-            tooltip: 'Clip',
-            icon: const Icon(Icons.photo_camera),
-            onPressed: rig.canClip
-                ? () => rig.requestClips(AppEventBusScope.of(context))
-                : null,
-          ),
-        ),
-      ],
-      child: CameraFeedsView(rig: rig),
-    );
-  }
-}
-
-class EventsPanel extends StatelessWidget {
-  const EventsPanel({super.key, required this.log});
-
-  final EventLog log;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      key: const Key('events-panel'),
-      title: const _PanelTitle('Events'),
-      actions: [
-        IconButton.filledTonal(
-          tooltip: 'Settings',
-          icon: const Icon(Icons.settings),
-          onPressed: () => Scaffold.of(context).openEndDrawer(),
-        ),
-        IconButton.filledTonal(
-          tooltip: 'Login',
-          icon: const Icon(Icons.person),
-          onPressed: () {},
-        ),
-      ],
-      child: EventTimeline(log: log),
-    );
-  }
-}
-
-class _Panel extends StatelessWidget {
-  const _Panel({
-    super.key,
-    required this.title,
-    required this.child,
-    this.actions = const [],
-  });
-
-  final Widget title;
-  final Widget child;
-  final List<Widget> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-            child: SizedBox(
-              height: 40,
-              child: Row(
-                spacing: 8,
-                children: [
-                  Expanded(
-                    child: Align(alignment: Alignment.centerLeft, child: title),
-                  ),
-                  ...actions,
-                ],
-              ),
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(child: child),
-        ],
-      ),
-    );
-  }
-}
-
-class _PanelTitle extends StatelessWidget {
-  const _PanelTitle(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
-  }
-}
-
-/// The app name, linking to the project site. On web this is a real anchor,
-/// so middle-click and "open in new tab" work.
-class AppTitleLink extends StatelessWidget {
-  const AppTitleLink({super.key});
-
-  static const String name = 'Presence';
-  static final Uri url = Uri.parse('https://presence.nu01.com');
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Link(
-      uri: url,
-      target: LinkTarget.blank,
-      builder: (context, followLink) => InkWell(
-        onTap: followLink,
-        borderRadius: BorderRadius.circular(4),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Text(
-            name,
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w600,
-            ),
+    final scheme = theme.colorScheme;
+    return Scaffold(
+      // The camera runs edge to edge, under the app bar.
+      extendBodyBehindAppBar: true,
+      backgroundColor: _onCamera ? Colors.black : scheme.surface,
+      appBar: AppBar(
+        titleSpacing: 12,
+        title: Text(
+          'Presence',
+          style: theme.textTheme.titleLarge?.copyWith(
+            color: scheme.primary,
+            fontWeight: FontWeight.w600,
           ),
         ),
+        backgroundColor: _onCamera ? Colors.transparent : scheme.surface,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        // Over the camera, a scrim keeps the title and tabs readable.
+        flexibleSpace: _onCamera
+            ? const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xB3000000), Color(0x00000000)],
+                  ),
+                ),
+              )
+            : null,
+        actions: [
+          SizedBox(
+            width: HomeScreen.tabWidth * HomeTab.values.length,
+            child: TabBar(
+              controller: _tabs,
+              dividerHeight: 0,
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelPadding: EdgeInsets.zero,
+              tabs: [
+                for (final tab in HomeTab.values)
+                  Tooltip(
+                    message: tab.label,
+                    child: Tab(icon: Icon(tab.icon, semanticLabel: tab.label)),
+                  ),
+              ],
+            ),
+          ),
+          // Not a destination yet, so not a tab: shown, but disabled.
+          const IconButton(
+            tooltip: 'Login (coming soon)',
+            icon: Icon(Icons.person),
+            onPressed: null,
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
+      body: TabBarView(
+        controller: _tabs,
+        children: [
+          _KeepAlive(
+            child: CameraFeedsView(
+              key: const Key('camera-page'),
+              rig: widget.rig,
+            ),
+          ),
+          // Readable width on large screens (Material: don't stretch cards
+          // edge to edge on desktop).
+          SafeArea(
+            key: const Key('events-page'),
+            child: _ReadableWidth(child: EventTimeline(log: widget.log)),
+          ),
+          SafeArea(
+            child: _ReadableWidth(
+              child: SettingsView(settings: widget.settings),
+            ),
+          ),
+        ],
+      ),
+      floatingActionButton: _onCamera
+          ? ListenableBuilder(
+              listenable: widget.rig,
+              // Hidden, not disabled, when there's nothing to clip.
+              builder: (context, _) => widget.rig.canClip
+                  ? FloatingActionButton.extended(
+                      tooltip: 'Clip',
+                      icon: const Icon(Icons.camera),
+                      label: const Text('Clip'),
+                      onPressed: _clip,
+                    )
+                  : const SizedBox.shrink(),
+            )
+          : null,
     );
+  }
+}
+
+class _ReadableWidth extends StatelessWidget {
+  const _ReadableWidth({required this.child});
+
+  static const double maxWidth = 560;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: maxWidth),
+      child: child,
+    ),
+  );
+}
+
+/// Keeps a tab's page (and its live camera views) alive while other tabs
+/// are shown.
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }
