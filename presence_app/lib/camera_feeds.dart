@@ -10,6 +10,39 @@ import 'motion.dart';
 import 'settings.dart';
 import 'theme.dart';
 
+/// Whether a clip taken now would be complete, shown beside the Clip button.
+enum ClipReadinessState {
+  /// No open camera.
+  unavailable,
+
+  /// The camera hasn't recorded a full "before" period yet (just opened,
+  /// flipped, or "before" was raised): a clip now would have less history.
+  buffering,
+
+  /// A clip now gets its full "before" part.
+  ready,
+
+  /// A clip's "after" part is being recorded; counts down until it's saved.
+  saving,
+}
+
+class ClipReadiness {
+  const ClipReadiness(
+    this.state, {
+    this.remaining = Duration.zero,
+    this.progress = 1,
+  });
+
+  final ClipReadinessState state;
+
+  /// Time left: until buffered (buffering) or until the clip is saved
+  /// (saving).
+  final Duration remaining;
+
+  /// 0–1 while buffering.
+  final double progress;
+}
+
 /// The camera being shown and recorded: one at a time, starting with the
 /// device's default camera, switchable with [flip]. Owned by the app so the
 /// camera (and its rolling recording) stays open across rebuilds.
@@ -41,6 +74,39 @@ class CameraRig extends ChangeNotifier {
   int _framesOverThreshold = 0;
   DateTime? _lastMotionClip;
   bool _motionClipStarting = false;
+
+  DateTime? _openedAt;
+  VideoClip? _latestClip;
+  DateTime? _latestClipEnds;
+
+  /// Whether a clip taken now would be complete. It changes with time, so
+  /// callers showing it should also refresh on a timer.
+  ClipReadiness get readiness {
+    final opened = _openedAt;
+    if (_active == null || _busy || opened == null) {
+      return const ClipReadiness(ClipReadinessState.unavailable);
+    }
+    final now = _now();
+    final clip = _latestClip;
+    final ends = _latestClipEnds;
+    if (clip != null && ends != null && !clip.fullDone) {
+      final left = ends.difference(now);
+      return ClipReadiness(
+        ClipReadinessState.saving,
+        remaining: left.isNegative ? Duration.zero : left,
+      );
+    }
+    final buffered = now.difference(opened);
+    final needed = settings.before;
+    if (buffered < needed) {
+      return ClipReadiness(
+        ClipReadinessState.buffering,
+        remaining: needed - buffered,
+        progress: buffered.inMilliseconds / needed.inMilliseconds,
+      );
+    }
+    return const ClipReadiness(ClipReadinessState.ready);
+  }
 
   /// The latest motion score of the open camera (0–100 % of the picture
   /// changing), or null when there's no score (warming up, no camera).
@@ -133,6 +199,7 @@ class CameraRig extends ChangeNotifier {
         return;
       }
       _active = source;
+      _openedAt = _now();
       _appliedBrightness = null;
       _applyBrightness();
       _watchMotion(source);
@@ -225,7 +292,7 @@ class CameraRig extends ChangeNotifier {
     if (camera == null) return;
     final before = settings.before;
     final after = settings.after;
-    final requestedAt = DateTime.now();
+    final requestedAt = _now();
     final capture = camera.requestClip(before: before, after: after);
     final (thumbnail, past) = await (
       camera.captureFrame(),
@@ -233,22 +300,22 @@ class CameraRig extends ChangeNotifier {
           .timeout(pastWait, onTimeout: () => null)
           .then<ClipMedia?>((m) => m, onError: (Object _) => null),
     ).wait;
-    bus.publish(
-      ClipRequested(
-        VideoClip(
-          cameraId: camera.id,
-          cameraLabel: camera.label,
-          before: before,
-          after: after,
-          capture: capture,
-          past: past,
-          thumbnail: thumbnail,
-          supported: camera.supportsVideo,
-        ),
-        trigger: trigger,
-        time: requestedAt,
-      ),
+    final clip = VideoClip(
+      cameraId: camera.id,
+      cameraLabel: camera.label,
+      before: before,
+      after: after,
+      capture: capture,
+      past: past,
+      thumbnail: thumbnail,
+      supported: camera.supportsVideo,
     );
+    // Readiness shows this clip's countdown until its full clip is saved.
+    _latestClip?.removeListener(notifyListeners);
+    _latestClip = clip..addListener(notifyListeners);
+    _latestClipEnds = requestedAt.add(after);
+    notifyListeners();
+    bus.publish(ClipRequested(clip, trigger: trigger, time: requestedAt));
   }
 
   void _retryFailed() {
@@ -266,6 +333,7 @@ class CameraRig extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _latestClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();
     settings.removeListener(_applyBrightness);
