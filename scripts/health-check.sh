@@ -15,8 +15,16 @@ check_database() {
     fi
 }
 
+check_web() {
+    if curl -fs -o /dev/null --max-time 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/"; then
+        echo "🌐 web ✅"
+    else
+        echo "🌐 web ❌"
+    fi
+}
+
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)"
+    printf '%s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)"
     sleep "$INTERVAL"
 done

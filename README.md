@@ -16,6 +16,7 @@ Toolchain pinned by [devbox.json](devbox.json) and locked in [devbox.lock](devbo
 | Node.js | 26.x |
 | Python | 3.14.x |
 | PostgreSQL | 17.x |
+| Flutter | 3.47.x |
 
 The container also ships the
 [docker-in-docker feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker),
@@ -45,17 +46,32 @@ devbox services up
 ```
 
 starts PostgreSQL as a Docker container (`devbox-db`, defined in
-[compose.yaml](compose.yaml)) plus a `health-check` monitor wired up in
+[compose.yaml](compose.yaml)), the Flutter app in web mode on
+http://localhost:8080 ([scripts/flutter-web.sh](scripts/flutter-web.sh)), and a
+`health-check` monitor wired up in
 [process-compose.yaml](process-compose.yaml). A readiness probe holds the
 monitor back until the database accepts connections; after that it logs one
 status line per check (every 15 s, configurable via `HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🐘 database ✅
+2026-07-09 20:02:10 🐘 database ✅ 🌐 web ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:
 `bash scripts/health-check.sh`.
+
+## Flutter app
+
+The Flutter app lives in [presence_app/](presence_app). Run it in web mode with:
+
+```bash
+devbox run web      # or: devbox services up, to start it with the database
+```
+
+It serves on http://localhost:8080 (override with `FLUTTER_WEB_PORT`); the dev
+container forwards that port automatically. It uses Flutter's `web-server`
+device, so no Chrome is needed inside the container. Open the URL in any
+browser. Press `r` in the terminal to hot reload.
 
 ## How the container is built
 
