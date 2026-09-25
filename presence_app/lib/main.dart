@@ -5,6 +5,7 @@ import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'config.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
@@ -46,7 +47,7 @@ class _PresenceAppState extends State<PresenceApp> {
   // Owned above MaterialApp so every route can publish to the bus, and so
   // history, settings and open cameras outlive any single screen.
   final _bus = AppEventBus();
-  final _settings = ClipSettings();
+  final _config = ConfigController();
   late final EventLog _log;
   late final Persistence _persistence;
   late final CameraRig _rig;
@@ -63,7 +64,7 @@ class _PresenceAppState extends State<PresenceApp> {
           ? Future.value(widget.storage)
           : newDefaultIdbFactory(),
       bus: _bus,
-      settings: _settings,
+      config: _config,
       mediaStore: mediaIo == null
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
@@ -71,7 +72,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _bus.publish(AppEvent.appStarted());
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
-      settings: _settings,
+      config: _config,
       bus: _bus,
       now: widget.now,
     )..load();
@@ -89,7 +90,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _rig.dispose();
     _log.dispose();
     _bus.close();
-    _settings.dispose();
+    _config.dispose();
     super.dispose();
   }
 
@@ -101,7 +102,7 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(log: _log, rig: _rig, settings: _settings),
+        home: HomeScreen(log: _log, rig: _rig, config: _config),
       ),
     );
   }
@@ -127,12 +128,12 @@ class HomeScreen extends StatefulWidget {
     super.key,
     required this.log,
     required this.rig,
-    required this.settings,
+    required this.config,
   });
 
   final EventLog log;
   final CameraRig rig;
-  final ClipSettings settings;
+  final ConfigController config;
 
   /// Width of each icon tab: Material's 48 dp minimum touch target, which
   /// leaves room for the title on 320 dp phones.
@@ -270,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen>
           SafeArea(
             child: _ReadableWidth(
               child: SettingsView(
-                settings: widget.settings,
+                config: widget.config,
                 motionLevel: widget.rig.motionLevel,
               ),
             ),

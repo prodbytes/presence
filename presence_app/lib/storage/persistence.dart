@@ -8,7 +8,7 @@ import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
 import '../events.dart';
-import '../settings.dart';
+import '../config.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -20,7 +20,7 @@ import 'media_store.dart';
 /// - each clip's recordings, first the "before" part and then the full clip
 ///   (the before-only file is deleted once the full clip is saved),
 /// - the cameras clips came from,
-/// - the clip settings.
+/// - the configuration (`PresenceConfig`, one versioned record).
 ///
 /// It subscribes to the bus as soon as it's created, so it doesn't miss
 /// events published while the database is still opening.
@@ -28,7 +28,7 @@ class Persistence {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
-    required this.settings,
+    required this.config,
     MediaStore Function(EventStore store)? mediaStore,
   }) : _store = factory.then(EventStore.open) {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
@@ -38,7 +38,7 @@ class Persistence {
     _store.ignore();
   }
 
-  final ClipSettings settings;
+  final ConfigController config;
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
   late final StreamSubscription<AppEvent> _subscription;
@@ -47,33 +47,29 @@ class Persistence {
   List<CameraDevice>? _saved;
   bool _disposed = false;
 
-  static const String _clipSettings = 'clip';
+  /// Settings-store keys: the config record, and the flat record it
+  /// replaced (read once, for upgrades).
+  static const String _configKey = 'config';
+  static const String _legacyKey = 'clip';
 
   /// Loads saved settings and history into [log]. Settings are saved on
   /// every change from then on.
   Future<void> restore(EventLog log) async {
     final store = await _store;
 
-    final saved = await store.getSettings(_clipSettings);
-    if (saved != null && !_disposed) {
-      settings
-        ..before = Duration(milliseconds: saved['beforeMs']! as int)
-        ..after = Duration(milliseconds: saved['afterMs']! as int);
-      if (saved['brightnessEv'] case final num ev) {
-        settings.brightness = ev.toDouble();
-      }
-      if (saved['motionEnabled'] case final bool on) {
-        settings.motionEnabled = on;
-      }
-      if (saved['motionThreshold'] case final num percent) {
-        settings.motionThreshold = percent.toDouble();
-      }
-      if (saved['motionCooldownMs'] case final int ms) {
-        settings.motionCooldown = Duration(milliseconds: ms);
+    // The whole configuration is one record. Older versions stored a flat
+    // "clip" settings record: read that if there's no config yet.
+    final saved = await store.getSettings(_configKey);
+    final legacy = saved == null ? await store.getSettings(_legacyKey) : null;
+    if (!_disposed) {
+      if (saved != null) {
+        config.config = PresenceConfig.fromJson(saved);
+      } else if (legacy != null) {
+        config.config = PresenceConfig.fromLegacy(legacy);
       }
     }
     if (_disposed) return;
-    settings.addListener(_saveSettings);
+    config.addListener(_saveConfig);
 
     final history = await _loadHistory(store);
     if (!_disposed) log.addHistory(history);
@@ -90,7 +86,7 @@ class Persistence {
   void dispose() {
     _disposed = true;
     _subscription.cancel();
-    settings.removeListener(_saveSettings);
+    config.removeListener(_saveConfig);
     _rig?.removeListener(_saveCameras);
     // Let in-flight writes finish before closing the database.
     Future.wait(List.of(_pending))
@@ -118,17 +114,11 @@ class Persistence {
     }());
   }
 
-  void _saveSettings() {
+  void _saveConfig() {
+    final json = config.config.toJson();
     _track(() async {
       final store = await _store;
-      await store.putSettings(_clipSettings, {
-        'beforeMs': settings.before.inMilliseconds,
-        'afterMs': settings.after.inMilliseconds,
-        'brightnessEv': settings.brightness,
-        'motionEnabled': settings.motionEnabled,
-        'motionThreshold': settings.motionThreshold,
-        'motionCooldownMs': settings.motionCooldown.inMilliseconds,
-      });
+      await store.putSettings(_configKey, json);
     }());
   }
 

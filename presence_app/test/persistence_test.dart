@@ -259,6 +259,34 @@ void main() {
     expect(find.text('-2.0 EV'), findsOneWidget);
   });
 
+  testWidgets('settings saved before the config object still load', (
+    tester,
+  ) async {
+    // What older versions stored: one flat "clip" record.
+    final store = await run(tester, EventStore.open(storage));
+    await run(
+      tester,
+      store.putSettings('clip', {
+        'beforeMs': 30000,
+        'afterMs': 10000,
+        'brightnessEv': -0.5,
+        'motionEnabled': false,
+        'motionThreshold': 22,
+        'motionCooldownMs': 720000,
+      }),
+    );
+    store.close();
+
+    await launch(tester);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
+    expect(find.text('-0.5 EV'), findsOneWidget);
+    expect(find.text('22 % of the picture'), findsOneWidget);
+    expect(find.text('12 min'), findsOneWidget);
+  });
+
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));

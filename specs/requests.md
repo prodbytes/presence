@@ -269,3 +269,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     down the cooldown ("4:59"; red while saving, then amber). The trigger
     and the countdown share `motionCooldownEnds`, so motion fires again
     exactly at zero.
+55. **Wrap the entire configuration in a configuration object.** Replaced the
+    mutable `ClipSettings` with an immutable `PresenceConfig` (clip, camera
+    and motion groups, each owning its defaults, limits and clamping), held
+    by a `ConfigController`. It's persisted as one versioned JSON record,
+    with migration from the old flat record. While porting, a test caught
+    settings controls writing back stale values, which undid a previous
+    change made before a rebuild. They now apply changes to the current
+    config.
