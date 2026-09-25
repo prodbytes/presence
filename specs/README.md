@@ -592,6 +592,22 @@ The Swift counterpart of the Android layer
   command line, and a device run needs the iPhone paired for development and
   a signing identity (an Apple ID team in Xcode, plus a real bundle ID).
 
+## Backend
+
+### Events API (`presence_api_events`)
+
+An AWS SAM application in [presence_api_events/](../presence_api_events):
+one Java Lambda function, `EventsFunction`
+(`presence.api.events.EventsHandler`), on the `java25` runtime (the latest
+Lambda Java runtime) on arm64, behind an API Gateway REST API. It's built
+with Maven (`maven.compiler.release` 25, a shaded jar).
+
+- `GET /events` returns `200` with `{"events":[]}`. It's a scaffold: no event
+  store is wired in yet, and the app doesn't call it.
+- Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
+- Not deployed yet. The commands are in the module's
+  [README](../presence_api_events/README.md).
+
 ## Development environment
 
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE (musl),
@@ -619,6 +635,9 @@ The Swift counterpart of the Android layer
   (`openjdk@21`), configured with `flutter config --android-sdk` and
   `--jdk-dir`. Gradle fetches the NDK and extra platforms on the first
   build. The dev container doesn't include the Android SDK.
+- **AWS SAM:** building and deploying `presence_api_events` needs the SAM
+  CLI, JDK 25 and Maven 3.9+. None of these are in devbox yet (the GraalVM
+  package is JDK 25 but Linux-only).
 
 - **iOS and macOS builds on macOS:** full **Xcode** from the Mac App Store.
   The Command Line Tools alone are not enough: Flutter needs `xcodebuild` and

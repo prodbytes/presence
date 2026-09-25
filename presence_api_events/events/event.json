@@ -1,0 +1,18 @@
+{
+  "resource": "/events",
+  "path": "/events",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "application/json"
+  },
+  "queryStringParameters": null,
+  "pathParameters": null,
+  "requestContext": {
+    "resourcePath": "/events",
+    "httpMethod": "GET",
+    "path": "/Prod/events",
+    "stage": "Prod"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}
