@@ -10,3 +10,13 @@ change:
 - Revise [specs/README.md](specs/README.md) so it describes the software as it
   is now. Rewrite or delete statements the request made obsolete; don't just
   append.
+
+## One pull request per change
+
+Put every change on its own branch and open a separate pull request for it:
+
+- Never commit or push directly to `main`.
+- Don't bundle unrelated requests into one PR.
+- If a change depends on work that hasn't merged yet, stack its branch on
+  that PR's branch and target that branch.
+- Include the matching `specs/` update in the same PR as the change.
