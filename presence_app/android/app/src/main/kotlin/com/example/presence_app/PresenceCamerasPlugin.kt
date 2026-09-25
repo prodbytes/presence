@@ -10,6 +10,7 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.os.Handler
 import android.os.Looper
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
@@ -23,11 +24,22 @@ import java.util.concurrent.CompletableFuture
 class PresenceCamerasPlugin(
     private val activity: Activity,
     private val textures: TextureRegistry,
-) : MethodChannel.MethodCallHandler {
+) : MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
     private val manager = activity.getSystemService(Context.CAMERA_SERVICE) as CameraManager
     private val main = Handler(Looper.getMainLooper())
     private val open = mutableMapOf<String, Pair<RollingCamera, TextureRegistry.SurfaceTextureEntry>>()
     private var permissionResult: MethodChannel.Result? = null
+
+    /** The `presence/motion` event stream: `{id, luma}` frames. */
+    private var motionSink: EventChannel.EventSink? = null
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink) {
+        motionSink = events
+    }
+
+    override fun onCancel(arguments: Any?) {
+        motionSink = null
+    }
 
     private val clipDir get() = File(activity.cacheDir, "clips")
 
@@ -151,6 +163,9 @@ class PresenceCamerasPlugin(
                     texture.release()
                     result.error("camera", describe(error), null)
                 } else {
+                    cam.onMotionFrame = { luma ->
+                        main.post { motionSink?.success(mapOf("id" to id, "luma" to luma)) }
+                    }
                     open[id] = cam to texture
                     result.success(
                         mapOf(
@@ -160,6 +175,7 @@ class PresenceCamerasPlugin(
                             "sensorOrientation" to cam.sensorOrientation,
                             "front" to cam.facingFront,
                             "audio" to granted(Manifest.permission.RECORD_AUDIO),
+                            "motion" to cam.hasMotion,
                         ),
                     )
                 }
@@ -219,6 +235,7 @@ class PresenceCamerasPlugin(
 
     companion object {
         const val CHANNEL = "presence/cameras"
+        const val MOTION_CHANNEL = "presence/motion"
         private const val PERMISSION_REQUEST = 4201
     }
 }

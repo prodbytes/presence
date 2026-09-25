@@ -1,8 +1,12 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'cameras/cameras.dart';
 import 'clips.dart';
 import 'events.dart';
+import 'motion.dart';
 import 'settings.dart';
 import 'theme.dart';
 
@@ -10,7 +14,13 @@ import 'theme.dart';
 /// device's default camera, switchable with [flip]. Owned by the app so the
 /// camera (and its rolling recording) stays open across rebuilds.
 class CameraRig extends ChangeNotifier {
-  CameraRig({required this._backend, required this.settings}) {
+  CameraRig({
+    required this._backend,
+    required this.settings,
+    this.bus,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now,
+       _motion = MotionDetector(now: now) {
     settings.addListener(_applyBrightness);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
@@ -21,6 +31,25 @@ class CameraRig extends ChangeNotifier {
 
   final CameraBackend _backend;
   final ClipSettings settings;
+
+  /// Where automatic (motion) clips are published.
+  final AppEventBus? bus;
+
+  final DateTime Function() _now;
+  final MotionDetector _motion;
+  StreamSubscription<Uint8List>? _motionFrames;
+  int _framesOverThreshold = 0;
+  DateTime? _lastMotionClip;
+  bool _motionClipStarting = false;
+
+  /// The latest motion score of the open camera (0–100 % of the picture
+  /// changing), or null when there's no score (warming up, no camera).
+  final ValueNotifier<double?> motionLevel = ValueNotifier(null);
+
+  /// Three frames in a row over the threshold (0.6 s at 5 per second). A
+  /// one-frame glitch changes two frames (appearing, then disappearing), so
+  /// it doesn't trigger a clip; real movement easily lasts longer.
+  static const int motionFramesToTrigger = 3;
 
   List<CameraDevice> _devices = const [];
   CameraDevice? _current;
@@ -106,6 +135,7 @@ class CameraRig extends ChangeNotifier {
       _active = source;
       _appliedBrightness = null;
       _applyBrightness();
+      _watchMotion(source);
       _set(busy: false, error: null);
     } catch (e) {
       if (!_disposed) _set(busy: false, error: e);
@@ -123,7 +153,46 @@ class CameraRig extends ChangeNotifier {
     source.setBrightness(ev).ignore();
   }
 
+  void _watchMotion(CameraSource source) {
+    _motionFrames?.cancel();
+    _motion.reset();
+    _framesOverThreshold = 0;
+    motionLevel.value = null;
+    _motionFrames = source.motionFrames?.listen(_onMotionFrame);
+  }
+
+  void _onMotionFrame(Uint8List luma) {
+    final score = _motion.add(luma);
+    motionLevel.value = score;
+    if (score == null || !settings.motionEnabled) {
+      _framesOverThreshold = 0;
+      return;
+    }
+    _framesOverThreshold = score >= settings.motionThreshold
+        ? _framesOverThreshold + 1
+        : 0;
+    if (_framesOverThreshold < motionFramesToTrigger) return;
+
+    // At most one automatic clip per cooldown period.
+    final last = _lastMotionClip;
+    final now = _now();
+    if (last != null && now.difference(last) < settings.motionCooldown) return;
+    final target = bus;
+    if (target == null || !canClip || _motionClipStarting) return;
+
+    _lastMotionClip = now;
+    _framesOverThreshold = 0;
+    _motionClipStarting = true;
+    requestClips(
+      target,
+      trigger: ClipTrigger.motion,
+    ).whenComplete(() => _motionClipStarting = false);
+  }
+
   Future<void> _closeActive() async {
+    _motionFrames?.cancel();
+    _motionFrames = null;
+    motionLevel.value = null;
     final source = _active;
     _active = null;
     if (source != null) {
@@ -148,7 +217,10 @@ class CameraRig extends ChangeNotifier {
   /// The event is published once the "before" recording is ready (normally
   /// a few milliseconds), so it's playable the moment it appears. The same
   /// event is later updated with the full clip.
-  Future<void> requestClips(AppEventBus bus) async {
+  Future<void> requestClips(
+    AppEventBus bus, {
+    ClipTrigger trigger = ClipTrigger.manual,
+  }) async {
     final camera = _active;
     if (camera == null) return;
     final before = settings.before;
@@ -173,6 +245,7 @@ class CameraRig extends ChangeNotifier {
           thumbnail: thumbnail,
           supported: camera.supportsVideo,
         ),
+        trigger: trigger,
         time: requestedAt,
       ),
     );
@@ -193,6 +266,8 @@ class CameraRig extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _motionFrames?.cancel();
+    motionLevel.dispose();
     settings.removeListener(_applyBrightness);
     _lifecycle.dispose();
     _active?.dispose();

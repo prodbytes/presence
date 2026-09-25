@@ -130,20 +130,39 @@ class VideoClip extends ChangeNotifier {
   }
 }
 
-/// Published once per camera when the user presses Clip.
+/// What started a clip.
+enum ClipTrigger {
+  /// The Clip button.
+  manual,
+
+  /// Enough motion in the picture (automatic).
+  motion,
+}
+
+/// Published when a clip starts: from the Clip button, or automatically on
+/// motion. Both behave the same; only the title differs.
 class ClipRequested extends AppEvent {
-  ClipRequested(this.clip, {super.time, super.id})
-    : super(
-        icon: Icons.videocam,
-        title: 'Clip requested',
-        detail: clip.cameraLabel,
-        type: clipRequestedType,
-        cameraId: clip.cameraId,
-      );
+  ClipRequested(
+    this.clip, {
+    this.trigger = ClipTrigger.manual,
+    super.time,
+    super.id,
+  }) : super(
+         icon: trigger == ClipTrigger.motion
+             ? Icons.directions_run
+             : Icons.videocam,
+         title: trigger == ClipTrigger.motion
+             ? 'Motion detected'
+             : 'Clip requested',
+         detail: clip.cameraLabel,
+         type: clipRequestedType,
+         cameraId: clip.cameraId,
+       );
 
   static const String clipRequestedType = 'clip_requested';
 
   final VideoClip clip;
+  final ClipTrigger trigger;
 
   /// `partial` while only the "before" part exists, `complete` once the
   /// event has been updated with the full clip.
@@ -154,6 +173,7 @@ class ClipRequested extends AppEvent {
     ...super.toRecord(),
     'clipId': clip.id,
     'clipState': clipState,
+    'trigger': trigger.name,
   };
 
   @override

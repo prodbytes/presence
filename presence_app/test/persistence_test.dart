@@ -210,6 +210,35 @@ void main() {
     expect(cameras.single['label'], 'Front door');
   });
 
+  testWidgets('motion settings survive a refresh', (tester) async {
+    await launch(tester);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    Finder slider(String key) => find.descendant(
+      of: find.byKey(Key(key)),
+      matching: find.byType(Slider),
+    );
+    await tester.drag(slider('motion-threshold-slider'), const Offset(1000, 0));
+    await tester.drag(slider('motion-cooldown-slider'), const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('motion-switch')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    await refresh(tester);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('50 % of the picture'), findsOneWidget);
+    expect(find.text('1 min'), findsOneWidget);
+    expect(
+      tester
+          .widget<SwitchListTile>(find.byKey(const Key('motion-switch')))
+          .value,
+      isFalse,
+    );
+  });
+
   testWidgets('brightness survives a refresh', (tester) async {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));

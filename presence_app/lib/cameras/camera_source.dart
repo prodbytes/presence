@@ -92,6 +92,10 @@ abstract class CameraSource {
   /// Starts a clip around the current moment.
   ClipCapture requestClip({required Duration before, required Duration after});
 
+  /// Small grayscale frames (see `motion.dart`: 64×48 luma, a few per
+  /// second) for motion detection, or null if this camera can't supply them.
+  Stream<Uint8List>? get motionFrames;
+
   /// Brighter (positive) or darker (negative) picture, as exposure
   /// compensation in EV. Best effort: ignored where unsupported.
   Future<void> setBrightness(double ev);

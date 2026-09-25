@@ -217,3 +217,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     lens icon as SVG, rendered it to PNG with headless Chrome, and generated
     icons for all platforms with `flutter_launcher_icons`. Verified on the
     S40.
+47. **Measure motion in the video; if there's enough (configurable
+    threshold), take a clip as if Clip was pressed; allow at most one
+    automatic clip every 5 minutes (configurable).** Added a shared
+    `MotionDetector` (frame differencing on 64×48 luma, with median
+    brightness compensation), motion frames on web (canvas) and Android (a
+    third YUV camera stream, with fallback), and triggering that needs 3
+    consecutive frames and respects a cooldown. Automatic clips use the
+    manual flow, titled "Motion detected". Settings: a switch, threshold,
+    cooldown and live meter.
+48. **Make the configurable settings persistent.** Everything in Settings is
+    saved and restored (clip lengths, brightness, motion switch, threshold,
+    cooldown), with tests that change each through the UI and check it
+    after a refresh.

@@ -68,6 +68,12 @@ class FakeCameraSource implements CameraSource {
     return ClipCapture(past: past.future, full: full.future);
   }
 
+  /// Motion frames the test pushes in.
+  final StreamController<Uint8List> motion = StreamController.broadcast();
+
+  @override
+  Stream<Uint8List> get motionFrames => motion.stream;
+
   final List<double> brightness = [];
 
   @override

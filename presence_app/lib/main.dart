@@ -60,6 +60,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
       settings: _settings,
+      bus: _bus,
     )..load();
     _persistence
       ..attachRig(_rig)
@@ -234,7 +235,10 @@ class _HomeScreenState extends State<HomeScreen>
           ),
           SafeArea(
             child: _ReadableWidth(
-              child: SettingsView(settings: widget.settings),
+              child: SettingsView(
+                settings: widget.settings,
+                motionLevel: widget.rig.motionLevel,
+              ),
             ),
           ),
         ],

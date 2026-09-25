@@ -2,6 +2,7 @@ package com.example.presence_app
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -12,6 +13,8 @@ import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.Image
+import android.media.ImageReader
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -112,29 +115,7 @@ class RollingCamera(
         manager.openCamera(id, object : CameraDevice.StateCallback() {
             override fun onOpened(camera: CameraDevice) {
                 device = camera
-                @Suppress("DEPRECATION")
-                camera.createCaptureSession(
-                    listOf(preview, encoderSurface),
-                    object : CameraCaptureSession.StateCallback() {
-                        override fun onConfigured(s: CameraCaptureSession) {
-                            session = s
-                            request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-                                addTarget(preview)
-                                addTarget(encoderSurface)
-                                set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
-                                set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                                chooseFpsRange()?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
-                            }
-                            applyRequest()
-                            ready.complete(Unit)
-                        }
-
-                        override fun onConfigureFailed(s: CameraCaptureSession) {
-                            ready.completeExceptionally(IllegalStateException("Camera session failed"))
-                        }
-                    },
-                    cameraHandler,
-                )
+                configure(camera, preview, encoderSurface, startMotionReader(), ready)
             }
 
             override fun onClosed(camera: CameraDevice) {
@@ -157,6 +138,93 @@ class RollingCamera(
                 if (!ready.isDone) ready.completeExceptionally(IllegalStateException(reason))
             }
         }, cameraHandler)
+    }
+
+    /**
+     * Preview + encoder, plus a small YUV stream for motion detection if the
+     * camera accepts three outputs. If it refuses, retry without motion:
+     * recording matters more.
+     */
+    private fun configure(
+        camera: CameraDevice,
+        preview: Surface,
+        encoderSurface: Surface,
+        motion: ImageReader?,
+        ready: CompletableFuture<Unit>,
+    ) {
+        val outputs = listOfNotNull(preview, encoderSurface, motion?.surface)
+        @Suppress("DEPRECATION")
+        camera.createCaptureSession(
+            outputs,
+            object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(s: CameraCaptureSession) {
+                    session = s
+                    request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                        outputs.forEach { addTarget(it) }
+                        set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                        set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
+                        chooseFpsRange()?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
+                    }
+                    applyRequest()
+                    ready.complete(Unit)
+                }
+
+                override fun onConfigureFailed(s: CameraCaptureSession) {
+                    if (motion != null) {
+                        motion.close()
+                        motionReader = null
+                        configure(camera, preview, encoderSurface, null, ready)
+                    } else {
+                        ready.completeExceptionally(IllegalStateException("Camera session failed"))
+                    }
+                }
+            },
+            cameraHandler,
+        )
+    }
+
+    /** Called with each 64×48 luma frame (about 5 per second). */
+    @Volatile var onMotionFrame: ((ByteArray) -> Unit)? = null
+
+    /** Whether the camera accepted the motion stream. */
+    val hasMotion get() = motionReader != null
+
+    private var motionReader: ImageReader? = null
+    private val motionThread = HandlerThread("motion-$id").apply { start() }
+    private var lastMotionFrameMs = 0L
+
+    private fun startMotionReader(): ImageReader? {
+        val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        // The smallest YUV size that's still at least 160 px wide.
+        val size = map?.getOutputSizes(ImageFormat.YUV_420_888)
+            ?.filter { it.width >= 160 }
+            ?.minByOrNull { it.width * it.height } ?: return null
+        val reader = ImageReader.newInstance(size.width, size.height, ImageFormat.YUV_420_888, 2)
+        reader.setOnImageAvailableListener({ r ->
+            val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
+            image.use { img ->
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastMotionFrameMs < 200) return@use
+                lastMotionFrameMs = now
+                onMotionFrame?.invoke(downsampleLuma(img))
+            }
+        }, Handler(motionThread.looper))
+        motionReader = reader
+        return reader
+    }
+
+    /** Nearest-neighbour 64×48 sample of the Y (luma) plane. */
+    private fun downsampleLuma(image: Image): ByteArray {
+        val plane = image.planes[0]
+        val buffer = plane.buffer
+        val out = ByteArray(MOTION_W * MOTION_H)
+        for (y in 0 until MOTION_H) {
+            val row = (y * image.height / MOTION_H) * plane.rowStride
+            for (x in 0 until MOTION_W) {
+                out[y * MOTION_W + x] = buffer.get(row + (x * image.width / MOTION_W) * plane.pixelStride)
+            }
+        }
+        return out
     }
 
     /** The repeating capture request, kept so settings can change live. */
@@ -271,6 +339,9 @@ class RollingCamera(
         runCatching { audioEncoder?.stop() }
         runCatching { audioEncoder?.release() }
         runCatching { previewSurface?.release() }
+        onMotionFrame = null
+        runCatching { motionReader?.close() }
+        motionThread.quitSafely()
         clipExecutor.shutdown()
         frameExecutor.shutdown()
         waitExecutor.shutdown()
@@ -419,5 +490,10 @@ class RollingCamera(
         if (degrees % 360 == 0) return bitmap
         val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+    }
+
+    companion object {
+        const val MOTION_W = 64
+        const val MOTION_H = 48
     }
 }
