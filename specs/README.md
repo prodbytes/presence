@@ -265,7 +265,11 @@ there's no retention limit yet.
 - iOS: `Info.plist` declares `NSCameraUsageDescription`, which the camera
   plugin needs. There's no microphone key yet, because the native side
   doesn't record; it will need `NSMicrophoneUsageDescription` once it does.
-  Running on a physical iPhone requires full Xcode, a connected or paired
+  The app builds and runs on the **iOS simulator** (verified on an iPhone 18
+  Pro, iOS 27.0): the UI, theme and tabs render, and the camera screen shows
+  "Could not open the camera" with a `MissingPluginException` for
+  `presence/cameras`, because that channel is implemented on Android only.
+  Running on a physical iPhone additionally needs a connected or paired
   iPhone with Developer Mode on, and a signing team. The bundle ID is still
   the placeholder `com.example.presenceApp`.
 
@@ -335,6 +339,23 @@ Android uses the standard dashcam technique instead
   (`openjdk@21`), configured with `flutter config --android-sdk` and
   `--jdk-dir`. Gradle fetches the NDK and extra platforms on the first
   build. The dev container doesn't include the Android SDK.
+
+- **iOS and macOS builds on macOS:** full **Xcode** from the Mac App Store.
+  The Command Line Tools alone are not enough: Flutter needs `xcodebuild` and
+  the iOS SDK, which only the full Xcode ships. After installing it, point the
+  toolchain at it and finish its setup:
+  `sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer`,
+  then `sudo xcodebuild -license accept` and `sudo xcodebuild -runFirstLaunch`
+  — in that order, because `-runFirstLaunch` refuses to run until the license
+  is accepted. Finally `xcodebuild -downloadPlatform iOS` (no `sudo`) for the
+  iOS simulator runtime, which the base Xcode no longer bundles: it's an
+  ~8 GB download of its own.
+  **CocoaPods** comes from Homebrew (`brew install cocoapods`); Flutter needs
+  it to resolve plugin pods. The dev container has none of this, because Xcode
+  is macOS-only.
+- Xcode 27 ships no `Simulator.app`, so simulators are driven from the command
+  line with `xcrun simctl` (`list devices`, `boot <udid>`, `io <udid>
+  screenshot`). `flutter run -d <udid>` picks up a booted simulator.
 
 ## Workflow
 

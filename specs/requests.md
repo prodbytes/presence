@@ -172,3 +172,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `CameraBackend` that lists devices and opens one at a time, on both
     platforms. Verified on the S40: flip went from camera 0 to camera 1 in
     ~330 ms, and front-camera clips have thumbnails.
+39. **Set up Xcode and the required CLIs for Flutter development.** On this
+    Mac, Flutter, Homebrew and the Android SDK were already in place, but only
+    the Command Line Tools were installed, so `xcodebuild` and the iOS SDK were
+    missing, and CocoaPods wasn't installed at all. Installed CocoaPods 1.17.0
+    from Homebrew and full **Xcode 27.0** from the Mac App Store, then
+    `xcode-select --switch`, `xcodebuild -license accept`,
+    `xcodebuild -runFirstLaunch` and `xcodebuild -downloadPlatform iOS` for the
+    iOS 27.0 simulator runtime (the base Xcode no longer ships it).
+    `flutter doctor` now reports no issues at all, and the app was verified
+    building and running on an iPhone 18 Pro simulator.
+    Along the way: the first `flutter doctor` run wrongly reported the Android
+    SDK missing, so Android Studio was nearly installed before a re-run showed
+    the existing SDK was fine; and `-runFirstLaunch` must come after
+    `-license accept`, not before.
