@@ -37,6 +37,10 @@ class PresenceCamerasPlugin(
                 "requestPermissions" -> requestPermissions(result)
                 "listCameras" -> result.success(listCameras())
                 "open" -> openCamera(call.argument<String>("id")!!, call.longArg("preRollMs"), result)
+                "setBrightness" -> {
+                    camera(call)?.setBrightness((call.argument<Number>("ev") ?: 0).toFloat())
+                    result.success(null)
+                }
                 "setPreRoll" -> {
                     camera(call)?.setPreRoll(call.longArg("preRollMs"))
                     result.success(null)

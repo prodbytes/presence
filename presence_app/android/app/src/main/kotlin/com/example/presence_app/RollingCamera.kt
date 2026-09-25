@@ -118,12 +118,14 @@ class RollingCamera(
                     object : CameraCaptureSession.StateCallback() {
                         override fun onConfigured(s: CameraCaptureSession) {
                             session = s
-                            val request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                            request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
                                 addTarget(preview)
                                 addTarget(encoderSurface)
+                                set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
+                                set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                                 chooseFpsRange()?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
-                            }.build()
-                            s.setRepeatingRequest(request, null, cameraHandler)
+                            }
+                            applyRequest()
                             ready.complete(Unit)
                         }
 
@@ -155,6 +157,33 @@ class RollingCamera(
                 if (!ready.isDone) ready.completeExceptionally(IllegalStateException(reason))
             }
         }, cameraHandler)
+    }
+
+    /** The repeating capture request, kept so settings can change live. */
+    private var request: CaptureRequest.Builder? = null
+
+    /** Requested brightness, in EV (exposure compensation). */
+    @Volatile private var brightnessEv = 0f
+
+    /**
+     * Brighter or darker picture: auto-exposure compensation in EV, clamped
+     * to what this camera supports. Applied live, and to recordings too.
+     */
+    fun setBrightness(ev: Float) {
+        brightnessEv = ev
+        cameraHandler.post { applyRequest() }
+    }
+
+    private fun applyRequest() {
+        val builder = request ?: return
+        val s = session ?: return
+        val range = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
+        val step = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)
+        if (range != null && step != null && step.toFloat() > 0f) {
+            val index = Math.round(brightnessEv / step.toFloat()).coerceIn(range.lower, range.upper)
+            builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, index)
+        }
+        runCatching { s.setRepeatingRequest(builder.build(), null, cameraHandler) }
     }
 
     fun setPreRoll(ms: Long) {
@@ -369,11 +398,21 @@ class RollingCamera(
             ?: Size(640, 480)
     }
 
-    /** A steady 30 fps (or the closest available), for smooth recordings. */
+    /**
+     * Up to 30 fps, but variable: a fixed 30 fps caps exposure at 1/30 s,
+     * which makes a small sensor very dark indoors. A range like 15–30 lets
+     * auto-exposure slow down in low light. It only drops below 30 fps when
+     * it's dark, so prefer the lowest floor down to 5 fps (e.g. the S40
+     * offers only [5, 30] and [30, 30]; below 5, motion is unwatchable).
+     */
     private fun chooseFpsRange(): Range<Int>? {
         val ranges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
             ?: return null
-        return ranges.filter { it.upper <= 30 }.maxWithOrNull(compareBy({ it.upper }, { it.lower }))
+        val candidates = ranges.filter { it.upper <= 30 }
+        val bestUpper = candidates.maxOfOrNull { it.upper } ?: return null
+        val top = candidates.filter { it.upper == bestUpper }
+        return top.filter { it.lower >= 5 }.minByOrNull { it.lower }
+            ?: top.minByOrNull { it.lower }
     }
 
     private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {

@@ -11,6 +11,7 @@ import 'theme.dart';
 /// camera (and its rolling recording) stays open across rebuilds.
 class CameraRig extends ChangeNotifier {
   CameraRig({required this._backend, required this.settings}) {
+    settings.addListener(_applyBrightness);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
     _lifecycle = AppLifecycleListener(onResume: _retryFailed);
@@ -103,10 +104,23 @@ class CameraRig extends ChangeNotifier {
         return;
       }
       _active = source;
+      _appliedBrightness = null;
+      _applyBrightness();
       _set(busy: false, error: null);
     } catch (e) {
       if (!_disposed) _set(busy: false, error: e);
     }
+  }
+
+  double? _appliedBrightness;
+
+  /// Sends the brightness setting to the open camera when it changes.
+  void _applyBrightness() {
+    final source = _active;
+    final ev = settings.brightness;
+    if (source == null || ev == _appliedBrightness) return;
+    _appliedBrightness = ev;
+    source.setBrightness(ev).ignore();
   }
 
   Future<void> _closeActive() async {
@@ -179,6 +193,7 @@ class CameraRig extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    settings.removeListener(_applyBrightness);
     _lifecycle.dispose();
     _active?.dispose();
     _active = null;

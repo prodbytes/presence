@@ -210,6 +210,26 @@ void main() {
     expect(cameras.single['label'], 'Front door');
   });
 
+  testWidgets('brightness survives a refresh', (tester) async {
+    await launch(tester);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const Key('brightness-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(-1000, 0),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    await refresh(tester);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('-2.0 EV'), findsOneWidget);
+  });
+
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));
@@ -229,5 +249,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
+    // Brightness is saved too (still the default here).
+    expect(find.text('+1.0 EV'), findsOneWidget);
   });
 }

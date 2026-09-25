@@ -92,6 +92,10 @@ abstract class CameraSource {
   /// Starts a clip around the current moment.
   ClipCapture requestClip({required Duration before, required Duration after});
 
+  /// Brighter (positive) or darker (negative) picture, as exposure
+  /// compensation in EV. Best effort: ignored where unsupported.
+  Future<void> setBrightness(double ev);
+
   /// Stops recording and releases the camera. Completes once the camera is
   /// fully closed, so another one can be opened (phones allow only one).
   Future<void> dispose();

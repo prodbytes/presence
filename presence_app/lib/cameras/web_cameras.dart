@@ -200,6 +200,28 @@ class WebCameraSource implements CameraSource {
     return (await result.arrayBuffer().toDart).toDart.asUint8List();
   }
 
+  /// Browsers expose exposure compensation (Image Capture) only on some
+  /// cameras; elsewhere this quietly does nothing.
+  @override
+  Future<void> setBrightness(double ev) async {
+    final track = _stream.getVideoTracks().toDart.firstOrNull;
+    if (track == null) return;
+    try {
+      await track
+          .applyConstraints(
+            {
+                  'advanced': [
+                    {'exposureCompensation': ev},
+                  ],
+                }.jsify()!
+                as web.MediaTrackConstraints,
+          )
+          .toDart;
+    } catch (_) {
+      // Not supported by this camera or browser.
+    }
+  }
+
   @override
   ClipCapture requestClip({required Duration before, required Duration after}) {
     if (!supportsVideo) return ClipCapture.unsupported;

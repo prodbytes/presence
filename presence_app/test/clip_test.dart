@@ -295,6 +295,40 @@ void main() {
     expect(inEvents(find.text('Selfie')), findsOneWidget);
   });
 
+  testWidgets('cameras open brighter, and follow the brightness slider', (
+    tester,
+  ) async {
+    final back = FakeCameraSource('Main', facing: CameraFacing.back);
+    final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
+    await pumpApp(tester, openFakes([back, front]));
+
+    // Default: +1 EV.
+    expect(back.brightness, [1.0]);
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('+1.0 EV'), findsOneWidget);
+    await tester.drag(
+      find.descendant(
+        of: find.byKey(const Key('brightness-slider')),
+        matching: find.byType(Slider),
+      ),
+      const Offset(1000, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('+2.0 EV'), findsOneWidget);
+    // Applied live to the open camera.
+    expect(back.brightness.last, 2.0);
+
+    // A camera opened later (flip) gets the current value too.
+    await tester.tap(find.byTooltip('Camera'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Flip camera'));
+    await tester.pumpAndSettle();
+    expect(front.brightness, [2.0]);
+    await settleStorage(tester);
+  });
+
   testWidgets('no flip button with a single camera', (tester) async {
     await pumpApp(tester, openFakes([FakeCameraSource('Only')]));
     expect(find.byTooltip('Clip'), findsOneWidget);
