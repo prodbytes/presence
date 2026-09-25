@@ -230,3 +230,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     saved and restored (clip lengths, brightness, motion switch, threshold,
     cooldown), with tests that change each through the UI and check it
     after a refresh.
+49. **Note those changes in the spec, and make the same work on Android,
+    iPhone and web.** The spec already covered the motion clips; added a
+    feature-parity table. Web and Android already had every feature. iOS had
+    none (no camera code), so added a Swift camera layer with the same
+    channel API as Android: AVFoundation capture, a VideoToolbox H.264 ring,
+    `AVAssetWriter` clips with AAC audio, a Core Image thumbnail, motion
+    frames, brightness, flip, and a mirrored front preview. Builds and runs
+    on the simulator (the plugin answers, and the permission prompt shows);
+    not yet tested on a physical iPhone, which needs pairing and a signing
+    team.

@@ -331,12 +331,29 @@ dot on the ring.
     `MediaRecorder` for the rolling recordings and clips.
   - **Android** uses a native Kotlin camera layer (`PresenceCamerasPlugin`,
     on the `presence/cameras` method channel; see [Android](#android)).
-    It has the same always-on recording, clips, audio and playback as web.
-  - iOS, macOS and Linux have no camera implementation yet.
+  - **iOS** uses a native Swift camera layer with the **same channel API**
+    (`presence/cameras` + `presence/motion`), so the Dart side is shared
+    with Android. See [iOS](#ios).
+  - macOS and Linux have no camera implementation.
+
+**Feature parity:**
+
+| Feature | Web | Android | iOS |
+|---|---|---|---|
+| Full-screen default camera, flip | ✅ | ✅ | ✅ |
+| Always-on recording (rolling history) | `MediaRecorder` pool | Camera2 + H.264/AAC ring | AVFoundation + H.264 ring |
+| Clip: before part immediately, full clip later | ✅ | ✅ | ✅ |
+| Audio in clips | ✅ Opus | ✅ AAC | ✅ AAC |
+| Thumbnail at press | canvas | `MediaMetadataRetriever` | Core Image |
+| Motion clips (threshold, cooldown, live meter) | canvas sampling | YUV `ImageReader` | BGRA frame sampling |
+| Brightness (EV) | where the browser supports it | ✅ | ✅ |
+| Low light: variable frame rate | browser default | 5–30 fps | 10–30 fps |
+| Persistent events, clips, settings | IndexedDB | sembast + MP4 files | sembast + MP4 files |
+| Portrait lock | — | ✅ | ✅ (iPhone) |
+| Verified on a device | Chrome (fake camera) | DOOGEE S40 | build + simulator only (see below) |
 - The Android, iOS, Linux and macOS scaffolding from `flutter create` is kept.
-- iOS: `Info.plist` declares `NSCameraUsageDescription`, which the camera
-  plugin needs. There's no microphone key yet, because the native side
-  doesn't record; it will need `NSMicrophoneUsageDescription` once it does.
+- iOS: `Info.plist` declares `NSCameraUsageDescription` and
+  `NSMicrophoneUsageDescription`.
   The app builds and runs on the **iOS simulator** (verified on an iPhone 18
   Pro, iOS 27.0): the UI, theme and tabs render, and the camera screen shows
   "Could not open the camera" with a `MissingPluginException` for
@@ -408,6 +425,40 @@ Android uses the standard dashcam technique instead
   app's private `clips/` folder, not database rows, because sembast keeps
   its whole database in memory. If private storage is unavailable, data is
   kept in memory for the session.
+
+### iOS
+
+The Swift counterpart of the Android layer
+([ios/Runner/](../presence_app/ios/Runner)), registered in `AppDelegate`:
+
+- **`RollingCamera.swift`:** an `AVCaptureSession` (1280×720, rotated to
+  **portrait** frames on the capture connection, unmirrored) with a BGRA
+  `AVCaptureVideoDataOutput`. Each frame goes to:
+  - the **preview**, as a Flutter texture (`FlutterTexture`);
+  - a hardware **H.264** encoder (VideoToolbox, 2.5 Mbps, a keyframe every
+    second, no B-frames);
+  - **motion** sampling to 64×48 luma, every 200 ms.
+
+  Microphone audio (`AVCaptureAudioDataOutput`) is **deep-copied**, because
+  capture buffers come from a small pool that holding them would starve.
+  The frame rate is 30 fps, dropping to 10 fps in low light. Brightness uses
+  `setExposureTargetBias`.
+- **`SampleRing.swift`:** the same ring and pruning model as Android.
+  Clips are written with `AVAssetWriter`: H.264 passed through, and audio
+  encoded to AAC, starting at the keyframe at or before the window, with the
+  same window offsets.
+- **`PresenceCamerasPlugin.swift`:** the channel methods (permissions,
+  list, open/close, pre-roll, brightness, clip parts, thumbnail) and motion
+  events. The front preview is mirrored in Dart (`mirror` flag); recordings
+  aren't. The screen is kept awake.
+- `Info.plist` declares camera and **microphone** usage, locks iPhone to
+  portrait, and names the app "Presence".
+- **Verified:** it builds with Xcode 27, and on the iOS simulator the
+  plugin answers the channel: the camera permission prompt appears, where
+  before there was a `MissingPluginException`. **Not yet verified on a
+  physical iPhone**: the simulator can't grant camera access from the
+  command line, and a device run needs the iPhone paired for development and
+  a signing identity (an Apple ID team in Xcode, plus a real bundle ID).
 
 ## Development environment
 
