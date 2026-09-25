@@ -12,5 +12,9 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    // Always-recording cameras (see PresenceCamerasPlugin.swift).
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PresenceCamerasPlugin") {
+      PresenceCamerasPlugin.register(with: registrar)
+    }
   }
 }

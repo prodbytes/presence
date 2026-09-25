@@ -7,7 +7,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Presence App</string>
+	<string>Presence</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Presence records sound with its camera clips.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Presence shows live feeds from this device's cameras.</string>
 	<key>CFBundleExecutable</key>
@@ -58,8 +60,6 @@
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>

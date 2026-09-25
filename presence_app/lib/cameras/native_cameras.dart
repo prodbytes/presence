@@ -8,9 +8,9 @@ import 'package:video_player/video_player.dart';
 import '../clips.dart';
 import 'camera_source.dart';
 
-/// The Android camera layer (`PresenceCamerasPlugin` in Kotlin): each camera
-/// is always recording into an in-memory ring buffer, and clips are written
-/// from it as MP4 files.
+/// The native camera layer, `PresenceCamerasPlugin` in Kotlin (Android) and
+/// Swift (iOS), with the same channel API: each camera is always recording
+/// into an in-memory ring buffer, and clips are written from it as MP4 files.
 const _channel = MethodChannel('presence/cameras');
 
 /// 64×48 luma frames from every open camera, as `{id, luma}`.
@@ -53,7 +53,7 @@ class DeviceCameras implements CameraBackend {
       'id': device.id,
       'preRollMs': preRoll().inMilliseconds,
     });
-    return _AndroidCameraSource(device.id, device.label, opened!, preRoll);
+    return _NativeCameraSource(device.id, device.label, opened!, preRoll);
   }
 }
 
@@ -64,8 +64,8 @@ class CameraAccessDenied implements Exception {
   String toString() => 'Camera permission was denied. Allow it in Settings.';
 }
 
-class _AndroidCameraSource implements CameraSource {
-  _AndroidCameraSource(
+class _NativeCameraSource implements CameraSource {
+  _NativeCameraSource(
     this.id,
     this.label,
     Map<String, Object?> opened,
@@ -75,6 +75,7 @@ class _AndroidCameraSource implements CameraSource {
       _height = opened['height']! as int,
       _sensorOrientation = opened['sensorOrientation']! as int,
       _hasMotion = opened['motion'] == true,
+      _mirror = opened['mirror'] == true,
       _lastPreRoll = _preRoll() {
     // Keep the ring buffer's history in step with the settings.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -97,6 +98,9 @@ class _AndroidCameraSource implements CameraSource {
   final int _height;
   final int _sensorOrientation;
   final bool _hasMotion;
+
+  /// Mirror the preview (iOS front camera; Android's transform already does).
+  final bool _mirror;
 
   @override
   Stream<Uint8List>? get motionFrames => _hasMotion
@@ -125,7 +129,10 @@ class _AndroidCameraSource implements CameraSource {
     return Center(
       child: AspectRatio(
         aspectRatio: sideways ? _height / _width : _width / _height,
-        child: Texture(textureId: _textureId),
+        child: Transform.flip(
+          flipX: _mirror,
+          child: Texture(textureId: _textureId),
+        ),
       ),
     );
   }
