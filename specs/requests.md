@@ -206,3 +206,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     locked the Android activity to portrait. Verified on the S40, back and
     front, by comparing the preview with a recorded frame of the same scene
     (recordings were already upright).
+44. **Show how events are stored in the database.** Walked through live
+    records pulled from the phone's database (events, clips, cameras, and
+    how their IDs link).
+45. **Show me the code.** Walked through `toRecord`, `Persistence._onEvent`,
+    `EventStore._put` and the schema, `_ClipWriter.run`, and `allEvents`.
+46. **What icon format should a Flutter app use? Generate non-default
+    icons.** Explained the per-platform formats (Android densities and
+    adaptive icons, iOS opaque sizes, web and maskable icons). Designed a
+    lens icon as SVG, rendered it to PNG with headless Chrome, and generated
+    icons for all platforms with `flutter_launcher_icons`. Verified on the
+    S40.
