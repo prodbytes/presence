@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
+import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/events.dart';
@@ -74,6 +75,8 @@ void main() {
 
   Future<void> pressClip(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Clip'));
+    // Events wait (up to CameraRig.pastWait) for the before part.
+    await tester.pump(CameraRig.pastWait);
     await tester.pumpAndSettle();
     await settleStorage(tester);
   }
@@ -205,6 +208,8 @@ void main() {
     expect(clipRecord['eventId'], clipEventRecord['id']);
     expect(clipRecord['cameraId'], 'device-123');
     expect(clipRecord['state'], 'complete');
+    // The stored event was updated once the full clip arrived.
+    expect(clipEventRecord['clipState'], 'complete');
     expect(cameras.single['id'], 'device-123');
     expect(cameras.single['label'], 'Front door');
   });

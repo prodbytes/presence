@@ -284,6 +284,8 @@ class _ClipWriter {
         ..['state'] = complete;
       // The full clip contains the before part: drop the separate file.
       await _store.putClipAndDeleteMedia(_record, [?pastId]);
+      // Update the stored event too: it now refers to the full clip.
+      await _store.putEvent(_event.toRecord());
     } catch (e) {
       _clip.markSaveError(_describe(e));
     }

@@ -19,8 +19,16 @@ final Uint8List onePixelPng = Uint8List.fromList(const [
 
 /// A camera whose clip recordings the test completes by hand.
 class FakeCameraSource implements CameraSource {
-  FakeCameraSource(this.label, {this.supportsVideo = true, String? id})
-    : id = id ?? 'cam-$label';
+  FakeCameraSource(
+    this.label, {
+    this.supportsVideo = true,
+    this.immediatePast,
+    String? id,
+  }) : id = id ?? 'cam-$label';
+
+  /// When set, the "before" recording is ready as soon as a clip is
+  /// requested, like the real recorder; otherwise the test completes it.
+  final ClipMedia? immediatePast;
 
   @override
   final String id;
@@ -48,6 +56,7 @@ class FakeCameraSource implements CameraSource {
     requests.add((before: before, after: after));
     final past = Completer<ClipMedia?>();
     final full = Completer<ClipMedia?>();
+    if (immediatePast != null) past.complete(immediatePast);
     pastCompleters.add(past);
     fullCompleters.add(full);
     return ClipCapture(past: past.future, full: full.future);

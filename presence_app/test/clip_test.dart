@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
+import 'package:presence_app/clips.dart';
 import 'package:presence_app/main.dart';
 
 import 'fakes.dart';
@@ -23,6 +25,8 @@ void main() {
 
   Future<void> pressClip(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Clip'));
+    // Events wait (up to CameraRig.pastWait) for the before part.
+    await tester.pump(CameraRig.pastWait);
     await tester.pumpAndSettle();
     await settleStorage(tester);
   }
@@ -97,6 +101,74 @@ void main() {
     await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
     await tester.pumpAndSettle();
     expect(find.byType(ClipPlayerView), findsOneWidget);
+  });
+
+  testWidgets('a clip event is playable the moment it appears', (tester) async {
+    final camera = FakeCameraSource('Front door', immediatePast: media);
+    await pumpApp(tester, openFakes([camera]));
+
+    await tester.tap(find.byTooltip('Clip'));
+    // Pump frame by frame until the card shows up, and check that very frame.
+    for (
+      var i = 0;
+      i < 20 && find.byType(ClipEventCard).evaluate().isEmpty;
+      i++
+    ) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    expect(find.byType(ClipEventCard), findsOneWidget);
+    expect(inEvents(find.byKey(const Key('clip-play'))), findsOneWidget);
+    expect(
+      inEvents(find.text('Previous 15 s ready · recording next 15 s…')),
+      findsOneWidget,
+    );
+    await settleStorage(tester);
+  });
+
+  testWidgets('the same event is updated with the full clip', (tester) async {
+    final camera = FakeCameraSource('Front door', immediatePast: media);
+    await pumpApp(tester, openFakes([camera]));
+    await pressClip(tester);
+    final event = tester
+        .widget<ClipEventCard>(find.byType(ClipEventCard))
+        .event;
+    expect(event.clipState, 'partial');
+
+    camera.fullCompleters.single.complete(media);
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    // Still one event, now carrying the full clip.
+    expect(find.byType(ClipEventCard), findsOneWidget);
+    expect(
+      tester.widget<ClipEventCard>(find.byType(ClipEventCard)).event,
+      same(event),
+    );
+    expect(event.clipState, 'complete');
+    expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
+  });
+
+  testWidgets("a slow camera doesn't hold up the others", (tester) async {
+    final fast = FakeCameraSource('Front door', immediatePast: media);
+    final slow = FakeCameraSource('Back yard');
+    await pumpApp(tester, openFakes([fast, slow]));
+
+    await tester.tap(find.byTooltip('Clip'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(inEvents(find.text('Front door')), findsOneWidget);
+    expect(inEvents(find.text('Back yard')), findsNothing);
+
+    // After the wait cap, the slow camera's event appears anyway.
+    await tester.pump(CameraRig.pastWait);
+    await tester.pumpAndSettle();
+    expect(inEvents(find.text('Back yard')), findsOneWidget);
+    expect(inEvents(find.text('Saving previous 15 s…')), findsOneWidget);
+
+    // And becomes playable once its before part arrives.
+    slow.pastCompleters.single.complete(media);
+    await tester.pumpAndSettle();
+    expect(inEvents(find.byKey(const Key('clip-play'))), findsNWidgets(2));
+    await settleStorage(tester);
   });
 
   testWidgets('cameras without video support say so', (tester) async {
