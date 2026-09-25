@@ -574,8 +574,9 @@ The Swift counterpart of the Android layer
 
 ## Workflow
 
-- Every change goes on its own branch, with its own pull request. Nothing is
-  pushed directly to `main`. See [CLAUDE.md](../CLAUDE.md).
+- Every new feature or bug fix starts on a new branch from `main`, with its
+  own pull request. Nothing is pushed directly to `main`, and PRs are merged
+  only when the user says so. See [CLAUDE.md](../CLAUDE.md).
 - Every request updates this spec and the [request log](requests.md) in the
   same PR.
 
