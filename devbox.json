@@ -8,6 +8,12 @@
     "postgresql": {
       "version": "latest",
       "disable_plugin": true
+    },
+    "flutter": "latest"
+  },
+  "shell": {
+    "scripts": {
+      "web": "bash scripts/flutter-web.sh"
     }
   }
 }

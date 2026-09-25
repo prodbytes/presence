@@ -25,4 +25,19 @@ processes:
       restart: on_failure
       backoff_seconds: 5
 
-
+  2-flutter-web:
+    command: bash scripts/flutter-web.sh
+    environment:
+      - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-8080}
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${FLUTTER_WEB_PORT:-8080}
+        path: /
+      initial_delay_seconds: 10
+      period_seconds: 5
+      timeout_seconds: 5
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
