@@ -83,3 +83,7 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 !.vscode/launch.json
+
+# --- AWS CDK ---
+cdk.out/
+.cdk.staging/

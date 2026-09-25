@@ -592,6 +592,24 @@ The Swift counterpart of the Android layer
   command line, and a device run needs the iPhone paired for development and
   a signing identity (an Apple ID team in Xcode, plus a real bundle ID).
 
+## Infrastructure
+
+### Tenant infrastructure (`presence_infra_tenant`)
+
+An AWS CDK v2 app in Java in
+[presence_infra_tenant/](../presence_infra_tenant): JDK 25, Maven,
+`aws-cdk-lib` 2.270.0 and `constructs` 10.8.1. `PresenceInfraTenantApp` creates
+one stack, `PresenceInfraTenantStack`, in the account and region of the
+active AWS profile (`CDK_DEFAULT_ACCOUNT` / `CDK_DEFAULT_REGION`).
+
+- The stack has no resources yet. It's a scaffold for per-tenant resources.
+- [cdk.json](../presence_infra_tenant/cdk.json) runs the app with
+  `mvn compile exec:java` and sets the recommended feature flags from
+  `cdk init`.
+- A unit test checks that the stack synthesizes with no resources.
+- Not deployed or bootstrapped yet. The commands are in the module's
+  [README](../presence_infra_tenant/README.md).
+
 ## Development environment
 
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE (musl),
@@ -619,6 +637,10 @@ The Swift counterpart of the Android layer
   (`openjdk@21`), configured with `flutter config --android-sdk` and
   `--jdk-dir`. Gradle fetches the NDK and extra platforms on the first
   build. The dev container doesn't include the Android SDK.
+- **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
+  CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). Maven isn't in
+  devbox yet. jsii warns that Node 26 is untested (it supports 22 and 24);
+  set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
 
 - **iOS and macOS builds on macOS:** full **Xcode** from the Mac App Store.
   The Command Line Tools alone are not enough: Flutter needs `xcodebuild` and

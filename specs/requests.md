@@ -365,3 +365,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
+73. **In a separate folder, create a presence_infra_tenant CDK project,
+    also in Java, on the latest version.** (2026-09-25) Added
+    [presence_infra_tenant/](../presence_infra_tenant): a CDK v2 Java app
+    (JDK 25, `aws-cdk-lib` 2.270.0) with an empty
+    `PresenceInfraTenantStack`, a synth test, the recommended feature flags
+    in `cdk.json`, and a README. `cdk.out/` is git-ignored.
