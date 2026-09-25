@@ -7,6 +7,9 @@ abstract class PoolRecorder {
   /// When recording actually began.
   DateTime get startedAt;
 
+  /// Format of the finished file.
+  String get mimeType;
+
   /// Stops recording and returns a URL for the finished file.
   Future<String> finish();
 
@@ -108,6 +111,7 @@ class RecorderPool {
           url: url,
           start: _offset(startedAt, windowStart),
           end: _offset(startedAt, now),
+          mimeType: preview.recorder.mimeType,
         ),
       );
     }
@@ -139,6 +143,7 @@ class RecorderPool {
               url: url,
               start: _offset(startedAt, p.windowStart),
               end: _offset(startedAt, p.windowEnd),
+              mimeType: entry.recorder.mimeType,
             ),
           );
         }

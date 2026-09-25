@@ -10,14 +10,17 @@ import 'events.dart';
 /// period.
 class VideoClip extends ChangeNotifier {
   VideoClip({
+    required this.cameraId,
     required this.cameraLabel,
     required this.before,
     required this.after,
-    required ClipCapture capture,
+    required ClipCapture this.capture,
     this.thumbnail,
     this.supported = true,
-  }) {
-    capture.past.then(
+    String? id,
+  }) : id = id ?? AppEvent.newId(),
+       interrupted = false {
+    capture!.past.then(
       (media) {
         past = media;
         pastDone = true;
@@ -29,7 +32,7 @@ class VideoClip extends ChangeNotifier {
         notifyListeners();
       },
     );
-    capture.full.then(
+    capture!.full.then(
       (media) {
         full = media;
         fullDone = true;
@@ -43,9 +46,32 @@ class VideoClip extends ChangeNotifier {
     );
   }
 
+  /// A clip loaded from storage. If the app closed while it was still
+  /// recording, [full] is missing and the clip is marked [interrupted].
+  VideoClip.restored({
+    required this.id,
+    required this.cameraId,
+    required this.cameraLabel,
+    required this.before,
+    required this.after,
+    required this.past,
+    required this.full,
+    this.thumbnail,
+    this.supported = true,
+    this.error,
+  }) : capture = null,
+       pastDone = true,
+       fullDone = true,
+       interrupted = supported && full == null && error == null;
+
+  final String id;
+  final String cameraId;
   final String cameraLabel;
   final Duration before;
   final Duration after;
+
+  /// The recordings still in progress; null for a restored clip.
+  final ClipCapture? capture;
 
   /// The camera frame at the moment of the press.
   final Uint8List? thumbnail;
@@ -53,17 +79,39 @@ class VideoClip extends ChangeNotifier {
   /// False when the camera can't record video on this platform.
   final bool supported;
 
+  /// Restored without its "after" part: the app closed while recording it.
+  final bool interrupted;
+
   ClipMedia? past;
   ClipMedia? full;
   bool pastDone = false;
   bool fullDone = false;
   Object? error;
 
+  /// Set when saving the clip to storage failed (for example, disk full).
+  Object? saveError;
+
   bool get playable => past != null || full != null;
 
+  void markSaveError(Object e) {
+    saveError = e;
+    notifyListeners();
+  }
+
   String get status {
+    final saved = saveError == null ? '' : ' · not saved: $saveError';
+    return _recordingStatus + saved;
+  }
+
+  String get _recordingStatus {
     if (!supported) return "Video clips aren't supported on this platform";
     if (full != null) return '${(before + after).inSeconds} s clip ready';
+    if (interrupted) {
+      return past == null
+          ? 'Not recorded: the app closed while recording'
+          : 'Previous ${before.inSeconds} s only: the app closed '
+                'before the next ${after.inSeconds} s were recorded';
+    }
     if (fullDone) {
       return error == null ? 'No video recorded' : 'Recording failed';
     }
@@ -78,14 +126,21 @@ class VideoClip extends ChangeNotifier {
 
 /// Published once per camera when the user presses Clip.
 class ClipRequested extends AppEvent {
-  ClipRequested(this.clip, {super.time})
+  ClipRequested(this.clip, {super.time, super.id})
     : super(
         icon: Icons.videocam,
         title: 'Clip requested',
         detail: clip.cameraLabel,
+        type: clipRequestedType,
+        cameraId: clip.cameraId,
       );
 
+  static const String clipRequestedType = 'clip_requested';
+
   final VideoClip clip;
+
+  @override
+  Map<String, Object?> toRecord() => {...super.toRecord(), 'clipId': clip.id};
 
   @override
   Widget buildCard(BuildContext context) => ClipEventCard(event: this);

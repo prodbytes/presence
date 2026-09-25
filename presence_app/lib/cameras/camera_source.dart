@@ -2,18 +2,58 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
-/// A window of recorded video inside an in-memory file.
+/// A window of recorded video inside a recording file.
 ///
-/// [url] points at the whole recording (on web, a Blob object URL);
-/// [start] and [end] are offsets into it that bound the part to play.
+/// The file is either live in memory (on web, a Blob object URL) or stored,
+/// in which case it's loaded the first time it's played. [start] and [end]
+/// are offsets into the file that bound the part to play.
 class ClipMedia {
-  const ClipMedia({required this.url, required this.start, required this.end});
+  const ClipMedia({
+    required String this._url,
+    required this.start,
+    required this.end,
+    this.mimeType = defaultMimeType,
+  }) : _stored = null;
 
-  final String url;
+  /// A recording kept in storage; [load] makes it playable.
+  ClipMedia.stored({
+    required Future<String> Function() load,
+    required this.start,
+    required this.end,
+    this.mimeType = defaultMimeType,
+  }) : _url = null,
+       _stored = _StoredUrl(load);
+
+  static const String defaultMimeType = 'video/webm';
+
+  final String? _url;
+  final _StoredUrl? _stored;
   final Duration start;
   final Duration end;
+  final String mimeType;
 
   Duration get length => end - start;
+
+  /// The in-memory URL of a live recording, or null for a stored one.
+  String? get liveUrl => _url;
+
+  /// A playable URL for the recording, loading it from storage if needed.
+  Future<String> resolveUrl() =>
+      _url != null ? Future.value(_url) : _stored!.get();
+}
+
+class _StoredUrl {
+  _StoredUrl(this._load);
+
+  final Future<String> Function() _load;
+  Future<String>? _url;
+
+  // Load once; retry next time if loading failed.
+  Future<String> get() => _url ??= _load()
+    ..catchError((Object _) {
+      _url = null;
+      return '';
+    });
 }
 
 /// The two recordings a clip request produces.
@@ -35,6 +75,10 @@ class ClipCapture {
 
 /// One open camera.
 abstract class CameraSource {
+  /// Stable across launches (on web, the browser's device ID), so stored
+  /// clips and events can refer to the camera.
+  String get id;
+
   String get label;
 
   /// Whether this source keeps a rolling recording and can produce clips.
@@ -54,7 +98,10 @@ abstract class CameraSource {
 /// A camera that was found but couldn't be opened (for example, because
 /// another app is using it). Shown as an error tile.
 class UnavailableCameraSource implements CameraSource {
-  UnavailableCameraSource(this.label, this.error);
+  UnavailableCameraSource(this.id, this.label, this.error);
+
+  @override
+  final String id;
 
   @override
   final String label;

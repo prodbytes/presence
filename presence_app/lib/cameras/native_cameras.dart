@@ -22,18 +22,21 @@ Future<List<CameraSource>> openDeviceCameras(
     );
     try {
       await controller.initialize();
-      sources.add(_NativeCameraSource(label, controller));
+      sources.add(_NativeCameraSource(description.name, label, controller));
     } catch (e) {
       // dispose() awaits initialize(), so it rethrows the failure.
       controller.dispose().ignore();
-      sources.add(UnavailableCameraSource(label, e));
+      sources.add(UnavailableCameraSource(description.name, label, e));
     }
   }
   return sources;
 }
 
 class _NativeCameraSource implements CameraSource {
-  _NativeCameraSource(this.label, this._controller);
+  _NativeCameraSource(this.id, this.label, this._controller);
+
+  @override
+  final String id;
 
   @override
   final String label;

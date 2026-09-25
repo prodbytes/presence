@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/cameras/cameras.dart';
+import 'package:presence_app/storage/persistence.dart';
 
 /// A valid 1×1 PNG, so `Image.memory` can decode fake thumbnails.
 final Uint8List onePixelPng = Uint8List.fromList(const [
@@ -17,7 +19,11 @@ final Uint8List onePixelPng = Uint8List.fromList(const [
 
 /// A camera whose clip recordings the test completes by hand.
 class FakeCameraSource implements CameraSource {
-  FakeCameraSource(this.label, {this.supportsVideo = true});
+  FakeCameraSource(this.label, {this.supportsVideo = true, String? id})
+    : id = id ?? 'cam-$label';
+
+  @override
+  final String id;
 
   @override
   final String label;
@@ -55,3 +61,18 @@ CameraOpener openFakes(List<CameraSource> sources) =>
     (_) async => sources;
 
 Future<List<CameraSource>> noCameras(Duration Function() _) async => [];
+
+/// The in-memory storage backend completes its work on timers, which widget
+/// tests only run when fake time advances.
+Future<void> settleStorage(WidgetTester tester) =>
+    tester.pump(const Duration(seconds: 1));
+
+/// Stands in for the browser: "recordings" at a URL are the URL's bytes,
+/// and restored recordings get a recognizable URL.
+Future<Uint8List> fakeReadBytes(String url) async =>
+    Uint8List.fromList(url.codeUnits);
+
+String fakeCreateUrl(Uint8List bytes, String mimeType) =>
+    'restored:${String.fromCharCodes(bytes)}';
+
+const fakeMediaIo = MediaIo(readBytes: fakeReadBytes, createUrl: fakeCreateUrl);

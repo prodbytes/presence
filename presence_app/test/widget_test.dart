@@ -21,6 +21,8 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(PresenceApp(openCameras: openCameras));
     await tester.pump();
+    // Let the startup writes to (in-memory) storage finish.
+    await tester.pump(const Duration(seconds: 1));
   }
 
   testWidgets('uses the gruvbox soft dark palette', (tester) async {
