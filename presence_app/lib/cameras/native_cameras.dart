@@ -104,17 +104,16 @@ class _AndroidCameraSource implements CameraSource {
 
   @override
   Widget buildPreview(BuildContext context) {
-    // Camera frames arrive in sensor orientation; turn them upright for a
-    // phone held in its natural (portrait) orientation.
-    final turns = _sensorOrientation ~/ 90;
-    final aspect = turns.isOdd ? _height / _width : _width / _height;
+    // Camera2 sets a transform on the preview SurfaceTexture that turns the
+    // image upright for the phone's natural (portrait) orientation, and
+    // Flutter's Texture applies it: don't rotate again. Only the aspect
+    // ratio needs swapping, since the buffers are in sensor orientation.
+    // (Recordings don't get that transform; they carry a rotation flag.)
+    final sideways = _sensorOrientation % 180 != 0;
     return Center(
       child: AspectRatio(
-        aspectRatio: aspect,
-        child: RotatedBox(
-          quarterTurns: turns,
-          child: Texture(textureId: _textureId),
-        ),
+        aspectRatio: sideways ? _height / _width : _width / _height,
+        child: Texture(textureId: _textureId),
       ),
     );
   }
