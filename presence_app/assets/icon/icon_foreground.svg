@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Full size: flutter_launcher_icons insets it 16% for the adaptive safe zone. -->
+  <g>
+  <!-- Lens / eye: yellow ring, dark iris, blue glint, red recording dot. -->
+  <circle cx="512" cy="512" r="300" fill="#282828" stroke="#FABD2F" stroke-width="64"/>
+  <circle cx="512" cy="512" r="176" fill="#1D2021" stroke="#D79921" stroke-width="18"/>
+  <circle cx="512" cy="512" r="92" fill="#3C3836"/>
+  <circle cx="470" cy="468" r="34" fill="#83A598"/>
+  <!-- Recording dot, sitting on the ring at 45 degrees. -->
+  <circle cx="724" cy="300" r="70" fill="#32302F"/>
+  <circle cx="724" cy="300" r="50" fill="#FB4934"/>
+  </g>
+</svg>
