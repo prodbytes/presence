@@ -7,9 +7,12 @@
 set -euo pipefail
 
 PORT="${FLUTTER_WEB_PORT:-8080}"
+# 127.0.0.1, not localhost: Dart binds "localhost" to IPv6 [::1] only, which
+# Docker Desktop's host.docker.internal (Floci's CloudFront origin) can't reach.
+# Browsers still reach it at http://localhost:$PORT.
 
 cd "$(dirname "$0")/../presence_app"
 source ../scripts/dart-defines.sh
 flutter pub get
-exec flutter run -d web-server --web-hostname localhost --web-port "$PORT" \
+exec flutter run -d web-server --web-hostname 127.0.0.1 --web-port "$PORT" \
   "${DART_DEFINES[@]}"

@@ -392,3 +392,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     the Flutter web server. Added `4-floci` to process-compose, a `☁️ cdn`
     health check, and a port 4566 forward in the dev container. Verified
     under process-compose on macOS.
+76. **(Fix found while moving the app to /app/.)** (2026-09-25) Through
+    Floci, the real Flutter web server returned 502, because Dart bound
+    `localhost` to `[::1]` only. It now binds `127.0.0.1`.

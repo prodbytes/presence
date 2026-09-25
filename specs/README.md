@@ -628,10 +628,14 @@ deployed CloudFront would.
   query strings, is forwarded (the equivalent of AWS's managed
   `AllViewerExceptHostHeader`, which Floci doesn't model).
 - Settings: `FLOCI_PORT`, `PRESENCE_CDN_ALIAS`, `PRESENCE_ORIGIN_HOST`.
-- Verified on macOS with Docker Desktop, under process-compose (API, Floci,
-  health monitor): `/` reached the web origin, `/events` returned the API's
-  `{"events":[]}`, the health line showed `☁️ cdn ✅`, and shutdown removed
-  the container.
+- The Flutter web server binds `127.0.0.1`, not `localhost`: Dart binds
+  `localhost` to IPv6 `[::1]` only, and Docker Desktop's
+  `host.docker.internal` reaches IPv4 loopback only, so Floci got a 502.
+  Browsers still reach it at `http://localhost:8080`.
+- Verified on macOS with Docker Desktop, under process-compose (the web
+  server, API, Floci and health monitor): `/` served the Flutter app,
+  `/events` returned the API's `{"events":[]}`, the health line showed
+  `☁️ cdn ✅`, and shutdown removed the container.
 - On Linux, including the dev container, it doesn't reach the origins as
   is: they bind to `localhost`, which `host.docker.internal` doesn't reach
   there.
