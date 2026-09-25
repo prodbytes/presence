@@ -72,6 +72,9 @@ class DeviceCameras implements CameraBackend {
         web.MediaStreamConstraints(
           video: web.MediaTrackConstraints(
             deviceId: {'exact': device.id}.jsify()!,
+            // Up to 30 fps, allowed down to 10 in low light, like Android and
+            // iOS. A hint: browsers pick what the camera supports.
+            frameRate: {'ideal': 30, 'min': 10}.jsify()!,
           ),
           audio: audio.toJS,
         );

@@ -240,3 +240,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     on the simulator (the plugin answers, and the permission prompt shows);
     not yet tested on a physical iPhone, which needs pairing and a signing
     team.
+50. **The same features on all devices; update the web if needed; restart
+    the server.** Web already had every feature. Closed the one gap: a
+    low-light frame-rate hint (10–30 fps) like Android and iOS. Restarted
+    the dev server and verified motion clips end to end in headless Chrome:
+    the live meter read ~10% for the fake camera, and at a 1% threshold a
+    "Motion detected" clip appeared, playable.
