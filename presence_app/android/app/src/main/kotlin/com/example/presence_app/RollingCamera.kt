@@ -64,6 +64,9 @@ class RollingCamera(
     private val cameraHandler = Handler(cameraThread.looper)
     private val clipExecutor = Executors.newSingleThreadExecutor()
 
+    /** Thumbnails, kept apart so they never delay a clip's "before" part. */
+    private val frameExecutor = Executors.newSingleThreadExecutor()
+
     /** Clips waiting for their "after" part each park a thread here. */
     private val waitExecutor = Executors.newCachedThreadPool()
 
@@ -93,6 +96,16 @@ class RollingCamera(
         previewTexture.setDefaultBufferSize(size.width, size.height)
         val preview = Surface(previewTexture).also { previewSurface = it }
 
+        try {
+            openDevice(preview, encoderSurface, ready)
+        } catch (e: Exception) {
+            ready.completeExceptionally(e)
+        }
+        return ready
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun openDevice(preview: Surface, encoderSurface: Surface, ready: CompletableFuture<Unit>) {
         manager.openCamera(id, object : CameraDevice.StateCallback() {
             override fun onOpened(camera: CameraDevice) {
                 device = camera
@@ -135,7 +148,6 @@ class RollingCamera(
                 if (!ready.isDone) ready.completeExceptionally(IllegalStateException(reason))
             }
         }, cameraHandler)
-        return ready
     }
 
     fun setPreRoll(ms: Long) {
@@ -185,10 +197,14 @@ class RollingCamera(
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(file.path)
+            // Some decoders return nothing for the file's very last frame:
+            // ask just before it, then fall back to the (≤1 s old) keyframe.
+            val endUs = written.endMs * 1000
             val frame = retriever.getFrameAtTime(
-                written.endMs * 1000,
+                maxOf(0L, endUs - 100_000),
                 MediaMetadataRetriever.OPTION_CLOSEST,
-            ) ?: return@supplyAsync null
+            ) ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                ?: return@supplyAsync null
             val upright = rotate(frame, orientationHint)
             val scale = minOf(1f, 480f / upright.width)
             val thumb = Bitmap.createScaledBitmap(
@@ -205,7 +221,7 @@ class RollingCamera(
             retriever.release()
             file.delete()
         }
-    }, clipExecutor)
+    }, frameExecutor)
 
     fun close() {
         running = false
@@ -220,6 +236,7 @@ class RollingCamera(
         runCatching { previewSurface?.release() }
         cameraThread.quitSafely()
         clipExecutor.shutdown()
+        frameExecutor.shutdown()
         waitExecutor.shutdown()
     }
 
@@ -276,12 +293,27 @@ class RollingCamera(
 
         thread(name = "audio-capture-$id") {
             val pcm = ByteArray(minBuffer)
+            // Timestamps come from the sample count, anchored to the camera
+            // clock: "now minus the buffer length" jitters by a few ms, and
+            // MP4 rejects audio that goes back in time even slightly.
+            var anchorUs = -1L
+            var samples = 0L
+            var lastPts = Long.MIN_VALUE
             while (running) {
                 val read = record.read(pcm, 0, pcm.size)
                 if (read <= 0) continue
-                // Stamp with the end-of-read time minus the buffer's duration.
-                val durationUs = read / 2 * 1_000_000L / sampleRate
-                val pts = nowUs() - durationUs
+                val count = read / 2
+                val wallStartUs = nowUs() - count * 1_000_000L / sampleRate
+                var pts = anchorUs + samples * 1_000_000L / sampleRate
+                // Re-anchor on start and whenever the sample clock drifts
+                // more than 100 ms from the camera clock (e.g. after a stall).
+                if (anchorUs < 0 || kotlin.math.abs(pts - wallStartUs) > 100_000) {
+                    anchorUs = wallStartUs - samples * 1_000_000L / sampleRate
+                    pts = wallStartUs
+                }
+                pts = maxOf(pts, lastPts + 1)
+                lastPts = pts
+                samples += count
                 val index = runCatching { encoder.dequeueInputBuffer(10_000) }.getOrDefault(-1)
                 if (index < 0) continue
                 val input = encoder.getInputBuffer(index) ?: continue

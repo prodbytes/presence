@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
@@ -122,21 +123,32 @@ class PresenceCamerasPlugin(
         manager.getCameraCharacteristics(id).get(CameraCharacteristics.LENS_FACING)
 
     private fun openCamera(id: String, preRollMs: Long, result: MethodChannel.Result) {
+        // A camera reopened after a failure replaces the old one.
+        open.remove(id)?.let { (cam, texture) ->
+            cam.close()
+            texture.release()
+        }
+        // The texture must be created on the main thread; everything slow
+        // (encoders, microphone, opening the camera) happens off it.
         val texture = textures.createSurfaceTexture()
-        val cam = RollingCamera(
-            manager,
-            id,
-            texture.surfaceTexture(),
-            clipDir,
-            withAudio = granted(Manifest.permission.RECORD_AUDIO),
-        )
-        cam.setPreRoll(preRollMs)
-        cam.start().whenComplete { _, error ->
-            main.post {
+        val withAudio = granted(Manifest.permission.RECORD_AUDIO)
+        CompletableFuture.supplyAsync {
+            RollingCamera(manager, id, texture.surfaceTexture(), clipDir, withAudio).also {
+                it.setPreRoll(preRollMs)
+            }
+        }.thenCompose { cam ->
+            cam.start().handle { _, error ->
                 if (error != null) {
                     cam.close()
+                    throw error
+                }
+                cam
+            }
+        }.whenComplete { cam, error ->
+            main.post {
+                if (error != null) {
                     texture.release()
-                    result.error("camera", error.cause?.message ?: error.message, null)
+                    result.error("camera", describe(error), null)
                 } else {
                     open[id] = cam to texture
                     result.success(
@@ -155,6 +167,25 @@ class PresenceCamerasPlugin(
     }
 
     private fun camera(call: MethodCall) = open[call.argument<String>("id")]?.first
+
+    /** A readable reason for a camera that failed to open. */
+    private fun describe(error: Throwable): String {
+        var e: Throwable = error
+        while (e.cause != null && (e is java.util.concurrent.CompletionException || e is java.util.concurrent.ExecutionException)) {
+            e = e.cause!!
+        }
+        if (e is CameraAccessException) {
+            return when (e.reason) {
+                CameraAccessException.CAMERA_DISABLED ->
+                    "Blocked by Android while the screen was off or the app was in the background"
+                CameraAccessException.CAMERA_IN_USE -> "In use by another app"
+                CameraAccessException.MAX_CAMERAS_IN_USE -> "Too many cameras open at once"
+                CameraAccessException.CAMERA_DISCONNECTED -> "Disconnected"
+                else -> "Couldn't open (error ${e.reason})"
+            }
+        }
+        return e.message ?: e.toString()
+    }
 
     private fun <T> reply(
         result: MethodChannel.Result,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 import 'package:url_launcher/link.dart';
@@ -111,6 +113,13 @@ class MonitorPage extends StatelessWidget {
   static const double eventsPanelWidth = 360;
   static const double gap = 12;
 
+  /// Below this width the panels can't sit side by side (the Cameras panel
+  /// would get less room than the Events panel), so they stack: phones.
+  static const double stackedBreakpoint = eventsPanelWidth * 2;
+
+  /// Height of the Events panel when stacked: fixed, up to 40% of the screen.
+  static const double stackedEventsHeight = 300;
+
   @override
   Widget build(BuildContext context) {
     const gap = MonitorPage.gap;
@@ -119,15 +128,34 @@ class MonitorPage extends StatelessWidget {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(gap),
-          child: Row(
-            children: [
-              Expanded(child: CameraFeedsPanel(rig: rig)),
-              const SizedBox(width: gap),
-              SizedBox(
-                width: MonitorPage.eventsPanelWidth,
-                child: EventsPanel(log: log),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < stackedBreakpoint) {
+                return Column(
+                  children: [
+                    Expanded(child: CameraFeedsPanel(rig: rig)),
+                    const SizedBox(height: gap),
+                    SizedBox(
+                      height: math.min(
+                        stackedEventsHeight,
+                        constraints.maxHeight * 0.4,
+                      ),
+                      child: EventsPanel(log: log),
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: CameraFeedsPanel(rig: rig)),
+                  const SizedBox(width: gap),
+                  SizedBox(
+                    width: eventsPanelWidth,
+                    child: EventsPanel(log: log),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

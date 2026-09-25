@@ -20,10 +20,13 @@ has two panels:
 | Cameras | Left, takes all remaining width | Titled with the app name. Live feeds from every camera on the device, in a grid. |
 | Events | Right, always 360 px wide | Timeline of events, newest first. |
 
-- The layout is the same at every window size: the Events panel never
-  resizes, and the Cameras panel fills the rest. There is no stacked
-  narrow-screen layout, so on phone-sized screens the Cameras panel gets very
-  little width.
+- On screens at least 720 px wide, the layout is the same at every size:
+  the Events panel is always 360 px wide on the right, and the Cameras panel
+  fills the rest.
+- **Phones:** below 720 px wide, side by side can't fit (a 320 dp phone
+  would give the Cameras panel no room at all), so the panels stack. Cameras
+  is on top, filling the space, and Events is below at a fixed height (up to
+  300 px, at most 40% of the screen).
 - Header buttons are tonal filled icon buttons, 8 px apart.
 - The Flutter demo UI was removed entirely.
 
@@ -270,12 +273,25 @@ Android uses the standard dashcam technique instead
   window offsets are returned, the same "file + window" model as web.
   Clips in progress pin their samples, so they can't be pruned.
 - **Thumbnail:** the latest frame, taken from the ring with
-  `MediaMetadataRetriever`, turned upright and saved as JPEG.
+  `MediaMetadataRetriever` (just before the last frame, falling back to the
+  latest keyframe), turned upright and saved as JPEG.
 - **Playback:** `video_player` (ExoPlayer), with the same before-then-full
   continuation and exact window end as web. Tap to pause and play.
 - **Several cameras:** phones that can't run cameras concurrently (all
   before Android 11, and most after) open the first back camera. The others
-  show as unavailable tiles, with the reason.
+  are listed in a compact line under the live feeds, with the reason. They
+  get grid tiles only when no camera is live.
+- **Screen off / background:** Android refuses to open cameras while the
+  screen is off or the app is in the background. Failed cameras are reopened
+  automatically when the app returns to the foreground (permanent limits,
+  like the one above, aren't retried).
+- **Audio timestamps** come from the sample count, anchored to the camera
+  clock, and are strictly increasing: MP4 rejects audio that goes back in
+  time even by a few ms. The muxer also skips any non-increasing sample
+  instead of aborting the file.
+- Slow work (encoders, microphone, opening the camera, thumbnails) runs off
+  the main thread, and thumbnails have their own thread so they never delay
+  a clip's before part.
 - **Permissions:** camera and microphone are requested at launch. Without
   the microphone, recording is video-only. The screen is kept on.
 - **Storage:** metadata goes in a persistent sembast database (via
@@ -327,6 +343,16 @@ Android uses the standard dashcam technique instead
   support.
 - Android preview orientation assumes the phone is held in its natural
   (portrait) orientation.
+- **Verified on a DOOGEE S40 (Android 9, MT6739):**
+  - The camera opens, and the hardware H.264 encoder runs at ~30 fps.
+  - Clips are written as a before part (15.7 s) and a full clip (30.1 s),
+    each 1280×720 H.264 with AAC audio at 44.1 kHz, with real sound.
+  - The full clip is saved, the before-only file is deleted, the thumbnail
+    is an upright 480×853 JPEG, and clips and events survive relaunches.
+  - Playback starts with audio.
+  - Not yet verified: the preview and recordings showing an actual scene.
+    The camera saw only black during testing (average luma 16), most likely
+    because the phone was lying on its back.
 - Persistence has been verified with unit and widget tests against an
   in-memory IndexedDB, but not yet in a real browser.
 - The browser's native video controls show the whole recording file, which

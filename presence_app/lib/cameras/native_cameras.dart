@@ -36,7 +36,14 @@ Future<List<CameraSource>> openDeviceCameras(
     final id = camera['id']! as String;
     final label = camera['label']! as String;
     if (camera['available'] != true) {
-      sources.add(UnavailableCameraSource(id, label, camera['reason'] ?? ''));
+      sources.add(
+        UnavailableCameraSource(
+          id,
+          label,
+          camera['reason'] ?? '',
+          retryable: false,
+        ),
+      );
       continue;
     }
     try {

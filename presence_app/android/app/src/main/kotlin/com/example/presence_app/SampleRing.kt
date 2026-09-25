@@ -110,9 +110,13 @@ class SampleRing {
             val audioTrack = if (audio != null) muxer.addTrack(audio) else -1
             muxer.start()
             val info = MediaCodec.BufferInfo()
+            // MP4 needs strictly increasing timestamps per track; drop any
+            // sample that isn't, instead of aborting the whole file.
+            val lastPts = longArrayOf(Long.MIN_VALUE, Long.MIN_VALUE)
             for (s in inRange) {
                 val track = if (s.track == VIDEO) videoTrack else audioTrack
-                if (track < 0) continue
+                if (track < 0 || s.ptsUs <= lastPts[s.track]) continue
+                lastPts[s.track] = s.ptsUs
                 info.set(0, s.data.size, s.ptsUs - startUs, s.flags)
                 muxer.writeSampleData(track, ByteBuffer.wrap(s.data), info)
             }

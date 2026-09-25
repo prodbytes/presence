@@ -139,3 +139,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     in-memory ring buffer, clips muxed to MP4. Also video_player playback,
     and file-based clip storage with a persistent sembast database. Removed
     the `camera` plugin.
+    On the phone:
+    - The fixed 360 px Events panel overflowed its 320 dp screen, so phones
+      now stack the panels.
+    - Cameras opened while the screen was off are blocked by Android, so
+      they're now retried when the app returns to the foreground.
+    - Unavailable cameras are listed compactly instead of taking tiles.
+    - Full clips failed on out-of-order audio timestamps, so audio is now
+      stamped from the sample count.
+    - Thumbnails failed on the last-frame decode, so the retriever now falls
+      back, and thumbnails run on their own thread.
+    Verified on the device: recording, the 15.7 s before part and 30.1 s
+    full clip with real audio, the thumbnail, persistence across relaunches,
+    and playback.
