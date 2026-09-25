@@ -239,8 +239,9 @@ class _HomeScreenState extends State<HomeScreen>
       ..showSnackBar(
         SnackBar(
           content: Text('$started · saving the next $after s'),
-          // A brief pop: the readiness pill carries the countdown. (With an
-          // action, snackbars otherwise stay until dismissed.)
+          // A brief pop; for motion clips, the readiness pill carries the
+          // cooldown after it. (With an action, snackbars otherwise stay
+          // until dismissed.)
           persist: false,
           duration: const Duration(seconds: 4),
           // The events tab is only there when signed in.
@@ -447,12 +448,6 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         _Dot(color: Gruvbox.green),
         'Ready',
         'Ready to clip',
-      ),
-      ClipReadinessState.saving => (
-        _Dot(color: Gruvbox.red),
-        // Just the countdown; the red dot says it's recording.
-        '$seconds s',
-        'Saving clip, $seconds seconds left',
       ),
       ClipReadinessState.cooldown => (
         // Red while the motion clip is still saving, then amber.

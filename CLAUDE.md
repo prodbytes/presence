@@ -13,10 +13,13 @@ change:
 
 ## One pull request per change
 
-Put every change on its own branch and open a separate pull request for it:
+Every new feature or bug fix starts on a **new branch from `main`**, with its
+own pull request:
 
 - Never commit or push directly to `main`.
 - Don't bundle unrelated requests into one PR.
-- If a change depends on work that hasn't merged yet, stack its branch on
-  that PR's branch and target that branch.
+- Start from an up-to-date `main` (`git checkout main && git pull`). Stack on
+  an unmerged branch only when the new work truly depends on it, and then
+  target that branch.
+- Merge only when the user says so.
 - Include the matching `specs/` update in the same PR as the change.

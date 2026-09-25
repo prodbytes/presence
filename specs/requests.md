@@ -292,6 +292,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     only after a clip, or the restored motion cooldown after a reload.
     Verified in Chrome (Ready, then 4:48 → 4:28 → 4:22 across a reload,
     matching the 19:11:33 event) and on the S40 (Ready on launch).
+59. **Merge it (PR #20).** Merged into `main`; 78/78 tests pass.
+60. **For every new feature or bug, start a new branch/PR, and note the rule
+    in memory.** Sharpened the CLAUDE.md rule and the assistant's memory:
+    each feature or bug fix gets a new branch from an up-to-date `main` and
+    its own PR (stacking only when truly dependent), and merges happen only
+    on the user's say-so.
 61. **Enable sign in with Google.** Chosen: plain `google_sign_in` (no
     Firebase), app ID `com.nu01.presence`, with the assistant walking the
     user through the credentials. Renamed the app ID on Android and iOS, and
@@ -349,3 +355,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     message. Signed in, the tabs and the account button (identity tooltip)
     show. Verified on the S40 (320 dp): the signed-out app bar fits, and
     the button opens Google's sign-in sheet.
+70. **Pressing Clip starts a 15 s countdown. That's not right: only
+    automatic triggers (detections) should start the countdown.**
+    (2026-09-25) Removed the readiness pill's "saving" state. A Clip press
+    now leaves the pill as it is (Ready, or the running motion cooldown);
+    only motion clips start a countdown. The snackbar still says the clip
+    is saving.
+71. **Merge it all.** (2026-09-25) Merged #21 (branch rule), #23 (only
+    motion clips count down) and #22 (sign in with Google) into `main`,
+    resolving request-log conflicts. 80/80 tests pass on the merged code.
+    iOS sign-in still needs its client ID in `.env`.

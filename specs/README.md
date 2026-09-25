@@ -48,27 +48,25 @@ in the app bar**, which flip between full screens.
     (Flip, Clip, then readiness). It shows whether a clip taken now would be
     complete:
     - **"Ready"** (green dot): shown as soon as a camera is open, including
-      right after a page reload or a flip. Countdowns start **only when a
-      clip is taken**. A clip in the first seconds after opening simply has
-      less *before* history.
-    - **"12 s"** (red dot, only the countdown): a manual clip's *after*
-      part is being recorded. It counts down to 0, then returns to Ready
-      once the full clip is saved.
+      right after a page reload or a flip. Only **automatic (motion)
+      clips** start a countdown. A **Clip button press doesn't**: the pill
+      stays Ready while its *after* part records, and the snackbar says it's
+      saving. A clip in the first seconds after opening simply has less
+      *before* history.
     - **"4:59"** after a **motion** clip: the **motion cooldown** countdown
       (5 minutes by default), starting when motion grabs the clip. The dot
       is red while that clip's *after* part is still saving, then amber.
       Motion can take another clip **only once this reaches zero**: the
       countdown and the trigger use the same end time
-      (`CameraRig.motionCooldownEnds`). Below a minute it shows "45 s". A
-      manual clip during the cooldown shows its own 15 s countdown, then the
-      cooldown resumes; the Clip button is never blocked. With motion clips
-      turned off there's no cooldown.
+      (`CameraRig.motionCooldownEnds`). Below a minute it shows "45 s". A Clip
+      press during the cooldown leaves the countdown as it is; the Clip
+      button is never blocked. With motion clips turned off there's no
+      cooldown.
 
-    Countdowns show only the number, and the dot's color tells them apart.
+    The countdown shows only the number.
     That keeps Flip, Clip and the pill on one row on a 320 dp phone. The
     pill refreshes twice a second, and its tooltip and screen-reader label
-    spell the state out ("Saving clip, 12 seconds left", "Motion can clip
-    again in 4:28").
+    spell the state out ("Motion can clip again in 4:28").
     - **The motion cooldown survives restarts and page reloads.** On
       launch, it's restored from the last motion clip in the stored events,
       so the countdown continues exactly where it was, and motion doesn't
@@ -79,7 +77,7 @@ in the app bar**, which flip between full screens.
     (4 s) says "Clip started · saving the next 15 s" or "Motion detected ·
     saving the next 15 s", with a **View** action that jumps to Events. It's
     set not to persist (Flutter otherwise keeps snackbars with actions until
-    dismissed). The indicator carries the countdown after it.
+    dismissed). For motion clips, the indicator carries the cooldown after it.
 - **Events:** the event stream, full screen. On wide screens it's centered
   at a readable width (max 560 px), so clip thumbnails don't stretch across
   the desktop.
@@ -641,8 +639,9 @@ The Swift counterpart of the Android layer
 
 ## Workflow
 
-- Every change goes on its own branch, with its own pull request. Nothing is
-  pushed directly to `main`. See [CLAUDE.md](../CLAUDE.md).
+- Every new feature or bug fix starts on a new branch from `main`, with its
+  own pull request. Nothing is pushed directly to `main`, and PRs are merged
+  only when the user says so. See [CLAUDE.md](../CLAUDE.md).
 - Every request updates this spec and the [request log](requests.md) in the
   same PR.
 

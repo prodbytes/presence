@@ -54,19 +54,17 @@ void main() {
       expect(r.remaining, Duration.zero);
     });
 
-    test('counts down while a clip saves, then is ready again', () async {
+    test('a Clip press starts no countdown: still ready', () async {
       now = now.add(const Duration(seconds: 20));
       await rig.requestClips(bus);
+      expect(back.fullCompleters, hasLength(1), reason: 'the clip was taken');
 
       var r = rig.readiness;
-      expect(r.state, ClipReadinessState.saving);
-      expect(r.remaining, const Duration(seconds: 15));
+      expect(r.state, ClipReadinessState.ready);
+      expect(r.remaining, Duration.zero);
 
       now = now.add(const Duration(seconds: 12));
-      r = rig.readiness;
-      expect(r.state, ClipReadinessState.saving);
-      expect(r.remaining, const Duration(seconds: 3));
-
+      expect(rig.readiness.state, ClipReadinessState.ready);
       back.fullCompleters.single.complete(media);
       await Future<void>.delayed(Duration.zero);
       expect(rig.readiness.state, ClipReadinessState.ready);
@@ -145,23 +143,21 @@ void main() {
       expect(rig.readiness.state, ClipReadinessState.cooldown);
     });
 
-    test('a manual clip during the cooldown shows its own countdown', () async {
-      now = now.add(const Duration(seconds: 20));
-      final triggered = await motionClip();
-      back.fullCompleters.single.complete(media);
-      now = triggered.add(const Duration(minutes: 1));
+    test(
+      'a Clip press during the cooldown leaves the countdown as is',
+      () async {
+        now = now.add(const Duration(seconds: 20));
+        final triggered = await motionClip();
+        back.fullCompleters.single.complete(media);
+        now = triggered.add(const Duration(minutes: 1));
 
-      await rig.requestClips(bus);
-      var r = rig.readiness;
-      expect(r.state, ClipReadinessState.saving);
-      expect(r.remaining, const Duration(seconds: 15));
-
-      back.fullCompleters.last.complete(media);
-      await Future<void>.delayed(Duration.zero);
-      r = rig.readiness;
-      expect(r.state, ClipReadinessState.cooldown);
-      expect(r.remaining, const Duration(minutes: 4));
-    });
+        await rig.requestClips(bus);
+        final r = rig.readiness;
+        expect(r.state, ClipReadinessState.cooldown);
+        expect(r.remaining, const Duration(minutes: 4));
+        expect(r.recording, isFalse, reason: "only the motion clip's saving");
+      },
+    );
 
     test('with motion clips off, there is no cooldown', () async {
       now = now.add(const Duration(seconds: 20));
@@ -240,19 +236,27 @@ void main() {
       await tester.pumpAndSettle();
       await settleStorage(tester);
 
-      // Flip, Clip and the pill in one row, no overflow, while saving (the
-      // pill's widest countdown is the cooldown, "4:59").
-      await tester.tap(find.byTooltip('Clip'));
-      await tester.pump();
+      // Flip, Clip and the pill in one row, no overflow, with the pill's
+      // widest label: the motion cooldown ("5:00").
+      for (var i = 0; i < 20; i++) {
+        now = now.add(const Duration(milliseconds: 200));
+        back.motion.add(frame());
+        await tester.pump();
+      }
+      for (var i = 0; i < 4; i++) {
+        now = now.add(const Duration(milliseconds: 200));
+        back.motion.add(frame(x: (i % 2) * 30, y: 10, size: 24));
+        await tester.pump();
+      }
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('15 s'), findsOneWidget);
+      expect(find.text('5:00'), findsOneWidget);
       expect(find.byTooltip('Flip camera'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final pill = tester.getRect(find.byKey(const Key('readiness')));
       expect(pill.right, lessThanOrEqualTo(320));
     });
 
-    testWidgets('a clip pops a message and counts down until saved', (
+    testWidgets('a Clip press pops a message; the pill stays Ready', (
       tester,
     ) async {
       final camera = await pumpApp(tester);
@@ -262,17 +266,16 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('Clip started · saving the next 15 s'), findsOneWidget);
-      expect(find.text('15 s'), findsOneWidget);
-      expect(find.textContaining('Saving'), findsNothing);
+      expect(find.text('Ready'), findsOneWidget);
+      expect(find.text('15 s'), findsNothing, reason: 'no countdown');
 
       await advance(tester, const Duration(seconds: 10));
-      expect(find.text('5 s'), findsOneWidget);
+      expect(find.text('Ready'), findsOneWidget);
 
-      // The message was brief (4 s); the pill still counts down.
+      // The message was brief (4 s).
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Clip started · saving the next 15 s'), findsNothing);
-      expect(find.text('5 s'), findsOneWidget);
 
       camera.fullCompleters.single.complete(media);
       await tester.pump();
