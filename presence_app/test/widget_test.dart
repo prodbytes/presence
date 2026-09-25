@@ -3,23 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/link.dart';
 
-import 'package:presence_app/camera_feeds.dart';
+import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/theme.dart';
 
-Future<List<CameraDescription>> noCameras() async => [];
+import 'fakes.dart';
 
 void main() {
   Future<void> pumpAt(
     WidgetTester tester,
     Size size, {
-    CameraLoader loadCameras = noCameras,
+    CameraOpener openCameras = noCameras,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(PresenceApp(loadCameras: loadCameras));
+    await tester.pumpWidget(PresenceApp(openCameras: openCameras));
     await tester.pump();
   }
 
@@ -204,7 +204,7 @@ void main() {
     await pumpAt(
       tester,
       const Size(1280, 800),
-      loadCameras: () async {
+      openCameras: (_) async {
         calls++;
         throw CameraException('permissionDenied', 'Camera access was denied');
       },

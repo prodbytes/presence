@@ -16,6 +16,10 @@ class AppEvent {
   final String title;
   final String? detail;
   final DateTime time;
+
+  /// The card shown for this event in the timeline. Event types with richer
+  /// content override this.
+  Widget buildCard(BuildContext context) => EventCard(event: this);
 }
 
 /// App-wide event bus: a plain broadcast stream. Anything can publish, and
@@ -133,7 +137,7 @@ class _EventTimelineState extends State<EventTimeline> {
       padding: const EdgeInsets.all(12),
       itemCount: events.length,
       separatorBuilder: (context, i) => const SizedBox(height: 8),
-      itemBuilder: (context, i) => EventCard(event: events[i]),
+      itemBuilder: (context, i) => events[i].buildCard(context),
     );
   }
 }

@@ -1,69 +1,149 @@
 import 'dart:math' as math;
 
-import 'package:camera/camera.dart';
+import 'package:camera/camera.dart' show CameraException;
 import 'package:flutter/material.dart';
 
+import 'cameras/cameras.dart';
+import 'clips.dart';
+import 'events.dart';
+import 'settings.dart';
 import 'theme.dart';
 
-typedef CameraLoader = Future<List<CameraDescription>> Function();
+/// The open cameras. Owned by the app so cameras (and their rolling
+/// recordings) stay open across rebuilds.
+class CameraRig extends ChangeNotifier {
+  CameraRig({required this._open, required this.settings});
 
-/// Opens every camera available to the device and shows them in a grid.
-class CameraFeedsView extends StatefulWidget {
-  const CameraFeedsView({super.key, this.loadCameras = availableCameras});
+  final CameraOpener _open;
+  final ClipSettings settings;
 
-  final CameraLoader loadCameras;
-
-  @override
-  State<CameraFeedsView> createState() => _CameraFeedsViewState();
-}
-
-class _CameraFeedsViewState extends State<CameraFeedsView> {
-  List<CameraDescription>? _cameras;
+  List<CameraSource>? _sources;
   Object? _error;
+  bool _disposed = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
+  /// Null while loading.
+  List<CameraSource>? get sources => _sources;
+  Object? get error => _error;
+
+  bool get canClip =>
+      _sources?.any((s) => s is! UnavailableCameraSource) ?? false;
+
+  Future<void> load() async {
+    _closeSources();
+    _sources = null;
+    _error = null;
+    notifyListeners();
+    try {
+      final sources = await _open(() => settings.before);
+      if (_disposed) {
+        for (final s in sources) {
+          s.dispose();
+        }
+        return;
+      }
+      _sources = sources;
+    } catch (e) {
+      if (_disposed) return;
+      _error = e;
+    }
+    notifyListeners();
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _cameras = null;
-      _error = null;
-    });
-    try {
-      final cameras = await widget.loadCameras();
-      if (mounted) setState(() => _cameras = cameras);
-    } catch (e) {
-      if (mounted) setState(() => _error = e);
+  /// Starts a clip on every camera and publishes a [ClipRequested] event for
+  /// each, with the camera's current frame as its thumbnail.
+  Future<void> requestClips(AppEventBus bus) async {
+    final before = settings.before;
+    final after = settings.after;
+    final cameras = (_sources ?? const <CameraSource>[])
+        .where((s) => s is! UnavailableCameraSource)
+        .toList();
+
+    // Start every clip before anything slower, so they share one moment.
+    final requestedAt = DateTime.now();
+    final captures = [
+      for (final camera in cameras)
+        camera.requestClip(before: before, after: after),
+    ];
+    final frames = await Future.wait(cameras.map((c) => c.captureFrame()));
+
+    for (final (i, camera) in cameras.indexed) {
+      bus.publish(
+        ClipRequested(
+          VideoClip(
+            cameraLabel: camera.label,
+            before: before,
+            after: after,
+            capture: captures[i],
+            thumbnail: frames[i],
+            supported: camera.supportsVideo,
+          ),
+          time: requestedAt,
+        ),
+      );
     }
   }
+
+  void _closeSources() {
+    for (final s in _sources ?? const <CameraSource>[]) {
+      s.dispose();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _closeSources();
+    super.dispose();
+  }
+}
+
+/// Shows every open camera in a grid.
+class CameraFeedsView extends StatelessWidget {
+  const CameraFeedsView({super.key, required this.rig});
+
+  final CameraRig rig;
 
   @override
   Widget build(BuildContext context) {
-    final cameras = _cameras;
-    if (_error != null) {
-      return FeedMessage(
-        icon: Icons.error_outline,
-        message: 'Could not access cameras\n${describeCameraError(_error!)}',
-        action: TextButton(onPressed: _load, child: const Text('Retry')),
-      );
-    }
-    if (cameras == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (cameras.isEmpty) {
-      return FeedMessage(
-        icon: Icons.videocam_off_outlined,
-        message: 'No camera feeds',
-        action: TextButton(onPressed: _load, child: const Text('Retry')),
-      );
-    }
+    return ListenableBuilder(
+      listenable: rig,
+      builder: (context, _) {
+        final error = rig.error;
+        if (error != null) {
+          return FeedMessage(
+            icon: Icons.error_outline,
+            message: 'Could not access cameras\n${describeCameraError(error)}',
+            action: TextButton(onPressed: rig.load, child: const Text('Retry')),
+          );
+        }
+        final sources = rig.sources;
+        if (sources == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (sources.isEmpty) {
+          return FeedMessage(
+            icon: Icons.videocam_off_outlined,
+            message: 'No camera feeds',
+            action: TextButton(onPressed: rig.load, child: const Text('Retry')),
+          );
+        }
+        return _CameraGrid(sources: sources);
+      },
+    );
+  }
+}
+
+class _CameraGrid extends StatelessWidget {
+  const _CameraGrid({required this.sources});
+
+  final List<CameraSource> sources;
+
+  @override
+  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = math.sqrt(cameras.length).ceil();
-        final rows = (cameras.length / columns).ceil();
+        final columns = math.sqrt(sources.length).ceil();
+        final rows = (sources.length / columns).ceil();
         const spacing = 8.0;
         final tileWidth =
             (constraints.maxWidth - spacing * (columns + 1)) / columns;
@@ -76,8 +156,8 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
           crossAxisSpacing: spacing,
           childAspectRatio: tileHeight > 0 ? tileWidth / tileHeight : 16 / 9,
           children: [
-            for (final (i, camera) in cameras.indexed)
-              CameraTile(key: ValueKey(i), description: camera),
+            for (final source in sources)
+              CameraTile(key: ObjectKey(source), source: source),
           ],
         );
       },
@@ -85,41 +165,15 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
   }
 }
 
-/// A single live camera feed. Each tile owns and disposes its controller.
-class CameraTile extends StatefulWidget {
-  const CameraTile({super.key, required this.description});
+/// A single live camera feed.
+class CameraTile extends StatelessWidget {
+  const CameraTile({super.key, required this.source});
 
-  final CameraDescription description;
-
-  @override
-  State<CameraTile> createState() => _CameraTileState();
-}
-
-class _CameraTileState extends State<CameraTile> {
-  late final CameraController _controller;
-  late final Future<void> _initialized;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = CameraController(
-      widget.description,
-      ResolutionPreset.medium,
-      enableAudio: false,
-    );
-    _initialized = _controller.initialize();
-  }
-
-  @override
-  void dispose() {
-    // dispose() awaits initialize(), so it rethrows a failed open; the tile
-    // already showed that error.
-    _controller.dispose().ignore();
-    super.dispose();
-  }
+  final CameraSource source;
 
   @override
   Widget build(BuildContext context) {
+    final src = source;
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: ColoredBox(
@@ -127,30 +181,17 @@ class _CameraTileState extends State<CameraTile> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            FutureBuilder<void>(
-              future: _initialized,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return FeedMessage(
-                    icon: Icons.videocam_off_outlined,
-                    message: describeCameraError(snapshot.error!),
-                  );
-                }
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                return Center(
-                  child: AspectRatio(
-                    aspectRatio: _controller.value.aspectRatio,
-                    child: CameraPreview(_controller),
-                  ),
-                );
-              },
-            ),
+            if (src is UnavailableCameraSource)
+              FeedMessage(
+                icon: Icons.videocam_off_outlined,
+                message: describeCameraError(src.error),
+              )
+            else
+              src.buildPreview(context),
             Positioned(
               left: 8,
               bottom: 8,
-              child: _CameraLabel(text: cameraLabel(widget.description)),
+              child: _CameraLabel(text: src.label),
             ),
           ],
         ),
@@ -216,12 +257,6 @@ class FeedMessage extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Browsers may hide device labels, which leaves the name empty.
-String cameraLabel(CameraDescription camera) {
-  final name = camera.name.trim();
-  return name.isEmpty ? 'Camera' : name;
 }
 
 String describeCameraError(Object error) {
