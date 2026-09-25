@@ -74,3 +74,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     its own PR.
 21. **Sync git.** Fetched from `origin`. Local and remote branches were
     already in sync.
+22. **Use a plain broadcast stream as the event bus.** Added `AppEventBus`, a
+    broadcast `StreamController`, exposed through `AppEventBusScope`.
+    `EventLog` now subscribes to it instead of being pushed to directly. A
+    test caught the startup event being dropped when the log subscribed
+    lazily; fixed by subscribing before publishing.

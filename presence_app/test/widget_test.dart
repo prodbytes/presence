@@ -136,9 +136,35 @@ void main() {
     expect(find.text('No events'), findsNothing);
   });
 
+  testWidgets('any widget can publish to the bus via its scope', (
+    tester,
+  ) async {
+    await pumpAt(tester, const Size(1280, 800));
+
+    final context = tester.element(find.byType(CameraFeedsPanel));
+    AppEventBusScope.of(context)
+        .publish(AppEvent(icon: Icons.videocam, title: 'Motion detected'));
+    await tester.pumpAndSettle();
+
+    final events = find.byKey(const Key('events-panel'));
+    expect(
+      find.descendant(of: events, matching: find.text('Motion detected')),
+      findsOneWidget,
+    );
+    // Newest first: the new event sits above the startup event.
+    expect(
+      tester.getTopLeft(find.text('Motion detected')).dy,
+      lessThan(tester.getTopLeft(find.text('Application started')).dy),
+    );
+  });
+
   testWidgets('timeline lists newest first and scrolls', (tester) async {
-    final log = EventLog();
-    addTearDown(log.dispose);
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    addTearDown(() {
+      log.dispose();
+      bus.close();
+    });
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -149,7 +175,7 @@ void main() {
     expect(find.text('No events'), findsOneWidget);
 
     for (var i = 0; i < 20; i++) {
-      log.push(AppEvent(icon: Icons.circle, title: 'Event $i'));
+      bus.publish(AppEvent(icon: Icons.circle, title: 'Event $i'));
     }
     await tester.pumpAndSettle();
 
@@ -160,7 +186,7 @@ void main() {
     expect(find.text('Event 0'), findsOneWidget);
 
     // A new event scrolls the timeline back to the top.
-    log.push(AppEvent(icon: Icons.circle, title: 'Newest'));
+    bus.publish(AppEvent(icon: Icons.circle, title: 'Newest'));
     await tester.pumpAndSettle();
     expect(find.text('Newest'), findsOneWidget);
   });

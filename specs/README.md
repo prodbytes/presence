@@ -81,8 +81,15 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - On launch, the app pushes an **Application started** event.
 - With no events, the panel shows a "No events" empty state.
-- The event log belongs to the main screen, not the panel, so other parts of
-  the app can push events to it.
+- Events flow through an app-wide **event bus**: a plain Dart broadcast
+  `StreamController` (`AppEventBus` in
+  [lib/events.dart](../presence_app/lib/events.dart)). Any widget can publish
+  with `AppEventBusScope.of(context).publish(event)`, and any number of
+  listeners can subscribe to `bus.stream`.
+- The bus keeps no history. `EventLog` subscribes to it at startup and holds
+  the history the timeline shows. The app owns both, above `MaterialApp`, so
+  every screen and route can reach the bus. The startup event is published
+  only after `EventLog` subscribes; otherwise it would be dropped.
 
 ## Platforms
 
