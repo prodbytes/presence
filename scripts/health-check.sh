@@ -23,8 +23,16 @@ check_web() {
     fi
 }
 
+check_api() {
+    if curl -fs -o /dev/null --max-time 10 "http://localhost:${SAM_API_PORT:-3000}/events"; then
+        echo "⚡ api ✅"
+    else
+        echo "⚡ api ❌"
+    fi
+}
+
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)"
+    printf '%s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)" "$(check_api)"
     sleep "$INTERVAL"
 done

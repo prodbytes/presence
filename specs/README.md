@@ -607,21 +607,34 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
 - Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
 - Not deployed yet. The commands are in the module's
   [README](../presence_api_events/README.md).
+- Runs locally under `devbox services up` (see
+  [Development environment](#development-environment)).
 
 ## Development environment
 
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE (musl),
   Python, Node.js, Go, PostgreSQL and Flutter.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
-  includes the Dart and Flutter VS Code extensions. It forwards port 8080 for
-  Flutter web.
+  includes the Dart and Flutter VS Code extensions. It forwards ports 8080
+  (Flutter web) and 3000 (SAM API).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
-- `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts
-  PostgreSQL, the Flutter web server (`2-flutter-web`, via
-  [scripts/flutter-web.sh](../scripts/flutter-web.sh), with an HTTP readiness
-  probe) and the health monitor, which logs the status of both the database
-  and the web app.
+- `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
+  - PostgreSQL
+  - the Flutter web server (`2-flutter-web`, via
+    [scripts/flutter-web.sh](../scripts/flutter-web.sh)), with an HTTP
+    readiness probe
+  - the events API (`3-sam-api`, via
+    [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
+    `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
+    readiness probe on `GET /events`
+  - the health monitor, which logs the status of the database, the web app
+    and the API.
+
+  The API process stops with SIGINT, so SAM removes its warm Lambda
+  containers. The script exits with a clear message if `sam`, `mvn` or
+  `docker` is missing. It points SAM at the active Docker context's socket
+  when `DOCKER_HOST` isn't set.
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
   (Dart 3.13.0).
 - **Google Cloud CLI:** Homebrew's `gcloud-cli` cask, logged in with
@@ -636,8 +649,11 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
   `--jdk-dir`. Gradle fetches the NDK and extra platforms on the first
   build. The dev container doesn't include the Android SDK.
 - **AWS SAM:** building and deploying `presence_api_events` needs the SAM
-  CLI, JDK 25 and Maven 3.9+. None of these are in devbox yet (the GraalVM
-  package is JDK 25 but Linux-only).
+  CLI, JDK 25, Maven 3.9+ and Docker. The SAM CLI and Maven aren't in
+  devbox yet (the GraalVM package is JDK 25 but Linux-only). `devbox add`
+  can't add them from macOS, because it fails to resolve that Linux-only
+  package. Until they're added, `3-sam-api` fails unless they're installed
+  on the host.
 
 - **iOS and macOS builds on macOS:** full **Xcode** from the Mac App Store.
   The Command Line Tools alone are not enough: Flutter needs `xcodebuild` and
