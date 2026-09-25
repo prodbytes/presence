@@ -11,8 +11,11 @@ void main() {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(PresenceApp(openCameras: open));
+    await tester.pumpWidget(
+      PresenceApp(openCameras: open, mediaIo: fakeMediaIo),
+    );
     await tester.pumpAndSettle();
+    await settleStorage(tester);
   }
 
   Finder inEvents(Finder f) =>
@@ -21,6 +24,7 @@ void main() {
   Future<void> pressClip(WidgetTester tester) async {
     await tester.tap(find.byTooltip('Clip'));
     await tester.pumpAndSettle();
+    await settleStorage(tester);
   }
 
   const media = ClipMedia(

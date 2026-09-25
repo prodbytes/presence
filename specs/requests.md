@@ -103,3 +103,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
 29. **Playback must have audio as well.** The clip player is unmuted, and
     never falls back to muted playback; if autoplay with sound is blocked, it
     waits for a tap on play.
+30. **Save all video clips and events to local storage so app data survives a
+    refresh, with events referencing their clips and cameras correctly; think
+    about the best storage first.** Discussed Flutter storage options:
+    `shared_preferences`, files, and embedded databases (drift, sqflite,
+    sembast, Hive/Isar, ObjectBox, Realm).
+31. **Drift or IndexedDB?** Recommended IndexedDB directly for now: clips are
+    web-only, it stores binary recordings directly with atomic transactions,
+    and it needs no WASM or code-generation setup. drift stays the upgrade
+    path.
+32. **Go ahead with IndexedDB.** Added the `presence` IndexedDB database
+    (via `idb_shim`) with cameras, events, clips, media and settings stores,
+    and stable IDs linking events, clips and cameras. Clips are saved in two
+    steps (before part, then full clip, which deletes the before-only file).
+    Events, clips and settings are restored on launch, and interrupted clips
+    keep their before part. Defaults chosen: delete the before-only file once
+    the full clip is saved; keep everything (no retention limit yet).

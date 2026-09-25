@@ -9,6 +9,8 @@ class FakeRecorder implements PoolRecorder {
   final int id;
   @override
   final DateTime startedAt;
+  @override
+  String get mimeType => 'video/webm';
   bool finished = false;
   bool discarded = false;
 
@@ -81,7 +83,7 @@ void main() {
 
       final past = (await capture.past)!;
       expect(past.length, preRoll, reason: 'phase $phase');
-      final pastRecorder = recorderFor(past.url);
+      final pastRecorder = recorderFor(past.liveUrl!);
       expect(
         pastRecorder.startedAt.add(past.start),
         pressedAt.subtract(preRoll),
@@ -100,7 +102,7 @@ void main() {
       expect(fullDone, isTrue, reason: 'phase $phase');
 
       expect(full!.length, preRoll + after);
-      final fullRecorder = recorderFor(full!.url);
+      final fullRecorder = recorderFor(full!.liveUrl!);
       expect(fullRecorder, isNot(same(pastRecorder)));
       expect(
         fullRecorder.startedAt.add(full!.start),
@@ -134,7 +136,7 @@ void main() {
 
     final a = (await first.full)!;
     final b = (await second.full)!;
-    expect(a.url, b.url);
+    expect(a.liveUrl, b.liveUrl);
     expect(a.length, preRoll + after);
     expect(b.length, preRoll + after);
     expect(b.start - a.start, const Duration(seconds: 3));

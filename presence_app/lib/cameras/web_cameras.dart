@@ -55,9 +55,9 @@ Future<List<CameraSource>> openDeviceCameras(
           )
           .toDart;
       if (microphone != null) stream.addTrack(microphone.clone());
-      sources.add(WebCameraSource(label, stream, preRoll));
+      sources.add(WebCameraSource(device.deviceId, label, stream, preRoll));
     } catch (e) {
-      sources.add(UnavailableCameraSource(label, e));
+      sources.add(UnavailableCameraSource(device.deviceId, label, e));
     }
   }
   microphone?.stop();
@@ -90,8 +90,12 @@ String _registerView(web.HTMLElement element) {
 }
 
 class WebCameraSource implements CameraSource {
-  WebCameraSource(this.label, this._stream, Duration Function() preRoll)
-    : _mimeType = _mimeTypeFor(_stream) {
+  WebCameraSource(
+    this.id,
+    this.label,
+    this._stream,
+    Duration Function() preRoll,
+  ) : _mimeType = _mimeTypeFor(_stream) {
     _video
       ..autoplay = true
       // The live preview stays muted so the microphone doesn't feed back.
@@ -110,6 +114,9 @@ class WebCameraSource implements CameraSource {
     )..tick();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _pool.tick());
   }
+
+  @override
+  final String id;
 
   @override
   final String label;
@@ -185,10 +192,10 @@ class WebCameraSource implements CameraSource {
 }
 
 class _WebRecorder implements PoolRecorder {
-  _WebRecorder(web.MediaStream stream, this._mimeType)
+  _WebRecorder(web.MediaStream stream, this.mimeType)
     : _recorder = web.MediaRecorder(
         stream,
-        web.MediaRecorderOptions(mimeType: _mimeType),
+        web.MediaRecorderOptions(mimeType: mimeType),
       ) {
     _recorder
       ..addEventListener(
@@ -215,7 +222,9 @@ class _WebRecorder implements PoolRecorder {
   }
 
   final web.MediaRecorder _recorder;
-  final String _mimeType;
+
+  @override
+  final String mimeType;
   final List<web.Blob> _chunks = [];
   final _stopped = Completer<void>();
   bool _discarded = false;
@@ -227,7 +236,7 @@ class _WebRecorder implements PoolRecorder {
   Future<String> finish() async {
     if (_recorder.state != 'inactive') _recorder.stop();
     await _stopped.future;
-    final blob = web.Blob(_chunks.toJS, web.BlobPropertyBag(type: _mimeType));
+    final blob = web.Blob(_chunks.toJS, web.BlobPropertyBag(type: mimeType));
     _chunks.clear();
     return web.URL.createObjectURL(blob);
   }
@@ -259,6 +268,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   ClipMedia? _current;
   bool _onFull = false;
   bool _waiting = false;
+  bool _loadFailed = false;
   Timer? _endTimer;
 
   VideoClip get _clip => widget.clip;
@@ -355,12 +365,25 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     }
   }
 
-  void _load(ClipMedia media, Duration at, {required bool onFull}) {
+  Future<void> _load(
+    ClipMedia media,
+    Duration at, {
+    required bool onFull,
+  }) async {
     setState(() {
       _current = media;
       _onFull = onFull;
       _waiting = false;
     });
+    // Stored recordings load from IndexedDB on first play.
+    final String url;
+    try {
+      url = await media.resolveUrl();
+    } catch (_) {
+      if (mounted && _current == media) setState(() => _loadFailed = true);
+      return;
+    }
+    if (!mounted || _current != media) return;
     late final JSFunction onMetadata;
     onMetadata = ((web.Event _) {
       _video.removeEventListener('loadedmetadata', onMetadata);
@@ -371,7 +394,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       _video.play().toDart.ignore();
     }).toJS;
     _video.addEventListener('loadedmetadata', onMetadata);
-    _video.src = media.url;
+    _video.src = url;
   }
 
   void _reachedEnd() {
@@ -428,6 +451,13 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       fit: StackFit.expand,
       children: [
         HtmlElementView(viewType: _viewType),
+        if (_loadFailed)
+          const Center(
+            child: Text(
+              "Couldn't load this clip from storage",
+              style: TextStyle(color: Color(0xFFFB4934)),
+            ),
+          ),
         if (_waiting)
           Align(
             alignment: Alignment.topCenter,

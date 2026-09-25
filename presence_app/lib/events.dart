@@ -1,21 +1,92 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import 'camera_feeds.dart';
 
+/// Something that happened, shown in the Events timeline and saved to
+/// storage.
 class AppEvent {
   AppEvent({
     required this.icon,
     required this.title,
     this.detail,
+    this.type = genericType,
+    this.cameraId,
     DateTime? time,
-  }) : time = time ?? DateTime.now();
+    String? id,
+  }) : time = time ?? DateTime.now(),
+       id = id ?? newId();
+
+  /// The app launched.
+  AppEvent.appStarted({DateTime? time, String? id})
+    : this(
+        icon: Icons.power_settings_new,
+        title: 'Application started',
+        type: appStartedType,
+        time: time,
+        id: id,
+      );
+
+  static const String genericType = 'generic';
+  static const String appStartedType = 'app_started';
+
+  final String id;
+
+  /// What kind of event this is; decides how it's restored from storage.
+  final String type;
 
   final IconData icon;
   final String title;
   final String? detail;
   final DateTime time;
+
+  /// The camera the event came from, if any.
+  final String? cameraId;
+
+  /// The stored form of this event. Subclasses keep their extra data in
+  /// their own records (a clip's recordings live in the clips store).
+  Map<String, Object?> toRecord() => {
+    'id': id,
+    'type': type,
+    'title': title,
+    'detail': detail,
+    'time': time.millisecondsSinceEpoch,
+    'cameraId': cameraId,
+  };
+
+  /// Rebuilds a stored event of a plain type. Returns null for types that
+  /// need more than the event record (like clips).
+  static AppEvent? fromRecord(Map<String, Object?> record) {
+    final type = record['type'] as String? ?? genericType;
+    final time = DateTime.fromMillisecondsSinceEpoch(record['time']! as int);
+    final id = record['id']! as String;
+    return switch (type) {
+      appStartedType => AppEvent.appStarted(time: time, id: id),
+      genericType => AppEvent(
+        // Icons can't be stored (tree shaking needs const icons), so plain
+        // events come back with a generic one.
+        icon: Icons.notifications_none,
+        title: record['title'] as String? ?? 'Event',
+        detail: record['detail'] as String?,
+        cameraId: record['cameraId'] as String?,
+        time: time,
+        id: id,
+      ),
+      _ => null,
+    };
+  }
+
+  /// Unique enough for one person's event history: time-ordered, plus
+  /// randomness so events in the same microsecond don't collide.
+  static String newId() {
+    final now = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final noise = _random.nextInt(1 << 32).toRadixString(36).padLeft(7, '0');
+    return '$now-$noise';
+  }
+
+  static final _random = Random();
 
   /// The card shown for this event in the timeline. Event types with richer
   /// content override this.
@@ -64,6 +135,16 @@ class EventLog extends ChangeNotifier {
 
   void _add(AppEvent event) {
     _events.insert(0, event);
+    notifyListeners();
+  }
+
+  /// Adds events restored from storage, keeping the timeline newest first.
+  /// Events already in the log (published since launch) are kept.
+  void addHistory(Iterable<AppEvent> history) {
+    final known = {for (final e in _events) e.id};
+    _events
+      ..addAll(history.where((e) => !known.contains(e.id)))
+      ..sort((a, b) => b.time.compareTo(a.time));
     notifyListeners();
   }
 

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 import 'package:url_launcher/link.dart';
 
 import 'camera_feeds.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
+import 'storage/media_platform.dart';
+import 'storage/persistence.dart';
 import 'theme.dart';
 
 void main() {
@@ -12,10 +15,16 @@ void main() {
 }
 
 class PresenceApp extends StatefulWidget {
-  const PresenceApp({super.key, this.openCameras});
+  const PresenceApp({super.key, this.openCameras, this.storage, this.mediaIo});
 
   /// Overrides camera access (used by tests); defaults to all device cameras.
   final CameraOpener? openCameras;
+
+  /// Where app data is saved (used by tests); defaults to IndexedDB on web.
+  final IdbFactory? storage;
+
+  /// Overrides reading and replaying stored recordings (used by tests).
+  final MediaIo? mediaIo;
 
   @override
   State<PresenceApp> createState() => _PresenceAppState();
@@ -27,6 +36,7 @@ class _PresenceAppState extends State<PresenceApp> {
   final _bus = AppEventBus();
   final _settings = ClipSettings();
   late final EventLog _log;
+  late final Persistence _persistence;
   late final CameraRig _rig;
 
   @override
@@ -35,17 +45,28 @@ class _PresenceAppState extends State<PresenceApp> {
     // Subscribe before publishing: a broadcast stream drops events that
     // have no listener yet.
     _log = EventLog(_bus.stream);
-    _bus.publish(
-      AppEvent(icon: Icons.power_settings_new, title: 'Application started'),
+    _persistence = Persistence(
+      factory: widget.storage ?? newDefaultIdbFactory(),
+      bus: _bus,
+      settings: _settings,
+      io: widget.mediaIo ?? const MediaIo(),
     );
+    _bus.publish(AppEvent.appStarted());
     _rig = CameraRig(
       open: widget.openCameras ?? openDeviceCameras,
       settings: _settings,
     )..load();
+    _persistence
+      ..attachRig(_rig)
+      ..restore(_log).catchError((Object e) {
+        debugPrint('Presence: could not restore saved data: $e');
+      });
+    requestPersistentStorage().ignore();
   }
 
   @override
   void dispose() {
+    _persistence.dispose();
     _rig.dispose();
     _log.dispose();
     _bus.close();

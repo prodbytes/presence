@@ -70,6 +70,7 @@ class CameraRig extends ChangeNotifier {
       bus.publish(
         ClipRequested(
           VideoClip(
+            cameraId: camera.id,
             cameraLabel: camera.label,
             before: before,
             after: after,
