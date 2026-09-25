@@ -200,3 +200,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     exposure compensation by default, plus a Brightness slider in Settings
     (−2 to +2 EV, live, saved). Measured on the S40: average luma went from
     17 to 68.
+43. **Camera orientation is wrong; make it match.** The preview was
+    rotated twice: once by Camera2's SurfaceTexture transform and once by
+    the app. Removed the app's rotation, keeping the portrait aspect, and
+    locked the Android activity to portrait. Verified on the S40, back and
+    front, by comparing the preview with a recorded frame of the same scene
+    (recordings were already upright).

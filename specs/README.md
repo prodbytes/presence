@@ -305,6 +305,18 @@ Android uses the standard dashcam technique instead
   buffered. Files start at the keyframe at or before the window, and the
   window offsets are returned, the same "file + window" model as web.
   Clips in progress pin their samples, so they can't be pruned.
+- **Orientation:**
+  - **Preview:** Camera2 sets a transform on the preview `SurfaceTexture`
+    that turns the image upright for the phone's natural orientation, and
+    Flutter's `Texture` applies it. So the preview isn't rotated again; only
+    its aspect ratio is swapped (sensor buffers are landscape). Front-camera
+    previews are mirrored, like a selfie view.
+  - **Recordings** don't get that transform. They're stored in sensor
+    orientation, with an MP4 rotation flag (sensor orientation: back 90°,
+    front 270° on the S40), and play upright and unmirrored.
+  - Verified on the S40 for both cameras: the preview matches a recorded
+    frame of the same scene. Before the fix, the preview was rotated 90°
+    because of a double rotation.
 - **Thumbnail:** the latest frame, taken from the ring with
   `MediaMetadataRetriever` (just before the last frame, falling back to the
   latest keyframe), turned upright and saved as JPEG.
@@ -390,8 +402,10 @@ Android uses the standard dashcam technique instead
   camera per clip until a retention policy is added.
 - Only one camera records at a time. Clips come from the camera being
   shown.
-- Android preview orientation assumes the phone is held in its natural
-  (portrait) orientation.
+- The Android app is locked to portrait (`screenOrientation="portrait"`):
+  the preview, the recording's rotation flag and thumbnails all assume a
+  portrait phone. Landscape support would need all three to follow the
+  device rotation.
 - **Verified on a DOOGEE S40 (Android 9, MT6739):**
   - The camera opens, and the hardware H.264 encoder runs at ~30 fps.
   - Clips are written as a before part (15.7 s) and a full clip (30.1 s),
