@@ -31,8 +31,19 @@ check_api() {
     fi
 }
 
+# The CloudFront distribution in Floci, addressed by its alias in the Host
+# header (so it works where *.localhost doesn't resolve).
+check_cdn() {
+    if curl -fs -o /dev/null --max-time 10 -H "Host: ${PRESENCE_CDN_ALIAS:-presence.localhost}" \
+            "http://localhost:${FLOCI_PORT:-4566}/"; then
+        echo "☁️ cdn ✅"
+    else
+        echo "☁️ cdn ❌"
+    fi
+}
+
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)" "$(check_api)"
+    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)" "$(check_api)" "$(check_cdn)"
     sleep "$INTERVAL"
 done

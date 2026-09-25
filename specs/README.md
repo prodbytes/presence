@@ -610,13 +610,41 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
 - Runs locally under `devbox services up` (see
   [Development environment](#development-environment)).
 
+### Local CDN (`presence_floci`)
+
+[presence_floci/](../presence_floci) runs [Floci](https://floci.io/)
+2.1.0, a local AWS emulator, as the CloudFront distribution in front of the
+app and the API. **http://presence.localhost:4566/** serves `/events*` from
+the SAM API and everything else from the Flutter web server, like the
+deployed CloudFront would.
+
+- It runs in a Docker container (`presence-floci`, compat image, bound to
+  127.0.0.1) with `memory` storage. A `ready.d` init hook
+  ([10-cloudfront.sh](../presence_floci/init/ready.d/10-cloudfront.sh))
+  recreates the distribution on every start, with the stable alias
+  `presence.localhost`.
+- Both origins are `host.docker.internal`, allowlisted as private origins.
+  Nothing is cached. Every viewer header except `Host`, plus all cookies and
+  query strings, is forwarded (the equivalent of AWS's managed
+  `AllViewerExceptHostHeader`, which Floci doesn't model).
+- Settings: `FLOCI_PORT`, `PRESENCE_CDN_ALIAS`, `PRESENCE_ORIGIN_HOST`.
+- Verified on macOS with Docker Desktop, under process-compose (API, Floci,
+  health monitor): `/` reached the web origin, `/events` returned the API's
+  `{"events":[]}`, the health line showed `☁️ cdn ✅`, and shutdown removed
+  the container.
+- On Linux, including the dev container, it doesn't reach the origins as
+  is: they bind to `localhost`, which `host.docker.internal` doesn't reach
+  there.
+- Google sign-in through this URL needs `http://presence.localhost:4566`
+  added to the web OAuth client's authorized JavaScript origins.
+
 ## Development environment
 
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE (musl),
   Python, Node.js, Go, PostgreSQL and Flutter.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web) and 3000 (SAM API).
+  (Flutter web), 3000 (SAM API) and 4566 (Floci).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
@@ -628,8 +656,10 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
     [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
     `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
     readiness probe on `GET /events`
-  - the health monitor, which logs the status of the database, the web app
-    and the API.
+  - Floci as the local CloudFront (`4-floci`; see
+    [Local CDN](#local-cdn-presence_floci))
+  - the health monitor, which logs the status of the database, the web app,
+    the API and the CDN.
 
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or
