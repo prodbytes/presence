@@ -281,10 +281,19 @@ julio@nu01.com), with OAuth clients:
 | Android | package `com.nu01.presence` + signing-key SHA-1 | nothing: matched by package and key |
 | iOS | bundle ID `com.nu01.presence` | `GoogleConfig.iosClientId`, plus its reversed ID as a URL scheme |
 
-Client IDs are public identifiers, not secrets. They live in
-[lib/auth/google_config.dart](../presence_app/lib/auth/google_config.dart)
-and can be overridden with `--dart-define=GOOGLE_WEB_CLIENT_ID=…` /
-`GOOGLE_IOS_CLIENT_ID=…`. The Android debug key SHA-1 on the development Mac
+Client IDs are public identifiers, not secrets, but they're kept out of
+the source anyway: they live in the repo's **`.env`** (gitignored; the
+committed [.env.example](../.env.example) lists the names). Server and device
+starts load it: [scripts/flutter-web.sh](../scripts/flutter-web.sh) (used by
+`devbox services up`) and [scripts/flutter-run.sh](../scripts/flutter-run.sh)
+(`bash scripts/flutter-run.sh -d <device>`) pass them to Flutter as
+`--dart-define`s through [scripts/dart-defines.sh](../scripts/dart-defines.sh),
+which forwards **only** an allowlist (`GOOGLE_WEB_CLIENT_ID`,
+`GOOGLE_IOS_CLIENT_ID`). Anything passed to Flutter ends up in the compiled
+app, and the web bundle is readable, so `.env` can also hold secrets such
+as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
+uses and never receives: only a future backend would. Without `.env`, the
+sign-in screen says sign-in isn't set up. The Android debug key SHA-1 on the development Mac
 is `B8:90:8F:2F:A4:85:36:0D:32:34:86:22:2E:EE:B4:AD:6D:9A:42:A4`. A release
 key will need its own Android client.
 

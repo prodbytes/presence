@@ -73,6 +73,12 @@ class GoogleAuthService extends AuthService {
       _events = google.authenticationEvents.listen(
         _onEvent,
         onError: (Object e) {
+          // "Canceled" is the quiet check finding no session (or the user
+          // closing Google's prompt): not an error worth showing.
+          if (e is GoogleSignInException &&
+              e.code == GoogleSignInExceptionCode.canceled) {
+            return;
+          }
           _error = _describe(e);
           notifyListeners();
         },

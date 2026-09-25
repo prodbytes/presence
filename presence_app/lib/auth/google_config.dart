@@ -1,8 +1,9 @@
 /// Google OAuth client IDs, from the `presence-492410` Google Cloud project.
 ///
 /// These are public identifiers, not secrets: they name the app to Google.
-/// Each can also be set at build time, e.g.
-/// `flutter run --dart-define=GOOGLE_WEB_CLIENT_ID=…`.
+/// They're set at build time from the repo's `.env` (gitignored; see
+/// `.env.example`): `scripts/flutter-web.sh` and `scripts/flutter-run.sh`
+/// pass them as `--dart-define`s. Empty means sign-in isn't set up.
 abstract final class GoogleConfig {
   /// The "Web application" client. Used on web, and on Android as the
   /// server client ID (Android's own client is matched by package name and

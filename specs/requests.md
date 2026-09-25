@@ -327,3 +327,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     browser it starts itself isn't signed in to Google (and Google blocks
     sign-in from automated browsers). The OAuth clients stay a manual
     console step.
+67. **Here is the web OAuth client ID, and the secret. Don't store them in
+    source: store them in .env and load them on server start.**
+    (2026-09-25) Added a gitignored `.env` (with a committed
+    `.env.example`). `scripts/flutter-web.sh` and a new
+    `scripts/flutter-run.sh` pass the client IDs to Flutter via an
+    allowlist in `scripts/dart-defines.sh`. The client secret stays in
+    `.env` only: the app doesn't need it, and passing it to Flutter would
+    publish it in the web bundle.

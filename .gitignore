@@ -2,6 +2,9 @@
 .devbox/
 .envrc.local
 
+# --- Local settings (see .env.example) ---
+.env
+
 # --- Java ---
 *.class
 *.ctxt
