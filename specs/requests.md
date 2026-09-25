@@ -259,3 +259,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     "Buffering 15 s" overflowing the row by 128 px, so buffering also shows
     only the countdown (with its progress ring). The tooltip and
     screen-reader label keep the full wording.
+53. **What are the 67 tests; are they UI tests?** Explained: 41 Flutter
+    widget tests (the real UI rendered headless, with fake cameras and
+    storage) and 26 unit tests; native camera code is verified by hand on
+    devices. Offered `integration_test` for on-device end-to-end tests.
+54. **The counter should start when motion grabs a clip, and motion should
+    retrigger only once it's down to zero from the countdown time (5
+    minutes by default).** After a motion clip, the readiness pill counts
+    down the cooldown ("4:59"; red while saving, then amber). The trigger
+    and the countdown share `motionCooldownEnds`, so motion fires again
+    exactly at zero.

@@ -51,9 +51,18 @@ in the app bar**, which flip between full screens.
       recorded a full *before* period yet (just opened, flipped, or *before*
       was raised). A clip now would have less history.
     - **"Ready"** (green dot): a clip now gets its full *before* part.
-    - **"12 s"** (red dot, only the countdown): a clip's *after* part is
-      being recorded. It counts down to 0, then returns to Ready once the
-      full clip is saved.
+    - **"12 s"** (red dot, only the countdown): a manual clip's *after*
+      part is being recorded. It counts down to 0, then returns to Ready
+      once the full clip is saved.
+    - **"4:59"** after a **motion** clip: the **motion cooldown** countdown
+      (5 minutes by default), starting when motion grabs the clip. The dot
+      is red while that clip's *after* part is still saving, then amber.
+      Motion can take another clip **only once this reaches zero**: the
+      countdown and the trigger use the same end time
+      (`CameraRig.motionCooldownEnds`). Below a minute it shows "45 s". A
+      manual clip during the cooldown shows its own 15 s countdown, then the
+      cooldown resumes; the Clip button is never blocked. With motion clips
+      turned off there's no cooldown.
 
     Both countdowns show only the number, and the ring or the red dot tells
     them apart. That keeps Flip, Clip and the pill on one row on a 320 dp
@@ -215,7 +224,9 @@ requested", and its stored event has `trigger: "motion"`.
 - **Triggering:** the score must be at or above the threshold for **3
   consecutive frames** (0.6 s). A one-frame glitch changes only two frames
   (appearing, then disappearing), so it doesn't count.
-- **Cooldown:** at most **one automatic clip per 5 minutes** (configurable).
+- **Cooldown:** at most **one automatic clip per 5 minutes** (configurable),
+  counted from the moment motion grabs a clip. The readiness indicator
+  shows it as a countdown, and motion retriggers only once it reaches zero.
   Manual clips are never limited.
 - **Frames per platform:**
   - **Web:** the live `<video>` is drawn into a 64×48 canvas every 200 ms,
