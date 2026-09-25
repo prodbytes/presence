@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'camera_feeds.dart';
+import 'clips.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
@@ -15,7 +18,16 @@ void main() {
 }
 
 class PresenceApp extends StatefulWidget {
-  const PresenceApp({super.key, this.cameras, this.storage, this.mediaIo});
+  const PresenceApp({
+    super.key,
+    this.cameras,
+    this.storage,
+    this.mediaIo,
+    this.now,
+  });
+
+  /// Overrides the clock (used by tests).
+  final DateTime Function()? now;
 
   /// Overrides camera access (used by tests); defaults to the device's.
   final CameraBackend? cameras;
@@ -61,6 +73,7 @@ class _PresenceAppState extends State<PresenceApp> {
       backend: widget.cameras ?? DeviceCameras(),
       settings: _settings,
       bus: _bus,
+      now: widget.now,
     )..load();
     _persistence
       ..attachRig(_rig)
@@ -140,18 +153,37 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    _clipEvents?.cancel();
     _tabs.dispose();
     super.dispose();
   }
 
-  Future<void> _clip() async {
-    await widget.rig.requestClips(AppEventBusScope.of(context));
-    if (!mounted) return;
+  StreamSubscription<AppEvent>? _clipEvents;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Every clip that starts (button or motion) pops a message.
+    _clipEvents ??= AppEventBusScope.of(context).stream.listen(_onEvent);
+  }
+
+  void _onEvent(AppEvent event) {
+    if (event is! ClipRequested || event.clip.capture == null || !mounted) {
+      return;
+    }
+    final after = event.clip.after.inSeconds;
+    final started = event.trigger == ClipTrigger.motion
+        ? 'Motion detected'
+        : 'Clip started';
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: const Text('Clip requested'),
+          content: Text('$started · saving the next $after s'),
+          // A brief pop: the readiness pill carries the countdown. (With an
+          // action, snackbars otherwise stay until dismissed.)
+          persist: false,
+          duration: const Duration(seconds: 4),
           action: SnackBarAction(
             label: 'View',
             onPressed: () => _tabs.animateTo(HomeTab.events.index),
@@ -159,6 +191,8 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       );
   }
+
+  Future<void> _clip() => widget.rig.requestClips(AppEventBusScope.of(context));
 
   @override
   Widget build(BuildContext context) {
@@ -269,6 +303,9 @@ class _HomeScreenState extends State<HomeScreen>
                       label: const Text('Clip'),
                       onPressed: _clip,
                     ),
+                  // Last on the right: whether a clip now would be complete.
+                  if (widget.rig.active != null)
+                    ReadinessIndicator(rig: widget.rig),
                 ],
               ),
             )
@@ -290,6 +327,121 @@ class _ReadableWidth extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: maxWidth),
       child: child,
     ),
+  );
+}
+
+/// Whether a clip now would be complete: buffering the "before" history,
+/// ready, or counting down while a clip's "after" part is being saved.
+class ReadinessIndicator extends StatefulWidget {
+  const ReadinessIndicator({super.key, required this.rig});
+
+  final CameraRig rig;
+
+  @override
+  State<ReadinessIndicator> createState() => _ReadinessIndicatorState();
+}
+
+class _ReadinessIndicatorState extends State<ReadinessIndicator> {
+  late final Timer _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    // Readiness moves with time: refresh the countdowns.
+    _ticker = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (_) => setState(() {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ticker.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final readiness = widget.rig.readiness;
+    final seconds = (readiness.remaining.inMilliseconds / 1000).ceil();
+    final (
+      Widget leading,
+      String label,
+      String semantics,
+    ) = switch (readiness.state) {
+      ClipReadinessState.ready => (
+        _Dot(color: Gruvbox.green),
+        'Ready',
+        'Ready to clip',
+      ),
+      ClipReadinessState.buffering => (
+        SizedBox.square(
+          dimension: 14,
+          child: CircularProgressIndicator(
+            value: readiness.progress,
+            strokeWidth: 2,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+        'Buffering $seconds s',
+        'Buffering history, $seconds seconds until a full clip',
+      ),
+      ClipReadinessState.saving => (
+        _Dot(color: Gruvbox.red),
+        // Just the countdown; the red dot says it's recording.
+        '$seconds s',
+        'Saving clip, $seconds seconds left',
+      ),
+      ClipReadinessState.unavailable => (
+        _Dot(color: scheme.outline),
+        'Not ready',
+        'Camera not ready',
+      ),
+    };
+    return Semantics(
+      label: semantics,
+      liveRegion: true,
+      child: Container(
+        key: const Key('readiness'),
+        height: 40,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 8,
+          children: [
+            leading,
+            ExcludeSemantics(
+              child: Text(
+                label,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: scheme.onSurface,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 10,
+    height: 10,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
   );
 }
 

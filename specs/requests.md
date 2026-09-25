@@ -246,3 +246,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     the dev server and verified motion clips end to end in headless Chrome:
     the live meter read ~10% for the fake camera, and at a 1% threshold a
     "Motion detected" clip appeared, playable.
+51. **Add a readiness indicator beside the Clip button; after a clip
+    triggers, pop a message and show the countdown / ready state.** Added a
+    readiness pill (buffering with countdown / ready / saving countdown),
+    computed by the rig, and a brief snackbar for every clip start, manual
+    or motion. The snackbar was persisting (Flutter's default with an
+    action), so it's now set to 4 s. Verified on the S40: 14 → 10 → 6 → 3 →
+    0 s → Ready. Also saw a real motion clip trigger on the phone.
+52. **No "saving" in the label, only the countdown; make it the last button
+    on the right.** The saving state shows only "12 s" with the red dot, and
+    the row is Flip, Clip, then readiness. A test checks that the widest
+    label fits on a 320 dp phone.
