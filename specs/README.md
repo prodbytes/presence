@@ -116,6 +116,13 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
   (Dart 3.13.0).
 
+## Workflow
+
+- Every change goes on its own branch, with its own pull request. Nothing is
+  pushed directly to `main`. See [CLAUDE.md](../CLAUDE.md).
+- Every request updates this spec and the [request log](requests.md) in the
+  same PR.
+
 ## Known limitations
 
 - `graalvmPackages.graalvm-ce-musl` is Linux-only, so `devbox install` fails on

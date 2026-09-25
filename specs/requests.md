@@ -66,3 +66,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     database and the web app up healthy.
 18. **Where is the spec, and open it.** It lives in `specs/`. Opened
     `specs/README.md` in the editor.
+19. **Is there a popular event bus for Flutter?** Answered: `event_bus` on
+    pub.dev, or the more common alternatives (a broadcast `Stream`, Bloc,
+    Riverpod). No change; the existing `EventLog` store stays for now.
+20. **Always use a separate PR.** Added the rule to CLAUDE.md and saved it to
+    the assistant's memory. Opened PR #1 for the app work; this rule ships in
+    its own PR.
+21. **Sync git.** Fetched from `origin`. Local and remote branches were
+    already in sync.
