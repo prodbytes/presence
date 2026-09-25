@@ -303,3 +303,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (julio@nu01.com). Using the existing Presence project `presence-492410`.
     Gave console steps for the consent screen and the web, Android (debug
     SHA-1) and iOS OAuth clients.
+63. **Can't you do all that? Don't add Firebase to the project; just create
+    the OAuth IDs.** Checked the CLI routes: Google Sign-In OAuth clients
+    can't be created from `gcloud` without Firebase (`gcloud iam
+    oauth-clients` is Workforce Identity, the IAP brand API is deprecated),
+    so they're made in the Cloud console. The consent screen already exists.
+    Firebase was not added.
+64. **When the app loads, check if the user is signed in: if so, show the
+    tabs as usual, with the user icon and an identity tooltip; if not, show
+    only the Google sign-in prompt. Use the latest Google sign-in best
+    practices (FedCM etc.).** Added an auth gate: a quiet session check with
+    a splash, a full-screen sign-in prompt (GIS button with FedCM on web,
+    Credential Manager on Android), the camera only while signed in, and the
+    tooltip "Signed in as <name> · <email>". Sign-out closes the account
+    sheet.

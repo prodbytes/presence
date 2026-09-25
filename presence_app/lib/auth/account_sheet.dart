@@ -17,7 +17,7 @@ class AccountButton extends StatelessWidget {
         final user = auth.user;
         return IconButton(
           key: const Key('account-button'),
-          tooltip: user == null ? 'Sign in' : 'Account: ${user.label}',
+          tooltip: user == null ? 'Sign in' : 'Signed in as ${user.identity}',
           icon: user == null
               ? const Icon(Icons.person)
               : UserAvatar(user: user, radius: 14),
@@ -93,7 +93,12 @@ class AccountSheet extends StatelessWidget {
                     key: const Key('sign-out'),
                     icon: const Icon(Icons.logout),
                     label: const Text('Sign out'),
-                    onPressed: auth.signOut,
+                    // Close the sheet first: signing out swaps the whole
+                    // app for the sign-in screen.
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      auth.signOut();
+                    },
                   ),
                 ],
                 if (error != null) ...[

@@ -8,16 +8,28 @@ import 'auth_service.dart';
 import 'google_button.dart';
 import 'google_config.dart';
 
-/// Sign in with Google (`google_sign_in`): Google Identity Services on web,
-/// Credential Manager on Android, the Google Sign-In SDK on iOS.
+/// Sign in with Google (`google_sign_in`), following Google's current
+/// guidance on each platform:
+///
+/// - **Web:** Google Identity Services with **FedCM** (the browser's native
+///   identity prompt): a silent, auto-select prompt at launch, plus Google's
+///   own rendered button.
+/// - **Android:** **Credential Manager**: a silent check against
+///   previously authorized accounts at launch, and the "Sign in with Google"
+///   flow for the button.
+/// - **iOS:** the Google Sign-In SDK, restoring the previous sign-in.
 class GoogleAuthService extends AuthService {
   AuthUser? _user;
+  bool _checking = true;
   String? _error;
   String? _unavailable;
   StreamSubscription<GoogleSignInAuthenticationEvent>? _events;
 
   @override
   AuthUser? get user => _user;
+
+  @override
+  bool get checking => _checking;
 
   @override
   bool get available => _unavailable == null;
@@ -48,6 +60,7 @@ class GoogleAuthService extends AuthService {
     if (ids.clientId == null && ids.serverClientId == null) {
       _unavailable =
           "Google sign-in isn't set up yet: no client ID configured.";
+      _checking = false;
       notifyListeners();
       return;
     }
@@ -64,12 +77,15 @@ class GoogleAuthService extends AuthService {
           notifyListeners();
         },
       );
-      // Restore the previous session quietly, if there is one.
+      // Restore the previous session quietly, if there is one. On web this
+      // starts the FedCM prompt and returns at once; a sign-in then arrives
+      // as an event while the sign-in screen is already showing.
       await google.attemptLightweightAuthentication();
     } catch (e) {
       _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
-      notifyListeners();
     }
+    _checking = false;
+    notifyListeners();
   }
 
   void _onEvent(GoogleSignInAuthenticationEvent event) {

@@ -166,10 +166,17 @@ class FakeAuthService extends AuthService {
       email: 'julio@nu01.com',
       name: 'Julio',
     ),
-  });
+    bool signedIn = false,
+  }) : _user = signedIn ? account : null;
+
+  /// Already signed in at launch (a restored session).
+  FakeAuthService.signedIn() : this(signedIn: true);
 
   final AuthUser account;
   AuthUser? _user;
+
+  @override
+  bool get checking => false;
 
   @override
   AuthUser? get user => _user;

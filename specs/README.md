@@ -245,18 +245,26 @@ requested", and its stored event has `trigger: "motion"`.
 ### Sign-in
 
 Sign in with Google, through the `google_sign_in` package
-([lib/auth/](../presence_app/lib/auth)):
+([lib/auth/](../presence_app/lib/auth)). The app requires it
+([auth_gate.dart](../presence_app/lib/auth/auth_gate.dart)):
 
-- **Account button** (app bar, last on the right): a person icon, or your
-  avatar when signed in (tooltip "Account: <name>"). It opens a bottom
-  sheet:
-  - **Signed out:** "Sign in to Presence" and **Sign in with Google**. On
-    web this is Google's own rendered button, which Google Identity Services
-    requires; on Android and iOS it's an app button that starts Google's
-    sign-in.
-  - **Signed in:** avatar, name, email, and **Sign out**.
-  - **Not configured:** says Google sign-in isn't set up (no client ID).
-- **Sessions** are restored quietly at launch (`attemptLightweightAuthentication`).
+- **At launch** the app checks for a session quietly
+  (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
+  Manager on Android, the saved session on iOS), showing only the logo and a
+  spinner while it checks.
+- **Signed out:** the whole screen is the sign-in prompt: logo, "Presence",
+  "Sign in to continue", and **Sign in with Google**. There are no tabs, and
+  the camera stays off. On web the button is Google's own (GIS
+  `renderButton`, with FedCM), as Google Identity Services requires; on
+  Android and iOS it's an app button that starts Google's sign-in
+  (Credential Manager's Sign in with Google sheet / the Google SDK). If no
+  client ID is configured, the prompt says sign-in isn't set up.
+- **Signed in:** the usual app (Camera / Events / Settings tabs). The camera
+  opens on sign-in and closes on sign-out.
+- **Account button** (app bar, last on the right): your avatar, with the
+  tooltip "Signed in as <name> · <email>". It opens a bottom sheet with
+  avatar, name, email and **Sign out**; signing out closes the sheet and
+  returns to the sign-in prompt.
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Sign-in only identifies the user for now: there's no backend, and data

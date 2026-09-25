@@ -200,6 +200,15 @@ class CameraRig extends ChangeNotifier {
     await _openCurrent();
   }
 
+  /// Closes the camera and forgets the device list (on sign-out: nothing
+  /// records while no one is signed in).
+  Future<void> unload() async {
+    await _closeActive();
+    _devices = const [];
+    _current = null;
+    _set(busy: false, error: null);
+  }
+
   /// Switches to the next camera: the other facing where the device knows
   /// it (back ↔ front), otherwise the next one in the list.
   Future<void> flip() async {

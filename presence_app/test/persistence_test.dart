@@ -35,6 +35,7 @@ void main() {
         storage: storage,
         mediaIo: fakeMediaIo,
         now: () => clock,
+        auth: FakeAuthService.signedIn(),
       ),
     );
     await tester.pumpAndSettle();

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
+import 'auth/auth_gate.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'camera_feeds.dart';
@@ -79,13 +80,14 @@ class _PresenceAppState extends State<PresenceApp> {
     _bus.publish(AppEvent.appStarted());
     _auth = widget.auth ?? GoogleAuthService();
     _auth.addListener(_onAuthChanged);
-    _auth.init().ignore();
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
       config: _config,
       bus: _bus,
       now: widget.now,
-    )..load();
+    );
+    // Cameras open only once someone is signed in (see _onAuthChanged).
+    _auth.init().then((_) => _onAuthChanged()).ignore();
     _persistence
       ..attachRig(_rig)
       ..restore(_log).catchError((Object e) {
@@ -96,10 +98,17 @@ class _PresenceAppState extends State<PresenceApp> {
 
   late final AuthService _auth;
   String? _signedInAs;
+  bool _camerasOn = false;
 
-  /// Sign-ins and sign-outs go on the event stream too.
+  /// Sign-ins and sign-outs go on the event stream too, and start or stop
+  /// the cameras: nothing records while no one is signed in.
   void _onAuthChanged() {
     final email = _auth.user?.email;
+    final signedIn = email != null;
+    if (signedIn != _camerasOn) {
+      _camerasOn = signedIn;
+      (signedIn ? _rig.load() : _rig.unload()).ignore();
+    }
     if (email == _signedInAs) return;
     final previous = _signedInAs;
     _signedInAs = email;
@@ -130,7 +139,15 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(log: _log, rig: _rig, config: _config, auth: _auth),
+        home: AuthGate(
+          auth: _auth,
+          signedIn: HomeScreen(
+            log: _log,
+            rig: _rig,
+            config: _config,
+            auth: _auth,
+          ),
+        ),
       ),
     );
   }
