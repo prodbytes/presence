@@ -298,3 +298,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     each feature or bug fix gets a new branch from an up-to-date `main` and
     its own PR (stacking only when truly dependent), and merges happen only
     on the user's say-so.
+70. **Pressing Clip starts a 15 s countdown. That's not right: only
+    automatic triggers (detections) should start the countdown.**
+    (2026-09-25) Removed the readiness pill's "saving" state. A Clip press
+    now leaves the pill as it is (Ready, or the running motion cooldown);
+    only motion clips start a countdown. The snackbar still says the clip
+    is saving.
