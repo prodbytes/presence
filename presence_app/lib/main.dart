@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/link.dart';
 
 import 'camera_feeds.dart';
+import 'cameras/cameras.dart';
 import 'events.dart';
+import 'settings.dart';
 import 'theme.dart';
 
 void main() {
@@ -10,10 +12,10 @@ void main() {
 }
 
 class PresenceApp extends StatefulWidget {
-  const PresenceApp({super.key, this.loadCameras});
+  const PresenceApp({super.key, this.openCameras});
 
-  /// Overrides camera discovery (used by tests); defaults to all device cameras.
-  final CameraLoader? loadCameras;
+  /// Overrides camera access (used by tests); defaults to all device cameras.
+  final CameraOpener? openCameras;
 
   @override
   State<PresenceApp> createState() => _PresenceAppState();
@@ -21,9 +23,11 @@ class PresenceApp extends StatefulWidget {
 
 class _PresenceAppState extends State<PresenceApp> {
   // Owned above MaterialApp so every route can publish to the bus, and so
-  // the history outlives any single screen.
+  // history, settings and open cameras outlive any single screen.
   final _bus = AppEventBus();
+  final _settings = ClipSettings();
   late final EventLog _log;
+  late final CameraRig _rig;
 
   @override
   void initState() {
@@ -34,12 +38,18 @@ class _PresenceAppState extends State<PresenceApp> {
     _bus.publish(
       AppEvent(icon: Icons.power_settings_new, title: 'Application started'),
     );
+    _rig = CameraRig(
+      open: widget.openCameras ?? openDeviceCameras,
+      settings: _settings,
+    )..load();
   }
 
   @override
   void dispose() {
+    _rig.dispose();
     _log.dispose();
     _bus.close();
+    _settings.dispose();
     super.dispose();
   }
 
@@ -51,19 +61,25 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: MonitorPage(log: _log, loadCameras: widget.loadCameras),
+        home: MonitorPage(log: _log, rig: _rig, settings: _settings),
       ),
     );
   }
 }
 
 /// Main screen: camera feeds fill the left, events sit in a fixed-width
-/// panel on the right.
+/// panel on the right. Settings open as an end drawer.
 class MonitorPage extends StatelessWidget {
-  const MonitorPage({super.key, required this.log, this.loadCameras});
+  const MonitorPage({
+    super.key,
+    required this.log,
+    required this.rig,
+    required this.settings,
+  });
 
   final EventLog log;
-  final CameraLoader? loadCameras;
+  final CameraRig rig;
+  final ClipSettings settings;
 
   static const double eventsPanelWidth = 360;
   static const double gap = 12;
@@ -72,12 +88,13 @@ class MonitorPage extends StatelessWidget {
   Widget build(BuildContext context) {
     const gap = MonitorPage.gap;
     return Scaffold(
+      endDrawer: SettingsPane(settings: settings),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(gap),
           child: Row(
             children: [
-              Expanded(child: CameraFeedsPanel(loadCameras: loadCameras)),
+              Expanded(child: CameraFeedsPanel(rig: rig)),
               const SizedBox(width: gap),
               SizedBox(
                 width: MonitorPage.eventsPanelWidth,
@@ -92,26 +109,28 @@ class MonitorPage extends StatelessWidget {
 }
 
 class CameraFeedsPanel extends StatelessWidget {
-  const CameraFeedsPanel({super.key, this.loadCameras});
+  const CameraFeedsPanel({super.key, required this.rig});
 
-  final CameraLoader? loadCameras;
+  final CameraRig rig;
 
   @override
   Widget build(BuildContext context) {
-    final loader = loadCameras;
     return _Panel(
       key: const Key('camera-feeds-panel'),
       title: const AppTitleLink(),
       actions: [
-        IconButton.filledTonal(
-          tooltip: 'Clip',
-          icon: const Icon(Icons.photo_camera),
-          onPressed: () {},
+        ListenableBuilder(
+          listenable: rig,
+          builder: (context, _) => IconButton.filledTonal(
+            tooltip: 'Clip',
+            icon: const Icon(Icons.photo_camera),
+            onPressed: rig.canClip
+                ? () => rig.requestClips(AppEventBusScope.of(context))
+                : null,
+          ),
         ),
       ],
-      child: loader == null
-          ? const CameraFeedsView()
-          : CameraFeedsView(loadCameras: loader),
+      child: CameraFeedsView(rig: rig),
     );
   }
 }
@@ -130,7 +149,7 @@ class EventsPanel extends StatelessWidget {
         IconButton.filledTonal(
           tooltip: 'Settings',
           icon: const Icon(Icons.settings),
-          onPressed: () {},
+          onPressed: () => Scaffold.of(context).openEndDrawer(),
         ),
         IconButton.filledTonal(
           tooltip: 'Login',

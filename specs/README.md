@@ -7,7 +7,8 @@ history of requests that shaped it.
 ## Product
 
 Presence is a surveillance app. It shows live camera feeds and a stream of
-events detected from them.
+events detected from them. The cameras are always recording, video and
+audio, so a clip can include the moments before someone pressed Clip.
 
 ## User interface
 
@@ -24,6 +25,7 @@ has two panels:
   narrow-screen layout, so on phone-sized screens the Cameras panel gets very
   little width.
 - Header buttons are tonal filled icon buttons, 8 px apart.
+- The Flutter demo UI was removed entirely.
 
 ### Theme
 
@@ -43,21 +45,25 @@ The colors follow **Gruvbox dark, soft contrast**, defined in
 | Errors | red | `#fb4934` |
 
 The web manifest's `theme_color` and `background_color` are also `#32302f`.
-- The Flutter demo UI was removed entirely.
 
 ### Cameras panel
 
 - The panel title is the app name, **Presence**, in the accent color. It links
   to https://presence.nu01.com and opens in a new tab. On web it's a real link,
   so middle-click and "open in new tab" work.
-- The header has a **Clip** button (camera icon) at its top right. It's a
-  placeholder for now: it shows a tooltip but takes no action.
+- The header has a **Clip** button (camera icon) at its top right. It's
+  disabled until at least one camera is open. See [Clips](#clips).
 - On load, the app opens every camera available to the device and shows each
-  one as a live tile. On web, the browser asks for camera permission first.
+  one as a live tile. On web, the browser asks for camera and microphone
+  permission first, in a single prompt. The app owns the open cameras
+  (`CameraRig`), so they stay open, and keep recording, across rebuilds.
 - The grid has ceil(√n) columns, and the tiles fill the panel.
 - Each tile shows the camera's label at the bottom left, or "Camera" if the
   browser hides device labels.
-- Feeds are video only; audio is not captured. Resolution preset: medium.
+- **Audio is captured.** Cameras rarely have their own microphone, so every
+  camera records the default microphone, each with its own copy of the
+  track. If microphone access is denied, recording continues video-only.
+- Live previews are muted, so the microphone doesn't feed back.
 - States:
   - **Loading:** a spinner while cameras are discovered or opened.
   - **No cameras:** "No camera feeds", with a Retry button.
@@ -69,15 +75,15 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 ### Events panel
 
 - The header has two icon buttons at its top right, in this order:
-  - **Settings** (gear icon)
-  - **Login** (person icon)
-- Both buttons are placeholders for now: they show tooltips but take no
-  action.
+  - **Settings** (gear icon) opens the [Settings pane](#settings-pane).
+  - **Login** (person icon) is a placeholder for now. It shows a tooltip but
+    takes no action.
 - Events appear in a vertically scrolling timeline, newest at the top. Each
   entry is just a card, with no dot or rail beside it, and cards are 8 px
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time
-  (HH:mm:ss).
+  (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
+  `ClipRequested` does.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - On launch, the app pushes an **Application started** event.
 - With no events, the panel shows a "No events" empty state.
@@ -91,17 +97,85 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
   every screen and route can reach the bus. The startup event is published
   only after `EventLog` subscribes; otherwise it would be dropped.
 
+### Clips
+
+Pressing **Clip** records a clip from **every** open camera at once:
+
+1. For each camera, the app publishes a **`ClipRequested`** event on the bus.
+   Its card shows the camera's current frame as a thumbnail, the camera name,
+   the time, and a status line.
+2. The **previous 15 s** (the "before" part) are saved almost at once and are
+   playable immediately. Status: "Previous 15 s ready · recording next 15 s…".
+3. Once the **next 15 s** (the "after" part) have been recorded, the whole
+   clip is saved as one continuous 30 s recording. Status: "30 s clip ready".
+4. Tapping a playable card opens the player. It plays the before part first,
+   then continues into the full clip at the moment of the press, so a clip
+   always plays **before + after = 30 s** by default. If the after part isn't
+   recorded yet when the before part ends, the player waits ("Recording the
+   next 15 s…") and continues as soon as it's ready. Seeking is kept inside
+   the clip window, and replaying after the end starts from the beginning.
+5. **Playback has audio.** The player is never muted. If the browser blocks
+   autoplay with sound, the player stays paused on its controls, and one tap
+   on play starts it with audio.
+
+The before and after lengths are configurable in the Settings pane.
+
+**How "always recording" works (web).** Browser recordings (`MediaRecorder`)
+can't be trimmed or joined, so each camera runs a rolling pool of overlapping
+recorders (`RecorderPool` in
+[lib/cameras/recorder_pool.dart](../presence_app/lib/cameras/recorder_pool.dart)):
+
+- A new recorder starts every *before* ÷ 2 seconds, and each is discarded
+  after 2 × *before*. That's about 4 recorders per camera, and at least two of
+  them always hold more than *before* seconds of history.
+- On Clip, one of those is stopped at once to produce the before part, and
+  another is held until the after part ends to produce the full clip. A timer
+  releases it at exactly +*after*.
+- Clips are cut to their exact window by seeking, using each recorder's start
+  time. Verified in Chrome: the before part starts exactly *before* seconds
+  before the press, the player continues into the full clip at the press
+  point without a gap, and playback stops exactly at the end of the window.
+- Presses close together share the held recorder.
+- A clip requested before enough history exists (just after startup, or right
+  after raising *before*) starts at the oldest recording instead.
+- Recording format: WebM with Opus audio (`vp8,opus` preferred, as VP8 is
+  cheapest to encode, then `vp9,opus`). Without a microphone: VP8, VP9,
+  generic WebM, then MP4.
+- Clips (thumbnails and recordings) are kept in memory for the session, and
+  are lost on reload.
+
+### Settings pane
+
+- Opened by the **Settings** button, hidden to start with. It's an end drawer
+  that slides in from the right and has a close button.
+- **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
+  - **Before the press**, default 15 s. This also sets how much history the
+    cameras keep recording.
+  - **After the press**, default 15 s.
+- It shows the total clip length, and notes that a new "before" value takes
+  up to that long to apply fully.
+- Settings are kept in memory for the session (`ClipSettings`).
+
 ## Platforms
 
 - Web is the primary development target. `devbox services up` (or
   `devbox run web` on its own) serves it at http://localhost:8080. The port can
   be changed with `FLUTTER_WEB_PORT`.
 - Links open through the `url_launcher` package.
-- Camera access uses the official `camera` plugin, which supports web, Android
-  and iOS. macOS and Linux desktop have no camera implementation.
+- Cameras are platform-specific, behind the `CameraSource` interface
+  ([lib/cameras/](../presence_app/lib/cameras)):
+  - **Web** uses browser APIs directly through `package:web`: one
+    `getUserMedia` stream per camera (plus the microphone), a `<video>`
+    element for the preview, canvas snapshots for thumbnails, and
+    `MediaRecorder` for the rolling recordings and clips.
+  - **Android/iOS** use the official `camera` plugin, for previews and
+    thumbnails only: the plugin can't keep a rolling recording, so clip cards
+    there say video clips aren't supported.
+  - macOS and Linux desktop have no camera implementation.
 - The Android, iOS, Linux and macOS scaffolding from `flutter create` is kept.
 - iOS: `Info.plist` declares `NSCameraUsageDescription`, which the camera
-  plugin needs. There's no microphone key because feeds are video only.
+  plugin needs. There's no microphone key yet, because the native side
+  doesn't record; it will need `NSMicrophoneUsageDescription` once it does.
   Running on a physical iPhone requires full Xcode, a connected or paired
   iPhone with Developer Mode on, and a signing team. The bundle ID is still
   the placeholder `com.example.presenceApp`.
@@ -135,3 +209,11 @@ The web manifest's `theme_color` and `background_color` are also `#32302f`.
 - `graalvmPackages.graalvm-ce-musl` is Linux-only, so `devbox install` fails on
   macOS hosts. Use the dev container, or a locally installed Flutter SDK.
 - The Nix Flutter package has no `x86_64-darwin` (Intel Mac) build.
+- Always-on recording runs about 4 video encoders per camera, which uses
+  noticeable CPU with several cameras.
+- Clips and settings live in memory only, and are lost on reload.
+- The browser's native video controls show the whole recording file, which
+  can be longer than the clip window. Playback is still kept to the window.
+- Audio recording has been verified in unit tests and code review only. The
+  in-browser run that checked recording and playback timing ran before audio
+  was added.

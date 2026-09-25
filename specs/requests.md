@@ -79,3 +79,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `EventLog` now subscribes to it instead of being pushed to directly. A
     test caught the startup event being dropped when the log subscribed
     lazily; fixed by subscribing before publishing.
+23. **Merge everything to main, and start on clip videos.** Merging was
+    blocked by the permission system, since it merges without review, so PRs
+    #1–#3 are left for the user to merge. Planned clip videos: all cameras,
+    including the moments before the press, shown as an event card with
+    playback.
+24. **Always record; on Clip, publish `ClipRequested` with the current frame
+    as thumbnail; keep the previous 15 s and the next 15 s; make the previous
+    part playable immediately and the next part as soon as it exists.** Added
+    a web camera layer built on browser APIs, with a rolling `RecorderPool`
+    per camera, `ClipRequested` events with clip cards, and a player that
+    continues from the before part into the full clip.
+25. **Clips must play 30 s: the previous 15 s and the next 15 s.** The player
+    plays one continuous before + after window, and stops exactly at its end.
+26. **Make that time configurable in a Settings pane, opened by the Settings
+    button and hidden at first.** Added an end-drawer Settings pane with
+    before/after sliders (5–60 s, default 15 s).
+27. **Rebuild and restart the server.** Restarted the dev server with the clip
+    feature.
+28. **Capture audio as well.** Cameras record the default microphone (one
+    permission prompt for camera and microphone), in WebM with Opus. Recording
+    falls back to video-only if the microphone is denied.
+29. **Playback must have audio as well.** The clip player is unmuted, and
+    never falls back to muted playback; if autoplay with sound is blocked, it
+    waits for a tap on play.
