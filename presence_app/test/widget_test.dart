@@ -1,4 +1,3 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:url_launcher/link.dart';
@@ -113,6 +112,19 @@ void main() {
     });
   }
 
+  testWidgets('phones stack the panels without overflowing', (tester) async {
+    // A DOOGEE S40 in portrait: 320×640 logical pixels.
+    await pumpAt(tester, const Size(320, 640));
+
+    final cameras = tester.getRect(find.byKey(const Key('camera-feeds-panel')));
+    final events = tester.getRect(find.byKey(const Key('events-panel')));
+    expect(tester.takeException(), isNull);
+    expect(cameras.bottom, lessThan(events.top));
+    expect(cameras.width, events.width);
+    expect(events.height, lessThanOrEqualTo(MonitorPage.stackedEventsHeight));
+    expect(cameras.height, greaterThan(events.height));
+  });
+
   testWidgets('header buttons are visibly separated', (tester) async {
     await pumpAt(tester, const Size(1280, 800));
 
@@ -208,7 +220,7 @@ void main() {
       const Size(1280, 800),
       openCameras: (_) async {
         calls++;
-        throw CameraException('permissionDenied', 'Camera access was denied');
+        throw Exception('Camera access was denied');
       },
     );
 

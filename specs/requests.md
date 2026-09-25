@@ -132,3 +132,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (capped at 2 s, per camera), so the event starts out playable. When the
     full clip arrives, the same event is updated in place and in storage
     (`clipState: complete`).
+35. **Port the app to Android and run it on the connected USB Android
+    device.** Found a DOOGEE S40 on USB. The user chose to install the
+    Android SDK via Homebrew (plus JDK 21) and to port clips fully. Added a
+    native Kotlin camera layer: Camera2 + H.264/AAC encoders into an
+    in-memory ring buffer, clips muxed to MP4. Also video_player playback,
+    and file-based clip storage with a persistent sembast database. Removed
+    the `camera` plugin.
+    On the phone:
+    - The fixed 360 px Events panel overflowed its 320 dp screen, so phones
+      now stack the panels.
+    - Cameras opened while the screen was off are blocked by Android, so
+      they're now retried when the app returns to the foreground.
+    - Unavailable cameras are listed compactly instead of taking tiles.
+    - Full clips failed on out-of-order audio timestamps, so audio is now
+      stamped from the sample count.
+    - Thumbnails failed on the last-frame decode, so the retriever now falls
+      back, and thumbnails run on their own thread.
+    Verified on the device: recording, the 15.7 s before part and 30.1 s
+    full clip with real audio, the thumbnail, persistence across relaunches,
+    and playback.

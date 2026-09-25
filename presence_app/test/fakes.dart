@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/cameras/cameras.dart';
-import 'package:presence_app/storage/persistence.dart';
+import 'package:presence_app/storage/media_store.dart';
 
 /// A valid 1×1 PNG, so `Image.memory` can decode fake thumbnails.
 final Uint8List onePixelPng = Uint8List.fromList(const [

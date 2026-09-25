@@ -98,7 +98,12 @@ abstract class CameraSource {
 /// A camera that was found but couldn't be opened (for example, because
 /// another app is using it). Shown as an error tile.
 class UnavailableCameraSource implements CameraSource {
-  UnavailableCameraSource(this.id, this.label, this.error);
+  UnavailableCameraSource(
+    this.id,
+    this.label,
+    this.error, {
+    this.retryable = true,
+  });
 
   @override
   final String id;
@@ -106,6 +111,10 @@ class UnavailableCameraSource implements CameraSource {
   @override
   final String label;
   final Object error;
+
+  /// False for permanent limits (like a phone that can't run several
+  /// cameras at once); true for failures worth retrying.
+  final bool retryable;
 
   @override
   bool get supportsVideo => false;

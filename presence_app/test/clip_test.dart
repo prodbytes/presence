@@ -235,6 +235,64 @@ void main() {
     expect(inEvents(find.text('Saving previous 60 s…')), findsOneWidget);
   });
 
+  testWidgets('cameras that failed to open are retried on resume', (
+    tester,
+  ) async {
+    var opens = 0;
+    final live = FakeCameraSource('Back camera');
+    await pumpApp(tester, (_) async {
+      opens++;
+      return opens == 1
+          ? [UnavailableCameraSource('0', 'Back camera', 'Blocked')]
+          : [live];
+    });
+    expect(find.byKey(const Key('preview-Back camera')), findsNothing);
+
+    // Background, then foreground again.
+    for (final state in [
+      AppLifecycleState.inactive,
+      AppLifecycleState.hidden,
+      AppLifecycleState.paused,
+      AppLifecycleState.hidden,
+      AppLifecycleState.inactive,
+      AppLifecycleState.resumed,
+    ]) {
+      tester.binding.handleAppLifecycleStateChanged(state);
+    }
+    await tester.pumpAndSettle();
+
+    expect(opens, 2);
+    expect(find.byKey(const Key('preview-Back camera')), findsOneWidget);
+  });
+
+  testWidgets('permanent camera limits are listed, not retried', (
+    tester,
+  ) async {
+    var opens = 0;
+    await pumpApp(tester, (_) async {
+      opens++;
+      return [
+        FakeCameraSource('Back camera'),
+        UnavailableCameraSource(
+          '1',
+          'Front camera',
+          "This phone can't run several cameras at once",
+          retryable: false,
+        ),
+      ];
+    });
+
+    // The live camera gets the grid; the other is a compact line below.
+    expect(find.byKey(const Key('preview-Back camera')), findsOneWidget);
+    expect(find.byKey(const ValueKey('unavailable-1')), findsOneWidget);
+    expect(find.byType(CameraTile), findsOneWidget);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(opens, 1);
+  });
+
   testWidgets('cameras are released when the app goes away', (tester) async {
     final camera = FakeCameraSource('Front door');
     await pumpApp(tester, openFakes([camera]));

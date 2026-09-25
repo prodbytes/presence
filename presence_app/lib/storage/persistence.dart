@@ -11,18 +11,7 @@ import '../events.dart';
 import '../settings.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
-
-/// Moves recordings between playable URLs and stored bytes. Replaceable in
-/// tests; defaults to the platform implementation.
-class MediaIo {
-  const MediaIo({
-    this.readBytes = platform.readMediaBytes,
-    this.createUrl = platform.createMediaUrl,
-  });
-
-  final Future<Uint8List> Function(String url) readBytes;
-  final String Function(Uint8List bytes, String mimeType) createUrl;
-}
+import 'media_store.dart';
 
 /// Saves everything the app records to IndexedDB, and restores it on launch
 /// so the app survives a page refresh:
@@ -37,19 +26,21 @@ class MediaIo {
 /// events published while the database is still opening.
 class Persistence {
   Persistence({
-    required IdbFactory factory,
+    required Future<IdbFactory> factory,
     required AppEventBus bus,
     required this.settings,
-    this.io = const MediaIo(),
-  }) : _store = EventStore.open(factory) {
+    MediaStore Function(EventStore store)? mediaStore,
+  }) : _store = factory.then(EventStore.open) {
+    _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
+    _media.ignore();
     _subscription = bus.stream.listen(_onEvent);
     // Errors surface through the operations that await the store.
     _store.ignore();
   }
 
   final ClipSettings settings;
-  final MediaIo io;
   final Future<EventStore> _store;
+  late final Future<MediaStore> _media;
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
   CameraRig? _rig;
@@ -109,7 +100,7 @@ class Persistence {
         debugPrint('Presence: could not save event ${event.id}: $e');
       }
       if (event is ClipRequested && event.clip.capture != null) {
-        await _ClipWriter(store, io, event).run();
+        await _ClipWriter(store, await _media, event).run();
       }
     }());
   }
@@ -141,13 +132,14 @@ class Persistence {
   }
 
   Future<List<AppEvent>> _loadHistory(EventStore store) async {
+    final media = await _media;
     final cameraLabels = {
       for (final c in await store.allCameras())
         c['id']! as String: c['label']! as String,
     };
     final clips = {
       for (final c in await store.allClips())
-        c['id']! as String: _restoreClip(store, c, cameraLabels),
+        c['id']! as String: _restoreClip(media, c, cameraLabels),
     };
 
     return [
@@ -184,7 +176,7 @@ class Persistence {
   }
 
   VideoClip _restoreClip(
-    EventStore store,
+    MediaStore media,
     Map<String, Object?> record,
     Map<String, String> cameraLabels,
   ) {
@@ -198,24 +190,20 @@ class Persistence {
           'Camera',
       before: Duration(milliseconds: record['beforeMs']! as int),
       after: Duration(milliseconds: record['afterMs']! as int),
-      past: _restoreMedia(store, record['past']),
-      full: _restoreMedia(store, record['full']),
+      past: _restoreMedia(media, record['past']),
+      full: _restoreMedia(media, record['full']),
       thumbnail: _bytes(record['thumbnail']),
       supported: record['supported'] as bool? ?? true,
       error: record['state'] == _ClipWriter.failed ? 'Recording failed' : null,
     );
   }
 
-  ClipMedia? _restoreMedia(EventStore store, Object? ref) {
+  ClipMedia? _restoreMedia(MediaStore media, Object? ref) {
     if (ref is! Map) return null;
     final mediaId = ref['mediaId']! as String;
     final mimeType = ref['mimeType'] as String? ?? ClipMedia.defaultMimeType;
     return ClipMedia.stored(
-      load: () async {
-        final bytes = await store.getMedia(mediaId);
-        if (bytes == null) throw StateError('Recording $mediaId is missing');
-        return io.createUrl(bytes, mimeType);
-      },
+      load: () => media.load(mediaId, mimeType),
       start: Duration(milliseconds: ref['startMs']! as int),
       end: Duration(milliseconds: ref['endMs']! as int),
       mimeType: mimeType,
@@ -229,14 +217,14 @@ class Persistence {
 
 /// Follows one live clip's recordings into storage.
 class _ClipWriter {
-  _ClipWriter(this._store, this._io, this._event);
+  _ClipWriter(this._store, this._media, this._event);
 
   static const String recording = 'recording';
   static const String complete = 'complete';
   static const String failed = 'failed';
 
   final EventStore _store;
-  final MediaIo _io;
+  final MediaStore _media;
   final ClipRequested _event;
 
   VideoClip get _clip => _event.clip;
@@ -283,7 +271,7 @@ class _ClipWriter {
         ..remove('past')
         ..['state'] = complete;
       // The full clip contains the before part: drop the separate file.
-      await _store.putClipAndDeleteMedia(_record, [?pastId]);
+      await _media.commitClip(_record, [?pastId]);
       // Update the stored event too: it now refers to the full clip.
       await _store.putEvent(_event.toRecord());
     } catch (e) {
@@ -291,11 +279,7 @@ class _ClipWriter {
     }
   }
 
-  Future<void> _saveMedia(String id, ClipMedia media) async {
-    final url = media.liveUrl;
-    if (url == null) return;
-    await _store.putMedia(id, await _io.readBytes(url));
-  }
+  Future<void> _saveMedia(String id, ClipMedia media) => _media.save(id, media);
 
   static Map<String, Object?> _ref(String mediaId, ClipMedia media) => {
     'mediaId': mediaId,

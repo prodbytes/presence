@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:camera/camera.dart' show CameraException;
 import 'package:flutter/material.dart';
 
 import 'cameras/cameras.dart';
@@ -12,7 +11,13 @@ import 'theme.dart';
 /// The open cameras. Owned by the app so cameras (and their rolling
 /// recordings) stay open across rebuilds.
 class CameraRig extends ChangeNotifier {
-  CameraRig({required this._open, required this.settings});
+  CameraRig({required this._open, required this.settings}) {
+    // Android refuses cameras while the screen is off or the app is in the
+    // background: when the app comes back, reopen any that failed.
+    _lifecycle = AppLifecycleListener(onResume: _retryFailed);
+  }
+
+  late final AppLifecycleListener _lifecycle;
 
   final CameraOpener _open;
   final ClipSettings settings;
@@ -118,6 +123,15 @@ class CameraRig extends ChangeNotifier {
     );
   }
 
+  void _retryFailed() {
+    final sources = _sources;
+    final failed =
+        _error != null ||
+        (sources?.any((s) => s is UnavailableCameraSource && s.retryable) ??
+            false);
+    if (failed) load();
+  }
+
   void _closeSources() {
     for (final s in _sources ?? const <CameraSource>[]) {
       s.dispose();
@@ -127,6 +141,7 @@ class CameraRig extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _lifecycle.dispose();
     _closeSources();
     super.dispose();
   }
@@ -168,8 +183,42 @@ class CameraFeedsView extends StatelessWidget {
   }
 }
 
+/// Live cameras fill the grid. Cameras that couldn't open are listed in a
+/// compact line below, unless none opened (then their errors fill the grid).
 class _CameraGrid extends StatelessWidget {
   const _CameraGrid({required this.sources});
+
+  final List<CameraSource> sources;
+
+  @override
+  Widget build(BuildContext context) {
+    final live = sources.where((s) => s is! UnavailableCameraSource).toList();
+    final unavailable = sources.whereType<UnavailableCameraSource>().toList();
+    if (live.isEmpty || unavailable.isEmpty) return _Grid(sources: sources);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: _Grid(sources: live)),
+        for (final camera in unavailable)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Text(
+              '${camera.label}: ${describeCameraError(camera.error)}',
+              key: ValueKey('unavailable-${camera.id}'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _Grid extends StatelessWidget {
+  const _Grid({required this.sources});
 
   final List<CameraSource> sources;
 
@@ -217,9 +266,19 @@ class CameraTile extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (src is UnavailableCameraSource)
-              FeedMessage(
-                icon: Icons.videocam_off_outlined,
-                message: describeCameraError(src.error),
+              // Tiles can be small (phones): shrink the message to fit.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 8, 32),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: 200,
+                    child: FeedMessage(
+                      icon: Icons.videocam_off_outlined,
+                      message: describeCameraError(src.error),
+                    ),
+                  ),
+                ),
               )
             else
               src.buildPreview(context),
@@ -295,8 +354,7 @@ class FeedMessage extends StatelessWidget {
 }
 
 String describeCameraError(Object error) {
-  if (error is CameraException) {
-    return error.description ?? error.code;
-  }
-  return error.toString();
+  // Browser errors (DOMException) carry a readable message in toString.
+  final text = error.toString();
+  return text.startsWith('Exception: ') ? text.substring(11) : text;
 }

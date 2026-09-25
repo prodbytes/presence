@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Always-on recording: camera video plus microphone audio. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <application
-        android:label="presence_app"
+        android:label="Presence"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
