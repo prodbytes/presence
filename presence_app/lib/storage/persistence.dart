@@ -71,8 +71,24 @@ class Persistence {
     if (_disposed) return;
     config.addListener(_saveConfig);
 
-    final history = await _loadHistory(store);
-    if (!_disposed) log.addHistory(history);
+    final records = await store.allEvents();
+    final history = await _loadHistory(store, records);
+    if (_disposed) return;
+    log.addHistory(history);
+
+    // Keep the motion cooldown across restarts: it runs from the last
+    // automatic clip (records are newest first).
+    final lastMotion = records.firstWhere(
+      (r) =>
+          r['type'] == ClipRequested.clipRequestedType &&
+          r['trigger'] == ClipTrigger.motion.name,
+      orElse: () => const {},
+    )['time'];
+    if (lastMotion is int) {
+      _rig?.restoreMotionCooldown(
+        DateTime.fromMillisecondsSinceEpoch(lastMotion),
+      );
+    }
   }
 
   /// Saves the cameras the rig opens, so stored clips keep their camera.
@@ -142,7 +158,10 @@ class Persistence {
     }());
   }
 
-  Future<List<AppEvent>> _loadHistory(EventStore store) async {
+  Future<List<AppEvent>> _loadHistory(
+    EventStore store,
+    List<Map<String, Object?>> records,
+  ) async {
     final media = await _media;
     final cameraLabels = {
       for (final c in await store.allCameras())
@@ -153,10 +172,7 @@ class Persistence {
         c['id']! as String: _restoreClip(media, c, cameraLabels),
     };
 
-    return [
-      for (final record in await store.allEvents())
-        _restoreEvent(record, clips),
-    ];
+    return [for (final record in records) _restoreEvent(record, clips)];
   }
 
   AppEvent _restoreEvent(

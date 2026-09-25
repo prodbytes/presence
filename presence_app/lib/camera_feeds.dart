@@ -15,10 +15,6 @@ enum ClipReadinessState {
   /// No open camera.
   unavailable,
 
-  /// The camera hasn't recorded a full "before" period yet (just opened,
-  /// flipped, or "before" was raised): a clip now would have less history.
-  buffering,
-
   /// A clip now gets its full "before" part.
   ready,
 
@@ -34,7 +30,6 @@ class ClipReadiness {
   const ClipReadiness(
     this.state, {
     this.remaining = Duration.zero,
-    this.progress = 1,
     this.recording = false,
   });
 
@@ -44,12 +39,9 @@ class ClipReadiness {
 
   final ClipReadinessState state;
 
-  /// Time left: until buffered (buffering), until the clip is saved
-  /// (saving), or until motion can clip again (cooldown).
+  /// Time left: until the clip is saved (saving), or until motion can clip
+  /// again (cooldown).
   final Duration remaining;
-
-  /// 0–1 while buffering.
-  final double progress;
 }
 
 /// The camera being shown and recorded: one at a time, starting with the
@@ -84,15 +76,13 @@ class CameraRig extends ChangeNotifier {
   DateTime? _lastMotionClip;
   bool _motionClipStarting = false;
 
-  DateTime? _openedAt;
   VideoClip? _latestClip;
   DateTime? _latestClipEnds;
 
   /// Whether a clip taken now would be complete. It changes with time, so
   /// callers showing it should also refresh on a timer.
   ClipReadiness get readiness {
-    final opened = _openedAt;
-    if (_active == null || _busy || opened == null) {
+    if (_active == null || _busy) {
       return const ClipReadiness(ClipReadinessState.unavailable);
     }
     final now = _now();
@@ -122,21 +112,24 @@ class CameraRig extends ChangeNotifier {
         remaining: _left(ends, now),
       );
     }
-    final buffered = now.difference(opened);
-    final needed = config.clip.before;
-    if (buffered < needed) {
-      return ClipReadiness(
-        ClipReadinessState.buffering,
-        remaining: needed - buffered,
-        progress: buffered.inMilliseconds / needed.inMilliseconds,
-      );
-    }
+    // Ready as soon as a camera is open: countdowns start only with a clip
+    // (one taken right after opening just has less "before" history).
     return const ClipReadiness(ClipReadinessState.ready);
   }
 
   static Duration _left(DateTime ends, DateTime now) {
     final left = ends.difference(now);
     return left.isNegative ? Duration.zero : left;
+  }
+
+  /// Restores the cooldown after a restart, from the last automatic clip in
+  /// the stored history, so a relaunch doesn't reset it (keeps the later of
+  /// this and any clip taken since launch).
+  void restoreMotionCooldown(DateTime lastMotionClip) {
+    final current = _lastMotionClip;
+    if (current != null && !lastMotionClip.isAfter(current)) return;
+    _lastMotionClip = lastMotionClip;
+    notifyListeners();
   }
 
   /// When motion may take its next clip, or null if it may now (or motion
@@ -241,7 +234,6 @@ class CameraRig extends ChangeNotifier {
         return;
       }
       _active = source;
-      _openedAt = _now();
       _appliedBrightness = null;
       _applyBrightness();
       _watchMotion(source);

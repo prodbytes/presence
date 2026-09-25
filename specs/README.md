@@ -47,10 +47,10 @@ in the app bar**, which flip between full screens.
   - **Readiness indicator:** the last item on the right of the button row
     (Flip, Clip, then readiness). It shows whether a clip taken now would be
     complete:
-    - **"12 s"** with a **progress ring** (buffering): the camera hasn't
-      recorded a full *before* period yet (just opened, flipped, or *before*
-      was raised). A clip now would have less history.
-    - **"Ready"** (green dot): a clip now gets its full *before* part.
+    - **"Ready"** (green dot): shown as soon as a camera is open, including
+      right after a page reload or a flip. Countdowns start **only when a
+      clip is taken**. A clip in the first seconds after opening simply has
+      less *before* history.
     - **"12 s"** (red dot, only the countdown): a manual clip's *after*
       part is being recorded. It counts down to 0, then returns to Ready
       once the full clip is saved.
@@ -64,12 +64,17 @@ in the app bar**, which flip between full screens.
       cooldown resumes; the Clip button is never blocked. With motion clips
       turned off there's no cooldown.
 
-    Both countdowns show only the number, and the ring or the red dot tells
-    them apart. That keeps Flip, Clip and the pill on one row on a 320 dp
-    phone, where "Buffering 15 s" overflowed. The pill refreshes twice a
-    second, and its tooltip and screen-reader label spell the state out
-    ("Buffering history, 12 seconds until a full clip", "Saving clip, 12
-    seconds left").
+    Countdowns show only the number, and the dot's color tells them apart.
+    That keeps Flip, Clip and the pill on one row on a 320 dp phone. The
+    pill refreshes twice a second, and its tooltip and screen-reader label
+    spell the state out ("Saving clip, 12 seconds left", "Motion can clip
+    again in 4:28").
+    - **The motion cooldown survives restarts and page reloads.** On
+      launch, it's restored from the last motion clip in the stored events,
+      so the countdown continues exactly where it was, and motion doesn't
+      re-fire early just because the app restarted. Verified in Chrome: a
+      reload 6 s after "4:28" showed "4:22", matching the stored event
+      time.
   - **When any clip starts** (the Clip button or motion), a brief snackbar
     (4 s) says "Clip started · saving the next 15 s" or "Motion detected ·
     saving the next 15 s", with a **View** action that jumps to Events. It's

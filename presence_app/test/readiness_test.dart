@@ -48,20 +48,10 @@ void main() {
       bus.close();
     });
 
-    test('buffers the before period, then is ready', () {
-      var r = rig.readiness;
-      expect(r.state, ClipReadinessState.buffering);
-      expect(r.remaining, const Duration(seconds: 15));
-      expect(r.progress, 0);
-
-      now = now.add(const Duration(seconds: 10));
-      r = rig.readiness;
-      expect(r.state, ClipReadinessState.buffering);
-      expect(r.remaining, const Duration(seconds: 5));
-      expect(r.progress, closeTo(10 / 15, 0.01));
-
-      now = now.add(const Duration(seconds: 5));
-      expect(rig.readiness.state, ClipReadinessState.ready);
+    test('is ready as soon as the camera opens: no countdown', () {
+      final r = rig.readiness;
+      expect(r.state, ClipReadinessState.ready);
+      expect(r.remaining, Duration.zero);
     });
 
     test('counts down while a clip saves, then is ready again', () async {
@@ -184,23 +174,9 @@ void main() {
       expect(rig.readiness.state, ClipReadinessState.ready);
     });
 
-    test('flipping starts buffering again', () async {
-      now = now.add(const Duration(seconds: 20));
-      expect(rig.readiness.state, ClipReadinessState.ready);
+    test('is still ready right after a flip', () async {
       await rig.flip();
-      expect(rig.readiness.state, ClipReadinessState.buffering);
-    });
-
-    test('raising "before" needs more history', () {
-      now = now.add(const Duration(seconds: 20));
       expect(rig.readiness.state, ClipReadinessState.ready);
-      rig.config.update(
-        (c) => c.copyWith(
-          clip: c.clip.copyWith(before: const Duration(seconds: 30)),
-        ),
-      );
-      expect(rig.readiness.state, ClipReadinessState.buffering);
-      expect(rig.readiness.remaining, const Duration(seconds: 10));
     });
   });
 
@@ -230,7 +206,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
 
-    testWidgets('is the last button on the right: buffering, then ready', (
+    testWidgets('is the last button on the right, and starts Ready', (
       tester,
     ) async {
       await pumpApp(tester);
@@ -239,14 +215,10 @@ void main() {
       final clip = tester.getCenter(find.byTooltip('Clip'));
       expect(pill.dx, greaterThan(clip.dx));
       expect((pill.dy - clip.dy).abs(), lessThan(1));
-      expect(find.text('15 s'), findsOneWidget);
-      expect(
-        find.byTooltip('Buffering history, 15 seconds until a full clip'),
-        findsOneWidget,
-      );
-
-      await advance(tester, const Duration(seconds: 16));
+      // No countdown on load (e.g. a page reload): countdowns start with a
+      // clip.
       expect(find.text('Ready'), findsOneWidget);
+      expect(find.textContaining(' s'), findsNothing);
     });
 
     testWidgets('fits on a 320 dp phone with the widest label', (tester) async {
@@ -266,7 +238,11 @@ void main() {
       await tester.pumpAndSettle();
       await settleStorage(tester);
 
-      // Flip, Clip and the buffering countdown in one row, no overflow.
+      // Flip, Clip and the pill in one row, no overflow, while saving (the
+      // pill's widest countdown is the cooldown, "4:59").
+      await tester.tap(find.byTooltip('Clip'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('15 s'), findsOneWidget);
       expect(find.byTooltip('Flip camera'), findsOneWidget);
       expect(tester.takeException(), isNull);

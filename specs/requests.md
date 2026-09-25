@@ -277,3 +277,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     settings controls writing back stale values, which undid a previous
     change made before a rebuild. They now apply changes to the current
     config.
+56. **Merge it all.** Merged PRs #1–#19 into `main` in order, as merge
+    commits (retargeting each to `main` first). `main` matches the top
+    branch, and 78/78 tests pass on it.
+57. **The countdown doesn't match the cooldown timer; when an auto clip is
+    grabbed, trigger the cooldown and show its exact countdown on the camera
+    screen.** The phone was running a build from before the countdown
+    (installed 18:39; the countdown landed at 18:54), so it showed only the
+    15 s save. Installed the current build. Also found the cooldown was
+    reset by restarts; it's now restored from the last stored motion clip.
+58. **On a web page reload it starts with a 15 s timer; start Ready (unless
+    already counting down) and start the countdown only on clipping.**
+    Removed the buffering state: the pill starts at Ready, and counts down
+    only after a clip, or the restored motion cooldown after a reload.
+    Verified in Chrome (Ready, then 4:48 → 4:28 → 4:22 across a reload,
+    matching the 19:11:33 event) and on the S40 (Ready on launch).

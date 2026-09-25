@@ -382,19 +382,6 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         'Ready',
         'Ready to clip',
       ),
-      ClipReadinessState.buffering => (
-        SizedBox.square(
-          dimension: 14,
-          child: CircularProgressIndicator(
-            value: readiness.progress,
-            strokeWidth: 2,
-            color: scheme.onSurfaceVariant,
-          ),
-        ),
-        // Countdown only (fits phones); the ring says it's buffering.
-        '$seconds s',
-        'Buffering history, $seconds seconds until a full clip',
-      ),
       ClipReadinessState.saving => (
         _Dot(color: Gruvbox.red),
         // Just the countdown; the red dot says it's recording.
