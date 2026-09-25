@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
+import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 
 import 'fakes.dart';
@@ -21,15 +22,9 @@ void main() {
   }
 
   Finder inEvents(Finder f) =>
-      find.descendant(of: find.byKey(const Key('events-panel')), matching: f);
+      find.descendant(of: find.byKey(const Key('events-page')), matching: f);
 
-  Future<void> pressClip(WidgetTester tester) async {
-    await tester.tap(find.byTooltip('Clip'));
-    // Events wait (up to CameraRig.pastWait) for the before part.
-    await tester.pump(CameraRig.pastWait);
-    await tester.pumpAndSettle();
-    await settleStorage(tester);
-  }
+  Future<void> pressClip(WidgetTester tester) => clipAndShowEvents(tester);
 
   const media = ClipMedia(
     url: 'blob:fake',
@@ -37,16 +32,9 @@ void main() {
     end: Duration(seconds: 18),
   );
 
-  testWidgets('clip is disabled until a camera is open', (tester) async {
+  testWidgets('no clip button until a camera is open', (tester) async {
     await pumpApp(tester, noCameras);
-
-    final button = tester.widget<IconButton>(
-      find.ancestor(
-        of: find.byIcon(Icons.photo_camera),
-        matching: find.byType(IconButton),
-      ),
-    );
-    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Clip'), findsNothing);
   });
 
   testWidgets(
@@ -103,20 +91,26 @@ void main() {
     expect(find.byType(ClipPlayerView), findsOneWidget);
   });
 
-  testWidgets('a clip event is playable the moment it appears', (tester) async {
+  testWidgets('a clip event is playable the moment it is published', (
+    tester,
+  ) async {
     final camera = FakeCameraSource('Front door', immediatePast: media);
     await pumpApp(tester, openFakes([camera]));
+    // Whether each clip was playable exactly as subscribers first saw it.
+    final playableOnArrival = <bool>[];
+    final sub = AppEventBusScope.of(tester.element(find.byType(HomeScreen)))
+        .stream
+        .listen((e) {
+          if (e is ClipRequested) playableOnArrival.add(e.clip.playable);
+        });
+    addTearDown(sub.cancel);
 
     await tester.tap(find.byTooltip('Clip'));
-    // Pump frame by frame until the card shows up, and check that very frame.
-    for (
-      var i = 0;
-      i < 20 && find.byType(ClipEventCard).evaluate().isEmpty;
-      i++
-    ) {
-      await tester.pump(const Duration(milliseconds: 1));
-    }
-    expect(find.byType(ClipEventCard), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(playableOnArrival, [true]);
+
+    // And its card shows up playable.
+    await showEvents(tester);
     expect(inEvents(find.byKey(const Key('clip-play'))), findsOneWidget);
     expect(
       inEvents(find.text('Previous 15 s ready · recording next 15 s…')),
@@ -155,6 +149,8 @@ void main() {
 
     await tester.tap(find.byTooltip('Clip'));
     await tester.pump(const Duration(milliseconds: 50));
+    // Switching tabs takes a few hundred ms, still inside the 2 s wait.
+    await showEvents(tester);
     expect(inEvents(find.text('Front door')), findsOneWidget);
     expect(inEvents(find.text('Back yard')), findsNothing);
 
@@ -184,25 +180,23 @@ void main() {
     );
   });
 
-  testWidgets('settings pane is hidden until the settings button opens it', (
-    tester,
-  ) async {
+  testWidgets('settings are their own tab', (tester) async {
     await pumpApp(tester, noCameras);
-    expect(find.byKey(const Key('settings-pane')), findsNothing);
+    expect(find.byKey(const Key('settings-page')), findsNothing);
 
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('settings-pane')), findsOneWidget);
+    expect(find.byKey(const Key('settings-page')), findsOneWidget);
     expect(find.text('Before the press'), findsOneWidget);
     expect(find.text('After the press'), findsOneWidget);
     expect(find.textContaining('Clips play 30 s in total'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close settings'));
+    await tester.tap(find.byTooltip('Camera'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('settings-pane')), findsNothing);
+    expect(find.byKey(const Key('settings-page')), findsNothing);
   });
 
-  testWidgets('clip durations come from the settings pane', (tester) async {
+  testWidgets('clip durations come from the settings tab', (tester) async {
     final camera = FakeCameraSource('Front door');
     await pumpApp(tester, openFakes([camera]));
 
@@ -226,8 +220,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Clips play 65 s in total'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close settings'));
-    await tester.pumpAndSettle();
     await pressClip(tester);
 
     expect(camera.requests.single.before, const Duration(seconds: 60));

@@ -114,7 +114,7 @@ class PresenceCamerasPlugin(
                 "id" to id,
                 "label" to (if (front) "Front camera" else "Back camera") + if (ids.size > 2) " $id" else "",
                 "available" to (i == 0 || concurrent),
-                "reason" to if (i == 0 || concurrent) null else "This phone can't run several cameras at once",
+                "reason" to if (i == 0 || concurrent) null else "Off: this phone runs one camera at a time",
             )
         }
     }

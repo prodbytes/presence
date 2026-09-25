@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -85,3 +86,24 @@ String fakeCreateUrl(Uint8List bytes, String mimeType) =>
     'restored:${String.fromCharCodes(bytes)}';
 
 const fakeMediaIo = MediaIo(readBytes: fakeReadBytes, createUrl: fakeCreateUrl);
+
+/// Opens the Events tab (a no-op if it's already showing).
+Future<void> showEvents(WidgetTester tester) async {
+  if (find.byKey(const Key('events-page')).evaluate().isNotEmpty) return;
+  await tester.tap(find.byTooltip('Events'));
+  await tester.pumpAndSettle();
+}
+
+/// Goes to the Camera tab, presses Clip, waits for the events to publish
+/// (up to CameraRig.pastWait), then shows the Events tab.
+Future<void> clipAndShowEvents(WidgetTester tester) async {
+  if (find.byTooltip('Clip').evaluate().isEmpty) {
+    await tester.tap(find.byTooltip('Camera'));
+    await tester.pumpAndSettle();
+  }
+  await tester.tap(find.byTooltip('Clip'));
+  await tester.pump(CameraRig.pastWait);
+  await tester.pumpAndSettle();
+  await settleStorage(tester);
+  await showEvents(tester);
+}

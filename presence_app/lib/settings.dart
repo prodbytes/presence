@@ -28,62 +28,45 @@ class ClipSettings extends ChangeNotifier {
   static Duration _clamp(Duration d) => d < min ? min : (d > max ? max : d);
 }
 
-/// The Settings pane, shown as an end drawer from the Settings button.
-class SettingsPane extends StatelessWidget {
-  const SettingsPane({super.key, required this.settings});
+/// The Settings screen (the Settings tab).
+class SettingsView extends StatelessWidget {
+  const SettingsView({super.key, required this.settings});
 
   final ClipSettings settings;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Drawer(
-      key: const Key('settings-pane'),
-      child: SafeArea(
-        child: ListenableBuilder(
-          listenable: settings,
-          builder: (context, _) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text('Settings', style: theme.textTheme.titleLarge),
-                  ),
-                  IconButton(
-                    tooltip: 'Close settings',
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text('Clips', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _DurationSlider(
-                key: const Key('clip-before-slider'),
-                label: 'Before the press',
-                value: settings.before,
-                onChanged: (d) => settings.before = d,
-              ),
-              _DurationSlider(
-                key: const Key('clip-after-slider'),
-                label: 'After the press',
-                value: settings.after,
-                onChanged: (d) => settings.after = d,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Clips play ${(settings.before + settings.after).inSeconds} s '
-                'in total. Changing "Before" takes up to that long to apply, '
-                'while the cameras build up enough history.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) => ListView(
+        key: const Key('settings-page'),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        children: [
+          Text('Clips', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _DurationSlider(
+            key: const Key('clip-before-slider'),
+            label: 'Before the press',
+            value: settings.before,
+            onChanged: (d) => settings.before = d,
           ),
-        ),
+          _DurationSlider(
+            key: const Key('clip-after-slider'),
+            label: 'After the press',
+            value: settings.after,
+            onChanged: (d) => settings.after = d,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Clips play ${(settings.before + settings.after).inSeconds} s '
+            'in total. Changing "Before" takes up to that long to apply, '
+            'while the cameras build up enough history.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

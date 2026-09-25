@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
-import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/events.dart';
@@ -71,15 +70,9 @@ void main() {
   }
 
   Finder inEvents(Finder f) =>
-      find.descendant(of: find.byKey(const Key('events-panel')), matching: f);
+      find.descendant(of: find.byKey(const Key('events-page')), matching: f);
 
-  Future<void> pressClip(WidgetTester tester) async {
-    await tester.tap(find.byTooltip('Clip'));
-    // Events wait (up to CameraRig.pastWait) for the before part.
-    await tester.pump(CameraRig.pastWait);
-    await tester.pumpAndSettle();
-    await settleStorage(tester);
-  }
+  Future<void> pressClip(WidgetTester tester) => clipAndShowEvents(tester);
 
   ClipRequested clipEvent(WidgetTester tester) =>
       tester.widget<ClipEventCard>(find.byType(ClipEventCard)).event;
@@ -103,6 +96,7 @@ void main() {
     await settleStorage(tester);
 
     await refresh(tester);
+    await showEvents(tester);
 
     expect(inEvents(find.text('Application started')), findsNWidgets(2));
     expect(inEvents(find.text('Door opened')), findsOneWidget);
@@ -127,6 +121,7 @@ void main() {
     await settleStorage(tester);
 
     await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
 
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Front door')), findsOneWidget);
@@ -170,6 +165,7 @@ void main() {
 
     // Reload during the "after" part.
     await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
 
     expect(
       inEvents(
