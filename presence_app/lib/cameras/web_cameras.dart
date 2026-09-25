@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
 import '../clips.dart';
+import '../motion.dart';
 import 'camera_source.dart';
 import 'recorder_pool.dart';
 
@@ -200,6 +201,37 @@ class WebCameraSource implements CameraSource {
     return (await result.arrayBuffer().toDart).toDart.asUint8List();
   }
 
+  late final StreamController<Uint8List> _motion =
+      StreamController<Uint8List>.broadcast(
+        onListen: () => _motionTimer = Timer.periodic(
+          const Duration(milliseconds: 200),
+          (_) => _sampleMotion(),
+        ),
+        onCancel: () => _motionTimer?.cancel(),
+      );
+  Timer? _motionTimer;
+  web.HTMLCanvasElement? _motionCanvas;
+
+  @override
+  Stream<Uint8List> get motionFrames => _motion.stream;
+
+  /// Draws the live video into a tiny canvas and emits its luma.
+  void _sampleMotion() {
+    if (_video.videoWidth == 0) return;
+    final canvas = _motionCanvas ??= web.HTMLCanvasElement()
+      ..width = motionFrameWidth
+      ..height = motionFrameHeight;
+    final ctx =
+        canvas.getContext('2d', {'willReadFrequently': true}.jsify())!
+            as web.CanvasRenderingContext2D;
+    ctx.drawImage(_video, 0, 0, motionFrameWidth, motionFrameHeight);
+    final rgba = ctx
+        .getImageData(0, 0, motionFrameWidth, motionFrameHeight)
+        .data
+        .toDart;
+    _motion.add(lumaFromRgba(Uint8List.view(rgba.buffer)));
+  }
+
   /// Browsers expose exposure compensation (Image Capture) only on some
   /// cameras; elsewhere this quietly does nothing.
   @override
@@ -236,6 +268,8 @@ class WebCameraSource implements CameraSource {
 
   @override
   Future<void> dispose() async {
+    _motionTimer?.cancel();
+    _motion.close();
     _ticker.cancel();
     for (final t in _releaseTimers) {
       t.cancel();

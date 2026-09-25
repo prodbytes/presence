@@ -13,6 +13,11 @@ import 'camera_source.dart';
 /// from it as MP4 files.
 const _channel = MethodChannel('presence/cameras');
 
+/// 64×48 luma frames from every open camera, as `{id, luma}`.
+final Stream<Map<Object?, Object?>> _motion = const EventChannel(
+  'presence/motion',
+).receiveBroadcastStream().cast<Map<Object?, Object?>>().asBroadcastStream();
+
 /// The phone's cameras, one open at a time (most phones can't run two),
 /// each always recording.
 class DeviceCameras implements CameraBackend {
@@ -69,6 +74,7 @@ class _AndroidCameraSource implements CameraSource {
       _width = opened['width']! as int,
       _height = opened['height']! as int,
       _sensorOrientation = opened['sensorOrientation']! as int,
+      _hasMotion = opened['motion'] == true,
       _lastPreRoll = _preRoll() {
     // Keep the ring buffer's history in step with the settings.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -90,6 +96,12 @@ class _AndroidCameraSource implements CameraSource {
   final int _width;
   final int _height;
   final int _sensorOrientation;
+  final bool _hasMotion;
+
+  @override
+  Stream<Uint8List>? get motionFrames => _hasMotion
+      ? _motion.where((e) => e['id'] == id).map((e) => e['luma']! as Uint8List)
+      : null;
   final Duration Function() _preRoll;
   Duration _lastPreRoll;
   late final Timer _ticker;

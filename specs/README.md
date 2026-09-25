@@ -172,9 +172,49 @@ recorders (`RecorderPool` in
 - Clips (thumbnails and recordings) are saved to local storage and survive a
   page refresh. See [Storage](#storage).
 
+### Motion clips
+
+When enough of the picture moves, the app takes a clip automatically, the
+**same way as pressing Clip**: same camera, before and after windows,
+immediate before part, full clip update and storage. Its event card says
+**"Motion detected"** (with a running-figure icon) instead of "Clip
+requested", and its stored event has `trigger: "motion"`.
+
+- **Measuring motion** (`MotionDetector`,
+  [lib/motion.dart](../presence_app/lib/motion.dart), shared by all
+  platforms):
+  - Cameras supply 64×48 grayscale frames, about 5 per second.
+  - The score is the **percentage of pixels whose brightness changed by
+    more than 24/255** since the previous frame.
+  - Overall brightness shifts (auto-exposure, a light switching on) are
+    removed first, by subtracting the **median** per-pixel change. A moving
+    object covering less than half the picture doesn't shift the median,
+    unlike a mean.
+  - The first 3 s after a camera opens or flips are ignored while exposure
+    settles.
+- **Triggering:** the score must be at or above the threshold for **3
+  consecutive frames** (0.6 s). A one-frame glitch changes only two frames
+  (appearing, then disappearing), so it doesn't count.
+- **Cooldown:** at most **one automatic clip per 5 minutes** (configurable).
+  Manual clips are never limited.
+- **Frames per platform:**
+  - **Web:** the live `<video>` is drawn into a 64×48 canvas every 200 ms,
+    and converted to luma.
+  - **Android:** a third camera stream, a small YUV `ImageReader` (160×96
+    on the S40), is sampled to 64×48 luma natively and sent over the
+    `presence/motion` event channel. If a camera refuses three streams, it
+    falls back to preview + recording only, and motion is unavailable for
+    that camera.
+
 ### Settings screen
 
 - The **Settings** tab.
+- **Motion** section:
+  - A **Clip automatically on motion** switch (default on).
+  - **Motion threshold**, 1–50% of the picture (default 10%).
+  - A **live motion meter** showing the open camera's current score, with a
+    marker at the threshold, to help calibrate it.
+  - **At most one automatic clip every** 1–60 minutes (default 5).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its
   recordings, as auto-exposure compensation. Cameras opened later, after a
@@ -188,8 +228,9 @@ recorders (`RecorderPool` in
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
-- Settings (`ClipSettings`: clip lengths and brightness) are saved to local
-  storage and restored on launch.
+- **All settings are persistent:** clip lengths, brightness, and the motion
+  switch, threshold and cooldown (`ClipSettings`). They're saved to local
+  storage on every change and restored on launch.
 
 ## Storage
 
@@ -222,7 +263,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
-| `settings` | name (`clip`) | before/after lengths |
+| `settings` | name (`clip`) | before/after lengths, brightness, motion switch/threshold/cooldown |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The

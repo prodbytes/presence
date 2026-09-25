@@ -62,6 +62,15 @@ class Persistence {
       if (saved['brightnessEv'] case final num ev) {
         settings.brightness = ev.toDouble();
       }
+      if (saved['motionEnabled'] case final bool on) {
+        settings.motionEnabled = on;
+      }
+      if (saved['motionThreshold'] case final num percent) {
+        settings.motionThreshold = percent.toDouble();
+      }
+      if (saved['motionCooldownMs'] case final int ms) {
+        settings.motionCooldown = Duration(milliseconds: ms);
+      }
     }
     if (_disposed) return;
     settings.addListener(_saveSettings);
@@ -116,6 +125,9 @@ class Persistence {
         'beforeMs': settings.before.inMilliseconds,
         'afterMs': settings.after.inMilliseconds,
         'brightnessEv': settings.brightness,
+        'motionEnabled': settings.motionEnabled,
+        'motionThreshold': settings.motionThreshold,
+        'motionCooldownMs': settings.motionCooldown.inMilliseconds,
       });
     }());
   }
@@ -166,6 +178,9 @@ class Persistence {
       if (clip != null) {
         return ClipRequested(
           clip,
+          trigger:
+              ClipTrigger.values.asNameMap()[record['trigger']] ??
+              ClipTrigger.manual,
           id: record['id']! as String,
           time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
         );
