@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'camera_feeds.dart';
@@ -16,15 +18,55 @@ class AppEvent {
   final DateTime time;
 }
 
-/// Events shown in the Events panel, newest first.
+/// App-wide event bus: a plain broadcast stream. Anything can publish, and
+/// any number of listeners can subscribe. It keeps no history; late
+/// subscribers only see events published after they subscribe.
+class AppEventBus {
+  final _controller = StreamController<AppEvent>.broadcast();
+
+  Stream<AppEvent> get stream => _controller.stream;
+
+  void publish(AppEvent event) => _controller.add(event);
+
+  Future<void> close() => _controller.close();
+}
+
+/// Makes the [AppEventBus] reachable from any widget below it.
+class AppEventBusScope extends InheritedWidget {
+  const AppEventBusScope({super.key, required this.bus, required super.child});
+
+  final AppEventBus bus;
+
+  static AppEventBus of(BuildContext context) {
+    final scope = context.getInheritedWidgetOfExactType<AppEventBusScope>();
+    assert(scope != null, 'No AppEventBusScope above this context.');
+    return scope!.bus;
+  }
+
+  @override
+  bool updateShouldNotify(AppEventBusScope oldWidget) => bus != oldWidget.bus;
+}
+
+/// History of bus events for the Events panel, newest first.
 class EventLog extends ChangeNotifier {
+  EventLog(Stream<AppEvent> events) {
+    _subscription = events.listen(_add);
+  }
+
+  late final StreamSubscription<AppEvent> _subscription;
   final List<AppEvent> _events = [];
 
   List<AppEvent> get events => List.unmodifiable(_events);
 
-  void push(AppEvent event) {
+  void _add(AppEvent event) {
     _events.insert(0, event);
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
   }
 }
 

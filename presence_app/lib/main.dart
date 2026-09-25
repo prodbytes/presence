@@ -9,59 +9,68 @@ void main() {
   runApp(const PresenceApp());
 }
 
-class PresenceApp extends StatelessWidget {
+class PresenceApp extends StatefulWidget {
   const PresenceApp({super.key, this.loadCameras});
 
   /// Overrides camera discovery (used by tests); defaults to all device cameras.
   final CameraLoader? loadCameras;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Presence',
-      debugShowCheckedModeBanner: false,
-      theme: gruvboxSoftDarkTheme(),
-      home: MonitorPage(loadCameras: loadCameras),
-    );
-  }
+  State<PresenceApp> createState() => _PresenceAppState();
 }
 
-/// Main screen: camera feeds fill the left, events sit in a fixed-width
-/// panel on the right.
-class MonitorPage extends StatefulWidget {
-  const MonitorPage({super.key, this.loadCameras});
-
-  final CameraLoader? loadCameras;
-
-  static const double eventsPanelWidth = 360;
-  static const double gap = 12;
-
-  @override
-  State<MonitorPage> createState() => _MonitorPageState();
-}
-
-class _MonitorPageState extends State<MonitorPage> {
-  // Lives here, not in the panel, so events survive layout changes.
-  final _events = EventLog();
+class _PresenceAppState extends State<PresenceApp> {
+  // Owned above MaterialApp so every route can publish to the bus, and so
+  // the history outlives any single screen.
+  final _bus = AppEventBus();
+  late final EventLog _log;
 
   @override
   void initState() {
     super.initState();
-    _events.push(
+    // Subscribe before publishing: a broadcast stream drops events that
+    // have no listener yet.
+    _log = EventLog(_bus.stream);
+    _bus.publish(
       AppEvent(icon: Icons.power_settings_new, title: 'Application started'),
     );
   }
 
   @override
   void dispose() {
-    _events.dispose();
+    _log.dispose();
+    _bus.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    return AppEventBusScope(
+      bus: _bus,
+      child: MaterialApp(
+        title: 'Presence',
+        debugShowCheckedModeBanner: false,
+        theme: gruvboxSoftDarkTheme(),
+        home: MonitorPage(log: _log, loadCameras: widget.loadCameras),
+      ),
+    );
+  }
+}
+
+/// Main screen: camera feeds fill the left, events sit in a fixed-width
+/// panel on the right.
+class MonitorPage extends StatelessWidget {
+  const MonitorPage({super.key, required this.log, this.loadCameras});
+
+  final EventLog log;
+  final CameraLoader? loadCameras;
+
+  static const double eventsPanelWidth = 360;
+  static const double gap = 12;
+
+  @override
+  Widget build(BuildContext context) {
     const gap = MonitorPage.gap;
-    final loadCameras = widget.loadCameras;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -72,7 +81,7 @@ class _MonitorPageState extends State<MonitorPage> {
               const SizedBox(width: gap),
               SizedBox(
                 width: MonitorPage.eventsPanelWidth,
-                child: EventsPanel(log: _events),
+                child: EventsPanel(log: log),
               ),
             ],
           ),
