@@ -472,3 +472,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Verified: the app renders through
       http://presence.localhost:4566/app/, hot-reload WebSocket 101, and
       `/api/events` 200.
+86. **Merge all open PRs, sync git, and commit the `.gitignore` change.**
+    (2026-09-26) All open PRs (#24–#33) were merged and local `main` was
+    synced. `.gitignore` now also ignores `*.local*` files (machine-local
+    overrides), next to the new SAM and CDK entries.
