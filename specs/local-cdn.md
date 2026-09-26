@@ -57,13 +57,22 @@ but doesn't run.
 ## HTTPS
 
 The distribution is also served over HTTPS at
-**https://presence.localhost:8443/app/** (and `https://…:4566`), with a
-local certificate:
+**https://local.presence.nu01.com:8443/app/** and
+https://presence.localhost:8443/app/ (and on 4566), with a local
+certificate.
+
+**`local.presence.nu01.com`** is a public name for this machine: an A record
+to `127.0.0.1` in the Route 53 zone `nu01.com` (account 712151682816, TTL
+300), and a second distribution alias (`PRESENCE_PUBLIC_HOST`). Google
+rejects JavaScript origins that don't end in a public top-level domain, such
+as `presence.localhost`, so **`https://local.presence.nu01.com:8443` is the
+web client's local origin**.
+
 
 - [scripts/local-certs.sh](../scripts/local-certs.sh) runs before Floci
   starts (in the `4-floci` command). With mkcert (from devbox), it writes
   `presence_floci/certs/presence.pem` and `presence-key.pem` for
-  `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
+  `local.presence.nu01.com`, `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
   and `::1`. It regenerates them only when they're missing, expire within
   30 days or don't cover every name. The folder is git-ignored.
 - Floci loads them (`FLOCI_TLS_ENABLED`, `FLOCI_TLS_CERT_PATH`,

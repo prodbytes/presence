@@ -8,6 +8,7 @@ processes:
       - SAM_API_PORT=${SAM_API_PORT:-3000}
       - FLOCI_PORT=${FLOCI_PORT:-4566}
       - PRESENCE_CDN_ALIAS=${PRESENCE_CDN_ALIAS:-presence.localhost}
+      - PRESENCE_PUBLIC_HOST=${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}
       - INDEX_PORT=${INDEX_PORT:-8081}
       - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     # Start logging once every service passes its readiness probe, so the

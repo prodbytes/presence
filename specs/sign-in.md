@@ -36,7 +36,7 @@ julio@nu01.com), with OAuth clients:
 
 | Client | Identifies | In the app |
 |---|---|---|
-| Web application | JavaScript origin `http://localhost:8080` (and later `https://presence.nu01.com`) | `GoogleConfig.webClientId`: the web client ID, and Android's server client ID |
+| Web application | JavaScript origins `http://localhost:8080` and `https://local.presence.nu01.com:8443` (local HTTPS through Floci; see [Local CDN](local-cdn.md)), and later `https://presence.nu01.com`. No redirect URI: the web button signs in with Google's popup |  `GoogleConfig.webClientId`: the web client ID, and Android's server client ID |
 | Android | package `com.nu01.presence` + signing-key SHA-1 | nothing: matched by package and key (its ID is kept in `.env` as `GOOGLE_ANDROID_CLIENT_ID`, for reference only) |
 | iOS | bundle ID `com.nu01.presence` | `GoogleConfig.iosClientId`, plus its reversed ID as a URL scheme |
 

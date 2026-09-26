@@ -13,7 +13,9 @@ set -euo pipefail
 CERT_DIR="$(cd "$(dirname "$0")/.." && pwd)/presence_floci/certs"
 CERT="$CERT_DIR/presence.pem"
 KEY="$CERT_DIR/presence-key.pem"
-NAMES=(presence.localhost '*.presence.localhost' localhost 127.0.0.1 ::1)
+# local.presence.nu01.com is a public name that resolves to 127.0.0.1 (Route 53,
+# zone nu01.com), for OAuth origins that must end in a public TLD.
+NAMES=("${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}" presence.localhost '*.presence.localhost' localhost 127.0.0.1 ::1)
 
 if ! command -v mkcert >/dev/null 2>&1; then
     echo "local-certs: 'mkcert' is not on PATH; run inside devbox (devbox shell / devbox services up)" >&2
