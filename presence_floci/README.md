@@ -6,11 +6,11 @@ would. The app and the API keep running on their own dev servers:
 
 | Path | Origin |
 |------|--------|
+| default (`/`, anything else) | `presence_index`, Python `http.server` (`INDEX_PORT`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
 | `/api/*` | SAM API, `sam local start-api` (`SAM_API_PORT`, 3000); for now `GET /api/events` |
-| everything else | Flutter dev server, which answers 404 outside `/app/` |
 
-Open **http://presence.localhost:4566/app/**. Browsers and curl resolve
+Open **http://presence.localhost:4566/** (it redirects to `/app/`) or **http://presence.localhost:4566/app/**. Browsers and curl resolve
 `*.localhost` to loopback, so no hosts-file edit is needed.
 
 CloudFront forwards paths as is (it can't strip a prefix), so each origin
@@ -69,6 +69,5 @@ start with `/api/`.
 - **Google sign-in** only works on origins registered with the OAuth client.
   Add `http://presence.localhost:4566` to the web client's authorized
   JavaScript origins to sign in through the CDN URL.
-- `/` isn't redirected to `/app/`: that takes a CloudFront Function, which
-  Floci stores but doesn't run. There's no edge caching either (see the
+- There's no edge caching (see the
   [Floci CloudFront docs](https://github.com/floci-io/floci/blob/main/docs/services/cloudfront.md)).

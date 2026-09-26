@@ -517,3 +517,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
     check the trigger and the new name, and renamed the `1.0.0-RC1`
     release to `presence-1.0.0-RC1` to match.
+92. **Create a presence_index dir for an index module that just
+    redirects to /app/; serve it from a process-compose process (Python
+    http is fine) and map it on the Floci distribution.** (2026-09-26)
+    Added [presence_index/](../presence_index) (`site/index.html`: script
+    redirect, `meta refresh` and link) and a `5-index` process
+    (`python3 -m http.server` on 127.0.0.1:8081). It's the distribution's
+    default origin, so http://presence.localhost:4566/ redirects to
+    `/app/`. The health monitor gained `🏠 index` and waits for it, and
+    the dev container forwards 8081. Verified in headless Chrome.
