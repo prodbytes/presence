@@ -81,7 +81,8 @@
   `presence_app/build/web/`, `make android` a release APK, `make ios` an
   unsigned `Runner.app` (signed with `IOS_CODESIGN=1`) and `make linux` the
   Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
-  (default), `profile` or `debug`. Plain `make` (`all`) builds every
+  (default), `profile` or `debug`. Every build is versioned `X.Y.Z` (see
+  [Versioning](release.md#versioning)). Plain `make` (`all`) builds every
   platform the host can build and skips the rest: iOS needs macOS and Linux
   needs a Linux host, and asking for either elsewhere fails. Verified: on
   the development Mac, web (with the web client ID compiled in and no

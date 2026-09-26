@@ -517,7 +517,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
     check the trigger and the new name, and renamed the `1.0.0-RC1`
     release to `presence-1.0.0-RC1` to match.
-92. **Create a presence_index dir for an index module that just
+92. **Store files for the version numbers, `version.X.txt` and
+    `version.Y.txt`, and auto-generate Z with the current timestamp on the
+    build; change the make script and the action as appropriate.**
+    (2026-09-26) Added `version.X.txt` (`1`) and `version.Y.txt` (`0`) and
+    `scripts/version.sh`, which makes `X.Y.Z` with Z the build time as
+    `YYYYMMDDHHMM` (UTC) and the build number the same instant in Unix
+    seconds. `make` passes them to Flutter; the Makefile shares one build
+    time across a run's targets. The release workflow resolves one version
+    for all jobs, keeping the Z of a tag that carries `X.Y.Z` and failing
+    if its X.Y doesn't match the files. Verified the version in web's
+    `version.json`, the APK's `versionName`/`versionCode` and the iOS
+    bundle.
+93. **Create a script that tags a release with the current version numbers
+    and an RC tag, and one that releases with the current version and a GA
+    tag.** (2026-09-26) Added `scripts/release-rc.sh` (tag `X.Y.Z-RC`) and
+    `scripts/release-ga.sh` (tag `X.Y.Z-GA`, commit must be on `main`),
+    both through `scripts/tag-release.sh`, which checks for uncommitted
+    changes, an unpushed commit and an existing tag, and supports
+    `DRY_RUN=1`. The workflow now also runs on `*GA` tags and publishes
+    them as full (latest) releases.
+94. **Create a presence_index dir for an index module that just
     redirects to /app/; serve it from a process-compose process (Python
     http is fine) and map it on the Floci distribution.** (2026-09-26)
     Added [presence_index/](../presence_index) (`site/index.html`: script

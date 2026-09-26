@@ -9,6 +9,11 @@
 #                 unsigned by default
 # Settings such as the Google client IDs come from the repo's .env (see
 # .env.example), through the same allowlist as the run scripts.
+#
+# The version is X.Y.Z: X and Y from version.X.txt and version.Y.txt, Z the
+# build time as YYYYMMDDHHMM (UTC); the build number is the same time in
+# Unix seconds. Set VERSION_Z and BUILD_NUMBER to override them (see
+# scripts/version.sh).
 set -euo pipefail
 
 MODE="${MODE:-release}"
@@ -19,6 +24,8 @@ esac
 
 cd "$(dirname "$0")/../presence_app"
 source ../scripts/dart-defines.sh
+source ../scripts/version.sh
+BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER" "${DART_DEFINES[@]}")
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
@@ -35,24 +42,24 @@ build() {
     echo "error: $target can't be built on $(uname -s)" >&2
     return 1
   fi
-  echo "==> $target ($MODE)"
+  echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      flutter build web "--$MODE" "${DART_DEFINES[@]}"
+      flutter build web "--$MODE" "${BUILD_ARGS[@]}"
       echo "==> web: presence_app/build/web/"
       ;;
     android)
-      flutter build apk "--$MODE" "${DART_DEFINES[@]}"
+      flutter build apk "--$MODE" "${BUILD_ARGS[@]}"
       echo "==> android: presence_app/build/app/outputs/flutter-apk/app-$MODE.apk"
       ;;
     ios)
       local sign=--no-codesign
       [[ "${IOS_CODESIGN:-}" == 1 ]] && sign=--codesign
-      flutter build ios "--$MODE" "$sign" "${DART_DEFINES[@]}"
+      flutter build ios "--$MODE" "$sign" "${BUILD_ARGS[@]}"
       echo "==> ios: presence_app/build/ios/iphoneos/Runner.app"
       ;;
     linux)
-      flutter build linux "--$MODE" "${DART_DEFINES[@]}"
+      flutter build linux "--$MODE" "${BUILD_ARGS[@]}"
       echo "==> linux: presence_app/build/linux/*/$MODE/bundle/"
       ;;
   esac
