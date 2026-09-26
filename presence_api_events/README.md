@@ -15,8 +15,8 @@ API Gateway.
 
 ## Requirements
 
-- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-- JDK 25 and Maven 3.9+
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html),
+  JDK 25 and Maven 3.9+: all provided by devbox (`devbox shell`)
 - Docker, for `sam local` and `sam build --use-container`
 
 ## Commands
