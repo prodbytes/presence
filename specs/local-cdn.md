@@ -2,18 +2,20 @@
 
 [presence_floci/](../presence_floci) runs [Floci](https://floci.io/), a
 local AWS emulator, as the CloudFront distribution. It only routes, like the
-deployed CloudFront would. The app and the API run on their own dev servers:
+deployed CloudFront would. The index, the app and the API run on their own
+dev servers:
 
 | Path | Origin |
 |------|--------|
+| default (`/`, anything else) | [Site index](site-index.md) (`python3 -m http.server`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
 | `/api/*` | `sam local start-api`: for now `GET /api/events` |
-| everything else | Flutter dev server, which answers 404 outside `/app/` |
 
 CloudFront forwards paths unchanged and can't strip a prefix, so each origin
 serves its own prefix: the app has the `/app/` base href, and the API's
-routes start with `/api/`. `/` isn't redirected to `/app/`, because that
-needs a CloudFront Function, which Floci doesn't run.
+routes start with `/api/`. `/` redirects to `/app/` through the index
+page: an HTTP redirect would need a CloudFront Function, which Floci stores
+but doesn't run.
 
 - It runs in a Docker container (`presence-floci`, compat image, bound to
   127.0.0.1) with `memory` storage. A `ready.d` init hook

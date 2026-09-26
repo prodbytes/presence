@@ -517,10 +517,45 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
     check the trigger and the new name, and renamed the `1.0.0-RC1`
     release to `presence-1.0.0-RC1` to match.
-92. **Can Floci use 8443 for SSL?** (2026-09-26) Yes:
+92. **Store files for the version numbers, `version.X.txt` and
+    `version.Y.txt`, and auto-generate Z with the current timestamp on the
+    build; change the make script and the action as appropriate.**
+    (2026-09-26) Added `version.X.txt` (`1`) and `version.Y.txt` (`0`) and
+    `scripts/version.sh`, which makes `X.Y.Z` with Z the build time as
+    `YYYYMMDDHHMM` (UTC) and the build number the same instant in Unix
+    seconds. `make` passes them to Flutter; the Makefile shares one build
+    time across a run's targets. The release workflow resolves one version
+    for all jobs, keeping the Z of a tag that carries `X.Y.Z` and failing
+    if its X.Y doesn't match the files. Verified the version in web's
+    `version.json`, the APK's `versionName`/`versionCode` and the iOS
+    bundle.
+93. **Create a script that tags a release with the current version numbers
+    and an RC tag, and one that releases with the current version and a GA
+    tag.** (2026-09-26) Added `scripts/release-rc.sh` (tag `X.Y.Z-RC`) and
+    `scripts/release-ga.sh` (tag `X.Y.Z-GA`, commit must be on `main`),
+    both through `scripts/tag-release.sh`, which checks for uncommitted
+    changes, an unpushed commit and an existing tag, and supports
+    `DRY_RUN=1`. The workflow now also runs on `*GA` tags and publishes
+    them as full (latest) releases.
+94. **Create a presence_index dir for an index module that just
+    redirects to /app/; serve it from a process-compose process (Python
+    http is fine) and map it on the Floci distribution.** (2026-09-26)
+    Added [presence_index/](../presence_index) (`site/index.html`: script
+    redirect, `meta refresh` and link) and a `5-index` process
+    (`python3 -m http.server` on 127.0.0.1:8081). It's the distribution's
+    default origin, so http://presence.localhost:4566/ redirects to
+    `/app/`. The health monitor gained `🏠 index` and waits for it, and
+    the dev container forwards 8081. Verified in headless Chrome.
+95. **Make the version X 0 and Y 1 in the files; trigger the release-ga
+    script; merge it all.** (2026-09-26) Merged #40 (version files), #41
+    (RC/GA scripts, retargeted to `main`) and #42 (`presence_index`,
+    after resolving its request-log conflict). Set `version.X.txt` to `0`
+    and `version.Y.txt` to `1`, merged that, and ran
+    `scripts/release-ga.sh` on `main` for the first GA release, `0.1.Z-GA`.
+96. **Can Floci use 8443 for SSL?** (2026-09-26) Yes:
     `FLOCI_TLS_AWS_HTTPS_PORT=8443` moves its extra HTTPS listener off
     the privileged 443. No code change.
-93. **Generate the required certs, if necessary, with mkcert and serve
+97. **Generate the required certs, if necessary, with mkcert and serve
     local HTTPS; start the services to check, and make sure the local
     HTTPS checks pass.** (2026-09-26)
     - Added mkcert and OpenSSL to devbox, and

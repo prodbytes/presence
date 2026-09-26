@@ -2,7 +2,8 @@
 # publishes them as a GitHub release.
 #
 # - Tag pushes matching *QA or *RC* (e.g. 1.2.0-QA, 1.2.0-RC1) release that
-#   tag as a prerelease.
+#   tag as a prerelease; *GA tags (e.g. 1.2.0-GA) as the latest full
+#   release. scripts/release-rc.sh and scripts/release-ga.sh push them.
 # - Manual dispatch releases the chosen tag, creating it on the dispatched
 #   commit if it doesn't exist yet.
 # - Pull requests that change the build only build (no release), so a broken
@@ -18,6 +19,7 @@ on:
     tags:
       - "*QA"
       - "*RC*"
+      - "*GA"
   workflow_dispatch:
     inputs:
       tag:
@@ -35,6 +37,9 @@ on:
       - Makefile
       - scripts/make.sh
       - scripts/dart-defines.sh
+      - scripts/version.sh
+      - version.X.txt
+      - version.Y.txt
 
 permissions:
   contents: read
@@ -51,7 +56,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      version_z: ${{ steps.version.outputs.version_z }}
+      build_number: ${{ steps.version.outputs.build_number }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - id: tag
         name: Resolve the release tag
         env:
@@ -78,6 +90,30 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release tag: $tag"
 
+      # One version for every platform's build. A tag that carries X.Y.Z
+      # (e.g. 1.0.202609261530-RC) keeps its Z, and its X.Y must match the
+      # version files; any other build gets Z from the current time.
+      - id: version
+        name: Resolve the version
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
+            export VERSION_Z="${BASH_REMATCH[3]}"
+            tag_xy="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          fi
+          source scripts/version.sh
+          if [[ -n "${tag_xy:-}" && "$tag_xy" != "$VERSION_X.$VERSION_Y" ]]; then
+            echo "::error::Tag $TAG is version $tag_xy, but version.X.txt/version.Y.txt say $VERSION_X.$VERSION_Y"
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "version_z=$VERSION_Z"
+            echo "build_number=$BUILD_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION (build $BUILD_NUMBER)"
+
   build:
     needs: prepare
     name: build (${{ matrix.target }})
@@ -97,6 +133,8 @@ jobs:
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
       TARGET: ${{ matrix.target }}
+      VERSION_Z: ${{ needs.prepare.outputs.version_z }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -183,7 +221,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          PRERELEASE: ${{ github.event_name == 'push' || inputs.prerelease }}
+          PRERELEASE: ${{ (github.event_name == 'push' && !endsWith(github.ref_name, 'GA')) || (github.event_name != 'push' && inputs.prerelease) }}
         run: |
           ls -l dist
           title="presence-$TAG"

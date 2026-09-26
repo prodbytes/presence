@@ -33,6 +33,14 @@ check_cdn() {
     fi
 }
 
+check_index() {
+    if curl -fs -o /dev/null --max-time 5 "http://localhost:${INDEX_PORT:-8081}/"; then
+        echo "🏠 index ✅"
+    else
+        echo "🏠 index ❌"
+    fi
+}
+
 # HTTPS through the CDN, validating the certificate against mkcert's CA (not
 # the system trust store, so it passes before `mkcert -install` too).
 MKCERT_CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"
@@ -48,6 +56,6 @@ check_https() {
 
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_web)" "$(check_api)" "$(check_cdn)" "$(check_https)"
+    printf '%s %s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_index)" "$(check_web)" "$(check_api)" "$(check_cdn)" "$(check_https)"
     sleep "$INTERVAL"
 done

@@ -12,7 +12,8 @@
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web), 3000 (SAM API), 4566 (Floci) and 8443 (Floci HTTPS).
+  (Flutter web), 3000 (SAM API), 4566 (Floci), 8081 (index) and 8443
+  (Floci HTTPS).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
@@ -27,15 +28,18 @@
     [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
     [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
     mkcert certificate exists
-  - the health monitor, which logs the status of the web app, the API, the
-    CDN and the CDN over HTTPS.
+  - the site index (`5-index`: `python3 -m http.server` on
+    http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
+  - the health monitor, which logs the status of the index, the web app,
+    the API, the CDN and the CDN over HTTPS.
 
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or
   `docker` is missing. It points SAM at the active Docker context's socket
   when `DOCKER_HOST` isn't set.
 
-  The health monitor waits until the web server, the API and Floci all pass
+  The health monitor waits until the web server, the API, Floci and the
+  index all pass
   their readiness probes (`depends_on: process_healthy`), so its first line
   is already green. The probes start after 1–2 s and poll every 2 s, with
   about 5 minutes of allowance for a first build. Measured on an Apple
@@ -81,7 +85,8 @@
   `presence_app/build/web/`, `make android` a release APK, `make ios` an
   unsigned `Runner.app` (signed with `IOS_CODESIGN=1`) and `make linux` the
   Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
-  (default), `profile` or `debug`. Plain `make` (`all`) builds every
+  (default), `profile` or `debug`. Every build is versioned `X.Y.Z` (see
+  [Versioning](release.md#versioning)). Plain `make` (`all`) builds every
   platform the host can build and skips the rest: iOS needs macOS and Linux
   needs a Linux host, and asking for either elsewhere fails. Verified: on
   the development Mac, web (with the web client ID compiled in and no

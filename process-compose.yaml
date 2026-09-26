@@ -8,6 +8,7 @@ processes:
       - SAM_API_PORT=${SAM_API_PORT:-3000}
       - FLOCI_PORT=${FLOCI_PORT:-4566}
       - PRESENCE_CDN_ALIAS=${PRESENCE_CDN_ALIAS:-presence.localhost}
+      - INDEX_PORT=${INDEX_PORT:-8081}
       - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     # Start logging once every service passes its readiness probe, so the
     # first status line reflects a fully started stack.
@@ -17,6 +18,8 @@ processes:
       3-sam-api:
         condition: process_healthy
       4-floci:
+        condition: process_healthy
+      5-index:
         condition: process_healthy
     availability:
       restart: on_failure
@@ -74,6 +77,23 @@ processes:
       period_seconds: 2
       timeout_seconds: 5
       failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  5-index:
+    # The site root (presence_index/site), which redirects to /app/. Floci's
+    # distribution uses it as the default origin.
+    command: python3 -m http.server ${INDEX_PORT:-8081} --bind 127.0.0.1 --directory presence_index/site
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${INDEX_PORT:-8081}
+        path: /
+      initial_delay_seconds: 1
+      period_seconds: 2
+      timeout_seconds: 5
+      failure_threshold: 30
     availability:
       restart: on_failure
       backoff_seconds: 5
