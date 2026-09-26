@@ -33,8 +33,21 @@ check_cdn() {
     fi
 }
 
+# HTTPS through the CDN, validating the certificate against mkcert's CA (not
+# the system trust store, so it passes before `mkcert -install` too).
+MKCERT_CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"
+check_https() {
+    local host="${PRESENCE_CDN_ALIAS:-presence.localhost}" port="${FLOCI_HTTPS_PORT:-8443}"
+    if curl -fs -o /dev/null --max-time 10 --cacert "$MKCERT_CA" \
+            --resolve "$host:$port:127.0.0.1" "https://$host:$port/app/"; then
+        echo "🔒 https ✅"
+    else
+        echo "🔒 https ❌"
+    fi
+}
+
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_web)" "$(check_api)" "$(check_cdn)"
+    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_web)" "$(check_api)" "$(check_cdn)" "$(check_https)"
     sleep "$INTERVAL"
 done

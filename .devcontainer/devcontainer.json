@@ -28,11 +28,12 @@
       ]
     }
   },
-  "forwardPorts": [8080, 3000, 4566],
+  "forwardPorts": [8080, 3000, 4566, 8443],
   "portsAttributes": {
     "8080": { "label": "Flutter web" },
     "3000": { "label": "SAM API" },
-    "4566": { "label": "Floci (CloudFront)" }
+    "4566": { "label": "Floci (CloudFront)" },
+    "8443": { "label": "Floci HTTPS" }
   },
   "postCreateCommand": "bash -lc 'devbox install'"
 }

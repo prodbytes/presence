@@ -15,7 +15,9 @@
     "aws-cdk-cli": "latest",
     "awscli2": "latest",
     "gnumake": "latest",
-    "curl": "latest"
+    "curl": "latest",
+    "mkcert": "latest",
+    "openssl": "latest"
   },
   "shell": {
     "scripts": {

@@ -23,6 +23,7 @@ start with `/api/`.
 |------|-------|
 | [compose.yaml](compose.yaml) | The `presence-floci` container, bound to 127.0.0.1 |
 | [init/ready.d/10-cloudfront.sh](init/ready.d/10-cloudfront.sh) | Ready hook: creates the cache policy, origin request policy and distribution |
+| `certs/` (git-ignored) | The local HTTPS certificate and key, from [scripts/local-certs.sh](../scripts/local-certs.sh) |
 
 ## How it works
 
@@ -52,11 +53,39 @@ start with `/api/`.
 - The health monitor's `☁️ cdn` check requests `/app/` with the alias as the
   `Host` header.
 
+## HTTPS
+
+Floci also serves the distribution over **HTTPS** with a local certificate:
+**https://presence.localhost:8443/app/** (and on 4566, which answers HTTP
+and HTTPS). The API is at `https://presence.localhost:8443/api/events`.
+
+- [scripts/local-certs.sh](../scripts/local-certs.sh) runs before Floci
+  starts. With [mkcert](https://github.com/FiloSottile/mkcert) (from
+  devbox), it writes `certs/presence.pem` and `certs/presence-key.pem` for
+  `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
+  and `::1`. It regenerates them only when they're missing, expire within
+  30 days or don't cover every name. `certs/` is git-ignored.
+- compose mounts `certs/` read-only and sets `FLOCI_TLS_ENABLED`,
+  `FLOCI_TLS_CERT_PATH`, `FLOCI_TLS_KEY_PATH` and
+  `FLOCI_TLS_AWS_HTTPS_PORT=8443`. 8443, rather than the default 443,
+  avoids binding a privileged port.
+- The certificate is signed by mkcert's local CA (`mkcert -CAROOT`). **To
+  have browsers trust it, run once:** `devbox run mkcert -install`. It asks
+  for your password, because it adds the CA to the system trust store.
+  Until then, curl and the health check validate against the CA file
+  directly, and browsers show a certificate warning.
+- Hot reload still works over HTTPS: the dev server's `ws://` channel to
+  `dev.presence.localhost` is allowed from an HTTPS page, because browsers
+  treat `*.localhost` as a secure origin.
+- The health monitor's `🔒 https` check fetches `/app/` over HTTPS and
+  validates the certificate against mkcert's CA.
+
 ## Settings
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `FLOCI_PORT` | `4566` | Host port for Floci |
+| `FLOCI_PORT` | `4566` | Host port for Floci (HTTP and HTTPS) |
+| `FLOCI_HTTPS_PORT` | `8443` | Host port for Floci's HTTPS-only listener |
 | `PRESENCE_CDN_ALIAS` | `presence.localhost` | Distribution alias (host name to browse) |
 | `PRESENCE_ORIGIN_HOST` | `dev.presence.localhost` | Origin host name: the Docker host inside the container, and loopback in the browser |
 

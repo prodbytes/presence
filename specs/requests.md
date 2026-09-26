@@ -517,3 +517,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
     check the trigger and the new name, and renamed the `1.0.0-RC1`
     release to `presence-1.0.0-RC1` to match.
+92. **Can Floci use 8443 for SSL?** (2026-09-26) Yes:
+    `FLOCI_TLS_AWS_HTTPS_PORT=8443` moves its extra HTTPS listener off
+    the privileged 443. No code change.
+93. **Generate the required certs, if necessary, with mkcert and serve
+    local HTTPS; start the services to check, and make sure the local
+    HTTPS checks pass.** (2026-09-26)
+    - Added mkcert and OpenSSL to devbox, and
+      [scripts/local-certs.sh](../scripts/local-certs.sh). It writes a
+      certificate for `presence.localhost` and friends into the git-ignored
+      `presence_floci/certs/`, only when needed, and runs before Floci
+      starts.
+    - Floci now loads it and serves HTTPS on 8443 (and 4566).
+    - Added a `🔒 https` health check that validates against mkcert's CA,
+      and a port 8443 forward in the dev container.
+    - Verified under `devbox services up`: `🔒 https ✅`, the mkcert
+      certificate served and verified, the app loaded over HTTPS with the
+      hot-reload WebSocket connected.
+    - `mkcert -install` (browser trust) needs the user's password, so it's
+      a one-time manual step.

@@ -10,6 +10,8 @@ services:
     container_name: presence-floci
     ports:
       - "127.0.0.1:${FLOCI_PORT:-4566}:4566"
+      # HTTPS with the mkcert certificate (4566 also answers HTTPS)
+      - "127.0.0.1:${FLOCI_HTTPS_PORT:-8443}:8443"
     extra_hosts:
       # The origin host (see init/ready.d/10-cloudfront.sh): the Docker host
       # in here, loopback in the browser.
@@ -17,6 +19,13 @@ services:
     environment:
       # Stateless: the ready hook recreates the distribution on every start.
       FLOCI_STORAGE_MODE: memory
+      # Local HTTPS: the certificate from scripts/local-certs.sh (mkcert),
+      # served on 8443 as well as 4566. 8443 instead of the default 443
+      # avoids binding a privileged port.
+      FLOCI_TLS_ENABLED: "true"
+      FLOCI_TLS_CERT_PATH: /etc/presence-certs/presence.pem
+      FLOCI_TLS_KEY_PATH: /etc/presence-certs/presence-key.pem
+      FLOCI_TLS_AWS_HTTPS_PORT: "8443"
       # CloudFront refuses private origins unless they're listed here.
       FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS: ${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}
       PRESENCE_ORIGIN_HOST: ${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}
@@ -25,3 +34,4 @@ services:
       SAM_API_PORT: ${SAM_API_PORT:-3000}
     volumes:
       - ./init/ready.d:/etc/floci/init/ready.d:ro
+      - ./certs:/etc/presence-certs:ro

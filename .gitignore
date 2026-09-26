@@ -92,3 +92,6 @@ cdk.out/
 .cdk.staging/
 
 *.local*
+
+# --- Local HTTPS (mkcert, see scripts/local-certs.sh) ---
+presence_floci/certs/
