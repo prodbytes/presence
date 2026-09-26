@@ -7,6 +7,8 @@
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
+#   WEB_BASE_HREF the web build's base href, e.g. /app/ for the deployed site
+#                 (where CloudFront serves the app); / by default
 # Settings such as the Google client IDs come from the repo's .env (see
 # .env.example), through the same allowlist as the run scripts.
 #
@@ -45,7 +47,9 @@ build() {
   echo "==> $target ($MODE, version $VERSION, build $BUILD_NUMBER)"
   case "$target" in
     web)
-      flutter build web "--$MODE" "${BUILD_ARGS[@]}"
+      local base=()
+      [[ -n "${WEB_BASE_HREF:-}" ]] && base=(--base-href "$WEB_BASE_HREF")
+      flutter build web "--$MODE" ${base[@]+"${base[@]}"} "${BUILD_ARGS[@]}"
       echo "==> web: presence_app/build/web/"
       ;;
     android)

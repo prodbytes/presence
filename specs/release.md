@@ -6,7 +6,9 @@ app binaries with `make` and publishes them as a GitHub release.
 - **Triggers:**
   - A pushed tag matching `*QA` or `*RC*` (e.g. `1.2.0-QA`, `1.2.0-RC1`)
     is released as a **prerelease** under that tag.
-  - A pushed tag matching `*GA` (e.g. `1.0.202609261530-GA`) is released
+  - A pushed tag matching `*GA` (e.g. `1.0.202609261530-GA`) is also
+    deployed to https://presence.nu01.com by the Deploy workflow (see
+    [Production deploy](deploy.md)). It's released
     as a full release, which GitHub marks as the latest.
   - **Manual dispatch** (Actions → Release → Run workflow) takes an
     optional `tag` and a `prerelease` switch (on by default). An empty tag

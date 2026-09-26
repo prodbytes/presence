@@ -11,7 +11,9 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
   unchanged. It's a scaffold: no event
   store is wired in yet, and the app doesn't call it.
 - Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
-- Not deployed yet. The commands are in the module's
+- Deployed to production by `*GA` tags, behind https://presence.nu01.com/api/
+  (see [Production deploy](deploy.md)); its `ApiDomain` output is the
+  CloudFront origin. The commands are in the module's
   [README](../presence_api_events/README.md).
 - Runs locally under `devbox services up` (see
   [Development environment](dev-environment.md)).
