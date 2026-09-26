@@ -72,8 +72,8 @@
   secret), a release APK (`com.nu01.presence`, arm64/armv7/x86_64, signed
   with the debug key because no release key exists yet) and an arm64
   `Runner.app`; and `make linux` in a Linux arm64 container with Flutter
-  3.47.5, which built the GTK bundle. The iOS build has no client ID until
-  `GOOGLE_IOS_CLIENT_ID` is filled in `.env`.
+  3.47.5, which built the GTK bundle. CI builds the same targets for
+  releases; see [Release builds](release.md).
 
 - **AWS SAM:** building and deploying `presence_api_events` needs the SAM
   CLI, JDK 25 (from devbox's GraalVM), Maven 3.9+ and Docker. The SAM CLI
