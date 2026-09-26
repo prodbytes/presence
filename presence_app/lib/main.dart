@@ -8,6 +8,10 @@ import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'cloud/cloud_config.dart';
+import 'cloud/cloud_sync.dart';
+import 'cloud/cognito.dart';
+import 'cloud/s3.dart';
 import 'config.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
@@ -29,7 +33,12 @@ class PresenceApp extends StatefulWidget {
     this.mediaIo,
     this.now,
     this.auth,
+    this.cloud,
   });
+
+  /// Overrides cloud uploads (used by tests); defaults to Cognito + S3
+  /// when `CloudConfig` is set, and none otherwise.
+  final CloudBackend? cloud;
 
   /// Overrides the clock (used by tests).
   final DateTime Function()? now;
@@ -86,6 +95,29 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     )..load();
     _auth.init().ignore();
+    final cloud =
+        widget.cloud ??
+        (CloudConfig.enabled
+            ? AwsCloudBackend(
+                cognito: CognitoCredentials(
+                  region: CloudConfig.region,
+                  identityPoolId: CloudConfig.identityPoolId,
+                ),
+                bucket: S3Bucket(
+                  bucket: CloudConfig.userDataBucket,
+                  region: CloudConfig.region,
+                ),
+              )
+            : null);
+    _sync = cloud == null
+        ? null
+        : CloudSync(
+            auth: _auth,
+            backend: cloud,
+            store: _persistence.store,
+            media: _persistence.media,
+            changes: _persistence.changes,
+          );
     _persistence
       ..attachRig(_rig)
       ..restore(_log).catchError((Object e) {
@@ -95,6 +127,7 @@ class _PresenceAppState extends State<PresenceApp> {
   }
 
   late final AuthService _auth;
+  CloudSync? _sync;
   String? _signedInAs;
 
   /// Sign-ins and sign-outs go on the event stream too.
@@ -113,6 +146,7 @@ class _PresenceAppState extends State<PresenceApp> {
   @override
   void dispose() {
     _auth.removeListener(_onAuthChanged);
+    _sync?.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -130,7 +164,13 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(log: _log, rig: _rig, config: _config, auth: _auth),
+        home: HomeScreen(
+          log: _log,
+          rig: _rig,
+          config: _config,
+          auth: _auth,
+          sync: _sync,
+        ),
       ),
     );
   }
@@ -162,12 +202,17 @@ class HomeScreen extends StatefulWidget {
     required this.rig,
     required this.config,
     required this.auth,
+    this.sync,
   });
 
   final EventLog log;
   final CameraRig rig;
   final ConfigController config;
   final AuthService auth;
+
+  /// Cloud uploads, when configured (their status shows in the account
+  /// sheet).
+  final CloudSync? sync;
 
   /// Width of each icon tab: Material's 48 dp minimum touch target, which
   /// leaves room for the title on 320 dp phones.
@@ -313,7 +358,7 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ),
             // Account (who's signed in, sign out): an action, not a tab.
-            AccountButton(auth: widget.auth),
+            AccountButton(auth: widget.auth, sync: widget.sync),
             const SizedBox(width: 4),
           ],
         ],
@@ -345,7 +390,8 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ],
       ),
-      floatingActionButton: _onCamera
+      // Signed out, the camera shows with no buttons at all.
+      floatingActionButton: _onCamera && _signedIn
           ? ListenableBuilder(
               listenable: widget.rig,
               // Each button is hidden, not disabled, when it can't act.

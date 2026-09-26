@@ -1,13 +1,19 @@
-# presence_infra_web
+# presence_infra
 
-Production infrastructure for **https://presence.nu01.com**, as
-CloudFormation templates. The events API has its own SAM template
+The production infrastructure, as CloudFormation templates. The events API
+has its own SAM template
 ([presence_api_events/template.yaml](../presence_api_events/template.yaml)).
 
 | Template | Stack | Holds |
 |---|---|---|
-| [site.yaml](site.yaml) | `presence-web` | ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution and the Route 53 A/AAAA aliases |
+| [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution and the Route 53 A/AAAA aliases |
+| [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, with CORS for the app's origins |
+| [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix. See [specs/cloud-sync.md](../specs/cloud-sync.md) |
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider and the `presence-github-deploy` role that the Deploy workflow assumes |
+
+`scripts/deploy.sh` deploys every stack except `presence-github-deploy`, in
+this order: `presence-user-data`, `presence-identity`, then the API
+(`presence-api-events`), then `presence-web`.
 
 ## The distribution
 
@@ -46,14 +52,15 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
    ```bash
    aws cloudformation deploy --region us-east-1 \
      --stack-name presence-github-deploy \
-     --template-file presence_infra_web/github-deploy.yaml \
+     --template-file presence_infra/github-deploy.yaml \
      --capabilities CAPABILITY_NAMED_IAM
    ```
 
    The role trusts only tokens for `repo:prodbytes/presence:ref:refs/tags/*GA`.
    Its permissions cover the Presence stacks: CloudFormation, S3, Lambda,
-   API Gateway, the `presence-*` IAM roles, CloudFront, ACM, and the
-   `nu01.com` zone.
+   API Gateway, the `presence-*` IAM roles (passed only to Lambda and
+   Cognito), Cognito identity pools, CloudFront, ACM, and the `nu01.com`
+   zone.
 
 2. Set the repository variable to the stack's `DeployRoleArn` output:
 

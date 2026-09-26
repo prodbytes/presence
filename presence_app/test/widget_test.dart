@@ -132,10 +132,14 @@ void main() {
       PresenceApp(cameras: backend, auth: FakeAuthService()),
     );
 
-    // Signed out: the camera (and its controls) show; navigation doesn't.
+    // Signed out: the camera shows, with no buttons on it and no
+    // navigation; only the sign-in button in the app bar.
     expect(backend.opened, [camera.id]);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
-    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byTooltip('Clip'), findsNothing);
+    expect(find.byTooltip('Flip camera'), findsNothing);
+    expect(find.byType(ReadinessIndicator), findsNothing);
+    expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(TabBar), findsNothing);
     expect(find.byKey(const Key('account-button')), findsNothing);
     expect(find.byKey(const Key('sign-in-screen')), findsNothing);
@@ -143,7 +147,9 @@ void main() {
     await tester.tap(find.byKey(const Key('google-sign-in')));
     await tester.pumpAndSettle();
 
-    // Signed in: the tabs and the account button, with the identity.
+    // Signed in: the camera's buttons, the tabs and the account button.
+    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byType(ReadinessIndicator), findsOneWidget);
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(
@@ -170,6 +176,7 @@ void main() {
     expect(find.byType(TabBar), findsNothing);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+    expect(find.byTooltip('Clip'), findsNothing);
     expect(camera.disposed, isFalse);
     expect(backend.opened, [camera.id]);
     await tester.pump(const Duration(seconds: 1));

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/auth/auth_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
+import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/storage/media_store.dart';
 
 /// A valid 1×1 PNG, so `Image.memory` can decode fake thumbnails.
@@ -181,6 +182,8 @@ class FakeAuthService extends AuthService {
   @override
   AuthUser? get user => _user;
   @override
+  String? get idToken => _user == null ? null : 'id-token-${_user!.id}';
+  @override
   bool get available => true;
   @override
   String? get unavailableReason => null;
@@ -202,4 +205,48 @@ class FakeAuthService extends AuthService {
 
   @override
   Widget? buildSignInButton() => null;
+}
+
+/// Records uploads; can be told to fail.
+class FakeCloudBackend implements CloudBackend {
+  final uploads = <String, ({Uint8List bytes, String contentType})>{};
+  final tokens = <String>[];
+  int resets = 0;
+
+  /// Thrown by the next connect(), once.
+  Object? failConnect;
+
+  /// Thrown by the next put(), once.
+  Object? failPut;
+
+  @override
+  Future<CloudSession> connect(String idToken) async {
+    tokens.add(idToken);
+    if (failConnect case final e?) {
+      failConnect = null;
+      throw e;
+    }
+    return FakeCloudSession(this);
+  }
+
+  @override
+  void reset() => resets++;
+}
+
+class FakeCloudSession implements CloudSession {
+  FakeCloudSession(this.backend);
+
+  final FakeCloudBackend backend;
+
+  @override
+  String get prefix => 'us-east-1:identity';
+
+  @override
+  Future<void> put(String key, Uint8List bytes, String contentType) async {
+    if (backend.failPut case final e?) {
+      backend.failPut = null;
+      throw e;
+    }
+    backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
+  }
 }

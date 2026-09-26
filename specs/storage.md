@@ -21,7 +21,7 @@ Everything goes through `EventStore` and `MediaStore`.
 - drift remains the upgrade path if SQL queries or mobile clip storage are
   needed; everything goes through `EventStore`, so it can be swapped out.
 
-**Database `presence`, version 1:**
+**Database `presence`, version 2** (version 2 added `synced`):
 
 | Store | Key | Holds |
 |-------|-----|-------|
@@ -30,6 +30,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
 | `settings` | name (`config`) | the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade) |
+| `synced` | S3 object key | a fingerprint of what was uploaded there ([cloud sync](cloud-sync.md)) |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The

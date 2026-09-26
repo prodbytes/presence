@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  presence-identity: a Cognito identity pool that trusts Google sign-in. The
+  app exchanges the signed-in user's Google ID token for temporary AWS
+  credentials of the authenticated role, which may only read and write that
+  user's own prefix in the user-data bucket (presence-user-data stack).
+  Guests (unauthenticated identities) aren't allowed.
+
+Parameters:
+  GoogleWebClientId:
+    Type: String
+    Description: >
+      The Google "Web application" OAuth client ID. Every platform's ID token
+      is issued for it (web directly; Android and iOS as their server client).
+    AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+
+Resources:
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: presence
+      AllowUnauthenticatedIdentities: false
+      AllowClassicFlow: false
+      SupportedLoginProviders:
+        accounts.google.com: !Ref GoogleWebClientId
+
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Signed-in Presence users (Cognito identity pool, Google)
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                cognito-identity.amazonaws.com:aud: !Ref IdentityPool
+              ForAnyValue:StringLike:
+                cognito-identity.amazonaws.com:amr: authenticated
+      Policies:
+        - PolicyName: own-user-data
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Each user reaches only <bucket>/<their identity ID>/...
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource: !Sub
+                  - ${BucketArn}/${!cognito-identity.amazonaws.com:sub}/*
+                  - BucketArn: !ImportValue presence-user-data-bucket-arn
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !ImportValue presence-user-data-bucket-arn
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - ${cognito-identity.amazonaws.com:sub}
+                      - ${cognito-identity.amazonaws.com:sub}/*
+
+  IdentityPoolRoles:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+
+Outputs:
+  IdentityPoolId:
+    Description: The app's COGNITO_IDENTITY_POOL_ID
+    Value: !Ref IdentityPool
+  AuthenticatedRoleArn:
+    Value: !GetAtt AuthenticatedRole.Arn

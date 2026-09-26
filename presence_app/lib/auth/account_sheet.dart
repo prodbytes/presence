@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../cloud/cloud_sync.dart';
 import 'auth_service.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
 /// icon otherwise. Opens [AccountSheet].
 class AccountButton extends StatelessWidget {
-  const AccountButton({super.key, required this.auth});
+  const AccountButton({super.key, required this.auth, this.sync});
 
   final AuthService auth;
+  final CloudSync? sync;
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +26,7 @@ class AccountButton extends StatelessWidget {
           onPressed: () => showModalBottomSheet<void>(
             context: context,
             showDragHandle: true,
-            builder: (_) => AccountSheet(auth: auth),
+            builder: (_) => AccountSheet(auth: auth, sync: sync),
           ),
         );
       },
@@ -59,9 +61,12 @@ class SignInAction extends StatelessWidget {
 
 /// Sign in with Google, or show who is signed in and offer sign-out.
 class AccountSheet extends StatelessWidget {
-  const AccountSheet({super.key, required this.auth});
+  const AccountSheet({super.key, required this.auth, this.sync});
 
   final AuthService auth;
+
+  /// Cloud uploads, when configured: their status shows under the email.
+  final CloudSync? sync;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +118,10 @@ class AccountSheet extends StatelessWidget {
                     user.email,
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
+                  if (sync case final sync?) ...[
+                    const SizedBox(height: 8),
+                    CloudSyncStatus(sync: sync),
+                  ],
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     key: const Key('sign-out'),
@@ -162,6 +171,58 @@ class UserAvatar extends StatelessWidget {
       foregroundImage: photo == null ? null : NetworkImage(photo),
       onForegroundImageError: photo == null ? null : (_, _) {},
       child: Text(initial, style: TextStyle(fontSize: radius * 0.9)),
+    );
+  }
+}
+
+/// One line about cloud uploads: syncing, synced (and how many), or why not.
+class CloudSyncStatus extends StatelessWidget {
+  const CloudSyncStatus({super.key, required this.sync});
+
+  final CloudSync sync;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: sync,
+      builder: (context, _) {
+        final (icon, text, color) = switch (sync.state) {
+          CloudSyncState.off => (
+            Icons.cloud_off_outlined,
+            'Cloud backup is off',
+            scheme.onSurfaceVariant,
+          ),
+          CloudSyncState.syncing => (
+            Icons.cloud_upload_outlined,
+            'Uploading…',
+            scheme.onSurfaceVariant,
+          ),
+          CloudSyncState.synced => (
+            Icons.cloud_done_outlined,
+            sync.uploaded == 0
+                ? 'Clips and events are backed up'
+                : 'Backed up (${sync.uploaded} uploaded)',
+            scheme.onSurfaceVariant,
+          ),
+          CloudSyncState.error => (
+            Icons.cloud_off_outlined,
+            sync.error ?? 'Upload failed',
+            scheme.error,
+          ),
+        };
+        return Row(
+          key: const Key('cloud-sync-status'),
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            Icon(icon, size: 18, color: color),
+            Flexible(
+              child: Text(text, style: TextStyle(color: color)),
+            ),
+          ],
+        );
+      },
     );
   }
 }

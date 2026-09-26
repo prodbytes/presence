@@ -8,10 +8,10 @@ there's no separate sign-in screen:
   (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
   Manager's authorized accounts on Android, the saved session on iOS). The
   camera opens right away either way.
-- **Signed out:** the camera shows full screen with its controls (flip,
-  Clip, readiness), always recording as usual, but the **navigation is
-  hidden**: the app bar has only the "Presence" title and **Sign in with
-  Google**. You can't switch or swipe to Events or Settings, and the clip
+- **Signed out:** the camera shows full screen, always recording as
+  usual, with **no buttons on it** (no Flip, Clip or readiness), and the
+  **navigation is hidden**: the app bar has only the "Presence" title and
+  **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
   `renderButton` with FedCM, medium size to fit the app bar), as Google
   Identity Services requires. On Android and iOS it's an app button that
@@ -19,15 +19,19 @@ there's no separate sign-in screen:
   or the Google SDK. While the launch check runs, the button is hidden. If
   no client ID is configured, a person icon opens a sheet saying sign-in
   isn't set up. Sign-in errors pop a message.
-- **Signed in:** all the buttons: the Camera / Events / Settings tabs and
+- **Signed in:** all the buttons: the camera's Flip, Clip and readiness,
+  the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
-  <name> · <email>". It opens a bottom sheet with avatar, name, email and
-  **Sign out**. Signing out closes the sheet, returns to the camera and
+  <name> · <email>". It opens a bottom sheet with avatar, name, email, the
+  [cloud sync](cloud-sync.md) status and **Sign out**. Signing out closes the sheet, returns to the camera and
   hides the navigation again. The camera keeps running.
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
-- Sign-in only identifies the user for now: there's no backend, and data
-  stays on the device.
+- Signing in also turns on [cloud sync](cloud-sync.md): the user's Google
+  ID token (`AuthService.idToken`) is exchanged with Cognito for temporary
+  AWS credentials, and clips and events upload to S3. On iOS the app now
+  also passes the web client as `serverClientId`, so, as on Android and
+  web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
 

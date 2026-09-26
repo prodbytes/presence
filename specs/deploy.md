@@ -18,7 +18,11 @@ One CloudFront distribution serves the whole site, laid out like the local
 | `/api/*` | API Gateway (origin path `/Prod`): the [events API](events-api.md). Not cached, with every viewer header but `Host` forwarded |
 
 - **Infrastructure as code:**
-  - [presence_infra_web/site.yaml](../presence_infra_web/site.yaml), stack
+  - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
+    [identity.yaml](../presence_infra/identity.yaml), stacks
+    `presence-user-data` and `presence-identity`: the bucket and identity
+    pool for [cloud sync](cloud-sync.md).
+  - [presence_infra/site.yaml](../presence_infra/site.yaml), stack
     `presence-web`: an ACM certificate for `presence.nu01.com`
     (DNS-validated in the `nu01.com` zone), a private S3 bucket readable
     only by the distribution (OAC), the distribution (HTTP/2 and HTTP/3,
@@ -32,8 +36,10 @@ One CloudFront distribution serves the whole site, laid out like the local
   Flutter's web files aren't content-hashed, and every deploy invalidates
   `/*`. Unknown paths return 404 (the bucket policy allows `ListBucket` for
   the distribution).
-- **`scripts/deploy.sh`** builds the web app for `/app/` (`make web` with
-  `WEB_BASE_HREF=/app/`), with the version from the tag. It then runs
+- **`scripts/deploy.sh`** first deploys `user-data.yaml` and
+  `identity.yaml` ([cloud sync](cloud-sync.md)). It then builds the web app
+  for `/app/` (`make web` with `WEB_BASE_HREF=/app/`), with the version from
+  the tag and the identity pool and bucket IDs. After that it runs
   `sam build` and `sam deploy`, deploys `site.yaml`, uploads, invalidates,
   and **smoke-tests the live site**: `/app/version.json` must report the
   tag's version, `/` must be the index page, and `/app/` and `/api/events`
@@ -43,7 +49,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 
 - The workflow has no AWS keys. It exchanges GitHub's OIDC token for the
   `presence-github-deploy` role
-  ([presence_infra_web/github-deploy.yaml](../presence_infra_web/github-deploy.yaml)),
+  ([presence_infra/github-deploy.yaml](../presence_infra/github-deploy.yaml)),
   whose ARN is the repository variable `AWS_DEPLOY_ROLE_ARN`.
 - The role trusts only `repo:prodbytes/presence:ref:refs/tags/*GA`, so the
   job has no `environment:`, which would change that subject. Its
@@ -51,7 +57,7 @@ One CloudFront distribution serves the whole site, laid out like the local
   Lambda, API Gateway, `presence-*` IAM roles, CloudFront, ACM and the
   `nu01.com` zone.
 - An administrator deploys that stack once (it creates IAM resources); the
-  commands are in [presence_infra_web/README.md](../presence_infra_web/README.md).
+  commands are in [presence_infra/README.md](../presence_infra/README.md).
 - The Google web client ID comes from the repository variable
   `GOOGLE_WEB_CLIENT_ID`.
 

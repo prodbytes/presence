@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  presence-user-data: the bucket for users' data. The app uploads each signed-in
+  user's clips (videos) and events here, under the user's Cognito identity ID
+  (<identityId>/clips/..., <identityId>/events/...), straight from the device
+  with the temporary credentials from identity.yaml.
+
+Parameters:
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: https://presence.nu01.com,https://local.presence.nu01.com:8443,http://localhost:8080
+    Description: Web origins the app runs on (browser uploads need CORS)
+
+Resources:
+  UserDataBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      # A re-upload or an app bug can't destroy a recording: old versions
+      # stay for 30 days.
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+          - Id: abort-incomplete-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Ref AllowedOrigins
+            AllowedMethods: [GET, PUT, HEAD]
+            AllowedHeaders: ['*']
+            ExposedHeaders: [ETag]
+            MaxAge: 3600
+
+  UserDataBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref UserDataBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt UserDataBucket.Arn
+              - !Sub ${UserDataBucket.Arn}/*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+Outputs:
+  UserDataBucketName:
+    Description: The app's USER_DATA_BUCKET
+    Value: !Ref UserDataBucket
+    Export:
+      Name: presence-user-data-bucket
+  UserDataBucketArn:
+    Value: !GetAtt UserDataBucket.Arn
+    Export:
+      Name: presence-user-data-bucket-arn

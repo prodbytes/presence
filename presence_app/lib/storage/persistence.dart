@@ -43,6 +43,7 @@ class Persistence {
   late final Future<MediaStore> _media;
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
+  final StreamController<void> _changes = StreamController<void>.broadcast();
   CameraRig? _rig;
   List<CameraDevice>? _saved;
   bool _disposed = false;
@@ -96,6 +97,14 @@ class Persistence {
     _rig = rig..addListener(_saveCameras);
   }
 
+  /// The open database and recordings, for readers such as `CloudSync`.
+  Future<EventStore> get store => _store;
+  Future<MediaStore> get media => _media;
+
+  /// Fires after an event is saved, and again when its clip's recording is
+  /// complete (so uploads can follow).
+  Stream<void> get changes => _changes.stream;
+
   /// Completes when all writes issued so far have finished (for tests).
   Future<void> flush() => Future.wait(List.of(_pending));
 
@@ -104,6 +113,7 @@ class Persistence {
     _subscription.cancel();
     config.removeListener(_saveConfig);
     _rig?.removeListener(_saveCameras);
+    _changes.close();
     // Let in-flight writes finish before closing the database.
     Future.wait(List.of(_pending))
         .then((_) => _store)
@@ -121,13 +131,19 @@ class Persistence {
       final store = await _store;
       try {
         await store.putEvent(event.toRecord());
+        _changed();
       } catch (e) {
         debugPrint('Presence: could not save event ${event.id}: $e');
       }
       if (event is ClipRequested && event.clip.capture != null) {
         await _ClipWriter(store, await _media, event).run();
+        _changed();
       }
     }());
+  }
+
+  void _changed() {
+    if (!_changes.isClosed) _changes.add(null);
   }
 
   void _saveConfig() {

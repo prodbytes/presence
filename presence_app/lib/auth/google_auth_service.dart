@@ -20,6 +20,7 @@ import 'google_config.dart';
 /// - **iOS:** the Google Sign-In SDK, restoring the previous sign-in.
 class GoogleAuthService extends AuthService {
   AuthUser? _user;
+  String? _idToken;
   bool _checking = true;
   String? _error;
   String? _unavailable;
@@ -27,6 +28,9 @@ class GoogleAuthService extends AuthService {
 
   @override
   AuthUser? get user => _user;
+
+  @override
+  String? get idToken => _idToken;
 
   @override
   bool get checking => _checking;
@@ -40,16 +44,19 @@ class GoogleAuthService extends AuthService {
   @override
   String? get error => _error;
 
-  /// The client ID this platform needs, and the server client ID for
-  /// Android (which identifies the app to Google via the web client).
+  /// The client ID this platform needs, and the server client ID: the web
+  /// client, so every platform's ID token is issued for it (the one client
+  /// Cognito trusts). Android has no client ID of its own in the app.
   static ({String? clientId, String? serverClientId}) get _ids {
     const web = GoogleConfig.webClientId;
     const ios = GoogleConfig.iosClientId;
     String? orNull(String s) => s.isEmpty ? null : s;
     if (kIsWeb) return (clientId: orNull(web), serverClientId: null);
     return switch (defaultTargetPlatform) {
-      TargetPlatform.iOS ||
-      TargetPlatform.macOS => (clientId: orNull(ios), serverClientId: null),
+      TargetPlatform.iOS || TargetPlatform.macOS => (
+        clientId: orNull(ios),
+        serverClientId: orNull(web),
+      ),
       _ => (clientId: null, serverClientId: orNull(web)),
     };
   }
@@ -104,8 +111,10 @@ class GoogleAuthService extends AuthService {
           name: user.displayName,
           photoUrl: user.photoUrl,
         );
+        _idToken = user.authentication.idToken;
       case GoogleSignInAuthenticationEventSignOut():
         _user = null;
+        _idToken = null;
     }
     notifyListeners();
   }

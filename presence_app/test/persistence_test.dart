@@ -4,6 +4,7 @@ import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
+import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -23,6 +24,7 @@ void main() {
   Future<void> launch(
     WidgetTester tester, {
     List<FakeCameraSource> cameras = const [],
+    CloudBackend? cloud,
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -36,6 +38,7 @@ void main() {
         mediaIo: fakeMediaIo,
         now: () => clock,
         auth: FakeAuthService.signedIn(),
+        cloud: cloud,
       ),
     );
     await tester.pumpAndSettle();
@@ -140,6 +143,46 @@ void main() {
     expect(clip.full!.end, full.end);
     // Stored recordings are loaded from IndexedDB when played.
     expect(await run(tester, clip.full!.resolveUrl()), 'restored:blob:full');
+  });
+
+  testWidgets('signed in, a finished clip and its events upload to the cloud', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    final camera = FakeCameraSource('Front door');
+    await launch(tester, cameras: [camera], cloud: cloud);
+    await pressClip(tester);
+    camera.pastCompleters.single.complete(past);
+    await settleStorage(tester);
+    camera.fullCompleters.single.complete(full);
+    await settleStorage(tester);
+    await settleStorage(tester);
+
+    final clipId = clipEvent(tester).clip.id;
+    final prefix = 'us-east-1:identity';
+    expect(cloud.tokens, isNotEmpty);
+    // The full recording (its stored bytes), thumbnail and details.
+    final video = cloud.uploads['$prefix/clips/$clipId.webm'];
+    expect(video, isNotNull);
+    expect(String.fromCharCodes(video!.bytes), 'blob:full');
+    expect(cloud.uploads, contains('$prefix/clips/$clipId.jpg'));
+    expect(cloud.uploads, contains('$prefix/clips/$clipId.json'));
+    // Every event, the clip's included.
+    final events = cloud.uploads.keys.where(
+      (k) => k.startsWith('$prefix/events/'),
+    );
+    expect(events.length, greaterThanOrEqualTo(2));
+
+    // The account sheet says so.
+    await tester.tap(find.byKey(const Key('account-button')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('cloud-sync-status')),
+        matching: find.textContaining('Backed up'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the before-only file is deleted once the full clip is saved', (

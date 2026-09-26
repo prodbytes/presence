@@ -3,7 +3,7 @@ Description: >
   presence-github-deploy: lets GitHub Actions deploy Presence to production.
   An OIDC identity provider for token.actions.githubusercontent.com and a
   role that only *GA tag runs of the repository can assume. Deployed once,
-  by hand (see presence_infra_web/README.md).
+  by hand (see presence_infra/README.md).
 
 Parameters:
   GitHubRepository:
@@ -115,7 +115,25 @@ Resources:
                 Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-*
                 Condition:
                   StringEquals:
-                    iam:PassedToService: lambda.amazonaws.com
+                    iam:PassedToService:
+                      - lambda.amazonaws.com
+                      - cognito-identity.amazonaws.com
+              # User data: the Cognito identity pool (presence_infra/identity.yaml)
+              - Effect: Allow
+                Action:
+                  - cognito-identity:CreateIdentityPool
+                  - cognito-identity:DescribeIdentityPool
+                  - cognito-identity:UpdateIdentityPool
+                  - cognito-identity:DeleteIdentityPool
+                  - cognito-identity:SetIdentityPoolRoles
+                  - cognito-identity:GetIdentityPoolRoles
+                  - cognito-identity:TagResource
+                  - cognito-identity:UntagResource
+                  - cognito-identity:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+              - Effect: Allow
+                Action: cloudformation:ListExports
+                Resource: '*'
               # The site: CloudFront, its certificate and DNS records
               - Effect: Allow
                 Action: cloudfront:*

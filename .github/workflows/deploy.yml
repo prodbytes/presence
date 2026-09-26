@@ -4,7 +4,7 @@
 # tag's version.
 #
 # AWS access is keyless: GitHub's OIDC token is exchanged for the
-# presence-github-deploy role (presence_infra_web/github-deploy.yaml), which
+# presence-github-deploy role (presence_infra/github-deploy.yaml), which
 # only trusts *GA tag runs of this repository. Its ARN is the repository
 # variable AWS_DEPLOY_ROLE_ARN. The Google web client ID is the repository
 # variable GOOGLE_WEB_CLIENT_ID (a public identifier, compiled into the app).

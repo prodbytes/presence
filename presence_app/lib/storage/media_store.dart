@@ -13,6 +13,9 @@ abstract class MediaStore {
   /// A playable URL (web) or file path (Android) for a saved recording.
   Future<String> load(String id, String mimeType);
 
+  /// A saved recording's bytes (for uploading it).
+  Future<Uint8List> bytes(String id);
+
   /// Saves [clip] and deletes the recordings in [deleteIds], atomically
   /// where the backend allows it.
   Future<void> commitClip(
@@ -52,6 +55,13 @@ class IdbMediaStore implements MediaStore {
     final bytes = await _store.getMedia(id);
     if (bytes == null) throw StateError('Recording $id is missing');
     return _io.createUrl(bytes, mimeType);
+  }
+
+  @override
+  Future<Uint8List> bytes(String id) async {
+    final bytes = await _store.getMedia(id);
+    if (bytes == null) throw StateError('Recording $id is missing');
+    return bytes;
   }
 
   @override
