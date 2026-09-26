@@ -365,7 +365,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
-72. **Fix the devbox GraalVM package with a multi-platform one.**
+
+## 2026-09-26
+
+72. **Split the spec into separate specs per feature, one file per
+    feature.** Split `specs/README.md` into feature files (navigation,
+    theme, camera, events, clips, motion clips, sign-in, configuration,
+    settings, storage, app icon, platforms, Android, iOS, development
+    environment). The README now holds the product summary, an index of the
+    feature files and the workflow. The old "Known limitations" list moved
+    into the feature each item belongs to. The spec rule in
+    [CLAUDE.md](../CLAUDE.md) now says to revise the affected feature files.
+73. **Fix the devbox GraalVM package with a multi-platform one.**
     (2026-09-26) Replaced `graalvmPackages.graalvm-ce-musl` (Linux-only,
     which made `devbox install` fail on macOS) with
     `graalvmPackages.graalvm-ce` 25.2.4 (JDK 25.0.4, with `native-image`),
