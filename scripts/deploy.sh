@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Deploys Presence to production, https://presence.nu01.com:
-#   1. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/)
-#   2. deploys the events API (sam build + sam deploy: presence-api-events)
-#   3. deploys the site (CloudFormation presence_infra_web/site.yaml:
+#   1. deploys the user data stacks (presence_infra/user-data.yaml: the
+#      bucket; presence_infra/identity.yaml: the Cognito identity pool)
+#   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
+#      with the pool and bucket from step 1
+#   3. deploys the events API (sam build + sam deploy: presence-api-events)
+#   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS)
-#   4. uploads the index page (/) and the web build (/app/), and
+#   5. uploads the index page (/) and the web build (/app/), and
 #      invalidates the CloudFront cache
-#   5. smoke-tests the live site: /app/version.json must report this
+#   6. smoke-tests the live site: /app/version.json must report this
 #      version, / must be the index page and /api/events must answer
 #
 # Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
@@ -16,6 +19,8 @@
 #                is the current time)
 #   AWS_REGION   default us-east-1 (CloudFront certificates live there)
 #   SKIP_BUILD   1 to deploy an existing presence_app/build/web
+#   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
+#                (default: the repo's .env)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -24,6 +29,8 @@ export AWS_REGION="${AWS_REGION:-us-east-1}"
 export AWS_DEFAULT_REGION="$AWS_REGION"
 API_STACK=presence-api-events
 SITE_STACK=presence-web
+USER_DATA_STACK=presence-user-data
+IDENTITY_STACK=presence-identity
 DOMAIN=presence.nu01.com
 
 if [[ "${TAG:-}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
@@ -47,7 +54,28 @@ stack_output() { # stack_output <stack> <output key>
     --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text
 }
 
-# 1. The web app
+# 1. User data: the bucket, then the identity pool (which imports it)
+if [[ -z "${GOOGLE_WEB_CLIENT_ID:-}" && -f .env ]]; then
+  GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env | tail -1)"
+fi
+if [[ -z "${GOOGLE_WEB_CLIENT_ID:-}" ]]; then
+  echo "error: GOOGLE_WEB_CLIENT_ID isn't set (environment or .env)" >&2
+  exit 1
+fi
+echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
+aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
+  --template-file presence_infra/user-data.yaml --no-fail-on-empty-changeset
+aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
+  --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
+  --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+  --no-fail-on-empty-changeset
+# The app reads these at build time (scripts/dart-defines.sh).
+export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID
+USER_DATA_BUCKET="$(stack_output "$USER_DATA_STACK" UserDataBucketName)"
+COGNITO_IDENTITY_POOL_ID="$(stack_output "$IDENTITY_STACK" IdentityPoolId)"
+echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID"
+
+# 2. The web app
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
   echo "==> building the web app for /app/"
   WEB_BASE_HREF=/app/ bash scripts/make.sh web
@@ -59,7 +87,7 @@ if [[ "$built" != "$VERSION" ]]; then
   exit 1
 fi
 
-# 2. The events API
+# 3. The events API
 echo "==> deploying $API_STACK"
 (
   cd presence_api_events
@@ -70,17 +98,17 @@ echo "==> deploying $API_STACK"
 api_domain="$(stack_output "$API_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
 
-# 3. The site
+# 4. The site
 echo "==> deploying $SITE_STACK"
 aws cloudformation deploy --stack-name "$SITE_STACK" \
-  --template-file presence_infra_web/site.yaml \
+  --template-file presence_infra/site.yaml \
   --parameter-overrides "ApiDomainName=$api_domain" "DomainName=$DOMAIN" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
 echo "    bucket: $bucket, distribution: $distribution"
 
-# 4. The content. Flutter's web files aren't content-hashed, so browsers
+# 5. The content. Flutter's web files aren't content-hashed, so browsers
 # revalidate everything (no-cache); CloudFront is invalidated below.
 echo "==> uploading"
 aws s3 cp presence_index/site/index.html "s3://$bucket/index.html" \
@@ -91,7 +119,7 @@ invalidation="$(aws cloudfront create-invalidation --distribution-id "$distribut
 echo "    waiting for invalidation $invalidation"
 aws cloudfront wait invalidation-completed --distribution-id "$distribution" --id "$invalidation"
 
-# 5. Smoke test (retried: on a first deploy DNS and the edge take a moment)
+# 6. Smoke test (retried: on a first deploy DNS and the edge take a moment)
 echo "==> checking https://$DOMAIN/"
 check() {
   local live

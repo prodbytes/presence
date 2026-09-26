@@ -121,10 +121,10 @@ Pushing a GA tag (`bash scripts/release-ga.sh`) deploys that version to
 **https://presence.nu01.com** through the
 [Deploy workflow](.github/workflows/deploy.yml) and
 [scripts/deploy.sh](scripts/deploy.sh). The infrastructure is CloudFormation
-in [presence_infra_web/](presence_infra_web) (CloudFront, S3, certificate,
+in [presence_infra/](presence_infra) (CloudFront, S3, certificate,
 DNS) plus the SAM template in [presence_api_events/](presence_api_events).
 The one-time GitHub/AWS setup is described in
-[presence_infra_web/README.md](presence_infra_web/README.md).
+[presence_infra/README.md](presence_infra/README.md).
 
 ## How the container is built
 

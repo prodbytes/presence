@@ -617,3 +617,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     0.2.Z. Tagged with `scripts/release-ga.sh`. The deploy role doesn't
     exist yet (it needs an administrator), so the tag was also deployed to
     https://presence.nu01.com with `scripts/deploy.sh`.
+103. **Create a presence_infra folder for the components prod needs, with
+    a bucket for users' videos, so a clip is uploaded to S3 automatically.
+    Signed out, show no buttons at all. Signed in, use Cognito identity pools
+    to exchange the web identity for a temporary role and sync videos and
+    events to S3 directly.** (2026-09-26)
+    - Moved `presence_infra_web` to [presence_infra/](../presence_infra), and
+      added `user-data.yaml` (the bucket) and `identity.yaml` (the Google
+      identity pool and a per-user-prefix role), both deployed.
+    - The app: `lib/cloud/` (a SigV4 signer, a Cognito client, S3 uploads,
+      and `CloudSync`), `AuthService.idToken`, and a `synced` store (DB v2).
+      Signed out, the camera shows no buttons, and the account sheet shows
+      the sync status.
+    - `deploy.sh` deploys both stacks and builds the app with their IDs.
+    - 92 tests pass, and uploads, CORS and pool checks were verified
+      against AWS.

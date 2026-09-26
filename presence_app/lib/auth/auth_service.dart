@@ -28,6 +28,11 @@ abstract class AuthService extends ChangeNotifier {
   /// The signed-in user, or null.
   AuthUser? get user;
 
+  /// The signed-in user's OpenID Connect ID token (a JWT), exchanged with
+  /// Cognito for AWS credentials by `CloudSync`. Null when signed out, or
+  /// when the provider didn't return one.
+  String? get idToken;
+
   /// True while checking at launch whether a previous session can be
   /// restored silently (the app waits before choosing what to show).
   bool get checking;

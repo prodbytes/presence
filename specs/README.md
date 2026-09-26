@@ -26,6 +26,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
 - [Settings screen](settings.md): the motion, camera and clip settings.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
+- [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
+  S3 through a Cognito identity pool.
 - [App icon](app-icon.md): the icon masters and generated icons.
 
 **Platforms**

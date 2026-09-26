@@ -12,17 +12,19 @@ import 'package:idb_shim/idb_shim.dart';
 /// | `clips`    | `id`, index `eventId` | camera, window, media IDs, thumbnail |
 /// | `media`    | media ID          | recording bytes                         |
 /// | `settings` | name              | settings record                         |
+/// | `synced`   | object key        | fingerprint of what was uploaded (v2)   |
 class EventStore {
   EventStore._(this._db);
 
   static const String dbName = 'presence';
-  static const int _version = 1;
+  static const int _version = 2;
 
   static const String cameras = 'cameras';
   static const String events = 'events';
   static const String clips = 'clips';
   static const String media = 'media';
   static const String settings = 'settings';
+  static const String synced = 'synced';
 
   final Database _db;
 
@@ -42,6 +44,9 @@ class EventStore {
               .createIndex('eventId', 'eventId');
           db.createObjectStore(media);
           db.createObjectStore(settings);
+        }
+        if (e.oldVersion < 2) {
+          db.createObjectStore(synced);
         }
       },
     );
@@ -122,6 +127,25 @@ class EventStore {
   Future<void> putSettings(String name, Map<String, Object?> record) async {
     final txn = _db.transaction(settings, idbModeReadWrite);
     await txn.objectStore(settings).put(_compact(record), name);
+    await txn.completed;
+  }
+
+  /// What's already uploaded to the cloud (see `CloudSync`): each object
+  /// key with a fingerprint of the content uploaded under it.
+  Future<Map<String, String>> syncedKeys() async {
+    final txn = _db.transaction(synced, idbModeReadOnly);
+    final result = <String, String>{};
+    await txn
+        .objectStore(synced)
+        .openCursor(autoAdvance: true)
+        .forEach((cursor) => result['${cursor.key}'] = '${cursor.value}');
+    await txn.completed;
+    return result;
+  }
+
+  Future<void> markSynced(String key, String fingerprint) async {
+    final txn = _db.transaction(synced, idbModeReadWrite);
+    await txn.objectStore(synced).put(fingerprint, key);
     await txn.completed;
   }
 
