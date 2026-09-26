@@ -1,1 +1,3 @@
 #include "Generated.xcconfig"
+// Private values (GOOGLE_REVERSED_CLIENT_ID), written by scripts/dart-defines.sh.
+#include? "Private.xcconfig"

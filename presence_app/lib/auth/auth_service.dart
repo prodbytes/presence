@@ -18,7 +18,7 @@ class AuthUser {
   /// A name to show: the display name, or the email.
   String get label => (name?.trim().isNotEmpty ?? false) ? name! : email;
 
-  /// Who is signed in, for tooltips: "Julio · julio@nu01.com".
+  /// Who is signed in, for tooltips: "Ana · ana@example.com".
   String get identity => label == email ? email : '$label · $email';
 }
 

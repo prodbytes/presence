@@ -164,8 +164,8 @@ class FakeAuthService extends AuthService {
   FakeAuthService({
     this.account = const AuthUser(
       id: '1',
-      email: 'julio@nu01.com',
-      name: 'Julio',
+      email: 'ana@example.com',
+      name: 'Ana',
     ),
     bool signedIn = false,
   }) : _user = signedIn ? account : null;

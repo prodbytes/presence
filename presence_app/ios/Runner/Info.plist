@@ -35,8 +35,10 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<!-- Google sign-in returns here: the iOS client ID, reversed. -->
-				<string>com.googleusercontent.apps.104441697281-djrabadfdeavjb7sejfgu855duq716p6</string>
+				<!-- Google sign-in returns here: the iOS client ID, reversed.
+				     Set in Flutter/Private.xcconfig, which scripts/dart-defines.sh
+				     writes from the private .env (git-ignored). -->
+				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
 	</array>

@@ -62,7 +62,7 @@ https://presence.localhost:8443/app/ (and on 4566), with a local
 certificate.
 
 **`local.presence.nu01.com`** is a public name for this machine: an A record
-to `127.0.0.1` in the Route 53 zone `nu01.com` (account 712151682816, TTL
+to `127.0.0.1` in the Route 53 zone `nu01.com` (see the private repo for the account; TTL
 300), and a second distribution alias (`PRESENCE_PUBLIC_HOST`). Google
 rejects JavaScript origins that don't end in a public top-level domain, such
 as `presence.localhost`, so **`https://local.presence.nu01.com:8443` is the

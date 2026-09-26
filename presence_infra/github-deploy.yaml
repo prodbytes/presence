@@ -12,8 +12,7 @@ Parameters:
     Description: owner/name of the repository whose tag runs may deploy
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
-    Default: Z04838091YTBIM6PNI1XK
-    Description: The nu01.com zone, where the site's records and certificate validation live
+    Description: The site's zone, where its records and certificate validation live (HOSTED_ZONE_ID in the private .env)
   CreateOidcProvider:
     Type: String
     AllowedValues: ['true', 'false']

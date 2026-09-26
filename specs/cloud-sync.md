@@ -66,16 +66,18 @@ Everything goes under the user's **Cognito identity ID**
 
 In [presence_infra/](../presence_infra):
 
-- **`user-data.yaml`**, stack `presence-user-data`: the bucket
-  `presence-user-data-userdatabucket-0yokx7yl0msy`.
+- **`user-data.yaml`**, stack `presence-user-data`: the bucket (its name
+  is the stack output `UserDataBucketName`, `USER_DATA_BUCKET` in the
+  private `.env`).
   - Private (public access blocked, owner-enforced), SSE-S3 encrypted, and
     TLS only.
   - Versioned: old versions expire after 30 days, and incomplete multipart
     uploads after 1 day.
   - CORS allows `GET`, `PUT` and `HEAD` from `https://presence.nu01.com`,
     `https://local.presence.nu01.com:8443` and `http://localhost:8080`.
-- **`identity.yaml`**, stack `presence-identity`: the identity pool
-  `us-east-1:ac6d9182-7248-4291-8e2d-08c481ddaaed`.
+- **`identity.yaml`**, stack `presence-identity`: the identity pool (the
+  stack output `IdentityPoolId`, `COGNITO_IDENTITY_POOL_ID` in the private
+  `.env`).
   - Google only (`accounts.google.com` = the web client ID), no guests, no
     classic flow.
   - Its authenticated role may only `PutObject` and `GetObject` in

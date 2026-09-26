@@ -53,7 +53,8 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
    aws cloudformation deploy --region us-east-1 \
      --stack-name presence-github-deploy \
      --template-file presence_infra/github-deploy.yaml \
-     --capabilities CAPABILITY_NAMED_IAM
+     --capabilities CAPABILITY_NAMED_IAM \
+     --parameter-overrides "HostedZoneId=$HOSTED_ZONE_ID"   # from the private .env
    ```
 
    The role trusts only tokens for `repo:prodbytes/presence:ref:refs/tags/*GA`.
@@ -65,7 +66,8 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
 2. Set the repository variable to the stack's `DeployRoleArn` output:
 
    ```bash
-   gh variable set AWS_DEPLOY_ROLE_ARN --body arn:aws:iam::712151682816:role/presence-github-deploy
+   gh variable set AWS_DEPLOY_ROLE_ARN --body "<DeployRoleArn>"
+   gh variable set HOSTED_ZONE_ID --body "<the zone ID, HOSTED_ZONE_ID in the private .env>"
    ```
 
 3. In the Google Cloud Console, add `https://presence.nu01.com` to the web

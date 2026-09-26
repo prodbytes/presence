@@ -1,4 +1,5 @@
-/// Google OAuth client IDs, from the `presence-492410` Google Cloud project.
+/// Google OAuth client IDs, from the project's Google Cloud project (named
+/// in the private settings repo).
 ///
 /// These are public identifiers, not secrets: they name the app to Google.
 /// They're set at build time from the repo's `.env` (gitignored; see

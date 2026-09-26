@@ -153,7 +153,7 @@ void main() {
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(
-      find.byTooltip('Signed in as Julio · julio@nu01.com'),
+      find.byTooltip('Signed in as Ana · ana@example.com'),
       findsOneWidget,
     );
     await openTab(tester, 'Events');
@@ -166,7 +166,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('account-sheet')),
-        matching: find.text('julio@nu01.com'),
+        matching: find.text('ana@example.com'),
       ),
       findsOneWidget,
     );
@@ -189,7 +189,7 @@ void main() {
     );
     expect(find.byType(TabBar), findsOneWidget);
     expect(
-      find.byTooltip('Signed in as Julio · julio@nu01.com'),
+      find.byTooltip('Signed in as Ana · ana@example.com'),
       findsOneWidget,
     );
   });
