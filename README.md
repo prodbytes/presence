@@ -12,7 +12,7 @@ Toolchain pinned by [devbox.json](devbox.json) and locked in [devbox.lock](devbo
 
 | Tool | Version |
 |------|---------|
-| GraalVM CE (musl) | 25.0.2 |
+| GraalVM CE | 25.2.4 (JDK 25) |
 | Node.js | 26.x |
 | Python | 3.14.x |
 | PostgreSQL | 17.x |
@@ -45,19 +45,17 @@ devbox add go@1.24  # add more tools (updates devbox.json + devbox.lock)
 devbox services up
 ```
 
-starts PostgreSQL as a Docker container (`devbox-db`, defined in
-[compose.yaml](compose.yaml)), the Flutter app in web mode on
-http://localhost:8080/app/ ([scripts/flutter-web.sh](scripts/flutter-web.sh)),
-the events API on http://localhost:3000/api/events
-([scripts/sam-api.sh](scripts/sam-api.sh)), Floci as a local CloudFront that
-routes http://presence.localhost:4566/app/ and `/api/` to them
-([presence_floci/](presence_floci)), and a `health-check` monitor wired up in
-[process-compose.yaml](process-compose.yaml). A readiness probe holds the
-monitor back until the database accepts connections; after that it logs one
-status line per check (every 15 s, configurable via `HEALTH_CHECK_INTERVAL`):
+starts the Flutter app in web mode on http://localhost:8080/app/
+([scripts/flutter-web.sh](scripts/flutter-web.sh)), the events API on
+http://localhost:3000/api/events ([scripts/sam-api.sh](scripts/sam-api.sh)),
+Floci as a local CloudFront that routes http://presence.localhost:4566/app/
+and `/api/` to them ([presence_floci/](presence_floci)), and a `health-check`
+monitor, wired up in [process-compose.yaml](process-compose.yaml). The
+monitor logs one status line per check (every 15 s, configurable via
+`HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🐘 database ✅ 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅
+2026-07-09 20:02:10 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:
@@ -68,7 +66,7 @@ Stop everything with `devbox services stop`. The monitor also runs standalone:
 The Flutter app lives in [presence_app/](presence_app). Run it in web mode with:
 
 ```bash
-devbox run web      # or: devbox services up, to start it with the database
+devbox run web      # or: devbox services up, to start it with the health monitor
 ```
 
 It serves on http://localhost:8080/app/ (override the port with
@@ -76,6 +74,23 @@ It serves on http://localhost:8080/app/ (override the port with
 container forwards that port automatically. It uses Flutter's `web-server`
 device, so no Chrome is needed inside the container. Open the URL in any
 browser. Press `r` in the terminal to hot reload.
+
+### Building the binaries
+
+The [Makefile](Makefile) builds release binaries through
+[scripts/make.sh](scripts/make.sh), with the settings from `.env`:
+
+```bash
+make            # every platform this host can build
+make web        # presence_app/build/web/
+make android    # presence_app/build/app/outputs/flutter-apk/app-release.apk
+make ios        # presence_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
+make linux      # presence_app/build/linux/<arch>/release/bundle/ (Linux only)
+make clean
+```
+
+Pass `MODE=profile` or `MODE=debug` for other build modes, and
+`IOS_CODESIGN=1` to sign the iOS build (needs a signing team in Xcode).
 
 ## How the container is built
 

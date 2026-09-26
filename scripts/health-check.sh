@@ -6,15 +6,6 @@ set -uo pipefail
 
 INTERVAL="${HEALTH_CHECK_INTERVAL:-15}"
 
-check_database() {
-    if pg_isready -q -h "${PGHOST:-localhost}" -p "${PGPORT:-5432}" \
-            -U "${POSTGRES_USER:-postgres}" 2>/dev/null; then
-        echo "🐘 database ✅"
-    else
-        echo "🐘 database ❌"
-    fi
-}
-
 check_web() {
     if curl -fs -o /dev/null --max-time 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; then
         echo "🌐 web ✅"
@@ -44,6 +35,6 @@ check_cdn() {
 
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_database)" "$(check_web)" "$(check_api)" "$(check_cdn)"
+    printf '%s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_web)" "$(check_api)" "$(check_cdn)"
     sleep "$INTERVAL"
 done

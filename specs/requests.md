@@ -365,13 +365,65 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
-72. **Create a new SAM module called presence_api_events, in Java, on the
+
+## 2026-09-26
+
+72. **Split the spec into separate specs per feature, one file per
+    feature.** Split `specs/README.md` into feature files (navigation,
+    theme, camera, events, clips, motion clips, sign-in, configuration,
+    settings, storage, app icon, platforms, Android, iOS, development
+    environment). The README now holds the product summary, an index of the
+    feature files and the workflow. The old "Known limitations" list moved
+    into the feature each item belongs to. The spec rule in
+    [CLAUDE.md](../CLAUDE.md) now says to revise the affected feature files.
+73. **Fix the devbox GraalVM package with a multi-platform one.**
+    (2026-09-26) Replaced `graalvmPackages.graalvm-ce-musl` (Linux-only,
+    which made `devbox install` fail on macOS) with
+    `graalvmPackages.graalvm-ce` 25.2.4 (JDK 25.0.4, with `native-image`),
+    locked for aarch64-darwin, aarch64-linux and x86_64-linux. Verified
+    `devbox install` and the toolchain on an Apple Silicon Mac, and that
+    the dev container image builds.
+74. **Remove the Postgres stuff from the services and the health check.**
+    (2026-09-26) Removed the `1-postgresql` process, the root
+    `compose.yaml` (which only defined the `devbox-db` Postgres container)
+    and the health monitor's `🐘 database` check. Updated the README,
+    AGENTS.md and the spec. The `postgresql` devbox package is kept.
+75. **Create a Makefile that delegates to a make script and builds the app
+    binaries (web, android, ios and linux).** Added a `Makefile` whose
+    targets (`web`, `android`, `ios`, `linux`, `all`, `clean`) call
+    `scripts/make.sh`, which runs `flutter build` with the `.env` settings.
+    `MODE` picks the build mode, and iOS is unsigned unless `IOS_CODESIGN=1`.
+    `make` builds every platform the host can build; on the Mac it built
+    web, the Android APK and the iOS app, and skipped Linux.
+76. **Run make and fix any errors; make sure the binaries are correctly
+    built.** (2026-09-26) `make` built web, Android and iOS with no errors,
+    so the scripts needed no fixes. Checked the outputs: the web bundle has
+    the web client ID and no secret; the APK is `com.nu01.presence` for
+    arm64, armv7 and x86_64, signed with the debug key (no release key yet);
+    `Runner.app` is an arm64 device build. Its missing client ID is because
+    `GOOGLE_IOS_CLIENT_ID` is empty in `.env`. `make linux` also built in a
+    Linux arm64 container with Flutter 3.47.5.
+77. **What should I use as bundle ID, App Store ID and Team ID for the
+    Google iOS client? Here is the iOS client ID.** (2026-09-26) Bundle ID
+    `com.nu01.presence`; App Store ID and Team ID left blank, since neither
+    exists yet. Put the client ID in `.env` (`GOOGLE_IOS_CLIENT_ID`) and
+    registered its reversed ID as a URL scheme in the iOS `Info.plist`.
+    Verified on the iPhone 18 Pro simulator: the ID is compiled into the
+    build, and iOS offers to open the reversed-ID URL in Presence. Also
+    dropped the spec's stale note that the bundle ID is still a placeholder.
+78. **Create a new SAM module called presence_api_events, in Java, on the
     latest runtime.** (2026-09-25) Added
     [presence_api_events/](../presence_api_events): a SAM template with one
     `java25` (arm64) Lambda, `EventsFunction`, serving `GET /events` (an
     empty list for now), a Maven project with a unit test, a sample event,
     `samconfig.toml` and a README. `.aws-sam/` is git-ignored.
-73. **Change process-compose to start both the app and the SAM API
+79. **In a separate folder, create a presence_infra_tenant CDK project,
+    also in Java, on the latest version.** (2026-09-25) Added
+    [presence_infra_tenant/](../presence_infra_tenant): a CDK v2 Java app
+    (JDK 25, `aws-cdk-lib` 2.270.0) with an empty
+    `PresenceInfraTenantStack`, a synth test, the recommended feature flags
+    in `cdk.json`, and a README. `cdk.out/` is git-ignored.
+80. **Change process-compose to start both the app and the SAM API
     modules.** (2026-09-25) Added a `3-sam-api` process
     ([scripts/sam-api.sh](../scripts/sam-api.sh): `sam build` +
     `sam local start-api` on port 3000, with a readiness probe on
@@ -380,11 +432,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     standalone: `/events` returns 200 in the `java25` container, and SIGINT
     stops SAM and its containers. `devbox add maven aws-sam-cli` fails on
     macOS (Linux-only GraalVM), so they aren't in devbox yet.
-74. **Can Floci emulate CloudFront, dispatching requests to the static app
+81. **Can Floci emulate CloudFront, dispatching requests to the static app
     and the API as CloudFront would?** (2026-09-25) Yes: since 1.7.0 it
     serves distributions from S3 and custom origins, with path-based cache
     behaviors. No code change.
-75. **Create a presence_floci dir for any config needed, set it up, and add
+82. **Create a presence_floci dir for any config needed, set it up, and add
     it to process-compose.** (2026-09-25) Added
     [presence_floci/](../presence_floci): a compose file for Floci 2.1.0
     and a ready hook that creates a CloudFront distribution
@@ -392,17 +444,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     the Flutter web server. Added `4-floci` to process-compose, a `☁️ cdn`
     health check, and a port 4566 forward in the dev container. Verified
     under process-compose on macOS.
-76. **(Fix found while moving the app to /app/.)** (2026-09-25) Through
+83. **(Fix found while moving the app to /app/.)** (2026-09-25) Through
     Floci, the real Flutter web server returned 502, because Dart bound
     `localhost` to `[::1]` only. It now binds `127.0.0.1`.
-77. **Serve presence_app at /app/ instead of the root.** (2026-09-25) The
+84. **Serve presence_app at /app/ instead of the root.** (2026-09-25) The
     Flutter web server now runs with `--base-href /app/` and serves only
     under `/app/`, because CloudFront forwards paths as is and can't strip
     a prefix. The Floci distribution has an explicit `/app*` behavior for
     the app. The web readiness probe and the web and CDN health checks use
     `/app/`, and the READMEs and spec point at `/app/`. `/` isn't
     redirected, since Floci doesn't run CloudFront Functions.
-78. **Run the Flutter app in Flutter dev mode on /app, the events API on
+85. **Run the Flutter app in Flutter dev mode on /app, the events API on
     sam local at /api/events, and use Floci only to route between them as
     CloudFront would.** (2026-09-26)
     - The SAM route moved to `/api/events`. The distribution routes `/app*`
