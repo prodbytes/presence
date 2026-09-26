@@ -28,6 +28,9 @@ Outputs:
   EventsApi:
     Description: API Gateway endpoint for the Prod stage's /api/events route
     Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/api/events"
+  ApiDomain:
+    Description: The API's execute-api host name (the CloudFront origin in presence_infra_web/site.yaml)
+    Value: !Sub "${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com"
   EventsFunctionArn:
     Description: Events Lambda function ARN
     Value: !GetAtt EventsFunction.Arn

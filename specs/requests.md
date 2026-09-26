@@ -595,3 +595,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      `scripts/link-private.sh` to recreate them. Verified the run scripts
      and `make web` read the client IDs through the link. The mkcert
      certificates stay local: they're generated per machine.
+101. **Create another GitHub action that puts it all in prod on a `*GA`
+    tag push, with CloudFormation templates for every module (SAM where it
+    already exists), so that a pushed `*GA` version goes to
+    https://presence.nu01.com; test and fix until right.** (2026-09-26)
+    - Added [presence_infra_web/](../presence_infra_web): `site.yaml`
+      (certificate, S3 with OAC, CloudFront for `/`, `/app*` and `/api/*`,
+      Route 53) and `github-deploy.yaml` (the OIDC provider and a deploy
+      role trusting only `*GA` tags).
+    - Added [scripts/deploy.sh](../scripts/deploy.sh) (build, SAM deploy,
+      site deploy, upload, invalidate, smoke test), a `WEB_BASE_HREF`
+      option in `make.sh`, an `ApiDomain` output in the SAM template, and
+      `.github/workflows/deploy.yml`.
+    - Deployed by hand and verified: the live site serves the app, index
+      and API.
+    - Creating the IAM deploy role was declined in this session, so the
+      GitHub path waits for an administrator to deploy
+      `github-deploy.yaml`.
