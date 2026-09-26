@@ -186,10 +186,12 @@ jobs:
           PRERELEASE: ${{ github.event_name == 'push' || inputs.prerelease }}
         run: |
           ls -l dist
+          title="presence-$TAG"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --title "$title"
           else
-            flags=(--title "$TAG" --generate-notes --target "$GITHUB_SHA")
+            flags=(--title "$title" --generate-notes --target "$GITHUB_SHA")
             [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
             gh release create "$TAG" "${flags[@]}" dist/*
           fi

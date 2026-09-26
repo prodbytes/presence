@@ -17,6 +17,8 @@ app binaries with `make` and publishes them as a GitHub release.
 - **Builds:** one job per target, all with Flutter 3.47.5 (cloned at its
   tag): `web`, `android` (JDK 17) and `linux` (GTK build packages) on
   `ubuntu-latest`, and `ios` on `macos-latest`. Each runs `make <target>`.
+- **Release name:** `presence-<tag>`, e.g. `presence-1.0.0-RC2` for the
+  tag `1.0.0-RC2` (tags stay `X.Y.Z-KK`).
 - **Release assets**, uploaded to a new release or replacing same-named
   assets on an existing one, with generated notes:
   - `presence-<tag>-web.zip`: the contents of `build/web/`.

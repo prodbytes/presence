@@ -486,3 +486,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     for the builds. The PR's run built all four; the artifacts had the
     client IDs compiled in, no secret, and the expected package and
     architectures. Added [release.md](release.md).
+89. **Make the release full named (`presence-X.Y.Z-KK`); push another RC
+    to check that it triggers correctly.** (2026-09-26) Release titles are
+    now `presence-<tag>` (also applied when a run updates an existing
+    release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
+    check the trigger and the new name, and renamed the `1.0.0-RC1`
+    release to `presence-1.0.0-RC1` to match.
