@@ -8,7 +8,7 @@ import com.amazonaws.services.lambda.runtime.events.APIGatewayProxyResponseEvent
 import java.util.Map;
 
 /**
- * Handles {@code GET /events}. Returns an empty event list until a store is
+ * Handles {@code GET /api/events}. Returns an empty event list until a store is
  * wired in.
  */
 public class EventsHandler

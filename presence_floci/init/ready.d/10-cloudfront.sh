@@ -1,13 +1,23 @@
 #!/bin/sh
-# Creates the Presence CloudFront distribution in Floci:
-#   /events*  -> SAM API      (http://$PRESENCE_ORIGIN_HOST:$SAM_API_PORT)
-#   *         -> Flutter web  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
-# Served at http://$PRESENCE_CDN_ALIAS:<floci port>/. Nothing is cached, and
-# every viewer header except Host, plus all cookies and query strings, is
-# forwarded (like AWS's managed AllViewerExceptHostHeader policy).
+# Creates the Presence CloudFront distribution in Floci. It only routes, as
+# the deployed CloudFront would; the app and the API run on their own dev
+# servers:
+#   /app*   -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
+#   /api/*  -> sam local start-api (http://$PRESENCE_ORIGIN_HOST:$SAM_API_PORT)
+#   *       -> Flutter dev server  (which answers 404 outside /app/)
+# Paths are forwarded as is (CloudFront can't strip a prefix), so the app is
+# served under /app/ (--base-href /app/) and the API routes start with /api/.
+#
+# Nothing is cached. Every viewer header except Host, plus all cookies and
+# query strings, is forwarded (like AWS's managed AllViewerExceptHostHeader
+# policy). The origins therefore see Host: $PRESENCE_ORIGIN_HOST:<port>, which
+# the Flutter dev server writes into its debug-channel (hot reload) URL. Floci
+# can't carry that WebSocket, so the origin host is a *.localhost name: the
+# browser resolves it to loopback and connects to the dev server directly,
+# while compose.yaml maps it to the Docker host inside this container.
 set -eu
 
-ORIGIN_HOST="${PRESENCE_ORIGIN_HOST:-host.docker.internal}"
+ORIGIN_HOST="${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}"
 ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
 API_PORT="${SAM_API_PORT:-3000}"
@@ -41,8 +51,8 @@ origin() {
 }
 
 behavior() {
-  printf '"TargetOriginId": "%s", "ViewerProtocolPolicy": "allow-all", "CachePolicyId": "%s", "OriginRequestPolicyId": "%s", "AllowedMethods": {"Quantity": %s, "Items": %s, "CachedMethods": {"Quantity": 2, "Items": ["GET", "HEAD"]}}' \
-    "$1" "$cache_policy" "$origin_request_policy" "$2" "$3"
+  printf '"TargetOriginId": "%s", "ViewerProtocolPolicy": "allow-all", "CachePolicyId": "%s", "OriginRequestPolicyId": "%s", "AllowedMethods": {"Quantity": 7, "Items": ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"], "CachedMethods": {"Quantity": 2, "Items": ["GET", "HEAD"]}}' \
+    "$1" "$cache_policy" "$origin_request_policy"
 }
 
 distribution=$(aws cloudfront create-distribution \
@@ -53,10 +63,11 @@ distribution=$(aws cloudfront create-distribution \
     \"Enabled\": true,
     \"Aliases\": {\"Quantity\": 1, \"Items\": [\"$ALIAS\"]},
     \"Origins\": {\"Quantity\": 2, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT")]},
-    \"DefaultCacheBehavior\": {$(behavior app 3 '["GET", "HEAD", "OPTIONS"]')},
-    \"CacheBehaviors\": {\"Quantity\": 1, \"Items\": [
-      {\"PathPattern\": \"/events*\", $(behavior api 7 '["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]')}
+    \"DefaultCacheBehavior\": {$(behavior app)},
+    \"CacheBehaviors\": {\"Quantity\": 2, \"Items\": [
+      {\"PathPattern\": \"/app*\", $(behavior app)},
+      {\"PathPattern\": \"/api/*\", $(behavior api)}
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/app/ and /api/"
