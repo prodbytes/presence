@@ -516,3 +516,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     if its X.Y doesn't match the files. Verified the version in web's
     `version.json`, the APK's `versionName`/`versionCode` and the iOS
     bundle.
+91. **Create a script that tags a release with the current version numbers
+    and an RC tag, and one that releases with the current version and a GA
+    tag.** (2026-09-26) Added `scripts/release-rc.sh` (tag `X.Y.Z-RC`) and
+    `scripts/release-ga.sh` (tag `X.Y.Z-GA`, commit must be on `main`),
+    both through `scripts/tag-release.sh`, which checks for uncommitted
+    changes, an unpushed commit and an existing tag, and supports
+    `DRY_RUN=1`. The workflow now also runs on `*GA` tags and publishes
+    them as full (latest) releases.

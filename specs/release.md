@@ -6,6 +6,8 @@ app binaries with `make` and publishes them as a GitHub release.
 - **Triggers:**
   - A pushed tag matching `*QA` or `*RC*` (e.g. `1.2.0-QA`, `1.2.0-RC1`)
     is released as a **prerelease** under that tag.
+  - A pushed tag matching `*GA` (e.g. `1.0.202609261530-GA`) is released
+    as a full release, which GitHub marks as the latest.
   - **Manual dispatch** (Actions → Release → Run workflow) takes an
     optional `tag` and a `prerelease` switch (on by default). An empty tag
     uses the selected ref if it's a tag, or `manual-<run number>`. A tag
@@ -37,6 +39,23 @@ app binaries with `make` and publishes them as a GitHub release.
   read-only except in the release job (`contents: write`); checkout doesn't
   keep credentials; inputs reach scripts only through environment
   variables.
+
+## Tagging a release
+
+Two scripts tag the current commit with the current version (Z = now) and
+push the tag, which starts the workflow:
+
+- [scripts/release-rc.sh](../scripts/release-rc.sh) tags `X.Y.Z-RC`
+  → prerelease `presence-X.Y.Z-RC`.
+- [scripts/release-ga.sh](../scripts/release-ga.sh) tags `X.Y.Z-GA`
+  → latest release `presence-X.Y.Z-GA`. The commit must be on `main`.
+
+Both run [scripts/tag-release.sh](../scripts/tag-release.sh), which refuses
+when tracked files have uncommitted changes, when the commit isn't pushed,
+or when the tag already exists (tags are unique per minute).
+`DRY_RUN=1 bash scripts/release-rc.sh` checks and prints the tag without
+creating it. Each GA gets its own new Z, so it's a fresh build of the
+commit, not the RC's binaries.
 
 ## Versioning
 
