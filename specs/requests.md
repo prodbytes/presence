@@ -476,3 +476,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (2026-09-26) All open PRs (#24–#33) were merged and local `main` was
     synced. `.gitignore` now also ignores `*.local*` files (machine-local
     overrides), next to the new SAM and CDK entries.
+87. **On process-compose, 3-sam-api says sam is not on PATH; add it to
+    devbox.** (2026-09-26) Added `aws-sam-cli` (1.165.0) and `maven`
+    (3.9.16, which runs on devbox's GraalVM JDK 25) to devbox, locked for
+    aarch64-darwin, aarch64-linux and x86_64-linux. Verified
+    `devbox services up` on a Mac with no host `sam` or `mvn`: `3-sam-api`
+    built and served, and the health line showed `🌐 web ✅ ⚡ api ✅
+    ☁️ cdn ✅`.

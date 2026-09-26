@@ -1,6 +1,56 @@
 {
   "lockfile_version": "1",
   "packages": {
+    "aws-sam-cli@latest": {
+      "last_modified": "2026-08-27T23:47:58Z",
+      "resolved": "github:NixOS/nixpkgs/7d1a7c21a4c00ea653fc7ed5c083d261340f185f#aws-sam-cli",
+      "source": "devbox-search",
+      "version": "1.165.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/r1imfri3pm0bggla7wdlxl0ri2mgx43m-aws-sam-cli-1.165.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/32m4r7ngn6dmlr6bsp8w47p14sashnds-aws-sam-cli-1.165.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/r1imfri3pm0bggla7wdlxl0ri2mgx43m-aws-sam-cli-1.165.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/nkg4fjp70ygw6l3baa5djn94mv0kxlmn-aws-sam-cli-1.165.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/byrn38l8s06mm8xidh40saxdfll3vksg-aws-sam-cli-1.165.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/nkg4fjp70ygw6l3baa5djn94mv0kxlmn-aws-sam-cli-1.165.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/iqrcpfhv1r8x8jhvnyyrazv91iaswab8-aws-sam-cli-1.165.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/ph7m5a5nic5mhwvrv4vbwyln45f6qgnb-aws-sam-cli-1.165.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/iqrcpfhv1r8x8jhvnyyrazv91iaswab8-aws-sam-cli-1.165.0"
+        }
+      }
+    },
     "flutter@latest": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#flutter",
@@ -126,6 +176,54 @@
             }
           ],
           "store_path": "/nix/store/x7s2lskf44mxg140mxn5rzfxhxp8k2mz-graalvm-ce-25.2.4"
+        }
+      }
+    },
+    "maven@latest": {
+      "last_modified": "2026-08-27T07:16:00Z",
+      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#maven",
+      "source": "devbox-search",
+      "version": "3.9.16",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/p9ackmrgrcwyqmf8vwcf62c2h2q8zrzn-maven-3.9.16",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/p9ackmrgrcwyqmf8vwcf62c2h2q8zrzn-maven-3.9.16"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/mg785r8c0anbyvj7s8c3s3db633h7aqh-maven-3.9.16",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/mg785r8c0anbyvj7s8c3s3db633h7aqh-maven-3.9.16"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/334davh2hdmg5ma9pxxz5vpz39dji3vs-maven-3.9.16",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/334davh2hdmg5ma9pxxz5vpz39dji3vs-maven-3.9.16"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8qya1wiysnaq2smkkqq6z2814l09lbjv-maven-3.9.16",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8qya1wiysnaq2smkkqq6z2814l09lbjv-maven-3.9.16"
         }
       }
     },

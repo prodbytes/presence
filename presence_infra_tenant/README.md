@@ -14,7 +14,7 @@ Per-tenant infrastructure for Presence, as an
 
 ## Requirements
 
-- JDK 25 and Maven 3.9+
+- JDK 25 and Maven 3.9+ (provided by devbox: `devbox shell`)
 - Node.js, for the CDK CLI (`npx aws-cdk`, or `npm install -g aws-cdk`)
 
 ## Commands
