@@ -17,6 +17,28 @@ abstract class CloudSession {
 
   /// Uploads [bytes] to [key], relative to [prefix].
   Future<void> put(String key, Uint8List bytes, String contentType);
+
+  /// Every key in the user's folder, relative to [prefix].
+  Future<List<String>> list();
+
+  /// Downloads [key], relative to [prefix].
+  Future<Uint8List> get(String key);
+}
+
+/// What a restore brought down from the cloud: records the device didn't
+/// have, and the recordings their clips use (by media ID).
+class RemoteRecords {
+  const RemoteRecords({
+    required this.events,
+    required this.clips,
+    required this.media,
+  });
+
+  final List<Map<String, Object?>> events;
+  final List<Map<String, Object?>> clips;
+  final Map<String, Uint8List> media;
+
+  bool get isEmpty => events.isEmpty && clips.isEmpty;
 }
 
 /// Opens [CloudSession]s from a Google ID token. [AwsCloudBackend] in the
@@ -60,17 +82,34 @@ class _AwsSession implements CloudSession {
         contentType: contentType,
         credentials: _session.credentials,
       );
+
+  @override
+  Future<List<String>> list() async => [
+    for (final key in await _bucket.list(
+      '$prefix/',
+      credentials: _session.credentials,
+    ))
+      key.substring(prefix.length + 1),
+  ];
+
+  @override
+  Future<Uint8List> get(String key) =>
+      _bucket.get('$prefix/$key', credentials: _session.credentials);
 }
 
 enum CloudSyncState { off, syncing, synced, error }
 
-/// Uploads the signed-in user's clips (videos, thumbnails, details) and
-/// events to their folder in the cloud, straight from the device.
+/// Syncs the signed-in user's clips (videos, thumbnails, details) and
+/// events with their folder in the cloud, straight from the device.
 ///
-/// - Signed out, nothing is uploaded.
-/// - On sign-in, everything stored and not yet uploaded goes up.
-/// - While signed in, each new event, and each clip once its recording is
-///   complete, goes up as soon as it's saved.
+/// - Signed out, nothing is synced.
+/// - On sign-in, the folder is fetched first: clips and events the device
+///   doesn't have (from another device, or an earlier install) are
+///   downloaded and handed to [onRemote]. Then everything stored and not
+///   yet uploaded goes up.
+/// - While signed in, a sync runs every [interval] (a minute), or sooner:
+///   each new event, and each clip once its recording is complete, goes up
+///   as soon as it's saved, whichever comes first.
 ///
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
@@ -82,7 +121,9 @@ class CloudSync extends ChangeNotifier {
     required this._store,
     required this._media,
     required Stream<void> changes,
+    this.onRemote,
     this.debounce = const Duration(milliseconds: 500),
+    this.interval = const Duration(minutes: 1),
   }) {
     auth.addListener(_onAuthChanged);
     _changes = changes.listen((_) => _schedule());
@@ -92,6 +133,11 @@ class CloudSync extends ChangeNotifier {
   final AuthService auth;
   final CloudBackend backend;
   final Duration debounce;
+  final Duration interval;
+
+  /// Receives what a sign-in's fetch downloaded, after it's marked as
+  /// synced (the app stores it and shows its events).
+  final Future<void> Function(RemoteRecords records)? onRemote;
   final Future<EventStore> _store;
   final Future<MediaStore> _media;
   late final StreamSubscription<void> _changes;
@@ -101,6 +147,9 @@ class CloudSync extends ChangeNotifier {
   int _uploaded = 0;
   String? _user;
   Timer? _timer;
+  Timer? _periodic;
+  bool _fetchPending = false;
+  int _downloaded = 0;
   Future<void>? _running;
   bool _again = false;
   bool _disposed = false;
@@ -112,6 +161,9 @@ class CloudSync extends ChangeNotifier {
 
   /// Objects uploaded since the app started.
   int get uploaded => _uploaded;
+
+  /// Clips and events downloaded since the app started.
+  int get downloaded => _downloaded;
 
   /// Completes when the current sync (if any) has finished (for tests).
   Future<void> idle() async {
@@ -132,10 +184,14 @@ class CloudSync extends ChangeNotifier {
     if (user == _user) return;
     _user = user;
     backend.reset();
+    _periodic?.cancel();
     if (user == null) {
       _timer?.cancel();
+      _fetchPending = false;
       _set(CloudSyncState.off);
     } else {
+      _fetchPending = true;
+      _periodic = Timer.periodic(interval, (_) => _schedule(immediately: true));
       _schedule(immediately: true);
     }
   }
@@ -167,14 +223,22 @@ class CloudSync extends ChangeNotifier {
       return;
     }
     _set(CloudSyncState.syncing);
+    Future<void> pass(CloudSession session) async {
+      if (_fetchPending) {
+        await _fetch(session);
+        _fetchPending = false;
+      }
+      await _syncAll(session);
+    }
+
     try {
       try {
-        await _syncAll(await backend.connect(idToken));
+        await pass(await backend.connect(idToken));
       } on S3Exception catch (e) {
         if (!e.credentialsRejected) rethrow;
         // Credentials expired mid-sync: get new ones and go on.
         backend.reset();
-        await _syncAll(await backend.connect(idToken));
+        await pass(await backend.connect(idToken));
       }
       _set(CloudSyncState.synced);
     } on CognitoException catch (e) {
@@ -186,6 +250,62 @@ class CloudSync extends ChangeNotifier {
       debugPrint('Presence: cloud sync failed: $e');
       _set(CloudSyncState.error, _describe(e));
     }
+  }
+
+  /// Downloads the clips and events in the user's folder that the device
+  /// doesn't have, marks them as synced, and hands them to [onRemote].
+  Future<void> _fetch(CloudSession session) async {
+    final store = await _store;
+    final keys = (await session.list()).toSet();
+    final localEvents = {for (final e in await store.allEvents()) e['id']};
+    final localClips = {for (final c in await store.allClips()) c['id']};
+
+    Future<Map<String, Object?>> json(String key) async =>
+        (jsonDecode(utf8.decode(await session.get(key))) as Map)
+            .cast<String, Object?>();
+    Future<void> synced(String key, String fingerprint) =>
+        store.markSynced('${session.prefix}/$key', fingerprint);
+
+    final clips = <Map<String, Object?>>[];
+    final media = <String, Uint8List>{};
+    for (final key in keys) {
+      final id = RegExp(r'^clips/(.+)\.json$').firstMatch(key)?[1];
+      if (id == null || localClips.contains(id) || _disposed) continue;
+      final clip = await json(key);
+      await synced(key, _fingerprint(_json(clip)));
+      final ref = clip['full'] ?? clip['past'];
+      if (ref is Map) {
+        final mediaId = ref['mediaId']! as String;
+        final video = [
+          'clips/$id.webm',
+          'clips/$id.mp4',
+        ].where(keys.contains).firstOrNull;
+        if (video != null) {
+          media[mediaId] = await session.get(video);
+          await synced(video, mediaId);
+        }
+      }
+      if (keys.contains('clips/$id.jpg')) {
+        clip['thumbnail'] = await session.get('clips/$id.jpg');
+        await synced('clips/$id.jpg', 'thumbnail');
+      }
+      clips.add(clip);
+    }
+
+    final events = <Map<String, Object?>>[];
+    for (final key in keys) {
+      final id = RegExp(r'^events/(.+)\.json$').firstMatch(key)?[1];
+      if (id == null || localEvents.contains(id) || _disposed) continue;
+      final event = await json(key);
+      await synced(key, _fingerprint(_json(event)));
+      events.add(event);
+    }
+
+    final records = RemoteRecords(events: events, clips: clips, media: media);
+    if (records.isEmpty || _disposed) return;
+    await onRemote?.call(records);
+    _downloaded += events.length + clips.length;
+    notifyListeners();
   }
 
   Future<void> _syncAll(CloudSession session) async {
@@ -281,6 +401,7 @@ class CloudSync extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _periodic?.cancel();
     _changes.cancel();
     auth.removeListener(_onAuthChanged);
     super.dispose();

@@ -40,6 +40,78 @@ class S3Bucket {
 
   String get host => '$bucket.s3.$region.amazonaws.com';
 
+  /// Downloads [key].
+  Future<Uint8List> get(
+    String key, {
+    required AwsCredentials credentials,
+  }) async {
+    final response = await _send('GET', Uri.https(host, '/$key'), credentials);
+    return response.bodyBytes;
+  }
+
+  /// Every key under [prefix] (ListObjectsV2, following continuation tokens).
+  Future<List<String>> list(
+    String prefix, {
+    required AwsCredentials credentials,
+  }) async {
+    final keys = <String>[];
+    String? token;
+    do {
+      final response = await _send(
+        'GET',
+        Uri.https(host, '/', {
+          'list-type': '2',
+          'prefix': prefix,
+          'continuation-token': ?token,
+        }),
+        credentials,
+      );
+      final xml = response.body;
+      keys.addAll(
+        RegExp(r'<Key>([^<]*)</Key>')
+            .allMatches(xml)
+            .map((m) => _unescape(m[1]!)),
+      );
+      final next = RegExp(
+        r'<NextContinuationToken>([^<]*)</NextContinuationToken>',
+      ).firstMatch(xml);
+      token = xml.contains('<IsTruncated>true</IsTruncated>')
+          ? next?.group(1)
+          : null;
+    } while (token != null);
+    return keys;
+  }
+
+  Future<http.Response> _send(
+    String method,
+    Uri uri,
+    AwsCredentials credentials,
+  ) async {
+    final headers = _signer.sign(
+      method: method,
+      uri: uri,
+      headers: {'host': host},
+      payloadHash: SigV4Signer.emptyPayloadHash,
+      credentials: credentials,
+      now: _now(),
+    );
+    final response = await _client.get(
+      uri,
+      headers: {...headers}..remove('host'),
+    );
+    if (response.statusCode != 200) {
+      throw S3Exception(response.statusCode, response.body);
+    }
+    return response;
+  }
+
+  static String _unescape(String s) => s
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&amp;', '&');
+
   /// Uploads [bytes] to [key].
   Future<void> put(
     String key,

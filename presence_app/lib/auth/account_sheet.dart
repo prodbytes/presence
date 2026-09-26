@@ -200,9 +200,13 @@ class CloudSyncStatus extends StatelessWidget {
           ),
           CloudSyncState.synced => (
             Icons.cloud_done_outlined,
-            sync.uploaded == 0
-                ? 'Clips and events are backed up'
-                : 'Backed up (${sync.uploaded} uploaded)',
+            switch ((sync.uploaded, sync.downloaded)) {
+              (0, 0) => 'Clips and events are backed up',
+              (final up, 0) => 'Backed up ($up uploaded)',
+              (0, final down) => 'Backed up ($down restored)',
+              (final up, final down) =>
+                'Backed up ($up uploaded, $down restored)',
+            },
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.error => (

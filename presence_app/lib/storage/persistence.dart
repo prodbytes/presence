@@ -105,6 +105,29 @@ class Persistence {
   /// complete (so uploads can follow).
   Stream<void> get changes => _changes.stream;
 
+  /// Saves records downloaded from the cloud (another device's clips and
+  /// events) without publishing them, and returns their events, ready for
+  /// `EventLog.addHistory`. [media] maps media IDs to recording bytes.
+  Future<List<AppEvent>> importRemote({
+    required List<Map<String, Object?>> events,
+    required List<Map<String, Object?>> clips,
+    required Map<String, Uint8List> media,
+  }) async {
+    final store = await _store;
+    final mediaStore = await _media;
+    for (final MapEntry(:key, :value) in media.entries) {
+      await mediaStore.saveBytes(key, value);
+    }
+    for (final clip in clips) {
+      await store.putClip(clip);
+    }
+    for (final event in events) {
+      await store.putEvent(event);
+    }
+    if (events.isEmpty) return const [];
+    return _loadHistory(store, events);
+  }
+
   /// Completes when all writes issued so far have finished (for tests).
   Future<void> flush() => Future.wait(List.of(_pending));
 
