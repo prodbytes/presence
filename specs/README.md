@@ -47,6 +47,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Release builds](release.md): the GitHub Actions workflow that builds the
+  binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
 
 ## Workflow
 
