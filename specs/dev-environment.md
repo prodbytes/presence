@@ -67,6 +67,11 @@
   CLI, JDK 25 (from devbox's GraalVM) and Maven 3.9+. The SAM CLI and Maven
   aren't in devbox yet.
 
+- **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
+  CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). Maven isn't in
+  devbox yet. jsii warns that Node 26 is untested (it supports 22 and 24);
+  set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
+
 ## Known limitations
 
 - The GraalVM package is the glibc/macOS build, not the musl one, so

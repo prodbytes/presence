@@ -417,3 +417,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `java25` (arm64) Lambda, `EventsFunction`, serving `GET /events` (an
     empty list for now), a Maven project with a unit test, a sample event,
     `samconfig.toml` and a README. `.aws-sam/` is git-ignored.
+79. **In a separate folder, create a presence_infra_tenant CDK project,
+    also in Java, on the latest version.** (2026-09-25) Added
+    [presence_infra_tenant/](../presence_infra_tenant): a CDK v2 Java app
+    (JDK 25, `aws-cdk-lib` 2.270.0) with an empty
+    `PresenceInfraTenantStack`, a synth test, the recommended feature flags
+    in `cdk.json`, and a README. `cdk.out/` is git-ignored.

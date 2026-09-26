@@ -38,6 +38,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 - [Events API](events-api.md): the `presence_api_events` SAM module (Java 25
   Lambda behind API Gateway).
+- [Tenant infrastructure](tenant-infra.md): the `presence_infra_tenant` CDK
+  app (Java 25).
 
 **Project**
 
