@@ -365,3 +365,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
+
+## 2026-09-26
+
+72. **Create a Makefile that delegates to a make script and builds the app
+    binaries (web, android, ios and linux).** Added a `Makefile` whose
+    targets (`web`, `android`, `ios`, `linux`, `all`, `clean`) call
+    `scripts/make.sh`, which runs `flutter build` with the `.env` settings.
+    `MODE` picks the build mode, and iOS is unsigned unless `IOS_CODESIGN=1`.
+    `make` builds every platform the host can build; on the Mac it built
+    web, the Android APK and the iOS app, and skipped Linux.

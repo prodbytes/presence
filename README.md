@@ -73,6 +73,23 @@ container forwards that port automatically. It uses Flutter's `web-server`
 device, so no Chrome is needed inside the container. Open the URL in any
 browser. Press `r` in the terminal to hot reload.
 
+### Building the binaries
+
+The [Makefile](Makefile) builds release binaries through
+[scripts/make.sh](scripts/make.sh), with the settings from `.env`:
+
+```bash
+make            # every platform this host can build
+make web        # presence_app/build/web/
+make android    # presence_app/build/app/outputs/flutter-apk/app-release.apk
+make ios        # presence_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
+make linux      # presence_app/build/linux/<arch>/release/bundle/ (Linux only)
+make clean
+```
+
+Pass `MODE=profile` or `MODE=debug` for other build modes, and
+`IOS_CODESIGN=1` to sign the iOS build (needs a signing team in Xcode).
+
 ## How the container is built
 
 The [Containerfile](.devcontainer/Containerfile) keeps the Microsoft

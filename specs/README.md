@@ -637,6 +637,18 @@ The Swift counterpart of the Android layer
   line with `xcrun simctl` (`list devices`, `boot <udid>`, `io <udid>
   screenshot`). `flutter run -d <udid>` picks up a booted simulator.
 
+- **Building binaries:** the [Makefile](../Makefile) delegates every target
+  to [scripts/make.sh](../scripts/make.sh), which runs `flutter build` with
+  the `.env` settings from [scripts/dart-defines.sh](../scripts/dart-defines.sh)
+  (same allowlist as the run scripts). `make web` builds
+  `presence_app/build/web/`, `make android` a release APK, `make ios` an
+  unsigned `Runner.app` (signed with `IOS_CODESIGN=1`) and `make linux` the
+  Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
+  (default), `profile` or `debug`. Plain `make` (`all`) builds every
+  platform the host can build and skips the rest: iOS needs macOS and Linux
+  needs a Linux host, and asking for either elsewhere fails. Verified on the
+  development Mac: web, Android and iOS build.
+
 ## Workflow
 
 - Every new feature or bug fix starts on a new branch from `main`, with its
