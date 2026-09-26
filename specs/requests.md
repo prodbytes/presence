@@ -483,3 +483,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `devbox services up` on a Mac with no host `sam` or `mvn`: `3-sam-api`
     built and served, and the health line showed `🌐 web ✅ ⚡ api ✅
     ☁️ cdn ✅`.
+88. **Add all requirements to devbox, and make sure `devbox services up`
+    starts OK and the health check passes after a couple of seconds.**
+    (2026-09-26)
+    - Added the AWS CDK CLI (2.1138.0), the AWS CLI (2.35.11), GNU Make
+      and curl to devbox. Docker stays a host requirement (daemon and
+      `compose` plugin).
+    - The health monitor now waits for every service's readiness probe,
+      and the probes start after 1–2 s and poll every 2 s (was a 10–15 s
+      initial delay).
+    - Measured: the first health line came 9 s after `devbox services up`
+      (10 s with build caches cleared), all green.
