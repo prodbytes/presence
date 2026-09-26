@@ -12,8 +12,7 @@ Parameters:
     Default: presence.nu01.com
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
-    Default: Z04838091YTBIM6PNI1XK
-    Description: The nu01.com public zone
+    Description: The public zone of DomainName (HOSTED_ZONE_ID in the private .env)
   ApiDomainName:
     Type: String
     Description: The events API's execute-api host name (presence-api-events output ApiDomain)

@@ -31,7 +31,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   - [presence_api_events/template.yaml](../presence_api_events/template.yaml)
     (SAM), stack `presence-api-events`. Its `ApiDomain` output is the
     distribution's API origin.
-  - Everything is in `us-east-1` (account 712151682816).
+  - Everything is in `us-east-1`, in the account recorded in the private
+    repo (`setec-astronomy`, `presence.nu01/README.md`).
 - **Content:** files are uploaded with `Cache-Control: no-cache`, because
   Flutter's web files aren't content-hashed, and every deploy invalidates
   `/*`. Unknown paths return 404 (the bucket policy allows `ListBucket` for

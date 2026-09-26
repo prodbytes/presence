@@ -95,3 +95,6 @@ cdk.out/
 
 # --- Local HTTPS (mkcert, see scripts/local-certs.sh) ---
 presence_floci/certs/
+
+# --- Private build settings (from .env, see scripts/dart-defines.sh) ---
+presence_app/ios/Flutter/Private.xcconfig

@@ -20,7 +20,8 @@
 #   AWS_REGION   default us-east-1 (CloudFront certificates live there)
 #   SKIP_BUILD   1 to deploy an existing presence_app/build/web
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
-#                (default: the repo's .env)
+#   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
+#                (both default to the repo's .env, from the private repo)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -54,14 +55,18 @@ stack_output() { # stack_output <stack> <output key>
     --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text
 }
 
+# Private settings: from the environment, else the private .env.
+for name in GOOGLE_WEB_CLIENT_ID HOSTED_ZONE_ID; do
+  if [[ -z "${!name:-}" && -f .env ]]; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+  if [[ -z "${!name:-}" ]]; then
+    echo "error: $name isn't set (environment or .env; see .env.example)" >&2
+    exit 1
+  fi
+done
+
 # 1. User data: the bucket, then the identity pool (which imports it)
-if [[ -z "${GOOGLE_WEB_CLIENT_ID:-}" && -f .env ]]; then
-  GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env | tail -1)"
-fi
-if [[ -z "${GOOGLE_WEB_CLIENT_ID:-}" ]]; then
-  echo "error: GOOGLE_WEB_CLIENT_ID isn't set (environment or .env)" >&2
-  exit 1
-fi
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
 aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
   --template-file presence_infra/user-data.yaml --no-fail-on-empty-changeset
@@ -103,6 +108,7 @@ echo "==> deploying $SITE_STACK"
 aws cloudformation deploy --stack-name "$SITE_STACK" \
   --template-file presence_infra/site.yaml \
   --parameter-overrides "ApiDomainName=$api_domain" "DomainName=$DOMAIN" \
+    "HostedZoneId=$HOSTED_ZONE_ID" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"

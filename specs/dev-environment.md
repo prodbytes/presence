@@ -51,8 +51,9 @@
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
   (Dart 3.13.0).
 - **Google Cloud CLI:** Homebrew's `gcloud-cli` cask, logged in with
-  `gcloud auth login` (a browser sign-in) as julio@nu01.com, with project
-  `presence-492410` set as the default. It can manage the project, but
+  `gcloud auth login` (a browser sign-in) as the project owner, with the
+  project's Google Cloud project (named in the private repo) set as the
+  default. It can manage the project, but
   Google offers no CLI for creating Android or iOS OAuth clients, so those
   are made in the Cloud Console.
 - **Android builds on macOS:** Homebrew's `android-commandlinetools` cask

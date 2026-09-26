@@ -79,4 +79,5 @@ jobs:
       - name: Deploy ${{ github.ref_name }}
         env:
           TAG: ${{ github.ref_name }}
+          HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
         run: bash scripts/deploy.sh

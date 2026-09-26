@@ -306,7 +306,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     sheet, silent session restore, and sign-in/out events.
 62. **First install the Google Cloud CLI and help me authenticate.**
     Installed `gcloud-cli` (586.0.0) via Homebrew and ran the browser login
-    (julio@nu01.com). Using the existing Presence project `presence-492410`.
+    (the project owner's account). Using the existing Presence project.
     Gave console steps for the consent screen and the web, Android (debug
     SHA-1) and iOS OAuth clients.
 63. **Can't you do all that? Don't add Firebase to the project; just create
@@ -327,7 +327,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (2026-09-25) Not possible from the CLI without Firebase: Google has no
     public API or `gcloud` command for Android or iOS OAuth clients (the
     IAP API makes only IAP web clients). Opened the console's Create OAuth
-    client page for project `presence-492410`, with the values to enter.
+    client page for the Presence project, with the values to enter.
 66. **Go ahead and do the clicks.** (2026-09-25) Not possible from this
     session: it has no tool that controls the user's signed-in browser, and a
     browser it starts itself isn't signed in to Google (and Google blocks
@@ -632,3 +632,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - `deploy.sh` deploys both stacks and builds the app with their IDs.
     - 92 tests pass, and uploads, CORS and pool checks were verified
       against AWS.
+104. **Merge it all, and make sure all private info goes to the private
+    repo.** (2026-09-26) Merged #49. This repo is public, so it no longer
+    names:
+    - the AWS account, hosted zone, bucket, identity pool or role;
+    - the OAuth client IDs, the Google Cloud project or the owner's email;
+    - the Android signing SHA-1.
+
+    They're listed in the private `setec-astronomy/presence.nu01/README.md`,
+    and the settings are in its `.env`. Changes here:
+    - the templates take `HostedZoneId` without a default (`deploy.sh` reads
+      `HOSTED_ZONE_ID` from `.env`, CI from the repository variable);
+    - iOS reads its sign-in URL scheme from a git-ignored
+      `Private.xcconfig` that `dart-defines.sh` writes from `.env`;
+    - tests use `ana@example.com`.
+
+    Earlier commits and PR descriptions still contain these values.

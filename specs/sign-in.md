@@ -35,8 +35,9 @@ there's no separate sign-in screen:
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
 
-**Google Cloud:** project `presence-492410` (Presence, owned by
-julio@nu01.com), with OAuth clients:
+**Google Cloud:** the project's Google Cloud project (its ID, owner and the
+client IDs are in the private repo, `setec-astronomy/presence.nu01`), with
+OAuth clients:
 
 | Client | Identifies | In the app |
 |---|---|---|
@@ -58,17 +59,19 @@ which forwards **only** an allowlist (`GOOGLE_WEB_CLIENT_ID`,
 app, and the web bundle is readable, so `.env` can also hold secrets such
 as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
 uses and never receives: only a future backend would. Without `.env`, the
-account sheet says sign-in isn't set up. The Android debug key SHA-1 on the development Mac
-is `B8:90:8F:2F:A4:85:36:0D:32:34:86:22:2E:EE:B4:AD:6D:9A:42:A4`. A release
-key will need its own Android client.
+account sheet says sign-in isn't set up. The Android client is registered with the development Mac's debug-key
+SHA-1 (recorded in the private repo). A release key will need its own
+Android client.
 
-The iOS client is `104441697281-djrabadfdeavjb7sejfgu855duq716p6`, created
+The iOS client (its ID is `GOOGLE_IOS_CLIENT_ID` in the private `.env`) was created
 with bundle ID `com.nu01.presence` and no App Store ID or Team ID (neither
 exists yet; both can be added to the client later without changing it). Its
-ID goes in `.env` as `GOOGLE_IOS_CLIENT_ID`, and its reversed form,
-`com.googleusercontent.apps.104441697281-djrabadfdeavjb7sejfgu855duq716p6`,
-is registered in [ios/Runner/Info.plist](../presence_app/ios/Runner/Info.plist)
-(`CFBundleURLTypes`) so Google's sign-in page can return to the app. On the
+reversed form (`com.googleusercontent.apps.<id>`) is the URL scheme in
+[ios/Runner/Info.plist](../presence_app/ios/Runner/Info.plist)
+(`CFBundleURLTypes`, as `$(GOOGLE_REVERSED_CLIENT_ID)`). It isn't committed:
+`scripts/dart-defines.sh` writes it from `.env` into the git-ignored
+`ios/Flutter/Private.xcconfig`, which the Debug and Release configs
+include, so Google's sign-in page can return to the app. On the
 simulator, iOS offers to open that URL in Presence. A full sign-in on iOS
 hasn't been run yet.
 
