@@ -40,6 +40,15 @@ git clone git@github.com:prodbytes/blank-devbox.git
 code blank-devbox   # then "Reopen in Container" when prompted
 ```
 
+Private settings (`.env`, `env.local/`) live in the private
+[setec-astronomy](https://github.com/prodbytes/setec-astronomy) repository,
+under `presence.nu01/`. Clone it next to this repo and link them in:
+
+```bash
+git clone https://github.com/prodbytes/setec-astronomy.git ../setec-astronomy
+bash scripts/link-private.sh
+```
+
 Once inside the container:
 
 ```bash

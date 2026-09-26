@@ -42,7 +42,9 @@ julio@nu01.com), with OAuth clients:
 
 Client IDs are public identifiers, not secrets, but they're kept out of
 the source anyway: they live in the repo's **`.env`** (gitignored; the
-committed [.env.example](../.env.example) lists the names). Server and device
+committed [.env.example](../.env.example) lists the names), a link to
+`presence.nu01/.env` in the private settings repository (see
+[Development environment](dev-environment.md#private-settings)). Server and device
 starts load it: [scripts/flutter-web.sh](../scripts/flutter-web.sh) (used by
 `devbox services up`) and [scripts/flutter-run.sh](../scripts/flutter-run.sh)
 (`bash scripts/flutter-run.sh -d <device>`) pass them to Flutter as

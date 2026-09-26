@@ -585,3 +585,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       it no longer covers every name). The `🔒 https` health check now
       tests it.
     - The web client's local origin is `https://local.presence.nu01.com:8443`.
+100. **Clone prodbytes/setec-astronomy in a sibling directory, move all the
+     private files (`.env`, `env.local`) there and commit, link them so
+     everything keeps working, and give this tenant (`presence.nu01`) its
+     own directory in the private repo.** (2026-09-26) Cloned the private
+     repo to `../setec-astronomy` and moved `.env` and `env.local/` into
+     its `presence.nu01/`, with READMEs, committed and pushed there. This
+     clone now has relative symlinks to them; added
+     `scripts/link-private.sh` to recreate them. Verified the run scripts
+     and `make web` read the client IDs through the link. The mkcert
+     certificates stay local: they're generated per machine.
