@@ -511,3 +511,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     app and Linux x64 bundle. Downloaded the release assets and checked
     each (client IDs compiled in, no secret, package `com.nu01.presence`,
     valid APK signature, arm64 iOS with its URL scheme, x86-64 Linux).
+91. **Make the release full named (`presence-X.Y.Z-KK`); push another RC
+    to check that it triggers correctly.** (2026-09-26) Release titles are
+    now `presence-<tag>` (also applied when a run updates an existing
+    release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
+    check the trigger and the new name, and renamed the `1.0.0-RC1`
+    release to `presence-1.0.0-RC1` to match.
