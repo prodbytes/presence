@@ -117,6 +117,15 @@ class _PresenceAppState extends State<PresenceApp> {
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,
+            // Clips and events fetched from the cloud after sign-in join the
+            // local history, like a restore from IndexedDB.
+            onRemote: (remote) async => _log.addHistory(
+              await _persistence.importRemote(
+                events: remote.events,
+                clips: remote.clips,
+                media: remote.media,
+              ),
+            ),
           );
     _persistence
       ..attachRig(_rig)

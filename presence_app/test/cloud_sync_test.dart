@@ -182,4 +182,132 @@ void main() {
     expect(backend.uploads, isEmpty);
     expect(sync.state, CloudSyncState.off);
   });
+
+  group('fetch and periodic sync', () {
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+
+    test(
+      'on sign-in, the folder is fetched first and not uploaded back',
+      () async {
+        sync.dispose();
+        const prefix = 'us-east-1:identity';
+        // Another device's clip and event, already in the cloud.
+        backend.uploads['$prefix/clips/r1.json'] = (
+          bytes: json({
+            'id': 'r1',
+            'eventId': 're1',
+            'cameraId': 'cam',
+            'state': 'complete',
+            'full': {
+              'mediaId': 'r1-full',
+              'startMs': 0,
+              'endMs': 30000,
+              'mimeType': 'video/mp4',
+            },
+          }),
+          contentType: 'application/json',
+        );
+        backend.uploads['$prefix/clips/r1.mp4'] = (
+          bytes: Uint8List.fromList([7, 7, 7]),
+          contentType: 'video/mp4',
+        );
+        backend.uploads['$prefix/clips/r1.jpg'] = (
+          bytes: Uint8List.fromList([5]),
+          contentType: 'image/jpeg',
+        );
+        backend.uploads['$prefix/events/re1.json'] = (
+          bytes: json({
+            'id': 're1',
+            'type': 'clipRequested',
+            'title': 'Clip',
+            'time': 9,
+            'clipId': 'r1',
+          }),
+          contentType: 'application/json',
+        );
+        final remote = <RemoteRecords>[];
+        sync = CloudSync(
+          auth: auth,
+          backend: backend,
+          store: Future.value(store),
+          media: Future.value(IdbMediaStore(store)),
+          changes: changes.stream,
+          debounce: Duration.zero,
+          onRemote: (r) async => remote.add(r),
+        );
+        final before = Set.of(backend.uploads.keys);
+
+        await auth.signIn();
+        await sync.idle();
+
+        expect(remote, hasLength(1));
+        expect(remote.single.events.map((e) => e['id']), ['re1']);
+        expect(remote.single.clips.single['id'], 'r1');
+        expect(remote.single.clips.single['thumbnail'], [5]);
+        expect(remote.single.media, {
+          'r1-full': [7, 7, 7],
+        });
+        expect(
+          backend.downloads,
+          containsAll([
+            'clips/r1.json',
+            'clips/r1.mp4',
+            'clips/r1.jpg',
+            'events/re1.json',
+          ]),
+        );
+        expect(sync.downloaded, 2);
+        // The local clip and events go up; the fetched ones aren't sent back.
+        final uploaded = backend.uploads.keys.toSet().difference(before);
+        expect(
+          uploaded,
+          containsAll(['$prefix/clips/c1.webm', '$prefix/events/e1.json']),
+        );
+        expect(
+          uploaded.where((k) => k.contains('r1') || k.contains('re1')),
+          isEmpty,
+        );
+      },
+    );
+
+    test('the fetch runs once per sign-in', () async {
+      await auth.signIn();
+      await sync.idle();
+      backend.downloads.clear();
+      changes.add(null);
+      await sync.idle();
+      expect(backend.downloads, isEmpty);
+    });
+
+    test('a sync runs every interval, even without a change', () async {
+      sync.dispose();
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        interval: const Duration(milliseconds: 50),
+      );
+      await auth.signIn();
+      await sync.idle();
+      backend.uploads.clear();
+
+      // Saved without a change notification: only the timer finds it.
+      await store.putEvent({
+        'id': 'e9',
+        'type': 'x',
+        'title': 'Quiet',
+        'time': 9,
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await sync.idle();
+      expect(
+        backend.uploads.keys,
+        contains('us-east-1:identity/events/e9.json'),
+      );
+    });
+  });
 }

@@ -1,7 +1,9 @@
 # Cloud sync
 
-Signed-in users' **clips (videos) and events are uploaded to S3**,
-straight from the device, as they're saved. There's no backend in between:
+Signed-in users' **clips (videos) and events sync with S3**, straight from
+the device. They're uploaded as they're saved, and at least every minute.
+After sign-in, the user's folder is fetched first, so clips and events from
+another device or an earlier install appear too. There's no backend in between:
 the app trades the user's Google ID token for temporary AWS credentials
 through a **Cognito identity pool**, and makes signed S3 uploads itself
 ([lib/cloud/](../presence_app/lib/cloud)).
@@ -22,11 +24,23 @@ Everything goes under the user's **Cognito identity ID**
 
 - **Signed out:** nothing is uploaded (and the camera shows no buttons; see
   [Sign-in](sign-in.md)).
-- **On sign-in:** everything stored and not yet uploaded goes up. Clips go
+- **On sign-in, fetch first:**
+  - the app lists the user's folder (`ListObjectsV2` on `<identityId>/`) and
+    downloads the clips (details, recording and thumbnail) and events the
+    device doesn't have;
+  - it marks them as synced, so they aren't uploaded back;
+  - it stores them (`Persistence.importRemote`, with recordings through
+    `MediaStore.saveBytes`) and adds their events to the timeline.
+
+  This runs once per sign-in.
+- **Then upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
-- **While signed in:** each event goes up as soon as it's saved. A clip goes
-  up once its recording is complete: `Persistence.changes` fires after both,
-  and a sync pass follows 0.5 s later.
+- **While signed in, whichever comes first:**
+  - **when a shot is taken:** each event goes up as soon as it's saved, and
+    a clip once its recording is complete (`Persistence.changes` fires after
+    both, and a sync pass follows 0.5 s later);
+  - **every minute:** a periodic pass (`CloudSync.interval`) catches anything
+    else.
 - **Nothing twice:** the `synced` store keeps each uploaded object key with
   a fingerprint of its content (the SHA-256 of the JSON, or the media ID).
   An unchanged object is skipped. A changed one, such as a clip's event
@@ -52,7 +66,7 @@ Everything goes under the user's **Cognito identity ID**
     to resume uploads"**;
   - other failures show "Upload failed (HTTP …)".
 - **Status:** the account sheet shows a line under the email: "Cloud backup
-  is off", "Uploading…", "Backed up (N uploaded)", or the error.
+  is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
   IDs): `AWS_REGION` (default `us-east-1`), `COGNITO_IDENTITY_POOL_ID` and
   `USER_DATA_BUCKET`. Sync is off when either ID is empty. In production,
@@ -80,13 +94,26 @@ In [presence_infra/](../presence_infra):
   `.env`).
   - Google only (`accounts.google.com` = the web client ID), no guests, no
     classic flow.
-  - Its authenticated role may only `PutObject` and `GetObject` in
+  - Its authenticated role may only `PutObject` and `GetObject` (upload and
+    fetch) in
     `<bucket>/${cognito-identity.amazonaws.com:sub}/*`, and `ListBucket` on
     that prefix. No deletes.
 
 ## Verified
 
-- Unit tests:
+- Fetch and timer tests:
+  - on sign-in, a remote clip (details, video, thumbnail) and event are
+    downloaded, handed over and not uploaded back, while local items are
+    uploaded;
+  - the fetch runs once per sign-in;
+  - a periodic pass uploads an event that was saved without a change
+    notification;
+  - at app level, a clip from the cloud joins the Events timeline and its
+    downloaded recording plays.
+- Against AWS, the app's `S3Bucket` uploaded a 300 KB recording and an event
+  to the real bucket, listed the prefix (both keys) and downloaded the
+  recording byte-for-byte. It was cleaned up afterwards.
+- The earlier unit tests:
   - SigV4 against AWS's GET and PUT Object examples;
   - `CloudSync` with a fake backend: nothing while signed out; everything on
     sign-in, under the identity; no duplicates; changed events again; new
@@ -113,5 +140,5 @@ In [presence_infra/](../presence_infra):
   own prefix.
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
-- Nothing is downloaded back yet: the cloud is a backup, and the device
-  stays the source of truth.
+- The fetch adds what's missing and never overwrites local records. A clip
+  deleted on one device isn't deleted elsewhere (nothing is deleted yet).

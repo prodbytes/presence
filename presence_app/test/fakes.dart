@@ -211,6 +211,7 @@ class FakeAuthService extends AuthService {
 class FakeCloudBackend implements CloudBackend {
   final uploads = <String, ({Uint8List bytes, String contentType})>{};
   final tokens = <String>[];
+  final downloads = <String>[];
   int resets = 0;
 
   /// Thrown by the next connect(), once.
@@ -248,5 +249,19 @@ class FakeCloudSession implements CloudSession {
       throw e;
     }
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
+  }
+
+  @override
+  Future<List<String>> list() async => [
+    for (final key in backend.uploads.keys)
+      if (key.startsWith('$prefix/')) key.substring(prefix.length + 1),
+  ];
+
+  @override
+  Future<Uint8List> get(String key) async {
+    backend.downloads.add(key);
+    final object = backend.uploads['$prefix/$key'];
+    if (object == null) throw StateError('No $key');
+    return object.bytes;
   }
 }

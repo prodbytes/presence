@@ -648,3 +648,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - tests use `ana@example.com`.
 
     Earlier commits and PR descriptions still contain these values.
+105. **Create the Cognito identity pool that lets identified users write
+    to S3. Sync with S3 every minute or when a shot is taken, whichever comes
+    first. Fetch the bucket on initialization after login. Make sure all the
+    AWS pieces are in place: a shot should land on S3.** (2026-09-26)
+    - The pool and bucket from the previous request were already live.
+    - `CloudSync` now runs a pass every minute as well as when a shot is
+      saved, and on sign-in first fetches the user's folder
+      (`ListObjectsV2`, then `GET`), importing missing clips (with their
+      recordings) and events into the local store and the timeline.
+    - `S3Bucket` gained `get` and `list`, and `MediaStore` `saveBytes`.
+    - Checked against AWS: every stack is complete (except the GitHub deploy
+      role), CORS allows `GET`, and put, list and get round-tripped a
+      recording.
+    - 96 tests pass.

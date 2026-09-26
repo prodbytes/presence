@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
@@ -182,6 +185,68 @@ void main() {
         matching: find.textContaining('Backed up'),
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('after sign-in, clips from the cloud join the history', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    const prefix = 'us-east-1:identity';
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    final requested = DateTime(2026, 9, 24, 8).millisecondsSinceEpoch;
+    cloud.uploads['$prefix/clips/remote-clip.json'] = (
+      bytes: json({
+        'id': 'remote-clip',
+        'eventId': 'remote-event',
+        'cameraId': 'garage-cam',
+        'cameraLabel': 'Garage',
+        'requestedAt': requested,
+        'beforeMs': 15000,
+        'afterMs': 15000,
+        'supported': true,
+        'state': 'complete',
+        'full': {
+          'mediaId': 'remote-clip-full',
+          'startMs': 0,
+          'endMs': 30000,
+          'mimeType': 'video/webm',
+        },
+      }),
+      contentType: 'application/json',
+    );
+    cloud.uploads['$prefix/clips/remote-clip.webm'] = (
+      bytes: Uint8List.fromList('remote-video'.codeUnits),
+      contentType: 'video/webm',
+    );
+    cloud.uploads['$prefix/events/remote-event.json'] = (
+      bytes: json({
+        'id': 'remote-event',
+        'type': ClipRequested.clipRequestedType,
+        'title': 'Clip requested',
+        'time': requested,
+        'cameraId': 'garage-cam',
+        'clipId': 'remote-clip',
+        'clipState': 'complete',
+        'trigger': 'manual',
+      }),
+      contentType: 'application/json',
+    );
+
+    await launch(tester, cloud: cloud);
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+
+    expect(inEvents(find.text('Garage')), findsOneWidget);
+    // The downloaded recording plays from local storage.
+    final restored = clipEvent(tester).clip;
+    expect(restored.id, 'remote-clip');
+    expect(
+      await run(tester, restored.full!.resolveUrl()),
+      'restored:remote-video',
     );
   });
 

@@ -54,6 +54,11 @@ class FileMediaStore implements MediaStore {
   }
 
   @override
+  Future<void> saveBytes(String id, Uint8List bytes) async {
+    await (await _file(id)).writeAsBytes(bytes, flush: true);
+  }
+
+  @override
   Future<Uint8List> bytes(String id) async {
     final file = await _file(id);
     if (!await file.exists()) throw StateError('Recording $id is missing');

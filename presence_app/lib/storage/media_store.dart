@@ -16,6 +16,10 @@ abstract class MediaStore {
   /// A saved recording's bytes (for uploading it).
   Future<Uint8List> bytes(String id);
 
+  /// Saves recording bytes under [id] (a recording downloaded from the
+  /// cloud).
+  Future<void> saveBytes(String id, Uint8List bytes);
+
   /// Saves [clip] and deletes the recordings in [deleteIds], atomically
   /// where the backend allows it.
   Future<void> commitClip(
@@ -56,6 +60,10 @@ class IdbMediaStore implements MediaStore {
     if (bytes == null) throw StateError('Recording $id is missing');
     return _io.createUrl(bytes, mimeType);
   }
+
+  @override
+  Future<void> saveBytes(String id, Uint8List bytes) =>
+      _store.putMedia(id, bytes);
 
   @override
   Future<Uint8List> bytes(String id) async {
