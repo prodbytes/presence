@@ -411,3 +411,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     Verified on the iPhone 18 Pro simulator: the ID is compiled into the
     build, and iOS offers to open the reversed-ID URL in Presence. Also
     dropped the spec's stale note that the bundle ID is still a placeholder.
+78. **Create a new SAM module called presence_api_events, in Java, on the
+    latest runtime.** (2026-09-25) Added
+    [presence_api_events/](../presence_api_events): a SAM template with one
+    `java25` (arm64) Lambda, `EventsFunction`, serving `GET /events` (an
+    empty list for now), a Maven project with a unit test, a sample event,
+    `samconfig.toml` and a README. `.aws-sam/` is git-ignored.

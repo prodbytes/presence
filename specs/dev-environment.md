@@ -63,6 +63,10 @@
   3.47.5, which built the GTK bundle. The iOS build has no client ID until
   `GOOGLE_IOS_CLIENT_ID` is filled in `.env`.
 
+- **AWS SAM:** building and deploying `presence_api_events` needs the SAM
+  CLI, JDK 25 (from devbox's GraalVM) and Maven 3.9+. The SAM CLI and Maven
+  aren't in devbox yet.
+
 ## Known limitations
 
 - The GraalVM package is the glibc/macOS build, not the musl one, so

@@ -83,3 +83,6 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/extensions.json
 !.vscode/launch.json
+
+# --- AWS SAM ---
+.aws-sam/

@@ -34,6 +34,11 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Android](android.md): the native Camera2 recording layer.
 - [iOS](ios.md): the native AVFoundation recording layer.
 
+**Backend**
+
+- [Events API](events-api.md): the `presence_api_events` SAM module (Java 25
+  Lambda behind API Gateway).
+
 **Project**
 
 - [Development environment](dev-environment.md): devbox, the dev container,

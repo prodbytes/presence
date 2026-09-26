@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  presence_api_events — the Presence events API (Java, AWS SAM).
+
+Globals:
+  Function:
+    Runtime: java25
+    Architectures:
+      - arm64
+    MemorySize: 512
+    Timeout: 20
+
+Resources:
+  EventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: EventsFunction
+      Handler: presence.api.events.EventsHandler::handleRequest
+      Events:
+        ListEvents:
+          Type: Api
+          Properties:
+            Path: /events
+            Method: get
+
+Outputs:
+  EventsApi:
+    Description: API Gateway endpoint for the Prod stage's /events route
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/events"
+  EventsFunctionArn:
+    Description: Events Lambda function ARN
+    Value: !GetAtt EventsFunction.Arn
