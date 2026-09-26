@@ -486,3 +486,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     for the builds. The PR's run built all four; the artifacts had the
     client IDs compiled in, no secret, and the expected package and
     architectures. Added [release.md](release.md).
+88. **Merge the PR, trigger the action, verify build and release
+    artifacts.** (2026-09-26) Merged #35 and pushed the tag `1.0.0-RC1` on
+    `main`, which ran the workflow: all four builds and the release job
+    passed, publishing the prerelease with the web zip, APK, unsigned iOS
+    app and Linux x64 bundle. Downloaded the release assets and checked
+    each (client IDs compiled in, no secret, package `com.nu01.presence`,
+    valid APK signature, arm64 iOS with its URL scheme, x86-64 Linux).
