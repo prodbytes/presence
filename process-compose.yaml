@@ -9,6 +9,7 @@ processes:
       - FLOCI_PORT=${FLOCI_PORT:-4566}
       - PRESENCE_CDN_ALIAS=${PRESENCE_CDN_ALIAS:-presence.localhost}
       - INDEX_PORT=${INDEX_PORT:-8081}
+      - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     # Start logging once every service passes its readiness probe, so the
     # first status line reflects a fully started stack.
     depends_on:
@@ -62,7 +63,10 @@ processes:
       backoff_seconds: 5
 
   4-floci:
-    command: docker compose -f presence_floci/compose.yaml up floci
+    # The mkcert certificate is generated first, when missing or stale.
+    command: bash scripts/local-certs.sh && docker compose -f presence_floci/compose.yaml up floci
+    environment:
+      - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     shutdown:
       command: docker compose -f presence_floci/compose.yaml down
       timeout_seconds: 30

@@ -5,13 +5,15 @@
   aarch64-linux and x86_64-linux),
   Python, Node.js, Go, PostgreSQL, Flutter, the AWS SAM CLI (1.165.0),
   Maven (3.9.16, running on the GraalVM JDK), the AWS CDK CLI (`cdk`,
-  2.1138.0), the AWS CLI (2.35.11), GNU Make and curl. Everything the
+  2.1138.0), the AWS CLI (2.35.11), GNU Make, curl, mkcert (1.4.4, for the
+  local HTTPS certificate) and OpenSSL. Everything the
   services, the Makefile and the SAM and CDK modules run comes from devbox,
   except Docker: the daemon (Docker Desktop, or docker-in-docker in the dev
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web), 3000 (SAM API), 4566 (Floci) and 8081 (index).
+  (Flutter web), 3000 (SAM API), 4566 (Floci), 8081 (index) and 8443
+  (Floci HTTPS).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
@@ -23,11 +25,13 @@
     `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
     readiness probe on `GET /api/events`
   - Floci as the local CloudFront (`4-floci`; see
-    [Local CDN](local-cdn.md))
+    [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
+    [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
+    mkcert certificate exists
   - the site index (`5-index`: `python3 -m http.server` on
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
   - the health monitor, which logs the status of the index, the web app,
-    the API and the CDN.
+    the API, the CDN and the CDN over HTTPS.
 
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or

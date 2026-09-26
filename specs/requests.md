@@ -552,3 +552,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     after resolving its request-log conflict). Set `version.X.txt` to `0`
     and `version.Y.txt` to `1`, merged that, and ran
     `scripts/release-ga.sh` on `main` for the first GA release, `0.1.Z-GA`.
+96. **Can Floci use 8443 for SSL?** (2026-09-26) Yes:
+    `FLOCI_TLS_AWS_HTTPS_PORT=8443` moves its extra HTTPS listener off
+    the privileged 443. No code change.
+97. **Generate the required certs, if necessary, with mkcert and serve
+    local HTTPS; start the services to check, and make sure the local
+    HTTPS checks pass.** (2026-09-26)
+    - Added mkcert and OpenSSL to devbox, and
+      [scripts/local-certs.sh](../scripts/local-certs.sh). It writes a
+      certificate for `presence.localhost` and friends into the git-ignored
+      `presence_floci/certs/`, only when needed, and runs before Floci
+      starts.
+    - Floci now loads it and serves HTTPS on 8443 (and 4566).
+    - Added a `🔒 https` health check that validates against mkcert's CA,
+      and a port 8443 forward in the dev container.
+    - Verified under `devbox services up`: `🔒 https ✅`, the mkcert
+      certificate served and verified, the app loaded over HTTPS with the
+      hot-reload WebSocket connected.
+    - `mkcert -install` (browser trust) needs the user's password, so it's
+      a one-time manual step.

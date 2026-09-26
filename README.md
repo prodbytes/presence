@@ -59,14 +59,16 @@ starts the Flutter app in web mode on http://localhost:8080/app/
 http://localhost:3000/api/events ([scripts/sam-api.sh](scripts/sam-api.sh)),
 the site index on http://localhost:8081 ([presence_index/](presence_index),
 which redirects to `/app/`), Floci as a local CloudFront that routes
-http://presence.localhost:4566/ (index), `/app/` and `/api/` to them
-([presence_floci/](presence_floci)), and a `health-check`
+http://presence.localhost:4566/ (index), `/app/` and `/api/` to them, also
+over HTTPS at https://presence.localhost:8443/ with a mkcert certificate
+([presence_floci/](presence_floci); run `devbox run mkcert -install` once so
+browsers trust it), and a `health-check`
 monitor, wired up in [process-compose.yaml](process-compose.yaml). The
 monitor logs one status line per check (every 15 s, configurable via
 `HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🏠 index ✅ 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅
+2026-07-09 20:02:10 🏠 index ✅ 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅ 🔒 https ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:

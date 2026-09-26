@@ -54,8 +54,44 @@ but doesn't run.
   - the health line showed `🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅`, and shutdown left
     no containers.
 
+## HTTPS
+
+The distribution is also served over HTTPS at
+**https://presence.localhost:8443/app/** (and `https://…:4566`), with a
+local certificate:
+
+- [scripts/local-certs.sh](../scripts/local-certs.sh) runs before Floci
+  starts (in the `4-floci` command). With mkcert (from devbox), it writes
+  `presence_floci/certs/presence.pem` and `presence-key.pem` for
+  `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
+  and `::1`. It regenerates them only when they're missing, expire within
+  30 days or don't cover every name. The folder is git-ignored.
+- Floci loads them (`FLOCI_TLS_ENABLED`, `FLOCI_TLS_CERT_PATH`,
+  `FLOCI_TLS_KEY_PATH`) and also listens for HTTPS on 8443
+  (`FLOCI_TLS_AWS_HTTPS_PORT`; 8443 avoids a privileged port), published
+  on 127.0.0.1 (`FLOCI_HTTPS_PORT`).
+- Browsers trust the certificate once mkcert's CA is installed:
+  `devbox run mkcert -install`, a one-time step that asks for the user's
+  password. The `🔒 https` health check validates against the CA file
+  (`mkcert -CAROOT`), so it doesn't depend on that step.
+- Hot reload keeps working: the page's `ws://dev.presence.localhost:8080`
+  channel is allowed from HTTPS, because `*.localhost` counts as a secure
+  origin.
+- Verified on macOS:
+  - the served certificate's issuer is the mkcert development CA;
+  - curl with the CA got 200 (`ssl_verify_result` 0) for `/app/` and
+    `/api/events` on 8443, and for `/app/` on 4566;
+  - curl without the CA was refused (exit 60);
+  - headless Chrome loaded https://presence.localhost:8443/app/ with no
+    failed requests (certificate errors overridden, because the CA isn't
+    installed in the system store), the app started, and the debug
+    WebSocket connected (101);
+  - the health line showed `🔒 https ✅`.
+
 ## Known limitations
 
+- `mkcert -install` needs the user's password, so it isn't automated.
+  Until it's run, browsers warn about the certificate.
 - On Linux, including the dev container, it doesn't reach the origins as
   is: plain Docker's `host-gateway` is the bridge address, not loopback.
 - Google sign-in through this URL needs `http://presence.localhost:4566`
