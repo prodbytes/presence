@@ -19,6 +19,13 @@ Toolchain pinned by [devbox.json](devbox.json) and locked in [devbox.lock](devbo
 | Flutter | 3.47.x |
 | AWS SAM CLI | 1.165.x |
 | Maven | 3.9.x |
+| AWS CDK CLI | 2.1138.x |
+| AWS CLI | 2.35.x |
+| GNU Make, curl | 4.4.x, 8.17.x |
+
+Docker isn't in devbox: the services need a running Docker daemon (Docker
+Desktop on macOS, docker-in-docker in the dev container), and its own CLI
+with the `compose` plugin.
 
 The container also ships the
 [docker-in-docker feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker),

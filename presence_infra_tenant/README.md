@@ -14,17 +14,17 @@ Per-tenant infrastructure for Presence, as an
 
 ## Requirements
 
-- JDK 25 and Maven 3.9+ (provided by devbox: `devbox shell`)
-- Node.js, for the CDK CLI (`npx aws-cdk`, or `npm install -g aws-cdk`)
+- JDK 25, Maven 3.9+ and the CDK CLI (`cdk`), all provided by devbox
+  (`devbox shell`)
 
 ## Commands
 
 Run from this folder:
 
 ```bash
-mvn test              # unit tests
-npx aws-cdk synth     # print the CloudFormation template
-npx aws-cdk diff      # compare with the deployed stack
-npx aws-cdk bootstrap # once per account and region
-npx aws-cdk deploy
+mvn test      # unit tests
+cdk synth     # print the CloudFormation template
+cdk diff      # compare with the deployed stack
+cdk bootstrap # once per account and region
+cdk deploy
 ```
