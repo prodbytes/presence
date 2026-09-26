@@ -45,16 +45,13 @@ devbox add go@1.24  # add more tools (updates devbox.json + devbox.lock)
 devbox services up
 ```
 
-starts PostgreSQL as a Docker container (`devbox-db`, defined in
-[compose.yaml](compose.yaml)), the Flutter app in web mode on
-http://localhost:8080 ([scripts/flutter-web.sh](scripts/flutter-web.sh)), and a
-`health-check` monitor wired up in
-[process-compose.yaml](process-compose.yaml). A readiness probe holds the
-monitor back until the database accepts connections; after that it logs one
+starts the Flutter app in web mode on http://localhost:8080
+([scripts/flutter-web.sh](scripts/flutter-web.sh)) and a `health-check` monitor,
+wired up in [process-compose.yaml](process-compose.yaml). The monitor logs one
 status line per check (every 15 s, configurable via `HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🐘 database ✅ 🌐 web ✅
+2026-07-09 20:02:10 🌐 web ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:
@@ -65,7 +62,7 @@ Stop everything with `devbox services stop`. The monitor also runs standalone:
 The Flutter app lives in [presence_app/](presence_app). Run it in web mode with:
 
 ```bash
-devbox run web      # or: devbox services up, to start it with the database
+devbox run web      # or: devbox services up, to start it with the health monitor
 ```
 
 It serves on http://localhost:8080 (override with `FLUTTER_WEB_PORT`); the dev

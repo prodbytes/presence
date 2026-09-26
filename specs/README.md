@@ -604,10 +604,12 @@ The Swift counterpart of the Android layer
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts
-  PostgreSQL, the Flutter web server (`2-flutter-web`, via
+  the Flutter web server (`2-flutter-web`, via
   [scripts/flutter-web.sh](../scripts/flutter-web.sh), with an HTTP readiness
-  probe) and the health monitor, which logs the status of both the database
-  and the web app.
+  probe) and the health monitor, which logs the web app's status. No
+  database runs as a service: the app keeps its data on the device
+  (see [Storage](#storage)). The `postgresql` devbox package stays in the
+  toolchain (for `psql` and `pg_isready`).
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
   (Dart 3.13.0).
 - **Google Cloud CLI:** Homebrew's `gcloud-cli` cask, logged in with
