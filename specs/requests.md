@@ -447,3 +447,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
 83. **(Fix found while moving the app to /app/.)** (2026-09-25) Through
     Floci, the real Flutter web server returned 502, because Dart bound
     `localhost` to `[::1]` only. It now binds `127.0.0.1`.
+84. **Serve presence_app at /app/ instead of the root.** (2026-09-25) The
+    Flutter web server now runs with `--base-href /app/` and serves only
+    under `/app/`, because CloudFront forwards paths as is and can't strip
+    a prefix. The Floci distribution has an explicit `/app*` behavior for
+    the app. The web readiness probe and the web and CDN health checks use
+    `/app/`, and the READMEs and spec point at `/app/`. `/` isn't
+    redirected, since Floci doesn't run CloudFront Functions.
+85. **Run the Flutter app in Flutter dev mode on /app, the events API on
+    sam local at /api/events, and use Floci only to route between them as
+    CloudFront would.** (2026-09-26)
+    - The SAM route moved to `/api/events`. The distribution routes `/app*`
+      to the Flutter dev server and `/api/*` to SAM, and `/events` is gone.
+    - Found while testing: the app never started through Floci. The
+      Flutter dev server's debug channel (a WebSocket, or SSE) can't pass
+      through Floci, and the dev server built its URL from the Host
+      header it saw (`host.docker.internal`), which the browser can't
+      resolve.
+    - The fix: both origins are named `dev.presence.localhost`, mapped to
+      the Docker host inside the container and to loopback in the browser,
+      so the debug WebSocket goes straight to the dev server.
+    - Floci is pinned to `nightly-09242026-compat`, because 2.1.0 forwards
+      no viewer headers.
+    - Verified: the app renders through
+      http://presence.localhost:4566/app/, hot-reload WebSocket 101, and
+      `/api/events` 200.

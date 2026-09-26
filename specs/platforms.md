@@ -1,7 +1,8 @@
 # Platforms
 
 - Web is the primary development target. `devbox services up` (or
-  `devbox run web` on its own) serves it at http://localhost:8080. The port can
+  `devbox run web` on its own) serves it at http://localhost:8080/app/ (base
+  href `/app/`, the path CloudFront routes to the app). The port can
   be changed with `FLUTTER_WEB_PORT`.
 - Cameras are platform-specific, behind the `CameraSource` interface
   ([lib/cameras/](../presence_app/lib/cameras)):

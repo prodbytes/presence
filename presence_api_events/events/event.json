@@ -1,6 +1,6 @@
 {
-  "resource": "/events",
-  "path": "/events",
+  "resource": "/api/events",
+  "path": "/api/events",
   "httpMethod": "GET",
   "headers": {
     "Accept": "application/json"
@@ -8,9 +8,9 @@
   "queryStringParameters": null,
   "pathParameters": null,
   "requestContext": {
-    "resourcePath": "/events",
+    "resourcePath": "/api/events",
     "httpMethod": "GET",
-    "path": "/Prod/events",
+    "path": "/Prod/api/events",
     "stage": "Prod"
   },
   "body": null,

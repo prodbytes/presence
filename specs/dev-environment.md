@@ -16,7 +16,7 @@
   - the events API (`3-sam-api`, via
     [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
     `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
-    readiness probe on `GET /events`
+    readiness probe on `GET /api/events`
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md))
   - the health monitor, which logs the status of the web app, the API and

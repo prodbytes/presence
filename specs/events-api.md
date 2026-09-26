@@ -6,7 +6,9 @@ one Java Lambda function, `EventsFunction`
 Lambda Java runtime) on arm64, behind an API Gateway REST API. It's built
 with Maven (`maven.compiler.release` 25, a shaded jar).
 
-- `GET /events` returns `200` with `{"events":[]}`. It's a scaffold: no event
+- `GET /api/events` returns `200` with `{"events":[]}`. Its routes start
+  with `/api/` because the CloudFront distribution sends `/api/*` to it
+  unchanged. It's a scaffold: no event
   store is wired in yet, and the app doesn't call it.
 - Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
 - Not deployed yet. The commands are in the module's

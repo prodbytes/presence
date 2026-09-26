@@ -45,13 +45,17 @@ devbox add go@1.24  # add more tools (updates devbox.json + devbox.lock)
 devbox services up
 ```
 
-starts the Flutter app in web mode on http://localhost:8080
-([scripts/flutter-web.sh](scripts/flutter-web.sh)) and a `health-check` monitor,
-wired up in [process-compose.yaml](process-compose.yaml). The monitor logs one
-status line per check (every 15 s, configurable via `HEALTH_CHECK_INTERVAL`):
+starts the Flutter app in web mode on http://localhost:8080/app/
+([scripts/flutter-web.sh](scripts/flutter-web.sh)), the events API on
+http://localhost:3000/api/events ([scripts/sam-api.sh](scripts/sam-api.sh)),
+Floci as a local CloudFront that routes http://presence.localhost:4566/app/
+and `/api/` to them ([presence_floci/](presence_floci)), and a `health-check`
+monitor, wired up in [process-compose.yaml](process-compose.yaml). The
+monitor logs one status line per check (every 15 s, configurable via
+`HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🌐 web ✅
+2026-07-09 20:02:10 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:
@@ -65,7 +69,8 @@ The Flutter app lives in [presence_app/](presence_app). Run it in web mode with:
 devbox run web      # or: devbox services up, to start it with the health monitor
 ```
 
-It serves on http://localhost:8080 (override with `FLUTTER_WEB_PORT`); the dev
+It serves on http://localhost:8080/app/ (override the port with
+`FLUTTER_WEB_PORT`); the dev
 container forwards that port automatically. It uses Flutter's `web-server`
 device, so no Chrome is needed inside the container. Open the URL in any
 browser. Press `r` in the terminal to hot reload.

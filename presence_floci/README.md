@@ -1,22 +1,27 @@
 # presence_floci
 
 Runs [Floci](https://floci.io/), a local AWS emulator, as the Presence
-**CloudFront** distribution. One URL serves both the Flutter web app and the
-SAM events API, routed by path as the deployed CloudFront would:
+**CloudFront** distribution. It only routes, as the deployed CloudFront
+would. The app and the API keep running on their own dev servers:
 
 | Path | Origin |
 |------|--------|
-| `/events*` | SAM API, `sam local start-api` (`SAM_API_PORT`, 3000) |
-| everything else | Flutter web server (`FLUTTER_WEB_PORT`, 8080) |
+| `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
+| `/api/*` | SAM API, `sam local start-api` (`SAM_API_PORT`, 3000); for now `GET /api/events` |
+| everything else | Flutter dev server, which answers 404 outside `/app/` |
 
-Open **http://presence.localhost:4566/**. Browsers and curl resolve
+Open **http://presence.localhost:4566/app/**. Browsers and curl resolve
 `*.localhost` to loopback, so no hosts-file edit is needed.
+
+CloudFront forwards paths as is (it can't strip a prefix), so each origin
+serves its own prefix: the app has the `/app/` base href, and the API routes
+start with `/api/`.
 
 ## Files
 
 | Path | Holds |
 |------|-------|
-| [compose.yaml](compose.yaml) | The `presence-floci` container (`floci/floci:2.1.0-compat`), bound to 127.0.0.1 |
+| [compose.yaml](compose.yaml) | The `presence-floci` container, bound to 127.0.0.1 |
 | [init/ready.d/10-cloudfront.sh](init/ready.d/10-cloudfront.sh) | Ready hook: creates the cache policy, origin request policy and distribution |
 
 ## How it works
@@ -25,16 +30,26 @@ Open **http://presence.localhost:4566/**. Browsers and curl resolve
   Floci reports its `ready` hooks done (`/_floci/init`).
 - Storage is `memory`, so every start is clean and the hook recreates the
   distribution. The distribution ID changes each time; use the alias.
-- Both origins are `host.docker.internal`, which Floci allows through
-  `FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`. By default it
-  refuses private origins.
-- Nothing is cached (all TTLs are 0). Every viewer header except `Host` is
-  forwarded, with all cookies and query strings, matching AWS's managed
-  `AllViewerExceptHostHeader` policy. Floci doesn't model AWS managed
-  policies, so the hook creates equivalents.
-- The API behavior allows all methods. The app behavior allows GET, HEAD and
-  OPTIONS.
-- The health monitor's `☁️ cdn` check requests `/` with the alias as the
+- Nothing is cached (all TTLs are 0). Every viewer header except `Host`, plus
+  all cookies and query strings, is forwarded (including `Authorization`),
+  matching AWS's managed `AllViewerExceptHostHeader` policy. Floci doesn't
+  model AWS managed policies, so the hook creates an equivalent. All
+  methods are allowed.
+- **Hot reload works through the CDN URL.** The Flutter dev server writes
+  the `Host` it receives into its debug-channel WebSocket URL. Floci can't
+  carry WebSockets (it drops `Upgrade`) and buffers streaming responses, so
+  that channel mustn't go through it. Both origins are therefore named
+  `dev.presence.localhost`:
+  - Inside the container, compose maps it to the Docker host
+    (`host-gateway`), and it's allowlisted as a private origin
+    (`FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`).
+  - In the browser, it's loopback, so the page's
+    `ws://dev.presence.localhost:8080/app/$dwdsSseHandler` goes straight
+    to the dev server.
+- The image is a dated nightly (`nightly-09242026-compat`): Floci 2.1.0
+  forwards no viewer headers at all to custom origins. Move to the next
+  release once it ships.
+- The health monitor's `☁️ cdn` check requests `/app/` with the alias as the
   `Host` header.
 
 ## Settings
@@ -43,20 +58,17 @@ Open **http://presence.localhost:4566/**. Browsers and curl resolve
 |----------|---------|---------|
 | `FLOCI_PORT` | `4566` | Host port for Floci |
 | `PRESENCE_CDN_ALIAS` | `presence.localhost` | Distribution alias (host name to browse) |
-| `PRESENCE_ORIGIN_HOST` | `host.docker.internal` | Where Floci finds the web app and API |
+| `PRESENCE_ORIGIN_HOST` | `dev.presence.localhost` | Origin host name: the Docker host inside the container, and loopback in the browser |
 
 ## Limitations
 
-- **Linux (incl. the dev container):** the Flutter web server and SAM bind to
-  `localhost`, so a container can't reach them through `host.docker.internal`
-  (Docker Desktop on macOS forwards to the host's loopback; plain Docker on
-  Linux doesn't). Point `PRESENCE_ORIGIN_HOST` at an address the servers
-  listen on, or run Floci with host networking.
+- **Linux (incl. the dev container):** the Flutter dev server and SAM bind to
+  127.0.0.1. On plain Docker, `host-gateway` is the bridge address, which
+  can't reach them (Docker Desktop on macOS forwards it to the host's
+  loopback). Running Floci with host networking would fix this.
 - **Google sign-in** only works on origins registered with the OAuth client.
   Add `http://presence.localhost:4566` to the web client's authorized
   JavaScript origins to sign in through the CDN URL.
-- CloudFront Functions aren't executed and there's no edge caching (see the
+- `/` isn't redirected to `/app/`: that takes a CloudFront Function, which
+  Floci stores but doesn't run. There's no edge caching either (see the
   [Floci CloudFront docs](https://github.com/floci-io/floci/blob/main/docs/services/cloudfront.md)).
-- A POST to `/events` returns 405 through Floci but 403 from SAM directly,
-  because the API defines only GET. Non-GET forwarding hasn't been exercised
-  against a route that accepts it.

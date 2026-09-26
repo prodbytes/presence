@@ -7,7 +7,7 @@ set -uo pipefail
 INTERVAL="${HEALTH_CHECK_INTERVAL:-15}"
 
 check_web() {
-    if curl -fs -o /dev/null --max-time 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/"; then
+    if curl -fs -o /dev/null --max-time 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; then
         echo "🌐 web ✅"
     else
         echo "🌐 web ❌"
@@ -15,7 +15,7 @@ check_web() {
 }
 
 check_api() {
-    if curl -fs -o /dev/null --max-time 10 "http://localhost:${SAM_API_PORT:-3000}/events"; then
+    if curl -fs -o /dev/null --max-time 10 "http://localhost:${SAM_API_PORT:-3000}/api/events"; then
         echo "⚡ api ✅"
     else
         echo "⚡ api ❌"
@@ -26,7 +26,7 @@ check_api() {
 # header (so it works where *.localhost doesn't resolve).
 check_cdn() {
     if curl -fs -o /dev/null --max-time 10 -H "Host: ${PRESENCE_CDN_ALIAS:-presence.localhost}" \
-            "http://localhost:${FLOCI_PORT:-4566}/"; then
+            "http://localhost:${FLOCI_PORT:-4566}/app/"; then
         echo "☁️ cdn ✅"
     else
         echo "☁️ cdn ❌"
