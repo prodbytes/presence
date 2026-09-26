@@ -46,6 +46,22 @@
 - Xcode 27 ships no `Simulator.app`, so simulators are driven from the command
   line with `xcrun simctl` (`list devices`, `boot <udid>`, `io <udid>
   screenshot`). `flutter run -d <udid>` picks up a booted simulator.
+- **Building binaries:** the [Makefile](../Makefile) delegates every target
+  to [scripts/make.sh](../scripts/make.sh), which runs `flutter build` with
+  the `.env` settings from [scripts/dart-defines.sh](../scripts/dart-defines.sh)
+  (same allowlist as the run scripts). `make web` builds
+  `presence_app/build/web/`, `make android` a release APK, `make ios` an
+  unsigned `Runner.app` (signed with `IOS_CODESIGN=1`) and `make linux` the
+  Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
+  (default), `profile` or `debug`. Plain `make` (`all`) builds every
+  platform the host can build and skips the rest: iOS needs macOS and Linux
+  needs a Linux host, and asking for either elsewhere fails. Verified: on
+  the development Mac, web (with the web client ID compiled in and no
+  secret), a release APK (`com.nu01.presence`, arm64/armv7/x86_64, signed
+  with the debug key because no release key exists yet) and an arm64
+  `Runner.app`; and `make linux` in a Linux arm64 container with Flutter
+  3.47.5, which built the GTK bundle. The iOS build has no client ID until
+  `GOOGLE_IOS_CLIENT_ID` is filled in `.env`.
 
 ## Known limitations
 
