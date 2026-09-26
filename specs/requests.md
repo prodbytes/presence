@@ -493,7 +493,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `devbox services up` on a Mac with no host `sam` or `mvn`: `3-sam-api`
     built and served, and the health line showed `🌐 web ✅ ⚡ api ✅
     ☁️ cdn ✅`.
-88. **Add all requirements to devbox, and make sure `devbox services up`
+89. **Add all requirements to devbox, and make sure `devbox services up`
     starts OK and the health check passes after a couple of seconds.**
     (2026-09-26)
     - Added the AWS CDK CLI (2.1138.0), the AWS CLI (2.35.11), GNU Make
@@ -504,7 +504,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       initial delay).
     - Measured: the first health line came 9 s after `devbox services up`
       (10 s with build caches cleared), all green.
-90. **Store files for the version numbers, `version.X.txt` and
+90. **Merge the PR, trigger the action, verify build and release
+    artifacts.** (2026-09-26) Merged #35 and pushed the tag `1.0.0-RC1` on
+    `main`, which ran the workflow: all four builds and the release job
+    passed, publishing the prerelease with the web zip, APK, unsigned iOS
+    app and Linux x64 bundle. Downloaded the release assets and checked
+    each (client IDs compiled in, no secret, package `com.nu01.presence`,
+    valid APK signature, arm64 iOS with its URL scheme, x86-64 Linux).
+91. **Make the release full named (`presence-X.Y.Z-KK`); push another RC
+    to check that it triggers correctly.** (2026-09-26) Release titles are
+    now `presence-<tag>` (also applied when a run updates an existing
+    release); tags stay `X.Y.Z-KK`. Pushed `1.0.0-RC2` on this change to
+    check the trigger and the new name, and renamed the `1.0.0-RC1`
+    release to `presence-1.0.0-RC1` to match.
+92. **Store files for the version numbers, `version.X.txt` and
     `version.Y.txt`, and auto-generate Z with the current timestamp on the
     build; change the make script and the action as appropriate.**
     (2026-09-26) Added `version.X.txt` (`1`) and `version.Y.txt` (`0`) and
