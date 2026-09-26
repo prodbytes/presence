@@ -365,7 +365,53 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
-72. **Create a new SAM module called presence_api_events, in Java, on the
+
+## 2026-09-26
+
+72. **Split the spec into separate specs per feature, one file per
+    feature.** Split `specs/README.md` into feature files (navigation,
+    theme, camera, events, clips, motion clips, sign-in, configuration,
+    settings, storage, app icon, platforms, Android, iOS, development
+    environment). The README now holds the product summary, an index of the
+    feature files and the workflow. The old "Known limitations" list moved
+    into the feature each item belongs to. The spec rule in
+    [CLAUDE.md](../CLAUDE.md) now says to revise the affected feature files.
+73. **Fix the devbox GraalVM package with a multi-platform one.**
+    (2026-09-26) Replaced `graalvmPackages.graalvm-ce-musl` (Linux-only,
+    which made `devbox install` fail on macOS) with
+    `graalvmPackages.graalvm-ce` 25.2.4 (JDK 25.0.4, with `native-image`),
+    locked for aarch64-darwin, aarch64-linux and x86_64-linux. Verified
+    `devbox install` and the toolchain on an Apple Silicon Mac, and that
+    the dev container image builds.
+74. **Remove the Postgres stuff from the services and the health check.**
+    (2026-09-26) Removed the `1-postgresql` process, the root
+    `compose.yaml` (which only defined the `devbox-db` Postgres container)
+    and the health monitor's `🐘 database` check. Updated the README,
+    AGENTS.md and the spec. The `postgresql` devbox package is kept.
+75. **Create a Makefile that delegates to a make script and builds the app
+    binaries (web, android, ios and linux).** Added a `Makefile` whose
+    targets (`web`, `android`, `ios`, `linux`, `all`, `clean`) call
+    `scripts/make.sh`, which runs `flutter build` with the `.env` settings.
+    `MODE` picks the build mode, and iOS is unsigned unless `IOS_CODESIGN=1`.
+    `make` builds every platform the host can build; on the Mac it built
+    web, the Android APK and the iOS app, and skipped Linux.
+76. **Run make and fix any errors; make sure the binaries are correctly
+    built.** (2026-09-26) `make` built web, Android and iOS with no errors,
+    so the scripts needed no fixes. Checked the outputs: the web bundle has
+    the web client ID and no secret; the APK is `com.nu01.presence` for
+    arm64, armv7 and x86_64, signed with the debug key (no release key yet);
+    `Runner.app` is an arm64 device build. Its missing client ID is because
+    `GOOGLE_IOS_CLIENT_ID` is empty in `.env`. `make linux` also built in a
+    Linux arm64 container with Flutter 3.47.5.
+77. **What should I use as bundle ID, App Store ID and Team ID for the
+    Google iOS client? Here is the iOS client ID.** (2026-09-26) Bundle ID
+    `com.nu01.presence`; App Store ID and Team ID left blank, since neither
+    exists yet. Put the client ID in `.env` (`GOOGLE_IOS_CLIENT_ID`) and
+    registered its reversed ID as a URL scheme in the iOS `Info.plist`.
+    Verified on the iPhone 18 Pro simulator: the ID is compiled into the
+    build, and iOS offers to open the reversed-ID URL in Presence. Also
+    dropped the spec's stale note that the bundle ID is still a placeholder.
+78. **Create a new SAM module called presence_api_events, in Java, on the
     latest runtime.** (2026-09-25) Added
     [presence_api_events/](../presence_api_events): a SAM template with one
     `java25` (arm64) Lambda, `EventsFunction`, serving `GET /events` (an

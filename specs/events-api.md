@@ -1,0 +1,18 @@
+# Events API (`presence_api_events`)
+
+An AWS SAM application in [presence_api_events/](../presence_api_events):
+one Java Lambda function, `EventsFunction`
+(`presence.api.events.EventsHandler`), on the `java25` runtime (the latest
+Lambda Java runtime) on arm64, behind an API Gateway REST API. It's built
+with Maven (`maven.compiler.release` 25, a shaded jar).
+
+- `GET /events` returns `200` with `{"events":[]}`. It's a scaffold: no event
+  store is wired in yet, and the app doesn't call it.
+- Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
+- Not deployed yet. The commands are in the module's
+  [README](../presence_api_events/README.md).
+
+## Known limitations
+
+- The route has no authorizer, so a deployed stack would be publicly
+  readable.
