@@ -368,14 +368,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
 
 ## 2026-09-26
 
-72. **Create a Makefile that delegates to a make script and builds the app
+72. **Split the spec into separate specs per feature, one file per
+    feature.** Split `specs/README.md` into feature files (navigation,
+    theme, camera, events, clips, motion clips, sign-in, configuration,
+    settings, storage, app icon, platforms, Android, iOS, development
+    environment). The README now holds the product summary, an index of the
+    feature files and the workflow. The old "Known limitations" list moved
+    into the feature each item belongs to. The spec rule in
+    [CLAUDE.md](../CLAUDE.md) now says to revise the affected feature files.
+73. **Fix the devbox GraalVM package with a multi-platform one.**
+    (2026-09-26) Replaced `graalvmPackages.graalvm-ce-musl` (Linux-only,
+    which made `devbox install` fail on macOS) with
+    `graalvmPackages.graalvm-ce` 25.2.4 (JDK 25.0.4, with `native-image`),
+    locked for aarch64-darwin, aarch64-linux and x86_64-linux. Verified
+    `devbox install` and the toolchain on an Apple Silicon Mac, and that
+    the dev container image builds.
+74. **Remove the Postgres stuff from the services and the health check.**
+    (2026-09-26) Removed the `1-postgresql` process, the root
+    `compose.yaml` (which only defined the `devbox-db` Postgres container)
+    and the health monitor's `🐘 database` check. Updated the README,
+    AGENTS.md and the spec. The `postgresql` devbox package is kept.
+75. **Create a Makefile that delegates to a make script and builds the app
     binaries (web, android, ios and linux).** Added a `Makefile` whose
     targets (`web`, `android`, `ios`, `linux`, `all`, `clean`) call
     `scripts/make.sh`, which runs `flutter build` with the `.env` settings.
     `MODE` picks the build mode, and iOS is unsigned unless `IOS_CODESIGN=1`.
     `make` builds every platform the host can build; on the Mac it built
     web, the Android APK and the iOS app, and skipped Linux.
-73. **Run make and fix any errors; make sure the binaries are correctly
+76. **Run make and fix any errors; make sure the binaries are correctly
     built.** (2026-09-26) `make` built web, Android and iOS with no errors,
     so the scripts needed no fixes. Checked the outputs: the web bundle has
     the web client ID and no secret; the APK is `com.nu01.presence` for
