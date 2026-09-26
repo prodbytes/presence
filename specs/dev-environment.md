@@ -5,15 +5,24 @@
   aarch64-linux and x86_64-linux),
   Python, Node.js, Go, PostgreSQL and Flutter.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
-  includes the Dart and Flutter VS Code extensions. It forwards port 8080 for
-  Flutter web.
+  includes the Dart and Flutter VS Code extensions. It forwards ports 8080
+  (Flutter web) and 3000 (SAM API).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
-- `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts
-  the Flutter web server (`2-flutter-web`, via
-  [scripts/flutter-web.sh](../scripts/flutter-web.sh), with an HTTP readiness
-  probe) and the health monitor, which logs the web app's status. No
-  database runs as a service: the app keeps its data on the device
+- `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
+  - the Flutter web server (`2-flutter-web`, via
+    [scripts/flutter-web.sh](../scripts/flutter-web.sh)), with an HTTP
+    readiness probe
+  - the events API (`3-sam-api`, via
+    [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
+    `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
+    readiness probe on `GET /events`
+  - the health monitor, which logs the status of the web app and the API.
+
+  The API process stops with SIGINT, so SAM removes its warm Lambda
+  containers. The script exits with a clear message if `sam`, `mvn` or
+  `docker` is missing. It points SAM at the active Docker context's socket
+  when `DOCKER_HOST` isn't set. No database runs as a service: the app keeps its data on the device
   (see [Storage](storage.md)). The `postgresql` devbox package stays in the
   toolchain (for `psql` and `pg_isready`).
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
@@ -64,8 +73,9 @@
   `GOOGLE_IOS_CLIENT_ID` is filled in `.env`.
 
 - **AWS SAM:** building and deploying `presence_api_events` needs the SAM
-  CLI, JDK 25 (from devbox's GraalVM) and Maven 3.9+. The SAM CLI and Maven
-  aren't in devbox yet.
+  CLI, JDK 25 (from devbox's GraalVM), Maven 3.9+ and Docker. The SAM CLI
+  and Maven aren't in devbox yet, so `3-sam-api` fails unless they're
+  installed on the host.
 
 - **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
   CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). Maven isn't in

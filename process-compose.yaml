@@ -5,6 +5,7 @@ processes:
     command: bash scripts/health-check.sh
     environment:
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
+      - SAM_API_PORT=${SAM_API_PORT:-3000}
     availability:
       restart: on_failure
       backoff_seconds: 5
@@ -21,6 +22,26 @@ processes:
       initial_delay_seconds: 10
       period_seconds: 5
       timeout_seconds: 5
+      failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  3-sam-api:
+    command: bash scripts/sam-api.sh
+    environment:
+      - SAM_API_PORT=${SAM_API_PORT:-3000}
+    shutdown:
+      signal: 2
+      timeout_seconds: 30
+    readiness_probe:
+      http_get:
+        host: localhost
+        port: ${SAM_API_PORT:-3000}
+        path: /events
+      initial_delay_seconds: 15
+      period_seconds: 5
+      timeout_seconds: 10
       failure_threshold: 60
     availability:
       restart: on_failure

@@ -423,3 +423,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (JDK 25, `aws-cdk-lib` 2.270.0) with an empty
     `PresenceInfraTenantStack`, a synth test, the recommended feature flags
     in `cdk.json`, and a README. `cdk.out/` is git-ignored.
+80. **Change process-compose to start both the app and the SAM API
+    modules.** (2026-09-25) Added a `3-sam-api` process
+    ([scripts/sam-api.sh](../scripts/sam-api.sh): `sam build` +
+    `sam local start-api` on port 3000, with a readiness probe on
+    `/events`, stopped with SIGINT). Also added an API check to the health
+    monitor and forwarded port 3000 in the dev container. Verified
+    standalone: `/events` returns 200 in the `java25` container, and SIGINT
+    stops SAM and its containers. `devbox add maven aws-sam-cli` fails on
+    macOS (Linux-only GraalVM), so they aren't in devbox yet.

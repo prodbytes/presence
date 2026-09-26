@@ -11,6 +11,8 @@ with Maven (`maven.compiler.release` 25, a shaded jar).
 - Stack name `presence-api-events` ([samconfig.toml](../presence_api_events/samconfig.toml)).
 - Not deployed yet. The commands are in the module's
   [README](../presence_api_events/README.md).
+- Runs locally under `devbox services up` (see
+  [Development environment](dev-environment.md)).
 
 ## Known limitations
 

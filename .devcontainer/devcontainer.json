@@ -28,9 +28,10 @@
       ]
     }
   },
-  "forwardPorts": [8080],
+  "forwardPorts": [8080, 3000],
   "portsAttributes": {
-    "8080": { "label": "Flutter web" }
+    "8080": { "label": "Flutter web" },
+    "3000": { "label": "SAM API" }
   },
   "postCreateCommand": "bash -lc 'devbox install'"
 }
