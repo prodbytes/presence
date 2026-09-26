@@ -90,3 +90,5 @@ Thumbs.db
 # --- AWS CDK ---
 cdk.out/
 .cdk.staging/
+
+*.local*
