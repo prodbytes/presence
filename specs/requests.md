@@ -383,3 +383,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     locked for aarch64-darwin, aarch64-linux and x86_64-linux. Verified
     `devbox install` and the toolchain on an Apple Silicon Mac, and that
     the dev container image builds.
+74. **Remove the Postgres stuff from the services and the health check.**
+    (2026-09-26) Removed the `1-postgresql` process, the root
+    `compose.yaml` (which only defined the `devbox-db` Postgres container)
+    and the health monitor's `🐘 database` check. Updated the README,
+    AGENTS.md and the spec. The `postgresql` devbox package is kept.
