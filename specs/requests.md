@@ -612,3 +612,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Creating the IAM deploy role was declined in this session, so the
       GitHub path waits for an administrator to deploy
       `github-deploy.yaml`.
+102. **Update the Y version, run the GA script and make sure prod is
+    updated.** (2026-09-26) `version.Y.txt` goes from 1 to 2, so builds are
+    0.2.Z. Tagged with `scripts/release-ga.sh`. The deploy role doesn't
+    exist yet (it needs an administrator), so the tag was also deployed to
+    https://presence.nu01.com with `scripts/deploy.sh`.
