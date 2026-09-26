@@ -45,5 +45,4 @@ The only remaining differences are platform limits, not missing features:
   "Could not open the camera" with a `MissingPluginException` for
   `presence/cameras`, because that channel is implemented on Android only.
   Running on a physical iPhone additionally needs a connected or paired
-  iPhone with Developer Mode on, and a signing team. The bundle ID is still
-  the placeholder `com.example.presenceApp`.
+  iPhone with Developer Mode on, and a signing team (none is set up yet).

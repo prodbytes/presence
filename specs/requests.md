@@ -403,3 +403,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `Runner.app` is an arm64 device build. Its missing client ID is because
     `GOOGLE_IOS_CLIENT_ID` is empty in `.env`. `make linux` also built in a
     Linux arm64 container with Flutter 3.47.5.
+77. **What should I use as bundle ID, App Store ID and Team ID for the
+    Google iOS client? Here is the iOS client ID.** (2026-09-26) Bundle ID
+    `com.nu01.presence`; App Store ID and Team ID left blank, since neither
+    exists yet. Put the client ID in `.env` (`GOOGLE_IOS_CLIENT_ID`) and
+    registered its reversed ID as a URL scheme in the iOS `Info.plist`.
+    Verified on the iPhone 18 Pro simulator: the ID is compiled into the
+    build, and iOS offers to open the reversed-ID URL in Presence. Also
+    dropped the spec's stale note that the bundle ID is still a placeholder.

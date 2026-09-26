@@ -56,6 +56,16 @@ account sheet says sign-in isn't set up. The Android debug key SHA-1 on the deve
 is `B8:90:8F:2F:A4:85:36:0D:32:34:86:22:2E:EE:B4:AD:6D:9A:42:A4`. A release
 key will need its own Android client.
 
+The iOS client is `104441697281-djrabadfdeavjb7sejfgu855duq716p6`, created
+with bundle ID `com.nu01.presence` and no App Store ID or Team ID (neither
+exists yet; both can be added to the client later without changing it). Its
+ID goes in `.env` as `GOOGLE_IOS_CLIENT_ID`, and its reversed form,
+`com.googleusercontent.apps.104441697281-djrabadfdeavjb7sejfgu855duq716p6`,
+is registered in [ios/Runner/Info.plist](../presence_app/ios/Runner/Info.plist)
+(`CFBundleURLTypes`) so Google's sign-in page can return to the app. On the
+simulator, iOS offers to open that URL in Presence. A full sign-in on iOS
+hasn't been run yet.
+
 **App ID:** `com.nu01.presence` on Android (namespace and `applicationId`)
 and iOS (bundle ID), replacing the `com.example` placeholders. On a device
 it installs as a new app, next to any earlier test install.
