@@ -376,3 +376,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     feature files and the workflow. The old "Known limitations" list moved
     into the feature each item belongs to. The spec rule in
     [CLAUDE.md](../CLAUDE.md) now says to revise the affected feature files.
+73. **Fix the devbox GraalVM package with a multi-platform one.**
+    (2026-09-26) Replaced `graalvmPackages.graalvm-ce-musl` (Linux-only,
+    which made `devbox install` fail on macOS) with
+    `graalvmPackages.graalvm-ce` 25.2.4 (JDK 25.0.4, with `native-image`),
+    locked for aarch64-darwin, aarch64-linux and x86_64-linux. Verified
+    `devbox install` and the toolchain on an Apple Silicon Mac, and that
+    the dev container image builds.
