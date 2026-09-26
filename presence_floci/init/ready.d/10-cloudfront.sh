@@ -20,6 +20,9 @@ set -eu
 
 ORIGIN_HOST="${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}"
 ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
+# A public name for the same machine (A record to 127.0.0.1 in Route 53), for
+# Google sign-in, whose JavaScript origins must end in a public TLD.
+PUBLIC_HOST="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
 API_PORT="${SAM_API_PORT:-3000}"
 INDEX_PORT="${INDEX_PORT:-8081}"
@@ -63,7 +66,7 @@ distribution=$(aws cloudfront create-distribution \
     \"CallerReference\": \"presence-local\",
     \"Comment\": \"Presence local CDN\",
     \"Enabled\": true,
-    \"Aliases\": {\"Quantity\": 1, \"Items\": [\"$ALIAS\"]},
+    \"Aliases\": {\"Quantity\": 2, \"Items\": [\"$ALIAS\", \"$PUBLIC_HOST\"]},
     \"Origins\": {\"Quantity\": 3, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT"), $(origin index "$INDEX_PORT")]},
     \"DefaultCacheBehavior\": {$(behavior index)},
     \"CacheBehaviors\": {\"Quantity\": 2, \"Items\": [
@@ -72,4 +75,4 @@ distribution=$(aws cloudfront create-distribution \
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ (index), /app/ and /api/"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/, /api/)"

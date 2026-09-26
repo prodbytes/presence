@@ -571,3 +571,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       hot-reload WebSocket connected.
     - `mkcert -install` (browser trust) needs the user's password, so it's
       a one-time manual step.
+98. **What callback URI should I use as the authorized redirect URI (on
+    web)?** (2026-09-26) None: the web button signs in with Google's popup,
+    so only the JavaScript origins matter. No code change.
+99. **Google says "Invalid Origin: must end with a public top-level
+    domain"; use local.presence.nu01.com, resolving to 127.0.0.1, with the
+    AWS CLI and the existing Route 53 zone.** (2026-09-26)
+    - Created an A record `local.presence.nu01.com` → `127.0.0.1` (TTL 300)
+      in the `nu01.com` zone with `aws route53 change-resource-record-sets`
+      (`CREATE`, so nothing was overwritten).
+    - Added the name as a second distribution alias and to the mkcert
+      certificate (an existing certificate regenerates automatically, since
+      it no longer covers every name). The `🔒 https` health check now
+      tests it.
+    - The web client's local origin is `https://local.presence.nu01.com:8443`.

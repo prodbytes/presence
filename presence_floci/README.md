@@ -56,14 +56,21 @@ start with `/api/`.
 ## HTTPS
 
 Floci also serves the distribution over **HTTPS** with a local certificate:
-**https://presence.localhost:8443/app/** (and on 4566, which answers HTTP
-and HTTPS). The API is at `https://presence.localhost:8443/api/events`.
+**https://local.presence.nu01.com:8443/app/** or
+https://presence.localhost:8443/app/ (and on 4566, which answers HTTP and
+HTTPS). The API is at `…:8443/api/events`.
+
+`local.presence.nu01.com` resolves to `127.0.0.1` (an A record in the
+Route 53 zone `nu01.com`) and is the distribution's second alias. Use it for
+Google sign-in: Google only accepts JavaScript origins with a public
+top-level domain, so the web OAuth client lists
+`https://local.presence.nu01.com:8443`.
 
 - [scripts/local-certs.sh](../scripts/local-certs.sh) runs before Floci
   starts. With [mkcert](https://github.com/FiloSottile/mkcert) (from
   devbox), it writes `certs/presence.pem` and `certs/presence-key.pem` for
-  `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
-  and `::1`. It regenerates them only when they're missing, expire within
+  `local.presence.nu01.com`, `presence.localhost`, `*.presence.localhost`,
+  `localhost`, `127.0.0.1` and `::1`. It regenerates them only when they're missing, expire within
   30 days or don't cover every name. `certs/` is git-ignored.
 - compose mounts `certs/` read-only and sets `FLOCI_TLS_ENABLED`,
   `FLOCI_TLS_CERT_PATH`, `FLOCI_TLS_KEY_PATH` and
@@ -87,6 +94,7 @@ and HTTPS). The API is at `https://presence.localhost:8443/api/events`.
 | `FLOCI_PORT` | `4566` | Host port for Floci (HTTP and HTTPS) |
 | `FLOCI_HTTPS_PORT` | `8443` | Host port for Floci's HTTPS-only listener |
 | `PRESENCE_CDN_ALIAS` | `presence.localhost` | Distribution alias (host name to browse) |
+| `PRESENCE_PUBLIC_HOST` | `local.presence.nu01.com` | Second alias, with a public TLD, for OAuth origins; also in the certificate |
 | `PRESENCE_ORIGIN_HOST` | `dev.presence.localhost` | Origin host name: the Docker host inside the container, and loopback in the browser |
 
 ## Limitations

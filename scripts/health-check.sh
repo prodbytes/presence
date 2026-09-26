@@ -41,11 +41,13 @@ check_index() {
     fi
 }
 
-# HTTPS through the CDN, validating the certificate against mkcert's CA (not
-# the system trust store, so it passes before `mkcert -install` too).
+# HTTPS through the CDN on the public local name (the Google sign-in origin),
+# validating the certificate against mkcert's CA (not the system trust store,
+# so it passes before `mkcert -install` too). --resolve pins the name to
+# loopback, so it doesn't depend on DNS either.
 MKCERT_CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"
 check_https() {
-    local host="${PRESENCE_CDN_ALIAS:-presence.localhost}" port="${FLOCI_HTTPS_PORT:-8443}"
+    local host="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}" port="${FLOCI_HTTPS_PORT:-8443}"
     if curl -fs -o /dev/null --max-time 10 --cacert "$MKCERT_CA" \
             --resolve "$host:$port:127.0.0.1" "https://$host:$port/app/"; then
         echo "🔒 https ✅"

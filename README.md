@@ -60,7 +60,8 @@ http://localhost:3000/api/events ([scripts/sam-api.sh](scripts/sam-api.sh)),
 the site index on http://localhost:8081 ([presence_index/](presence_index),
 which redirects to `/app/`), Floci as a local CloudFront that routes
 http://presence.localhost:4566/ (index), `/app/` and `/api/` to them, also
-over HTTPS at https://presence.localhost:8443/ with a mkcert certificate
+over HTTPS at https://local.presence.nu01.com:8443/ (a public name for
+127.0.0.1, usable as a Google OAuth origin) with a mkcert certificate
 ([presence_floci/](presence_floci); run `devbox run mkcert -install` once so
 browsers trust it), and a `health-check`
 monitor, wired up in [process-compose.yaml](process-compose.yaml). The
