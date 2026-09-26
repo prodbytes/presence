@@ -11,7 +11,7 @@
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web), 3000 (SAM API) and 4566 (Floci).
+  (Flutter web), 3000 (SAM API), 4566 (Floci) and 8081 (index).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
@@ -24,15 +24,18 @@
     readiness probe on `GET /api/events`
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md))
-  - the health monitor, which logs the status of the web app, the API and
-    the CDN.
+  - the site index (`5-index`: `python3 -m http.server` on
+    http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
+  - the health monitor, which logs the status of the index, the web app,
+    the API and the CDN.
 
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or
   `docker` is missing. It points SAM at the active Docker context's socket
   when `DOCKER_HOST` isn't set.
 
-  The health monitor waits until the web server, the API and Floci all pass
+  The health monitor waits until the web server, the API, Floci and the
+  index all pass
   their readiness probes (`depends_on: process_healthy`), so its first line
   is already green. The probes start after 1–2 s and poll every 2 s, with
   about 5 minutes of allowance for a first build. Measured on an Apple

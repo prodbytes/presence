@@ -4,7 +4,8 @@
 # servers:
 #   /app*   -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
 #   /api/*  -> sam local start-api (http://$PRESENCE_ORIGIN_HOST:$SAM_API_PORT)
-#   *       -> Flutter dev server  (which answers 404 outside /app/)
+#   *       -> presence_index      (http://$PRESENCE_ORIGIN_HOST:$INDEX_PORT),
+#              whose / redirects to /app/
 # Paths are forwarded as is (CloudFront can't strip a prefix), so the app is
 # served under /app/ (--base-href /app/) and the API routes start with /api/.
 #
@@ -21,6 +22,7 @@ ORIGIN_HOST="${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}"
 ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
 API_PORT="${SAM_API_PORT:-3000}"
+INDEX_PORT="${INDEX_PORT:-8081}"
 
 cache_policy=$(aws cloudfront create-cache-policy \
   --query CachePolicy.Id --output text \
@@ -62,12 +64,12 @@ distribution=$(aws cloudfront create-distribution \
     \"Comment\": \"Presence local CDN\",
     \"Enabled\": true,
     \"Aliases\": {\"Quantity\": 1, \"Items\": [\"$ALIAS\"]},
-    \"Origins\": {\"Quantity\": 2, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT")]},
-    \"DefaultCacheBehavior\": {$(behavior app)},
+    \"Origins\": {\"Quantity\": 3, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT"), $(origin index "$INDEX_PORT")]},
+    \"DefaultCacheBehavior\": {$(behavior index)},
     \"CacheBehaviors\": {\"Quantity\": 2, \"Items\": [
       {\"PathPattern\": \"/app*\", $(behavior app)},
       {\"PathPattern\": \"/api/*\", $(behavior api)}
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/app/ and /api/"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ (index), /app/ and /api/"

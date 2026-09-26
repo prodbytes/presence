@@ -23,5 +23,6 @@ services:
       PRESENCE_CDN_ALIAS: ${PRESENCE_CDN_ALIAS:-presence.localhost}
       FLUTTER_WEB_PORT: ${FLUTTER_WEB_PORT:-8080}
       SAM_API_PORT: ${SAM_API_PORT:-3000}
+      INDEX_PORT: ${INDEX_PORT:-8081}
     volumes:
       - ./init/ready.d:/etc/floci/init/ready.d:ro

@@ -33,8 +33,16 @@ check_cdn() {
     fi
 }
 
+check_index() {
+    if curl -fs -o /dev/null --max-time 5 "http://localhost:${INDEX_PORT:-8081}/"; then
+        echo "🏠 index ✅"
+    else
+        echo "🏠 index ❌"
+    fi
+}
+
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_web)" "$(check_api)" "$(check_cdn)"
+    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_index)" "$(check_web)" "$(check_api)" "$(check_cdn)"
     sleep "$INTERVAL"
 done
