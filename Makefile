@@ -8,7 +8,13 @@
 #   make linux     Linux bundle (Linux only)
 #   make clean     flutter clean
 
-export MODE IOS_CODESIGN
+# One build time for every target in a run, so they share a version (see
+# scripts/version.sh).
+ifndef BUILD_NUMBER
+BUILD_NUMBER := $(shell date -u +%s)
+endif
+
+export MODE IOS_CODESIGN BUILD_NUMBER VERSION_Z
 
 .PHONY: all web android ios linux clean
 

@@ -504,3 +504,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       initial delay).
     - Measured: the first health line came 9 s after `devbox services up`
       (10 s with build caches cleared), all green.
+90. **Store files for the version numbers, `version.X.txt` and
+    `version.Y.txt`, and auto-generate Z with the current timestamp on the
+    build; change the make script and the action as appropriate.**
+    (2026-09-26) Added `version.X.txt` (`1`) and `version.Y.txt` (`0`) and
+    `scripts/version.sh`, which makes `X.Y.Z` with Z the build time as
+    `YYYYMMDDHHMM` (UTC) and the build number the same instant in Unix
+    seconds. `make` passes them to Flutter; the Makefile shares one build
+    time across a run's targets. The release workflow resolves one version
+    for all jobs, keeping the Z of a tag that carries `X.Y.Z` and failing
+    if its X.Y doesn't match the files. Verified the version in web's
+    `version.json`, the APK's `versionName`/`versionCode` and the iOS
+    bundle.
