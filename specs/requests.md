@@ -375,3 +375,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     `MODE` picks the build mode, and iOS is unsigned unless `IOS_CODESIGN=1`.
     `make` builds every platform the host can build; on the Mac it built
     web, the Android APK and the iOS app, and skipped Linux.
+73. **Run make and fix any errors; make sure the binaries are correctly
+    built.** (2026-09-26) `make` built web, Android and iOS with no errors,
+    so the scripts needed no fixes. Checked the outputs: the web bundle has
+    the web client ID and no secret; the APK is `com.nu01.presence` for
+    arm64, armv7 and x86_64, signed with the debug key (no release key yet);
+    `Runner.app` is an arm64 device build. Its missing client ID is because
+    `GOOGLE_IOS_CLIENT_ID` is empty in `.env`. `make linux` also built in a
+    Linux arm64 container with Flutter 3.47.5.

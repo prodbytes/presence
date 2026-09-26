@@ -646,8 +646,13 @@ The Swift counterpart of the Android layer
   Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
   (default), `profile` or `debug`. Plain `make` (`all`) builds every
   platform the host can build and skips the rest: iOS needs macOS and Linux
-  needs a Linux host, and asking for either elsewhere fails. Verified on the
-  development Mac: web, Android and iOS build.
+  needs a Linux host, and asking for either elsewhere fails. Verified: on
+  the development Mac, web (with the web client ID compiled in and no
+  secret), a release APK (`com.nu01.presence`, arm64/armv7/x86_64, signed
+  with the debug key because no release key exists yet) and an arm64
+  `Runner.app`; and `make linux` in a Linux arm64 container with Flutter
+  3.47.5, which built the GTK bundle. The iOS build has no client ID until
+  `GOOGLE_IOS_CLIENT_ID` is filled in `.env`.
 
 ## Workflow
 
