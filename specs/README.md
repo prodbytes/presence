@@ -594,7 +594,9 @@ The Swift counterpart of the Android layer
 
 ## Development environment
 
-- [devbox.json](../devbox.json) manages the toolchain: GraalVM CE (musl),
+- [devbox.json](../devbox.json) manages the toolchain: GraalVM CE
+  (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
+  aarch64-linux and x86_64-linux),
   Python, Node.js, Go, PostgreSQL and Flutter.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards port 8080 for
@@ -647,8 +649,9 @@ The Swift counterpart of the Android layer
 
 ## Known limitations
 
-- `graalvmPackages.graalvm-ce-musl` is Linux-only, so `devbox install` fails on
-  macOS hosts. Use the dev container, or a locally installed Flutter SDK.
+- The GraalVM package is the glibc/macOS build, not the musl one, so
+  `native-image --static --libc=musl` isn't available. `devbox install` and
+  `devbox shell` work on Apple Silicon Macs as well as Linux.
 - The Nix Flutter package has no `x86_64-darwin` (Intel Mac) build.
 - Always-on recording runs about 4 video encoders per camera, which uses
   noticeable CPU with several cameras.
