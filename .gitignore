@@ -86,3 +86,7 @@ Thumbs.db
 
 # --- AWS SAM ---
 .aws-sam/
+
+# --- AWS CDK ---
+cdk.out/
+.cdk.staging/
