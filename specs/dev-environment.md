@@ -3,7 +3,12 @@
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE
   (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
   aarch64-linux and x86_64-linux),
-  Python, Node.js, Go, PostgreSQL and Flutter.
+  Python, Node.js, Go, PostgreSQL, Flutter, the AWS SAM CLI (1.165.0),
+  Maven (3.9.16, running on the GraalVM JDK), the AWS CDK CLI (`cdk`,
+  2.1138.0), the AWS CLI (2.35.11), GNU Make and curl. Everything the
+  services, the Makefile and the SAM and CDK modules run comes from devbox,
+  except Docker: the daemon (Docker Desktop, or docker-in-docker in the dev
+  container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
   (Flutter web), 3000 (SAM API) and 4566 (Floci).
@@ -25,7 +30,15 @@
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or
   `docker` is missing. It points SAM at the active Docker context's socket
-  when `DOCKER_HOST` isn't set. No database runs as a service: the app keeps its data on the device
+  when `DOCKER_HOST` isn't set.
+
+  The health monitor waits until the web server, the API and Floci all pass
+  their readiness probes (`depends_on: process_healthy`), so its first line
+  is already green. The probes start after 1–2 s and poll every 2 s, with
+  about 5 minutes of allowance for a first build. Measured on an Apple
+  Silicon Mac: the first all-green health line came 9 s after
+  `devbox services up`, and 10 s with the Flutter and SAM build caches
+  cleared. No database runs as a service: the app keeps its data on the device
   (see [Storage](storage.md)). The `postgresql` devbox package stays in the
   toolchain (for `psql` and `pg_isready`).
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
@@ -76,13 +89,11 @@
   releases; see [Release builds](release.md).
 
 - **AWS SAM:** building and deploying `presence_api_events` needs the SAM
-  CLI, JDK 25 (from devbox's GraalVM), Maven 3.9+ and Docker. The SAM CLI
-  and Maven aren't in devbox yet, so `3-sam-api` fails unless they're
-  installed on the host.
+  CLI, JDK 25 and Maven, all from devbox, plus Docker. `3-sam-api` finds
+  them in the devbox environment, so nothing needs installing on the host.
 
 - **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
-  CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). Maven isn't in
-  devbox yet. jsii warns that Node 26 is untested (it supports 22 and 24);
+  CLI, all from devbox (`cdk`). jsii warns that Node 26 is untested (it supports 22 and 24);
   set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
 
 ## Known limitations
