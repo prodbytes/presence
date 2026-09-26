@@ -6,6 +6,8 @@ processes:
     environment:
       - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-15}
       - SAM_API_PORT=${SAM_API_PORT:-3000}
+      - FLOCI_PORT=${FLOCI_PORT:-4566}
+      - PRESENCE_CDN_ALIAS=${PRESENCE_CDN_ALIAS:-presence.localhost}
     availability:
       restart: on_failure
       backoff_seconds: 5
@@ -43,6 +45,22 @@ processes:
       period_seconds: 5
       timeout_seconds: 10
       failure_threshold: 60
+    availability:
+      restart: on_failure
+      backoff_seconds: 5
+
+  4-floci:
+    command: docker compose -f presence_floci/compose.yaml up floci
+    shutdown:
+      command: docker compose -f presence_floci/compose.yaml down
+      timeout_seconds: 30
+    readiness_probe:
+      exec:
+        command: curl -fs http://localhost:${FLOCI_PORT:-4566}/_floci/init | grep -q '"ready":true'
+      initial_delay_seconds: 3
+      period_seconds: 3
+      timeout_seconds: 5
+      failure_threshold: 40
     availability:
       restart: on_failure
       backoff_seconds: 5

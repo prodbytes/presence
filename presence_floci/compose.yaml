@@ -1,0 +1,24 @@
+# Floci: a local AWS emulator. Here it plays CloudFront in front of the
+# Flutter web app and the SAM API, as the deployed stack would.
+# Started by `devbox services up` (4-floci in process-compose.yaml).
+services:
+  floci:
+    # The compat image has the AWS CLI, which the init hook uses.
+    image: floci/floci:2.1.0-compat
+    container_name: presence-floci
+    ports:
+      - "127.0.0.1:${FLOCI_PORT:-4566}:4566"
+    extra_hosts:
+      # Docker Desktop defines this itself; Linux needs the mapping.
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Stateless: the ready hook recreates the distribution on every start.
+      FLOCI_STORAGE_MODE: memory
+      # CloudFront refuses private origins unless they're listed here.
+      FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS: ${PRESENCE_ORIGIN_HOST:-host.docker.internal}
+      PRESENCE_ORIGIN_HOST: ${PRESENCE_ORIGIN_HOST:-host.docker.internal}
+      PRESENCE_CDN_ALIAS: ${PRESENCE_CDN_ALIAS:-presence.localhost}
+      FLUTTER_WEB_PORT: ${FLUTTER_WEB_PORT:-8080}
+      SAM_API_PORT: ${SAM_API_PORT:-3000}
+    volumes:
+      - ./init/ready.d:/etc/floci/init/ready.d:ro

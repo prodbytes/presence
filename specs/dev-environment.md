@@ -6,7 +6,7 @@
   Python, Node.js, Go, PostgreSQL and Flutter.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web) and 3000 (SAM API).
+  (Flutter web), 3000 (SAM API) and 4566 (Floci).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
@@ -17,7 +17,10 @@
     [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
     `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
     readiness probe on `GET /events`
-  - the health monitor, which logs the status of the web app and the API.
+  - Floci as the local CloudFront (`4-floci`; see
+    [Local CDN](local-cdn.md))
+  - the health monitor, which logs the status of the web app, the API and
+    the CDN.
 
   The API process stops with SIGINT, so SAM removes its warm Lambda
   containers. The script exits with a clear message if `sam`, `mvn` or

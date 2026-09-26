@@ -432,3 +432,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     standalone: `/events` returns 200 in the `java25` container, and SIGINT
     stops SAM and its containers. `devbox add maven aws-sam-cli` fails on
     macOS (Linux-only GraalVM), so they aren't in devbox yet.
+81. **Can Floci emulate CloudFront, dispatching requests to the static app
+    and the API as CloudFront would?** (2026-09-25) Yes: since 1.7.0 it
+    serves distributions from S3 and custom origins, with path-based cache
+    behaviors. No code change.
+82. **Create a presence_floci dir for any config needed, set it up, and add
+    it to process-compose.** (2026-09-25) Added
+    [presence_floci/](../presence_floci): a compose file for Floci 2.1.0
+    and a ready hook that creates a CloudFront distribution
+    (`presence.localhost`) routing `/events*` to the SAM API and the rest to
+    the Flutter web server. Added `4-floci` to process-compose, a `☁️ cdn`
+    health check, and a port 4566 forward in the dev container. Verified
+    under process-compose on macOS.
+83. **(Fix found while moving the app to /app/.)** (2026-09-25) Through
+    Floci, the real Flutter web server returned 502, because Dart bound
+    `localhost` to `[::1]` only. It now binds `127.0.0.1`.
