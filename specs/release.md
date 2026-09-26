@@ -33,6 +33,12 @@ app binaries with `make` and publishes them as a GitHub release.
   keep credentials; inputs reach scripts only through environment
   variables.
 
+**First release:** [1.0.0-RC1](https://github.com/prodbytes/presence/releases/tag/1.0.0-RC1),
+from the tag pushed on `main` after the workflow was merged. All four assets
+were checked: the web bundle has the web client ID and no secret; the APK is
+`com.nu01.presence` 1.0.0 with a valid signature; `Runner.app` is arm64
+with the iOS client ID and its URL scheme; the Linux bundle is x86-64.
+
 ## Known limitations
 
 - The APK is signed with the runner's throwaway debug key, which differs on
