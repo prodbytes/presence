@@ -104,6 +104,22 @@
   CLI, all from devbox (`cdk`). jsii warns that Node 26 is untested (it supports 22 and 24);
   set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
 
+## Private settings
+
+`.env` and `env.local/` (the OAuth client files downloaded from the Cloud
+Console) are kept in the **private** repository
+[prodbytes/setec-astronomy](https://github.com/prodbytes/setec-astronomy),
+one directory per tenant: this tenant's is `presence.nu01/`. The clone sits
+next to this one (`../setec-astronomy`), and this repo holds only relative
+symlinks, `.env` → `../setec-astronomy/presence.nu01/.env` and `env.local`
+→ `../setec-astronomy/presence.nu01/env.local`, both git-ignored.
+[scripts/link-private.sh](../scripts/link-private.sh) makes the links
+(`PRIVATE_DIR` and `TENANT` override the clone and the tenant); it
+refuses to replace a real file, and re-running it is harmless. Everything
+that reads `.env` (the run scripts, `make`) follows the link. The local
+HTTPS certificates in `presence_floci/certs/` stay here: `local-certs.sh`
+generates them per machine from its own mkcert CA.
+
 ## Known limitations
 
 - The GraalVM package is the glibc/macOS build, not the musl one, so
