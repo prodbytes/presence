@@ -546,3 +546,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     default origin, so http://presence.localhost:4566/ redirects to
     `/app/`. The health monitor gained `🏠 index` and waits for it, and
     the dev container forwards 8081. Verified in headless Chrome.
+95. **Make the version X 0 and Y 1 in the files; trigger the release-ga
+    script; merge it all.** (2026-09-26) Merged #40 (version files), #41
+    (RC/GA scripts, retargeted to `main`) and #42 (`presence_index`,
+    after resolving its request-log conflict). Set `version.X.txt` to `0`
+    and `version.Y.txt` to `1`, merged that, and ran
+    `scripts/release-ga.sh` on `main` for the first GA release, `0.1.Z-GA`.

@@ -71,7 +71,7 @@ The app version is `X.Y.Z`, resolved by
 [scripts/version.sh](../scripts/version.sh):
 
 - **X** and **Y** come from [version.X.txt](../version.X.txt) and
-  [version.Y.txt](../version.Y.txt) at the repo root (now `1` and `0`).
+  [version.Y.txt](../version.Y.txt) at the repo root (now `0` and `1`).
   Edit them to bump the major or minor version.
 - **Z** is the build time as a UTC timestamp, `YYYYMMDDHHMM` (e.g.
   `1.0.202609261534`).
