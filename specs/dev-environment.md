@@ -3,7 +3,8 @@
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE
   (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
   aarch64-linux and x86_64-linux),
-  Python, Node.js, Go, PostgreSQL and Flutter.
+  Python, Node.js, Go, PostgreSQL, Flutter, the AWS SAM CLI (1.165.0) and
+  Maven (3.9.16, running on the GraalVM JDK).
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
   (Flutter web), 3000 (SAM API) and 4566 (Floci).
@@ -76,13 +77,12 @@
   releases; see [Release builds](release.md).
 
 - **AWS SAM:** building and deploying `presence_api_events` needs the SAM
-  CLI, JDK 25 (from devbox's GraalVM), Maven 3.9+ and Docker. The SAM CLI
-  and Maven aren't in devbox yet, so `3-sam-api` fails unless they're
-  installed on the host.
+  CLI, JDK 25 and Maven, all from devbox, plus Docker. `3-sam-api` finds
+  them in the devbox environment, so nothing needs installing on the host.
 
 - **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
-  CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). Maven isn't in
-  devbox yet. jsii warns that Node 26 is untested (it supports 22 and 24);
+  CLI (`npx aws-cdk`, 2.1143.0 at the time of writing). JDK 25 and Maven
+  come from devbox. jsii warns that Node 26 is untested (it supports 22 and 24);
   set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
 
 ## Known limitations

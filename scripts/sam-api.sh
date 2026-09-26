@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Serves the presence_api_events SAM API on http://localhost:${SAM_API_PORT}.
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
-# Needs the SAM CLI, Maven, JDK 25 and a running Docker daemon.
+# Needs the SAM CLI, Maven and JDK 25 (all from devbox) and a running Docker
+# daemon.
 set -euo pipefail
 
 PORT="${SAM_API_PORT:-3000}"
 
 for tool in sam mvn docker; do
     if ! command -v "$tool" >/dev/null 2>&1; then
-        echo "sam-api: '$tool' is not on PATH; see presence_api_events/README.md" >&2
+        echo "sam-api: '$tool' is not on PATH; run inside devbox (devbox shell / devbox services up)" >&2
         exit 1
     fi
 done

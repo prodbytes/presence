@@ -9,7 +9,9 @@
       "version": "latest",
       "disable_plugin": true
     },
-    "flutter": "latest"
+    "flutter": "latest",
+    "aws-sam-cli": "latest",
+    "maven": "latest"
   },
   "shell": {
     "scripts": {

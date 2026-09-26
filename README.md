@@ -17,6 +17,8 @@ Toolchain pinned by [devbox.json](devbox.json) and locked in [devbox.lock](devbo
 | Python | 3.14.x |
 | PostgreSQL | 17.x |
 | Flutter | 3.47.x |
+| AWS SAM CLI | 1.165.x |
+| Maven | 3.9.x |
 
 The container also ships the
 [docker-in-docker feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker),
