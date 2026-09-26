@@ -476,3 +476,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     (2026-09-26) All open PRs (#24–#33) were merged and local `main` was
     synced. `.gitignore` now also ignores `*.local*` files (machine-local
     overrides), next to the new SAM and CDK entries.
+87. **Create a GitHub action to build a release with the binaries, on
+    manual dispatch and on pushes of tags named `*QA` or `*RC*`.**
+    (2026-09-26) Added `.github/workflows/release.yml`: `make` builds web,
+    Android and Linux on Ubuntu and iOS on macOS (Flutter 3.47.5), and a
+    release job attaches the four packages to a GitHub (pre)release. PRs
+    that change the build run the builds without releasing. Set the
+    repository variables `GOOGLE_WEB_CLIENT_ID` and `GOOGLE_IOS_CLIENT_ID`
+    for the builds. The PR's run built all four; the artifacts had the
+    client IDs compiled in, no secret, and the expected package and
+    architectures. Added [release.md](release.md).
