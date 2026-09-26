@@ -365,3 +365,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     motion clips count down) and #22 (sign in with Google) into `main`,
     resolving request-log conflicts. 80/80 tests pass on the merged code.
     iOS sign-in still needs its client ID in `.env`.
+
+## 2026-09-26
+
+72. **What should I use as bundle ID, App Store ID and Team ID for the
+    Google iOS client? Here is the iOS client ID.** (2026-09-26) Bundle ID
+    `com.nu01.presence`; App Store ID and Team ID left blank, since neither
+    exists yet. Put the client ID in `.env` (`GOOGLE_IOS_CLIENT_ID`) and
+    registered its reversed ID as a URL scheme in the iOS `Info.plist`.
+    Verified on the iPhone 18 Pro simulator: the ID is compiled into the
+    build, and iOS offers to open the reversed-ID URL in Presence. Also
+    dropped the spec's stale note that the bundle ID is still a placeholder.
