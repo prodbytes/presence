@@ -126,6 +126,17 @@ Resources:
                   - dynamodb:UntagResource
                   - dynamodb:ListTagsOfResource
                 Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-*
+              # The auth API's membership topic (presence_api_auth/template.yaml)
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-*
               # IAM: the identity pool's authenticated role (identity.yaml)
               - Effect: Allow
                 Action:
@@ -278,6 +289,17 @@ Resources:
                   - dynamodb:UntagResource
                   - dynamodb:ListTagsOfResource
                 Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-rc-*
+              # The auth API's membership topic (presence_api_auth/template.yaml)
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-rc-*
               # IAM: the identity pool's authenticated role (identity.yaml)
               - Effect: Allow
                 Action:

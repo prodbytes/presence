@@ -90,8 +90,10 @@ with an optional `tag` input, deploys that version to
 - The role trusts only `repo:prodbytes/presence:ref:refs/tags/*GA`, so the
   job has no `environment:`, which would change that subject. Its
   permissions are limited to the Presence stacks: CloudFormation, S3,
-  `presence-*` IAM roles, Cognito identity pools, CloudFront, ACM and the
-  `nu01.com` zone.
+  `presence-*` IAM roles, Lambda functions, HTTP APIs, DynamoDB tables and
+  SNS topics (the auth API's membership topic), Cognito identity pools,
+  CloudFront, ACM and the `nu01.com` zone. The RC role gets the same,
+  limited to `presence-rc-*`.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).
   It's deployed.
