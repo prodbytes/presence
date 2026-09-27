@@ -84,6 +84,7 @@ class RolesService extends ChangeNotifier {
   List<String> _roles = const [];
   String? _error;
   String? _user;
+  String? _token;
   int _generation = 0;
   bool _disposed = false;
 
@@ -101,16 +102,21 @@ class RolesService extends ChangeNotifier {
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() => _check();
 
+  /// Checks again when the user changes, or when a check that failed (e.g.
+  /// with a stale token restored at launch, or the API still starting) gets
+  /// a new token from a silent sign-in.
   void _onAuthChanged() {
     final user = auth.user?.id;
-    if (user == _user) return;
+    final token = auth.idToken;
+    final retry = _error != null && token != null && token != _token;
+    if (user == _user && !retry) return;
     _user = user;
     _check();
   }
 
   Future<void> _check() async {
     final generation = ++_generation;
-    final token = auth.idToken;
+    final token = _token = auth.idToken;
     if (auth.user == null) {
       _set(AccessState.signedOut, const []);
       return;

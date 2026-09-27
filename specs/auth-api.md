@@ -46,9 +46,10 @@ site (`/api/*` in the CloudFront distribution; see
 - **The app** calls it after sign-in to decide what to show (see
   [Sign-in](sign-in.md)): without `presence_user`, only the account and
   sign-up.
-- **Locally,** Floci routes `/api/*` to a deployed auth API, whose host is
-  `AUTH_API_HOST` in the private `.env` (the RC one for now), since there's
-  no local copy.
+- **Locally,** the auth API runs inside Floci (see
+  [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas, tables
+  and topic, deployed from this template at every start, behind an HTTP
+  API with the same Google JWT authorizer. Nothing local reaches AWS.
 - **Tests** (JUnit, `mvn test`):
   - the role rules: default none, the exact domains, verification, table
     roles, case and whitespace;

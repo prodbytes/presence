@@ -890,3 +890,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `boss@nu01.com` gets both roles; `ana@example.com` gets none, asks,
       can't approve herself, is granted by the admin, and ends up
       `presence_user` only (no admin routes). 19 JUnit tests pass.
+125. **No need to deploy to RC: make local work with Floci, and test with
+    that. Also, the local auth logic is still wrong: review it, so that at
+    start the app shows the right navigation for non-users, users and
+    admins.** (2026-09-27)
+    - Cause: local `/api/*` went to RC's older auth API, which gives
+      `@nu01.com` the role `admin` (not `presence_user`), so the app
+      offered sign-up.
+    - Floci now deploys the auth API into itself at every start
+      (`scripts/build-auth-api.sh`, `05-auth-api.sh`): the template's
+      Lambdas, tables and topic, plus an HTTP API with the fixed ID
+      `presence` and the Google JWT authorizer. CloudFront routes `/api/*`
+      to it. `AUTH_API_HOST` is gone.
+    - The app's roles check also retries when a check that failed gets a
+      new ID token from a silent sign-in.
+    - Checked: `/api/auth` answers 401 through the CDN without a token or
+      with a forged one; the whole membership flow ran against the Lambdas
+      in Floci. 19 JUnit and 126 Flutter tests pass.
