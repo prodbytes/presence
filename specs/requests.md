@@ -662,7 +662,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       role), CORS allows `GET`, and put, list and get round-tripped a
       recording.
     - 96 tests pass.
-106. **Create an action that deploys every pushed `*RC*` tag (or a manual
+106. **In the infra templates, add a Cognito identity pool whose
+    authenticated users assume a role that can read and write the user-data
+    bucket, only under their own prefix. Write events to the bucket under the
+    user's subject prefix, partitioned by day of year.** (2026-09-27)
+    - The pool and role already existed in `presence_infra/identity.yaml`
+      (deployed in #49): only authenticated identities of the pool may
+      assume the role (`aud` and `amr` conditions), and it may only read,
+      write and list under `${cognito-identity.amazonaws.com:sub}/`. No
+      template change was needed.
+    - Events now go to
+      `<identityId>/events/year=YYYY/day=DDD/<eventId>.json` (the UTC day of
+      the year of the event's time). The fetch still reads the old flat
+      keys.
+    - `user-data.yaml` describes the layout. 98 tests pass.
+107. **Create an action that deploys every pushed `*RC*` tag (or a manual
     run) to rc.presence.nu01.com.** (2026-09-27)
     - Added `.github/workflows/deploy-rc.yml` and a `STAGE=rc` mode in
       `scripts/deploy.sh`. The RC gets its own `presence-rc-*` stacks

@@ -1,9 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  presence-user-data: the bucket for users' data. The app uploads each signed-in
-  user's clips (videos) and events here, under the user's Cognito identity ID
-  (<identityId>/clips/..., <identityId>/events/...), straight from the device
-  with the temporary credentials from identity.yaml.
+  presence-user-data: the bucket for users' data. The app syncs each signed-in
+  user's clips (videos) and events here, straight from the device, under the
+  user's Cognito identity ID (the subject of the identity pool in
+  identity.yaml, whose authenticated role may read and write only that
+  prefix): <identityId>/clips/<clipId>.{webm,mp4,jpg,json} and, partitioned
+  by the UTC day of the year, <identityId>/events/year=YYYY/day=DDD/<eventId>.json.
 
 Parameters:
   AllowedOrigins:
