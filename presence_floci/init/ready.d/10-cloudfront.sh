@@ -24,6 +24,11 @@ ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 PUBLIC_HOST="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
 INDEX_PORT="${INDEX_PORT:-8081}"
+# The deployed auth API's host (<id>.execute-api.<region>.amazonaws.com),
+# from AUTH_API_HOST in the private .env. There's no local copy of the API,
+# so /api/* goes to the real one, like the app's cloud sync. Unset: no
+# /api/* route, and the local app treats every user as having no role.
+AUTH_API_HOST="${AUTH_API_HOST:-}"
 
 cache_policy=$(aws cloudfront create-cache-policy \
   --query CachePolicy.Id --output text \
@@ -58,6 +63,17 @@ behavior() {
     "$1" "$cache_policy" "$origin_request_policy"
 }
 
+origin_count=2
+behavior_count=1
+api_origin=""
+api_behavior=""
+if [ -n "$AUTH_API_HOST" ]; then
+  origin_count=3
+  behavior_count=2
+  api_origin=$(printf ', {"Id": "api", "DomainName": "%s", "CustomOriginConfig": {"HTTPPort": 80, "HTTPSPort": 443, "OriginProtocolPolicy": "https-only"}}' "$AUTH_API_HOST")
+  api_behavior=", {\"PathPattern\": \"/api/*\", $(behavior api)}"
+fi
+
 distribution=$(aws cloudfront create-distribution \
   --query 'Distribution.Id' --output text \
   --distribution-config "{
@@ -65,11 +81,11 @@ distribution=$(aws cloudfront create-distribution \
     \"Comment\": \"Presence local CDN\",
     \"Enabled\": true,
     \"Aliases\": {\"Quantity\": 2, \"Items\": [\"$ALIAS\", \"$PUBLIC_HOST\"]},
-    \"Origins\": {\"Quantity\": 2, \"Items\": [$(origin app "$WEB_PORT"), $(origin index "$INDEX_PORT")]},
+    \"Origins\": {\"Quantity\": $origin_count, \"Items\": [$(origin app "$WEB_PORT"), $(origin index "$INDEX_PORT")$api_origin]},
     \"DefaultCacheBehavior\": {$(behavior index)},
-    \"CacheBehaviors\": {\"Quantity\": 1, \"Items\": [
-      {\"PathPattern\": \"/app*\", $(behavior app)}
+    \"CacheBehaviors\": {\"Quantity\": $behavior_count, \"Items\": [
+      {\"PathPattern\": \"/app*\", $(behavior app)}$api_behavior
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/)"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/${AUTH_API_HOST:+, /api/})"

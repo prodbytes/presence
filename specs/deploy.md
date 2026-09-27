@@ -15,6 +15,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
 
 - **Infrastructure as code:**
   - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
@@ -36,10 +37,12 @@ One CloudFront distribution serves the whole site, laid out like the local
 - **`scripts/deploy.sh`** first deploys `user-data.yaml` and
   `identity.yaml` ([cloud sync](cloud-sync.md)). It then builds the web app
   for `/app/` (`make web` with `WEB_BASE_HREF=/app/`), with the version from
-  the tag and the identity pool and bucket IDs. After that it deploys
-  `site.yaml`, uploads, invalidates, and **smoke-tests the live site**:
+  the tag and the identity pool and bucket IDs. After that it deploys the
+  [auth API](auth-api.md) with SAM, then `site.yaml` (with the API's
+  domain), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
-  page, and `/app/` must answer. It retries for up to 10 minutes.
+  page, `/app/` must answer, and `/api/auth` must refuse a request without a
+  token (401). It retries for up to 10 minutes.
 
 ## Release candidates (rc.presence.nu01.com)
 

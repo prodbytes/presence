@@ -3,10 +3,11 @@
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE
   (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
   aarch64-linux and x86_64-linux),
-  Python, Node.js, Go, PostgreSQL, Flutter, the AWS CLI (2.35.11), GNU
-  Make, curl, mkcert (1.4.4, for the local HTTPS certificate) and OpenSSL.
-  Everything the services, the Makefile and the deploy script run comes
-  from devbox,
+  Python, Node.js, Go, PostgreSQL, Flutter, Maven (3.9.16, running on the
+  GraalVM JDK, for the auth API), the AWS SAM CLI, the AWS CLI (2.35.11),
+  GNU Make, curl, mkcert (1.4.4, for the local HTTPS certificate) and
+  OpenSSL. Everything the services, the Makefile and the deploy script run
+  comes from devbox,
   except Docker: the daemon (Docker Desktop, or docker-in-docker in the dev
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and

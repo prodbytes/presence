@@ -19,6 +19,7 @@ void main() {
         cameras: cameras,
         mediaIo: fakeMediaIo,
         auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
       ),
     );
     await tester.pumpAndSettle();

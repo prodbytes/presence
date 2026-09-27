@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
+import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
@@ -263,5 +264,25 @@ class FakeCloudSession implements CloudSession {
     final object = backend.uploads['$prefix/$key'];
     if (object == null) throw StateError('No $key');
     return object.bytes;
+  }
+}
+
+/// The auth API without HTTP: answers [roles] (changeable), or throws
+/// [error]. Records the tokens it was asked about.
+class FakeRolesClient implements RolesClient {
+  FakeRolesClient([this.roles = const ['admin']]);
+
+  /// No roles: signed-in users only see their account and sign-up.
+  FakeRolesClient.none() : this(const []);
+
+  List<String> roles;
+  Object? error;
+  final tokens = <String>[];
+
+  @override
+  Future<List<String>> fetch(String idToken) async {
+    tokens.add(idToken);
+    if (error case final e?) throw e;
+    return roles;
   }
 }

@@ -38,6 +38,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 **Backend**
 
+- [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
+  (SAM, Java 25; Google JWT authorizer; roles by domain or a DynamoDB
+  table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

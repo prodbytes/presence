@@ -1,6 +1,6 @@
 # Deploys a *GA tag to production, https://presence.nu01.com: the Flutter
-# web app (/app/) and the index page (/), with the user-data bucket and
-# identity pool, through scripts/deploy.sh. It ends by checking that the live site serves this
+# web app (/app/), the index page (/) and the auth API (/api/auth), with the
+# user-data bucket and identity pool, through scripts/deploy.sh. It ends by checking that the live site serves this
 # tag's version.
 #
 # AWS access is keyless: GitHub's OIDC token is exchanged for the
@@ -41,6 +41,16 @@ jobs:
         with:
           persist-credentials: false
 
+      # The auth API (presence_api_auth) is a Java 25 Lambda, built and deployed with SAM.
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+        with:
+          use-installer: true
+
       - name: Install Flutter ${{ env.FLUTTER_VERSION }}
         run: |
           git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
@@ -50,6 +60,9 @@ jobs:
       - name: Show the toolchain
         run: |
           flutter --version
+          java -version
+          mvn -v
+          sam --version
           aws --version
 
       # Only the names scripts/dart-defines.sh forwards; never secrets.

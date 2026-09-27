@@ -742,10 +742,50 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       404.
     - The leftover local `presence_api_events/` (untracked build output
       only) was removed.
-113. **Remove `presence_infra_tenant` if it is unused.** (2026-09-27)
+113. **Create a new SAM module, auth_api, mapped to /api/auth, in Java,
+    and add it to the build and deployment. The function takes the user's
+    information and returns their roles: none for everyone, except the
+    @nu01.com domain, or users present in a DynamoDB table that declares
+    roles by email.** (2026-09-27)
+    - Added `auth_api/` (now [presence_api_auth/](../presence_api_auth)): a Java 25 Lambda behind an HTTP API
+      with a Google JWT authorizer, and a `UserRolesTable`.
+    - Roles: `admin` for verified `@nu01.com`, plus the roles the table
+      declares for the email.
+    - `deploy.sh` deploys it (`presence-auth-api` / `presence-rc-auth-api`)
+      before the site, and `site.yaml` routes `/api/*` to it again. The smoke
+      test expects 401 without a token.
+    - Both deploy roles gained Lambda, API Gateway v2, DynamoDB and SAM
+      permissions, the workflows set up Java 25 and SAM, and `aws-sam-cli`
+      is back in devbox.
+    - 7 JUnit tests pass.
+114. **Rename the module to presence_api_auth.** (2026-09-27) Renamed
+    `auth_api/` to [presence_api_auth/](../presence_api_auth), with every
+    reference (templates, `deploy.sh`, workflows, deploy roles, docs). The
+    AWS stacks keep their names (`presence-auth-api`,
+    `presence-rc-auth-api`).
+115. **When the user is signed in, show events and features only if they
+    have a role; otherwise show only their account and a sign-up icon.**
+    (2026-09-27)
+    - Added `RolesService` (`GET /api/auth` with the ID token; access means
+      at least one role; deny by default) and `ApiConfig.baseUrl`.
+    - Without a role, the app bar has only a sign-up icon ("Request access",
+      "Check again") and the account button: no tabs, no camera buttons,
+      and cloud sync stays off.
+    - Locally, Floci routes `/api/*` to the deployed auth API
+      (`AUTH_API_HOST` in the private `.env`); checked through Floci, no
+      token and a forged token get 401.
+    - 104 tests pass.
+116. **Remove `presence_infra_tenant` if it is unused.** (2026-09-27)
     - Nothing referenced it, and it had no resources. Neither its stack nor
       the CDK bootstrap stack was ever deployed.
     - Deleted `presence_infra_tenant/` and `specs/tenant-infra.md`, and
-      removed Maven and the AWS CDK CLI from devbox (only the module used
-      them), the CDK entries from `.gitignore`, and the stale SAM, Maven
-      and CDK rows from the README's tool table.
+      removed the AWS CDK CLI from devbox (only the module used it), the
+      CDK entries from `.gitignore`, and the CDK row from the README's tool
+      table. Maven and the SAM CLI stay, for the auth API.
+117. **Where is the auth API I asked for? On sign-in, the auth API should
+    say whether the user may use the system or should sign up; by default
+    only the `@nu01.com` allowlist domain is accepted. Merge everything
+    into main.** (2026-09-27)
+    - The auth API (#113–#115) was built but still open in #60 and #61.
+      #61 was merged into #60's branch, and #60 into `main`.
+    - The user asked for every open branch and PR to be merged into `main`.

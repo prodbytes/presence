@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
+import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
+import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'cloud/cloud_config.dart';
@@ -34,7 +36,11 @@ class PresenceApp extends StatefulWidget {
     this.now,
     this.auth,
     this.cloud,
+    this.rolesClient,
   });
+
+  /// Overrides the auth API (used by tests); defaults to `GET /api/auth`.
+  final RolesClient? rolesClient;
 
   /// Overrides cloud uploads (used by tests); defaults to Cognito + S3
   /// when `CloudConfig` is set, and none otherwise.
@@ -95,6 +101,10 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     )..load();
     _auth.init().ignore();
+    _roles = RolesService(
+      auth: _auth,
+      client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
+    );
     final cloud =
         widget.cloud ??
         (CloudConfig.enabled
@@ -113,6 +123,8 @@ class _PresenceAppState extends State<PresenceApp> {
         ? null
         : CloudSync(
             auth: _auth,
+            // Only users with a role sync.
+            roles: _roles,
             backend: cloud,
             store: _persistence.store,
             media: _persistence.media,
@@ -136,6 +148,7 @@ class _PresenceAppState extends State<PresenceApp> {
   }
 
   late final AuthService _auth;
+  late final RolesService _roles;
   CloudSync? _sync;
   String? _signedInAs;
 
@@ -156,6 +169,7 @@ class _PresenceAppState extends State<PresenceApp> {
   void dispose() {
     _auth.removeListener(_onAuthChanged);
     _sync?.dispose();
+    _roles.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -178,6 +192,7 @@ class _PresenceAppState extends State<PresenceApp> {
           rig: _rig,
           config: _config,
           auth: _auth,
+          roles: _roles,
           sync: _sync,
         ),
       ),
@@ -211,8 +226,12 @@ class HomeScreen extends StatefulWidget {
     required this.rig,
     required this.config,
     required this.auth,
+    required this.roles,
     this.sync,
   });
+
+  /// The signed-in user's roles: events and features need at least one.
+  final RolesService roles;
 
   final EventLog log;
   final CameraRig rig;
@@ -242,10 +261,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _signedIn => widget.auth.user != null;
 
+  /// Signed in with a role: the tabs, the camera's buttons and cloud sync.
+  bool get _hasAccess => _signedIn && widget.roles.hasAccess;
+
   @override
   void initState() {
     super.initState();
     widget.auth.addListener(_onAuthChanged);
+    widget.roles.addListener(_onAccessChanged);
+  }
+
+  /// Losing access hides the other tabs, so go back to the camera.
+  void _onAccessChanged() {
+    if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    if (mounted) setState(() {});
   }
 
   String? _shownError;
@@ -266,6 +295,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     widget.auth.removeListener(_onAuthChanged);
+    widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
     _tabs.dispose();
     super.dispose();
@@ -298,8 +328,8 @@ class _HomeScreenState extends State<HomeScreen>
           // until dismissed.)
           persist: false,
           duration: const Duration(seconds: 4),
-          // The events tab is only there when signed in.
-          action: _signedIn
+          // The events tab is only there with access.
+          action: _hasAccess
               ? SnackBarAction(
                   label: 'View',
                   onPressed: () => _tabs.animateTo(HomeTab.events.index),
@@ -347,6 +377,21 @@ class _HomeScreenState extends State<HomeScreen>
           if (!_signedIn) ...[
             SignInAction(auth: widget.auth),
             const SizedBox(width: 12),
+          ] else if (!_hasAccess) ...[
+            // Signed in without a role: only their account, and sign-up.
+            if (widget.roles.state == AccessState.checking)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: SizedBox.square(
+                  key: Key('checking-access'),
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+            else
+              SignUpButton(auth: widget.auth, roles: widget.roles),
+            AccountButton(auth: widget.auth),
+            const SizedBox(width: 4),
           ] else ...[
             SizedBox(
               width: HomeScreen.tabWidth * HomeTab.values.length,
@@ -375,7 +420,7 @@ class _HomeScreenState extends State<HomeScreen>
       body: TabBarView(
         controller: _tabs,
         // No swiping to the other tabs while they're hidden.
-        physics: _signedIn ? null : const NeverScrollableScrollPhysics(),
+        physics: _hasAccess ? null : const NeverScrollableScrollPhysics(),
         children: [
           _KeepAlive(
             child: CameraFeedsView(
@@ -400,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen>
         ],
       ),
       // Signed out, the camera shows with no buttons at all.
-      floatingActionButton: _onCamera && _signedIn
+      floatingActionButton: _onCamera && _hasAccess
           ? ListenableBuilder(
               listenable: widget.rig,
               // Each button is hidden, not disabled, when it can't act.
