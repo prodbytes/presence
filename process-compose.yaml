@@ -42,7 +42,8 @@ processes:
 
   4-floci:
     # The mkcert certificate is generated first, when missing or stale.
-    command: bash scripts/local-certs.sh && docker compose -f presence_floci/compose.yaml up floci
+    # AUTH_API_HOST (the deployed auth API behind /api/*) comes from .env.
+    command: bash scripts/local-certs.sh && AUTH_API_HOST="$(sed -n 's/^AUTH_API_HOST=//p' .env 2>/dev/null | tail -1)" docker compose -f presence_floci/compose.yaml up floci
     environment:
       - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     shutdown:

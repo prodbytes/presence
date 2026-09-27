@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
+import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/cognito.dart';
 import 'package:presence_app/cloud/s3.dart';
@@ -364,5 +365,27 @@ void main() {
         'events/year=2026/day=270/e.json',
       );
     });
+  });
+
+  test('without a role, nothing syncs', () async {
+    sync.dispose();
+    final roles = RolesService(auth: auth, client: FakeRolesClient.none());
+    sync = CloudSync(
+      auth: auth,
+      roles: roles,
+      backend: backend,
+      store: Future.value(store),
+      media: Future.value(IdbMediaStore(store)),
+      changes: changes.stream,
+      debounce: Duration.zero,
+    );
+    await auth.signIn();
+    await Future<void>.delayed(Duration.zero);
+    changes.add(null);
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+    expect(backend.tokens, isEmpty);
+    expect(sync.state, CloudSyncState.off);
+    roles.dispose();
   });
 }
