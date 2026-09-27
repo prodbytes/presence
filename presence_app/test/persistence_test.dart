@@ -250,6 +250,86 @@ void main() {
     );
   });
 
+  testWidgets('names marked on a clip are saved with its event', (
+    tester,
+  ) async {
+    final camera = FakeCameraSource('Front door');
+    await launch(tester, cameras: [camera]);
+    await pressClip(tester);
+    camera.pastCompleters.single.complete(past);
+    await settleStorage(tester);
+    camera.fullCompleters.single.complete(full);
+    await settleStorage(tester);
+
+    await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Nobody named yet. Add a name, then tap them on the video.'),
+      findsOneWidget,
+    );
+
+    Future<void> mark(String name, double fx, double fy) async {
+      await tester.tap(find.byKey(const Key('add-name')));
+      await tester.pumpAndSettle();
+      final surface = tester.getRect(find.byKey(const Key('mark-surface')));
+      await tester.tapAt(
+        surface.topLeft + Offset(surface.width * fx, surface.height * fy),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('annotation-name')), name);
+      await tester.tap(find.byKey(const Key('save-name')));
+      await tester.pumpAndSettle();
+    }
+
+    // Two of them in one clip, each at its own spot.
+    await mark('Rex', 0.25, 0.5);
+    await mark('Ana', 0.75, 0.4);
+    expect(find.widgetWithText(InputChip, 'Rex'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Ana'), findsOneWidget);
+    final annotations = clipEvent(tester).annotations.items;
+    expect(annotations.map((a) => a.name), ['Rex', 'Ana']);
+    expect(annotations.first.x, closeTo(0.25, 0.01));
+    expect(annotations.first.y, closeTo(0.5, 0.01));
+    await settleStorage(tester);
+
+    // Saved with the event: back after a refresh, positions included.
+    await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
+    final restored = clipEvent(tester).annotations.items;
+    expect(restored.map((a) => a.name), ['Rex', 'Ana']);
+    expect(restored.last.x, closeTo(0.75, 0.01));
+    expect(restored.last.y, closeTo(0.4, 0.01));
+    final eventId = clipEvent(tester).id;
+    final record = await run(
+      tester,
+      storage.open(EventStore.dbName).then((db) async {
+        final txn = db.transaction(EventStore.events, idbModeReadOnly);
+        final value = await txn
+            .objectStore(EventStore.events)
+            .getObject(eventId);
+        await txn.completed;
+        db.close();
+        return value as Map;
+      }),
+    );
+    expect((record['annotations'] as List).map((a) => (a as Map)['name']), [
+      'Rex',
+      'Ana',
+    ]);
+
+    // Removing one is saved too.
+    await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.widgetWithText(InputChip, 'Rex'),
+        matching: find.byTooltip('Remove'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(clipEvent(tester).annotations.items.map((a) => a.name), ['Ana']);
+  });
+
   testWidgets('the before-only file is deleted once the full clip is saved', (
     tester,
   ) async {

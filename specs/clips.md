@@ -54,6 +54,39 @@ recorders (`RecorderPool` in
 - Clips (thumbnails and recordings) are saved to local storage and survive a
   page refresh. See [Storage](storage.md).
 
+## Naming people and pets
+
+Under the player, the clip's **People and pets** list lets users name
+whoever is in the video, as many as needed, each at the spot they tap
+([lib/annotations.dart](../presence_app/lib/annotations.dart),
+`ClipPlayerDialog` in `lib/clips.dart`):
+
+- **Add a name** switches to marking. A "Tap where the person or pet is"
+  overlay covers the video, and the next tap places the marker. A prompt
+  then asks **"Who is this?"**, and Save adds it (a blank name adds
+  nothing). Cancel leaves marking.
+- **Markers** (a dot with the name) stay drawn over the video. They never
+  take taps, so the video's controls keep working.
+- Each name is a chip in the list: tap to **rename**, × to **remove**.
+- **Positions** are fractions (0 to 1) of the 16:9 player box the clip
+  plays in, where the video is letterboxed. So a marker lands on the same
+  spot on any screen, but it's relative to the box, not to the video's own
+  frame.
+- **Stored with the event:** the clip event (`ClipRequested`) keeps a
+  `ClipAnnotations` list, saved in its record as
+  `annotations: [{id, name, x, y}]`. `Persistence` re-saves the event on
+  every change and signals [cloud sync](cloud-sync.md), so the event's JSON
+  in S3 is uploaded again with the names. Restores, including from the
+  cloud, bring the names back, and malformed entries are skipped.
+- **Web:** the player is a `<video>` element embedded in Flutter, so the
+  marking overlay is wrapped in `PointerInterceptor` (Flutter's
+  `pointer_interceptor`) for Flutter to receive the tap.
+- Tests: the model (add, rename, remove, clamping, a JSON round-trip that
+  skips bad entries), and at app level two names marked at different
+  spots, restored with their positions after a refresh, stored in the
+  event record, and a removal saved. Not yet tried in a real browser over
+  the `<video>` element: that needs a signed-in session.
+
 ## Known limitations
 
 - Always-on recording runs about 4 video encoders per camera, which uses

@@ -717,3 +717,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Third run: success. The workflow deployed the RC and its smoke test
       passed. Checked independently: version, routes, and the app in
       headless Chrome.
+111. **When the user opens a video event, let them annotate below the
+    player a name for the person or pet in the video, stored with the
+    event. There can be several people or pets: let users add as many names
+    as needed, each at the position they click on the video.** (2026-09-27)
+    - Added `ClipAnnotations` (`lib/annotations.dart`): the clip event's
+      list of `{id, name, x, y}`, saved in its record and re-saved (and
+      synced) on every change.
+    - The player dialog gained a People and pets list: add a name by tapping
+      its spot on the video, rename, remove, with markers drawn over the
+      video (`pointer_interceptor` makes the tap reach Flutter over the
+      web's `<video>`).
+    - Fixed along the way: the name prompt's controller was disposed while
+      its dialog was still closing.
+    - 102 tests pass.

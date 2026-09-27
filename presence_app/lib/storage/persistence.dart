@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show Icons;
 import 'package:idb_shim/idb_shim.dart';
 
+import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
@@ -44,6 +45,7 @@ class Persistence {
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
   final StreamController<void> _changes = StreamController<void>.broadcast();
+  final Set<String> _watched = {};
   CameraRig? _rig;
   List<CameraDevice>? _saved;
   bool _disposed = false;
@@ -158,11 +160,29 @@ class Persistence {
       } catch (e) {
         debugPrint('Presence: could not save event ${event.id}: $e');
       }
+      if (event is ClipRequested) _watchAnnotations(event);
       if (event is ClipRequested && event.clip.capture != null) {
         await _ClipWriter(store, await _media, event).run();
         _changed();
       }
     }());
+  }
+
+  /// Saves [event] again whenever its annotations change (names added,
+  /// renamed or removed under the player), which also queues it for cloud
+  /// sync.
+  ClipRequested _watchAnnotations(ClipRequested event) {
+    if (_watched.add(event.id)) {
+      event.annotations.addListener(() {
+        if (_disposed) return;
+        _track(() async {
+          final store = await _store;
+          await store.putEvent(event.toRecord());
+          _changed();
+        }());
+      });
+    }
+    return event;
   }
 
   void _changed() {
@@ -221,13 +241,16 @@ class Persistence {
     if (record['type'] == ClipRequested.clipRequestedType) {
       final clip = clips[record['clipId']];
       if (clip != null) {
-        return ClipRequested(
-          clip,
-          trigger:
-              ClipTrigger.values.asNameMap()[record['trigger']] ??
-              ClipTrigger.manual,
-          id: record['id']! as String,
-          time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
+        return _watchAnnotations(
+          ClipRequested(
+            clip,
+            trigger:
+                ClipTrigger.values.asNameMap()[record['trigger']] ??
+                ClipTrigger.manual,
+            annotations: ClipAnnotations.fromJson(record['annotations']),
+            id: record['id']! as String,
+            time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
+          ),
         );
       }
     }

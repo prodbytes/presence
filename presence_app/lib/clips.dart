@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import 'annotations.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 
@@ -145,9 +147,11 @@ class ClipRequested extends AppEvent {
   ClipRequested(
     this.clip, {
     this.trigger = ClipTrigger.manual,
+    ClipAnnotations? annotations,
     super.time,
     super.id,
-  }) : super(
+  }) : annotations = annotations ?? ClipAnnotations(),
+       super(
          icon: trigger == ClipTrigger.motion
              ? Icons.directions_run
              : Icons.videocam,
@@ -164,6 +168,9 @@ class ClipRequested extends AppEvent {
   final VideoClip clip;
   final ClipTrigger trigger;
 
+  /// The people and pets named in this clip (edited under the player).
+  final ClipAnnotations annotations;
+
   /// `partial` while only the "before" part exists, `complete` once the
   /// event has been updated with the full clip.
   String get clipState => clip.full != null ? 'complete' : 'partial';
@@ -174,6 +181,7 @@ class ClipRequested extends AppEvent {
     'clipId': clip.id,
     'clipState': clipState,
     'trigger': trigger.name,
+    if (!annotations.isEmpty) 'annotations': annotations.toJson(),
   };
 
   @override
@@ -296,35 +304,287 @@ Future<void> showClipPlayer(BuildContext context, ClipRequested event) {
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              title: Text(
-                '${event.clip.cameraLabel} · '
-                '${formatEventTime(event.time)}',
-              ),
-              trailing: IconButton(
-                tooltip: 'Close',
-                icon: const Icon(Icons.close),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: ClipPlayerView(clip: event.clip),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: ListenableBuilder(
-                listenable: event.clip,
-                builder: (context, _) => Text(event.clip.status),
-              ),
-            ),
-          ],
-        ),
+        child: ClipPlayerDialog(event: event),
       ),
     ),
+  );
+}
+
+/// The clip player, with the people and pets named in it: markers over the
+/// video, and the list of names (add, rename, remove) below it. "Add a name"
+/// switches to marking: the next tap on the video places the marker, then
+/// asks who it is.
+class ClipPlayerDialog extends StatefulWidget {
+  const ClipPlayerDialog({super.key, required this.event});
+
+  final ClipRequested event;
+
+  @override
+  State<ClipPlayerDialog> createState() => _ClipPlayerDialogState();
+}
+
+class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
+  bool _marking = false;
+
+  ClipRequested get _event => widget.event;
+  ClipAnnotations get _annotations => _event.annotations;
+
+  Future<void> _mark(Offset at, Size size) async {
+    setState(() => _marking = false);
+    final name = await _askName(context, title: 'Who is this?');
+    if (name == null || !mounted) return;
+    _annotations.add(name, at.dx / size.width, at.dy / size.height);
+  }
+
+  Future<void> _rename(Annotation annotation) async {
+    final name = await _askName(
+      context,
+      title: 'Rename',
+      initial: annotation.name,
+    );
+    if (name != null) _annotations.rename(annotation.id, name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            title: Text(
+              '${_event.clip.cameraLabel} · '
+              '${formatEventTime(_event.time)}',
+            ),
+            trailing: IconButton(
+              tooltip: 'Close',
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          AspectRatio(
+            aspectRatio: 16 / 9,
+            child: LayoutBuilder(
+              builder: (context, box) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipPlayerView(clip: _event.clip),
+                  // Markers never take taps: the video's controls stay usable.
+                  IgnorePointer(
+                    child: ListenableBuilder(
+                      listenable: _annotations,
+                      builder: (context, _) => Stack(
+                        children: [
+                          for (final a in _annotations.items)
+                            _Marker(
+                              key: Key('marker-${a.id}'),
+                              annotation: a,
+                              box: box.biggest,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_marking)
+                    // Over the web's <video> element, only a pointer
+                    // interceptor lets Flutter see the tap.
+                    PointerInterceptor(
+                      child: GestureDetector(
+                        key: const Key('mark-surface'),
+                        behavior: HitTestBehavior.opaque,
+                        onTapUp: (d) => _mark(d.localPosition, box.biggest),
+                        child: ColoredBox(
+                          color: Colors.black26,
+                          child: Center(
+                            child: Chip(
+                              avatar: const Icon(Icons.touch_app, size: 18),
+                              label: const Text(
+                                'Tap where the person or pet is',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: ListenableBuilder(
+              listenable: _event.clip,
+              builder: (context, _) => Text(_event.clip.status),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+            child: ListenableBuilder(
+              listenable: _annotations,
+              builder: (context, _) => Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                spacing: 8,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'People and pets',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      _marking
+                          ? TextButton(
+                              key: const Key('cancel-marking'),
+                              onPressed: () => setState(() => _marking = false),
+                              child: const Text('Cancel'),
+                            )
+                          : FilledButton.tonalIcon(
+                              key: const Key('add-name'),
+                              icon: const Icon(Icons.person_add_alt),
+                              label: const Text('Add a name'),
+                              onPressed: () => setState(() => _marking = true),
+                            ),
+                    ],
+                  ),
+                  if (_annotations.isEmpty)
+                    Text(
+                      'Nobody named yet. Add a name, then tap them on the '
+                      'video.',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final a in _annotations.items)
+                          InputChip(
+                            key: Key('annotation-${a.id}'),
+                            avatar: const Icon(Icons.place, size: 18),
+                            label: Text(a.name),
+                            tooltip: 'Rename',
+                            onPressed: () => _rename(a),
+                            deleteButtonTooltipMessage: 'Remove',
+                            onDeleted: () => _annotations.remove(a.id),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A named dot at an annotation's spot.
+class _Marker extends StatelessWidget {
+  const _Marker({super.key, required this.annotation, required this.box});
+
+  final Annotation annotation;
+  final Size box;
+
+  static const double _dot = 12;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Positioned(
+      left: annotation.x * box.width - _dot / 2,
+      top: annotation.y * box.height - _dot / 2,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        spacing: 4,
+        children: [
+          Container(
+            width: _dot,
+            height: _dot,
+            decoration: BoxDecoration(
+              color: scheme.primary,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Text(
+                annotation.name,
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Asks for a name; null when cancelled or left blank.
+Future<String?> _askName(
+  BuildContext context, {
+  required String title,
+  String initial = '',
+}) async {
+  final name = await showDialog<String>(
+    context: context,
+    builder: (context) => _NameDialog(title: title, initial: initial),
+  );
+  final trimmed = name?.trim();
+  return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+}
+
+/// The name prompt. Owns its text controller, so the controller outlives
+/// the dialog's closing animation.
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({required this.title, required this.initial});
+
+  final String title;
+  final String initial;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: TextField(
+      key: const Key('annotation-name'),
+      controller: _controller,
+      autofocus: true,
+      textCapitalization: TextCapitalization.words,
+      decoration: const InputDecoration(hintText: 'Name'),
+      onSubmitted: (value) => Navigator.of(context).pop(value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        key: const Key('save-name'),
+        onPressed: () => Navigator.of(context).pop(_controller.text),
+        child: const Text('Save'),
+      ),
+    ],
   );
 }

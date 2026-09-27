@@ -18,7 +18,7 @@ Everything goes under the user's **Cognito identity ID**
 | `<identityId>/clips/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), with its MIME type |
 | `<identityId>/clips/<clipId>.jpg` | the thumbnail |
 | `<identityId>/clips/<clipId>.json` | the clip record: camera, window, lengths, state, media reference |
-| `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each event record (type, title, detail, time, camera, clip ID and state), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
+| `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each event record (type, title, detail, time, camera, clip ID and state, and for clips the named people and pets, `annotations`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 ## When
 
