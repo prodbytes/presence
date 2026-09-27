@@ -856,3 +856,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Applied to both `presence-user-data` and `presence-rc-user-data`; each
       kept its CORS origins.
     - A live upload landed as `INTELLIGENT_TIERING` and was cleaned up.
+127. **Sync git, increment the Y version, push an RC tag and a GA tag, and
+    verify the workflows and deployments.** (2026-09-27)
+    - `version.Y.txt` 2 → 3, so releases are `0.3.<time>-RC` / `-GA`.
