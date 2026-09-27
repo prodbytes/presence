@@ -923,3 +923,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       "The camera only works on a secure page. Open Presence over HTTPS.",
       and `http://localhost` opens the camera path as before. 123 tests
       pass.
+127. **Sync git, increment the Y version, push an RC tag and a GA tag, and
+    verify the workflows and deployments.** (2026-09-27)
+    - `version.Y.txt` 2 → 3, so releases are `0.3.<time>-RC` / `-GA`.
+128. **Merge it all and pull main.** (2026-09-27)
+    - Merged #65 (roles, membership, Admin screen), #66 (the local auth API
+      in Floci, retargeted to `main`), #67 (camera errors) and #68 (version
+      0.3), resolving request-log conflicts.
