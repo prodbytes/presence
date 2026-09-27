@@ -9,7 +9,7 @@ servers:
 |------|--------|
 | default (`/`, anything else) | [Site index](site-index.md) (`python3 -m http.server`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
-| `/api/*` | The deployed [auth API](auth-api.md) at `AUTH_API_HOST` (private `.env`), when set: there's no local copy |
+| `/api/*` | The [auth API](auth-api.md), deployed into Floci itself (below) |
 
 CloudFront forwards paths unchanged and can't strip a prefix, so each origin
 serves its own prefix: the app has the `/app/` base href. `/` redirects to `/app/` through the index
@@ -104,3 +104,49 @@ web client's local origin**.
   is: plain Docker's `host-gateway` is the bridge address, not loopback.
 - Google sign-in through this URL needs `http://presence.localhost:4566`
   added to the web OAuth client's authorized JavaScript origins.
+
+## The local auth API
+
+At every start, Floci deploys the real auth API into itself, so sign-in,
+roles, membership requests and the Admin screen work locally without AWS:
+
+- **Build:** [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs
+  `sam build` before Floci starts (in the `4-floci` command), only when
+  `presence_api_auth` changed. compose mounts the build read-only.
+- **Deploy:** the ready hook
+  [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
+  `template.yaml` as the stack `presence-local-auth-api`: the three Java 25
+  Lambdas, `UserRolesTable`, `MembershipTable` and `MembershipTopic`. Floci
+  runs the Lambdas as Docker containers (`presence-lambda-*`), which is
+  why compose mounts the Docker socket. That gives Floci control of the
+  Docker daemon, which is acceptable only for local development (its ports
+  are bound to 127.0.0.1). Shutdown removes those containers.
+- **The API in front:** CloudFront reaches private origins only when they
+  are allowlisted by exact name, and CloudFormation gives the stack's HTTP
+  API a random ID. The hook therefore also creates an HTTP API with the
+  fixed ID `presence` (Floci's `floci:override-id` tag). It has the same
+  Google JWT authorizer (issuer `https://accounts.google.com`, audience
+  `GOOGLE_WEB_CLIENT_ID` from `.env`) and the same five routes as the
+  template's. `10-cloudfront.sh` then routes `/api/*` to
+  `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
+  step with `template.yaml`.
+- **Roles** follow the template: verified `@nu01.com` accounts get
+  `presence_user` and `presence_admin`, and everyone else starts with none.
+  Storage is `memory`, so every start begins with empty tables: grants and
+  requests don't survive a restart.
+- The hook runs past Floci's default 30 s, so compose sets
+  `FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` to 180, and the process's readiness
+  allows 6 minutes (the first run builds and pulls the Lambda image).
+- Without `GOOGLE_WEB_CLIENT_ID` or a build, the hook skips the API:
+  `/api/*` isn't routed and every signed-in user sees only sign-up.
+- Checked through `https://local.presence.nu01.com:8443`: `/api/auth`
+  refuses a missing or forged token (401), and invoking the functions in
+  Floci ran the whole flow. `boss@nu01.com` got both roles,
+  `ana@example.com` asked (202, then 409), was refused the admin routes
+  (403), was granted by the admin, and then had `presence_user` only.
+
+### Known limitations
+
+- Floci answers a malformed bearer token with 406 when called directly
+  (through CloudFront it's 401); AWS answers 401.
+- Membership notifications go to a local SNS topic with no subscribers.

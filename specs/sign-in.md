@@ -47,6 +47,10 @@ there's no separate sign-in screen:
     **Check again**, which asks the auth API once more. There are no tabs,
     no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.
+  - The check runs when the user changes (sign-in, a session restored at
+    launch, sign-out). A check that failed also runs again when a silent
+    sign-in brings a new ID token, so a stale restored token or an API
+    still starting doesn't leave a member on the sign-up screen.
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
 - **Signed in as a `presence_user`:** all the buttons: the camera's Flip, Clip and

@@ -177,6 +177,7 @@ class FakeAuthService extends AuthService {
 
   final AuthUser account;
   AuthUser? _user;
+  int _refreshes = 0;
 
   @override
   bool get checking => false;
@@ -184,7 +185,18 @@ class FakeAuthService extends AuthService {
   @override
   AuthUser? get user => _user;
   @override
-  String? get idToken => _user == null ? null : 'id-token-${_user!.id}';
+  String? get idToken => _user == null
+      ? null
+      : 'id-token-${_user!.id}${_refreshes == 0 ? '' : '-r$_refreshes'}';
+
+  /// A silent sign-in that renews the ID token for the same user.
+  void refreshToken() {
+    _refreshes++;
+    notifyListeners();
+  }
+
+  /// A change that leaves the user and token as they were.
+  void notify() => notifyListeners();
   @override
   bool get available => true;
   @override

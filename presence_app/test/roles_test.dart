@@ -49,6 +49,42 @@ void main() {
       await roles.refresh();
       expect(roles.state, AccessState.granted);
     });
+
+    test('a failed check retries when the token is refreshed', () async {
+      final auth = FakeAuthService.signedIn();
+      final client = FakeRolesClient()..error = RolesException(502);
+      final roles = RolesService(auth: auth, client: client);
+      await settle();
+      expect(roles.state, AccessState.denied);
+
+      // The same token again doesn't retry; a new one does.
+      client.error = null;
+      auth.notify();
+      await settle();
+      expect(roles.state, AccessState.denied);
+      auth.refreshToken();
+      await settle();
+      expect(roles.state, AccessState.granted);
+      expect(client.tokens, ['id-token-1', 'id-token-1-r1']);
+    });
+
+    test('roles decide the navigation: none, member, admin', () async {
+      for (final (granted, access, admin) in [
+        (<String>[], false, false),
+        (['viewer'], false, false),
+        ([adminRole], false, false),
+        ([userRole], true, false),
+        ([userRole, adminRole], true, true),
+      ]) {
+        final roles = RolesService(
+          auth: FakeAuthService.signedIn(),
+          client: FakeRolesClient(granted),
+        );
+        await settle();
+        expect(roles.hasAccess, access, reason: '$granted');
+        expect(roles.isAdmin, admin, reason: '$granted');
+      }
+    });
   });
 
   group('the app', () {
