@@ -17,9 +17,6 @@ Toolchain pinned by [devbox.json](devbox.json) and locked in [devbox.lock](devbo
 | Python | 3.14.x |
 | PostgreSQL | 17.x |
 | Flutter | 3.47.x |
-| AWS SAM CLI | 1.165.x |
-| Maven | 3.9.x |
-| AWS CDK CLI | 2.1138.x |
 | AWS CLI | 2.35.x |
 | GNU Make, curl | 4.4.x, 8.17.x |
 

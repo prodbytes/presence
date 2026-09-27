@@ -1,44 +1,6 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "aws-cdk-cli@latest": {
-      "last_modified": "2026-08-27T07:16:00Z",
-      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#aws-cdk-cli",
-      "source": "devbox-search",
-      "version": "2.1138.0",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/x1vzv5h7wnb9iy7z20sc3dfr4s15xnr1-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/x1vzv5h7wnb9iy7z20sc3dfr4s15xnr1-aws-cdk-cli-2.1138.0"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0k86h5dvgbm6d132rkk9khg2vhxjpqlp-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/0k86h5dvgbm6d132rkk9khg2vhxjpqlp-aws-cdk-cli-2.1138.0"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0r4gafqbns6kr9qpfs111nynpwl9dviy-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/0r4gafqbns6kr9qpfs111nynpwl9dviy-aws-cdk-cli-2.1138.0"
-        }
-      }
-    },
     "awscli2@latest": {
       "last_modified": "2026-08-27T07:16:00Z",
       "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#awscli2",
@@ -446,54 +408,6 @@
             }
           ],
           "store_path": "/nix/store/x7s2lskf44mxg140mxn5rzfxhxp8k2mz-graalvm-ce-25.2.4"
-        }
-      }
-    },
-    "maven@latest": {
-      "last_modified": "2026-08-27T07:16:00Z",
-      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#maven",
-      "source": "devbox-search",
-      "version": "3.9.16",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/p9ackmrgrcwyqmf8vwcf62c2h2q8zrzn-maven-3.9.16",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/p9ackmrgrcwyqmf8vwcf62c2h2q8zrzn-maven-3.9.16"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/mg785r8c0anbyvj7s8c3s3db633h7aqh-maven-3.9.16",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/mg785r8c0anbyvj7s8c3s3db633h7aqh-maven-3.9.16"
-        },
-        "x86_64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/334davh2hdmg5ma9pxxz5vpz39dji3vs-maven-3.9.16",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/334davh2hdmg5ma9pxxz5vpz39dji3vs-maven-3.9.16"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/8qya1wiysnaq2smkkqq6z2814l09lbjv-maven-3.9.16",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/8qya1wiysnaq2smkkqq6z2814l09lbjv-maven-3.9.16"
         }
       }
     },

@@ -85,10 +85,6 @@ Thumbs.db
 !.vscode/launch.json
 
 
-# --- AWS CDK ---
-cdk.out/
-.cdk.staging/
-
 *.local*
 
 # --- Local HTTPS (mkcert, see scripts/local-certs.sh) ---

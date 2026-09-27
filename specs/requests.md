@@ -742,3 +742,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       404.
     - The leftover local `presence_api_events/` (untracked build output
       only) was removed.
+113. **Remove `presence_infra_tenant` if it is unused.** (2026-09-27)
+    - Nothing referenced it, and it had no resources. Neither its stack nor
+      the CDK bootstrap stack was ever deployed.
+    - Deleted `presence_infra_tenant/` and `specs/tenant-infra.md`, and
+      removed Maven and the AWS CDK CLI from devbox (only the module used
+      them), the CDK entries from `.gitignore`, and the stale SAM, Maven
+      and CDK rows from the README's tool table.
