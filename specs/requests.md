@@ -930,3 +930,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Merged #65 (roles, membership, Admin screen), #66 (the local auth API
       in Floci, retargeted to `main`), #67 (camera errors) and #68 (version
       0.3), resolving request-log conflicts.
+129. **On the Settings screen, at the bottom, add the version tag. Push the
+    tags, monitor the workflows, test the deployment, and say when it's
+    updated.** (2026-09-27)
+    - Settings ends with "Presence <tag>" (`AppVersion.label`): the release
+      tag in tagged builds, `X.Y.Z` in other builds, "development build" on
+      the dev server. `scripts/make.sh` passes `PRESENCE_VERSION`, and
+      `PRESENCE_TAG` when `TAG` matches the build's version.
+    - Checked: a web build with a test tag had it compiled in. 128 tests
+      pass.

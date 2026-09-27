@@ -185,6 +185,11 @@ void main() {
     expect(find.text('Before the press'), findsOneWidget);
     expect(find.text('After the press'), findsOneWidget);
     expect(find.textContaining('Clips play 30 s in total'), findsOneWidget);
+    // The build's version sits at the bottom; tests have no tag.
+    expect(
+      find.text('Presence development build', skipOffstage: false),
+      findsOneWidget,
+    );
 
     await tester.tap(find.byTooltip('Camera'));
     await tester.pumpAndSettle();
@@ -226,7 +231,8 @@ void main() {
     tester,
   ) async {
     final camera = FakeCameraSource('Back camera');
-    final backend = openFakes([camera])..openError = const CameraUnavailable('Blocked');
+    final backend = openFakes([camera])
+      ..openError = const CameraUnavailable('Blocked');
     await pumpApp(tester, backend);
     expect(find.byKey(const Key('preview-Back camera')), findsNothing);
     expect(find.textContaining('Blocked'), findsOneWidget);
