@@ -8,7 +8,7 @@
     <artifactId>presence-auth-api</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
-    <name>auth_api</name>
+    <name>presence_api_auth</name>
 
     <properties>
         <maven.compiler.release>25</maven.compiler.release>

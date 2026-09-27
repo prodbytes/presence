@@ -1,4 +1,4 @@
-# auth_api
+# presence_api_auth
 
 The Presence auth API: an [AWS SAM](https://aws.amazon.com/serverless/sam/)
 application with one Java 25 Lambda (`java25`, arm64) behind an API Gateway

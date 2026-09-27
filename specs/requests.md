@@ -747,7 +747,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     information and returns their roles: none for everyone, except the
     @nu01.com domain, or users present in a DynamoDB table that declares
     roles by email.** (2026-09-27)
-    - Added [auth_api/](../auth_api): a Java 25 Lambda behind an HTTP API
+    - Added `auth_api/` (now [presence_api_auth/](../presence_api_auth)): a Java 25 Lambda behind an HTTP API
       with a Google JWT authorizer, and a `UserRolesTable`.
     - Roles: `admin` for verified `@nu01.com`, plus the roles the table
       declares for the email.
@@ -758,3 +758,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       permissions, the workflows set up Java 25 and SAM, and `aws-sam-cli`
       is back in devbox.
     - 7 JUnit tests pass.
+114. **Rename the module to presence_api_auth.** (2026-09-27) Renamed
+    `auth_api/` to [presence_api_auth/](../presence_api_auth), with every
+    reference (templates, `deploy.sh`, workflows, deploy roles, docs). The
+    AWS stacks keep their names (`presence-auth-api`,
+    `presence-rc-auth-api`).

@@ -6,7 +6,7 @@
 #      bucket; presence_infra/identity.yaml: the Cognito identity pool)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
 #      with the pool and bucket from step 1
-#   3. deploys the auth API (sam build + sam deploy: auth_api, stack
+#   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
 #      presence-auth-api / presence-rc-auth-api)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS)
@@ -117,7 +117,7 @@ fi
 # 3. The auth API
 echo "==> deploying $AUTH_STACK"
 (
-  cd auth_api
+  cd presence_api_auth
   sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \

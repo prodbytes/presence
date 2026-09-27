@@ -86,7 +86,7 @@ Resources:
                 Resource:
                   - arn:aws:s3:::presence-*
                   - arn:aws:s3:::presence-*/*
-              # The auth API (auth_api, SAM): SAM's artifact stack and bucket,
+              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
               # the Serverless transform, the function, its HTTP API and the
               # roles table.
               - Effect: Allow
@@ -238,7 +238,7 @@ Resources:
                 Resource:
                   - arn:aws:s3:::presence-rc-*
                   - arn:aws:s3:::presence-rc-*/*
-              # The auth API (auth_api, SAM): SAM's artifact stack and bucket,
+              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
               # the Serverless transform, the function, its HTTP API and the
               # roles table.
               - Effect: Allow

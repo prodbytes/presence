@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  auth_api (stack presence-auth-api, and presence-rc-auth-api for the release
+  presence_api_auth (stack presence-auth-api, and presence-rc-auth-api for the release
   candidate): GET /api/auth returns the signed-in user's roles. API Gateway's
   HTTP API checks the Google ID token (JWT authorizer) before the function
   runs; the function reads the verified claims. Nobody has roles, except

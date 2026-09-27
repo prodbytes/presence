@@ -1,6 +1,6 @@
-# Auth API (`auth_api`)
+# Auth API (`presence_api_auth`)
 
-[auth_api/](../auth_api) is a SAM application: one Java 25 Lambda
+[presence_api_auth/](../presence_api_auth) is a SAM application: one Java 25 Lambda
 (`presence.auth.AuthHandler`, arm64) behind an API Gateway HTTP API, at
 **`GET /api/auth`** on the site (`/api/*` in the CloudFront distribution;
 see [Production deploy](deploy.md)). It returns the signed-in user's roles:
