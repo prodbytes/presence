@@ -23,9 +23,13 @@ Everything goes under the user's **Cognito identity ID**
 
 ## When
 
-- **Signed out:** nothing is uploaded (and the camera shows no buttons; see
-  [Sign-in](sign-in.md)).
-- **On sign-in, fetch first:**
+- **Signed out, or signed in without `presence_user`:** nothing is
+  uploaded or fetched (see [Sign-in](sign-in.md) and
+  [Membership](membership.md)). Sync starts once the roles check grants
+  access.
+- **When the app loads for a member, fetch first:** at every app start
+  with a signed-in `presence_user` (a new sign-in, or a session restored
+  at launch, e.g. a reload), and whenever the user changes:
   - the app lists the user's folder (`ListObjectsV2` on `<identityId>/`) and
     downloads the clips (details, recording and thumbnail) and events the
     device doesn't have;
@@ -33,7 +37,12 @@ Everything goes under the user's **Cognito identity ID**
   - it stores them (`Persistence.importRemote`, with recordings through
     `MediaStore.saveBytes`) and adds their events to the timeline.
 
-  This runs once per sign-in.
+  This runs once per app start and user. Every event in the user's S3
+  folder that the device lacks is loaded, so events from other devices
+  (the same Google account, hence the same Cognito identity) appear. A
+  test checks a session restored at launch
+  (`persistence_test.dart`, "after sign-in, clips from the cloud join the
+  history").
 - **Then upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
 - **While signed in, whichever comes first:**

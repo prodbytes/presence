@@ -985,3 +985,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The label is now "Presence X.Y.Z" everywhere: no `-RC`/`-GA`
       (`PRESENCE_TAG` is gone) and no `-dev` (the dev scripts pass the full
       `$VERSION`). A build without a version shows no label.
+134. **Tag an RC and a GA release, push them, verify the workflows and
+    deploys, and wake me when done.** (2026-09-27)
+    - Pushed `0.3.202609271306-RC` and `0.3.202609271307-GA`. All four
+      workflows succeeded. Both sites serve their version, the label is the
+      plain X.Y.Z (no `-RC`/`-GA`), and `/api/auth` answers 401 without a
+      token.
+135. **When the app loads, load all events from the same user on S3.**
+    (2026-09-27)
+    - Already the behaviour: at every app start with a signed-in member
+      (restored sessions included), `CloudSync` lists the user's S3 folder
+      and loads every event and clip the device lacks. The spec said "on
+      sign-in"; `cloud-sync.md` now says when it runs, and that it needs
+      `presence_user`.
+    - Why it looked missing: sync waits for the roles check, and until
+      today's deploys prod had no auth API (the check always failed), and
+      the local dev server was a stale build.
+136. **Sync git, make main and local the same, merge any branches and PRs,
+    review the specs, and run every test and check.** (2026-09-27)
+    - No open PRs and no unmerged branches; local `main` matches `origin`.
+      Deleted the merged local branches.
+    - Checks: `flutter analyze` (clean) and `flutter test` (128),
+      `mvn test` (18), `sam validate --lint`, `validate-template` on the
+      four `presence_infra` templates, `bash -n`/`sh -n` on every script,
+      release dry runs, and the workflow and compose YAML all passed.
+    - Specs: every file is indexed. Fixed a stale Android source link and
+      the cloud-sync timing.
