@@ -5,7 +5,9 @@ app binaries with `make` and publishes them as a GitHub release.
 
 - **Triggers:**
   - A pushed tag matching `*QA` or `*RC*` (e.g. `1.2.0-QA`, `1.2.0-RC1`)
-    is released as a **prerelease** under that tag.
+    is released as a **prerelease** under that tag. `*RC*` tags are also
+    deployed to https://rc.presence.nu01.com (see
+    [Release candidates](deploy.md#release-candidates-rcpresencenu01com)).
   - A pushed tag matching `*GA` (e.g. `1.0.202609261530-GA`) is also
     deployed to https://presence.nu01.com by the Deploy workflow (see
     [Production deploy](deploy.md)). It's released

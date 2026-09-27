@@ -9,11 +9,15 @@ has its own SAM template
 | [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution and the Route 53 A/AAAA aliases |
 | [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, with CORS for the app's origins |
 | [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix. See [specs/cloud-sync.md](../specs/cloud-sync.md) |
-| [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider and the `presence-github-deploy` role that the Deploy workflow assumes |
+| [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`, limited to `presence-rc-*` resources and the `rc.presence.nu01.com` records) |
 
 `scripts/deploy.sh` deploys every stack except `presence-github-deploy`, in
 this order: `presence-user-data`, `presence-identity`, then the API
-(`presence-api-events`), then `presence-web`.
+(`presence-api-events`), then `presence-web`. With `STAGE=rc` it deploys the
+release candidate's own copies (`presence-rc-user-data`,
+`presence-rc-identity`, `presence-rc-api-events` and `presence-rc-web`) for
+https://rc.presence.nu01.com; `*RC*` tags do that through
+[deploy-rc.yml](../.github/workflows/deploy-rc.yml).
 
 ## The distribution
 
@@ -67,8 +71,10 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
 
    ```bash
    gh variable set AWS_DEPLOY_ROLE_ARN --body "<DeployRoleArn>"
+   gh variable set AWS_DEPLOY_RC_ROLE_ARN --body "<RcDeployRoleArn>"
    gh variable set HOSTED_ZONE_ID --body "<the zone ID, HOSTED_ZONE_ID in the private .env>"
    ```
 
-3. In the Google Cloud Console, add `https://presence.nu01.com` to the web
-   OAuth client's **Authorized JavaScript origins**.
+3. In the Google Cloud Console, add `https://presence.nu01.com` and
+   `https://rc.presence.nu01.com` to the web OAuth client's **Authorized
+   JavaScript origins**.
