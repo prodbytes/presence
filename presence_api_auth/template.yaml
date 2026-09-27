@@ -5,10 +5,10 @@ Description: >
   candidate): GET /api/auth returns the signed-in user's roles, POST
   /api/auth/membership lets a user without them ask for access, and the
   Admin screen's routes (presence_admin only) list and approve those
-  requests. API
-  Gateway's HTTP API checks the Google ID token (JWT authorizer) before the
-  functions run; they read the verified claims. Nobody has roles, except
-  verified emails at one of AllowedDomains (DomainRoles) and users listed in
+  requests. API Gateway's HTTP API checks the Google ID token (JWT
+  authorizer) before the functions run; they read the verified claims.
+  Nobody has roles, except verified emails at one of AllowedDomains
+  (presence_user and presence_admin) and users listed in
   the UserRoles table (email -> roles). Served under /api/* by the site's
   CloudFront distribution (presence_infra/site.yaml).
 
@@ -20,13 +20,7 @@ Parameters:
   AllowedDomains:
     Type: String
     Default: nu01.com
-    Description: Comma-separated email domains whose verified users get DomainRoles
-  DomainRoles:
-    Type: String
-    Default: presence_user,presence_admin
-    Description: >
-      Comma-separated roles for AllowedDomains users. presence_user uses the
-      app; presence_admin also approves membership requests.
+    Description: Comma-separated email domains whose verified users get presence_user and presence_admin
 
 Globals:
   Function:
@@ -104,7 +98,10 @@ Resources:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
           ALLOWED_DOMAINS: !Ref AllowedDomains
-          DOMAIN_ROLES: !Ref DomainRoles
+          # Verified AllowedDomains users get both roles. Fixed here rather
+          # than a parameter: stacks keep a parameter's old value when a
+          # deploy doesn't pass it, which once left "admin" in place.
+          DOMAIN_ROLES: presence_user,presence_admin
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
@@ -146,7 +143,7 @@ Resources:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
           ALLOWED_DOMAINS: !Ref AllowedDomains
-          DOMAIN_ROLES: !Ref DomainRoles
+          DOMAIN_ROLES: presence_user,presence_admin
           MEMBERSHIP_TABLE: !Ref MembershipTable
       Policies:
         - Statement:

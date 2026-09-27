@@ -955,3 +955,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Reverted the deploy roles' SNS permissions (#70), deleted the
       unapplied change set, and deleted the empty prod `presence-auth-api`
       stack left in `ROLLBACK_COMPLETE`, so the next deploy creates it.
+    - Pushed `0.3.202609271216-RC` and `-GA`. RC deployed (Settings shows
+      the tag), but its stack kept the old `DomainRoles=admin` value, so
+      `@nu01.com` users would get only `admin`. `DOMAIN_ROLES` is now fixed
+      in the template (both roles), with no parameter.
+    - The GA deploy failed creating prod's first HTTP API stage: the deploy
+      role lacked `apigateway:TagResource`. Both roles now have it (and
+      `UntagResource`).
