@@ -21,7 +21,7 @@ serves its own prefix: the app has the `/app/` base href.
 | Path | Holds |
 |------|-------|
 | [compose.yaml](compose.yaml) | The `presence-floci` container, bound to 127.0.0.1 |
-| [init/ready.d/05-auth-api.sh](init/ready.d/05-auth-api.sh) | Ready hook: deploys the auth API stack (Lambdas, tables, topic) and its HTTP API, with the fixed ID `presence` |
+| [init/ready.d/05-auth-api.sh](init/ready.d/05-auth-api.sh) | Ready hook: deploys the auth API stack (Lambdas, tables) and its HTTP API, with the fixed ID `presence` |
 | [init/ready.d/10-cloudfront.sh](init/ready.d/10-cloudfront.sh) | Ready hook: creates the cache policy, origin request policy and distribution |
 | `certs/` (git-ignored) | The local HTTPS certificate and key, from [scripts/local-certs.sh](../scripts/local-certs.sh) |
 

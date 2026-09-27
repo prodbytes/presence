@@ -30,11 +30,8 @@ opens "Request access":
 
 The API keeps one request per email in `MembershipTable` (email, Google
 profile name cleaned to one line of 100 characters, message, time in epoch
-milliseconds) and publishes it to the `MembershipTopic` SNS topic, which
-administrators subscribe to by hand (see the
-[auth API's README](../presence_api_auth/README.md)). The email marks the
-message as the requester's own words. If publishing fails, the request is
-still kept (and on the Admin screen).
+milliseconds). No notification is sent: administrators see pending
+requests when they open the Admin screen.
 
 ## The Admin screen
 
@@ -59,6 +56,8 @@ is the app's client (a fake in tests).
 
 ## Known limitations
 
+- Administrators aren't told about new requests; they have to open the
+  Admin screen.
 - Admins can grant `presence_user` only. `presence_admin` is given by
   domain, or by editing `UserRolesTable` by hand.
 - There is no way to revoke access from the app; remove the role in the

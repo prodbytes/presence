@@ -75,14 +75,6 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Each membership request is published here. Administrators subscribe by
-  # hand (e.g. by email), so no address is kept in the repository.
-  MembershipTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      DisplayName: Presence membership
-      KmsMasterKeyId: alias/aws/sns
-
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -132,14 +124,11 @@ Resources:
       Environment:
         Variables:
           MEMBERSHIP_TABLE: !Ref MembershipTable
-          MEMBERSHIP_TOPIC_ARN: !Ref MembershipTopic
       Policies:
         - Statement:
             - Effect: Allow
               Action: dynamodb:PutItem
               Resource: !GetAtt MembershipTable.Arn
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt MembershipTopic.TopicName
       Events:
         Request:
           Type: HttpApi
@@ -204,6 +193,3 @@ Outputs:
   MembershipTableName:
     Description: Membership requests (email -> message, requestedAt)
     Value: !Ref MembershipTable
-  MembershipTopicArn:
-    Description: Subscribe administrators here to hear about membership requests
-    Value: !Ref MembershipTopic

@@ -116,7 +116,7 @@ roles, membership requests and the Admin screen work locally without AWS:
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
   `template.yaml` as the stack `presence-local-auth-api`: the three Java 25
-  Lambdas, `UserRolesTable`, `MembershipTable` and `MembershipTopic`. Floci
+  Lambdas, `UserRolesTable` and `MembershipTable`. Floci
   runs the Lambdas as Docker containers (`presence-lambda-*`), which is
   why compose mounts the Docker socket. That gives Floci control of the
   Docker daemon, which is acceptable only for local development (its ports
@@ -149,4 +149,3 @@ roles, membership requests and the Admin screen work locally without AWS:
 
 - Floci answers a malformed bearer token with 406 when called directly
   (through CloudFront it's 401); AWS answers 401.
-- Membership notifications go to a local SNS topic with no subscribers.

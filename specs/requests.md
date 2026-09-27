@@ -946,3 +946,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       auth API stack ended in `ROLLBACK_COMPLETE`.
     - `github-deploy.yaml` now lets each role manage its own SNS topics
       (`presence-*` / `presence-rc-*`).
+130. **Why SNS? Remove it, push the tags and update everything. Then review
+    the code and sync git.** (2026-09-27)
+    - SNS was only for emailing admins about new requests, which nobody
+      had subscribed to. Removed the topic, its publish policy and output,
+      the handler's notifier, and the SDK dependency. Admins see requests
+      on the Admin screen.
+    - Reverted the deploy roles' SNS permissions (#70), deleted the
+      unapplied change set, and deleted the empty prod `presence-auth-api`
+      stack left in `ROLLBACK_COMPLETE`, so the next deploy creates it.

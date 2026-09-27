@@ -37,15 +37,8 @@ Admins are users with both `presence_user` and `presence_admin`.
   and at most one an hour per email, dismissed or not (a **409**
   otherwise; DynamoDB checks it with a condition on `requestedAt`, in epoch
   milliseconds). The route is also throttled to 1 request a second (burst
-  5; API Gateway answers **429**). Each accepted request is published to
-  **`MembershipTopic`** (SNS); if that fails, the request is still kept.
-  Administrators subscribe to the topic by hand, so no address is kept in
-  the repository:
-
-  ```bash
-  aws sns subscribe --topic-arn "<MembershipTopicArn output>" \
-    --protocol email --notification-endpoint "<admin email>"
-  ```
+  5; API Gateway answers **429**). Nothing is sent anywhere:
+  administrators see pending requests on the Admin screen.
 
 - **Admin routes**
   ([AdminHandler.java](AuthFunction/src/main/java/presence/auth/AdminHandler.java)):
@@ -61,13 +54,13 @@ Admins are users with both `presence_user` and `presence_admin`.
   ```
 
 - **Least privilege:** the roles function may only read `UserRolesTable`;
-  the membership function may only put items in `MembershipTable` and
-  publish to the topic; the admin function may read and update
+  the membership function may only put items in `MembershipTable`; the
+  admin function may read and update
   `UserRolesTable` and scan, update and delete in `MembershipTable`.
 
 | Path | Holds |
 |------|-------|
-| [template.yaml](template.yaml) | The tables, the topic, the HTTP API with its Google JWT authorizer, and the functions |
+| [template.yaml](template.yaml) | The tables, the HTTP API with its Google JWT authorizer, and the functions |
 | [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `MembershipHandler`, `AdminHandler`, `Roles`) with its tests |
 | [samconfig.toml](samconfig.toml) | Default `sam build` / `deploy` settings (stack `presence-auth-api`) |
 
