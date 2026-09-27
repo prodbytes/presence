@@ -87,6 +87,17 @@ In [presence_infra/](../presence_infra):
     TLS only.
   - Versioned: old versions expire after 30 days, and incomplete multipart
     uploads after 1 day.
+  - **S3 Intelligent-Tiering:**
+    - uploads carry `x-amz-storage-class: INTELLIGENT_TIERING` (signed);
+    - a lifecycle rule moves any other object, old versions included, to
+      that class on day 0;
+    - objects then move by themselves between the Frequent, Infrequent
+      (after 30 days unread) and Archive Instant Access (after 90 days)
+      tiers, and all stay readable at once;
+    - the opt-in Archive and Deep Archive tiers are off: they need a restore
+      before a read, which would break the fetch after sign-in;
+    - objects under 128 KB, such as event JSON, stay in the Frequent tier
+      with no monitoring fee.
   - CORS allows `GET`, `PUT` and `HEAD` from `https://presence.nu01.com`,
     `https://local.presence.nu01.com:8443` and `http://localhost:8080`.
 - **`identity.yaml`**, stack `presence-identity`: the identity pool (the

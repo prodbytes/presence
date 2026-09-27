@@ -37,6 +37,21 @@ Resources:
         Status: Enabled
       LifecycleConfiguration:
         Rules:
+          # S3 Intelligent-Tiering: objects move between the Frequent,
+          # Infrequent (30 days unread) and Archive Instant Access (90 days)
+          # tiers by themselves, all readable at once. The app uploads with
+          # this storage class already; this catches anything else, old
+          # versions too. The opt-in Archive/Deep Archive tiers stay off:
+          # they need a restore before a read, which would break the app's
+          # fetch after sign-in.
+          - Id: intelligent-tiering
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
+            NoncurrentVersionTransitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 0
           - Id: expire-old-versions
             Status: Enabled
             NoncurrentVersionExpiration:
