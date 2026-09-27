@@ -93,8 +93,8 @@ void main() {
         'us-east-1:identity/clips/c1.webm',
         'us-east-1:identity/clips/c1.jpg',
         'us-east-1:identity/clips/c1.json',
-        'us-east-1:identity/events/e1.json',
-        'us-east-1:identity/events/e2.json',
+        'us-east-1:identity/events/year=1970/day=001/e1.json',
+        'us-east-1:identity/events/year=1970/day=001/e2.json',
       });
       final video = backend.uploads['us-east-1:identity/clips/c1.webm']!;
       expect(video.bytes, [1, 2, 3]);
@@ -129,7 +129,9 @@ void main() {
       });
       changes.add(null);
       await sync.idle();
-      expect(backend.uploads.keys, {'us-east-1:identity/events/e1.json'});
+      expect(backend.uploads.keys, {
+        'us-east-1:identity/events/year=1970/day=001/e1.json',
+      });
     },
   );
 
@@ -141,7 +143,9 @@ void main() {
     await store.putEvent({'id': 'e3', 'type': 'x', 'title': 'New', 'time': 3});
     changes.add(null);
     await sync.idle();
-    expect(backend.uploads.keys, {'us-east-1:identity/events/e3.json'});
+    expect(backend.uploads.keys, {
+      'us-east-1:identity/events/year=1970/day=001/e3.json',
+    });
   });
 
   test('rejected credentials are renewed once and the sync goes on', () async {
@@ -226,6 +230,11 @@ void main() {
           }),
           contentType: 'application/json',
         );
+        // Partitioned, as uploads are now.
+        backend.uploads['$prefix/events/year=2026/day=269/re2.json'] = (
+          bytes: json({'id': 're2', 'type': 'x', 'title': 'Later', 'time': 10}),
+          contentType: 'application/json',
+        );
         final remote = <RemoteRecords>[];
         sync = CloudSync(
           auth: auth,
@@ -242,7 +251,10 @@ void main() {
         await sync.idle();
 
         expect(remote, hasLength(1));
-        expect(remote.single.events.map((e) => e['id']), ['re1']);
+        expect(remote.single.events.map((e) => e['id']).toSet(), {
+          're1',
+          're2',
+        });
         expect(remote.single.clips.single['id'], 'r1');
         expect(remote.single.clips.single['thumbnail'], [5]);
         expect(remote.single.media, {
@@ -255,14 +267,18 @@ void main() {
             'clips/r1.mp4',
             'clips/r1.jpg',
             'events/re1.json',
+            'events/year=2026/day=269/re2.json',
           ]),
         );
-        expect(sync.downloaded, 2);
+        expect(sync.downloaded, 3);
         // The local clip and events go up; the fetched ones aren't sent back.
         final uploaded = backend.uploads.keys.toSet().difference(before);
         expect(
           uploaded,
-          containsAll(['$prefix/clips/c1.webm', '$prefix/events/e1.json']),
+          containsAll([
+            '$prefix/clips/c1.webm',
+            '$prefix/events/year=1970/day=001/e1.json',
+          ]),
         );
         expect(
           uploaded.where((k) => k.contains('r1') || k.contains('re1')),
@@ -306,7 +322,46 @@ void main() {
       await sync.idle();
       expect(
         backend.uploads.keys,
-        contains('us-east-1:identity/events/e9.json'),
+        contains('us-east-1:identity/events/year=1970/day=001/e9.json'),
+      );
+    });
+  });
+
+  group('event keys', () {
+    int ms(DateTime t) => t.millisecondsSinceEpoch;
+    test('partitioned by the UTC day of the year', () {
+      expect(
+        CloudSync.eventKey({
+          'id': 'a',
+          'time': ms(DateTime.utc(2026, 9, 26, 12)),
+        }),
+        'events/year=2026/day=269/a.json',
+      );
+      expect(
+        CloudSync.eventKey({'id': 'b', 'time': ms(DateTime.utc(2026, 1, 1))}),
+        'events/year=2026/day=001/b.json',
+      );
+      expect(
+        CloudSync.eventKey({
+          'id': 'c',
+          'time': ms(DateTime.utc(2024, 12, 31, 23, 59)),
+        }),
+        'events/year=2024/day=366/c.json',
+      );
+    });
+
+    test('the day is UTC, whatever the local time zone', () {
+      // 23:30 UTC on 26 September is already the 27th east of UTC.
+      expect(
+        CloudSync.eventKey({
+          'id': 'd',
+          'time': ms(DateTime.utc(2026, 9, 26, 23, 30)),
+        }),
+        'events/year=2026/day=269/d.json',
+      );
+      expect(
+        CloudSync.eventKey({'id': 'e', 'time': ms(DateTime.utc(2026, 9, 27))}),
+        'events/year=2026/day=270/e.json',
       );
     });
   });

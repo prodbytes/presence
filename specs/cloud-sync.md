@@ -18,7 +18,7 @@ Everything goes under the user's **Cognito identity ID**
 | `<identityId>/clips/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), with its MIME type |
 | `<identityId>/clips/<clipId>.jpg` | the thumbnail |
 | `<identityId>/clips/<clipId>.json` | the clip record: camera, window, lengths, state, media reference |
-| `<identityId>/events/<eventId>.json` | each event record (type, title, detail, time, camera, clip ID and state) |
+| `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each event record (type, title, detail, time, camera, clip ID and state), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 ## When
 
@@ -113,6 +113,10 @@ In [presence_infra/](../presence_infra):
 - Against AWS, the app's `S3Bucket` uploaded a 300 KB recording and an event
   to the real bucket, listed the prefix (both keys) and downloaded the
   recording byte-for-byte. It was cleaned up afterwards.
+- Event keys: `CloudSync.eventKey` puts 2026-09-26 at `day=269`, 1 January
+  at `day=001`, 31 December 2024 at `day=366`, and splits days at UTC
+  midnight. The fetch reads both partitioned keys and the flat
+  `events/<id>.json` ones from before partitioning.
 - The earlier unit tests:
   - SigV4 against AWS's GET and PUT Object examples;
   - `CloudSync` with a fake backend: nothing while signed out; everything on
