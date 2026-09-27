@@ -23,7 +23,10 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
   tagging people and pets by clicking them on the video.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
-- [Sign-in](sign-in.md): Google sign-in and the OAuth clients.
+- [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
+  clients.
+- [Membership](membership.md): users without access ask for it; admins
+  grant it on the Admin screen.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
 - [Settings screen](settings.md): the motion, camera and clip settings.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
@@ -40,8 +43,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 **Backend**
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
-  (SAM, Java 25; Google JWT authorizer; roles by domain or a DynamoDB
-  table).
+  (`presence_user`, `presence_admin`), and the membership routes (SAM,
+  Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

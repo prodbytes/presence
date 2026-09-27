@@ -856,3 +856,37 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Applied to both `presence-user-data` and `presence-rc-user-data`; each
       kept its CORS origins.
     - A live upload landed as `INTELLIGENT_TIERING` and was cleaned up.
+123. **Fix authentication and authorization: after sign-in, check the auth
+    API for a user role. Without it, give no service: just a sign-up button
+    that lets the user request membership by sending a message. With it,
+    the usual buttons. Only the listed domains have the role for now,
+    `nu01.com` alone. Then: make the roles `presence_user` and
+    `presence_admin`, give allowed-domain users both, and give admins an
+    Admin icon and screen to grant the role to those who asked.**
+    (2026-09-27)
+    - The auth API's `PrivilegedDomain` became `AllowedDomains` (a list,
+      `nu01.com`), and its `DomainRoles` became
+      `presence_user,presence_admin` (was `admin`).
+    - New `POST /api/auth/membership` (`MembershipHandler`): stores a
+      request per email in the new `MembershipTable` (one an hour, else
+      409) and publishes it to the new `MembershipTopic` (SNS). The route
+      is throttled.
+    - New admin routes (`AdminHandler`, users with both roles): list,
+      grant (merges `presence_user` into `UserRolesTable`) and dismiss
+      (keeps the row, so the cooldown holds).
+    - A code review then fixed: grants on list-typed roles, the cooldown's
+      time comparison (now epoch ms), SNS failures locking users out,
+      dismissals resetting the cooldown, the 409/429 messages, and the
+      server's admin rule matching the app's.
+    - The app now needs `presence_user` (any role used to do). The sign-up
+      sheet sends a message. Admins get an Admin icon that opens the
+      "Membership requests" screen.
+    - Added [Membership](membership.md). 18 JUnit and 124 Flutter tests
+      pass.
+124. **Make sure @nu01.com users get in with both roles and every feature;
+    other domains must request access and be allowed; the admin panel,
+    for admins only, authorizes requests.** (2026-09-27)
+    - Confirms #123's rules. Added a JUnit test of the whole flow:
+      `boss@nu01.com` gets both roles; `ana@example.com` gets none, asks,
+      can't approve herself, is granted by the admin, and ends up
+      `presence_user` only (no admin routes). 19 JUnit tests pass.

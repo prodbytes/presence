@@ -2,11 +2,14 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   presence_api_auth (stack presence-auth-api, and presence-rc-auth-api for the release
-  candidate): GET /api/auth returns the signed-in user's roles. API Gateway's
-  HTTP API checks the Google ID token (JWT authorizer) before the function
-  runs; the function reads the verified claims. Nobody has roles, except
-  verified @<PrivilegedDomain> emails (DomainRoles) and users listed in the
-  UserRoles table (email -> roles). Served under /api/* by the site's
+  candidate): GET /api/auth returns the signed-in user's roles, POST
+  /api/auth/membership lets a user without them ask for access, and the
+  Admin screen's routes (presence_admin only) list and approve those
+  requests. API
+  Gateway's HTTP API checks the Google ID token (JWT authorizer) before the
+  functions run; they read the verified claims. Nobody has roles, except
+  verified emails at one of AllowedDomains (DomainRoles) and users listed in
+  the UserRoles table (email -> roles). Served under /api/* by the site's
   CloudFront distribution (presence_infra/site.yaml).
 
 Parameters:
@@ -14,14 +17,16 @@ Parameters:
     Type: String
     Description: The Google web OAuth client; ID tokens must be issued for it (their aud)
     AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
-  PrivilegedDomain:
+  AllowedDomains:
     Type: String
     Default: nu01.com
-    Description: Verified emails at this domain get DomainRoles
+    Description: Comma-separated email domains whose verified users get DomainRoles
   DomainRoles:
     Type: String
-    Default: admin
-    Description: Comma-separated roles for PrivilegedDomain users
+    Default: presence_user,presence_admin
+    Description: >
+      Comma-separated roles for AllowedDomains users. presence_user uses the
+      app; presence_admin also approves membership requests.
 
 Globals:
   Function:
@@ -51,9 +56,41 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Membership requests, one per user: {"email", "name", "message",
+  # "requestedAt" (epoch ms), "dismissed"?}. Like UserRoles, it holds people's emails: AWS only.
+  MembershipTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Each membership request is published here. Administrators subscribe by
+  # hand (e.g. by email), so no address is kept in the repository.
+  MembershipTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: Presence membership
+      KmsMasterKeyId: alias/aws/sns
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
+      # Anyone with a Google account can post membership requests: keep it slow.
+      RouteSettings:
+        "POST /api/auth/membership":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -74,7 +111,7 @@ Resources:
       Environment:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
-          PRIVILEGED_DOMAIN: !Ref PrivilegedDomain
+          ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: !Ref DomainRoles
       Policies:
         - DynamoDBReadPolicy:
@@ -87,6 +124,76 @@ Resources:
             Path: /api/auth
             Method: get
 
+  MembershipFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.MembershipHandler::handleRequest
+      Environment:
+        Variables:
+          MEMBERSHIP_TABLE: !Ref MembershipTable
+          MEMBERSHIP_TOPIC_ARN: !Ref MembershipTopic
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt MembershipTable.Arn
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt MembershipTopic.TopicName
+      Events:
+        Request:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/membership
+            Method: post
+
+  AdminFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.AdminHandler::handleRequest
+      Environment:
+        Variables:
+          USER_ROLES_TABLE: !Ref UserRolesTable
+          ALLOWED_DOMAINS: !Ref AllowedDomains
+          DOMAIN_ROLES: !Ref DomainRoles
+          MEMBERSHIP_TABLE: !Ref MembershipTable
+      Policies:
+        - Statement:
+            # Checks the caller's roles and grants presence_user.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt UserRolesTable.Arn
+            # Lists, dismisses (a flag) and, after a grant, removes requests.
+            - Effect: Allow
+              Action:
+                - dynamodb:Scan
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt MembershipTable.Arn
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/membership
+            Method: get
+        Grant:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/membership/grant
+            Method: post
+        Dismiss:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/membership/dismiss
+            Method: post
+
 Outputs:
   ApiDomain:
     Description: The HTTP API's host name (the site distribution's /api/* origin)
@@ -94,3 +201,9 @@ Outputs:
   UserRolesTableName:
     Description: Where roles are declared per user (email -> roles)
     Value: !Ref UserRolesTable
+  MembershipTableName:
+    Description: Membership requests (email -> message, requestedAt)
+    Value: !Ref MembershipTable
+  MembershipTopicArn:
+    Description: Subscribe administrators here to hear about membership requests
+    Value: !Ref MembershipTopic

@@ -13,7 +13,7 @@ class RolesTest {
     private final Map<String, Set<String>> table = Map.of(
             "ana@example.com", Set.of("viewer"),
             "julia@nu01.com", Set.of("owner"));
-    private final Roles roles = new Roles("nu01.com", Set.of("admin"),
+    private final Roles roles = new Roles(Set.of("nu01.com", " Example.ORG "), Set.of(Roles.USER, Roles.ADMIN),
             email -> table.getOrDefault(email, Set.of()));
 
     @Test
@@ -22,8 +22,15 @@ class RolesTest {
     }
 
     @Test
-    void verifiedPrivilegedDomainGetsTheDomainRoles() {
-        assertEquals(Set.of("admin"), roles.of("Bob@NU01.com", true));
+    void verifiedAllowedDomainsGetBothRoles() {
+        assertEquals(Set.of("presence_admin", "presence_user"), roles.of("Bob@NU01.com", true));
+        assertEquals(Set.of("presence_admin", "presence_user"), roles.of("carol@example.org", true));
+    }
+
+    @Test
+    void domainsAndRolesComeFromCommaSeparatedSettings() {
+        assertEquals(Set.of("nu01.com", "example.org"), AuthHandler.list(" nu01.com, ,example.org"));
+        assertEquals(Set.of(), AuthHandler.list(null));
     }
 
     @Test
@@ -37,7 +44,7 @@ class RolesTest {
     @Test
     void theTableDeclaresRolesByEmail() {
         assertEquals(Set.of("viewer"), roles.of(" ANA@example.com ", true));
-        assertEquals(Set.of("admin", "owner"), roles.of("julia@nu01.com", true));
+        assertEquals(Set.of("owner", "presence_admin", "presence_user"), roles.of("julia@nu01.com", true));
     }
 
     @Test
@@ -55,7 +62,7 @@ class RolesTest {
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
-        assertEquals("{\"email\":\"julia@nu01.com\",\"roles\":[\"admin\",\"owner\"]}", response.getBody());
+        assertEquals("{\"email\":\"julia@nu01.com\",\"roles\":[\"owner\",\"presence_admin\",\"presence_user\"]}", response.getBody());
 
         var none = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
         assertEquals("{\"email\":\"x@example.com\",\"roles\":[]}", none.getBody());
@@ -66,12 +73,12 @@ class RolesTest {
 
     @Test
     void emailsAreEscapedInTheResponse() {
-        var handler = new AuthHandler(new Roles("nu01.com", Set.of(), e -> Set.of()));
+        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()));
         var response = handler.handleRequest(event(Map.of("email", "a\"b@example.com", "email_verified", "true")), null);
         assertEquals("{\"email\":\"a\\\"b@example.com\",\"roles\":[]}", response.getBody());
     }
 
-    private static APIGatewayV2HTTPEvent event(Map<String, String> claims) {
+    static APIGatewayV2HTTPEvent event(Map<String, String> claims) {
         var jwt = APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT.builder().withClaims(claims).build();
         var authorizer = APIGatewayV2HTTPEvent.RequestContext.Authorizer.builder().withJwt(jwt).build();
         var context = APIGatewayV2HTTPEvent.RequestContext.builder().withAuthorizer(authorizer).build();
