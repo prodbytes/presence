@@ -11,7 +11,6 @@
     },
     "flutter": "latest",
     "maven": "latest",
-    "aws-cdk-cli": "latest",
     "awscli2": "latest",
     "gnumake": "latest",
     "curl": "latest",

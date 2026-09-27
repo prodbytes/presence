@@ -775,3 +775,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (`AUTH_API_HOST` in the private `.env`); checked through Floci, no
       token and a forged token get 401.
     - 104 tests pass.
+116. **Remove `presence_infra_tenant` if it is unused.** (2026-09-27)
+    - Nothing referenced it, and it had no resources. Neither its stack nor
+      the CDK bootstrap stack was ever deployed.
+    - Deleted `presence_infra_tenant/` and `specs/tenant-infra.md`, and
+      removed the AWS CDK CLI from devbox (only the module used it), the
+      CDK entries from `.gitignore`, and the CDK row from the README's tool
+      table. Maven and the SAM CLI stay, for the auth API.
+117. **Where is the auth API I asked for? On sign-in, the auth API should
+    say whether the user may use the system or should sign up; by default
+    only the `@nu01.com` allowlist domain is accepted. Merge everything
+    into main.** (2026-09-27)
+    - The auth API (#113–#115) was built but still open in #60 and #61.
+      #61 was merged into #60's branch, and #60 into `main`.
+    - The user asked for every open branch and PR to be merged into `main`.

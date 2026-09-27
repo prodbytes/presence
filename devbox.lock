@@ -1,44 +1,6 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "aws-cdk-cli@latest": {
-      "last_modified": "2026-08-27T07:16:00Z",
-      "resolved": "github:NixOS/nixpkgs/c27cdad491a991b11ed731760aa2ef8db0cb0410#aws-cdk-cli",
-      "source": "devbox-search",
-      "version": "2.1138.0",
-      "systems": {
-        "aarch64-darwin": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/x1vzv5h7wnb9iy7z20sc3dfr4s15xnr1-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/x1vzv5h7wnb9iy7z20sc3dfr4s15xnr1-aws-cdk-cli-2.1138.0"
-        },
-        "aarch64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0k86h5dvgbm6d132rkk9khg2vhxjpqlp-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/0k86h5dvgbm6d132rkk9khg2vhxjpqlp-aws-cdk-cli-2.1138.0"
-        },
-        "x86_64-linux": {
-          "outputs": [
-            {
-              "name": "out",
-              "path": "/nix/store/0r4gafqbns6kr9qpfs111nynpwl9dviy-aws-cdk-cli-2.1138.0",
-              "default": true
-            }
-          ],
-          "store_path": "/nix/store/0r4gafqbns6kr9qpfs111nynpwl9dviy-aws-cdk-cli-2.1138.0"
-        }
-      }
-    },
     "aws-sam-cli@latest": {
       "last_modified": "2026-08-27T23:47:58Z",
       "resolved": "github:NixOS/nixpkgs/7d1a7c21a4c00ea653fc7ed5c083d261340f185f#aws-sam-cli",

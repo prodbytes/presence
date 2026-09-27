@@ -4,11 +4,10 @@
   (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
   aarch64-linux and x86_64-linux),
   Python, Node.js, Go, PostgreSQL, Flutter, Maven (3.9.16, running on the
-  GraalVM JDK, for the CDK module), the AWS CDK CLI (`cdk`,
-  2.1138.0), the AWS CLI (2.35.11), GNU Make, curl, mkcert (1.4.4, for the
-  local HTTPS certificate) and OpenSSL. Everything the
-  services, the Makefile, the deploy script and the CDK module run comes
-  from devbox,
+  GraalVM JDK, for the auth API), the AWS SAM CLI, the AWS CLI (2.35.11),
+  GNU Make, curl, mkcert (1.4.4, for the local HTTPS certificate) and
+  OpenSSL. Everything the services, the Makefile and the deploy script run
+  comes from devbox,
   except Docker: the daemon (Docker Desktop, or docker-in-docker in the dev
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
@@ -86,10 +85,6 @@
   `Runner.app`; and `make linux` in a Linux arm64 container with Flutter
   3.47.5, which built the GTK bundle. CI builds the same targets for
   releases; see [Release builds](release.md).
-
-- **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
-  CLI, all from devbox (`cdk`). jsii warns that Node 26 is untested (it supports 22 and 24);
-  set `JSII_SILENCE_WARNING_UNTESTED_NODE_VERSION=1` to hide the warning.
 
 ## Private settings
 
