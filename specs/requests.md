@@ -703,3 +703,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `/app/` return 200, `/app` redirects, `/api/events` returns 200, and
       headless Chrome renders the app. Google's button returns 403 until
       `https://rc.presence.nu01.com` is an authorized origin.
+110. **Create the tag, monitor the workflow, check the deployment.**
+    (2026-09-27)
+    - The `presence-github-deploy` stack had been deployed by the owner.
+      Tagged `0.2.202609270725-RC`.
+    - First failure: `AWS_DEPLOY_RC_ROLE_ARN` was malformed. zsh had read
+      `$ACCT:r` as a modifier when it was set; it's now set from the
+      stack's `RcDeployRoleArn` output.
+    - Second failure: "Not authorized to perform AssumeRoleWithWebIdentity".
+      The repository uses immutable OIDC subject claims
+      (`repo:prodbytes@<id>/presence@<id>:…`), which the roles' trust didn't
+      match. Both roles now trust both subject forms; the stack was updated.
+    - Third run: success. The workflow deployed the RC and its smoke test
+      passed. Checked independently: version, routes, and the app in
+      headless Chrome.

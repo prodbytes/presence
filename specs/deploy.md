@@ -97,10 +97,23 @@ with an optional `tag` input, deploys that version to
   `nu01.com` zone.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).
+  It's deployed.
+- The repository uses GitHub's **immutable OIDC subject claims**
+  (`use_immutable_subject`), so tokens identify it as
+  `repo:prodbytes@<owner id>/presence@<repo id>:ref:…` rather than
+  `repo:prodbytes/presence:ref:…`. Both roles trust both forms
+  (`GitHubImmutableRepository` and `GitHubRepository`).
 - The Google web client ID comes from the repository variable
   `GOOGLE_WEB_CLIENT_ID`.
 
 ## Verified
+
+- The Deploy RC workflow, on the tag `0.2.202609270725-RC`: it logged in
+  through OIDC as `presence-github-deploy-rc`, deployed the four RC stacks,
+  and its smoke test passed. The live check found `version.json` at
+  `0.2.202609270725`, `/`, `/app/` and `/api/events` returning 200, and the
+  app rendering in headless Chrome.
+
 
 - `TAG=0.1.0-GA bash scripts/deploy.sh`, run by hand with admin
   credentials, created both stacks, uploaded, and passed its smoke test.
@@ -116,9 +129,6 @@ with an optional `tag` input, deploys that version to
 
 ## Known limitations
 
-- The GitHub role stack isn't deployed yet. Creating IAM resources needs an
-  administrator, so until it exists (and `AWS_DEPLOY_ROLE_ARN` is set), a
-  GA tag's Deploy run fails at the AWS login step.
 - Google sign-in on the live site needs `https://presence.nu01.com` among
   the web OAuth client's authorized JavaScript origins.
 - The events API has no authorizer, so `/api/events` is public.

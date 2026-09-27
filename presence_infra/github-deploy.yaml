@@ -12,6 +12,15 @@ Parameters:
     Type: String
     Default: prodbytes/presence
     Description: owner/name of the repository whose tag runs may deploy
+  GitHubImmutableRepository:
+    Type: String
+    Default: prodbytes@288014477/presence@1387180019
+    Description: >
+      The same repository in GitHub's immutable subject form,
+      owner@<owner id>/name@<repository id>. The repository uses immutable
+      OIDC subject claims (gh api repos/<owner>/<name>/actions/oidc/customization/sub
+      shows use_immutable_subject and the sub_claim_prefix), so tokens say
+      repo:<this>:ref:... rather than repo:owner/name:ref:...
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: The site's zone, where its records and certificate validation live (HOSTED_ZONE_ID in the private .env)
@@ -50,8 +59,11 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                # Only tag pushes whose name ends in GA (X.Y.Z-GA)
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubRepository}:ref:refs/tags/*GA
+                # Only tag pushes whose name ends in GA (X.Y.Z-GA), in either
+                # subject form (immutable IDs, or owner/name).
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubImmutableRepository}:ref:refs/tags/*GA
+                  - !Sub repo:${GitHubRepository}:ref:refs/tags/*GA
       Policies:
         - PolicyName: deploy
           PolicyDocument:
@@ -177,8 +189,11 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                # *RC* tag pushes (X.Y.Z-RC1), and manual runs from main
+                # *RC* tag pushes (X.Y.Z-RC1), and manual runs from main, in
+                # either subject form (immutable IDs, or owner/name).
                 token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubImmutableRepository}:ref:refs/tags/*RC*
+                  - !Sub repo:${GitHubImmutableRepository}:ref:refs/heads/main
                   - !Sub repo:${GitHubRepository}:ref:refs/tags/*RC*
                   - !Sub repo:${GitHubRepository}:ref:refs/heads/main
       Policies:
