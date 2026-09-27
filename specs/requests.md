@@ -962,3 +962,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The GA deploy failed creating prod's first HTTP API stage: the deploy
       role lacked `apigateway:TagResource`. Both roles now have it (and
       `UntagResource`).
+131. **Apply the deploy-role change, merge, push a GA tag, and show it in
+    prod.** (2026-09-27)
+    - Applied `add-apigateway-tagging` to `presence-github-deploy`. Pushed
+      `0.3.202609271247-GA`, and the deploy succeeded. presence.nu01.com
+      serves `0.3.202609271247` with the tag compiled in. `/api/auth`
+      answers 401 without a token or with a forged one. Test identities:
+      `@nu01.com` gets both roles, `@example.com` gets none.
+132. **"I asked you to add the version tag on the Settings screen, do it."**
+    (2026-09-27)
+    - The label existed (#69), but the dev server, where it was being
+      looked at, had no version and showed "development build". The dev
+      scripts now pass `PRESENCE_VERSION=X.Y-dev` ("Presence 0.3-dev").

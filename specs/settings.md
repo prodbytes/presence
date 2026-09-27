@@ -23,7 +23,9 @@
 - **The build's version** is at the very bottom, small and centred:
   "Presence 0.3.202609271300-GA". Tagged builds (the Release and deploy
   workflows) show their tag; other `make` builds show `X.Y.Z`; the dev
-  server shows "development build". `scripts/make.sh` compiles it in as
+  servers (`scripts/flutter-web.sh`, `flutter-run.sh`) show `X.Y-dev`,
+  e.g. "Presence 0.3-dev". A bare `flutter run` or a test shows
+  "development build". `scripts/make.sh` compiles it in as
   `PRESENCE_VERSION` and, when `TAG` is this build's own `X.Y.Z-<kind>`,
   `PRESENCE_TAG` ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
 - **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
