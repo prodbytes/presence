@@ -6,12 +6,15 @@
 #      bucket; presence_infra/identity.yaml: the Cognito identity pool)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
 #      with the pool and bucket from step 1
-#   3. deploys the site (CloudFormation presence_infra/site.yaml:
+#   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
+#      presence-auth-api / presence-rc-auth-api)
+#   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS)
-#   4. uploads the index page (/) and the web build (/app/), and
+#   5. uploads the index page (/) and the web build (/app/), and
 #      invalidates the CloudFront cache
-#   5. smoke-tests the live site: /app/version.json must report this
-#      version, and / must be the index page
+#   6. smoke-tests the live site: /app/version.json must report this
+#      version, / must be the index page, and /api/auth must refuse a
+#      request without a token (401: the route and its authorizer are live)
 #
 # Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
 # credentials. Settings, from the environment:
@@ -24,7 +27,7 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
-# Needs the AWS CLI and Flutter (both in devbox).
+# Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -46,6 +49,7 @@ case "$STAGE" in
   *) echo "error: STAGE must be prod or rc (got '$STAGE')" >&2; exit 2 ;;
 esac
 SITE_STACK=$stack_prefix-web
+AUTH_STACK=$stack_prefix-auth-api
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
 
@@ -110,18 +114,30 @@ if [[ "$built" != "$VERSION" ]]; then
   exit 1
 fi
 
-# 3. The site
+# 3. The auth API
+echo "==> deploying $AUTH_STACK"
+(
+  cd presence_api_auth
+  sam build
+  sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
+    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    --no-confirm-changeset --no-fail-on-empty-changeset
+)
+api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
+echo "    API origin: $api_domain"
+
+# 4. The site
 echo "==> deploying $SITE_STACK"
 aws cloudformation deploy --stack-name "$SITE_STACK" \
   --template-file presence_infra/site.yaml \
   --parameter-overrides "DomainName=$DOMAIN" \
-    "HostedZoneId=$HOSTED_ZONE_ID" \
+    "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
 echo "    bucket: $bucket, distribution: $distribution"
 
-# 4. The content. Flutter's web files aren't content-hashed, so browsers
+# 5. The content. Flutter's web files aren't content-hashed, so browsers
 # revalidate everything (no-cache); CloudFront is invalidated below.
 echo "==> uploading"
 aws s3 cp presence_index/site/index.html "s3://$bucket/index.html" \
@@ -132,7 +148,7 @@ invalidation="$(aws cloudfront create-invalidation --distribution-id "$distribut
 echo "    waiting for invalidation $invalidation"
 aws cloudfront wait invalidation-completed --distribution-id "$distribution" --id "$invalidation"
 
-# 5. Smoke test (retried: on a first deploy DNS and the edge take a moment)
+# 6. Smoke test (retried: on a first deploy DNS and the edge take a moment)
 echo "==> checking https://$DOMAIN/"
 check() {
   local live
@@ -141,6 +157,9 @@ check() {
   [[ "$live" == "$VERSION" ]] || { echo "    /app/version.json says $live, want $VERSION"; return 1; }
   curl -fsS --max-time 20 "https://$DOMAIN/" | grep -q "location.replace('/app/'" || { echo "    / isn't the index page"; return 1; }
   curl -fsS --max-time 20 -o /dev/null "https://$DOMAIN/app/" || { echo "    /app/ failed"; return 1; }
+  local auth
+  auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth")"
+  [[ "$auth" == 401 ]] || { echo "    /api/auth without a token answered $auth, want 401"; return 1; }
 }
 for attempt in $(seq 1 30); do
   if check; then

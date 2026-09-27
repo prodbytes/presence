@@ -16,7 +16,8 @@
     "gnumake": "latest",
     "curl": "latest",
     "mkcert": "latest",
-    "openssl": "latest"
+    "openssl": "latest",
+    "aws-sam-cli": "latest"
   },
   "shell": {
     "scripts": {

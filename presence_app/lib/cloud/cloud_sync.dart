@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/roles_service.dart';
 import '../storage/event_store.dart';
 import '../storage/media_store.dart';
 import 'cognito.dart';
@@ -117,6 +118,7 @@ enum CloudSyncState { off, syncing, synced, error }
 class CloudSync extends ChangeNotifier {
   CloudSync({
     required this.auth,
+    this.roles,
     required this.backend,
     required this._store,
     required this._media,
@@ -126,11 +128,15 @@ class CloudSync extends ChangeNotifier {
     this.interval = const Duration(minutes: 1),
   }) {
     auth.addListener(_onAuthChanged);
+    roles?.addListener(_onAuthChanged);
     _changes = changes.listen((_) => _schedule());
     _onAuthChanged();
   }
 
   final AuthService auth;
+
+  /// When given, only users with access (a role) sync.
+  final RolesService? roles;
   final CloudBackend backend;
   final Duration debounce;
   final Duration interval;
@@ -179,8 +185,12 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
+  /// The user whose data syncs: the signed-in one, if they have access.
+  String? get _syncUser =>
+      (roles == null || roles!.hasAccess) ? auth.user?.id : null;
+
   void _onAuthChanged() {
-    final user = auth.user?.id;
+    final user = _syncUser;
     if (user == _user) return;
     _user = user;
     backend.reset();
@@ -197,7 +207,7 @@ class CloudSync extends ChangeNotifier {
   }
 
   void _schedule({bool immediately = false}) {
-    if (_disposed || auth.user == null) return;
+    if (_disposed || _syncUser == null) return;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
@@ -218,7 +228,7 @@ class CloudSync extends ChangeNotifier {
 
   Future<void> _run() async {
     final idToken = auth.idToken;
-    if (auth.user == null || idToken == null) {
+    if (_syncUser == null || idToken == null) {
       _set(CloudSyncState.off);
       return;
     }
@@ -419,6 +429,7 @@ class CloudSync extends ChangeNotifier {
     _periodic?.cancel();
     _changes.cancel();
     auth.removeListener(_onAuthChanged);
+    roles?.removeListener(_onAuthChanged);
     super.dispose();
   }
 }

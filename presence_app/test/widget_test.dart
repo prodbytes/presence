@@ -21,6 +21,7 @@ void main() {
       PresenceApp(
         cameras: cameras ?? noCameras,
         auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
       ),
     );
     await tester.pump();
@@ -129,7 +130,11 @@ void main() {
     final backend = openFakes([camera]);
     await pumpGate(
       tester,
-      PresenceApp(cameras: backend, auth: FakeAuthService()),
+      PresenceApp(
+        cameras: backend,
+        auth: FakeAuthService(),
+        rolesClient: FakeRolesClient(),
+      ),
     );
 
     // Signed out: the camera shows, with no buttons on it and no
@@ -185,7 +190,11 @@ void main() {
   testWidgets('a restored session shows all buttons at once', (tester) async {
     await pumpGate(
       tester,
-      PresenceApp(cameras: noCameras, auth: FakeAuthService.signedIn()),
+      PresenceApp(
+        cameras: noCameras,
+        auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
+      ),
     );
     expect(find.byType(TabBar), findsOneWidget);
     expect(
