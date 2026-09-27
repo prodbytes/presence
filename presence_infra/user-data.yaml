@@ -52,10 +52,24 @@ Resources:
             NoncurrentVersionTransitions:
               - StorageClass: INTELLIGENT_TIERING
                 TransitionInDays: 0
+          # Users' data is kept for 3 months: 90 days after an object was
+          # written (an event, clip or frame; re-uploading a changed one
+          # restarts its count), it expires. The bucket is versioned, so
+          # that hides it behind a delete marker, and expire-old-versions
+          # below removes the data itself 30 days later (the window to undo
+          # a mistake). Devices keep their own copies; the app doesn't
+          # re-upload expired objects, since it remembers what it uploaded.
+          - Id: expire-after-3-months
+            Status: Enabled
+            ExpirationInDays: 90
           - Id: expire-old-versions
             Status: Enabled
             NoncurrentVersionExpiration:
               NoncurrentDays: 30
+          # Delete markers whose data is gone (after the two rules above).
+          - Id: remove-expired-delete-markers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
           - Id: abort-incomplete-uploads
             Status: Enabled
             AbortIncompleteMultipartUpload:
