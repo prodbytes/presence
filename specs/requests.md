@@ -840,3 +840,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       the video frame, skipping the controls bar and the letterbox bars.
     - Checked in headless Chrome: a click on the video tagged "Bob" at the
       spot clicked, over the player. 109 tests pass.
+122. **Set up the user-data bucket with Intelligent-Tiering.**
+    (2026-09-27)
+    - `user-data.yaml` gains a lifecycle rule that moves current and old
+      versions to `INTELLIGENT_TIERING` on day 0, and the app's `S3Bucket`
+      uploads with `x-amz-storage-class: INTELLIGENT_TIERING` (a unit test
+      checks it's sent and signed).
+    - The opt-in Archive and Deep Archive tiers stay off, since they'd need
+      a restore before reads.
+    - Applied to both `presence-user-data` and `presence-rc-user-data`; each
+      kept its CORS origins.
+    - A live upload landed as `INTELLIGENT_TIERING` and was cleaned up.

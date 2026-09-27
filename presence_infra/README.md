@@ -6,7 +6,7 @@ templates.
 | Template | Stack | Holds |
 |---|---|---|
 | [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution and the Route 53 A/AAAA aliases |
-| [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, with CORS for the app's origins |
+| [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, S3 Intelligent-Tiering, with CORS for the app's origins |
 | [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix. See [specs/cloud-sync.md](../specs/cloud-sync.md) |
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`, limited to `presence-rc-*` resources and the `rc.presence.nu01.com` records) |
 

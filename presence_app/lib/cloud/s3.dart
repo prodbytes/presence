@@ -112,6 +112,11 @@ class S3Bucket {
       .replaceAll('&apos;', "'")
       .replaceAll('&amp;', '&');
 
+  /// The storage class uploads use: S3 Intelligent-Tiering, which moves
+  /// recordings nobody watches to cheaper tiers by itself (see
+  /// presence_infra/user-data.yaml).
+  static const String storageClass = 'INTELLIGENT_TIERING';
+
   /// Uploads [bytes] to [key].
   Future<void> put(
     String key,
@@ -123,7 +128,11 @@ class S3Bucket {
     final headers = _signer.sign(
       method: 'PUT',
       uri: uri,
-      headers: {'host': host, 'content-type': contentType},
+      headers: {
+        'host': host,
+        'content-type': contentType,
+        'x-amz-storage-class': storageClass,
+      },
       payloadHash: sha256.convert(bytes).toString(),
       credentials: credentials,
       now: _now(),
