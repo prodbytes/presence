@@ -730,3 +730,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       container, and `.aws-sam/` from `.gitignore`.
     - The deployed `presence-api-events` and `presence-rc-api-events` stacks
       are deleted after the sites stop pointing at them.
+112. **If the SAM events module is no longer used or referenced, delete
+    it.** (2026-09-27)
+    - Nothing used it any more, so #56 was merged, removing the module and
+      every reference.
+    - In AWS: both site stacks were updated, and their distributions now
+      have only the S3 origin and `/app*`. Then `presence-api-events`,
+      `presence-rc-api-events` and SAM's `aws-sam-cli-managed-default`
+      artifact stack (emptied first) were deleted.
+    - Prod and RC still serve `/` and `/app/`, and `/api/events` now returns
+      404.
+    - The leftover local `presence_api_events/` (untracked build output
+      only) was removed.
