@@ -27,6 +27,12 @@ processes:
     command: bash scripts/flutter-web.sh
     environment:
       - FLUTTER_WEB_PORT=${FLUTTER_WEB_PORT:-8080}
+    # Stopping only the script leaves flutter's dart process serving the
+    # old build on the port, and the next start then fails to bind it. Stop
+    # whatever listens on the port (flutter's wrapper exits with it).
+    shutdown:
+      command: lsof -tiTCP:${FLUTTER_WEB_PORT:-8080} -sTCP:LISTEN | xargs kill 2>/dev/null; true
+      timeout_seconds: 10
     readiness_probe:
       http_get:
         host: localhost

@@ -974,3 +974,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The label existed (#69), but the dev server, where it was being
       looked at, had no version and showed "development build". The dev
       scripts now pass `PRESENCE_VERSION=X.Y-dev` ("Presence 0.3-dev").
+    - Found while checking it: a dev server started at 11:58 had survived
+      every `devbox services stop`, because process-compose stopped the
+      script but not Flutter's `dart` child. It kept serving that build on
+      8080, so later restarts never updated the local app. `2-flutter-web`
+      now has a shutdown command that kills the port's listener. Checked:
+      after start and stop, 8080 is free.
