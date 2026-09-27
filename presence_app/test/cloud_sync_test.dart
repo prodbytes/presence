@@ -367,6 +367,66 @@ void main() {
     });
   });
 
+  test(
+    'tagged frames upload as images; the event JSON keeps the tags',
+    () async {
+      await store.putEvent({
+        'id': 't1',
+        'type': 'clipRequested',
+        'title': 'Clip',
+        'time': 5,
+        'clipId': 'c1',
+        'annotations': [
+          {
+            'id': 'a1',
+            'name': 'Rex',
+            'x': 0.2,
+            'y': 0.3,
+            'frameId': 'f1',
+            'frameMs': 7400,
+          },
+        ],
+        'frames': {
+          'f1': Uint8List.fromList([9, 8, 7]),
+        },
+      });
+      await auth.signIn();
+      await sync.idle();
+
+      const prefix = 'us-east-1:identity';
+      final frame = backend.uploads['$prefix/clips/c1/frames/f1.jpg'];
+      expect(frame?.bytes, [9, 8, 7]);
+      expect(frame?.contentType, 'image/jpeg');
+      final eventKey = backend.uploads.keys.singleWhere(
+        (k) => k.endsWith('/t1.json'),
+      );
+      final json =
+          jsonDecode(utf8.decode(backend.uploads[eventKey]!.bytes)) as Map;
+      expect(json.containsKey('frames'), isFalse);
+      expect((json['annotations'] as List).single['name'], 'Rex');
+      expect((json['annotations'] as List).single['frameId'], 'f1');
+
+      // Another device fetches the event and gets its frame back.
+      final fetched = <RemoteRecords>[];
+      final other = await EventStore.open(newIdbFactoryMemory());
+      final otherSync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(other),
+        media: Future.value(IdbMediaStore(other)),
+        changes: const Stream.empty(),
+        debounce: Duration.zero,
+        onRemote: (r) async => fetched.add(r),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await otherSync.idle();
+      final event = fetched.single.events.singleWhere((e) => e['id'] == 't1');
+      expect((event['frames'] as Map)['f1'], [9, 8, 7]);
+      otherSync.dispose();
+      other.close();
+    },
+  );
+
   test('without a role, nothing syncs', () async {
     sync.dispose();
     final roles = RolesService(auth: auth, client: FakeRolesClient.none());

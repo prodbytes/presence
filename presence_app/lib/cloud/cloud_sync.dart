@@ -310,6 +310,16 @@ class CloudSync extends ChangeNotifier {
       if (id == null || localEvents.contains(id) || _disposed) continue;
       final event = await json(key);
       await synced(key, _fingerprint(_json(event)));
+      // The frames its tags were clicked on come back as images.
+      final frames = <String, Uint8List>{};
+      final clipId = event['clipId'];
+      for (final frameId in _frameIds(event)) {
+        final frameKey = 'clips/$clipId/frames/$frameId.jpg';
+        if (!keys.contains(frameKey)) continue;
+        frames[frameId] = await session.get(frameKey);
+        await synced(frameKey, frameId);
+      }
+      if (frames.isNotEmpty) event['frames'] = frames;
       events.add(event);
     }
 
@@ -379,7 +389,28 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
-    for (final event in await store.allEvents()) {
+    for (final record in await store.allEvents()) {
+      // Tagged frames go up as images next to the clip; the event's JSON
+      // keeps the tags (name, position, frame id and time) without them.
+      final frames = record['frames'];
+      if (frames is Map) {
+        for (final MapEntry(:key, :value) in frames.entries) {
+          final jpeg = value is Uint8List
+              ? value
+              : (value is List ? Uint8List.fromList(value.cast<int>()) : null);
+          if (jpeg == null) continue;
+          await upload(
+            'clips/${record['clipId']}/frames/$key.jpg',
+            '$key',
+            () async => jpeg,
+            'image/jpeg',
+          );
+        }
+      }
+      final event = {
+        for (final MapEntry(:key, :value) in record.entries)
+          if (key != 'frames') key: value,
+      };
       final json = _json(event);
       await upload(
         eventKey(event),
@@ -387,6 +418,16 @@ class CloudSync extends ChangeNotifier {
         () async => json,
         'application/json',
       );
+    }
+  }
+
+  static Iterable<String> _frameIds(Map<String, Object?> event) sync* {
+    final annotations = event['annotations'];
+    if (annotations is! List) return;
+    final seen = <String>{};
+    for (final a in annotations) {
+      final id = a is Map ? a['frameId'] : null;
+      if (id is String && seen.add(id)) yield id;
     }
   }
 

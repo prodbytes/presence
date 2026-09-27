@@ -7,6 +7,7 @@ import 'package:video_player/video_player.dart';
 
 import '../clips.dart';
 import 'camera_source.dart';
+import 'clip_player_controller.dart';
 
 /// The native camera layer, `PresenceCamerasPlugin` in Kotlin (Android) and
 /// Swift (iOS), with the same channel API: each camera is always recording
@@ -187,9 +188,12 @@ class _NativeCameraSource implements CameraSource {
 /// recorded, continues into the full clip at the moment of the press.
 /// Mirrors the web player, on `video_player` (ExoPlayer).
 class ClipPlayerView extends StatefulWidget {
-  const ClipPlayerView({super.key, required this.clip});
+  const ClipPlayerView({super.key, required this.clip, this.controller});
 
   final VideoClip clip;
+
+  /// Serves frame grabs (for tagging) while this player is mounted.
+  final ClipPlayerController? controller;
 
   @override
   State<ClipPlayerView> createState() => _ClipPlayerViewState();
@@ -199,6 +203,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   static const _endSlack = Duration(milliseconds: 30);
 
   VideoPlayerController? _controller;
+  String? _path;
   ClipMedia? _current;
   bool _onFull = false;
   bool _waiting = false;
@@ -210,7 +215,24 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   void initState() {
     super.initState();
     _clip.addListener(_onClipChanged);
+    widget.controller?.attach(_captureFrame);
     _start();
+  }
+
+  /// Pauses, then asks the platform for the frame at the current position
+  /// of the file being played (MediaMetadataRetriever / AVAssetImageGenerator).
+  Future<CapturedFrame?> _captureFrame() async {
+    final controller = _controller;
+    final path = _path;
+    if (controller == null || path == null) return null;
+    await controller.pause();
+    final position = controller.value.position;
+    final jpeg = await _channel.invokeMethod<Uint8List>('frameAt', {
+      'path': path,
+      'ms': position.inMilliseconds,
+      'maxWidth': ClipPlayerController.maxFrameWidth,
+    });
+    return jpeg == null ? null : CapturedFrame(jpeg: jpeg, position: position);
   }
 
   void _start() {
@@ -240,6 +262,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       final path = await media.resolveUrl();
       controller = VideoPlayerController.file(File(path));
       await controller.initialize();
+      _path = path;
     } catch (_) {
       if (mounted && _current == media) setState(() => _loadFailed = true);
       return;
@@ -323,6 +346,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
 
   @override
   void dispose() {
+    widget.controller?.detach(_captureFrame);
     _clip.removeListener(_onClipChanged);
     _controller?.removeListener(_onTick);
     _controller?.dispose();
@@ -346,17 +370,32 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
             ),
           if (controller != null)
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _togglePlay,
-                child: AnimatedOpacity(
-                  opacity: controller.value.isPlaying ? 0 : 1,
-                  duration: const Duration(milliseconds: 150),
-                  child: const Center(
-                    child: Icon(
-                      Icons.play_circle_fill,
-                      size: 64,
-                      color: Color(0xFFFABD2F),
+              child: LayoutBuilder(
+                builder: (context, box) => GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _togglePlay,
+                  // A tap plays and pauses; a long press tags whoever is there.
+                  onLongPressStart: widget.controller?.onPictureTap == null
+                      ? null
+                      : (d) {
+                          final fraction = ClipPlayerController.pictureFraction(
+                            d.localPosition,
+                            box.biggest,
+                            controller.value.size,
+                          );
+                          if (fraction != null) {
+                            widget.controller!.pictureTapped(fraction);
+                          }
+                        },
+                  child: AnimatedOpacity(
+                    opacity: controller.value.isPlaying ? 0 : 1,
+                    duration: const Duration(milliseconds: 150),
+                    child: const Center(
+                      child: Icon(
+                        Icons.play_circle_fill,
+                        size: 64,
+                        color: Color(0xFFFABD2F),
+                      ),
                     ),
                   ),
                 ),

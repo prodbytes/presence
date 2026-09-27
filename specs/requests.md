@@ -800,3 +800,43 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (the tabs show) and stays stored.
     - Unit tests cover encoding, expiry, malformed data, restore and
       sign-out. 103 tests pass.
+119. **When the user opens a video event, let them annotate below the
+    player a name for the person or pet in the video, stored with the
+    event. There can be several people or pets: let users add as many names
+    as needed, each at the position they click on the video.** (2026-09-27)
+    - Added `ClipAnnotations` (`lib/annotations.dart`): the clip event's
+      list of `{id, name, x, y}`, saved in its record and re-saved (and
+      synced) on every change.
+    - The player dialog gained a People and pets list: add a name by tapping
+      its spot on the video, rename, remove, with markers drawn over the
+      video (`pointer_interceptor` makes the tap reach Flutter over the
+      web's `<video>`).
+    - Fixed along the way: the name prompt's controller was disposed while
+      its dialog was still closing.
+    - 102 tests pass.
+120. **Tagging people and pets doesn't work: let users click on a frame and
+    add a name, then save the clicked frame, the position clicked and the
+    name with the event.** (2026-09-27)
+    - Clicks over the web's `<video>` were unreliable. Tagging now works on a
+      still frame instead: **Tag this frame** pauses the player and grabs
+      the frame (a canvas on the web, `MediaMetadataRetriever` on Android,
+      `AVAssetImageGenerator` on iOS, via a new `frameAt` channel method).
+      Users click people and pets on that image and name them.
+    - Each tag stores its frame's ID and time, its position on the frame
+      and its name. The frame JPEGs are stored with the event and synced as
+      `clips/<clipId>/frames/<frameId>.jpg`. `pointer_interceptor` was
+      dropped.
+    - Checked in headless Chrome: a clip taken, a frame tagged, and the tag
+      still there after a reload. The Android and iOS debug builds compile.
+      104 tests pass.
+121. **Tag the person on top of the video instead of below it: ideally just
+    by clicking on the video, or with the frame placed over the player.**
+    (2026-09-27)
+    - A click on the playing video (a long press on phones) now grabs that
+      frame, shows it in the player's place and asks the name for the spot
+      clicked. More clicks tag more people; Done brings the video back.
+      "Tag this frame" does the same without a first click.
+    - On the web, a `click` listener on the `<video>` maps the point onto
+      the video frame, skipping the controls bar and the letterbox bars.
+    - Checked in headless Chrome: a click on the video tagged "Bob" at the
+      spot clicked, over the player. 109 tests pass.

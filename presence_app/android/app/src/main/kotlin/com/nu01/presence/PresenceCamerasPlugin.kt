@@ -8,14 +8,19 @@ import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.media.MediaMetadataRetriever
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.view.TextureRegistry
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executors
 
 /**
  * The `presence/cameras` channel: lists and opens always-recording cameras,
@@ -43,6 +48,47 @@ class PresenceCamerasPlugin(
 
     private val clipDir get() = File(activity.cacheDir, "clips")
 
+    /** Decodes frames for tagging, off the main thread. */
+    private val frames = Executors.newSingleThreadExecutor()
+
+    /**
+     * The frame of the recording at [path] closest to [ms], upright (the
+     * file's rotation flag applied), at most [maxWidth] px wide, as a JPEG.
+     */
+    private fun frameAt(path: String, ms: Long, maxWidth: Int): CompletableFuture<ByteArray?> =
+        CompletableFuture.supplyAsync({
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(path)
+                val frame = retriever.getFrameAtTime(ms * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
+                    ?: return@supplyAsync null
+                val degrees = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION,
+                )?.toIntOrNull() ?: 0
+                val upright = if (degrees == 0) {
+                    frame
+                } else {
+                    Bitmap.createBitmap(
+                        frame, 0, 0, frame.width, frame.height,
+                        Matrix().apply { postRotate(degrees.toFloat()) }, true,
+                    )
+                }
+                val scale = minOf(1f, maxWidth.toFloat() / upright.width)
+                val scaled = Bitmap.createScaledBitmap(
+                    upright,
+                    (upright.width * scale).toInt(),
+                    (upright.height * scale).toInt(),
+                    true,
+                )
+                ByteArrayOutputStream().use { out ->
+                    scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    out.toByteArray()
+                }
+            } finally {
+                retriever.release()
+            }
+        }, frames)
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
             when (call.method) {
@@ -63,6 +109,14 @@ class PresenceCamerasPlugin(
                 "clipPast" -> reply(result, camera(call)?.clipPast(call.longArg("token"))) { it?.toMap() }
                 "clipFull" -> reply(result, camera(call)?.clipFull(call.longArg("token"))) { it?.toMap() }
                 "captureFrame" -> reply(result, camera(call)?.captureFrame()) { it }
+                "frameAt" -> reply(
+                    result,
+                    frameAt(
+                        call.argument<String>("path")!!,
+                        call.longArg("ms"),
+                        (call.argument<Number>("maxWidth") ?: 960).toInt(),
+                    ),
+                ) { it }
                 "close" -> {
                     val entry = open.remove(call.argument<String>("id"))
                     if (entry == null) {
