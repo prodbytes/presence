@@ -789,3 +789,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The auth API (#113–#115) was built but still open in #60 and #61.
       #61 was merged into #60's branch, and #60 into `main`.
     - The user asked for every open branch and PR to be merged into `main`.
+118. **Bug: reloading the app forgets the sign-in. Keep an authenticated
+    user signed in across reloads.** (2026-09-27)
+    - Cause: on web, Google Identity Services keeps no session, and the
+      silent FedCM check at launch often finds nothing.
+    - The app now remembers the user and ID token in `localStorage`,
+      restores them at launch while the token is valid, still refreshes
+      silently, and forgets them on sign-out.
+    - Verified in headless Chrome: a remembered session survives a reload
+      (the tabs show) and stays stored.
+    - Unit tests cover encoding, expiry, malformed data, restore and
+      sign-out. 103 tests pass.
