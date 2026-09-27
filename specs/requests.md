@@ -980,3 +980,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       8080, so later restarts never updated the local app. `2-flutter-web`
       now has a shutdown command that kills the port's listener. Checked:
       after start and stop, 8080 is free.
+133. **On that version tag, use only the build's X.Y.Z: no -dev.**
+    (2026-09-27)
+    - The label is now "Presence X.Y.Z" everywhere: no `-RC`/`-GA`
+      (`PRESENCE_TAG` is gone) and no `-dev` (the dev scripts pass the full
+      `$VERSION`). A build without a version shows no label.

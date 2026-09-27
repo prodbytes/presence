@@ -7,5 +7,5 @@ set -euo pipefail
 cd "$(dirname "$0")/../presence_app"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
-# The Settings screen shows X.Y-dev for dev runs (make builds show X.Y.Z).
-exec flutter run "${DART_DEFINES[@]}" --dart-define="PRESENCE_VERSION=$VERSION_X.$VERSION_Y-dev" "$@"
+# The Settings screen shows X.Y.Z, Z being when this run started.
+exec flutter run "${DART_DEFINES[@]}" --dart-define="PRESENCE_VERSION=$VERSION" "$@"

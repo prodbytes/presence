@@ -27,14 +27,9 @@ esac
 cd "$(dirname "$0")/../presence_app"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
+# PRESENCE_VERSION: X.Y.Z, shown at the bottom of the Settings screen.
 BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER" "${DART_DEFINES[@]}"
   --dart-define="PRESENCE_VERSION=$VERSION")
-# The release tag (X.Y.Z-RC / X.Y.Z-GA, from the workflows or deploy.sh), for
-# the Settings screen. Only this tag's own version, so a stale TAG can't
-# label a different build.
-if [[ "${TAG:-}" =~ ^$VERSION_X\.$VERSION_Y\.$VERSION_Z-[A-Za-z0-9]+$ ]]; then
-  BUILD_ARGS+=(--dart-define="PRESENCE_TAG=$TAG")
-fi
 
 # can_build <target>: whether this host's OS can build the target.
 can_build() {

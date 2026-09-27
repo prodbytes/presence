@@ -109,15 +109,17 @@ class SettingsView extends StatelessWidget {
               ),
             ),
             // Which build this is, e.g. to check a deploy landed.
-            const SizedBox(height: 32),
-            Text(
-              'Presence ${AppVersion.label}',
-              key: const Key('app-version'),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            if (AppVersion.version.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              Text(
+                'Presence ${AppVersion.version}',
+                key: const Key('app-version'),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
+            ],
           ],
         );
       },

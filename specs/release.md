@@ -90,9 +90,8 @@ The app version is `X.Y.Z`, resolved by
   `flutter run`. They show in web's `version.json`, Android's
   `versionName`/`versionCode` and iOS's `CFBundleShortVersionString`/
   `CFBundleVersion`.
-- `make` also compiles in `PRESENCE_VERSION` (`X.Y.Z`) and, when `TAG` is
-  set to this build's `X.Y.Z-<kind>`, `PRESENCE_TAG`. The Settings screen
-  shows the tag (see [Settings](settings.md)).
+- `make` also compiles in `PRESENCE_VERSION` (`X.Y.Z`), which the Settings
+  screen shows (see [Settings](settings.md)).
 
 ## Known limitations
 
