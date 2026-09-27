@@ -3,8 +3,8 @@ Description: >
   presence-web: the site at https://presence.nu01.com (and, as
   presence-rc-web, https://rc.presence.nu01.com). One CloudFront
   distribution in front of the index page (/) and the Flutter web app
-  (/app/), both from a private S3 bucket, like the local Floci
-  distribution.
+  (/app/), both from a private S3 bucket, and the auth API (/api/*, the
+  auth_api SAM stack's HTTP API).
   Deploy in us-east-1 (CloudFront certificates must live there).
 
 Parameters:
@@ -14,6 +14,9 @@ Parameters:
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: The public zone of DomainName (HOSTED_ZONE_ID in the private .env)
+  ApiDomainName:
+    Type: String
+    Description: The auth API's execute-api host name (the auth_api stack's ApiDomain output)
 
 Resources:
   Certificate:
@@ -128,6 +131,13 @@ Resources:
             OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
             S3OriginConfig:
               OriginAccessIdentity: ''
+          # HTTP API, default stage: no origin path (/api/auth -> /api/auth)
+          - Id: api
+            DomainName: !Ref ApiDomainName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
         # The index page at / (redirects to /app/)
         DefaultCacheBehavior:
           TargetOriginId: site
@@ -150,6 +160,16 @@ Resources:
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt AppIndexFunction.FunctionMetadata.FunctionARN
+          # The auth API: nothing cached; every viewer header but Host is
+          # forwarded, Authorization (the Google ID token) included.
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
 
   DnsRecordA:
     Type: AWS::Route53::RecordSet

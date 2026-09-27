@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  auth_api (stack presence-auth-api, and presence-rc-auth-api for the release
+  candidate): GET /api/auth returns the signed-in user's roles. API Gateway's
+  HTTP API checks the Google ID token (JWT authorizer) before the function
+  runs; the function reads the verified claims. Nobody has roles, except
+  verified @<PrivilegedDomain> emails (DomainRoles) and users listed in the
+  UserRoles table (email -> roles). Served under /api/* by the site's
+  CloudFront distribution (presence_infra/site.yaml).
+
+Parameters:
+  GoogleWebClientId:
+    Type: String
+    Description: The Google web OAuth client; ID tokens must be issued for it (their aud)
+    AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+  PrivilegedDomain:
+    Type: String
+    Default: nu01.com
+    Description: Verified emails at this domain get DomainRoles
+  DomainRoles:
+    Type: String
+    Default: admin
+    Description: Comma-separated roles for PrivilegedDomain users
+
+Globals:
+  Function:
+    Runtime: java25
+    Architectures:
+      - arm64
+    MemorySize: 512
+    Timeout: 10
+
+Resources:
+  # Roles declared per user, by email: {"email": "<lowercase>", "roles": SS or L}.
+  # Its contents live only here, never in the repository.
+  UserRolesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  AuthHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Auth:
+        DefaultAuthorizer: GoogleIdToken
+        Authorizers:
+          # Rejects missing, expired, forged or foreign tokens with 401
+          # before the function runs.
+          GoogleIdToken:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: https://accounts.google.com
+              audience:
+                - !Ref GoogleWebClientId
+
+  AuthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.AuthHandler::handleRequest
+      Environment:
+        Variables:
+          USER_ROLES_TABLE: !Ref UserRolesTable
+          PRIVILEGED_DOMAIN: !Ref PrivilegedDomain
+          DOMAIN_ROLES: !Ref DomainRoles
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserRolesTable
+      Events:
+        Roles:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth
+            Method: get
+
+Outputs:
+  ApiDomain:
+    Description: The HTTP API's host name (the site distribution's /api/* origin)
+    Value: !Sub "${AuthHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  UserRolesTableName:
+    Description: Where roles are declared per user (email -> roles)
+    Value: !Ref UserRolesTable

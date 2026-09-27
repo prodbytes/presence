@@ -742,3 +742,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       404.
     - The leftover local `presence_api_events/` (untracked build output
       only) was removed.
+113. **Create a new SAM module, auth_api, mapped to /api/auth, in Java,
+    and add it to the build and deployment. The function takes the user's
+    information and returns their roles: none for everyone, except the
+    @nu01.com domain, or users present in a DynamoDB table that declares
+    roles by email.** (2026-09-27)
+    - Added [auth_api/](../auth_api): a Java 25 Lambda behind an HTTP API
+      with a Google JWT authorizer, and a `UserRolesTable`.
+    - Roles: `admin` for verified `@nu01.com`, plus the roles the table
+      declares for the email.
+    - `deploy.sh` deploys it (`presence-auth-api` / `presence-rc-auth-api`)
+      before the site, and `site.yaml` routes `/api/*` to it again. The smoke
+      test expects 401 without a token.
+    - Both deploy roles gained Lambda, API Gateway v2, DynamoDB and SAM
+      permissions, the workflows set up Java 25 and SAM, and `aws-sam-cli`
+      is back in devbox.
+    - 7 JUnit tests pass.

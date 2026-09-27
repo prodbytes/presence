@@ -96,3 +96,6 @@ presence_floci/certs/
 
 # --- Private build settings (from .env, see scripts/dart-defines.sh) ---
 presence_app/ios/Flutter/Private.xcconfig
+
+# --- AWS SAM ---
+.aws-sam/

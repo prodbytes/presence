@@ -11,9 +11,10 @@ templates.
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`, limited to `presence-rc-*` resources and the `rc.presence.nu01.com` records) |
 
 `scripts/deploy.sh` deploys every stack except `presence-github-deploy`, in
-this order: `presence-user-data`, `presence-identity`, then `presence-web`. With `STAGE=rc` it deploys the
+this order: `presence-user-data`, `presence-identity`, the auth API
+(`presence-auth-api`, SAM), then `presence-web`. With `STAGE=rc` it deploys the
 release candidate's own copies (`presence-rc-user-data`,
-`presence-rc-identity` and `presence-rc-web`) for
+`presence-rc-identity`, `presence-rc-auth-api` and `presence-rc-web`) for
 https://rc.presence.nu01.com; `*RC*` tags do that through
 [deploy-rc.yml](../.github/workflows/deploy-rc.yml).
 
@@ -25,6 +26,7 @@ It mirrors the local Floci one ([presence_floci/](../presence_floci)):
 |---|---|
 | default (`/`) | S3 `index.html`, the [index page](../presence_index) that redirects to `/app/` |
 | `/app*` | S3 `app/`, the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/api/*` | The [auth API](../auth_api)'s HTTP API (stack `presence-auth-api`), not cached, with every viewer header but `Host` forwarded |
 
 Every file is uploaded with `Cache-Control: no-cache`, because Flutter's web
 files aren't content-hashed. Each deploy also invalidates `/*`.
