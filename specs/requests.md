@@ -687,3 +687,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - `github-deploy.yaml` gains a `presence-github-deploy-rc` role, trusting
       `*RC*` tags and manual runs from `main`, limited to `presence-rc-*`
       resources and the `rc.presence.nu01.com` records.
+108. **Use a CloudFront distribution in front of the app.** (2026-09-27)
+    Already the case: prod and RC each serve through their own
+    distribution (`presence_infra/site.yaml`), with `/` the index, `/app*`
+    the Flutter build from a private S3 bucket (OAC), and `/api/*` API
+    Gateway. No change.
+109. **Merge everything, tag an RC, check that the workflow runs through
+    and the service is up at that address.** (2026-09-27)
+    - Merged #52 and #53, and tagged `0.2.202609270714-RC`.
+    - The Deploy RC workflow ran every step up to AWS login, which failed:
+      the GitHub deploy roles (`presence-github-deploy` stack) aren't
+      deployed yet, since creating IAM roles needs an administrator.
+    - The same tag was then deployed with `STAGE=rc scripts/deploy.sh`.
+      https://rc.presence.nu01.com serves `0.2.202609270714`: `/` and
+      `/app/` return 200, `/app` redirects, `/api/events` returns 200, and
+      headless Chrome renders the app. Google's button returns 403 until
+      `https://rc.presence.nu01.com` is an authorized origin.
