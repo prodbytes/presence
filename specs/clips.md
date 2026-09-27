@@ -54,6 +54,63 @@ recorders (`RecorderPool` in
 - Clips (thumbnails and recordings) are saved to local storage and survive a
   page refresh. See [Storage](storage.md).
 
+## Naming people and pets
+
+Under the player, the clip's **People and pets** list names whoever is in
+the video, as many as needed. Each name is on a frame of the clip, at the
+spot clicked
+([lib/annotations.dart](../presence_app/lib/annotations.dart),
+`ClipPlayerDialog` in `lib/clips.dart`):
+
+- **Click someone on the video** to tag them: on the web, a click on the
+  picture (not on the browser's controls bar at the bottom, nor on the
+  letterbox bars). On Android and iOS, **long-press** instead, since a tap
+  plays and pauses. The click pauses the player and grabs the frame it
+  shows. The frame then takes the player's place, and **"Who is this?"**
+  asks for the name for that spot. Save tags it (a blank name, or Cancel,
+  goes back to the video). Further clicks on the frame tag more people.
+  **Done** brings the video back.
+- **Tag this frame** grabs the frame the same way, without a first name.
+  This is also how tagging works with a screen reader, whose layer covers
+  the `<video>`.
+- The frame is grabbed as a JPEG at most 960 px wide
+  (`ClipPlayerController.captureFrame`):
+  - **web:** the `<video>` is drawn onto a canvas (`toBlob`, JPEG 0.85), at
+    its `currentTime`;
+  - **Android:** `MediaMetadataRetriever.getFrameAtTime` (closest frame,
+    rotated upright), through the `frameAt` method of the `presence/cameras`
+    channel;
+  - **iOS:** `AVAssetImageGenerator`, through the same channel method.
+- While a frame is tagged, the player is hidden, not disposed: on the web a
+  hidden `<video>` leaves the page, so it can't take the frame's clicks.
+  Clicks on the video itself reach the app through a `click` listener on
+  the `<video>`. It maps the point onto the video frame
+  (`ClipPlayerController.pictureFraction`) and cancels the click's
+  play/pause toggle.
+- **Positions** are fractions (0 to 1) of the video frame itself
+  (letterboxing excluded), so they land on the same spot on any screen.
+  Markers (a dot with the name) are drawn on the frame.
+- Tags are listed by frame: the frame's thumbnail and time (click it to tag
+  more on that frame), then a chip per name: click to **rename**, × to
+  **remove**. A frame is dropped once its last tag is removed.
+- **Stored with the event:** the clip event (`ClipRequested`) keeps a
+  `ClipAnnotations`, saved in its record as
+  `annotations: [{id, name, x, y, frameId, frameMs}]` plus
+  `frames: {frameId: JPEG bytes}` (only frames some tag uses).
+  `Persistence` re-saves the event on every change and signals
+  [cloud sync](cloud-sync.md), which uploads the frames as images beside the
+  clip and the event JSON with the tags. Restores, including from the
+  cloud, bring the frames and names back; malformed entries are skipped.
+- Tests: the model (add, rename, remove and frame dropping, clamping, a
+  JSON round-trip that skips bad entries), and at app level a frame grabbed
+  and clicked twice, restored after a refresh with its image, positions and
+  names, and stored in the event record; a click on the video tagging that
+  frame (and a cancelled one tagging nothing); the letterbox mapping.
+  Tried in headless Chrome with a fake camera: a click on the playing
+  video froze the frame over the player and tagged the spot, and tags
+  were still there after a reload. The Android and iOS
+  debug builds compile; frame grabbing hasn't been tried on a device.
+
 ## Known limitations
 
 - Always-on recording runs about 4 video encoders per camera, which uses

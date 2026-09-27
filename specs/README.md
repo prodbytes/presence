@@ -20,7 +20,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states.
 - [Events](events.md): the event timeline and the app-wide event bus.
-- [Clips](clips.md): before + after clips and always-on recording on web.
+- [Clips](clips.md): before + after clips, always-on recording on web, and
+  tagging people and pets by clicking them on the video.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Sign-in](sign-in.md): Google sign-in and the OAuth clients.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
@@ -38,10 +39,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 **Backend**
 
-- [Events API](events-api.md): the `presence_api_events` SAM module (Java 25
-  Lambda behind API Gateway).
-- [Tenant infrastructure](tenant-infra.md): the `presence_infra_tenant` CDK
-  app (Java 25).
+- [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
+  (SAM, Java 25; Google JWT authorizer; roles by domain or a DynamoDB
+  table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

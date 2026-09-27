@@ -717,7 +717,130 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Third run: success. The workflow deployed the RC and its smoke test
       passed. Checked independently: version, routes, and the app in
       headless Chrome.
-111. **Set up the user-data bucket with Intelligent-Tiering.**
+111. **Remove the SAM API module and all references to it.** (2026-09-27)
+    - Deleted `presence_api_events/`, `scripts/sam-api.sh`,
+      `specs/events-api.md`, the `3-sam-api` process and the `⚡ api` health
+      check.
+    - Removed the `/api/*` route from `site.yaml` (prod and RC) and from
+      the Floci distribution, and the SAM steps and the `/api/events` check
+      from `deploy.sh`.
+    - Removed the SAM, Lambda and API Gateway grants from both GitHub deploy
+      roles, the SAM and Java setup from the workflows, `aws-sam-cli` from
+      devbox (Maven stays, for the CDK module), port 3000 from the dev
+      container, and `.aws-sam/` from `.gitignore`.
+    - The deployed `presence-api-events` and `presence-rc-api-events` stacks
+      are deleted after the sites stop pointing at them.
+112. **If the SAM events module is no longer used or referenced, delete
+    it.** (2026-09-27)
+    - Nothing used it any more, so #56 was merged, removing the module and
+      every reference.
+    - In AWS: both site stacks were updated, and their distributions now
+      have only the S3 origin and `/app*`. Then `presence-api-events`,
+      `presence-rc-api-events` and SAM's `aws-sam-cli-managed-default`
+      artifact stack (emptied first) were deleted.
+    - Prod and RC still serve `/` and `/app/`, and `/api/events` now returns
+      404.
+    - The leftover local `presence_api_events/` (untracked build output
+      only) was removed.
+113. **Create a new SAM module, auth_api, mapped to /api/auth, in Java,
+    and add it to the build and deployment. The function takes the user's
+    information and returns their roles: none for everyone, except the
+    @nu01.com domain, or users present in a DynamoDB table that declares
+    roles by email.** (2026-09-27)
+    - Added `auth_api/` (now [presence_api_auth/](../presence_api_auth)): a Java 25 Lambda behind an HTTP API
+      with a Google JWT authorizer, and a `UserRolesTable`.
+    - Roles: `admin` for verified `@nu01.com`, plus the roles the table
+      declares for the email.
+    - `deploy.sh` deploys it (`presence-auth-api` / `presence-rc-auth-api`)
+      before the site, and `site.yaml` routes `/api/*` to it again. The smoke
+      test expects 401 without a token.
+    - Both deploy roles gained Lambda, API Gateway v2, DynamoDB and SAM
+      permissions, the workflows set up Java 25 and SAM, and `aws-sam-cli`
+      is back in devbox.
+    - 7 JUnit tests pass.
+114. **Rename the module to presence_api_auth.** (2026-09-27) Renamed
+    `auth_api/` to [presence_api_auth/](../presence_api_auth), with every
+    reference (templates, `deploy.sh`, workflows, deploy roles, docs). The
+    AWS stacks keep their names (`presence-auth-api`,
+    `presence-rc-auth-api`).
+115. **When the user is signed in, show events and features only if they
+    have a role; otherwise show only their account and a sign-up icon.**
+    (2026-09-27)
+    - Added `RolesService` (`GET /api/auth` with the ID token; access means
+      at least one role; deny by default) and `ApiConfig.baseUrl`.
+    - Without a role, the app bar has only a sign-up icon ("Request access",
+      "Check again") and the account button: no tabs, no camera buttons,
+      and cloud sync stays off.
+    - Locally, Floci routes `/api/*` to the deployed auth API
+      (`AUTH_API_HOST` in the private `.env`); checked through Floci, no
+      token and a forged token get 401.
+    - 104 tests pass.
+116. **Remove `presence_infra_tenant` if it is unused.** (2026-09-27)
+    - Nothing referenced it, and it had no resources. Neither its stack nor
+      the CDK bootstrap stack was ever deployed.
+    - Deleted `presence_infra_tenant/` and `specs/tenant-infra.md`, and
+      removed the AWS CDK CLI from devbox (only the module used it), the
+      CDK entries from `.gitignore`, and the CDK row from the README's tool
+      table. Maven and the SAM CLI stay, for the auth API.
+117. **Where is the auth API I asked for? On sign-in, the auth API should
+    say whether the user may use the system or should sign up; by default
+    only the `@nu01.com` allowlist domain is accepted. Merge everything
+    into main.** (2026-09-27)
+    - The auth API (#113–#115) was built but still open in #60 and #61.
+      #61 was merged into #60's branch, and #60 into `main`.
+    - The user asked for every open branch and PR to be merged into `main`.
+118. **Bug: reloading the app forgets the sign-in. Keep an authenticated
+    user signed in across reloads.** (2026-09-27)
+    - Cause: on web, Google Identity Services keeps no session, and the
+      silent FedCM check at launch often finds nothing.
+    - The app now remembers the user and ID token in `localStorage`,
+      restores them at launch while the token is valid, still refreshes
+      silently, and forgets them on sign-out.
+    - Verified in headless Chrome: a remembered session survives a reload
+      (the tabs show) and stays stored.
+    - Unit tests cover encoding, expiry, malformed data, restore and
+      sign-out. 103 tests pass.
+119. **When the user opens a video event, let them annotate below the
+    player a name for the person or pet in the video, stored with the
+    event. There can be several people or pets: let users add as many names
+    as needed, each at the position they click on the video.** (2026-09-27)
+    - Added `ClipAnnotations` (`lib/annotations.dart`): the clip event's
+      list of `{id, name, x, y}`, saved in its record and re-saved (and
+      synced) on every change.
+    - The player dialog gained a People and pets list: add a name by tapping
+      its spot on the video, rename, remove, with markers drawn over the
+      video (`pointer_interceptor` makes the tap reach Flutter over the
+      web's `<video>`).
+    - Fixed along the way: the name prompt's controller was disposed while
+      its dialog was still closing.
+    - 102 tests pass.
+120. **Tagging people and pets doesn't work: let users click on a frame and
+    add a name, then save the clicked frame, the position clicked and the
+    name with the event.** (2026-09-27)
+    - Clicks over the web's `<video>` were unreliable. Tagging now works on a
+      still frame instead: **Tag this frame** pauses the player and grabs
+      the frame (a canvas on the web, `MediaMetadataRetriever` on Android,
+      `AVAssetImageGenerator` on iOS, via a new `frameAt` channel method).
+      Users click people and pets on that image and name them.
+    - Each tag stores its frame's ID and time, its position on the frame
+      and its name. The frame JPEGs are stored with the event and synced as
+      `clips/<clipId>/frames/<frameId>.jpg`. `pointer_interceptor` was
+      dropped.
+    - Checked in headless Chrome: a clip taken, a frame tagged, and the tag
+      still there after a reload. The Android and iOS debug builds compile.
+      104 tests pass.
+121. **Tag the person on top of the video instead of below it: ideally just
+    by clicking on the video, or with the frame placed over the player.**
+    (2026-09-27)
+    - A click on the playing video (a long press on phones) now grabs that
+      frame, shows it in the player's place and asks the name for the spot
+      clicked. More clicks tag more people; Done brings the video back.
+      "Tag this frame" does the same without a first click.
+    - On the web, a `click` listener on the `<video>` maps the point onto
+      the video frame, skipping the controls bar and the letterbox bars.
+    - Checked in headless Chrome: a click on the video tagged "Bob" at the
+      spot clicked, over the player. 109 tests pass.
+122. **Set up the user-data bucket with Intelligent-Tiering.**
     (2026-09-27)
     - `user-data.yaml` gains a lifecycle rule that moves current and old
       versions to `INTELLIGENT_TIERING` on day 0, and the app's `S3Bucket`

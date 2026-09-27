@@ -1,0 +1,72 @@
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:presence_app/annotations.dart';
+
+void main() {
+  test('adds as many names as needed, renames and removes them', () {
+    final list = ClipAnnotations();
+    var changes = 0;
+    list.addListener(() => changes++);
+
+    final rex = list.add('  Rex ', 0.25, 0.5)!;
+    final ana = list.add('Ana', 0.8, 0.3)!;
+    expect(list.add('   ', 0.1, 0.1), isNull);
+    expect(list.items.map((a) => a.name), ['Rex', 'Ana']);
+    expect((rex.x, rex.y), (0.25, 0.5));
+
+    list.rename(ana.id, 'Ana Maria');
+    list.remove(rex.id);
+    expect(list.items.single.name, 'Ana Maria');
+    expect(changes, 4);
+  });
+
+  test('positions are kept within the player', () {
+    final a = ClipAnnotations().add('Cat', -0.2, 1.4)!;
+    expect((a.x, a.y), (0.0, 1.0));
+  });
+
+  test('round-trips through JSON, skipping malformed entries', () {
+    final list = ClipAnnotations()
+      ..add('Rex', 0.25, 0.5)
+      ..add('Ana', 0.8, 0.3);
+    final restored = ClipAnnotations.fromJson([
+      ...list.toJson(),
+      {'name': 'no id'},
+      'garbage',
+    ]);
+    expect(restored.items.map((a) => (a.name, a.x, a.y)), [
+      ('Rex', 0.25, 0.5),
+      ('Ana', 0.8, 0.3),
+    ]);
+    expect(ClipAnnotations.fromJson(null).isEmpty, isTrue);
+  });
+
+  test('tags keep their frame; a frame goes when its last tag does', () {
+    final list = ClipAnnotations();
+    final frame = list.newFrame(Uint8List.fromList([1, 2, 3]), 7400);
+    expect(list.frames, isEmpty); // kept once a tag uses it
+
+    final rex = list.add('Rex', 0.2, 0.3, frame: frame)!;
+    final ana = list.add('Ana', 0.6, 0.4, frame: frame)!;
+    expect((rex.frameId, rex.frameMs), (frame.id, 7400));
+    expect(list.on(frame.id).map((a) => a.name), ['Rex', 'Ana']);
+    expect(list.framesToRecord(), {
+      frame.id: [1, 2, 3],
+    });
+
+    // Round-trips through the event record (tags + frame images).
+    final back = ClipAnnotations.fromJson(list.toJson(), list.framesToRecord());
+    expect(back.items.map((a) => (a.name, a.frameId, a.frameMs)), [
+      ('Rex', frame.id, 7400),
+      ('Ana', frame.id, 7400),
+    ]);
+    expect(back.frames[frame.id]!.ms, 7400);
+
+    list.remove(rex.id);
+    expect(list.frames.keys, [frame.id]);
+    list.remove(ana.id);
+    expect(list.frames, isEmpty);
+    expect(list.framesToRecord(), isEmpty);
+  });
+}

@@ -84,12 +84,6 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/launch.json
 
-# --- AWS SAM ---
-.aws-sam/
-
-# --- AWS CDK ---
-cdk.out/
-.cdk.staging/
 
 *.local*
 
@@ -98,3 +92,6 @@ presence_floci/certs/
 
 # --- Private build settings (from .env, see scripts/dart-defines.sh) ---
 presence_app/ios/Flutter/Private.xcconfig
+
+# --- AWS SAM ---
+.aws-sam/

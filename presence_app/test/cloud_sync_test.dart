@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
+import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/cognito.dart';
 import 'package:presence_app/cloud/s3.dart';
@@ -364,5 +365,87 @@ void main() {
         'events/year=2026/day=270/e.json',
       );
     });
+  });
+
+  test(
+    'tagged frames upload as images; the event JSON keeps the tags',
+    () async {
+      await store.putEvent({
+        'id': 't1',
+        'type': 'clipRequested',
+        'title': 'Clip',
+        'time': 5,
+        'clipId': 'c1',
+        'annotations': [
+          {
+            'id': 'a1',
+            'name': 'Rex',
+            'x': 0.2,
+            'y': 0.3,
+            'frameId': 'f1',
+            'frameMs': 7400,
+          },
+        ],
+        'frames': {
+          'f1': Uint8List.fromList([9, 8, 7]),
+        },
+      });
+      await auth.signIn();
+      await sync.idle();
+
+      const prefix = 'us-east-1:identity';
+      final frame = backend.uploads['$prefix/clips/c1/frames/f1.jpg'];
+      expect(frame?.bytes, [9, 8, 7]);
+      expect(frame?.contentType, 'image/jpeg');
+      final eventKey = backend.uploads.keys.singleWhere(
+        (k) => k.endsWith('/t1.json'),
+      );
+      final json =
+          jsonDecode(utf8.decode(backend.uploads[eventKey]!.bytes)) as Map;
+      expect(json.containsKey('frames'), isFalse);
+      expect((json['annotations'] as List).single['name'], 'Rex');
+      expect((json['annotations'] as List).single['frameId'], 'f1');
+
+      // Another device fetches the event and gets its frame back.
+      final fetched = <RemoteRecords>[];
+      final other = await EventStore.open(newIdbFactoryMemory());
+      final otherSync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(other),
+        media: Future.value(IdbMediaStore(other)),
+        changes: const Stream.empty(),
+        debounce: Duration.zero,
+        onRemote: (r) async => fetched.add(r),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await otherSync.idle();
+      final event = fetched.single.events.singleWhere((e) => e['id'] == 't1');
+      expect((event['frames'] as Map)['f1'], [9, 8, 7]);
+      otherSync.dispose();
+      other.close();
+    },
+  );
+
+  test('without a role, nothing syncs', () async {
+    sync.dispose();
+    final roles = RolesService(auth: auth, client: FakeRolesClient.none());
+    sync = CloudSync(
+      auth: auth,
+      roles: roles,
+      backend: backend,
+      store: Future.value(store),
+      media: Future.value(IdbMediaStore(store)),
+      changes: changes.stream,
+      debounce: Duration.zero,
+    );
+    await auth.signIn();
+    await Future<void>.delayed(Duration.zero);
+    changes.add(null);
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+    expect(backend.tokens, isEmpty);
+    expect(sync.state, CloudSyncState.off);
+    roles.dispose();
   });
 }

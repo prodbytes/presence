@@ -41,6 +41,7 @@ void main() {
         mediaIo: fakeMediaIo,
         now: () => clock,
         auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
         cloud: cloud,
       ),
     );
@@ -248,6 +249,162 @@ void main() {
       await run(tester, restored.full!.resolveUrl()),
       'restored:remote-video',
     );
+  });
+
+  testWidgets(
+    'tags: a clicked frame, positions and names saved with the event',
+    (tester) async {
+      ClipPlayerController.debugCaptureOverride = () async => CapturedFrame(
+        jpeg: onePixelPng,
+        position: const Duration(milliseconds: 7400),
+      );
+      addTearDown(() => ClipPlayerController.debugCaptureOverride = null);
+      final camera = FakeCameraSource('Front door');
+      await launch(tester, cameras: [camera]);
+      await pressClip(tester);
+      camera.pastCompleters.single.complete(past);
+      await settleStorage(tester);
+      camera.fullCompleters.single.complete(full);
+      await settleStorage(tester);
+
+      await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Nobody tagged yet'), findsOneWidget);
+
+      // Grab the frame, then click two people on it.
+      await tester.tap(find.byKey(const Key('tag-frame')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
+      expect(find.textContaining('0:07.4'), findsOneWidget);
+      Future<void> clickAndName(String name, double fx, double fy) async {
+        await tester.ensureVisible(find.byKey(const Key('tag-surface')));
+        await tester.pumpAndSettle();
+        final surface = tester.getRect(find.byKey(const Key('tag-surface')));
+        await tester.tapAt(
+          surface.topLeft + Offset(surface.width * fx, surface.height * fy),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byKey(const Key('annotation-name')), name);
+        await tester.tap(find.byKey(const Key('save-name')));
+        await tester.pumpAndSettle();
+      }
+
+      await clickAndName('Rex', 0.25, 0.5);
+      await clickAndName('Ana', 0.75, 0.4);
+      await tester.ensureVisible(find.byKey(const Key('done-tagging')));
+      await tester.tap(find.byKey(const Key('done-tagging')));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(InputChip, 'Rex'), findsOneWidget);
+      expect(find.widgetWithText(InputChip, 'Ana'), findsOneWidget);
+
+      final tags = clipEvent(tester).annotations;
+      expect(tags.items.map((a) => a.name), ['Rex', 'Ana']);
+      final frameId = tags.items.first.frameId!;
+      expect(tags.items.every((a) => a.frameId == frameId), isTrue);
+      expect(tags.items.first.frameMs, 7400);
+      expect(tags.items.first.x, closeTo(0.25, 0.01));
+      expect(tags.items.first.y, closeTo(0.5, 0.01));
+      await settleStorage(tester);
+
+      // Saved with the event: the frame image, positions and names come back.
+      await refresh(tester, cameras: [camera]);
+      await showEvents(tester);
+      final restored = clipEvent(tester).annotations;
+      expect(restored.items.map((a) => (a.name, a.frameId, a.frameMs)), [
+        ('Rex', frameId, 7400),
+        ('Ana', frameId, 7400),
+      ]);
+      expect(restored.items.last.x, closeTo(0.75, 0.01));
+      expect(restored.frames[frameId]!.jpeg, onePixelPng);
+      final eventId = clipEvent(tester).id;
+      final record = await run(
+        tester,
+        storage.open(EventStore.dbName).then((db) async {
+          final txn = db.transaction(EventStore.events, idbModeReadOnly);
+          final value = await txn
+              .objectStore(EventStore.events)
+              .getObject(eventId);
+          await txn.completed;
+          db.close();
+          return value as Map;
+        }),
+      );
+      expect((record['annotations'] as List).map((a) => (a as Map)['name']), [
+        'Rex',
+        'Ana',
+      ]);
+      expect((record['frames'] as Map).keys, [frameId]);
+
+      // The frame reopens for more tags; removing the last tag drops it.
+      await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(Key('frame-$frameId')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key('frame-$frameId')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
+      for (final name in ['Rex', 'Ana']) {
+        await tester.ensureVisible(find.widgetWithText(InputChip, name));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.widgetWithText(InputChip, name),
+            matching: find.byTooltip('Remove'),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(clipEvent(tester).annotations.isEmpty, isTrue);
+      expect(clipEvent(tester).annotations.frames, isEmpty);
+    },
+  );
+
+  testWidgets('tags: clicking the video tags that frame at the spot', (
+    tester,
+  ) async {
+    ClipPlayerController.debugCaptureOverride = () async => CapturedFrame(
+      jpeg: onePixelPng,
+      position: const Duration(milliseconds: 3200),
+    );
+    addTearDown(() => ClipPlayerController.debugCaptureOverride = null);
+    final camera = FakeCameraSource('Front door');
+    await launch(tester, cameras: [camera]);
+    await pressClip(tester);
+    camera.pastCompleters.single.complete(past);
+    await settleStorage(tester);
+    camera.fullCompleters.single.complete(full);
+    await settleStorage(tester);
+
+    await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+    await tester.pumpAndSettle();
+    final player = tester
+        .widget<ClipPlayerView>(find.byType(ClipPlayerView))
+        .controller!;
+
+    // A click the name prompt is cancelled for tags nothing: back to video.
+    player.pictureTapped(const Offset(0.5, 0.5));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('frame-tagger')), findsNothing);
+    expect(clipEvent(tester).annotations.isEmpty, isTrue);
+
+    // A named click: the frame stays over the player, tagged there.
+    player.pictureTapped(const Offset(0.3, 0.6));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('annotation-name')), 'Rex');
+    await tester.tap(find.byKey(const Key('save-name')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
+    final tagger = tester.getRect(find.byKey(const Key('frame-tagger')));
+    final video = tester.getRect(
+      find.byType(ClipPlayerView, skipOffstage: false),
+    );
+    expect(video.contains(tagger.center), isTrue);
+    final rex = clipEvent(tester).annotations.items.single;
+    expect((rex.name, rex.x, rex.y, rex.frameMs), ('Rex', 0.3, 0.6, 3200));
+    expect(clipEvent(tester).annotations.frames.keys, [rex.frameId]);
   });
 
   testWidgets('the before-only file is deleted once the full clip is saved', (

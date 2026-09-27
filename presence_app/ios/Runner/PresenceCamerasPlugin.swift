@@ -37,6 +37,20 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     return nil
   }
 
+  /// The frame of the recording at [path] closest to [ms], upright (the
+  /// track's preferred transform applied), at most [maxWidth] px wide, as a
+  /// JPEG. For tagging people and pets in a clip.
+  static func frame(at path: String, ms: Int, maxWidth: Int) -> Data? {
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: path)))
+    generator.appliesPreferredTrackTransform = true
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = .zero
+    generator.maximumSize = CGSize(width: CGFloat(maxWidth), height: 0)
+    let time = CMTime(value: CMTimeValue(ms), timescale: 1000)
+    guard let image = try? generator.copyCGImage(at: time, actualTime: nil) else { return nil }
+    return UIImage(cgImage: image).jpegData(compressionQuality: 0.85)
+  }
+
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any] ?? [:]
     let id = args["id"] as? String ?? ""
@@ -72,6 +86,14 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       guard let camera else { return result(nil) }
       DispatchQueue.global(qos: .userInitiated).async {
         let jpeg = camera.captureFrame()
+        DispatchQueue.main.async { result(jpeg.map { FlutterStandardTypedData(bytes: $0) }) }
+      }
+    case "frameAt":
+      guard let path = args["path"] as? String else { return result(nil) }
+      let ms = int("ms")
+      let maxWidth = max(1, int("maxWidth"))
+      DispatchQueue.global(qos: .userInitiated).async {
+        let jpeg = Self.frame(at: path, ms: ms, maxWidth: maxWidth)
         DispatchQueue.main.async { result(jpeg.map { FlutterStandardTypedData(bytes: $0) }) }
       }
     case "close":

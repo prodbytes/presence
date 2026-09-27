@@ -1,9 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  presence-web: the production site at https://presence.nu01.com. One
-  CloudFront distribution in front of the index page (/), the Flutter web
-  app (/app/, from S3) and the events API (/api/*, API Gateway from the
-  presence-api-events SAM stack), like the local Floci distribution.
+  presence-web: the site at https://presence.nu01.com (and, as
+  presence-rc-web, https://rc.presence.nu01.com). One CloudFront
+  distribution in front of the index page (/) and the Flutter web app
+  (/app/), both from a private S3 bucket, and the auth API (/api/*, the
+  presence_api_auth SAM stack's HTTP API).
   Deploy in us-east-1 (CloudFront certificates must live there).
 
 Parameters:
@@ -15,11 +16,7 @@ Parameters:
     Description: The public zone of DomainName (HOSTED_ZONE_ID in the private .env)
   ApiDomainName:
     Type: String
-    Description: The events API's execute-api host name (presence-api-events output ApiDomain)
-  ApiStageName:
-    Type: String
-    Default: Prod
-    Description: The API Gateway stage, used as the origin path (/api/events -> /Prod/api/events)
+    Description: The auth API's execute-api host name (the presence_api_auth stack's ApiDomain output)
 
 Resources:
   Certificate:
@@ -134,9 +131,9 @@ Resources:
             OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
             S3OriginConfig:
               OriginAccessIdentity: ''
+          # HTTP API, default stage: no origin path (/api/auth -> /api/auth)
           - Id: api
             DomainName: !Ref ApiDomainName
-            OriginPath: !Sub /${ApiStageName}
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
@@ -163,7 +160,8 @@ Resources:
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt AppIndexFunction.FunctionMetadata.FunctionARN
-          # The events API: nothing cached, every viewer header but Host forwarded
+          # The auth API: nothing cached; every viewer header but Host is
+          # forwarded, Authorization (the Google ID token) included.
           - PathPattern: /api/*
             TargetOriginId: api
             ViewerProtocolPolicy: redirect-to-https

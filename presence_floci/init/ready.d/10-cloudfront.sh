@@ -1,13 +1,12 @@
 #!/bin/sh
 # Creates the Presence CloudFront distribution in Floci. It only routes, as
-# the deployed CloudFront would; the app and the API run on their own dev
+# the deployed CloudFront would; the index and the app run on their own dev
 # servers:
 #   /app*   -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
-#   /api/*  -> sam local start-api (http://$PRESENCE_ORIGIN_HOST:$SAM_API_PORT)
 #   *       -> presence_index      (http://$PRESENCE_ORIGIN_HOST:$INDEX_PORT),
 #              whose / redirects to /app/
 # Paths are forwarded as is (CloudFront can't strip a prefix), so the app is
-# served under /app/ (--base-href /app/) and the API routes start with /api/.
+# served under /app/ (--base-href /app/).
 #
 # Nothing is cached. Every viewer header except Host, plus all cookies and
 # query strings, is forwarded (like AWS's managed AllViewerExceptHostHeader
@@ -24,8 +23,12 @@ ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 # Google sign-in, whose JavaScript origins must end in a public TLD.
 PUBLIC_HOST="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
-API_PORT="${SAM_API_PORT:-3000}"
 INDEX_PORT="${INDEX_PORT:-8081}"
+# The deployed auth API's host (<id>.execute-api.<region>.amazonaws.com),
+# from AUTH_API_HOST in the private .env. There's no local copy of the API,
+# so /api/* goes to the real one, like the app's cloud sync. Unset: no
+# /api/* route, and the local app treats every user as having no role.
+AUTH_API_HOST="${AUTH_API_HOST:-}"
 
 cache_policy=$(aws cloudfront create-cache-policy \
   --query CachePolicy.Id --output text \
@@ -60,6 +63,17 @@ behavior() {
     "$1" "$cache_policy" "$origin_request_policy"
 }
 
+origin_count=2
+behavior_count=1
+api_origin=""
+api_behavior=""
+if [ -n "$AUTH_API_HOST" ]; then
+  origin_count=3
+  behavior_count=2
+  api_origin=$(printf ', {"Id": "api", "DomainName": "%s", "CustomOriginConfig": {"HTTPPort": 80, "HTTPSPort": 443, "OriginProtocolPolicy": "https-only"}}' "$AUTH_API_HOST")
+  api_behavior=", {\"PathPattern\": \"/api/*\", $(behavior api)}"
+fi
+
 distribution=$(aws cloudfront create-distribution \
   --query 'Distribution.Id' --output text \
   --distribution-config "{
@@ -67,12 +81,11 @@ distribution=$(aws cloudfront create-distribution \
     \"Comment\": \"Presence local CDN\",
     \"Enabled\": true,
     \"Aliases\": {\"Quantity\": 2, \"Items\": [\"$ALIAS\", \"$PUBLIC_HOST\"]},
-    \"Origins\": {\"Quantity\": 3, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT"), $(origin index "$INDEX_PORT")]},
+    \"Origins\": {\"Quantity\": $origin_count, \"Items\": [$(origin app "$WEB_PORT"), $(origin index "$INDEX_PORT")$api_origin]},
     \"DefaultCacheBehavior\": {$(behavior index)},
-    \"CacheBehaviors\": {\"Quantity\": 2, \"Items\": [
-      {\"PathPattern\": \"/app*\", $(behavior app)},
-      {\"PathPattern\": \"/api/*\", $(behavior api)}
+    \"CacheBehaviors\": {\"Quantity\": $behavior_count, \"Items\": [
+      {\"PathPattern\": \"/app*\", $(behavior app)}$api_behavior
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/, /api/)"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/${AUTH_API_HOST:+, /api/})"

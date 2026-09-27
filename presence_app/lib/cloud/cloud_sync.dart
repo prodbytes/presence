@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../auth/auth_service.dart';
+import '../auth/roles_service.dart';
 import '../storage/event_store.dart';
 import '../storage/media_store.dart';
 import 'cognito.dart';
@@ -117,6 +118,7 @@ enum CloudSyncState { off, syncing, synced, error }
 class CloudSync extends ChangeNotifier {
   CloudSync({
     required this.auth,
+    this.roles,
     required this.backend,
     required this._store,
     required this._media,
@@ -126,11 +128,15 @@ class CloudSync extends ChangeNotifier {
     this.interval = const Duration(minutes: 1),
   }) {
     auth.addListener(_onAuthChanged);
+    roles?.addListener(_onAuthChanged);
     _changes = changes.listen((_) => _schedule());
     _onAuthChanged();
   }
 
   final AuthService auth;
+
+  /// When given, only users with access (a role) sync.
+  final RolesService? roles;
   final CloudBackend backend;
   final Duration debounce;
   final Duration interval;
@@ -179,8 +185,12 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
+  /// The user whose data syncs: the signed-in one, if they have access.
+  String? get _syncUser =>
+      (roles == null || roles!.hasAccess) ? auth.user?.id : null;
+
   void _onAuthChanged() {
-    final user = auth.user?.id;
+    final user = _syncUser;
     if (user == _user) return;
     _user = user;
     backend.reset();
@@ -197,7 +207,7 @@ class CloudSync extends ChangeNotifier {
   }
 
   void _schedule({bool immediately = false}) {
-    if (_disposed || auth.user == null) return;
+    if (_disposed || _syncUser == null) return;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
@@ -218,7 +228,7 @@ class CloudSync extends ChangeNotifier {
 
   Future<void> _run() async {
     final idToken = auth.idToken;
-    if (auth.user == null || idToken == null) {
+    if (_syncUser == null || idToken == null) {
       _set(CloudSyncState.off);
       return;
     }
@@ -300,6 +310,16 @@ class CloudSync extends ChangeNotifier {
       if (id == null || localEvents.contains(id) || _disposed) continue;
       final event = await json(key);
       await synced(key, _fingerprint(_json(event)));
+      // The frames its tags were clicked on come back as images.
+      final frames = <String, Uint8List>{};
+      final clipId = event['clipId'];
+      for (final frameId in _frameIds(event)) {
+        final frameKey = 'clips/$clipId/frames/$frameId.jpg';
+        if (!keys.contains(frameKey)) continue;
+        frames[frameId] = await session.get(frameKey);
+        await synced(frameKey, frameId);
+      }
+      if (frames.isNotEmpty) event['frames'] = frames;
       events.add(event);
     }
 
@@ -369,7 +389,28 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
-    for (final event in await store.allEvents()) {
+    for (final record in await store.allEvents()) {
+      // Tagged frames go up as images next to the clip; the event's JSON
+      // keeps the tags (name, position, frame id and time) without them.
+      final frames = record['frames'];
+      if (frames is Map) {
+        for (final MapEntry(:key, :value) in frames.entries) {
+          final jpeg = value is Uint8List
+              ? value
+              : (value is List ? Uint8List.fromList(value.cast<int>()) : null);
+          if (jpeg == null) continue;
+          await upload(
+            'clips/${record['clipId']}/frames/$key.jpg',
+            '$key',
+            () async => jpeg,
+            'image/jpeg',
+          );
+        }
+      }
+      final event = {
+        for (final MapEntry(:key, :value) in record.entries)
+          if (key != 'frames') key: value,
+      };
       final json = _json(event);
       await upload(
         eventKey(event),
@@ -377,6 +418,16 @@ class CloudSync extends ChangeNotifier {
         () async => json,
         'application/json',
       );
+    }
+  }
+
+  static Iterable<String> _frameIds(Map<String, Object?> event) sync* {
+    final annotations = event['annotations'];
+    if (annotations is! List) return;
+    final seen = <String>{};
+    for (final a in annotations) {
+      final id = a is Map ? a['frameId'] : null;
+      if (id is String && seen.add(id)) yield id;
     }
   }
 
@@ -419,6 +470,7 @@ class CloudSync extends ChangeNotifier {
     _periodic?.cancel();
     _changes.cancel();
     auth.removeListener(_onAuthChanged);
+    roles?.removeListener(_onAuthChanged);
     super.dispose();
   }
 }
