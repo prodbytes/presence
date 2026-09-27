@@ -18,7 +18,10 @@
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
   - the Flutter web server (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)), with an HTTP
-    readiness probe
+    readiness probe. On stop, its shutdown command kills whatever listens
+    on `FLUTTER_WEB_PORT`: stopping only the script used to leave
+    Flutter's `dart` process serving the old build, so every later start
+    failed to bind the port and the app never updated.
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
     [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
