@@ -6,13 +6,15 @@
 #      bucket; presence_infra/identity.yaml: the Cognito identity pool)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
 #      with the pool and bucket from step 1
-#   3. deploys the events API (sam build + sam deploy: presence-api-events)
+#   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
+#      presence-auth-api / presence-rc-auth-api)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS)
 #   5. uploads the index page (/) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site: /app/version.json must report this
-#      version, / must be the index page and /api/events must answer
+#      version, / must be the index page, and /api/auth must refuse a
+#      request without a token (401: the route and its authorizer are live)
 #
 # Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
 # credentials. Settings, from the environment:
@@ -46,8 +48,8 @@ case "$STAGE" in
     ;;
   *) echo "error: STAGE must be prod or rc (got '$STAGE')" >&2; exit 2 ;;
 esac
-API_STACK=$stack_prefix-api-events
 SITE_STACK=$stack_prefix-web
+AUTH_STACK=$stack_prefix-auth-api
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
 
@@ -112,23 +114,24 @@ if [[ "$built" != "$VERSION" ]]; then
   exit 1
 fi
 
-# 3. The events API
-echo "==> deploying $API_STACK"
+# 3. The auth API
+echo "==> deploying $AUTH_STACK"
 (
-  cd presence_api_events
+  cd presence_api_auth
   sam build
-  sam deploy --stack-name "$API_STACK" --region "$AWS_REGION" \
+  sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
+    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
-api_domain="$(stack_output "$API_STACK" ApiDomain)"
+api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
 
 # 4. The site
 echo "==> deploying $SITE_STACK"
 aws cloudformation deploy --stack-name "$SITE_STACK" \
   --template-file presence_infra/site.yaml \
-  --parameter-overrides "ApiDomainName=$api_domain" "DomainName=$DOMAIN" \
-    "HostedZoneId=$HOSTED_ZONE_ID" \
+  --parameter-overrides "DomainName=$DOMAIN" \
+    "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
@@ -154,7 +157,9 @@ check() {
   [[ "$live" == "$VERSION" ]] || { echo "    /app/version.json says $live, want $VERSION"; return 1; }
   curl -fsS --max-time 20 "https://$DOMAIN/" | grep -q "location.replace('/app/'" || { echo "    / isn't the index page"; return 1; }
   curl -fsS --max-time 20 -o /dev/null "https://$DOMAIN/app/" || { echo "    /app/ failed"; return 1; }
-  curl -fsS --max-time 20 "https://$DOMAIN/api/events" | grep -q '"events"' || { echo "    /api/events failed"; return 1; }
+  local auth
+  auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth")"
+  [[ "$auth" == 401 ]] || { echo "    /api/auth without a token answered $auth, want 401"; return 1; }
 }
 for attempt in $(seq 1 30); do
   if check; then

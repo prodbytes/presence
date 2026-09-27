@@ -7,6 +7,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'auth_service.dart';
 import 'google_button.dart';
 import 'google_config.dart';
+import 'saved_session.dart';
+import 'session_store.dart';
 
 /// Sign in with Google (`google_sign_in`), following Google's current
 /// guidance on each platform:
@@ -19,6 +21,15 @@ import 'google_config.dart';
 ///   flow for the button.
 /// - **iOS:** the Google Sign-In SDK, restoring the previous sign-in.
 class GoogleAuthService extends AuthService {
+  GoogleAuthService({
+    this._store = const SessionStore(),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  /// Remembers the session across reloads (web; a no-op elsewhere).
+  final SessionStore _store;
+  final DateTime Function() _now;
+
   AuthUser? _user;
   String? _idToken;
   bool _checking = true;
@@ -63,6 +74,16 @@ class GoogleAuthService extends AuthService {
 
   @override
   Future<void> init() async {
+    // Signed in before this reload, with a token still valid: signed in
+    // now, before Google's library has even loaded.
+    final saved = SavedSession.decode(_store.load(), now: _now());
+    if (saved != null) {
+      _user = saved.user;
+      _idToken = saved.idToken;
+      notifyListeners();
+    } else {
+      _store.clear();
+    }
     final ids = _ids;
     if (ids.clientId == null && ids.serverClientId == null) {
       _unavailable =
@@ -90,9 +111,9 @@ class GoogleAuthService extends AuthService {
           notifyListeners();
         },
       );
-      // Restore the previous session quietly, if there is one. On web this
-      // starts the FedCM prompt and returns at once; a sign-in then arrives
-      // as an event while the sign-in screen is already showing.
+      // Refresh the session quietly, if Google allows it. On web this starts
+      // the FedCM prompt and returns at once; a sign-in then arrives as an
+      // event. Finding nothing leaves a restored session as it is.
       await google.attemptLightweightAuthentication();
     } catch (e) {
       _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
@@ -112,9 +133,11 @@ class GoogleAuthService extends AuthService {
           photoUrl: user.photoUrl,
         );
         _idToken = user.authentication.idToken;
+        _remember();
       case GoogleSignInAuthenticationEventSignOut():
         _user = null;
         _idToken = null;
+        _store.clear();
     }
     notifyListeners();
   }
@@ -137,7 +160,29 @@ class GoogleAuthService extends AuthService {
   }
 
   @override
-  Future<void> signOut() => GoogleSignIn.instance.signOut();
+  Future<void> signOut() async {
+    // Forget the session here too: a restored session may not be one the
+    // library knows about, so it might not send a sign-out event.
+    _store.clear();
+    _user = null;
+    _idToken = null;
+    notifyListeners();
+    try {
+      await GoogleSignIn.instance.signOut();
+    } catch (e) {
+      debugPrint('Presence: Google sign-out failed: $e');
+    }
+  }
+
+  void _remember() {
+    final user = _user;
+    final token = _idToken;
+    if (user == null || token == null) {
+      _store.clear();
+      return;
+    }
+    _store.save(SavedSession(user: user, idToken: token).encode());
+  }
 
   @override
   Widget? buildSignInButton() => GoogleSignIn.instance.supportsAuthenticate()

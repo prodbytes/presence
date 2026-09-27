@@ -8,6 +8,20 @@ there's no separate sign-in screen:
   (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
   Manager's authorized accounts on Android, the saved session on iOS). The
   camera opens right away either way.
+- **Reloads keep you signed in (web).** Google Identity Services keeps no
+  session on web, so the app remembers it itself:
+  - on each sign-in, the user (ID, email, name, photo) and their Google ID
+    token go into `localStorage` (`presence.session`; `SessionStore`,
+    `SavedSession`);
+  - at launch, before Google's library loads, a remembered session whose
+    token has more than a minute left is restored, so the user is signed in
+    at once;
+  - the silent FedCM attempt still runs and refreshes the token when Google
+    allows. When it finds nothing, the restored session stays;
+  - an expired or malformed session is dropped;
+  - **Sign out** forgets it.
+
+  Android and iOS don't need this: their Google SDKs keep the session.
 - **Signed out:** the camera shows full screen, always recording as
   usual, with **no buttons on it** (no Flip, Clip or readiness), and the
   **navigation is hidden**: the app bar has only the "Presence" title and
@@ -19,8 +33,20 @@ there's no separate sign-in screen:
   or the Google SDK. While the launch check runs, the button is hidden. If
   no client ID is configured, a person icon opens a sheet saying sign-in
   isn't set up. Sign-in errors pop a message.
-- **Signed in:** all the buttons: the camera's Flip, Clip and readiness,
-  the Camera / Events / Settings tabs and
+- **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
+  After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
+  with the Google ID token) for the user's roles:
+  - **With at least one role,** the user gets everything below.
+  - **Without a role, or if the check fails** (deny by default), the app
+    shows only the camera, the account button and a **sign-up** icon. The
+    icon opens "Request access", naming the user's email, with **Check
+    again**, which asks the auth API once more. There are no tabs, no camera
+    buttons, and no cloud sync.
+  - While the check runs, a small spinner takes the sign-up icon's place.
+  - Web asks its own origin (`/api/auth`). Android and iOS ask
+    `API_BASE_URL`, `https://presence.nu01.com` by default.
+- **Signed in with a role:** all the buttons: the camera's Flip, Clip and
+  readiness, the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email, the
   [cloud sync](cloud-sync.md) status and **Sign out**. Signing out closes the sheet, returns to the camera and
@@ -34,6 +60,8 @@ there's no separate sign-in screen:
   web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
+- Known limitation: Google ID tokens last about an hour. A reload after
+  that, without FedCM auto sign-in, signs out.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with

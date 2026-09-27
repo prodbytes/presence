@@ -10,14 +10,13 @@
       "disable_plugin": true
     },
     "flutter": "latest",
-    "aws-sam-cli": "latest",
     "maven": "latest",
-    "aws-cdk-cli": "latest",
     "awscli2": "latest",
     "gnumake": "latest",
     "curl": "latest",
     "mkcert": "latest",
-    "openssl": "latest"
+    "openssl": "latest",
+    "aws-sam-cli": "latest"
   },
   "shell": {
     "scripts": {

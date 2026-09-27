@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
 import 'auth_service.dart';
+import 'roles_service.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
 /// icon otherwise. Opens [AccountSheet].
@@ -227,6 +228,72 @@ class CloudSyncStatus extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+/// Signed in without a role: the sign-up icon. Its sheet says access is
+/// pending for the user's email, and can check again.
+class SignUpButton extends StatelessWidget {
+  const SignUpButton({super.key, required this.auth, required this.roles});
+
+  final AuthService auth;
+  final RolesService roles;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const Key('sign-up'),
+    tooltip: 'Sign up',
+    icon: const Icon(Icons.person_add_alt_1),
+    onPressed: () => showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => SignUpSheet(auth: auth, roles: roles),
+    ),
+  );
+}
+
+class SignUpSheet extends StatelessWidget {
+  const SignUpSheet({super.key, required this.auth, required this.roles});
+
+  final AuthService auth;
+  final RolesService roles;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return ListenableBuilder(
+      listenable: roles,
+      builder: (context, _) => SafeArea(
+        child: Padding(
+          key: const Key('sign-up-sheet'),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: [
+              Icon(Icons.person_add_alt_1, size: 40, color: scheme.primary),
+              Text('Request access', style: theme.textTheme.titleLarge),
+              Text(
+                '${auth.user?.email ?? 'Your account'} doesn\'t have access to '
+                'Presence yet. Ask an administrator to give it a role, then '
+                'check again.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              roles.state == AccessState.checking
+                  ? const CircularProgressIndicator()
+                  : FilledButton.tonalIcon(
+                      key: const Key('check-access'),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Check again'),
+                      onPressed: roles.refresh,
+                    ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

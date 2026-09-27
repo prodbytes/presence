@@ -2,20 +2,18 @@
 
 Runs [Floci](https://floci.io/), a local AWS emulator, as the Presence
 **CloudFront** distribution. It only routes, as the deployed CloudFront
-would. The app and the API keep running on their own dev servers:
+would. The index and the app keep running on their own dev servers:
 
 | Path | Origin |
 |------|--------|
 | default (`/`, anything else) | `presence_index`, Python `http.server` (`INDEX_PORT`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
-| `/api/*` | SAM API, `sam local start-api` (`SAM_API_PORT`, 3000); for now `GET /api/events` |
 
 Open **http://presence.localhost:4566/** (it redirects to `/app/`) or **http://presence.localhost:4566/app/**. Browsers and curl resolve
 `*.localhost` to loopback, so no hosts-file edit is needed.
 
 CloudFront forwards paths as is (it can't strip a prefix), so each origin
-serves its own prefix: the app has the `/app/` base href, and the API routes
-start with `/api/`.
+serves its own prefix: the app has the `/app/` base href.
 
 ## Files
 
@@ -58,7 +56,7 @@ start with `/api/`.
 Floci also serves the distribution over **HTTPS** with a local certificate:
 **https://local.presence.nu01.com:8443/app/** or
 https://presence.localhost:8443/app/ (and on 4566, which answers HTTP and
-HTTPS). The API is at `…:8443/api/events`.
+HTTPS).
 
 `local.presence.nu01.com` resolves to `127.0.0.1` (an A record in the
 Route 53 zone `nu01.com`) and is the distribution's second alias. Use it for
@@ -99,7 +97,7 @@ top-level domain, so the web OAuth client lists
 
 ## Limitations
 
-- **Linux (incl. the dev container):** the Flutter dev server and SAM bind to
+- **Linux (incl. the dev container):** the Flutter dev server and the index bind to
   127.0.0.1. On plain Docker, `host-gateway` is the bridge address, which
   can't reach them (Docker Desktop on macOS forwards it to the host's
   loopback). Running Floci with host networking would fix this.

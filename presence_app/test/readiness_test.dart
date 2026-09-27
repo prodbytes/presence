@@ -191,6 +191,7 @@ void main() {
           mediaIo: fakeMediaIo,
           now: () => now,
           auth: FakeAuthService.signedIn(),
+          rolesClient: FakeRolesClient(),
         ),
       );
       await tester.pumpAndSettle();
@@ -231,6 +232,7 @@ void main() {
           mediaIo: fakeMediaIo,
           now: () => now,
           auth: FakeAuthService.signedIn(),
+          rolesClient: FakeRolesClient(),
         ),
       );
       await tester.pumpAndSettle();

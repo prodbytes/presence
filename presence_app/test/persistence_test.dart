@@ -41,6 +41,7 @@ void main() {
         mediaIo: fakeMediaIo,
         now: () => clock,
         auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
         cloud: cloud,
       ),
     );
