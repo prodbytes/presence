@@ -1,7 +1,7 @@
 # Floci: a local AWS emulator. Here it plays CloudFront, routing /app/ to the
 # Flutter dev server, /api/* to the auth API and everything else to the
 # index, as the deployed stack would. The auth API itself (Lambda, HTTP API,
-# DynamoDB, SNS) is deployed into Floci too (init/ready.d/05-auth-api.sh).
+# DynamoDB) is deployed into Floci too (init/ready.d/05-auth-api.sh).
 # Started by `devbox services up` (4-floci in process-compose.yaml).
 services:
   floci:

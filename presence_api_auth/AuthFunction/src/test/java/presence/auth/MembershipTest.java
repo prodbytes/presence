@@ -7,7 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MembershipTest {
 
@@ -23,9 +21,7 @@ class MembershipTest {
 
     /** The membership table: one request per email, with the handler's cooldown. */
     private final Map<String, MembershipHandler.Request> requests = new HashMap<>();
-    private final List<MembershipHandler.Request> notified = new ArrayList<>();
     private final Set<String> dismissed = new java.util.HashSet<>();
-    private RuntimeException notifyError;
     private final Map<String, Set<String>> granted = new HashMap<>();
 
     private final MembershipHandler membership = new MembershipHandler(
@@ -37,12 +33,6 @@ class MembershipTest {
                 requests.put(request.email(), request);
                 dismissed.remove(request.email());
                 return true;
-            },
-            request -> {
-                if (notifyError != null) {
-                    throw notifyError;
-                }
-                notified.add(request);
             },
             Clock.fixed(NOW, ZoneOffset.UTC));
 
@@ -80,9 +70,6 @@ class MembershipTest {
         var request = requests.get("ana@example.com");
         assertEquals("Please let me in", request.message());
         assertEquals("Ana", request.name());
-        assertEquals(List.of(request), notified);
-        assertTrue(MembershipHandler.text(request)
-                .startsWith("ana@example.com (Google profile name: Ana) asks for access"));
     }
 
     @Test
@@ -90,13 +77,6 @@ class MembershipTest {
         assertEquals("Ana  Bob", MembershipHandler.cleanName(" Ana\n\rBob\u0007"));
         assertEquals(100, MembershipHandler.cleanName("x".repeat(500)).length());
         assertEquals("", MembershipHandler.cleanName(null));
-    }
-
-    @Test
-    void aFailedNotificationStillKeepsTheRequest() {
-        notifyError = new IllegalStateException("SNS is down");
-        assertEquals(202, membership.handleRequest(post("ana@example.com", "hi"), null).getStatusCode());
-        assertEquals("hi", requests.get("ana@example.com").message());
     }
 
     @Test
@@ -118,7 +98,7 @@ class MembershipTest {
                 post("ana@example.com", "x".repeat(MembershipHandler.MAX_MESSAGE + 1)), null).getStatusCode());
         assertEquals(400, membership.handleRequest(post("ana@example.com", "x".repeat(1_000_000)), null)
                 .getStatusCode());
-        assertEquals(List.of(), notified);
+        assertEquals(Map.of(), requests);
     }
 
     @Test
@@ -126,7 +106,6 @@ class MembershipTest {
         assertEquals(202, membership.handleRequest(post("ana@example.com", "one"), null).getStatusCode());
         assertEquals(409, membership.handleRequest(post("ana@example.com", "two"), null).getStatusCode());
         assertEquals("one", requests.get("ana@example.com").message());
-        assertEquals(1, notified.size());
     }
 
     @Test

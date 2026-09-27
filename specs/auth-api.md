@@ -33,8 +33,8 @@ site (`/api/*` in the CloudFront distribution; see
   encrypted, with point-in-time recovery, and kept if the stack is deleted.
   Their contents (people's emails) live only in AWS.
 - **Least privilege:** the roles function may only read `UserRolesTable`;
-  the membership function may only put items in `MembershipTable` and
-  publish to `MembershipTopic`; the admin function may read and update
+  the membership function may only put items in `MembershipTable`; the
+  admin function may read and update
   `UserRolesTable` and scan, update and delete in `MembershipTable`.
 - **Responses** are `application/json` with `Cache-Control: no-store`, and
   CloudFront doesn't cache `/api/*` either.
@@ -47,8 +47,8 @@ site (`/api/*` in the CloudFront distribution; see
   [Sign-in](sign-in.md)): without `presence_user`, only the account and
   sign-up.
 - **Locally,** the auth API runs inside Floci (see
-  [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas, tables
-  and topic, deployed from this template at every start, behind an HTTP
+  [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas and
+  tables, deployed from this template at every start, behind an HTTP
   API with the same Google JWT authorizer. Nothing local reaches AWS.
 - **Tests** (JUnit, `mvn test`):
   - the role rules: default none, the exact domains, verification, table
@@ -58,8 +58,7 @@ site (`/api/*` in the CloudFront distribution; see
     bodies, the hourly cooldown;
   - the admin routes: 403 without both roles, listing, grant, dismiss
     (which keeps the cooldown), bad emails, unknown routes;
-  - a failed SNS publish still keeps the request; profile names are
-    cleaned.
+  - profile names are cleaned to one short line.
   - the whole flow: a nu01.com user gets both roles; another domain's
     user gets none, asks, is granted by an admin, and becomes a
     `presence_user` only.
