@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'app_version.dart';
 import 'config.dart';
 
 /// The Settings screen (the Settings tab).
@@ -103,6 +104,16 @@ class SettingsView extends StatelessWidget {
               'Clips play ${clip.total.inSeconds} s in total. Changing '
               '"Before" takes up to that long to apply, while the cameras '
               'build up enough history.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            // Which build this is, e.g. to check a deploy landed.
+            const SizedBox(height: 32),
+            Text(
+              'Presence ${AppVersion.label}',
+              key: const Key('app-version'),
+              textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
