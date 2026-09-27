@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/camera_feeds.dart' show describeCameraError;
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
@@ -294,14 +296,58 @@ void main() {
   testWidgets('shows camera access errors with a retry', (tester) async {
     final backend = FakeCameraBackend(
       [],
-      listError: Exception('Camera access was denied'),
+      listError: const CameraUnavailable('Camera access is blocked'),
     );
     await pumpAt(tester, const Size(1280, 800), cameras: backend);
 
-    expect(find.textContaining('Camera access was denied'), findsOneWidget);
+    expect(find.textContaining('Could not open the camera'), findsOneWidget);
+    expect(find.textContaining('Camera access is blocked'), findsOneWidget);
 
     await tester.tap(find.text('Retry'));
     await tester.pump();
     expect(backend.lists, 2);
+  });
+
+  testWidgets('unexpected camera errors get a human message', (tester) async {
+    final backend = FakeCameraBackend(
+      [],
+      // What reading an undefined navigator.mediaDevices used to show.
+      listError: TypeError(),
+    );
+    await pumpAt(tester, const Size(1280, 800), cameras: backend);
+
+    expect(
+      find.text(
+        'Could not open the camera\n'
+        'Something went wrong while starting the camera.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('TypeError'), findsNothing);
+  });
+
+  test('camera errors are described for people', () {
+    expect(
+      describeCameraError(const CameraUnavailable('No camera was found.')),
+      'No camera was found.',
+    );
+    expect(
+      describeCameraError(const CameraAccessDenied()),
+      'Camera permission was denied. Allow it in Settings.',
+    );
+    expect(
+      describeCameraError(
+        PlatformException(code: 'camera', message: 'Camera not found'),
+      ),
+      'Camera not found',
+    );
+    expect(
+      describeCameraError(PlatformException(code: 'camera')),
+      'Something went wrong while starting the camera.',
+    );
+    expect(
+      describeCameraError(Exception('boom')),
+      'Something went wrong while starting the camera.',
+    );
   });
 }

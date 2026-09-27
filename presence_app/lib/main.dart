@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
+import 'auth/admin_screen.dart';
 import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
+import 'auth/membership_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
@@ -37,7 +39,12 @@ class PresenceApp extends StatefulWidget {
     this.auth,
     this.cloud,
     this.rolesClient,
+    this.membershipClient,
   });
+
+  /// Overrides membership requests (used by tests); defaults to
+  /// `/api/auth/membership`.
+  final MembershipClient? membershipClient;
 
   /// Overrides the auth API (used by tests); defaults to `GET /api/auth`.
   final RolesClient? rolesClient;
@@ -149,6 +156,8 @@ class _PresenceAppState extends State<PresenceApp> {
 
   late final AuthService _auth;
   late final RolesService _roles;
+  late final MembershipClient _membership =
+      widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
   CloudSync? _sync;
   String? _signedInAs;
 
@@ -193,6 +202,7 @@ class _PresenceAppState extends State<PresenceApp> {
           config: _config,
           auth: _auth,
           roles: _roles,
+          membership: _membership,
           sync: _sync,
         ),
       ),
@@ -227,11 +237,17 @@ class HomeScreen extends StatefulWidget {
     required this.config,
     required this.auth,
     required this.roles,
+    required this.membership,
     this.sync,
   });
 
-  /// The signed-in user's roles: events and features need at least one.
+  /// The signed-in user's roles: events and features need `presence_user`,
+  /// the Admin screen `presence_admin`.
   final RolesService roles;
+
+  /// Membership requests: sent from the sign-up sheet, approved on the
+  /// Admin screen.
+  final MembershipClient membership;
 
   final EventLog log;
   final CameraRig rig;
@@ -261,7 +277,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _signedIn => widget.auth.user != null;
 
-  /// Signed in with a role: the tabs, the camera's buttons and cloud sync.
+  /// Signed in as a `presence_user`: the tabs, the camera's buttons and
+  /// cloud sync.
   bool get _hasAccess => _signedIn && widget.roles.hasAccess;
 
   @override
@@ -389,7 +406,11 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               )
             else
-              SignUpButton(auth: widget.auth, roles: widget.roles),
+              SignUpButton(
+                auth: widget.auth,
+                roles: widget.roles,
+                membership: widget.membership,
+              ),
             AccountButton(auth: widget.auth),
             const SizedBox(width: 4),
           ] else ...[
@@ -411,6 +432,21 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ),
             ),
+            // Admins approve membership requests on their own screen.
+            if (widget.roles.isAdmin)
+              IconButton(
+                key: const Key('admin'),
+                tooltip: 'Admin',
+                icon: const Icon(Icons.admin_panel_settings),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => AdminScreen(
+                      auth: widget.auth,
+                      membership: widget.membership,
+                    ),
+                  ),
+                ),
+              ),
             // Account (who's signed in, sign out): an action, not a tab.
             AccountButton(auth: widget.auth, sync: widget.sync),
             const SizedBox(width: 4),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show PlatformException;
 
 import 'cameras/cameras.dart';
 import 'clips.dart';
@@ -436,8 +437,17 @@ class FeedMessage extends StatelessWidget {
   }
 }
 
+/// A sentence for the user about why the camera didn't open. Backends
+/// throw [CameraUnavailable] with one; native plugin errors carry their own
+/// message. Anything else (a bug, an unexpected browser error) gets a
+/// generic sentence, and the details go to the log instead of the screen.
 String describeCameraError(Object error) {
-  // Browser errors (DOMException) carry a readable message in toString.
-  final text = error.toString();
-  return text.startsWith('Exception: ') ? text.substring(11) : text;
+  switch (error) {
+    case CameraUnavailable(:final message):
+      return message;
+    case PlatformException(:final message?) when message.trim().isNotEmpty:
+      return message;
+  }
+  debugPrint('Presence: could not open the camera: $error');
+  return 'Something went wrong while starting the camera.';
 }

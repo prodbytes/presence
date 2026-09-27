@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
+import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
@@ -176,6 +177,7 @@ class FakeAuthService extends AuthService {
 
   final AuthUser account;
   AuthUser? _user;
+  int _refreshes = 0;
 
   @override
   bool get checking => false;
@@ -183,7 +185,18 @@ class FakeAuthService extends AuthService {
   @override
   AuthUser? get user => _user;
   @override
-  String? get idToken => _user == null ? null : 'id-token-${_user!.id}';
+  String? get idToken => _user == null
+      ? null
+      : 'id-token-${_user!.id}${_refreshes == 0 ? '' : '-r$_refreshes'}';
+
+  /// A silent sign-in that renews the ID token for the same user.
+  void refreshToken() {
+    _refreshes++;
+    notifyListeners();
+  }
+
+  /// A change that leaves the user and token as they were.
+  void notify() => notifyListeners();
   @override
   bool get available => true;
   @override
@@ -270,7 +283,7 @@ class FakeCloudSession implements CloudSession {
 /// The auth API without HTTP: answers [roles] (changeable), or throws
 /// [error]. Records the tokens it was asked about.
 class FakeRolesClient implements RolesClient {
-  FakeRolesClient([this.roles = const ['admin']]);
+  FakeRolesClient([this.roles = const [userRole]]);
 
   /// No roles: signed-in users only see their account and sign-up.
   FakeRolesClient.none() : this(const []);
@@ -284,5 +297,38 @@ class FakeRolesClient implements RolesClient {
     tokens.add(idToken);
     if (error case final e?) throw e;
     return roles;
+  }
+}
+
+/// Membership requests kept in memory; [granted] records the grants.
+class FakeMembershipClient implements MembershipClient {
+  final requests = <MembershipRequest>[];
+  final sent = <String>[];
+  final granted = <String>[];
+  Object? error;
+
+  @override
+  Future<void> request(String idToken, String message) async {
+    if (error case final e?) throw e;
+    sent.add(message);
+  }
+
+  @override
+  Future<List<MembershipRequest>> list(String idToken) async {
+    if (error case final e?) throw e;
+    return List.of(requests);
+  }
+
+  @override
+  Future<void> grant(String idToken, String email) async {
+    if (error case final e?) throw e;
+    granted.add(email);
+    requests.removeWhere((r) => r.email == email);
+  }
+
+  @override
+  Future<void> dismiss(String idToken, String email) async {
+    if (error case final e?) throw e;
+    requests.removeWhere((r) => r.email == email);
   }
 }

@@ -1,6 +1,7 @@
 # Floci: a local AWS emulator. Here it plays CloudFront, routing /app/ to the
-# Flutter dev server and everything else to the index, as the deployed stack
-# would.
+# Flutter dev server, /api/* to the auth API and everything else to the
+# index, as the deployed stack would. The auth API itself (Lambda, HTTP API,
+# DynamoDB, SNS) is deployed into Floci too (init/ready.d/05-auth-api.sh).
 # Started by `devbox services up` (4-floci in process-compose.yaml).
 services:
   floci:
@@ -27,15 +28,28 @@ services:
       FLOCI_TLS_CERT_PATH: /etc/presence-certs/presence.pem
       FLOCI_TLS_KEY_PATH: /etc/presence-certs/presence-key.pem
       FLOCI_TLS_AWS_HTTPS_PORT: "8443"
-      # CloudFront refuses private origins unless they're listed here.
-      FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS: ${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}
+      # CloudFront refuses private origins unless they're listed here: the
+      # dev servers, and the local auth API (its fixed ID from 05-auth-api.sh).
+      FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS: ${PRESENCE_ORIGIN_HOST:-dev.presence.localhost},presence.execute-api.localhost.floci.io
       PRESENCE_ORIGIN_HOST: ${PRESENCE_ORIGIN_HOST:-dev.presence.localhost}
       PRESENCE_CDN_ALIAS: ${PRESENCE_CDN_ALIAS:-presence.localhost}
       PRESENCE_PUBLIC_HOST: ${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}
       FLUTTER_WEB_PORT: ${FLUTTER_WEB_PORT:-8080}
       INDEX_PORT: ${INDEX_PORT:-8081}
-      # The deployed auth API behind /api/* (AUTH_API_HOST in the private .env)
-      AUTH_API_HOST: ${AUTH_API_HOST:-}
+      # The auth API's JWT authorizer only accepts ID tokens for this client
+      # (from the private .env; a public identifier, not a secret).
+      GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      # Lambda containers are named presence-lambda-*, so shutdown can find
+      # them (process-compose.yaml).
+      FLOCI_SERVICES_LAMBDA_CONTAINER_NAME_PREFIX: presence-lambda
+      # 05-auth-api.sh deploys a stack, which takes longer than the default 30 s.
+      FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: "180"
     volumes:
       - ./init/ready.d:/etc/floci/init/ready.d:ro
       - ./certs:/etc/presence-certs:ro
+      # The auth API build (scripts/build-auth-api.sh), deployed by the hook.
+      - ../presence_api_auth/.aws-sam/build:/opt/presence-auth-api:ro
+      # Floci runs Lambda functions as sibling Docker containers. This gives
+      # the container control of the Docker daemon: local development only
+      # (Floci's ports are bound to 127.0.0.1).
+      - /var/run/docker.sock:/var/run/docker.sock

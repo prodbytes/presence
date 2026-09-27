@@ -58,11 +58,9 @@ class DeviceCameras implements CameraBackend {
   }
 }
 
-class CameraAccessDenied implements Exception {
-  const CameraAccessDenied();
-
-  @override
-  String toString() => 'Camera permission was denied. Allow it in Settings.';
+class CameraAccessDenied extends CameraUnavailable {
+  const CameraAccessDenied()
+    : super('Camera permission was denied. Allow it in Settings.');
 }
 
 class _NativeCameraSource implements CameraSource {
