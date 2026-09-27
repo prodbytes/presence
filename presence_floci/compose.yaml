@@ -1,5 +1,6 @@
 # Floci: a local AWS emulator. Here it plays CloudFront, routing /app/ to the
-# Flutter dev server and /api/ to sam local, as the deployed stack would.
+# Flutter dev server and everything else to the index, as the deployed stack
+# would.
 # Started by `devbox services up` (4-floci in process-compose.yaml).
 services:
   floci:
@@ -32,7 +33,6 @@ services:
       PRESENCE_CDN_ALIAS: ${PRESENCE_CDN_ALIAS:-presence.localhost}
       PRESENCE_PUBLIC_HOST: ${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}
       FLUTTER_WEB_PORT: ${FLUTTER_WEB_PORT:-8080}
-      SAM_API_PORT: ${SAM_API_PORT:-3000}
       INDEX_PORT: ${INDEX_PORT:-8081}
     volumes:
       - ./init/ready.d:/etc/floci/init/ready.d:ro

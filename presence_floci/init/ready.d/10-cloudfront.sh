@@ -1,13 +1,12 @@
 #!/bin/sh
 # Creates the Presence CloudFront distribution in Floci. It only routes, as
-# the deployed CloudFront would; the app and the API run on their own dev
+# the deployed CloudFront would; the index and the app run on their own dev
 # servers:
 #   /app*   -> Flutter dev server  (http://$PRESENCE_ORIGIN_HOST:$FLUTTER_WEB_PORT)
-#   /api/*  -> sam local start-api (http://$PRESENCE_ORIGIN_HOST:$SAM_API_PORT)
 #   *       -> presence_index      (http://$PRESENCE_ORIGIN_HOST:$INDEX_PORT),
 #              whose / redirects to /app/
 # Paths are forwarded as is (CloudFront can't strip a prefix), so the app is
-# served under /app/ (--base-href /app/) and the API routes start with /api/.
+# served under /app/ (--base-href /app/).
 #
 # Nothing is cached. Every viewer header except Host, plus all cookies and
 # query strings, is forwarded (like AWS's managed AllViewerExceptHostHeader
@@ -24,7 +23,6 @@ ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 # Google sign-in, whose JavaScript origins must end in a public TLD.
 PUBLIC_HOST="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}"
 WEB_PORT="${FLUTTER_WEB_PORT:-8080}"
-API_PORT="${SAM_API_PORT:-3000}"
 INDEX_PORT="${INDEX_PORT:-8081}"
 
 cache_policy=$(aws cloudfront create-cache-policy \
@@ -67,12 +65,11 @@ distribution=$(aws cloudfront create-distribution \
     \"Comment\": \"Presence local CDN\",
     \"Enabled\": true,
     \"Aliases\": {\"Quantity\": 2, \"Items\": [\"$ALIAS\", \"$PUBLIC_HOST\"]},
-    \"Origins\": {\"Quantity\": 3, \"Items\": [$(origin app "$WEB_PORT"), $(origin api "$API_PORT"), $(origin index "$INDEX_PORT")]},
+    \"Origins\": {\"Quantity\": 2, \"Items\": [$(origin app "$WEB_PORT"), $(origin index "$INDEX_PORT")]},
     \"DefaultCacheBehavior\": {$(behavior index)},
-    \"CacheBehaviors\": {\"Quantity\": 2, \"Items\": [
-      {\"PathPattern\": \"/app*\", $(behavior app)},
-      {\"PathPattern\": \"/api/*\", $(behavior api)}
+    \"CacheBehaviors\": {\"Quantity\": 1, \"Items\": [
+      {\"PathPattern\": \"/app*\", $(behavior app)}
     ]}
   }")
 
-echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/, /api/)"
+echo "presence: CloudFront distribution $distribution serves http://$ALIAS:4566/ and https://$PUBLIC_HOST:8443/ (index, /app/)"

@@ -84,8 +84,6 @@ Thumbs.db
 !.vscode/extensions.json
 !.vscode/launch.json
 
-# --- AWS SAM ---
-.aws-sam/
 
 # --- AWS CDK ---
 cdk.out/

@@ -717,3 +717,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Third run: success. The workflow deployed the RC and its smoke test
       passed. Checked independently: version, routes, and the app in
       headless Chrome.
+111. **Remove the SAM API module and all references to it.** (2026-09-27)
+    - Deleted `presence_api_events/`, `scripts/sam-api.sh`,
+      `specs/events-api.md`, the `3-sam-api` process and the `⚡ api` health
+      check.
+    - Removed the `/api/*` route from `site.yaml` (prod and RC) and from
+      the Floci distribution, and the SAM steps and the `/api/events` check
+      from `deploy.sh`.
+    - Removed the SAM, Lambda and API Gateway grants from both GitHub deploy
+      roles, the SAM and Java setup from the workflows, `aws-sam-cli` from
+      devbox (Maven stays, for the CDK module), port 3000 from the dev
+      container, and `.aws-sam/` from `.gitignore`.
+    - The deployed `presence-api-events` and `presence-rc-api-events` stacks
+      are deleted after the sites stop pointing at them.

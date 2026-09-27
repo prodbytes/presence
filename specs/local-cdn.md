@@ -2,18 +2,16 @@
 
 [presence_floci/](../presence_floci) runs [Floci](https://floci.io/), a
 local AWS emulator, as the CloudFront distribution. It only routes, like the
-deployed CloudFront would. The index, the app and the API run on their own
-dev servers:
+deployed CloudFront would. The index and the app run on their own dev
+servers:
 
 | Path | Origin |
 |------|--------|
 | default (`/`, anything else) | [Site index](site-index.md) (`python3 -m http.server`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
-| `/api/*` | `sam local start-api`: for now `GET /api/events` |
 
 CloudFront forwards paths unchanged and can't strip a prefix, so each origin
-serves its own prefix: the app has the `/app/` base href, and the API's
-routes start with `/api/`. `/` redirects to `/app/` through the index
+serves its own prefix: the app has the `/app/` base href. `/` redirects to `/app/` through the index
 page: an HTTP redirect would need a CloudFront Function, which Floci stores
 but doesn't run.
 
@@ -44,7 +42,7 @@ but doesn't run.
   `http://localhost:8080/app/`.
 - Settings: `FLOCI_PORT`, `PRESENCE_CDN_ALIAS`, `PRESENCE_ORIGIN_HOST`.
 - Verified on macOS with Docker Desktop, under process-compose (the Flutter
-  dev server, the SAM API, Floci and the health monitor):
+  dev server, the then-existing SAM API, Floci and the health monitor):
   - headless Chrome loaded http://presence.localhost:4566/app/ and the app
     rendered (camera view, Clip, Ready);
   - the debug WebSocket connected to `dev.presence.localhost:8080` (101);
