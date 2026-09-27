@@ -788,7 +788,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     into main.** (2026-09-27)
     - The auth API (#113–#115) was built but still open in #60 and #61.
       #61 was merged into #60's branch, and #60 into `main`.
-    - The user asked for every open branch and PR to be merged into `main`.
+    - Then every open PR was merged into `main`, conflicts fixed and tests
+      run on each: #63 (with Maven and the SAM CLI kept for the auth API),
+      #62, #58 and #57, which became #118–#122. Their request-log entries
+      were renumbered after `main`'s, and `cloud_sync_test.dart` keeps both
+      the frame-upload and the no-role tests. No open PRs or unmerged
+      branches remain; 121 app tests pass on `main`.
 118. **Bug: reloading the app forgets the sign-in. Keep an authenticated
     user signed in across reloads.** (2026-09-27)
     - Cause: on web, Google Identity Services keeps no session, and the
