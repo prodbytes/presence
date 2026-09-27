@@ -34,6 +34,8 @@ services:
       PRESENCE_PUBLIC_HOST: ${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}
       FLUTTER_WEB_PORT: ${FLUTTER_WEB_PORT:-8080}
       INDEX_PORT: ${INDEX_PORT:-8081}
+      # The deployed auth API behind /api/* (AUTH_API_HOST in the private .env)
+      AUTH_API_HOST: ${AUTH_API_HOST:-}
     volumes:
       - ./init/ready.d:/etc/floci/init/ready.d:ro
       - ./certs:/etc/presence-certs:ro

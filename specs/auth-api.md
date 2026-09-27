@@ -30,6 +30,11 @@ see [Production deploy](deploy.md)). It returns the signed-in user's roles:
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live.
+- **The app** calls it after sign-in to decide what to show (see
+  [Sign-in](sign-in.md)): no role means only the account and sign-up.
+- **Locally,** Floci routes `/api/*` to a deployed auth API, whose host is
+  `AUTH_API_HOST` in the private `.env` (the RC one for now), since there's
+  no local copy.
 - **Tests** (JUnit, `mvn test`):
   - the role rules: default none, the exact domain, verification, table
     roles, case and whitespace;

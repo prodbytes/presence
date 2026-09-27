@@ -763,3 +763,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     reference (templates, `deploy.sh`, workflows, deploy roles, docs). The
     AWS stacks keep their names (`presence-auth-api`,
     `presence-rc-auth-api`).
+115. **When the user is signed in, show events and features only if they
+    have a role; otherwise show only their account and a sign-up icon.**
+    (2026-09-27)
+    - Added `RolesService` (`GET /api/auth` with the ID token; access means
+      at least one role; deny by default) and `ApiConfig.baseUrl`.
+    - Without a role, the app bar has only a sign-up icon ("Request access",
+      "Check again") and the account button: no tabs, no camera buttons,
+      and cloud sync stays off.
+    - Locally, Floci routes `/api/*` to the deployed auth API
+      (`AUTH_API_HOST` in the private `.env`); checked through Floci, no
+      token and a forged token get 401.
+    - 104 tests pass.

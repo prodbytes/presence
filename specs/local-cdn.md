@@ -9,6 +9,7 @@ servers:
 |------|--------|
 | default (`/`, anything else) | [Site index](site-index.md) (`python3 -m http.server`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server (`flutter run`, hot reload), at **http://presence.localhost:4566/app/** |
+| `/api/*` | The deployed [auth API](auth-api.md) at `AUTH_API_HOST` (private `.env`), when set: there's no local copy |
 
 CloudFront forwards paths unchanged and can't strip a prefix, so each origin
 serves its own prefix: the app has the `/app/` base href. `/` redirects to `/app/` through the index
