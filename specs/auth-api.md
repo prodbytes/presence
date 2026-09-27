@@ -22,7 +22,9 @@ site (`/api/*` in the CloudFront distribution; see
     membership requests;
   - nobody has roles by default;
   - a verified email whose domain is exactly one of `AllowedDomains`
-    (comma-separated; `nu01.com` for now) gets `DomainRoles`, both roles;
+    (comma-separated; `nu01.com` for now) gets both roles
+    (set in the template, not a parameter: a stack keeps an old
+    parameter's value when a deploy doesn't pass it);
   - the **`UserRolesTable`** DynamoDB table declares roles per user, keyed by
     lowercase `email`, with `roles` as a string set (a list or a string
     is read too; a grant rewrites them as a set). They're added to any domain

@@ -26,7 +26,8 @@ Admins are users with both `presence_user` and `presence_admin`.
   - nobody has roles by default;
   - a **verified** email at one of `AllowedDomains` (comma-separated,
     default `nu01.com`, each matched exactly after the `@`) gets
-    `DomainRoles` (default `presence_user,presence_admin`);
+    both `presence_user` and `presence_admin` (fixed in the template, not
+    a parameter, so an old stack value can't linger);
   - anyone listed in the **`UserRolesTable`** DynamoDB table gets the roles
     declared there, added to any domain roles. The table is keyed by
     lowercase `email`, with `roles` as a string set (a list of strings, or
