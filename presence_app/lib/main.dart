@@ -133,6 +133,7 @@ class _PresenceAppState extends State<PresenceApp> {
             // Only users with a role sync.
             roles: _roles,
             backend: cloud,
+            now: widget.now,
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,

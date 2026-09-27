@@ -245,6 +245,8 @@ void main() {
           changes: changes.stream,
           debounce: Duration.zero,
           onRemote: (r) async => remote.add(r),
+          // These fixtures are from 1970: within a week of this.
+          now: () => DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
         );
         final before = Set.of(backend.uploads.keys);
 
@@ -287,6 +289,89 @@ void main() {
         );
       },
     );
+
+    test('a new device gets only the last week', () async {
+      sync.dispose();
+      const prefix = 'us-east-1:identity';
+      final now = DateTime.utc(2026, 9, 27, 12);
+      int ms(DateTime t) => t.millisecondsSinceEpoch;
+      void event(String key, String id, DateTime time, [String? clipId]) =>
+          backend.uploads['$prefix/$key'] = (
+            bytes: json({
+              'id': id,
+              'type': 'clipRequested',
+              'title': 'Clip',
+              'time': ms(time),
+              'clipId': ?clipId,
+            }),
+            contentType: 'application/json',
+          );
+      void clip(String id) {
+        backend.uploads['$prefix/clips/$id.json'] = (
+          bytes: json({
+            'id': id,
+            'state': 'complete',
+            'full': {'mediaId': '$id-full', 'startMs': 0, 'endMs': 30000},
+          }),
+          contentType: 'application/json',
+        );
+        backend.uploads['$prefix/clips/$id.webm'] = (
+          bytes: Uint8List.fromList([1]),
+          contentType: 'video/webm',
+        );
+      }
+
+      // 6 days ago (day 264): restored, with its clip.
+      event(
+        CloudSync.eventKey({
+          'id': 'new',
+          'time': ms(now.subtract(const Duration(days: 6))),
+        }),
+        'new',
+        now.subtract(const Duration(days: 6)),
+        'c-new',
+      );
+      clip('c-new');
+      // Earlier on the first day of the window (day 263): its partition is
+      // read, but the event is 8 h too old.
+      final edge = now.subtract(const Duration(days: 7, hours: 8));
+      event(CloudSync.eventKey({'id': 'edge', 'time': ms(edge)}), 'edge', edge);
+      // 20 days ago: its partition isn't even downloaded, nor its clip.
+      final old = now.subtract(const Duration(days: 20));
+      event(
+        CloudSync.eventKey({'id': 'old', 'time': ms(old)}),
+        'old',
+        old,
+        'c-old',
+      );
+      clip('c-old');
+      // From before partitioning: read to learn its time, then skipped.
+      event('events/flat.json', 'flat', old);
+
+      final remote = <RemoteRecords>[];
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        onRemote: (r) async => remote.add(r),
+        now: () => now,
+      );
+      await auth.signIn();
+      await sync.idle();
+
+      expect(remote.single.events.map((e) => e['id']), ['new']);
+      expect(remote.single.clips.map((c) => c['id']), ['c-new']);
+      expect(remote.single.media.keys, ['c-new-full']);
+      expect(
+        backend.downloads.where((k) => k.contains('old')),
+        isEmpty,
+        reason: 'nothing of the 20-day-old event is downloaded',
+      );
+      expect(backend.downloads, contains('events/flat.json'));
+    });
 
     test('the fetch runs once per sign-in', () async {
       await auth.signIn();
@@ -417,6 +502,8 @@ void main() {
         changes: const Stream.empty(),
         debounce: Duration.zero,
         onRemote: (r) async => fetched.add(r),
+        // The event is from 1970: within a week of this.
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
       );
       await Future<void>.delayed(Duration.zero);
       await otherSync.idle();

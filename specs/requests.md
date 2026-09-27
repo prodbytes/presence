@@ -1011,3 +1011,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       release dry runs, and the workflow and compose YAML all passed.
     - Specs: every file is indexed. Fixed a stale Android source link and
       the cloud-sync timing.
+138. **Estimate six months of S3 storage costs for one 30 s clip every 10
+    minutes, with three viewed a day.** (2026-09-27)
+    - About $11 per user over six months, and about $2.30 a month once the
+      bucket holds ~120 days (~173 GB). Flagged: a new device downloaded
+      everything.
+139. **When restoring to a new device, load only one week of data.**
+    (2026-09-27)
+    - `CloudSync` fetches only events from the last 7 days
+      (`restoreWindow`), skipping older day partitions without downloading
+      them, and only the clips those events use. 129 tests pass.

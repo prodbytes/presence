@@ -126,7 +126,9 @@ class CloudSync extends ChangeNotifier {
     this.onRemote,
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(minutes: 1),
-  }) {
+    this.restoreWindow = const Duration(days: 7),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now {
     auth.addListener(_onAuthChanged);
     roles?.addListener(_onAuthChanged);
     _changes = changes.listen((_) => _schedule());
@@ -140,6 +142,12 @@ class CloudSync extends ChangeNotifier {
   final CloudBackend backend;
   final Duration debounce;
   final Duration interval;
+
+  /// How far back the fetch after sign-in goes: a new device gets the last
+  /// week, not months of video. Older events stay in the cloud (until the
+  /// bucket expires them) and on the devices that recorded them.
+  final Duration restoreWindow;
+  final DateTime Function() _now;
 
   /// Receives what a sign-in's fetch downloaded, after it's marked as
   /// synced (the app stores it and shows its events).
@@ -262,13 +270,17 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
-  /// Downloads the clips and events in the user's folder that the device
-  /// doesn't have, marks them as synced, and hands them to [onRemote].
+  /// Downloads the events of the last [restoreWindow] in the user's folder
+  /// that the device doesn't have, with their clips (recording and
+  /// thumbnail) and tagged frames, marks them as synced, and hands them to
+  /// [onRemote]. Event keys are partitioned by day, so older events aren't
+  /// even read.
   Future<void> _fetch(CloudSession session) async {
     final store = await _store;
     final keys = (await session.list()).toSet();
     final localEvents = {for (final e in await store.allEvents()) e['id']};
     final localClips = {for (final c in await store.allClips()) c['id']};
+    final since = _now().toUtc().subtract(restoreWindow);
 
     Future<Map<String, Object?>> json(String key) async =>
         (jsonDecode(utf8.decode(await session.get(key))) as Map)
@@ -276,11 +288,46 @@ class CloudSync extends ChangeNotifier {
     Future<void> synced(String key, String fingerprint) =>
         store.markSynced('${session.prefix}/$key', fingerprint);
 
+    final events = <Map<String, Object?>>[];
+    for (final key in keys) {
+      // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat
+      // ones from before partitioning (events/<id>.json).
+      final id = RegExp(r'^events/(?:.+/)?([^/]+)\.json$').firstMatch(key)?[1];
+      if (id == null || localEvents.contains(id) || _disposed) continue;
+      if (!_partitionMayBeSince(key, since)) continue;
+      final event = await json(key);
+      final time = event['time'];
+      if (time is! int ||
+          DateTime.fromMillisecondsSinceEpoch(
+            time,
+            isUtc: true,
+          ).isBefore(since)) {
+        continue;
+      }
+      await synced(key, _fingerprint(_json(event)));
+      // The frames its tags were clicked on come back as images.
+      final frames = <String, Uint8List>{};
+      final clipId = event['clipId'];
+      for (final frameId in _frameIds(event)) {
+        final frameKey = 'clips/$clipId/frames/$frameId.jpg';
+        if (!keys.contains(frameKey)) continue;
+        frames[frameId] = await session.get(frameKey);
+        await synced(frameKey, frameId);
+      }
+      if (frames.isNotEmpty) event['frames'] = frames;
+      events.add(event);
+    }
+
+    // Only the clips those events show.
     final clips = <Map<String, Object?>>[];
     final media = <String, Uint8List>{};
-    for (final key in keys) {
-      final id = RegExp(r'^clips/(.+)\.json$').firstMatch(key)?[1];
-      if (id == null || localClips.contains(id) || _disposed) continue;
+    final clipIds = {
+      for (final e in events)
+        if (e['clipId'] case final String id) id,
+    };
+    for (final id in clipIds) {
+      final key = 'clips/$id.json';
+      if (!keys.contains(key) || localClips.contains(id) || _disposed) continue;
       final clip = await json(key);
       await synced(key, _fingerprint(_json(clip)));
       final ref = clip['full'] ?? clip['past'];
@@ -302,32 +349,22 @@ class CloudSync extends ChangeNotifier {
       clips.add(clip);
     }
 
-    final events = <Map<String, Object?>>[];
-    for (final key in keys) {
-      // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat
-      // ones from before partitioning (events/<id>.json).
-      final id = RegExp(r'^events/(?:.+/)?([^/]+)\.json$').firstMatch(key)?[1];
-      if (id == null || localEvents.contains(id) || _disposed) continue;
-      final event = await json(key);
-      await synced(key, _fingerprint(_json(event)));
-      // The frames its tags were clicked on come back as images.
-      final frames = <String, Uint8List>{};
-      final clipId = event['clipId'];
-      for (final frameId in _frameIds(event)) {
-        final frameKey = 'clips/$clipId/frames/$frameId.jpg';
-        if (!keys.contains(frameKey)) continue;
-        frames[frameId] = await session.get(frameKey);
-        await synced(frameKey, frameId);
-      }
-      if (frames.isNotEmpty) event['frames'] = frames;
-      events.add(event);
-    }
-
     final records = RemoteRecords(events: events, clips: clips, media: media);
     if (records.isEmpty || _disposed) return;
     await onRemote?.call(records);
     _downloaded += events.length + clips.length;
     notifyListeners();
+  }
+
+  /// Whether an event key's day partition (see [eventKey]) can hold events
+  /// at or after [since]: false only for a partition that ends before it.
+  /// Flat keys, from before partitioning, have no day and are read.
+  static bool _partitionMayBeSince(String key, DateTime since) {
+    final m = RegExp(r'^events/year=(\d{4})/day=(\d{3})/').firstMatch(key);
+    if (m == null) return true;
+    final dayStart = DateTime.utc(int.parse(m[1]!))
+        .add(Duration(days: int.parse(m[2]!) - 1));
+    return !dayStart.add(const Duration(days: 1)).isBefore(since);
   }
 
   Future<void> _syncAll(CloudSession session) async {
