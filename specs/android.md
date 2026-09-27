@@ -2,7 +2,7 @@
 
 The web approach (overlapping `MediaRecorder`s) doesn't exist on Android, so
 Android uses the standard dashcam technique instead
-([android/app/src/main/kotlin/…](../presence_app/android/app/src/main/kotlin/com/example/presence_app)):
+([android/app/src/main/kotlin/…](../presence_app/android/app/src/main/kotlin/com/nu01/presence)):
 
 - **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
   and a hardware **H.264** encoder, up to 1280×720, with a keyframe every
