@@ -46,6 +46,44 @@ One CloudFront distribution serves the whole site, laid out like the local
   tag's version, `/` must be the index page, and `/app/` and `/api/events`
   must answer. It retries for up to 10 minutes.
 
+## Release candidates (rc.presence.nu01.com)
+
+Every pushed **`*RC*` tag** (`bash scripts/release-rc.sh`, `X.Y.Z-RC<n>`),
+or a manual run of the [Deploy RC workflow](../.github/workflows/deploy-rc.yml)
+with an optional `tag` input, deploys that version to
+**https://rc.presence.nu01.com**. It runs the same
+[scripts/deploy.sh](../scripts/deploy.sh) with `STAGE=rc`.
+
+- **Isolated from prod:** the RC has its own stacks, from the same
+  templates:
+  - `presence-rc-user-data` (its own bucket, CORS only for
+    `https://rc.presence.nu01.com`);
+  - `presence-rc-identity` (its own identity pool, `presence-rc`, trusting
+    the same Google web client);
+  - `presence-rc-api-events`;
+  - `presence-rc-web` (its own certificate, bucket, distribution and
+    `rc.presence.nu01.com` alias records).
+
+  RC data never reaches the prod bucket, and an RC deploy never touches the
+  prod site.
+- **Per-stage templates:** `user-data.yaml` exports
+  `${AWS::StackName}-bucket(-arn)`, and `identity.yaml` imports its bucket
+  by `UserDataStackName` and names the pool `IdentityPoolName`. The defaults
+  keep prod's names, and a change set against the prod stacks showed no
+  changes.
+- **Its own GitHub role,** `presence-github-deploy-rc` (in
+  `github-deploy.yaml`, repository variable `AWS_DEPLOY_RC_ROLE_ARN`):
+  - it trusts only `*RC*` tag runs and manual runs from `main`;
+  - it's limited to `presence-rc-*` stacks, buckets, functions and roles;
+  - in Route 53 it may change only `rc.presence.nu01.com` and
+    `*.rc.presence.nu01.com` (the certificate's validation record), through
+    `route53:ChangeResourceRecordSetsNormalizedRecordNames`;
+  - CloudFront, ACM and Cognito identity pools can't be scoped by name in
+    advance, so those stay account-wide, as for the prod role.
+- **Smoke test:** the same checks against `https://rc.presence.nu01.com/`.
+- Google sign-in on the RC needs `https://rc.presence.nu01.com` among the
+  web OAuth client's authorized JavaScript origins.
+
 ## GitHub access
 
 - The workflow has no AWS keys. It exchanges GitHub's OIDC token for the

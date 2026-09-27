@@ -54,7 +54,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Release builds](release.md): the GitHub Actions workflow that builds the
   binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
 - [Production deploy](deploy.md): `*GA` tags deploy to
-  https://presence.nu01.com (CloudFront, S3, API Gateway).
+  https://presence.nu01.com, and `*RC*` tags (or manual runs) to
+  https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
 
 ## Workflow
 

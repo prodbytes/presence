@@ -662,3 +662,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       role), CORS allows `GET`, and put, list and get round-tripped a
       recording.
     - 96 tests pass.
+106. **Create an action that deploys every pushed `*RC*` tag (or a manual
+    run) to rc.presence.nu01.com.** (2026-09-27)
+    - Added `.github/workflows/deploy-rc.yml` and a `STAGE=rc` mode in
+      `scripts/deploy.sh`. The RC gets its own `presence-rc-*` stacks
+      (bucket, identity pool, API, site with its own certificate and DNS).
+    - The templates are now per-stage (bucket exports by stack name, and the
+      identity pool imports by `UserDataStackName`), with no change to prod,
+      which a change set confirmed.
+    - `github-deploy.yaml` gains a `presence-github-deploy-rc` role, trusting
+      `*RC*` tags and manual runs from `main`, limited to `presence-rc-*`
+      resources and the `rc.presence.nu01.com` records.

@@ -13,12 +13,20 @@ Parameters:
       The Google "Web application" OAuth client ID. Every platform's ID token
       is issued for it (web directly; Android and iOS as their server client).
     AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+  UserDataStackName:
+    Type: String
+    Default: presence-user-data
+    Description: The user-data stack whose bucket this pool's users may use (presence-rc-user-data for RC)
+  IdentityPoolName:
+    Type: String
+    Default: presence
+    Description: presence for prod, presence-rc for RC
 
 Resources:
   IdentityPool:
     Type: AWS::Cognito::IdentityPool
     Properties:
-      IdentityPoolName: presence
+      IdentityPoolName: !Ref IdentityPoolName
       AllowUnauthenticatedIdentities: false
       AllowClassicFlow: false
       SupportedLoginProviders:
@@ -53,10 +61,12 @@ Resources:
                   - s3:GetObject
                 Resource: !Sub
                   - ${BucketArn}/${!cognito-identity.amazonaws.com:sub}/*
-                  - BucketArn: !ImportValue presence-user-data-bucket-arn
+                  - BucketArn:
+                      Fn::ImportValue: !Sub ${UserDataStackName}-bucket-arn
               - Effect: Allow
                 Action: s3:ListBucket
-                Resource: !ImportValue presence-user-data-bucket-arn
+                Resource:
+                  Fn::ImportValue: !Sub ${UserDataStackName}-bucket-arn
                 Condition:
                   StringLike:
                     s3:prefix:

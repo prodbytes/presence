@@ -74,8 +74,9 @@ Outputs:
     Description: The app's USER_DATA_BUCKET
     Value: !Ref UserDataBucket
     Export:
-      Name: presence-user-data-bucket
+      # presence-user-data-bucket for prod, presence-rc-user-data-bucket for RC
+      Name: !Sub ${AWS::StackName}-bucket
   UserDataBucketArn:
     Value: !GetAtt UserDataBucket.Arn
     Export:
-      Name: presence-user-data-bucket-arn
+      Name: !Sub ${AWS::StackName}-bucket-arn

@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Deploys Presence to production, https://presence.nu01.com:
+# Deploys Presence to production, https://presence.nu01.com, or with
+# STAGE=rc to the release-candidate site, https://rc.presence.nu01.com
+# (its own stacks, presence-rc-*, and its own bucket and identity pool):
 #   1. deploys the user data stacks (presence_infra/user-data.yaml: the
 #      bucket; presence_infra/identity.yaml: the Cognito identity pool)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
@@ -17,6 +19,7 @@
 #   TAG          the release tag, X.Y.Z-GA: its X.Y must match the version
 #                files and its Z becomes the build's Z (default: none, so Z
 #                is the current time)
+#   STAGE        prod (default) or rc
 #   AWS_REGION   default us-east-1 (CloudFront certificates live there)
 #   SKIP_BUILD   1 to deploy an existing presence_app/build/web
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
@@ -28,11 +31,25 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 export AWS_REGION="${AWS_REGION:-us-east-1}"
 export AWS_DEFAULT_REGION="$AWS_REGION"
-API_STACK=presence-api-events
-SITE_STACK=presence-web
-USER_DATA_STACK=presence-user-data
-IDENTITY_STACK=presence-identity
-DOMAIN=presence.nu01.com
+STAGE="${STAGE:-prod}"
+case "$STAGE" in
+  prod)
+    stack_prefix=presence
+    DOMAIN=presence.nu01.com
+    # Local development syncs with the prod bucket (see specs/cloud-sync.md).
+    ORIGINS="https://$DOMAIN,https://local.presence.nu01.com:8443,http://localhost:8080"
+    ;;
+  rc)
+    stack_prefix=presence-rc
+    DOMAIN=rc.presence.nu01.com
+    ORIGINS="https://$DOMAIN"
+    ;;
+  *) echo "error: STAGE must be prod or rc (got '$STAGE')" >&2; exit 2 ;;
+esac
+API_STACK=$stack_prefix-api-events
+SITE_STACK=$stack_prefix-web
+USER_DATA_STACK=$stack_prefix-user-data
+IDENTITY_STACK=$stack_prefix-identity
 
 if [[ "${TAG:-}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
   export VERSION_Z="${BASH_REMATCH[3]}"
@@ -48,7 +65,7 @@ if [[ -n "${tag_xy:-}" && "$tag_xy" != "$VERSION_X.$VERSION_Y" ]]; then
   echo "error: tag $TAG is version $tag_xy, but version.X.txt/version.Y.txt say $VERSION_X.$VERSION_Y" >&2
   exit 1
 fi
-echo "==> deploying version $VERSION to https://$DOMAIN/ ($AWS_REGION)"
+echo "==> deploying version $VERSION to https://$DOMAIN/ ($STAGE, $AWS_REGION)"
 
 stack_output() { # stack_output <stack> <output key>
   aws cloudformation describe-stacks --stack-name "$1" \
@@ -69,10 +86,13 @@ done
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
 aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
-  --template-file presence_infra/user-data.yaml --no-fail-on-empty-changeset
+  --template-file presence_infra/user-data.yaml \
+  --parameter-overrides "AllowedOrigins=$ORIGINS" \
+  --no-fail-on-empty-changeset
 aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
   --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    "UserDataStackName=$USER_DATA_STACK" "IdentityPoolName=$stack_prefix" \
   --no-fail-on-empty-changeset
 # The app reads these at build time (scripts/dart-defines.sh).
 export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID
