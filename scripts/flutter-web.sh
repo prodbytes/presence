@@ -18,7 +18,7 @@ cd "$(dirname "$0")/../presence_app"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
 flutter pub get
-# The Settings screen shows X.Y-dev for dev servers (make builds show X.Y.Z).
+# The Settings screen shows X.Y.Z, Z being when this server started.
 exec flutter run -d web-server --web-hostname 127.0.0.1 --web-port "$PORT" \
   --base-href /app/ \
-  "${DART_DEFINES[@]}" --dart-define="PRESENCE_VERSION=$VERSION_X.$VERSION_Y-dev"
+  "${DART_DEFINES[@]}" --dart-define="PRESENCE_VERSION=$VERSION"

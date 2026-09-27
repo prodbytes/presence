@@ -185,10 +185,10 @@ void main() {
     expect(find.text('Before the press'), findsOneWidget);
     expect(find.text('After the press'), findsOneWidget);
     expect(find.textContaining('Clips play 30 s in total'), findsOneWidget);
-    // The build's version sits at the bottom; tests have no tag.
+    // Tests have no build version, so there's no version label.
     expect(
-      find.text('Presence development build', skipOffstage: false),
-      findsOneWidget,
+      find.byKey(const Key('app-version'), skipOffstage: false),
+      findsNothing,
     );
 
     await tester.tap(find.byTooltip('Camera'));

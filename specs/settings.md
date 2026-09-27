@@ -20,14 +20,13 @@
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
-- **The build's version** is at the very bottom, small and centred:
-  "Presence 0.3.202609271300-GA". Tagged builds (the Release and deploy
-  workflows) show their tag; other `make` builds show `X.Y.Z`; the dev
-  servers (`scripts/flutter-web.sh`, `flutter-run.sh`) show `X.Y-dev`,
-  e.g. "Presence 0.3-dev". A bare `flutter run` or a test shows
-  "development build". `scripts/make.sh` compiles it in as
-  `PRESENCE_VERSION` and, when `TAG` is this build's own `X.Y.Z-<kind>`,
-  `PRESENCE_TAG` ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
+- **The build's version** is at the very bottom, small and centred: only
+  `X.Y.Z`, e.g. "Presence 0.3.202609271247", with no `-RC`/`-GA` suffix.
+  `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
+  as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
+  `flutter-run.sh`) pass it too, with Z the time they started. A bare
+  `flutter run` or a test has none, and shows no label
+  ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
 - **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
   brightness, and the motion switch, threshold and cooldown) is saved to
   local storage on every change and restored on launch.
