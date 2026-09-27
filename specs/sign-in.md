@@ -8,6 +8,20 @@ there's no separate sign-in screen:
   (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
   Manager's authorized accounts on Android, the saved session on iOS). The
   camera opens right away either way.
+- **Reloads keep you signed in (web).** Google Identity Services keeps no
+  session on web, so the app remembers it itself:
+  - on each sign-in, the user (ID, email, name, photo) and their Google ID
+    token go into `localStorage` (`presence.session`; `SessionStore`,
+    `SavedSession`);
+  - at launch, before Google's library loads, a remembered session whose
+    token has more than a minute left is restored, so the user is signed in
+    at once;
+  - the silent FedCM attempt still runs and refreshes the token when Google
+    allows. When it finds nothing, the restored session stays;
+  - an expired or malformed session is dropped;
+  - **Sign out** forgets it.
+
+  Android and iOS don't need this: their Google SDKs keep the session.
 - **Signed out:** the camera shows full screen, always recording as
   usual, with **no buttons on it** (no Flip, Clip or readiness), and the
   **navigation is hidden**: the app bar has only the "Presence" title and
@@ -34,6 +48,8 @@ there's no separate sign-in screen:
   web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
+- Known limitation: Google ID tokens last about an hour. A reload after
+  that, without FedCM auto sign-in, signs out.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with
