@@ -294,7 +294,9 @@ class CloudSync extends ChangeNotifier {
 
     final events = <Map<String, Object?>>[];
     for (final key in keys) {
-      final id = RegExp(r'^events/(.+)\.json$').firstMatch(key)?[1];
+      // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat
+      // ones from before partitioning (events/<id>.json).
+      final id = RegExp(r'^events/(?:.+/)?([^/]+)\.json$').firstMatch(key)?[1];
       if (id == null || localEvents.contains(id) || _disposed) continue;
       final event = await json(key);
       await synced(key, _fingerprint(_json(event)));
@@ -368,15 +370,28 @@ class CloudSync extends ChangeNotifier {
     }
 
     for (final event in await store.allEvents()) {
-      final id = event['id']! as String;
       final json = _json(event);
       await upload(
-        'events/$id.json',
+        eventKey(event),
         _fingerprint(json),
         () async => json,
         'application/json',
       );
     }
+  }
+
+  /// Where an event goes in the user's folder: partitioned by the UTC day
+  /// of the year of its time, Hive-style so tools such as Athena can prune
+  /// by partition: `events/year=2026/day=269/<id>.json`.
+  static String eventKey(Map<String, Object?> event) {
+    final time = event['time'];
+    final at = DateTime.fromMillisecondsSinceEpoch(
+      time is int ? time : 0,
+      isUtc: true,
+    );
+    final day = at.difference(DateTime.utc(at.year)).inDays + 1;
+    return 'events/year=${at.year}/day=${day.toString().padLeft(3, '0')}/'
+        '${event['id']}.json';
   }
 
   static Uint8List _json(Map<String, Object?> record) =>
