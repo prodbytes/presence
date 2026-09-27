@@ -883,3 +883,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       "Membership requests" screen.
     - Added [Membership](membership.md). 18 JUnit and 124 Flutter tests
       pass.
+124. **Make sure @nu01.com users get in with both roles and every feature;
+    other domains must request access and be allowed; the admin panel,
+    for admins only, authorizes requests.** (2026-09-27)
+    - Confirms #123's rules. Added a JUnit test of the whole flow:
+      `boss@nu01.com` gets both roles; `ana@example.com` gets none, asks,
+      can't approve herself, is granted by the admin, and ends up
+      `presence_user` only (no admin routes). 19 JUnit tests pass.

@@ -59,3 +59,6 @@ site (`/api/*` in the CloudFront distribution; see
     (which keeps the cooldown), bad emails, unknown routes;
   - a failed SNS publish still keeps the request; profile names are
     cleaned.
+  - the whole flow: a nu01.com user gets both roles; another domain's
+    user gets none, asks, is granted by an admin, and becomes a
+    `presence_user` only.
