@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
 
@@ -19,7 +20,7 @@ class DeviceCameras implements CameraBackend {
 
   @override
   Future<List<CameraDevice>> listCameras() async {
-    final media = web.window.navigator.mediaDevices;
+    final media = await _mediaDevices();
     // Browsers hide device labels (and sometimes devices) until the page has
     // permission, so ask once up front: camera and microphone together, so
     // there's a single prompt. Without a microphone, record video only.
@@ -31,9 +32,13 @@ class DeviceCameras implements CameraBackend {
           )
           .toDart;
     } catch (_) {
-      probe = await media
-          .getUserMedia(web.MediaStreamConstraints(video: true.toJS))
-          .toDart;
+      try {
+        probe = await media
+            .getUserMedia(web.MediaStreamConstraints(video: true.toJS))
+            .toDart;
+      } catch (e) {
+        throw cameraUnavailable(e);
+      }
     }
     _microphone = probe.getAudioTracks().toDart.isNotEmpty;
     // The browser's default camera is the one the probe opened: list it first.
@@ -68,7 +73,7 @@ class DeviceCameras implements CameraBackend {
     CameraDevice device,
     Duration Function() preRoll,
   ) async {
-    final media = web.window.navigator.mediaDevices;
+    final media = await _mediaDevices();
     web.MediaStreamConstraints constraints({required bool audio}) =>
         web.MediaStreamConstraints(
           video: web.MediaTrackConstraints(
@@ -81,13 +86,77 @@ class DeviceCameras implements CameraBackend {
         );
     web.MediaStream stream;
     try {
-      stream = await media.getUserMedia(constraints(audio: _microphone)).toDart;
-    } catch (_) {
-      if (!_microphone) rethrow;
-      // Microphone busy or gone: record video only.
-      stream = await media.getUserMedia(constraints(audio: false)).toDart;
+      try {
+        stream = await media
+            .getUserMedia(constraints(audio: _microphone))
+            .toDart;
+      } catch (_) {
+        if (!_microphone) rethrow;
+        // Microphone busy or gone: record video only.
+        stream = await media.getUserMedia(constraints(audio: false)).toDart;
+      }
+    } catch (e) {
+      throw cameraUnavailable(e);
     }
     return WebCameraSource(device.id, device.label, stream, preRoll);
+  }
+
+  /// The page's `navigator.mediaDevices`, after checking the camera can be
+  /// asked for at all. Browsers leave it undefined on pages that aren't
+  /// secure (plain HTTP other than localhost), which would otherwise surface
+  /// as a TypeError. A camera permission the user already denied is
+  /// reported without prompting.
+  static Future<web.MediaDevices> _mediaDevices() async {
+    final navigator = web.window.navigator as JSObject;
+    if (!web.window.isSecureContext || !navigator.has('mediaDevices')) {
+      throw const CameraUnavailable(
+        'The camera only works on a secure page. Open Presence over HTTPS.',
+      );
+    }
+    if (await _cameraPermission() == 'denied') {
+      throw const CameraUnavailable(_blocked);
+    }
+    return web.window.navigator.mediaDevices;
+  }
+
+  /// "granted", "denied" or "prompt"; null where the browser can't say
+  /// (no Permissions API, or it doesn't know the "camera" name).
+  static Future<String?> _cameraPermission() async {
+    try {
+      if (!(web.window.navigator as JSObject).has('permissions')) return null;
+      final status = await web.window.navigator.permissions
+          .query({'name': 'camera'}.jsify()! as JSObject)
+          .toDart;
+      return status.state;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static const _blocked =
+      'Camera access is blocked for this site. Allow the camera in the '
+      'browser\'s site settings, then retry.';
+
+  /// A browser error from `getUserMedia`, in words for the user. Browsers
+  /// reject with a DOMException whose name says what happened; its text
+  /// starts with that name on every compiler.
+  @visibleForTesting
+  static CameraUnavailable cameraUnavailable(Object error) {
+    final name = RegExp(r'^\w+Error').firstMatch('$error')?.group(0);
+    final message = switch (name) {
+      'NotAllowedError' ||
+      'PermissionDeniedError' ||
+      'SecurityError' => _blocked,
+      'NotFoundError' ||
+      'OverconstrainedError' ||
+      'DevicesNotFoundError' => 'No camera was found. Connect one, then retry.',
+      'NotReadableError' || 'TrackStartError' || 'AbortError' =>
+        'The camera is in use by another app, or couldn\'t start. Close '
+            'other apps using it, then retry.',
+      _ => 'Something went wrong while starting the camera.',
+    };
+    debugPrint('Presence: could not open the camera: $error');
+    return CameraUnavailable(message, error);
   }
 
   /// Browsers don't say which way a camera faces, but labels often do.

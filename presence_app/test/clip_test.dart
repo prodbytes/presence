@@ -226,7 +226,7 @@ void main() {
     tester,
   ) async {
     final camera = FakeCameraSource('Back camera');
-    final backend = openFakes([camera])..openError = 'Blocked';
+    final backend = openFakes([camera])..openError = const CameraUnavailable('Blocked');
     await pumpApp(tester, backend);
     expect(find.byKey(const Key('preview-Back camera')), findsNothing);
     expect(find.textContaining('Blocked'), findsOneWidget);
