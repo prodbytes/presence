@@ -8,6 +8,7 @@ would. The index and the app keep running on their own dev servers:
 |------|--------|
 | default (`/`, anything else) | `presence_index`, Python `http.server` (`INDEX_PORT`, 8081): `/` redirects to `/app/` |
 | `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
+| `/api/*` | The auth API ([presence_api_auth](../presence_api_auth)), deployed into Floci itself at every start |
 
 Open **http://presence.localhost:4566/** (it redirects to `/app/`) or **http://presence.localhost:4566/app/**. Browsers and curl resolve
 `*.localhost` to loopback, so no hosts-file edit is needed.
@@ -20,6 +21,7 @@ serves its own prefix: the app has the `/app/` base href.
 | Path | Holds |
 |------|-------|
 | [compose.yaml](compose.yaml) | The `presence-floci` container, bound to 127.0.0.1 |
+| [init/ready.d/05-auth-api.sh](init/ready.d/05-auth-api.sh) | Ready hook: deploys the auth API stack (Lambdas, tables, topic) and its HTTP API, with the fixed ID `presence` |
 | [init/ready.d/10-cloudfront.sh](init/ready.d/10-cloudfront.sh) | Ready hook: creates the cache policy, origin request policy and distribution |
 | `certs/` (git-ignored) | The local HTTPS certificate and key, from [scripts/local-certs.sh](../scripts/local-certs.sh) |
 
@@ -94,6 +96,26 @@ top-level domain, so the web OAuth client lists
 | `PRESENCE_CDN_ALIAS` | `presence.localhost` | Distribution alias (host name to browse) |
 | `PRESENCE_PUBLIC_HOST` | `local.presence.nu01.com` | Second alias, with a public TLD, for OAuth origins; also in the certificate |
 | `PRESENCE_ORIGIN_HOST` | `dev.presence.localhost` | Origin host name: the Docker host inside the container, and loopback in the browser |
+
+## The auth API
+
+[scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs `sam build`
+(when the sources changed) before Floci starts. The `05-auth-api.sh` hook
+then deploys the build as the stack `presence-local-auth-api`, and creates
+an HTTP API with the fixed ID `presence`. That API has the template's Google
+JWT authorizer (audience `GOOGLE_WEB_CLIENT_ID` from `.env`) and its five
+routes. CloudFront routes `/api/*` to
+`presence.execute-api.localhost.floci.io`, the only API host it's allowed
+to reach (`FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`).
+
+- Floci runs the Lambdas as sibling Docker containers named
+  `presence-lambda-*`, so compose mounts the **Docker socket**. That gives
+  the container control of the Docker daemon: local development only.
+  Shutdown removes those containers.
+- The hook takes longer than Floci's default 30 s
+  (`FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` is 180).
+- Storage is memory, so every start has empty tables. `@nu01.com` accounts
+  are admins by domain; everyone else must ask again after a restart.
 
 ## Limitations
 

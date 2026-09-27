@@ -42,12 +42,15 @@ processes:
 
   4-floci:
     # The mkcert certificate is generated first, when missing or stale.
-    # AUTH_API_HOST (the deployed auth API behind /api/*) comes from .env.
-    command: bash scripts/local-certs.sh && AUTH_API_HOST="$(sed -n 's/^AUTH_API_HOST=//p' .env 2>/dev/null | tail -1)" docker compose -f presence_floci/compose.yaml up floci
+    # So is the auth API build, which Floci deploys (05-auth-api.sh), with
+    # GOOGLE_WEB_CLIENT_ID from .env for its JWT authorizer.
+    command: bash scripts/local-certs.sh && bash scripts/build-auth-api.sh && GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env 2>/dev/null | tail -1)" docker compose -f presence_floci/compose.yaml up floci
     environment:
       - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     shutdown:
-      command: docker compose -f presence_floci/compose.yaml down
+      # Also removes the auth API's Lambda containers, which Floci starts
+      # beside itself.
+      command: docker compose -f presence_floci/compose.yaml down; docker ps -aq --filter label=io.floci.service=lambda --filter name=presence-lambda | xargs docker rm -f >/dev/null 2>&1; true
       timeout_seconds: 30
     readiness_probe:
       exec:
@@ -55,7 +58,9 @@ processes:
       initial_delay_seconds: 1
       period_seconds: 2
       timeout_seconds: 5
-      failure_threshold: 60
+      # Up to 6 minutes: the first run builds the auth API and pulls the
+      # Lambda image.
+      failure_threshold: 180
     availability:
       restart: on_failure
       backoff_seconds: 5

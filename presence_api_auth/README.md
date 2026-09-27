@@ -1,41 +1,74 @@
 # presence_api_auth
 
 The Presence auth API: an [AWS SAM](https://aws.amazon.com/serverless/sam/)
-application with one Java 25 Lambda (`java25`, arm64) behind an API Gateway
-**HTTP API**, served at **`/api/auth`** by the site's CloudFront
+application with three Java 25 Lambdas (`java25`, arm64) behind one API
+Gateway **HTTP API**, served under **`/api/auth`** by the site's CloudFront
 distribution.
 
-`GET /api/auth` with `Authorization: Bearer <Google ID token>` returns the
-caller's roles:
+| Route | Who | Does |
+|-------|-----|------|
+| `GET /api/auth` | anyone signed in | the caller's roles: `{"email": "…", "roles": […]}` |
+| `POST /api/auth/membership` | anyone signed in | asks for access; the body is a plain-text message (up to 1000 characters) |
+| `GET /api/auth/membership` | admins | the pending requests, oldest first: `{"requests": [{email, name, message, requestedAt}]}` |
+| `POST /api/auth/membership/grant` | admins | the body is an email: adds `presence_user` to its roles and drops its request |
+| `POST /api/auth/membership/dismiss` | admins | the body is an email: hides its request (the cooldown still holds) |
 
-```json
-{"email": "someone@example.com", "roles": []}
-```
+Admins are users with both `presence_user` and `presence_admin`.
 
 - **Who's calling:** the HTTP API's JWT authorizer checks the Google ID
   token first: signature, expiry, issuer `https://accounts.google.com`, and
   audience the web client ID (`GoogleWebClientId`). A missing, expired,
-  forged or foreign token gets **401** and never reaches the function. The
-  function reads the verified `email` and `email_verified` claims.
+  forged or foreign token gets **401** and never reaches a function. The
+  functions read the verified `email`, `email_verified` and `name` claims.
 - **Roles** ([Roles.java](AuthFunction/src/main/java/presence/auth/Roles.java)):
-  - none by default;
-  - a **verified** email at `PrivilegedDomain` (default `nu01.com`,
-    matched exactly after the `@`) gets `DomainRoles` (default `admin`);
+  - `presence_user` uses the app; `presence_admin` also approves
+    membership requests;
+  - nobody has roles by default;
+  - a **verified** email at one of `AllowedDomains` (comma-separated,
+    default `nu01.com`, each matched exactly after the `@`) gets
+    `DomainRoles` (default `presence_user,presence_admin`);
   - anyone listed in the **`UserRolesTable`** DynamoDB table gets the roles
     declared there, added to any domain roles. The table is keyed by
-    lowercase `email`, with `roles` as a string set or a list of strings.
-- The table's contents live only in AWS, never in this repository. For
-  example:
+    lowercase `email`, with `roles` as a string set (a list of strings, or
+    one string, is read too).
+- **Membership requests**
+  ([MembershipHandler.java](AuthFunction/src/main/java/presence/auth/MembershipHandler.java)):
+  one per email in **`MembershipTable`**, the latest replacing the last,
+  and at most one an hour per email, dismissed or not (a **409**
+  otherwise; DynamoDB checks it with a condition on `requestedAt`, in epoch
+  milliseconds). The route is also throttled to 1 request a second (burst
+  5; API Gateway answers **429**). Each accepted request is published to
+  **`MembershipTopic`** (SNS); if that fails, the request is still kept.
+  Administrators subscribe to the topic by hand, so no address is kept in
+  the repository:
+
+  ```bash
+  aws sns subscribe --topic-arn "<MembershipTopicArn output>" \
+    --protocol email --notification-endpoint "<admin email>"
+  ```
+
+- **Admin routes**
+  ([AdminHandler.java](AuthFunction/src/main/java/presence/auth/AdminHandler.java)):
+  the function works out the caller's roles itself and answers **403**
+  unless they include both roles. A grant merges `presence_user` into the
+  email's roles and writes them back as a string set.
+- The tables' contents (people's emails) live only in AWS, never in this
+  repository. Roles can still be set by hand, for example:
 
   ```bash
   aws dynamodb put-item --table-name "<UserRolesTableName output>" \
-    --item '{"email": {"S": "someone@example.com"}, "roles": {"SS": ["viewer"]}}'
+    --item '{"email": {"S": "someone@example.com"}, "roles": {"SS": ["presence_user"]}}'
   ```
+
+- **Least privilege:** the roles function may only read `UserRolesTable`;
+  the membership function may only put items in `MembershipTable` and
+  publish to the topic; the admin function may read and update
+  `UserRolesTable` and scan, update and delete in `MembershipTable`.
 
 | Path | Holds |
 |------|-------|
-| [template.yaml](template.yaml) | The table, the HTTP API with its Google JWT authorizer, and the function (read-only access to the table) |
-| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `Roles`) with its tests |
+| [template.yaml](template.yaml) | The tables, the topic, the HTTP API with its Google JWT authorizer, and the functions |
+| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `MembershipHandler`, `AdminHandler`, `Roles`) with its tests |
 | [samconfig.toml](samconfig.toml) | Default `sam build` / `deploy` settings (stack `presence-auth-api`) |
 
 ## Commands

@@ -38,10 +38,25 @@
             <artifactId>aws-lambda-java-events</artifactId>
             <version>3.16.1</version>
         </dependency>
-        <!-- DynamoDB, with the JDK's HTTP client instead of Netty/Apache (smaller, faster cold start) -->
+        <!-- DynamoDB (and SNS below), with the JDK's HTTP client instead of Netty/Apache (smaller, faster cold start) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>dynamodb</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- SNS: membership requests notify the administrators -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sns</artifactId>
             <exclusions>
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>

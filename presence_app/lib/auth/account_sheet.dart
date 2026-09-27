@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
 import 'auth_service.dart';
+import 'membership_client.dart';
 import 'roles_service.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
@@ -232,13 +233,19 @@ class CloudSyncStatus extends StatelessWidget {
   }
 }
 
-/// Signed in without a role: the sign-up icon. Its sheet says access is
-/// pending for the user's email, and can check again.
+/// Signed in without access: the sign-up icon. Its sheet lets the user ask
+/// for membership with a message, and check again.
 class SignUpButton extends StatelessWidget {
-  const SignUpButton({super.key, required this.auth, required this.roles});
+  const SignUpButton({
+    super.key,
+    required this.auth,
+    required this.roles,
+    required this.membership,
+  });
 
   final AuthService auth;
   final RolesService roles;
+  final MembershipClient membership;
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -248,47 +255,150 @@ class SignUpButton extends StatelessWidget {
     onPressed: () => showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (_) => SignUpSheet(auth: auth, roles: roles),
+      // Room for the keyboard under the message field.
+      isScrollControlled: true,
+      builder: (_) =>
+          SignUpSheet(auth: auth, roles: roles, membership: membership),
     ),
   );
 }
 
-class SignUpSheet extends StatelessWidget {
-  const SignUpSheet({super.key, required this.auth, required this.roles});
+class SignUpSheet extends StatefulWidget {
+  const SignUpSheet({
+    super.key,
+    required this.auth,
+    required this.roles,
+    required this.membership,
+  });
 
   final AuthService auth;
   final RolesService roles;
+  final MembershipClient membership;
+
+  /// The auth API's limit.
+  static const int maxMessage = 1000;
+
+  @override
+  State<SignUpSheet> createState() => _SignUpSheetState();
+}
+
+class _SignUpSheetState extends State<SignUpSheet> {
+  final _message = TextEditingController();
+  bool _sending = false;
+  bool _sent = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _message.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final token = widget.auth.idToken;
+    final message = _message.text.trim();
+    if (token == null || message.isEmpty) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      await widget.membership.request(token, message);
+      if (mounted) setState(() => _sent = true);
+    } on RolesException catch (e) {
+      if (mounted) {
+        setState(
+          () => _error = switch (e.statusCode) {
+            409 => 'You already sent a request. Try again in an hour.',
+            429 => 'Too many requests right now. Try again in a minute.',
+            _ => 'Couldn\'t send the request ($e).',
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Couldn\'t send the request.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final email = widget.auth.user?.email ?? 'Your account';
     return ListenableBuilder(
-      listenable: roles,
+      listenable: widget.roles,
       builder: (context, _) => SafeArea(
         child: Padding(
           key: const Key('sign-up-sheet'),
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            0,
+            24,
+            24 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             spacing: 12,
             children: [
               Icon(Icons.person_add_alt_1, size: 40, color: scheme.primary),
               Text('Request access', style: theme.textTheme.titleLarge),
-              Text(
-                '${auth.user?.email ?? 'Your account'} doesn\'t have access to '
-                'Presence yet. Ask an administrator to give it a role, then '
-                'check again.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-              roles.state == AccessState.checking
+              if (_sent)
+                Text(
+                  'Request sent. An administrator will review it; check '
+                  'again once they have.',
+                  key: const Key('membership-sent'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                )
+              else ...[
+                Text(
+                  '$email doesn\'t have access to Presence yet. Tell the '
+                  'administrators who you are and why you need it.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.onSurfaceVariant),
+                ),
+                TextField(
+                  key: const Key('membership-message'),
+                  controller: _message,
+                  enabled: !_sending,
+                  minLines: 3,
+                  maxLines: 6,
+                  maxLength: SignUpSheet.maxMessage,
+                  decoration: const InputDecoration(
+                    labelText: 'Message',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (_error case final error?)
+                  Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: scheme.error),
+                  ),
+                _sending
+                    ? const CircularProgressIndicator()
+                    : FilledButton.icon(
+                        key: const Key('send-membership'),
+                        icon: const Icon(Icons.send),
+                        label: const Text('Send request'),
+                        onPressed: _message.text.trim().isEmpty ? null : _send,
+                      ),
+              ],
+              widget.roles.state == AccessState.checking
                   ? const CircularProgressIndicator()
-                  : FilledButton.tonalIcon(
+                  : TextButton.icon(
                       key: const Key('check-access'),
                       icon: const Icon(Icons.refresh),
                       label: const Text('Check again'),
-                      onPressed: roles.refresh,
+                      onPressed: widget.roles.refresh,
                     ),
             ],
           ),

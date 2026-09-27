@@ -36,16 +36,24 @@ there's no separate sign-in screen:
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
   with the Google ID token) for the user's roles:
-  - **With at least one role,** the user gets everything below.
-  - **Without a role, or if the check fails** (deny by default), the app
-    shows only the camera, the account button and a **sign-up** icon. The
-    icon opens "Request access", naming the user's email, with **Check
-    again**, which asks the auth API once more. There are no tabs, no camera
-    buttons, and no cloud sync.
+  - **With `presence_user`,** the user gets everything below. Other roles
+    alone don't count.
+  - **With `presence_admin` too,** an **Admin** icon also shows, left of
+    the account button (see [Membership](membership.md)).
+  - **Without `presence_user`, or if the check fails** (deny by default),
+    the app shows only the camera, the account button and a **sign-up**
+    icon. The icon opens "Request access", where the user writes a message
+    and **Send request**s membership (see [Membership](membership.md)), and
+    **Check again**, which asks the auth API once more. There are no tabs,
+    no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.
+  - The check runs when the user changes (sign-in, a session restored at
+    launch, sign-out). A check that failed also runs again when a silent
+    sign-in brings a new ID token, so a stale restored token or an API
+    still starting doesn't leave a member on the sign-up screen.
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
-- **Signed in with a role:** all the buttons: the camera's Flip, Clip and
+- **Signed in as a `presence_user`:** all the buttons: the camera's Flip, Clip and
   readiness, the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email, the

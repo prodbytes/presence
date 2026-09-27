@@ -6,6 +6,12 @@ import 'package:http/http.dart' as http;
 
 import 'auth_service.dart';
 
+/// Uses the app: the camera's buttons, the tabs and cloud sync.
+const userRole = 'presence_user';
+
+/// Also approves other users' membership requests (the Admin screen).
+const adminRole = 'presence_admin';
+
 /// Where the app stands for the signed-in user.
 enum AccessState {
   /// Nobody is signed in.
@@ -14,11 +20,11 @@ enum AccessState {
   /// Signed in; asking the auth API for the user's roles.
   checking,
 
-  /// The user has at least one role: every feature is available.
+  /// The user has the [userRole]: every feature is available.
   granted,
 
-  /// Signed in without a role (or the check failed): only their account and
-  /// the sign-up icon show.
+  /// Signed in without the [userRole] (or the check failed): only their
+  /// account and the sign-up icon show.
   denied,
 }
 
@@ -61,9 +67,10 @@ class HttpRolesClient implements RolesClient {
   }
 }
 
-/// The signed-in user's roles, fetched whenever the user changes. Having
-/// any role grants access to the app's events and features; no role, or a
-/// failed check, doesn't (deny by default).
+/// The signed-in user's roles, fetched whenever the user changes. The
+/// [userRole] grants access to the app's events and features; without it,
+/// or after a failed check, there's none (deny by default). The
+/// [adminRole] adds the Admin screen.
 class RolesService extends ChangeNotifier {
   RolesService({required this.auth, required this._client}) {
     auth.addListener(_onAuthChanged);
@@ -77,6 +84,7 @@ class RolesService extends ChangeNotifier {
   List<String> _roles = const [];
   String? _error;
   String? _user;
+  String? _token;
   int _generation = 0;
   bool _disposed = false;
 
@@ -88,19 +96,27 @@ class RolesService extends ChangeNotifier {
 
   bool get hasAccess => _state == AccessState.granted;
 
+  /// Has access and may approve membership requests.
+  bool get isAdmin => hasAccess && _roles.contains(adminRole);
+
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() => _check();
 
+  /// Checks again when the user changes, or when a check that failed (e.g.
+  /// with a stale token restored at launch, or the API still starting) gets
+  /// a new token from a silent sign-in.
   void _onAuthChanged() {
     final user = auth.user?.id;
-    if (user == _user) return;
+    final token = auth.idToken;
+    final retry = _error != null && token != null && token != _token;
+    if (user == _user && !retry) return;
     _user = user;
     _check();
   }
 
   Future<void> _check() async {
     final generation = ++_generation;
-    final token = auth.idToken;
+    final token = _token = auth.idToken;
     if (auth.user == null) {
       _set(AccessState.signedOut, const []);
       return;
@@ -114,7 +130,10 @@ class RolesService extends ChangeNotifier {
       final roles = await _client.fetch(token);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
-      _set(roles.isEmpty ? AccessState.denied : AccessState.granted, roles);
+      _set(
+        roles.contains(userRole) ? AccessState.granted : AccessState.denied,
+        roles,
+      );
     } catch (e) {
       if (generation != _generation) return;
       debugPrint('Presence: could not check roles: $e');
