@@ -939,3 +939,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `PRESENCE_TAG` when `TAG` matches the build's version.
     - Checked: a web build with a test tag had it compiled in. 128 tests
       pass.
+    - Pushed `0.3.202609271127-RC` and `0.3.202609271127-GA`. Both Release
+      workflows succeeded; both deploys failed creating the auth API's
+      `MembershipTopic`, because the GitHub deploy roles had no SNS
+      permissions. RC rolled back to its previous auth API; prod's first
+      auth API stack ended in `ROLLBACK_COMPLETE`.
+    - `github-deploy.yaml` now lets each role manage its own SNS topics
+      (`presence-*` / `presence-rc-*`).
