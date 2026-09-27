@@ -86,6 +86,46 @@ Resources:
                 Resource:
                   - arn:aws:s3:::presence-*
                   - arn:aws:s3:::presence-*/*
+              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
+              # the Serverless transform, the function, its HTTP API and the
+              # roles table.
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-sam-cli-managed-default/*
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+              - Effect: Allow
+                Action: s3:*
+                Resource:
+                  - arn:aws:s3:::aws-sam-cli-managed-default-*
+                  - arn:aws:s3:::aws-sam-cli-managed-default-*/*
+              - Effect: Allow
+                Action: lambda:*
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:presence-*
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource:
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-*
               # IAM: the identity pool's authenticated role (identity.yaml)
               - Effect: Allow
                 Action:
@@ -108,7 +148,9 @@ Resources:
                 Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-*
                 Condition:
                   StringEquals:
-                    iam:PassedToService: cognito-identity.amazonaws.com
+                    iam:PassedToService:
+                      - lambda.amazonaws.com
+                      - cognito-identity.amazonaws.com
               # User data: the Cognito identity pool (presence_infra/identity.yaml)
               - Effect: Allow
                 Action:
@@ -196,6 +238,46 @@ Resources:
                 Resource:
                   - arn:aws:s3:::presence-rc-*
                   - arn:aws:s3:::presence-rc-*/*
+              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
+              # the Serverless transform, the function, its HTTP API and the
+              # roles table.
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-sam-cli-managed-default/*
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+              - Effect: Allow
+                Action: s3:*
+                Resource:
+                  - arn:aws:s3:::aws-sam-cli-managed-default-*
+                  - arn:aws:s3:::aws-sam-cli-managed-default-*/*
+              - Effect: Allow
+                Action: lambda:*
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:presence-rc-*
+              - Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource:
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
+              - Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-rc-*
               # IAM: the identity pool's authenticated role (identity.yaml)
               - Effect: Allow
                 Action:
@@ -218,7 +300,9 @@ Resources:
                 Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-rc-*
                 Condition:
                   StringEquals:
-                    iam:PassedToService: cognito-identity.amazonaws.com
+                    iam:PassedToService:
+                      - lambda.amazonaws.com
+                      - cognito-identity.amazonaws.com
               # User data: the Cognito identity pool (presence_infra/identity.yaml)
               - Effect: Allow
                 Action:
