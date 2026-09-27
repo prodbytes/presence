@@ -907,3 +907,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Checked: `/api/auth` answers 401 through the CDN without a token or
       with a forged one; the whole membership flow ran against the Lambdas
       in Floci. 19 JUnit and 126 Flutter tests pass.
+126. **Replace "Could not open the camera / TypeError: null: type 'Null' is
+    not a subtype of type 'JSObject'" with a human message; if possible,
+    check the camera can be opened before trying; fix the null error if
+    it's something else.** (2026-09-27)
+    - Cause: on a page that isn't secure (plain HTTP on a name other than
+      localhost), browsers leave `navigator.mediaDevices` undefined, and
+      reading it threw the TypeError.
+    - The web backend now checks for a secure page and `mediaDevices`, and
+      for an already-denied camera permission, before asking. It turns
+      browser errors into sentences (`CameraUnavailable`). The view shows
+      only those; anything unexpected reads "Something went wrong while
+      starting the camera." and is logged.
+    - Checked in headless Chrome: `http://local.presence.nu01.com` shows
+      "The camera only works on a secure page. Open Presence over HTTPS.",
+      and `http://localhost` opens the camera path as before. 123 tests
+      pass.

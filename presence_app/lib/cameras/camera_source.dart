@@ -2,6 +2,19 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
+/// Why the camera couldn't be opened, in words for the user (the view shows
+/// [message] under "Could not open the camera"). [cause] is the underlying
+/// error, for logs.
+class CameraUnavailable implements Exception {
+  const CameraUnavailable(this.message, [this.cause]);
+
+  final String message;
+  final Object? cause;
+
+  @override
+  String toString() => message;
+}
+
 /// A window of recorded video inside a recording file.
 ///
 /// The file is either live in memory (on web, a Blob object URL) or stored,
