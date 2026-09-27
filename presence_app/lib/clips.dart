@@ -1,7 +1,7 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import 'annotations.dart';
 import 'cameras/cameras.dart';
@@ -182,6 +182,9 @@ class ClipRequested extends AppEvent {
     'clipState': clipState,
     'trigger': trigger.name,
     if (!annotations.isEmpty) 'annotations': annotations.toJson(),
+    // The clicked frames (JPEG bytes, by id). Kept in the local record;
+    // cloud sync uploads them as images next to the clip instead.
+    if (!annotations.isEmpty) 'frames': annotations.framesToRecord(),
   };
 
   @override
@@ -310,10 +313,10 @@ Future<void> showClipPlayer(BuildContext context, ClipRequested event) {
   );
 }
 
-/// The clip player, with the people and pets named in it: markers over the
-/// video, and the list of names (add, rename, remove) below it. "Add a name"
-/// switches to marking: the next tap on the video places the marker, then
-/// asks who it is.
+/// The clip player, with the people and pets named in it. "Tag this frame"
+/// pauses the clip and grabs the frame it shows; clicking the frame names a
+/// person or pet at that spot (as many as needed). Each tag keeps its
+/// frame, the clicked position and the name, stored with the event.
 class ClipPlayerDialog extends StatefulWidget {
   const ClipPlayerDialog({super.key, required this.event});
 
@@ -324,16 +327,61 @@ class ClipPlayerDialog extends StatefulWidget {
 }
 
 class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
-  bool _marking = false;
+  final _player = ClipPlayerController();
+
+  /// The frame being tagged, if any.
+  TagFrame? _frame;
+  bool _grabbing = false;
 
   ClipRequested get _event => widget.event;
   ClipAnnotations get _annotations => _event.annotations;
 
-  Future<void> _mark(Offset at, Size size) async {
-    setState(() => _marking = false);
+  @override
+  void initState() {
+    super.initState();
+    _player.onPictureTap = _tagOnVideo;
+  }
+
+  /// Pauses, grabs the shown frame and puts it over the player for tagging.
+  Future<TagFrame?> _grabFrame() async {
+    if (_grabbing) return null;
+    setState(() => _grabbing = true);
+    final captured = await _player.captureFrame();
+    if (!mounted) return null;
+    setState(() {
+      _grabbing = false;
+      if (captured != null) {
+        _frame = _annotations.newFrame(
+          captured.jpeg,
+          captured.position.inMilliseconds,
+        );
+      }
+    });
+    if (captured == null) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text("Couldn't grab this frame; try again")),
+      );
+    }
+    return _frame;
+  }
+
+  /// A click on the playing video: that frame goes over the player, and the
+  /// name asked is tagged where the click was.
+  Future<void> _tagOnVideo(Offset fraction) async {
+    if (_frame != null) return;
+    final frame = await _grabFrame();
+    if (frame == null || !mounted) return;
+    await _tag(frame, fraction);
+    // Nothing named: back to the video.
+    if (mounted && _frame == frame && _annotations.on(frame.id).isEmpty) {
+      setState(() => _frame = null);
+    }
+  }
+
+  Future<void> _tag(TagFrame frame, Offset fraction) async {
     final name = await _askName(context, title: 'Who is this?');
     if (name == null || !mounted) return;
-    _annotations.add(name, at.dx / size.width, at.dy / size.height);
+    _annotations.add(name, fraction.dx, fraction.dy, frame: frame);
   }
 
   Future<void> _rename(Annotation annotation) async {
@@ -348,138 +396,261 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ListTile(
-            title: Text(
-              '${_event.clip.cameraLabel} · '
-              '${formatEventTime(_event.time)}',
-            ),
-            trailing: IconButton(
-              tooltip: 'Close',
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ),
-          AspectRatio(
-            aspectRatio: 16 / 9,
-            child: LayoutBuilder(
-              builder: (context, box) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  ClipPlayerView(clip: _event.clip),
-                  // Markers never take taps: the video's controls stay usable.
-                  IgnorePointer(
-                    child: ListenableBuilder(
-                      listenable: _annotations,
-                      builder: (context, _) => Stack(
-                        children: [
-                          for (final a in _annotations.items)
-                            _Marker(
-                              key: Key('marker-${a.id}'),
-                              annotation: a,
-                              box: box.biggest,
-                            ),
-                        ],
+      child: ListenableBuilder(
+        listenable: _annotations,
+        builder: (context, _) {
+          final frame = _frame;
+          final frames = _annotations.frames.values.toList()
+            ..sort((a, b) => a.ms.compareTo(b.ms));
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                title: Text(
+                  '${_event.clip.cameraLabel} · '
+                  '${formatEventTime(_event.time)}',
+                ),
+                trailing: IconButton(
+                  tooltip: 'Close',
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ),
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Hidden, not disposed, while a frame is tagged in its
+                    // place: on the web a hidden `<video>` leaves the page,
+                    // so it can't take the clicks meant for the frame.
+                    Visibility(
+                      visible: frame == null,
+                      maintainState: true,
+                      child: ClipPlayerView(
+                        clip: _event.clip,
+                        controller: _player,
                       ),
                     ),
-                  ),
-                  if (_marking)
-                    // Over the web's <video> element, only a pointer
-                    // interceptor lets Flutter see the tap.
-                    PointerInterceptor(
-                      child: GestureDetector(
-                        key: const Key('mark-surface'),
-                        behavior: HitTestBehavior.opaque,
-                        onTapUp: (d) => _mark(d.localPosition, box.biggest),
-                        child: ColoredBox(
-                          color: Colors.black26,
-                          child: Center(
-                            child: Chip(
-                              avatar: const Icon(Icons.touch_app, size: 18),
-                              label: const Text(
-                                'Tap where the person or pet is',
-                              ),
-                            ),
+                    if (frame != null)
+                      ColoredBox(
+                        color: Colors.black,
+                        child: Center(
+                          child: _FrameTagger(
+                            key: const Key('frame-tagger'),
+                            frame: frame,
+                            tags: _annotations.on(frame.id),
+                            onTap: (fraction) => _tag(frame, fraction),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: ListenableBuilder(
-              listenable: _event.clip,
-              builder: (context, _) => Text(_event.clip.status),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            child: ListenableBuilder(
-              listenable: _annotations,
-              builder: (context, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 8,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'People and pets',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                      ),
-                      _marking
-                          ? TextButton(
-                              key: const Key('cancel-marking'),
-                              onPressed: () => setState(() => _marking = false),
-                              child: const Text('Cancel'),
-                            )
-                          : FilledButton.tonalIcon(
-                              key: const Key('add-name'),
-                              icon: const Icon(Icons.person_add_alt),
-                              label: const Text('Add a name'),
-                              onPressed: () => setState(() => _marking = true),
-                            ),
-                    ],
-                  ),
-                  if (_annotations.isEmpty)
-                    Text(
-                      'Nobody named yet. Add a name, then tap them on the '
-                      'video.',
-                      style: TextStyle(color: scheme.onSurfaceVariant),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+                child: ListenableBuilder(
+                  listenable: _event.clip,
+                  builder: (context, _) => Text(_event.clip.status),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    Row(
                       children: [
-                        for (final a in _annotations.items)
-                          InputChip(
-                            key: Key('annotation-${a.id}'),
-                            avatar: const Icon(Icons.place, size: 18),
-                            label: Text(a.name),
-                            tooltip: 'Rename',
-                            onPressed: () => _rename(a),
-                            deleteButtonTooltipMessage: 'Remove',
-                            onDeleted: () => _annotations.remove(a.id),
+                        Expanded(
+                          child: Text(
+                            'People and pets',
+                            style: textTheme.titleSmall,
+                          ),
+                        ),
+                        if (frame == null)
+                          FilledButton.tonalIcon(
+                            key: const Key('tag-frame'),
+                            icon: _grabbing
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.crop_free),
+                            label: const Text('Tag this frame'),
+                            onPressed: _grabbing ? null : _grabFrame,
+                          )
+                        else
+                          FilledButton(
+                            key: const Key('done-tagging'),
+                            onPressed: () => setState(() => _frame = null),
+                            child: const Text('Done'),
                           ),
                       ],
                     ),
-                ],
+                    if (frame != null)
+                      Text(
+                        'Click each person or pet on the video to name '
+                        'them (frame at ${formatClipTime(frame.ms)}).',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    if (_annotations.isEmpty && frame == null)
+                      Text(
+                        'Nobody tagged yet. Click someone on the video to '
+                        'name them.',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    for (final f in frames)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        spacing: 12,
+                        children: [
+                          Tooltip(
+                            message: 'Tag more on this frame',
+                            child: InkWell(
+                              key: Key('frame-${f.id}'),
+                              onTap: () => setState(() => _frame = f),
+                              child: Column(
+                                spacing: 2,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.memory(
+                                      f.jpeg,
+                                      width: 96,
+                                      height: 54,
+                                      fit: BoxFit.cover,
+                                      gaplessPlayback: true,
+                                    ),
+                                  ),
+                                  Text(
+                                    formatClipTime(f.ms),
+                                    style: textTheme.labelSmall,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final a in _annotations.on(f.id))
+                                  InputChip(
+                                    key: Key('annotation-${a.id}'),
+                                    avatar: const Icon(Icons.place, size: 18),
+                                    label: Text(a.name),
+                                    tooltip: 'Rename',
+                                    onPressed: () => _rename(a),
+                                    deleteButtonTooltipMessage: 'Remove',
+                                    onDeleted: () {
+                                      _annotations.remove(a.id);
+                                      if (_frame?.id == f.id &&
+                                          _annotations.on(f.id).isEmpty) {
+                                        setState(() => _frame = null);
+                                      }
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
+}
+
+/// A grabbed frame, with markers for its tags; a click anywhere on it
+/// reports where, as fractions (0 to 1) of the frame's width and height.
+class _FrameTagger extends StatelessWidget {
+  const _FrameTagger({
+    super.key,
+    required this.frame,
+    required this.tags,
+    required this.onTap,
+  });
+
+  final TagFrame frame;
+  final List<Annotation> tags;
+  final void Function(Offset fraction) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Size>(
+      // The frame's own proportions, so clicks map onto the image exactly.
+      future: _frameSize(frame.jpeg),
+      builder: (context, size) {
+        final ratio = size.data == null
+            ? 16 / 9
+            : size.data!.width / size.data!.height;
+        return AspectRatio(
+          aspectRatio: ratio,
+          child: LayoutBuilder(
+            builder: (context, box) => Semantics(
+              label: 'Frame to tag: click a person or pet to name them',
+              child: GestureDetector(
+                key: const Key('tag-surface'),
+                behavior: HitTestBehavior.opaque,
+                onTapUp: (d) => onTap(
+                  Offset(
+                    d.localPosition.dx / box.maxWidth,
+                    d.localPosition.dy / box.maxHeight,
+                  ),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Image.memory(
+                      frame.jpeg,
+                      fit: BoxFit.fill,
+                      gaplessPlayback: true,
+                    ),
+                    for (final a in tags)
+                      _Marker(
+                        key: Key('marker-${a.id}'),
+                        annotation: a,
+                        box: box.biggest,
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static final _sizes = Expando<Future<Size>>();
+
+  static Future<Size> _frameSize(Uint8List jpeg) => _sizes[jpeg] ??= () async {
+    final codec = await ui.instantiateImageCodec(jpeg);
+    final image = (await codec.getNextFrame()).image;
+    final size = Size(image.width.toDouble(), image.height.toDouble());
+    image.dispose();
+    codec.dispose();
+    return size;
+  }();
+}
+
+/// "0:07.4": a time in the recording.
+String formatClipTime(int ms) {
+  final d = Duration(milliseconds: ms);
+  final seconds = (d.inMilliseconds % 60000) / 1000;
+  return '${d.inMinutes}:${seconds.toStringAsFixed(1).padLeft(4, '0')}';
 }
 
 /// A named dot at an annotation's spot.
@@ -497,33 +668,34 @@ class _Marker extends StatelessWidget {
     return Positioned(
       left: annotation.x * box.width - _dot / 2,
       top: annotation.y * box.height - _dot / 2,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        spacing: 4,
-        children: [
-          Container(
-            width: _dot,
-            height: _dot,
-            decoration: BoxDecoration(
-              color: scheme.primary,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
-          ),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Text(
-                annotation.name,
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+      child: IgnorePointer(
+        child: Row(
+          spacing: 4,
+          children: [
+            Container(
+              width: _dot,
+              height: _dot,
+              decoration: BoxDecoration(
+                color: scheme.primary,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
               ),
             ),
-          ),
-        ],
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                child: Text(
+                  annotation.name,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

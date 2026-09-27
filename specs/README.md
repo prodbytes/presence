@@ -21,7 +21,7 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Camera screen](camera.md): opening cameras, audio capture and states.
 - [Events](events.md): the event timeline and the app-wide event bus.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
-  naming the people and pets in a clip.
+  tagging people and pets by clicking them on the video.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Sign-in](sign-in.md): Google sign-in and the OAuth clients.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.

@@ -9,6 +9,7 @@ import 'package:web/web.dart' as web;
 import '../clips.dart';
 import '../motion.dart';
 import 'camera_source.dart';
+import 'clip_player_controller.dart';
 import 'recorder_pool.dart';
 
 /// The browser's cameras, one open at a time, each always recording.
@@ -345,9 +346,12 @@ class _WebRecorder implements PoolRecorder {
 /// Plays a clip: the "before" recording first, then, once it has been
 /// recorded, continues into the full clip at the moment of the press.
 class ClipPlayerView extends StatefulWidget {
-  const ClipPlayerView({super.key, required this.clip});
+  const ClipPlayerView({super.key, required this.clip, this.controller});
 
   final VideoClip clip;
+
+  /// Serves frame grabs (for tagging) while this player is mounted.
+  final ClipPlayerController? controller;
 
   @override
   State<ClipPlayerView> createState() => _ClipPlayerViewState();
@@ -367,6 +371,9 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   VideoClip get _clip => widget.clip;
 
   static double _seconds(Duration d) => d.inMicroseconds / 1e6;
+
+  /// Roughly how tall the browser's own video controls are.
+  static const _controlsHeight = 56;
 
   @override
   void initState() {
@@ -409,8 +416,60 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       }
     });
 
+    _listen('click', (event) {
+      // A click on the picture (not the controls bar at the bottom) tags
+      // whoever is there instead of toggling playback.
+      final controller = widget.controller;
+      if (controller?.onPictureTap == null) return;
+      final click = event as web.MouseEvent;
+      final box = _video.getBoundingClientRect();
+      if (click.offsetY > box.height - _controlsHeight) return;
+      final fraction = ClipPlayerController.pictureFraction(
+        Offset(click.offsetX.toDouble(), click.offsetY.toDouble()),
+        Size(box.width, box.height),
+        Size(_video.videoWidth.toDouble(), _video.videoHeight.toDouble()),
+      );
+      if (fraction == null) return;
+      click.preventDefault();
+      controller!.pictureTapped(fraction);
+    });
+
     _clip.addListener(_onClipChanged);
+    widget.controller?.attach(_captureFrame);
     _start();
+  }
+
+  /// Pauses, then draws the shown frame onto a canvas and encodes it.
+  Future<CapturedFrame?> _captureFrame() async {
+    _video.pause();
+    final width = _video.videoWidth;
+    final height = _video.videoHeight;
+    if (width == 0 || height == 0) return null;
+    final scale = width > ClipPlayerController.maxFrameWidth
+        ? ClipPlayerController.maxFrameWidth / width
+        : 1.0;
+    final canvas = web.HTMLCanvasElement()
+      ..width = (width * scale).round()
+      ..height = (height * scale).round();
+    (canvas.getContext('2d')! as web.CanvasRenderingContext2D).drawImage(
+      _video,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    final blob = Completer<web.Blob?>();
+    canvas.toBlob(
+      ((web.Blob? b) => blob.complete(b)).toJS,
+      'image/jpeg',
+      0.85.toJS,
+    );
+    final result = await blob.future;
+    if (result == null) return null;
+    return CapturedFrame(
+      jpeg: (await result.arrayBuffer().toDart).toDart.asUint8List(),
+      position: Duration(microseconds: (_video.currentTime * 1e6).round()),
+    );
   }
 
   void _checkEnd() {
@@ -526,6 +585,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
 
   @override
   void dispose() {
+    widget.controller?.detach(_captureFrame);
     _endTimer?.cancel();
     _clip.removeListener(_onClipChanged);
     for (final (type, fn) in _listeners) {

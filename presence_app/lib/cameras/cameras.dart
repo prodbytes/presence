@@ -3,4 +3,5 @@
 library;
 
 export 'camera_source.dart';
+export 'clip_player_controller.dart';
 export 'native_cameras.dart' if (dart.library.js_interop) 'web_cameras.dart';

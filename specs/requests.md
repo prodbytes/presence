@@ -731,3 +731,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Fixed along the way: the name prompt's controller was disposed while
       its dialog was still closing.
     - 102 tests pass.
+112. **Tagging people and pets doesn't work: let users click on a frame and
+    add a name, then save the clicked frame, the position clicked and the
+    name with the event.** (2026-09-27)
+    - Clicks over the web's `<video>` were unreliable. Tagging now works on a
+      still frame instead: **Tag this frame** pauses the player and grabs
+      the frame (a canvas on the web, `MediaMetadataRetriever` on Android,
+      `AVAssetImageGenerator` on iOS, via a new `frameAt` channel method).
+      Users click people and pets on that image and name them.
+    - Each tag stores its frame's ID and time, its position on the frame
+      and its name. The frame JPEGs are stored with the event and synced as
+      `clips/<clipId>/frames/<frameId>.jpg`. `pointer_interceptor` was
+      dropped.
+    - Checked in headless Chrome: a clip taken, a frame tagged, and the tag
+      still there after a reload. The Android and iOS debug builds compile.
+      104 tests pass.
+113. **Tag the person on top of the video instead of below it: ideally just
+    by clicking on the video, or with the frame placed over the player.**
+    (2026-09-27)
+    - A click on the playing video (a long press on phones) now grabs that
+      frame, shows it in the player's place and asks the name for the spot
+      clicked. More clicks tag more people; Done brings the video back.
+      "Tag this frame" does the same without a first click.
+    - On the web, a `click` listener on the `<video>` maps the point onto
+      the video frame, skipping the controls bar and the letterbox bars.
+    - Checked in headless Chrome: a click on the video tagged "Bob" at the
+      spot clicked, over the player. 109 tests pass.

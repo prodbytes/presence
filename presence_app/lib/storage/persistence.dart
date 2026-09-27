@@ -247,7 +247,10 @@ class Persistence {
             trigger:
                 ClipTrigger.values.asNameMap()[record['trigger']] ??
                 ClipTrigger.manual,
-            annotations: ClipAnnotations.fromJson(record['annotations']),
+            annotations: ClipAnnotations.fromJson(
+              record['annotations'],
+              record['frames'],
+            ),
             id: record['id']! as String,
             time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
           ),
