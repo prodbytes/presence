@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/main.dart';
 
@@ -11,7 +12,7 @@ void main() {
 
     test('signed out, then checking, then granted with a role', () async {
       final auth = FakeAuthService();
-      final client = FakeRolesClient(['admin']);
+      final client = FakeRolesClient([userRole]);
       final roles = RolesService(auth: auth, client: client);
       expect(roles.state, AccessState.signedOut);
 
@@ -20,7 +21,8 @@ void main() {
       await auth.signIn();
       await settle();
       expect(states, [AccessState.checking, AccessState.granted]);
-      expect(roles.roles, ['admin']);
+      expect(roles.roles, [userRole]);
+      expect(roles.isAdmin, isFalse);
       expect(roles.hasAccess, isTrue);
       expect(client.tokens, ['id-token-1']);
 
@@ -37,7 +39,7 @@ void main() {
       expect(roles.state, AccessState.denied);
 
       client
-        ..roles = ['admin']
+        ..roles = [userRole]
         ..error = RolesException(401);
       await roles.refresh();
       expect(roles.state, AccessState.denied);
@@ -50,7 +52,11 @@ void main() {
   });
 
   group('the app', () {
-    Future<void> launch(WidgetTester tester, FakeRolesClient roles) async {
+    Future<void> launch(
+      WidgetTester tester,
+      FakeRolesClient roles, [
+      FakeMembershipClient? membership,
+    ]) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -60,6 +66,7 @@ void main() {
           cameras: openFakes([camera]),
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,
+          membershipClient: membership ?? FakeMembershipClient(),
         ),
       );
       await tester.pumpAndSettle();
@@ -69,7 +76,8 @@ void main() {
       tester,
     ) async {
       final roles = FakeRolesClient.none();
-      await launch(tester, roles);
+      final membership = FakeMembershipClient();
+      await launch(tester, roles, membership);
 
       expect(find.byType(TabBar), findsNothing);
       expect(find.byTooltip('Clip'), findsNothing);
@@ -83,8 +91,28 @@ void main() {
       expect(find.text('Request access'), findsOneWidget);
       expect(find.textContaining('ana@example.com'), findsOneWidget);
 
-      // An administrator grants a role: checking again unlocks everything.
+      // Sending needs a message.
+      final send = find.byKey(const Key('send-membership'));
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+      await tester.enterText(
+        find.byKey(const Key('membership-message')),
+        '  I run the front desk  ',
+      );
+      await tester.pump();
+      await tester.tap(send);
+      await tester.pumpAndSettle();
+      expect(membership.sent, ['I run the front desk']);
+      expect(find.byKey(const Key('membership-sent')), findsOneWidget);
+
+      // Another role isn't enough.
       roles.roles = ['viewer'];
+      await tester.tap(find.byKey(const Key('check-access')));
+      await tester.pumpAndSettle();
+      expect(find.byType(TabBar), findsNothing);
+
+      // An administrator grants presence_user: checking again unlocks
+      // everything.
+      roles.roles = [userRole];
       await tester.tap(find.byKey(const Key('check-access')));
       await tester.pumpAndSettle();
       Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
@@ -95,11 +123,74 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
-    testWidgets('signed in with a role: everything', (tester) async {
-      await launch(tester, FakeRolesClient(['admin']));
+    testWidgets('a repeated request says to wait', (tester) async {
+      final membership = FakeMembershipClient()..error = RolesException(409);
+      await launch(tester, FakeRolesClient.none(), membership);
+      await tester.tap(find.byKey(const Key('sign-up')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('membership-message')),
+        'again',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('send-membership')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('already sent a request'), findsOneWidget);
+      expect(find.byKey(const Key('membership-sent')), findsNothing);
+    });
+
+    testWidgets('a presence_user: everything but Admin', (tester) async {
+      await launch(tester, FakeRolesClient([userRole]));
       expect(find.byType(TabBar), findsOneWidget);
       expect(find.byTooltip('Clip'), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
+      expect(find.byKey(const Key('admin')), findsNothing);
+    });
+
+    testWidgets('an admin without presence_user gets nothing', (tester) async {
+      await launch(tester, FakeRolesClient([adminRole]));
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byKey(const Key('admin')), findsNothing);
+      expect(find.byKey(const Key('sign-up')), findsOneWidget);
+    });
+
+    testWidgets('a presence_admin grants and dismisses requests', (
+      tester,
+    ) async {
+      final membership = FakeMembershipClient()
+        ..requests.addAll([
+          MembershipRequest(
+            email: 'bob@example.com',
+            name: 'Bob',
+            message: 'Night shift',
+            requestedAt: DateTime.utc(2026, 9, 27),
+          ),
+          MembershipRequest(
+            email: 'eve@example.com',
+            name: '',
+            message: 'hi',
+            requestedAt: DateTime.utc(2026, 9, 27),
+          ),
+        ]);
+      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
+      expect(find.byType(TabBar), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('admin')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('admin-screen')), findsOneWidget);
+      expect(find.text('Night shift'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('grant-bob@example.com')));
+      await tester.pumpAndSettle();
+      expect(membership.granted, ['bob@example.com']);
+      expect(find.text('Night shift'), findsNothing);
+      expect(find.text('bob@example.com can now use Presence'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('dismiss-eve@example.com')));
+      await tester.pumpAndSettle();
+      expect(membership.granted, ['bob@example.com']);
+      expect(membership.requests, isEmpty);
+      expect(find.text('No pending requests.'), findsOneWidget);
     });
 
     testWidgets('a failed roles check shows only the account and sign-up', (

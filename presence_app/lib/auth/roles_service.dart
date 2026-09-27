@@ -6,6 +6,12 @@ import 'package:http/http.dart' as http;
 
 import 'auth_service.dart';
 
+/// Uses the app: the camera's buttons, the tabs and cloud sync.
+const userRole = 'presence_user';
+
+/// Also approves other users' membership requests (the Admin screen).
+const adminRole = 'presence_admin';
+
 /// Where the app stands for the signed-in user.
 enum AccessState {
   /// Nobody is signed in.
@@ -14,11 +20,11 @@ enum AccessState {
   /// Signed in; asking the auth API for the user's roles.
   checking,
 
-  /// The user has at least one role: every feature is available.
+  /// The user has the [userRole]: every feature is available.
   granted,
 
-  /// Signed in without a role (or the check failed): only their account and
-  /// the sign-up icon show.
+  /// Signed in without the [userRole] (or the check failed): only their
+  /// account and the sign-up icon show.
   denied,
 }
 
@@ -61,9 +67,10 @@ class HttpRolesClient implements RolesClient {
   }
 }
 
-/// The signed-in user's roles, fetched whenever the user changes. Having
-/// any role grants access to the app's events and features; no role, or a
-/// failed check, doesn't (deny by default).
+/// The signed-in user's roles, fetched whenever the user changes. The
+/// [userRole] grants access to the app's events and features; without it,
+/// or after a failed check, there's none (deny by default). The
+/// [adminRole] adds the Admin screen.
 class RolesService extends ChangeNotifier {
   RolesService({required this.auth, required this._client}) {
     auth.addListener(_onAuthChanged);
@@ -87,6 +94,9 @@ class RolesService extends ChangeNotifier {
   String? get error => _error;
 
   bool get hasAccess => _state == AccessState.granted;
+
+  /// Has access and may approve membership requests.
+  bool get isAdmin => hasAccess && _roles.contains(adminRole);
 
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() => _check();
@@ -114,7 +124,10 @@ class RolesService extends ChangeNotifier {
       final roles = await _client.fetch(token);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
-      _set(roles.isEmpty ? AccessState.denied : AccessState.granted, roles);
+      _set(
+        roles.contains(userRole) ? AccessState.granted : AccessState.denied,
+        roles,
+      );
     } catch (e) {
       if (generation != _generation) return;
       debugPrint('Presence: could not check roles: $e');

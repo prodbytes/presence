@@ -42,14 +42,19 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var body = "{\"email\":" + (email == null ? "null" : Json.string(email))
                 + ",\"roles\":[" + granted.stream().map(Json::string).collect(Collectors.joining(","))
                 + "]}";
+        return response(200, body);
+    }
+
+    /** A JSON answer that nothing may cache. */
+    static APIGatewayV2HTTPResponse response(int status, String json) {
         return APIGatewayV2HTTPResponse.builder()
-                .withStatusCode(200)
+                .withStatusCode(status)
                 .withHeaders(Map.of("Content-Type", "application/json", "Cache-Control", "no-store"))
-                .withBody(body)
+                .withBody(json)
                 .build();
     }
 
-    private static Map<String, String> claims(APIGatewayV2HTTPEvent event) {
+    static Map<String, String> claims(APIGatewayV2HTTPEvent event) {
         var context = event == null ? null : event.getRequestContext();
         var authorizer = context == null ? null : context.getAuthorizer();
         var jwt = authorizer == null ? null : authorizer.getJwt();
@@ -57,15 +62,20 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         return claims == null ? Map.of() : claims;
     }
 
-    private static Roles fromEnvironment() {
+    static Roles fromEnvironment() {
         var table = System.getenv("USER_ROLES_TABLE");
-        var domain = System.getenv().getOrDefault("PRIVILEGED_DOMAIN", "");
-        var domainRoles = Arrays.stream(System.getenv().getOrDefault("DOMAIN_ROLES", "").split(","))
-                .map(String::trim)
-                .filter(r -> !r.isEmpty())
-                .collect(Collectors.toSet());
+        var domains = list(System.getenv("ALLOWED_DOMAINS"));
+        var domainRoles = list(System.getenv("DOMAIN_ROLES"));
         var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
-        return new Roles(domain, domainRoles, email -> declaredRoles(dynamo, table, email));
+        return new Roles(domains, domainRoles, email -> declaredRoles(dynamo, table, email));
+    }
+
+    /** A comma-separated setting's non-blank items. */
+    static Set<String> list(String value) {
+        return Arrays.stream(value == null ? new String[0] : value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
     }
 
     /** The table's {@code roles} for {@code email}: a string set or a list of strings. */
