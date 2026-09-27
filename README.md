@@ -64,11 +64,9 @@ devbox services up
 ```
 
 starts the Flutter app in web mode on http://localhost:8080/app/
-([scripts/flutter-web.sh](scripts/flutter-web.sh)), the events API on
-http://localhost:3000/api/events ([scripts/sam-api.sh](scripts/sam-api.sh)),
-the site index on http://localhost:8081 ([presence_index/](presence_index),
+([scripts/flutter-web.sh](scripts/flutter-web.sh)), the site index on http://localhost:8081 ([presence_index/](presence_index),
 which redirects to `/app/`), Floci as a local CloudFront that routes
-http://presence.localhost:4566/ (index), `/app/` and `/api/` to them, also
+http://presence.localhost:4566/ (index) and `/app/` to them, also
 over HTTPS at https://local.presence.nu01.com:8443/ (a public name for
 127.0.0.1, usable as a Google OAuth origin) with a mkcert certificate
 ([presence_floci/](presence_floci); run `devbox run mkcert -install` once so
@@ -78,7 +76,7 @@ monitor logs one status line per check (every 15 s, configurable via
 `HEALTH_CHECK_INTERVAL`):
 
 ```
-2026-07-09 20:02:10 🏠 index ✅ 🌐 web ✅ ⚡ api ✅ ☁️ cdn ✅ 🔒 https ✅
+2026-07-09 20:02:10 🏠 index ✅ 🌐 web ✅ ☁️ cdn ✅ 🔒 https ✅
 ```
 
 Stop everything with `devbox services stop`. The monitor also runs standalone:
@@ -121,8 +119,8 @@ Pushing a GA tag (`bash scripts/release-ga.sh`) deploys that version to
 **https://presence.nu01.com** through the
 [Deploy workflow](.github/workflows/deploy.yml) and
 [scripts/deploy.sh](scripts/deploy.sh). The infrastructure is CloudFormation
-in [presence_infra/](presence_infra) (CloudFront, S3, certificate,
-DNS) plus the SAM template in [presence_api_events/](presence_api_events).
+in [presence_infra/](presence_infra) (CloudFront, S3, certificate, DNS,
+and the user-data bucket and identity pool).
 The one-time GitHub/AWS setup is described in
 [presence_infra/README.md](presence_infra/README.md).
 

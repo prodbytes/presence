@@ -13,7 +13,6 @@ Only [site/](site) is served, so this README isn't.
 http://localhost:8081/ (`INDEX_PORT`), with Python's `http.server` bound
 to 127.0.0.1. The CloudFront distribution in Floci uses it as the
 **default origin**, so http://presence.localhost:4566/ redirects to
-http://presence.localhost:4566/app/. `/app*` and `/api/*` go to their own
-origins (see [presence_floci/](../presence_floci)).
+http://presence.localhost:4566/app/. `/app*` goes to its own origin (see [presence_floci/](../presence_floci)).
 
 Edits to `site/` show up on the next request; nothing needs restarting.

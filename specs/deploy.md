@@ -15,7 +15,6 @@ One CloudFront distribution serves the whole site, laid out like the local
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
-| `/api/*` | API Gateway (origin path `/Prod`): the [events API](events-api.md). Not cached, with every viewer header but `Host` forwarded |
 
 - **Infrastructure as code:**
   - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
@@ -28,9 +27,6 @@ One CloudFront distribution serves the whole site, laid out like the local
     only by the distribution (OAC), the distribution (HTTP/2 and HTTP/3,
     HTTPS only, TLS 1.2+, AWS's managed security-headers policy), and
     Route 53 A/AAAA aliases.
-  - [presence_api_events/template.yaml](../presence_api_events/template.yaml)
-    (SAM), stack `presence-api-events`. Its `ApiDomain` output is the
-    distribution's API origin.
   - Everything is in `us-east-1`, in the account recorded in the private
     repo (`setec-astronomy`, `presence.nu01/README.md`).
 - **Content:** files are uploaded with `Cache-Control: no-cache`, because
@@ -40,11 +36,10 @@ One CloudFront distribution serves the whole site, laid out like the local
 - **`scripts/deploy.sh`** first deploys `user-data.yaml` and
   `identity.yaml` ([cloud sync](cloud-sync.md)). It then builds the web app
   for `/app/` (`make web` with `WEB_BASE_HREF=/app/`), with the version from
-  the tag and the identity pool and bucket IDs. After that it runs
-  `sam build` and `sam deploy`, deploys `site.yaml`, uploads, invalidates,
-  and **smoke-tests the live site**: `/app/version.json` must report the
-  tag's version, `/` must be the index page, and `/app/` and `/api/events`
-  must answer. It retries for up to 10 minutes.
+  the tag and the identity pool and bucket IDs. After that it deploys
+  `site.yaml`, uploads, invalidates, and **smoke-tests the live site**:
+  `/app/version.json` must report the tag's version, `/` must be the index
+  page, and `/app/` must answer. It retries for up to 10 minutes.
 
 ## Release candidates (rc.presence.nu01.com)
 
@@ -60,7 +55,6 @@ with an optional `tag` input, deploys that version to
     `https://rc.presence.nu01.com`);
   - `presence-rc-identity` (its own identity pool, `presence-rc`, trusting
     the same Google web client);
-  - `presence-rc-api-events`;
   - `presence-rc-web` (its own certificate, bucket, distribution and
     `rc.presence.nu01.com` alias records).
 
@@ -93,7 +87,7 @@ with an optional `tag` input, deploys that version to
 - The role trusts only `repo:prodbytes/presence:ref:refs/tags/*GA`, so the
   job has no `environment:`, which would change that subject. Its
   permissions are limited to the Presence stacks: CloudFormation, S3,
-  Lambda, API Gateway, `presence-*` IAM roles, CloudFront, ACM and the
+  `presence-*` IAM roles, Cognito identity pools, CloudFront, ACM and the
   `nu01.com` zone.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).
@@ -111,14 +105,16 @@ with an optional `tag` input, deploys that version to
 - The Deploy RC workflow, on the tag `0.2.202609270725-RC`: it logged in
   through OIDC as `presence-github-deploy-rc`, deployed the four RC stacks,
   and its smoke test passed. The live check found `version.json` at
-  `0.2.202609270725`, `/`, `/app/` and `/api/events` returning 200, and the
+  `0.2.202609270725`, `/`, `/app/` and `/api/events` (since removed)
+  returning 200, and the
   app rendering in headless Chrome.
 
 
 - `TAG=0.1.0-GA bash scripts/deploy.sh`, run by hand with admin
   credentials, created both stacks, uploaded, and passed its smoke test.
 - On the live site:
-  - `/`, `/app/`, `/app/version.json` (`0.1.0`) and `/api/events`
+  - `/`, `/app/`, `/app/version.json` (`0.1.0`) and `/api/events` (since
+    removed)
     (`{"events":[]}`) return 200;
   - `/app` returns 301 to `/app/`, `http://` redirects to `https://`, and
     unknown paths return 404;
@@ -131,4 +127,3 @@ with an optional `tag` input, deploys that version to
 
 - Google sign-in on the live site needs `https://presence.nu01.com` among
   the web OAuth client's authorized JavaScript origins.
-- The events API has no authorizer, so `/api/events` is public.

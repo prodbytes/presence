@@ -3,27 +3,23 @@
 - [devbox.json](../devbox.json) manages the toolchain: GraalVM CE
   (`graalvmPackages.graalvm-ce`, 25.2.4 / JDK 25; locked for aarch64-darwin,
   aarch64-linux and x86_64-linux),
-  Python, Node.js, Go, PostgreSQL, Flutter, the AWS SAM CLI (1.165.0),
-  Maven (3.9.16, running on the GraalVM JDK), the AWS CDK CLI (`cdk`,
+  Python, Node.js, Go, PostgreSQL, Flutter, Maven (3.9.16, running on the
+  GraalVM JDK, for the CDK module), the AWS CDK CLI (`cdk`,
   2.1138.0), the AWS CLI (2.35.11), GNU Make, curl, mkcert (1.4.4, for the
   local HTTPS certificate) and OpenSSL. Everything the
-  services, the Makefile and the SAM and CDK modules run comes from devbox,
+  services, the Makefile, the deploy script and the CDK module run comes
+  from devbox,
   except Docker: the daemon (Docker Desktop, or docker-in-docker in the dev
   container) and its CLI with the `compose` plugin come from the host.
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
-  (Flutter web), 3000 (SAM API), 4566 (Floci), 8081 (index) and 8443
-  (Floci HTTPS).
+  (Flutter web), 4566 (Floci), 8081 (index) and 8443 (Floci HTTPS).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
   - the Flutter web server (`2-flutter-web`, via
     [scripts/flutter-web.sh](../scripts/flutter-web.sh)), with an HTTP
     readiness probe
-  - the events API (`3-sam-api`, via
-    [scripts/sam-api.sh](../scripts/sam-api.sh)): `sam build`, then
-    `sam local start-api` on http://localhost:3000 (`SAM_API_PORT`), with a
-    readiness probe on `GET /api/events`
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
     [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
@@ -31,21 +27,15 @@
   - the site index (`5-index`: `python3 -m http.server` on
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
   - the health monitor, which logs the status of the index, the web app,
-    the API, the CDN and the CDN over HTTPS.
+    the CDN and the CDN over HTTPS.
 
-  The API process stops with SIGINT, so SAM removes its warm Lambda
-  containers. The script exits with a clear message if `sam`, `mvn` or
-  `docker` is missing. It points SAM at the active Docker context's socket
-  when `DOCKER_HOST` isn't set.
-
-  The health monitor waits until the web server, the API, Floci and the
-  index all pass
+  The health monitor waits until the web server, Floci and the index all
+  pass
   their readiness probes (`depends_on: process_healthy`), so its first line
   is already green. The probes start after 1–2 s and poll every 2 s, with
   about 5 minutes of allowance for a first build. Measured on an Apple
   Silicon Mac: the first all-green health line came 9 s after
-  `devbox services up`, and 10 s with the Flutter and SAM build caches
-  cleared. No database runs as a service: the app keeps its data on the device
+  `devbox services up`, and 10 s with the Flutter build cache cleared. No database runs as a service: the app keeps its data on the device
   (see [Storage](storage.md)). The `postgresql` devbox package stays in the
   toolchain (for `psql` and `pg_isready`).
 - The app requires Dart SDK `^3.13.0`, which covers the Nix Flutter 3.47.0
@@ -96,10 +86,6 @@
   `Runner.app`; and `make linux` in a Linux arm64 container with Flutter
   3.47.5, which built the GTK bundle. CI builds the same targets for
   releases; see [Release builds](release.md).
-
-- **AWS SAM:** building and deploying `presence_api_events` needs the SAM
-  CLI, JDK 25 and Maven, all from devbox, plus Docker. `3-sam-api` finds
-  them in the devbox environment, so nothing needs installing on the host.
 
 - **AWS CDK:** `presence_infra_tenant` needs JDK 25, Maven 3.9+ and the CDK
   CLI, all from devbox (`cdk`). jsii warns that Node 26 is untested (it supports 22 and 24);

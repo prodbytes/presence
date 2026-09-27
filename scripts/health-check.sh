@@ -14,14 +14,6 @@ check_web() {
     fi
 }
 
-check_api() {
-    if curl -fs -o /dev/null --max-time 10 "http://localhost:${SAM_API_PORT:-3000}/api/events"; then
-        echo "⚡ api ✅"
-    else
-        echo "⚡ api ❌"
-    fi
-}
-
 # The CloudFront distribution in Floci, addressed by its alias in the Host
 # header (so it works where *.localhost doesn't resolve).
 check_cdn() {
@@ -58,6 +50,6 @@ check_https() {
 
 while true; do
     # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_index)" "$(check_web)" "$(check_api)" "$(check_cdn)" "$(check_https)"
+    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_index)" "$(check_web)" "$(check_cdn)" "$(check_https)"
     sleep "$INTERVAL"
 done
