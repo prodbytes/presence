@@ -95,8 +95,16 @@ In [presence_infra/](../presence_infra):
   private `.env`).
   - Private (public access blocked, owner-enforced), SSE-S3 encrypted, and
     TLS only.
-  - Versioned: old versions expire after 30 days, and incomplete multipart
-    uploads after 1 day.
+  - **Kept for 3 months:** every object expires 90 days after it was
+    written (a changed object that's uploaded again starts over). Being
+    versioned, the bucket then keeps it as an old version for 30 more days,
+    as it does for anything overwritten or deleted, so a mistake can be
+    undone. After that it's gone, and a lifecycle rule clears the leftover
+    delete markers. Incomplete multipart uploads go after 1 day.
+  - So a new device, or one whose storage was cleared, restores only the
+    last 3 months. Devices keep their own copies of older events, and the
+    app doesn't upload expired ones again (it remembers what it
+    uploaded).
   - **S3 Intelligent-Tiering:**
     - uploads carry `x-amz-storage-class: INTELLIGENT_TIERING` (signed);
     - a lifecycle rule moves any other object, old versions included, to

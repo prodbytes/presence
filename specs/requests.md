@@ -1011,3 +1011,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       release dry runs, and the workflow and compose YAML all passed.
     - Specs: every file is indexed. Fixed a stale Android source link and
       the cloud-sync timing.
+137. **On the user-data bucket, add a policy that deletes data older than 3
+    months.** (2026-09-27)
+    - `user-data.yaml`: a lifecycle rule expires every object 90 days after
+      it was written. Old versions are still removed 30 days later (the
+      undo window), so data is gone after about 120 days. Another rule
+      removes the leftover delete markers.
+    - It applies to `presence-user-data` and `presence-rc-user-data` on the
+      next deploy of each (`scripts/deploy.sh` step 1).
