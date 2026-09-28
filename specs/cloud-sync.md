@@ -31,18 +31,29 @@ Everything goes under the user's **Cognito identity ID**
   with a signed-in `presence_user` (a new sign-in, or a session restored
   at launch, e.g. a reload), and whenever the user changes:
   - the app lists the user's folder (`ListObjectsV2` on `<identityId>/`) and
-    downloads the clips (details, recording and thumbnail) and events the
-    device doesn't have;
+    downloads the **last week's** events the device doesn't have
+    (`CloudSync.restoreWindow`, 7 days), with their clips (details,
+    recording and thumbnail) and tagged frames:
+    - event keys are partitioned by UTC day, so partitions that end before
+      the week began aren't downloaded at all; in the week's first day,
+      each event's `time` decides;
+    - flat event keys from before partitioning are read to learn their
+      time, and skipped if older;
+    - only the clips those events use are downloaded;
   - it marks them as synced, so they aren't uploaded back;
   - it stores them (`Persistence.importRemote`, with recordings through
     `MediaStore.saveBytes`) and adds their events to the timeline.
 
-  This runs once per app start and user. Every event in the user's S3
-  folder that the device lacks is loaded, so events from other devices
-  (the same Google account, hence the same Cognito identity) appear. A
-  test checks a session restored at launch
+  This runs once per app start and user. A new device (or one whose
+  storage was cleared) therefore starts with one week of history, about
+  10 GB at one 10 MB clip every 10 minutes, rather than everything in the
+  bucket. Events from other devices on the same Google account (hence the
+  same Cognito identity) appear too, if they're from the last week. Older
+  data stays in the bucket until it expires, and on the devices that
+  recorded it. Tests check a session restored at launch
   (`persistence_test.dart`, "after sign-in, clips from the cloud join the
-  history").
+  history") and the window (`cloud_sync_test.dart`, "a new device gets
+  only the last week").
 - **Then upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
 - **While signed in, whichever comes first:**
@@ -101,10 +112,10 @@ In [presence_infra/](../presence_infra):
     as it does for anything overwritten or deleted, so a mistake can be
     undone. After that it's gone, and a lifecycle rule clears the leftover
     delete markers. Incomplete multipart uploads go after 1 day.
-  - So a new device, or one whose storage was cleared, restores only the
-    last 3 months. Devices keep their own copies of older events, and the
-    app doesn't upload expired ones again (it remembers what it
-    uploaded).
+  - A new device, or one whose storage was cleared, restores only the last
+    week anyway (see "When" above). Devices keep their own copies of older
+    events, and the app doesn't upload expired ones again (it remembers
+    what it uploaded).
   - **S3 Intelligent-Tiering:**
     - uploads carry `x-amz-storage-class: INTELLIGENT_TIERING` (signed);
     - a lifecycle rule moves any other object, old versions included, to
