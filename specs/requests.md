@@ -1011,6 +1011,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       release dry runs, and the workflow and compose YAML all passed.
     - Specs: every file is indexed. Fixed a stale Android source link and
       the cloud-sync timing.
+137. **On the user-data bucket, add a policy that deletes data older than 3
+    months.** (2026-09-27)
+    - `user-data.yaml`: a lifecycle rule expires every object 90 days after
+      it was written. Old versions are still removed 30 days later (the
+      undo window), so data is gone after about 120 days. Another rule
+      removes the leftover delete markers.
+    - It applies to `presence-user-data` and `presence-rc-user-data` on the
+      next deploy of each (`scripts/deploy.sh` step 1).
 138. **Estimate six months of S3 storage costs for one 30 s clip every 10
     minutes, with three viewed a day.** (2026-09-27)
     - About $11 per user over six months, and about $2.30 a month once the
@@ -1021,3 +1029,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - `CloudSync` fetches only events from the last 7 days
       (`restoreWindow`), skipping older day partitions without downloading
       them, and only the clips those events use. 129 tests pass.
+140. **Merge all pending PRs.** (2026-09-28)
+    - Merged #77 (3-month expiry) and #78 (one-week restore), resolving
+      the request-log conflict.
