@@ -29,8 +29,11 @@ separate setting, so a system with sign-in can't be opened by mistake.
   camera's Clip, Flip and readiness controls.
 - What only makes sense with accounts is hidden: **Sign in with Google**,
   the account button and sheet, the sign-up icon and the **Admin** screen.
-- A small outlined **"dev"** label sits next to the "Presence" title. Its
-  tooltip says sign-in isn't configured, so everything is open.
+- A small outlined **"dev"** label sits next to the "Presence" title. When
+  the build has a version, it shows it too: **"dev 0.4.202610011728"**
+  (`DevModeLabel`, from `AppVersion.version`). Where there's no room, as on
+  a narrow phone, it's cut short with an ellipsis. Its tooltip says
+  sign-in isn't configured, so everything is open, with the version.
 - Cloud sync never runs in DEV, even with a session saved from before:
   access doesn't come from signing in.
 

@@ -1427,3 +1427,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The clip card was stretching its thumbnail across the whole width
       (the video filled the screen): from 600 dp on, the 16:9 thumbnail
       (320 dp) now sits beside the details.
+177. **If the dev tag is shown, show the version in it.** (2026-10-01)
+    - The "dev" label next to the title reads "dev 0.4.<Z>" when the build
+      has a version (just "dev" without one), and is cut short with an
+      ellipsis where there's no room.

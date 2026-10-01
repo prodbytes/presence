@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'app_version.dart';
 import 'auth/account_sheet.dart';
 import 'battery.dart';
 import 'battery_pills.dart';
@@ -575,7 +576,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             ),
-            if (_dev) const _DevModeLabel(),
+            if (_dev) const Flexible(child: DevModeLabel()),
           ],
         ),
         backgroundColor: _onCamera ? Colors.transparent : scheme.surface,
@@ -906,18 +907,24 @@ class _KeepAliveState extends State<_KeepAlive>
 }
 
 /// Says, quietly, that the system runs in [ExecutionMode.dev]: nobody signs
-/// in and everything is open.
-class _DevModeLabel extends StatelessWidget {
-  const _DevModeLabel();
+/// in and everything is open. With a build version, it shows it too
+/// ("dev 0.4.202610011728"), cut short with an ellipsis where there's no
+/// room.
+class DevModeLabel extends StatelessWidget {
+  const DevModeLabel({super.key, this.version = AppVersion.version});
+
+  /// The build's version ([AppVersion.version]); empty shows only "dev".
+  final String version;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final label = version.isEmpty ? 'dev' : 'dev $version';
     return Tooltip(
       message:
-          'Development mode: sign-in isn\'t configured, so everything '
-          'is open to everyone.',
+          'Development mode${version.isEmpty ? '' : ', version $version'}: '
+          'sign-in isn\'t configured, so everything is open to everyone.',
       child: Container(
         key: const Key('dev-mode'),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -926,9 +933,12 @@ class _DevModeLabel extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          'dev',
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
             color: scheme.onSurfaceVariant,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
         ),
       ),
