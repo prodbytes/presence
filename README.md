@@ -229,6 +229,54 @@ so Floci and `docker ps` work inside it.
 > it won't work on a Codespaces URL unless you add that origin to your own
 > client.
 
+## Deploy to Floci
+
+[Floci](https://floci.io/) is a local AWS emulator. `devbox services up`
+deploys into it on every start (process `4-floci`,
+[presence_floci/](presence_floci)), so sign-in, roles, membership requests
+and the Admin screen work without an AWS account:
+
+- the **auth API** ([presence_api_auth/](presence_api_auth)) as the stack
+  `presence-local-auth-api`: its Lambdas (run as `presence-lambda-*`
+  Docker containers), DynamoDB tables and HTTP API;
+- a **CloudFront distribution** routing `/app*` to the Flutter dev server,
+  `/api/*` to the auth API and everything else to the index.
+
+To deploy:
+
+1. Put `GOOGLE_WEB_CLIENT_ID` in `.env` (see [Settings](#settings)), or
+   the auth API is skipped and signed-in users see only sign-up.
+2. Start the services and wait for `4-floci` to be ready. The first run
+   builds the API and pulls the Lambda image, which takes a few minutes:
+
+   ```bash
+   devbox services up
+   ```
+
+3. Open https://local.presence.nu01.com:8443/app/, the local origin
+   registered with the Google web client.
+
+Storage is in memory, so each start is a fresh deploy with empty tables.
+To redeploy after changing the auth API, restart the process; it rebuilds
+only when `presence_api_auth` changed:
+
+```bash
+devbox services restart 4-floci
+```
+
+To look inside, point the AWS CLI at Floci with dummy credentials:
+
+```bash
+export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_REGION=us-east-1
+aws --endpoint-url http://localhost:4566 cloudformation describe-stacks \
+  --stack-name presence-local-auth-api --query "Stacks[0].StackStatus"
+aws --endpoint-url http://localhost:4566 cloudfront list-distributions \
+  --query "DistributionList.Items[].Aliases.Items"
+```
+
+Cloud sync isn't emulated: it still uses the AWS bucket and identity pool
+from `.env`.
+
 ## Deploy to AWS
 
 Everything is deployed by [scripts/deploy.sh](scripts/deploy.sh) into
