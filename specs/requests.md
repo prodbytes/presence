@@ -1304,3 +1304,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       clearing, kept across a tab switch, and a new event shows before
       it's saved. 173 Flutter tests pass. Opening another device's event
       isn't covered by a test.
+167. **Add a battery charge indicator to the Device screen, if possible,
+    using open web APIs or a Flutter alternative.** (2026-10-01)
+    - The Device tab's card has a **Battery** line: the charge, whether
+      it's charging, full or on battery, a matching icon, and a warning
+      below 15 %. "Not available in this browser" where there's no
+      reading.
+    - Read through `battery_plus` (Android, iOS, and the web's Battery
+      Status API, which Firefox and Safari lack), when the tab opens, when
+      charging changes and every minute. Not stored or sent.
+    - 173 Flutter tests pass; web release, Android debug and iOS debug
+      builds compile. Numbered after #99's 165.

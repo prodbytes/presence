@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
+import 'battery.dart';
 import 'auth/admin_screen.dart';
 import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
@@ -48,11 +49,15 @@ class PresenceApp extends StatefulWidget {
     this.consentGiven = false,
     this.locator,
     this.mapTiles,
+    this.battery,
   });
 
   /// Skips the recording consent, as if this device had given it (used by
   /// tests). The app itself always checks storage.
   final bool consentGiven;
+
+  /// Overrides the Device tab's battery reading (used by tests).
+  final BatteryReader? battery;
 
   /// Overrides the device's positioning (used by tests).
   final Locator? locator;
@@ -308,6 +313,7 @@ class _PresenceAppState extends State<PresenceApp> {
             deviceId: _deviceId,
             location: _location,
             mapTiles: widget.mapTiles,
+            battery: widget.battery,
           ),
         },
       ),
@@ -350,7 +356,11 @@ class HomeScreen extends StatefulWidget {
     this.deviceId,
     required this.location,
     this.mapTiles,
+    this.battery,
   });
+
+  /// The Device tab's battery reading, when not the device's (tests).
+  final BatteryReader? battery;
 
   /// Where this device is (the Device tab's map, and every event).
   final LocationController location;
@@ -675,6 +685,7 @@ class _HomeScreenState extends State<HomeScreen>
               location: widget.location,
               deviceId: widget.deviceId,
               tiles: widget.mapTiles,
+              battery: widget.battery,
             ),
           ),
           SafeArea(
