@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'annotations.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
+import 'subjects.dart';
 
 /// A clip around one Clip press, for one camera. Its recordings arrive over
 /// time: the "before" part almost at once, the whole clip after the "after"
@@ -276,6 +277,7 @@ class ClipEventCard extends StatelessWidget {
                 key: const Key('clip-status'),
                 style: theme.textTheme.bodySmall,
               ),
+              EventSubjects(event: event),
             ],
           ),
         );

@@ -211,17 +211,21 @@ class EventTimeline extends StatefulWidget {
     this.focus,
     this.deviceId,
     this.thisDeviceOnly,
+    this.padding = const EdgeInsets.all(12),
   });
 
   final EventLog log;
+
+  /// Around the cards, inside the scrolling list.
+  final EdgeInsets padding;
 
   /// This device's ID. Once it's known, the timeline shows only this
   /// device's events unless [thisDeviceOnly] is unchecked.
   final String? deviceId;
 
-  /// Whether only this device's events show (the checkbox at the top).
-  /// Kept by the caller, so it survives the tab being rebuilt; defaults to
-  /// an own one, on.
+  /// Whether only this device's events show (the [ThisDeviceOnly] checkbox
+  /// at the top of the Monitoring tab). Kept by the caller, so it survives
+  /// the tab being rebuilt; defaults to an own one, on.
   final ValueNotifier<bool>? thisDeviceOnly;
 
   /// The ID of an event to scroll to and outline (an event opened from
@@ -362,24 +366,6 @@ class _EventTimelineState extends State<EventTimeline> {
   @override
   Widget build(BuildContext context) {
     final events = _shown;
-    // Until the device ID is known there's nothing to filter by.
-    if (widget.deviceId == null) return _list(events);
-    return Column(
-      children: [
-        CheckboxListTile(
-          key: const Key('this-device-only'),
-          value: _filter.value,
-          onChanged: (on) => _filter.value = on ?? true,
-          controlAffinity: ListTileControlAffinity.leading,
-          dense: true,
-          title: const Text('Only this device'),
-        ),
-        Expanded(child: _list(events)),
-      ],
-    );
-  }
-
-  Widget _list(List<AppEvent> events) {
     if (events.isEmpty) {
       return FeedMessage(
         icon: Icons.notifications_none,
@@ -390,7 +376,7 @@ class _EventTimelineState extends State<EventTimeline> {
     }
     return ListView.separated(
       controller: _scroll,
-      padding: const EdgeInsets.all(12),
+      padding: widget.padding,
       itemCount: events.length,
       separatorBuilder: (context, i) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
@@ -415,6 +401,26 @@ class _EventTimelineState extends State<EventTimeline> {
       },
     );
   }
+}
+
+/// The "Only this device" filter chip, with a check while on, switching
+/// [value] (the timeline's filter, [EventTimeline.thisDeviceOnly]).
+class ThisDeviceOnly extends StatelessWidget {
+  const ThisDeviceOnly({super.key, required this.value});
+
+  final ValueNotifier<bool> value;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: value,
+    builder: (context, on, _) => FilterChip(
+      key: const Key('this-device-only'),
+      selected: on,
+      onSelected: (selected) => value.value = selected,
+      avatar: on ? null : const Icon(Icons.devices_other, size: 18),
+      label: const Text('Only this device'),
+    ),
+  );
 }
 
 class EventCard extends StatelessWidget {

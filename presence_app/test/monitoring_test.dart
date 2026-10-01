@@ -70,53 +70,75 @@ void main() {
   Rect rectOf(WidgetTester tester, String key) =>
       tester.getRect(find.byKey(Key(key)));
 
-  testWidgets('wide: map and subjects on top, events full width below', (
+  testWidgets('wide: the map on the left, the events on the right', (
     tester,
   ) async {
     await show(tester, const Size(1500, 900));
     final map = rectOf(tester, 'subjects-map');
-    final subjects = rectOf(tester, 'subjects-page');
     final events = rectOf(tester, 'events-page');
 
-    // The top row: the map on the left, the subjects on the right.
-    expect(map.left, 0);
-    expect(subjects.left, greaterThan(map.right - 1));
-    expect(subjects.width, MonitoringView.subjectsWidth);
-    expect(subjects.right, 1500);
-    expect(map.top, subjects.top);
-    // The events under both, across the whole width.
-    expect(events.top, greaterThanOrEqualTo(map.bottom));
-    expect(events.top, greaterThanOrEqualTo(subjects.bottom));
-    expect(events.left, 0);
-    expect(events.width, 1500);
+    // Padded from the edges, a gap between, both from the same top.
+    expect(map.left, greaterThanOrEqualTo(16));
+    expect(events.left, greaterThanOrEqualTo(map.right + 16));
+    expect(events.right, lessThanOrEqualTo(1500 - 16));
+    expect(map.top, closeTo(events.top, 2));
+    expect(map.top, greaterThanOrEqualTo(16));
+    // The events column: two fifths of the width, at most 520 dp.
+    expect(events.width, MonitoringView.maxEventsWidth);
+    expect(find.byKey(const Key('subjects-page')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('a wide clip card puts its thumbnail beside the details', (
+  testWidgets('very wide: the page stops growing and is centered', (
+    tester,
+  ) async {
+    await show(tester, const Size(2400, 900));
+    final page = rectOf(tester, 'monitoring-page');
+    final map = rectOf(tester, 'subjects-map');
+    final events = rectOf(tester, 'events-page');
+    expect(page.width, 2400);
+    expect(events.right - map.left, lessThanOrEqualTo(MonitoringView.maxWidth));
+    expect(map.left, closeTo(2400 - events.right, 2));
+  });
+
+  testWidgets('a clip card fits the events column, its thumbnail 16:9', (
     tester,
   ) async {
     await show(tester, const Size(1500, 900));
+    final events = rectOf(tester, 'events-page');
     final thumbnail = rectOf(tester, 'clip-card-thumbnail');
-    expect(thumbnail.width, ClipEventCard.sideThumbnailWidth);
-    // 16:9, not stretched to the card's width.
-    expect(thumbnail.height, closeTo(320 * 9 / 16, 0.5));
-    final title = tester.getRect(find.text('Clip requested'));
-    expect(title.left, greaterThan(thumbnail.right));
+    expect(thumbnail.left, greaterThanOrEqualTo(events.left));
+    expect(thumbnail.right, lessThanOrEqualTo(events.right));
+    expect(thumbnail.height, closeTo(thumbnail.width * 9 / 16, 0.5));
   });
 
-  testWidgets('narrow: map, subjects and events stacked; cards stacked too', (
+  testWidgets('narrow: the map above the events; cards stacked too', (
     tester,
   ) async {
     await show(tester, const Size(400, 800));
     final map = rectOf(tester, 'subjects-map');
-    final subjects = rectOf(tester, 'subjects-page');
     final events = rectOf(tester, 'events-page');
-    expect(subjects.top, greaterThanOrEqualTo(map.bottom));
-    expect(events.top, greaterThanOrEqualTo(subjects.bottom));
+    expect(events.top, greaterThanOrEqualTo(map.bottom));
+    expect(map.left, greaterThanOrEqualTo(12));
+    expect(map.right, lessThanOrEqualTo(400 - 12));
 
     final thumbnail = rectOf(tester, 'clip-card-thumbnail');
     final title = tester.getRect(find.text('Clip requested'));
     expect(title.top, greaterThanOrEqualTo(thumbnail.bottom));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('each clip card shows its subjects in their colors', (
+    tester,
+  ) async {
+    await show(tester, const Size(1500, 900));
+    expect(find.byKey(const Key('event-subject-rex')), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('event-subject-rex')),
+        matching: find.text('Rex'),
+      ),
+      findsOneWidget,
+    );
   });
 }
