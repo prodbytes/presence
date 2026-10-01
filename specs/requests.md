@@ -1167,3 +1167,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (entry 151).
     - README "Before you start": a warning with both consequences, and a
       pointer to the Settings health line that shows them.
+153. **Check the health logs and fix the issues (the web app's CDN and
+    HTTPS checks failing).** (2026-10-01)
+    - Cause: the Floci container was stopped by a `devbox services stop` in
+      another checkout (its `docker compose down` shares the project), and
+      `4-floci` ended with exit code 0, so `restart: on_failure` never
+      brought it back. The web app itself stayed up.
+    - Restarted `4-floci` in the running instance; every check went ✅.
+    - `4-floci` now has `restart: always`.
