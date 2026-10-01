@@ -150,6 +150,8 @@ class ClipRequested extends AppEvent {
     ClipAnnotations? annotations,
     super.time,
     super.id,
+    super.deviceId,
+    super.userId,
   }) : annotations = annotations ?? ClipAnnotations(),
        super(
          icon: trigger == ClipTrigger.motion

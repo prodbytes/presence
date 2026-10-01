@@ -7,11 +7,11 @@ import 'package:idb_shim/idb_shim.dart';
 ///
 /// | Store      | Key               | Holds                                   |
 /// |------------|-------------------|-----------------------------------------|
-/// | `cameras`  | `id` (device ID)  | label, last seen                        |
-/// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID   |
+/// | `cameras`  | `id` (camera ID)  | label, last seen                        |
+/// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID, device ID, user ID |
 /// | `clips`    | `id`, index `eventId` | camera, window, media IDs, thumbnail |
 /// | `media`    | media ID          | recording bytes                         |
-/// | `settings` | name              | settings record                         |
+/// | `settings` | name              | the config; `device`: this device's ID  |
 /// | `synced`   | object key        | fingerprint of what was uploaded (v2)   |
 class EventStore {
   EventStore._(this._db);
@@ -129,6 +129,24 @@ class EventStore {
     await txn.objectStore(settings).put(_compact(record), name);
     await txn.completed;
   }
+
+  /// This device's ID (the `device` settings record), made with [generate]
+  /// and saved the first time. Read and written in one transaction, so two
+  /// tabs opening at once agree on it.
+  Future<String> deviceId(String Function() generate) async {
+    final txn = _db.transaction(settings, idbModeReadWrite);
+    final store = txn.objectStore(settings);
+    final saved = await store.getObject(_deviceKey);
+    var id = saved is Map ? saved['id'] : null;
+    if (id is! String || id.isEmpty) {
+      id = generate();
+      await store.put({'id': id}, _deviceKey);
+    }
+    await txn.completed;
+    return id;
+  }
+
+  static const String _deviceKey = 'device';
 
   /// What's already uploaded to the cloud (see `CloudSync`): each object
   /// key with a fingerprint of the content uploaded under it.

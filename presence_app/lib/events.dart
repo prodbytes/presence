@@ -14,23 +14,36 @@ class AppEvent {
     this.detail,
     this.type = genericType,
     this.cameraId,
+    this.deviceId,
+    this.userId,
     DateTime? time,
     String? id,
   }) : time = time ?? DateTime.now(),
        id = id ?? newId();
 
   /// The app launched.
-  AppEvent.appStarted({DateTime? time, String? id})
-    : this(
-        icon: Icons.power_settings_new,
-        title: 'Application started',
-        type: appStartedType,
-        time: time,
-        id: id,
-      );
+  AppEvent.appStarted({
+    DateTime? time,
+    String? id,
+    String? deviceId,
+    String? userId,
+  }) : this(
+         icon: Icons.power_settings_new,
+         title: 'Application started',
+         type: appStartedType,
+         time: time,
+         id: id,
+         deviceId: deviceId,
+         userId: userId,
+       );
 
   static const String genericType = 'generic';
   static const String appStartedType = 'app_started';
+
+  /// The [userId] of events recorded while nobody was signed in. The next
+  /// user to sign in on the device takes them over
+  /// (`Persistence.claimAnonymous`).
+  static const String anonymousUserId = 'anonymous';
 
   final String id;
 
@@ -45,6 +58,15 @@ class AppEvent {
   /// The camera the event came from, if any.
   final String? cameraId;
 
+  /// The device that recorded the event (`DeviceId`, such as
+  /// `automatic_paranoid_gadget`). Set when it's saved.
+  String? deviceId;
+
+  /// Who the event belongs to: the signed-in user's ID when it was
+  /// recorded, or [anonymousUserId]. Set when it's saved, and changed once,
+  /// from anonymous, when a user signs in on the device.
+  String? userId;
+
   /// The stored form of this event. Subclasses keep their extra data in
   /// their own records (a clip's recordings live in the clips store).
   Map<String, Object?> toRecord() => {
@@ -54,6 +76,8 @@ class AppEvent {
     'detail': detail,
     'time': time.millisecondsSinceEpoch,
     'cameraId': cameraId,
+    'deviceId': deviceId,
+    'userId': userId,
   };
 
   /// Rebuilds a stored event of a plain type. Returns null for types that
@@ -62,8 +86,15 @@ class AppEvent {
     final type = record['type'] as String? ?? genericType;
     final time = DateTime.fromMillisecondsSinceEpoch(record['time']! as int);
     final id = record['id']! as String;
+    final deviceId = record['deviceId'] as String?;
+    final userId = ownerOf(record);
     return switch (type) {
-      appStartedType => AppEvent.appStarted(time: time, id: id),
+      appStartedType => AppEvent.appStarted(
+        time: time,
+        id: id,
+        deviceId: deviceId,
+        userId: userId,
+      ),
       genericType => AppEvent(
         // Icons can't be stored (tree shaking needs const icons), so plain
         // events come back with a generic one.
@@ -71,12 +102,19 @@ class AppEvent {
         title: record['title'] as String? ?? 'Event',
         detail: record['detail'] as String?,
         cameraId: record['cameraId'] as String?,
+        deviceId: deviceId,
+        userId: userId,
         time: time,
         id: id,
       ),
       _ => null,
     };
   }
+
+  /// The user a stored event belongs to. Events saved before events had
+  /// owners count as anonymous.
+  static String ownerOf(Map<String, Object?> record) =>
+      record['userId'] as String? ?? anonymousUserId;
 
   /// Unique enough for one person's event history: time-ordered, plus
   /// randomness so events in the same microsecond don't collide.
