@@ -1368,4 +1368,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       camera has a full "before" part, then a **scheduled clip** every
       interval from the last one, both through `requestClips` (triggers
       `startup` and `scheduled`).
-
+172. **Push all changes, sync git, update Y and push an RC tag.**
+    (2026-10-01)
+    - Merged #103, #104, #105 and #102 (renumbering their request-log
+      entries 168–171), with the analyze and tests run on each merge.
+    - Y is now 4 (`version.Y.txt`): versions are `0.4.Z`.
+    - Tagged `main` as an RC with `scripts/release-rc.sh` (`0.4.<Z>-RC`),
+      which publishes the prerelease and deploys to
+      https://rc.presence.nu01.com.
