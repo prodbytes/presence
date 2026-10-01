@@ -61,6 +61,16 @@ on every event. The tab also shows the device's battery.
   starts or stops (the plugin's event), and **every minute** (level
   changes have no event). It reads only while the Device tab is shown.
   The line appears once the first reading is in.
+- **Battery temperature** (Android only): a line under the battery,
+  "31.5 °C" with a thermometer icon, in the error color from 45 °C up.
+  It's the battery's temperature, which Android reports in tenths of a
+  degree on the sticky `ACTION_BATTERY_CHANGED` broadcast
+  (`EXTRA_TEMPERATURE`, no permission), read through the app's own
+  `presence/device` channel (`batteryTemperature` in `MainActivity`)
+  with each battery reading. **iOS** has no public API for a temperature
+  in degrees (only a coarse thermal state) and **browsers** have none, so
+  there the line isn't shown at all. Neither is it when Android doesn't
+  report one.
 - The battery isn't stored or sent with events.
 
 ## Finding the location
@@ -130,7 +140,10 @@ on every event. The tab also shows the device's battery.
   events have no location; the battery line shows the level and
   charging, follows a charging change at once and a level drop within a
   minute, warns below 15 %, shows Full, and says "Not available" without
-  a reading.
+  a reading; the battery temperature shows to one decimal, turns to the
+  error color from 45 °C, and is hidden where it isn't reported. The
+  Android debug build compiles with the new channel; the temperature
+  hasn't been read on a phone yet.
 - The panel sits in the top-left corner, as wide as its content, on a
   320 dp phone and a 1280 px desktop.
 - Web release, Android debug and iOS debug (unsigned) builds compile with

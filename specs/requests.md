@@ -1376,3 +1376,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Tagged `main` as an RC with `scripts/release-rc.sh` (`0.4.<Z>-RC`),
       which publishes the prerelease and deploys to
       https://rc.presence.nu01.com.
+173. **Add the temperature in Celsius to the Device screen, if Flutter can
+    get it.** (2026-10-01)
+    - Flutter has no temperature API, and neither do browsers or iOS (only
+      a thermal state there). Android reports the battery's temperature, so
+      the Device panel shows "Battery temperature: 31.5 °C" on Android,
+      hot (error color) from 45 °C, and nothing elsewhere.
+    - Read through a new `presence/device` channel in `MainActivity`, with
+      each battery reading (at open, on charging changes, every minute).
+    - 202 Flutter tests pass; Android debug and web release builds compile.
+      Not yet read on a phone.

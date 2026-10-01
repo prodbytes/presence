@@ -1,5 +1,8 @@
 package com.nu01.presence
 
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import android.os.Bundle
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -24,6 +27,28 @@ class MainActivity : FlutterActivity() {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, PresenceCamerasPlugin.MOTION_CHANNEL)
             .setStreamHandler(plugin)
         cameras = plugin
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "batteryTemperature" -> result.success(batteryTemperature())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /// The battery's temperature in °C, from the sticky battery broadcast
+    /// (no permission needed), or null when the device doesn't report it.
+    private fun batteryTemperature(): Double? {
+        val battery: Intent? =
+            registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val tenths = battery?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            ?: Int.MIN_VALUE
+        return if (tenths == Int.MIN_VALUE) null else tenths / 10.0
+    }
+
+    companion object {
+        /// Device readings beyond the cameras (the battery's temperature).
+        const val DEVICE_CHANNEL = "presence/device"
     }
 
     override fun onRequestPermissionsResult(

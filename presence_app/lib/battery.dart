@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
-/// The battery's charge, in percent, and whether it's charging.
-typedef BatteryReading = ({int level, BatteryState state});
+/// The battery's charge, in percent, whether it's charging, and its
+/// temperature in °C where the platform reports it (Android only; null
+/// elsewhere).
+typedef BatteryReading = ({int level, BatteryState state, double? celsius});
 
 /// Reads this device's battery. Null when there's no reading: the browser
 /// has no Battery Status API (Firefox, Safari), or the platform has none.
@@ -20,6 +23,10 @@ abstract class BatteryReader {
 class DeviceBattery implements BatteryReader {
   final _battery = Battery();
 
+  /// The app's own Android channel (`MainActivity`): the battery's
+  /// temperature, which `battery_plus` doesn't give.
+  static const _device = MethodChannel('presence/device');
+
   @override
   Future<BatteryReading?> read() async {
     try {
@@ -27,9 +34,25 @@ class DeviceBattery implements BatteryReader {
       // On the web, "unknown" means the browser has no Battery Status API;
       // the level it gives then is a meaningless 0.
       if (kIsWeb && state == BatteryState.unknown) return null;
-      return (level: await _battery.batteryLevel, state: state);
+      return (
+        level: await _battery.batteryLevel,
+        state: state,
+        celsius: await _temperature(),
+      );
     } catch (e) {
       debugPrint('Presence: no battery reading: $e');
+      return null;
+    }
+  }
+
+  /// Android only: iOS has no public API for it (only a thermal state, not
+  /// degrees) and neither do browsers.
+  static Future<double?> _temperature() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return null;
+    try {
+      return await _device.invokeMethod<double>('batteryTemperature');
+    } catch (e) {
+      debugPrint('Presence: no battery temperature: $e');
       return null;
     }
   }
