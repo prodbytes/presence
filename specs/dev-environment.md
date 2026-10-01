@@ -105,6 +105,12 @@ The [README](../README.md) is the project's front page. It covers:
   clients, and how to set up the AWS CLI, deploy the `presence-user-data`
   and `presence-identity` stacks and read `COGNITO_IDENTITY_POOL_ID`,
   `USER_DATA_BUCKET` and `HOSTED_ZONE_ID`;
+- deploying to Floci: what `devbox services up` deploys into it (the
+  `presence-local-auth-api` stack and the CloudFront distribution), that
+  it needs `GOOGLE_WEB_CLIENT_ID`, redeploying with
+  `devbox services restart 4-floci`, and inspecting it with the AWS CLI
+  (`--endpoint-url http://localhost:4566`, dummy credentials). Cloud sync
+  isn't emulated;
 - deploying to AWS: `*RC*` tags deploy to https://rc.presence.nu01.com,
   and `*GA` tags to production, https://presence.nu01.com;
 - contributing: contributions are welcome, and merged changes are deployed

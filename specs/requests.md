@@ -1060,3 +1060,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       deploying `presence-user-data` and `presence-identity`, reading their
       outputs, finding the hosted zone ID). Step 2 of the local run links
       to it.
+144. **Add a deploy-to-Floci section to the README.** (2026-10-01)
+    - New **Deploy to Floci** section, before Deploy to AWS: what
+      `devbox services up` deploys (the auth API stack and the CloudFront
+      distribution), the steps, redeploying with
+      `devbox services restart 4-floci`, and AWS CLI commands to inspect
+      it. Checked locally: the stack reported `CREATE_COMPLETE` before
+      and after a restart, the distribution listed both aliases, `/app/`
+      answered 200 and `/api/auth` 401 over HTTPS.
