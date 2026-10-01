@@ -1386,3 +1386,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       each battery reading (at open, on charging changes, every minute).
     - 202 Flutter tests pass; Android debug and web release builds compile.
       Not yet read on a phone.
+174. **Merge the Events and Subjects screens into "Monitoring": on top, to
+    the left, the map with all subjects and clickable events; on top, to the
+    right, the subjects, one card each, opening the subject's map and
+    history; below the map, all events, by default only this device's, with
+    a checkbox for all.** (2026-10-01)
+    - New Monitoring tab (`MonitoringView`) in place of Events and Subjects,
+      between Camera and Device. Wide screens (720 dp+): the map top left
+      with the events under it, the subjects down the right (340 dp).
+      Phones: the map, a sideways strip of compact subject cards, then the
+      events. Swiping between tabs is off on it, as on Device.
+    - `SubjectsView` split into `SubjectsMap` and `SubjectList`. A tapped dot
+      scrolls this tab's events to its event, as before.
+    - New [monitoring.md](monitoring.md); the other specs updated. 202
+      Flutter tests pass; web release builds.

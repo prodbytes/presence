@@ -122,7 +122,7 @@ spot clicked
   [cloud sync](cloud-sync.md), which uploads the frames as images beside the
   clip and the event JSON with the tags. Restores, including from the
   cloud, bring the frames and names back; malformed entries are skipped.
-- Everyone tagged is listed on the **Subjects** tab, with a map of the
+- Everyone tagged is listed on the **Monitoring** tab, with a map of the
   events they're on (see [Subjects](subjects.md)).
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
   JSON round-trip that skips bad entries), and at app level a frame grabbed

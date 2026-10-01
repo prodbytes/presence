@@ -114,13 +114,10 @@ class _SubjectsBuilder extends StatelessWidget {
   );
 }
 
-/// The Subjects screen (the Subjects tab): on top, a map merging every
-/// subject's latest events, each subject in its own color; under it,
-/// everyone tagged on clips, each with a square of their color and the
-/// frame from the latest event they're on. Tapping one opens its
-/// [SubjectScreen].
-class SubjectsView extends StatelessWidget {
-  const SubjectsView({
+/// A map merging every subject's latest events, each subject in its own
+/// color (on the Monitoring tab). Tapping a dot opens its event.
+class SubjectsMap extends StatelessWidget {
+  const SubjectsMap({
     super.key,
     required this.log,
     required this.config,
@@ -131,10 +128,10 @@ class SubjectsView extends StatelessWidget {
   final EventLog log;
   final ConfigController config;
 
-  /// Opens an event in the Events tab (a dot tapped on a subject's map).
+  /// Opens an event (a dot tapped on the map).
   final ValueChanged<AppEvent>? onOpenEvent;
 
-  /// The subject maps' tiles; defaults to OpenStreetMap.
+  /// The map's tiles; defaults to OpenStreetMap.
   final Widget? tiles;
 
   @override
@@ -143,58 +140,94 @@ class SubjectsView extends StatelessWidget {
     builder: (context, _) => _SubjectsBuilder(
       log: log,
       builder: (context, subjects) {
-        if (subjects.isEmpty) {
-          return const FeedMessage(
-            icon: Icons.people_outline,
-            message: 'No subjects yet. Tag people and pets on a clip.',
-          );
-        }
         final limit = config.subjects.mapEvents;
-        return Column(
-          children: [
-            Expanded(
-              flex: 2,
-              child: _SightingsMap(
-                key: const Key('subjects-map'),
-                dots: [
-                  for (final subject in subjects)
-                    ..._dotsOf(
-                      subject,
-                      limit,
-                      key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
-                    ),
-                ],
-                tiles: tiles,
-                onOpen: onOpenEvent,
+        return _SightingsMap(
+          key: const Key('subjects-map'),
+          dots: [
+            for (final subject in subjects)
+              ..._dotsOf(
+                subject,
+                limit,
+                key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
               ),
-            ),
-            Expanded(
-              flex: 3,
-              child: ListView.separated(
-                key: const Key('subjects-list'),
-                padding: const EdgeInsets.all(12),
-                itemCount: subjects.length,
-                separatorBuilder: (context, i) => const SizedBox(height: 8),
-                itemBuilder: (context, i) => _SubjectRow(
-                  subject: subjects[i],
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => SubjectScreen(
-                        subjectId: subjects[i].id,
-                        log: log,
-                        config: config,
-                        tiles: tiles,
-                        onOpenEvent: onOpenEvent,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
+          tiles: tiles,
+          onOpen: onOpenEvent,
         );
       },
     ),
+  );
+}
+
+/// Everyone tagged on clips, one card per subject, each with a square of
+/// their color and the frame from the latest event they're on, the most
+/// recently seen first. Tapping one opens its [SubjectScreen]. Laid out
+/// down a column, or along a strip ([direction] horizontal, on phones).
+class SubjectList extends StatelessWidget {
+  const SubjectList({
+    super.key,
+    required this.log,
+    required this.config,
+    this.tiles,
+    this.onOpenEvent,
+    this.direction = Axis.vertical,
+  });
+
+  /// A card's width along a horizontal strip.
+  static const double stripCardWidth = 280;
+
+  final EventLog log;
+  final ConfigController config;
+  final ValueChanged<AppEvent>? onOpenEvent;
+  final Widget? tiles;
+  final Axis direction;
+
+  @override
+  Widget build(BuildContext context) => _SubjectsBuilder(
+    log: log,
+    builder: (context, subjects) {
+      final horizontal = direction == Axis.horizontal;
+      if (subjects.isEmpty) {
+        const message = 'No subjects yet. Tag people and pets on a clip.';
+        // A strip has room for one line only.
+        return horizontal
+            ? const Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(message, textAlign: TextAlign.center),
+                ),
+              )
+            : const FeedMessage(icon: Icons.people_outline, message: message);
+      }
+      return ListView.separated(
+        key: const Key('subjects-list'),
+        scrollDirection: direction,
+        padding: horizontal
+            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
+            : const EdgeInsets.all(12),
+        itemCount: subjects.length,
+        separatorBuilder: (context, i) =>
+            horizontal ? const SizedBox(width: 8) : const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          final row = _SubjectRow(
+            subject: subjects[i],
+            compact: horizontal,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SubjectScreen(
+                  subjectId: subjects[i].id,
+                  log: log,
+                  config: config,
+                  tiles: tiles,
+                  onOpenEvent: onOpenEvent,
+                ),
+              ),
+            ),
+          );
+          return horizontal ? SizedBox(width: stripCardWidth, child: row) : row;
+        },
+      );
+    },
   );
 }
 
@@ -249,10 +282,18 @@ class SubjectSwatch extends StatelessWidget {
 }
 
 class _SubjectRow extends StatelessWidget {
-  const _SubjectRow({required this.subject, required this.onTap});
+  const _SubjectRow({
+    required this.subject,
+    required this.onTap,
+    this.compact = false,
+  });
 
   final Subject subject;
   final VoidCallback onTap;
+
+  /// For a strip: a smaller frame, fitted in a fixed box, and one line per
+  /// text, so every card is the same height.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -272,7 +313,24 @@ class _SubjectRow extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: [
-              SightingFrame(sighting: latest, color: subject.color, width: 96),
+              if (compact)
+                SizedBox(
+                  width: 72,
+                  height: 96,
+                  child: FittedBox(
+                    child: SightingFrame(
+                      sighting: latest,
+                      color: subject.color,
+                      width: 72,
+                    ),
+                  ),
+                )
+              else
+                SightingFrame(
+                  sighting: latest,
+                  color: subject.color,
+                  width: 96,
+                ),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,12 +354,15 @@ class _SubjectRow extends StatelessWidget {
                     Text(
                       'Last seen ${formatSeen(latest.time)} · '
                       '${latest.event.clip.cameraLabel}',
+                      maxLines: compact ? 2 : null,
+                      overflow: compact ? TextOverflow.ellipsis : null,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
                     Text(
                       count == 1 ? '1 event' : '$count events',
+                      maxLines: compact ? 1 : null,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
@@ -403,7 +464,7 @@ class SubjectScreen extends StatelessWidget {
     this.onOpenEvent,
   });
 
-  /// Opens a dot's event in the Events tab.
+  /// Opens a dot's event on the Monitoring tab.
   final ValueChanged<AppEvent>? onOpenEvent;
 
   /// [Subject.id].
