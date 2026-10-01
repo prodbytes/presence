@@ -1368,4 +1368,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       camera has a full "before" part, then a **scheduled clip** every
       interval from the last one, both through `requestClips` (triggers
       `startup` and `scheduled`).
-
+173. **Add the temperature in Celsius to the Device screen, if Flutter can
+    get it.** (2026-10-01)
+    - Flutter has no temperature API, and neither do browsers or iOS (only
+      a thermal state there). Android reports the battery's temperature, so
+      the Device panel shows "Battery temperature: 31.5 °C" on Android,
+      hot (error color) from 45 °C, and nothing elsewhere.
+    - Read through a new `presence/device` channel in `MainActivity`, with
+      each battery reading (at open, on charging changes, every minute).
+    - 202 Flutter tests pass; Android debug and web release builds compile.
+      Not yet read on a phone.
