@@ -1264,3 +1264,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       opens its event. Each subject's row has a matching color square
       before the name.
     - The subject screen's map and the new one share one map widget.
+163. **Make the consent shorter: one click to agree, with the two
+    conditions highlighted.** (2026-10-01)
+    - The consent screen drops its checkboxes and long sections: the two
+      conditions (the right to record; faces as biometric data under the
+      GDPR, and the user's responsibility) are highlighted boxes with a
+      bold statement and one plain line each, and **I agree** accepts.
+    - [consent.md](consent.md) updated. The consent version stays 1: what's
+      agreed to is the same, so devices that agreed aren't asked again.
