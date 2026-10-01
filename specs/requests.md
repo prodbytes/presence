@@ -1236,3 +1236,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tabs now narrow (down to 40 dp) only where they don't fit.
     - New [subjects.md](subjects.md). The OpenStreetMap tiles and credit
       are shared with the Device map (`lib/location/map_parts.dart`).
+159. **On a subject's map, show one color per device and opacity per age
+    on the tracking dots per event.** (2026-10-01)
+    - Built (a color per device, with a device legend), then replaced by
+      request 161 before it merged.
+160. **When a user clicks an event on the map, open it in the Events tab.**
+    (2026-10-01)
+    - Tapping a dot closes the subject's screen, switches to Events, scrolls
+      to the event and outlines it for 4 s. Done in the same PR as 159,
+      since both change the subject map's dots.
+161. **Change it: make the color always match the subject, and the opacity
+    the age; never mind the device ID here.** (2026-10-01)
+    - Each subject has one color (`Subject.color`), picked from its name
+      among Gruvbox's seven accents, so it's the same everywhere: every
+      dot on its map, and the dot on its frames in the Subjects list and
+      under the map. Opacity still runs from 100 % (newest) to 15 %
+      (oldest).
+    - The device colors, the device legend and the device ID in the event
+      list are gone. A dot's tooltip gives its time and camera.
+    - 169 Flutter tests pass; the web release builds.

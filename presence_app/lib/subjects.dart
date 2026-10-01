@@ -40,7 +40,32 @@ class Subject {
   /// As it was written on the latest event.
   String get name => latest.tag.name;
 
+  /// This subject's color: its dots on the map and on its frames.
+  Color get color => colorOf(id);
+
   static String idOf(String name) => name.trim().toLowerCase();
+
+  /// The subjects' colors (Gruvbox's accents).
+  static const List<Color> colors = [
+    Gruvbox.red,
+    Gruvbox.blue,
+    Gruvbox.green,
+    Gruvbox.yellow,
+    Gruvbox.purple,
+    Gruvbox.aqua,
+    Gruvbox.orange,
+  ];
+
+  /// The color for the subject [id]: always the same one for a name, on
+  /// every screen and launch and on web and native alike (so not
+  /// [String.hashCode]). Past seven subjects, colors repeat.
+  static Color colorOf(String id) {
+    var hash = 0;
+    for (final unit in id.codeUnits) {
+      hash = (hash * 31 + unit) % 1000003;
+    }
+    return colors[hash % colors.length];
+  }
 }
 
 /// The subjects tagged in [events], the most recently seen first.
@@ -98,10 +123,14 @@ class SubjectsView extends StatelessWidget {
     required this.log,
     required this.config,
     this.tiles,
+    this.onOpenEvent,
   });
 
   final EventLog log;
   final ConfigController config;
+
+  /// Opens an event in the Events tab (a dot tapped on a subject's map).
+  final ValueChanged<AppEvent>? onOpenEvent;
 
   /// The subject maps' tiles; defaults to OpenStreetMap.
   final Widget? tiles;
@@ -130,6 +159,7 @@ class SubjectsView extends StatelessWidget {
                 log: log,
                 config: config,
                 tiles: tiles,
+                onOpenEvent: onOpenEvent,
               ),
             ),
           ),
@@ -163,7 +193,7 @@ class _SubjectRow extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: [
-              SightingFrame(sighting: latest, width: 96),
+              SightingFrame(sighting: latest, color: subject.color, width: 96),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -197,9 +227,17 @@ class _SubjectRow extends StatelessWidget {
 /// The frame a subject was tagged on, with a dot where they were clicked.
 /// Without one (a tag from before frames were kept), the clip's thumbnail.
 class SightingFrame extends StatelessWidget {
-  const SightingFrame({super.key, required this.sighting, required this.width});
+  const SightingFrame({
+    super.key,
+    required this.sighting,
+    required this.color,
+    required this.width,
+  });
 
   final Sighting sighting;
+
+  /// The subject's color, for the dot.
+  final Color color;
   final double width;
 
   @override
@@ -238,7 +276,7 @@ class SightingFrame extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: Gruvbox.red,
+                          color: color,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white),
                         ),
@@ -268,7 +306,11 @@ class SubjectScreen extends StatelessWidget {
     required this.log,
     required this.config,
     this.tiles,
+    this.onOpenEvent,
   });
+
+  /// Opens a dot's event in the Events tab.
+  final ValueChanged<AppEvent>? onOpenEvent;
 
   /// [Subject.id].
   final String subjectId;
@@ -309,6 +351,7 @@ class SubjectScreen extends StatelessWidget {
           for (final s in shown)
             if (s.event.location != null) s,
         ];
+        final color = subject.color;
         return Scaffold(
           key: const Key('subject-page'),
           appBar: AppBar(title: Text(subject.name)),
@@ -317,13 +360,19 @@ class SubjectScreen extends StatelessWidget {
               children: [
                 Expanded(
                   flex: 3,
-                  child: _SightingsMap(sightings: located, tiles: tiles),
+                  child: _SightingsMap(
+                    sightings: located,
+                    color: color,
+                    tiles: tiles,
+                    onOpen: onOpenEvent,
+                  ),
                 ),
                 Expanded(
                   flex: 2,
                   child: _SightingList(
                     shown: shown,
                     located: located,
+                    color: color,
                     total: subject.sightings.length,
                   ),
                 ),
@@ -337,10 +386,21 @@ class SubjectScreen extends StatelessWidget {
 }
 
 class _SightingsMap extends StatelessWidget {
-  const _SightingsMap({required this.sightings, this.tiles});
+  const _SightingsMap({
+    required this.sightings,
+    required this.color,
+    this.tiles,
+    this.onOpen,
+  });
+
+  /// Called with a tapped dot's event.
+  final ValueChanged<AppEvent>? onOpen;
 
   /// Newest first, all with a location.
   final List<Sighting> sightings;
+
+  /// The subject's color ([Subject.color]).
+  final Color color;
   final Widget? tiles;
 
   static LatLng _at(Sighting s) =>
@@ -380,7 +440,12 @@ class _SightingsMap extends StatelessWidget {
                 point: points[i],
                 width: 18,
                 height: 18,
-                child: _Dot(opacity: SubjectScreen.opacityOf(i, count)),
+                child: _MapDot(
+                  sighting: sightings[i],
+                  color: color,
+                  opacity: SubjectScreen.opacityOf(i, count),
+                  onTap: onOpen,
+                ),
               ),
           ],
         ),
@@ -390,9 +455,47 @@ class _SightingsMap extends StatelessWidget {
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.opacity, this.size = 18});
+/// A dot on a subject's map: tapping it opens its event.
+class _MapDot extends StatelessWidget {
+  const _MapDot({
+    required this.sighting,
+    required this.color,
+    required this.opacity,
+    this.onTap,
+  });
 
+  final Sighting sighting;
+  final Color color;
+  final double opacity;
+  final ValueChanged<AppEvent>? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final event = sighting.event;
+    final label = '${formatSeen(event.time)} · ${event.clip.cameraLabel}';
+    final open = onTap;
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: open != null,
+        label: open != null ? 'Open event $label' : label,
+        child: MouseRegion(
+          cursor: open != null ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: open == null ? null : () => open(event),
+            child: _Dot(color: color, opacity: opacity),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.color, required this.opacity, this.size = 18});
+
+  final Color color;
   final double opacity;
   final double size;
 
@@ -403,7 +506,7 @@ class _Dot extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: Gruvbox.red,
+        color: color,
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
@@ -416,11 +519,13 @@ class _SightingList extends StatelessWidget {
   const _SightingList({
     required this.shown,
     required this.located,
+    required this.color,
     required this.total,
   });
 
   final List<Sighting> shown;
   final List<Sighting> located;
+  final Color color;
   final int total;
 
   @override
@@ -446,18 +551,18 @@ class _SightingList extends StatelessWidget {
         for (final s in shown)
           ListTile(
             key: Key('subject-event-${s.event.id}'),
-            leading: SightingFrame(sighting: s, width: 64),
+            leading: SightingFrame(sighting: s, color: color, width: 64),
             title: Text('${formatSeen(s.time)} · ${s.event.clip.cameraLabel}'),
-            subtitle: Text(
-              s.event.location == null
-                  ? 'No location'
-                  : '${s.event.location!.latitude.toStringAsFixed(5)}, '
-                        '${s.event.location!.longitude.toStringAsFixed(5)}',
-              style: small,
-            ),
+            subtitle: Text(switch (s.event.location) {
+              final at? =>
+                '${at.latitude.toStringAsFixed(5)}, '
+                    '${at.longitude.toStringAsFixed(5)}',
+              null => 'No location',
+            }, style: small),
             // The same dot as on the map, to match them up.
             trailing: located.contains(s)
                 ? _Dot(
+                    color: color,
                     opacity: SubjectScreen.opacityOf(
                       located.indexOf(s),
                       located.length,

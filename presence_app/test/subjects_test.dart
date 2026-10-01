@@ -82,6 +82,18 @@ void main() {
     });
   });
 
+  test("a subject's color depends only on its name", () {
+    expect(Subject.colorOf('rex'), Subject.colorOf('rex'));
+    final subjects = subjectsOf([
+      clipWith(['Rex'], minutesAgo: 1),
+      clipWith([' REX '], minutesAgo: 2),
+    ]);
+    expect(subjects.single.color, Subject.colorOf('rex'));
+    // Spread over the palette.
+    final names = ['ana', 'rex', 'bob', 'cat', 'dog', 'eve', 'max', 'zoe'];
+    expect({for (final n in names) Subject.colorOf(n)}.length, greaterThan(3));
+  });
+
   test('the number of events on a subject map is a stored setting', () {
     expect(const PresenceConfig().subjects.mapEvents, 20);
     final config = const PresenceConfig().copyWith(
@@ -219,6 +231,34 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets("dots take the subject's color, faded by age", (tester) async {
+      log.addHistory([
+        for (var i = 1; i <= 3; i++)
+          clipWith(['Rex'], minutesAgo: i, lat: 48 + i / 10),
+      ]);
+      await show(tester);
+      await tester.tap(find.text('Rex'));
+      await tester.pumpAndSettle();
+
+      Color colorOfDot(String eventId) {
+        final box = tester.widget<Container>(
+          find.descendant(
+            of: find.byKey(Key('subject-dot-$eventId')),
+            matching: find.byType(Container),
+          ),
+        );
+        return (box.decoration! as BoxDecoration).color!;
+      }
+
+      final rex = Subject.colorOf('rex');
+      for (final id in ['event-1', 'event-2', 'event-3']) {
+        expect(colorOfDot(id), rex);
+      }
+      expect(opacityOfDot(tester, 'event-1'), 1);
+      expect(opacityOfDot(tester, 'event-2'), closeTo(0.575, 1e-9));
+      expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
+    });
+
     testWidgets('the setting is on the Settings screen', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -265,6 +305,59 @@ void main() {
     await tester.tap(find.byTooltip('Subjects'));
     await tester.pumpAndSettle();
     expect(find.textContaining('No subjects yet'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping a dot opens its event in the Events tab', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      PresenceApp(
+        cameras: noCameras,
+        auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
+        storage: newIdbFactoryMemory(),
+        consentGiven: true,
+        locator: _NoLocation(),
+        mapTiles: const SizedBox(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    final bus = AppEventBusScope.of(
+      tester.element(find.byType(Scaffold).first),
+    );
+    // Rex's older sighting ends up far down the timeline.
+    bus.publish(clipWith(['Rex'], minutesAgo: 0, lat: 48.2, id: 'rex-old'));
+    for (var i = 0; i < 30; i++) {
+      bus.publish(AppEvent(icon: Icons.circle, title: 'Filler $i'));
+    }
+    bus.publish(clipWith(['Rex'], minutesAgo: 0, lat: 48.1, id: 'rex-new'));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    await tester.tap(find.byTooltip('Subjects'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rex'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('subject-dot-rex-old')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('subject-page')), findsNothing);
+    expect(find.byKey(const Key('events-page')), findsOneWidget);
+    final highlight = find.byKey(const Key('event-highlight'));
+    expect(highlight, findsOneWidget);
+    final card = tester.getRect(highlight);
+    expect(card.top, greaterThanOrEqualTo(0));
+    expect(card.bottom, lessThanOrEqualTo(800));
+    expect(find.text('Filler 29'), findsNothing, reason: 'scrolled to it');
+
+    // The outline goes after a few seconds.
+    await tester.pump(const Duration(seconds: 5));
+    expect(highlight, findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
