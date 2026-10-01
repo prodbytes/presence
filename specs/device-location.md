@@ -15,7 +15,9 @@ on every event. The tab also shows the device's battery.
   rotated; north stays up.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
-- A **card at the top** shows, each under a small label saying what it is,
+- A **panel in the top-left corner** (12 px in from the map's edges, as
+  wide as its content, at most 560 px and never past the screen) shows,
+  each under a small label saying what it is,
   the **Device ID** (selectable) and the **Position (latitude,
   longitude)** (6 decimals, selectable), the **Battery** (see below), then
   where the position came from:
@@ -129,6 +131,8 @@ on every event. The tab also shows the device's battery.
   charging, follows a charging change at once and a level drop within a
   minute, warns below 15 %, shows Full, and says "Not available" without
   a reading.
+- The panel sits in the top-left corner, as wide as its content, on a
+  320 dp phone and a 1280 px desktop.
 - Web release, Android debug and iOS debug (unsigned) builds compile with
   the new plugins; the battery hasn't been tried on a phone or in a
   browser yet. Not

@@ -180,13 +180,18 @@ class _DeviceViewState extends State<DeviceView> {
           top: 12,
           left: 12,
           right: 12,
-          child: Center(
+          // A panel in the top-left corner, as wide as its content.
+          child: Align(
+            alignment: Alignment.topLeft,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: _LocationCard(
-                deviceId: widget.deviceId,
-                location: _location,
-                battery: _battery,
+              child: IntrinsicWidth(
+                child: _LocationCard(
+                  key: const Key('device-card'),
+                  deviceId: widget.deviceId,
+                  location: _location,
+                  battery: _battery,
+                ),
               ),
             ),
           ),
@@ -229,6 +234,7 @@ class _DeviceViewState extends State<DeviceView> {
 /// The device's ID, where it is and how that was found.
 class _LocationCard extends StatelessWidget {
   const _LocationCard({
+    super.key,
     required this.deviceId,
     required this.location,
     required this.battery,

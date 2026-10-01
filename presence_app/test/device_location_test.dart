@@ -173,8 +173,9 @@ void main() {
       WidgetTester tester,
       FakeLocator locator, {
       BatteryReader? battery,
+      Size size = const Size(400, 800),
     }) async {
-      tester.view.physicalSize = const Size(400, 800);
+      tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
@@ -226,6 +227,24 @@ void main() {
       expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+      testWidgets('the info panel sits in the top-left corner at '
+          '${size.width.toInt()} wide', (tester) async {
+        await launch(tester, FakeLocator(), size: size);
+        await tester.tap(find.byTooltip('Device'));
+        await tester.pumpAndSettle();
+        final card = tester.getRect(find.byKey(const Key('device-card')));
+        final map = tester.getRect(find.byType(FlutterMap));
+        expect(card.left, map.left + 12);
+        expect(card.top, map.top + 12);
+        expect(card.right, lessThanOrEqualTo(size.width - 12));
+        // As wide as its content, not the screen.
+        expect(card.width, lessThanOrEqualTo(560));
+        if (size.width > 600) expect(card.width, lessThan(400));
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('labels say what each value is; buttons zoom in and out', (
       tester,
