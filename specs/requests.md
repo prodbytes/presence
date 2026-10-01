@@ -1304,3 +1304,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       clearing, kept across a tab switch, and a new event shows before
       it's saved. 173 Flutter tests pass. Opening another device's event
       isn't covered by a test.
+168. **Make sure settings are persistent per device; store them on S3 as
+    well, if S3 is available, or else use the local database. When the app
+    starts and the device ID is determined, fetch its settings or
+    initialize them with the defaults.** (2026-10-01)
+    - The settings record now carries `updatedAt`, when the user last
+      changed it, and stays in the local database as before.
+    - With S3 available, it also goes to
+      `<identityId>/devices/<deviceId>/settings.json`. The first sync pass
+      after start fetches it, and the newer of the two wins. Every change
+      is uploaded. A device with no record starts with the defaults and
+      uploads them.
+    - Without S3, only the local database is used.
+    - 181 Flutter tests pass; the web release builds. Numbered after
+      #101's 167.
