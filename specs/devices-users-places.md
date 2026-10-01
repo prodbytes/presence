@@ -26,7 +26,8 @@ not built yet.
   [recording consent](consent.md), asked once, before anything shows or
   records.
 - **Settings shows it**, small and selectable, under the version (see
-  [Settings screen](settings.md)).
+  [Settings screen](settings.md)), and so does the Device tab, with where
+  the device is (see [Device location](device-location.md)).
 
 ## Users
 
@@ -62,8 +63,9 @@ not built yet.
 |---|---|
 | `deviceId` | the recording device's ID, set when the event is saved |
 | `userId` | the signed-in user's Google ID when it's saved, or `anonymous` until a user takes it over |
+| `location` | where the device was when it was published (`lat`, `lng`, `accuracy`, `source`, `time`; see [Device location](device-location.md)), or absent while unknown |
 
-Both are in the stored record, in the cloud JSON, and on `AppEvent`
+All three are in the stored record, in the cloud JSON, and on `AppEvent`
 ([lib/events.dart](../presence_app/lib/events.dart)).
 
 ## Verified

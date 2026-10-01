@@ -12,6 +12,7 @@ import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
+import '../location/device_location.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -28,14 +29,16 @@ import 'media_store.dart';
 /// It subscribes to the bus as soon as it's created, so it doesn't miss
 /// events published while the database is still opening.
 ///
-/// Every event it saves gets this device's ID ([deviceId]) and its owner:
-/// the [currentUser] when it's saved, or [AppEvent.anonymousUserId].
+/// Every event it saves gets this device's ID ([deviceId]), its owner (the
+/// [currentUser] when it's published, or [AppEvent.anonymousUserId]) and
+/// the [currentLocation] when it's published.
 class Persistence {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
     required this.config,
     this.currentUser,
+    this.currentLocation,
     MediaStore Function(EventStore store)? mediaStore,
   }) : _store = factory.then(EventStore.open) {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
@@ -51,6 +54,9 @@ class Persistence {
 
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
+
+  /// This device's location, or null while it's unknown.
+  final DeviceLocation? Function()? currentLocation;
 
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
@@ -69,6 +75,20 @@ class Persistence {
   /// replaced (read once, for upgrades).
   static const String _configKey = 'config';
   static const String _legacyKey = 'clip';
+
+  /// Settings-store key of this device's location (`DeviceLocation`).
+  static const String _locationKey = 'location';
+
+  /// The saved location of this device, if any.
+  Future<Map<String, Object?>?> loadLocation() async =>
+      (await _store).getSettings(_locationKey);
+
+  /// Saves this device's location.
+  Future<void> saveLocation(Map<String, Object?> json) {
+    final write = _store.then((store) => store.putSettings(_locationKey, json));
+    _track(write);
+    return write;
+  }
 
   /// Loads saved settings and history into [log]. Settings are saved on
   /// every change from then on.
@@ -233,6 +253,7 @@ class Persistence {
   void _onEvent(AppEvent event) {
     // Who's signed in now, not once the database is open.
     event.userId ??= currentUser?.call() ?? AppEvent.anonymousUserId;
+    event.location ??= currentLocation?.call();
     _track(() async {
       final store = await _store;
       try {
@@ -317,6 +338,13 @@ class Persistence {
   }
 
   AppEvent _restoreEvent(
+    Map<String, Object?> record,
+    Map<String, VideoClip> clips,
+  ) =>
+      _restoreEventOnly(record, clips)
+        ..location ??= DeviceLocation.fromJson(record['location']);
+
+  AppEvent _restoreEventOnly(
     Map<String, Object?> record,
     Map<String, VideoClip> clips,
   ) {

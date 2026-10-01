@@ -10,6 +10,8 @@
 	<string>Presence</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Presence records sound with its camera clips.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Presence shows where this device is on a map and records it with each event.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Presence shows live feeds from this device's cameras.</string>
 	<key>CFBundleExecutable</key>

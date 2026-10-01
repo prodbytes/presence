@@ -38,6 +38,8 @@ audio, so a clip can include the moments before someone pressed Clip.
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
+- [Device location](device-location.md): the Device tab's map, setting
+  the location by moving it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera and clip settings.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to

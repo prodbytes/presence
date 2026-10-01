@@ -5,14 +5,16 @@ runs on Android and web. It follows Material 3 top-level navigation: **tabs
 in the app bar**, which flip between full screens.
 
 - **App bar:** the title **Presence** (accent color, plain text) on the left.
-  In the top right are three icon tabs, in order **Camera**, **Events** and
-  **Settings**, then a **Login** icon button.
+  In the top right are four icon tabs, in order **Camera**, **Events**,
+  **Device** and **Settings**, then a **Login** icon button. On 320 dp
+  phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
     An indicator marks the selected tab.
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
 - **Flipping:** tapping a tab or swiping sideways moves between screens
-  (`TabBar` + `TabBarView`). The Camera screen is kept alive while other tabs
+  (`TabBar` + `TabBarView`). On the Device tab a sideways drag moves the
+  map instead, so only the tabs flip away from it. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
@@ -69,6 +71,8 @@ in the app bar**, which flip between full screens.
 - **Events:** the event stream, full screen. On wide screens it's centered
   at a readable width (max 560 px), so clip thumbnails don't stretch across
   the desktop.
+- **Device:** a map with this device's location, which moving the map
+  overrides (see [Device location](device-location.md)).
 - **Settings:** the clip settings as a normal screen (no longer a drawer),
   same 560 px readable width.
 - The title no longer links to presence.nu01.com. On a full-screen camera,
