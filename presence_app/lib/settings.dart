@@ -3,16 +3,32 @@ import 'package:flutter/material.dart';
 
 import 'app_version.dart';
 import 'config.dart';
+import 'location/device_location.dart';
+import 'location/location_settings.dart';
 
-/// The Settings screen (the Settings tab).
-class SettingsView extends StatelessWidget {
+/// The Settings screen (the Settings tab), full width.
+class SettingsView extends StatefulWidget {
   const SettingsView({
     super.key,
     required this.config,
     this.motionLevel,
     this.deviceId,
     this.health,
+    this.location,
+    this.tiles,
+    this.onMapHeld,
   });
+
+  /// Where this device is: the **Location** section and its map, when
+  /// given.
+  final LocationController? location;
+
+  /// The location map's tiles; defaults to OpenStreetMap.
+  final Widget? tiles;
+
+  /// Told while the location map is held, so the tabs don't swipe away
+  /// under a drag on it ([LocationSettings.onMapHeld]).
+  final ValueChanged<bool>? onMapHeld;
 
   /// This device's ID, shown under the version once it's loaded.
   final String? deviceId;
@@ -27,8 +43,27 @@ class SettingsView extends StatelessWidget {
   final ValueListenable<double?>? motionLevel;
 
   @override
+  State<SettingsView> createState() => _SettingsViewState();
+}
+
+class _SettingsViewState extends State<SettingsView> {
+  /// The location map is held: the list holds still, so a drag on the map
+  /// moves the map.
+  bool _mapHeld = false;
+
+  void _onMapHeld(bool held) {
+    setState(() => _mapHeld = held);
+    widget.onMapHeld?.call(held);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final config = widget.config;
+    final motionLevel = widget.motionLevel;
+    final deviceId = widget.deviceId;
+    final health = widget.health;
+    final location = widget.location;
     return ListenableBuilder(
       listenable: config,
       builder: (context, _) {
@@ -51,6 +86,7 @@ class SettingsView extends StatelessWidget {
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         return ListView(
           key: const Key('settings-page'),
+          physics: _mapHeld ? const NeverScrollableScrollPhysics() : null,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
             Text('Camera', style: theme.textTheme.titleMedium),
@@ -169,6 +205,16 @@ class SettingsView extends StatelessWidget {
               onChanged: (v) =>
                   setSubjects((s) => s.copyWith(mapEvents: v.round())),
             ),
+            if (location != null) ...[
+              const SizedBox(height: 16),
+              Text('Location', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              LocationSettings(
+                location: location,
+                tiles: widget.tiles,
+                onMapHeld: _onMapHeld,
+              ),
+            ],
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),

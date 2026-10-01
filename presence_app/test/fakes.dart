@@ -10,6 +10,7 @@ import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
+import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/storage/media_store.dart';
 
 /// A valid 1×1 PNG, so `Image.memory` can decode fake thumbnails.
@@ -360,4 +361,29 @@ class FakeMembershipClient implements MembershipClient {
     if (error case final e?) throw e;
     requests.removeWhere((r) => r.email == email);
   }
+}
+
+/// A device without positioning: every reading fails at once, so nothing
+/// waits on the platform's location plugin (which tests don't have).
+class NoLocation implements Locator {
+  @override
+  Future<({double latitude, double longitude, double? accuracy})> locate() =>
+      Future.error(const LocationUnavailable('Location is off'));
+}
+
+/// Scrolls the Settings list until [finder] is built and on screen. It
+/// drags at the list's left edge, outside the location map (a drag on the
+/// map moves the map, not the list).
+Future<void> scrollSettingsTo(WidgetTester tester, Finder finder) async {
+  final list = find.byKey(const Key('settings-page'));
+  for (var i = 0; i < 30 && finder.evaluate().isEmpty; i++) {
+    final rect = tester.getRect(list);
+    await tester.dragFrom(
+      Offset(rect.left + 4, rect.center.dy),
+      const Offset(0, -300),
+    );
+    await tester.pumpAndSettle();
+  }
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
 }

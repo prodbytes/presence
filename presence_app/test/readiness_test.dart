@@ -193,6 +193,8 @@ void main() {
           now: () => now,
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
         ),
       );
       await tester.pumpAndSettle();
@@ -205,14 +207,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
 
-    testWidgets('is the last button on the right, and starts Ready', (
+    testWidgets('sits bottom left, level with Clip, and starts Ready', (
       tester,
     ) async {
       await pumpApp(tester);
 
       final pill = tester.getCenter(find.byKey(const Key('readiness')));
       final clip = tester.getCenter(find.byTooltip('Clip'));
-      expect(pill.dx, greaterThan(clip.dx));
+      expect(pill.dx, lessThan(clip.dx));
+      expect(tester.getRect(find.byKey(const Key('readiness'))).left, 16);
       expect((pill.dy - clip.dy).abs(), lessThan(1));
       // No countdown on load (e.g. a page reload): countdowns start with a
       // clip.
@@ -235,13 +238,15 @@ void main() {
           now: () => now,
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
         ),
       );
       await tester.pumpAndSettle();
       await settleStorage(tester);
 
-      // Flip, Clip and the pill in one row, no overflow, with the pill's
-      // widest label: the motion cooldown ("5:00").
+      // The pill clear of Flip and Clip, no overflow, with its widest
+      // label: the motion cooldown ("5:00").
       for (var i = 0; i < 20; i++) {
         now = now.add(const Duration(milliseconds: 200));
         back.motion.add(frame());
@@ -257,7 +262,12 @@ void main() {
       expect(find.byTooltip('Flip camera'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final pill = tester.getRect(find.byKey(const Key('readiness')));
-      expect(pill.right, lessThanOrEqualTo(320));
+      expect(pill.left, 16);
+      expect(pill.overlaps(tester.getRect(find.byTooltip('Clip'))), isFalse);
+      expect(
+        pill.overlaps(tester.getRect(find.byTooltip('Flip camera'))),
+        isFalse,
+      );
     });
 
     testWidgets('a Clip press pops a message; the pill stays Ready', (

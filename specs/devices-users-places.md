@@ -26,8 +26,8 @@ not built yet.
   [recording consent](consent.md), asked once, before anything shows or
   records.
 - **Settings shows it**, small and selectable, under the version (see
-  [Settings screen](settings.md)), and so does the Device tab, with where
-  the device is (see [Device location](device-location.md)).
+  [Settings screen](settings.md)), above the Location section with where
+  the device is (see [Device location and battery](device-location.md)).
 
 ## Users
 

@@ -142,6 +142,8 @@ void main() {
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,
           membershipClient: membership ?? FakeMembershipClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
         ),
       );
       await tester.pumpAndSettle();

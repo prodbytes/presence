@@ -407,7 +407,7 @@ void main() {
     });
   });
 
-  testWidgets('the Monitoring tab sits between Camera and Device', (
+  testWidgets('the Monitoring tab sits between Camera and Settings', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -428,11 +428,12 @@ void main() {
     await settleStorage(tester);
     final camera = tester.getCenter(find.byTooltip('Camera'));
     final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
-    final device = tester.getCenter(find.byTooltip('Device'));
+    final settings = tester.getCenter(find.byTooltip('Settings'));
     expect(camera.dx, lessThan(monitoring.dx));
-    expect(monitoring.dx, lessThan(device.dx));
+    expect(monitoring.dx, lessThan(settings.dx));
     expect(find.byTooltip('Events'), findsNothing);
     expect(find.byTooltip('Subjects'), findsNothing);
+    expect(find.byTooltip('Device'), findsNothing);
 
     await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();

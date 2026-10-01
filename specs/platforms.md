@@ -30,8 +30,8 @@
 | Brightness (EV) | where the browser supports it | ✅ | ✅ |
 | Low light: variable frame rate | 10–30 fps (a hint to the browser) | 5–30 fps | 10–30 fps |
 | Persistent events, clips, settings | IndexedDB | sembast + MP4 files | sembast + MP4 files |
-| Battery on the Device tab | Battery Status API (Chrome, Edge; not Firefox, Safari) | ✅ | ✅ |
-| Battery temperature (°C) on the Device tab | — (no web API) | ✅ battery broadcast | — (no public API) |
+| Battery over the camera | Battery Status API (Chrome, Edge; not Firefox, Safari) | ✅ | ✅ |
+| Battery temperature (°C) over the camera | — (no web API) | ✅ battery broadcast | — (no public API) |
 | Portrait lock | — | ✅ | ✅ (iPhone) |
 | Verified on a device | Chrome (fake camera): recording, clips, audio playback timing, motion clip end to end | DOOGEE S40 | build + simulator only (see below) |
 
