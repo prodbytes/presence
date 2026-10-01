@@ -98,7 +98,8 @@ The [README](../README.md) is the project's front page. It covers:
 - a notice that users must make sure local law allows them to record
   (video and audio) where they set it up;
 - the technology and main libraries;
-- running it locally with devbox, and on GitHub Codespaces;
+- running it locally with devbox, and on GitHub Codespaces (it doesn't
+  mention the private settings repo);
 - deploying to AWS: `*RC*` tags deploy to https://rc.presence.nu01.com,
   and `*GA` tags to production, https://presence.nu01.com;
 - contributing: contributions are welcome, and merged changes are deployed
