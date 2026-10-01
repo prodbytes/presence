@@ -187,6 +187,7 @@ void main() {
       final camera = FakeCameraSource('Main', immediatePast: media);
       await tester.pumpWidget(
         PresenceApp(
+          consentGiven: true,
           cameras: openFakes([camera]),
           mediaIo: fakeMediaIo,
           now: () => now,
@@ -228,6 +229,7 @@ void main() {
       final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
       await tester.pumpWidget(
         PresenceApp(
+          consentGiven: true,
           cameras: openFakes([back, front]),
           mediaIo: fakeMediaIo,
           now: () => now,

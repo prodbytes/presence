@@ -137,6 +137,7 @@ void main() {
       final camera = FakeCameraSource('Main');
       await tester.pumpWidget(
         PresenceApp(
+          consentGiven: true,
           cameras: openFakes([camera]),
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,

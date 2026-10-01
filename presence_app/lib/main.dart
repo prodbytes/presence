@@ -17,6 +17,7 @@ import 'cloud/cloud_sync.dart';
 import 'cloud/cognito.dart';
 import 'cloud/s3.dart';
 import 'config.dart';
+import 'consent/consent_screen.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
@@ -41,7 +42,12 @@ class PresenceApp extends StatefulWidget {
     this.cloud,
     this.rolesClient,
     this.membershipClient,
+    this.consentGiven = false,
   });
+
+  /// Skips the recording consent, as if this device had given it (used by
+  /// tests). The app itself always checks storage.
+  final bool consentGiven;
 
   /// Overrides membership requests (used by tests); defaults to
   /// `/api/auth/membership`.
@@ -109,7 +115,7 @@ class _PresenceAppState extends State<PresenceApp> {
       config: _config,
       bus: _bus,
       now: widget.now,
-    )..load();
+    );
     _auth.init().ignore();
     _roles = RolesService(
       auth: _auth,
@@ -161,11 +167,55 @@ class _PresenceAppState extends State<PresenceApp> {
     _persistence.deviceId.then((id) {
       if (mounted) setState(() => _deviceId = id);
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
+    _checkConsent();
     requestPersistentStorage().ignore();
   }
 
   /// This device's ID, once storage has it.
   String? _deviceId;
+
+  /// Whether this device gave its recording consent: null while checking,
+  /// before anything shows. The cameras open (and record) only once it's
+  /// given.
+  bool? _consented;
+
+  Future<void> _checkConsent() async {
+    var given = widget.consentGiven;
+    if (!given) {
+      try {
+        given = await _persistence.hasConsent();
+      } catch (e) {
+        // Can't tell: ask.
+        debugPrint('Presence: could not read the consent: $e');
+      }
+    }
+    if (!mounted) return;
+    setState(() => _consented = given);
+    if (given) _rig.load();
+  }
+
+  /// The user agreed on the consent screen: saved once, never asked again
+  /// on this device. If saving fails, this session goes on and the next
+  /// launch asks again.
+  Future<void> _agree() async {
+    final at = (widget.now ?? DateTime.now)();
+    try {
+      await _persistence.giveConsent(at);
+    } catch (e) {
+      debugPrint('Presence: could not save the consent: $e');
+    }
+    if (!mounted) return;
+    _bus.publish(
+      AppEvent(
+        icon: Icons.verified_user,
+        title: 'Recording consent given',
+        detail: _deviceId,
+        time: at,
+      ),
+    );
+    setState(() => _consented = true);
+    _rig.load();
+  }
 
   void _claim(String userId) => _persistence
       .claimAnonymous(userId)
@@ -217,16 +267,25 @@ class _PresenceAppState extends State<PresenceApp> {
         title: 'Presence',
         debugShowCheckedModeBanner: false,
         theme: gruvboxSoftDarkTheme(),
-        home: HomeScreen(
-          log: _log,
-          rig: _rig,
-          config: _config,
-          auth: _auth,
-          roles: _roles,
-          membership: _membership,
-          sync: _sync,
-          deviceId: _deviceId,
-        ),
+        home: switch (_consented) {
+          // Nothing shows until the device's consent is known.
+          null => const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(key: Key('checking-consent')),
+            ),
+          ),
+          false => ConsentScreen(onAgree: _agree),
+          true => HomeScreen(
+            log: _log,
+            rig: _rig,
+            config: _config,
+            auth: _auth,
+            roles: _roles,
+            membership: _membership,
+            sync: _sync,
+            deviceId: _deviceId,
+          ),
+        },
       ),
     );
   }

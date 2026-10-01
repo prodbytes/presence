@@ -20,6 +20,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states.
 - [Events](events.md): the event timeline and the app-wide event bus.
+- [Recording consent](consent.md): asked once per device, before anything
+  shows or records: the right to record, and faces as biometric data under
+  the GDPR, in plain terms, with a verification hash.
 - [Devices, users and places](devices-users-places.md): the device ID
   (`automatic_paranoid_gadget`) and user ID on every event, and a sign-in
   taking over the events recorded signed out; places (device groups) are

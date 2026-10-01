@@ -24,6 +24,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       PresenceApp(
+        consentGiven: true,
         cameras: cameras ?? noCameras,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
@@ -120,7 +121,7 @@ void main() {
     final backend = openFakes([FakeCameraSource('Main')]);
     // The real Google service and auth API client: tests configure no
     // client ID and reach no API, so the app starts in dev mode.
-    await pumpGate(tester, PresenceApp(cameras: backend));
+    await pumpGate(tester, PresenceApp(cameras: backend, consentGiven: true));
     await tester.pumpAndSettle();
 
     expect(backend.opened, hasLength(1), reason: 'the camera still shows');
@@ -164,6 +165,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       PresenceApp(
+        consentGiven: true,
         cameras: openFakes([FakeCameraSource('Main')]),
         auth: FakeAuthService(),
         rolesClient: roles,
@@ -194,6 +196,7 @@ void main() {
     await pumpGate(
       tester,
       PresenceApp(
+        consentGiven: true,
         cameras: backend,
         auth: FakeAuthService(),
         rolesClient: FakeRolesClient(),
@@ -254,6 +257,7 @@ void main() {
     await pumpGate(
       tester,
       PresenceApp(
+        consentGiven: true,
         cameras: noCameras,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
