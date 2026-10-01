@@ -1,6 +1,10 @@
 # Clips
 
-Pressing **Clip** records a clip from **every** open camera at once:
+Pressing **Clip** records a clip from **every** open camera at once.
+Motion clips are recorded the same way (see [Motion clips](motion-clips.md)).
+Each clip is two recordings, never joined: a **preview** with the seconds
+before the trigger, shown at once, and the **full clip**, recorded as one
+file of *before* + *after* once the *after* seconds have passed.
 
 1. For each camera, the app publishes a **`ClipRequested`** event on the bus
    once that camera's **previous 15 s** (the "before" part) are recorded,
@@ -18,11 +22,13 @@ Pressing **Clip** records a clip from **every** open camera at once:
    new event is added. The card updates in place ("30 s clip ready"), and the
    stored event record changes from `clipState: partial` to
    `clipState: complete`.
-3. Tapping a playable card opens the player. It plays the before part first,
-   then continues into the full clip at the moment of the press, so a clip
-   always plays **before + after = 30 s** by default. If the after part isn't
-   recorded yet when the before part ends, the player waits ("Recording the
-   next 15 s…") and continues as soon as it's ready. Seeking is kept inside
+3. Tapping a playable card opens the player. It always plays the **full
+   clip** when it exists. Until then it plays the **preview** on its own,
+   marked "Preview" in the top-left corner, and stops at its end ("Recording
+   the next 15 s…"). As soon as the full clip is recorded it **replaces the
+   preview** at the same moment of the clip: playing on if the preview was
+   playing or had ended, paused if it was paused. From then on only the full
+   clip plays, **before + after = 30 s** by default. Seeking is kept inside
    the clip window, and replaying after the end starts from the beginning.
 4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap
@@ -41,10 +47,25 @@ recorders (`RecorderPool` in
 - On Clip, one of those is stopped at once to produce the before part, and
   another is held until the after part ends to produce the full clip. A timer
   releases it at exactly +*after*.
-- Clips are cut to their exact window by seeking, using each recorder's start
-  time. Verified in Chrome: the before part starts exactly *before* seconds
-  before the press, the player continues into the full clip at the press
-  point without a gap, and playback stops exactly at the end of the window.
+- **Each recording is cut to its clip** (`cutWebm` in
+  [lib/cameras/webm_trim.dart](../presence_app/lib/cameras/webm_trim.dart)),
+  for the preview and the full clip alike, without re-encoding:
+  - Recorders ask for a **video keyframe every 5 s**
+    (`videoKeyFrameIntervalDuration`). The new file starts at the last
+    keyframe at or before the clip's start, stops after its last frame,
+    has timestamps from zero and states its duration (`MediaRecorder`
+    files state none). So a full clip's file is the clip plus at most 5 s
+    of lead-in, instead of the recorder's whole history (up to 2 ×
+    *before*).
+  - Clips sharing a held recorder are each cut from one download of it;
+    the shared file is released once every clip has its own.
+  - A file the cutter doesn't understand (block groups, no video track,
+    MP4 from Safari) is kept whole, as before.
+- Clips are then cut to their exact window by seeking, using each
+  recorder's start time. Verified in Chrome (before the files were cut
+  and the player stopped joining them): the before part started exactly
+  *before* seconds before the press, and playback stopped exactly at the
+  end of the window.
 - Presses close together share the held recorder.
 - A clip requested before enough history exists (just after startup, or right
   after raising *before*) starts at the oldest recording instead.
@@ -117,8 +138,11 @@ spot clicked
 
 - Always-on recording runs about 4 video encoders per camera, which uses
   noticeable CPU with several cameras.
-- The browser's native video controls show the whole recording file, which
-  can be longer than the clip window. Playback is still kept to the window.
+- On the web, the browser's video controls show the clip's file, which
+  starts up to 5 s before the clip (at a keyframe). Playback is still kept
+  to the window. Safari's MP4 recordings aren't cut: they still hold the
+  recorder's whole history.
+- The 5 s keyframes make web recordings somewhat larger.
 - Audio recording has been verified in unit tests and code review only. The
   in-browser run that checked recording and playback timing ran before audio
   was added.

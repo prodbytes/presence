@@ -12,6 +12,7 @@ import '../motion.dart';
 import 'camera_source.dart';
 import 'clip_player_controller.dart';
 import 'recorder_pool.dart';
+import 'webm_trim.dart';
 
 /// The browser's cameras, one open at a time, each always recording.
 class DeviceCameras implements CameraBackend {
@@ -219,6 +220,8 @@ class WebCameraSource implements CameraSource {
     _pool = RecorderPool(
       startRecorder: () => _WebRecorder(_stream, _mimeType!),
       preRoll: preRoll,
+      // Each clip's file is cut to its window, so it's as long as the clip.
+      trim: _trimWebm,
     )..tick();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _pool.tick());
   }
@@ -354,11 +357,50 @@ class WebCameraSource implements CameraSource {
   }
 }
 
+/// Cuts finished WebM recordings down to their clips' windows (`cutWebm`):
+/// one download of the shared file, then a new file per clip. The shared
+/// file is released once every clip has its own; one that can't be cut
+/// keeps it.
+Future<List<ClipMedia>> _trimWebm(List<ClipMedia> media) async {
+  final source = media.firstOrNull?.liveUrl;
+  if (source == null || !media.first.mimeType.contains('webm')) return media;
+  final response = await web.window.fetch(source.toJS).toDart;
+  final bytes = (await response.arrayBuffer().toDart).toDart.asUint8List();
+  var allCut = true;
+  final out = [
+    for (final m in media)
+      if (cutWebm(bytes, m.start, m.end) case final cut?)
+        ClipMedia(
+          url: web.URL.createObjectURL(
+            web.Blob(
+              [cut.bytes.toJS].toJS,
+              web.BlobPropertyBag(type: m.mimeType),
+            ),
+          ),
+          start: cut.start,
+          end: cut.end,
+          mimeType: m.mimeType,
+        )
+      else
+        (() {
+          allCut = false;
+          return m;
+        })(),
+  ];
+  if (allCut) web.URL.revokeObjectURL(source);
+  return out;
+}
+
 class _WebRecorder implements PoolRecorder {
   _WebRecorder(web.MediaStream stream, this.mimeType)
     : _recorder = web.MediaRecorder(
         stream,
-        web.MediaRecorderOptions(mimeType: mimeType),
+        web.MediaRecorderOptions(
+          mimeType: mimeType,
+          // A keyframe every 5 s, so clips can be cut close to their start
+          // without re-encoding (browsers that don't know it ignore it).
+          videoKeyFrameIntervalDuration: 5000,
+        ),
       ) {
     _recorder
       ..addEventListener(
@@ -412,8 +454,10 @@ class _WebRecorder implements PoolRecorder {
   }
 }
 
-/// Plays a clip: the "before" recording first, then, once it has been
-/// recorded, continues into the full clip at the moment of the press.
+/// Plays a clip: the full clip once it's recorded, and until then the
+/// preview (the "before" part), on its own. When the full clip arrives it
+/// replaces the preview at the same moment of the clip. Nothing is joined:
+/// each is played as one file.
 class ClipPlayerView extends StatefulWidget {
   const ClipPlayerView({super.key, required this.clip, this.controller});
 
@@ -476,11 +520,9 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       }
     });
     _listen('play', (_) {
-      // Replaying after the end starts the clip over.
+      // Replaying after the end starts it over.
       final media = _current;
-      if (_onFull &&
-          media != null &&
-          _video.currentTime >= _seconds(media.end) - 0.05) {
+      if (media != null && _video.currentTime >= _seconds(media.end) - 0.05) {
         _video.currentTime = _seconds(media.start);
       }
     });
@@ -590,6 +632,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     ClipMedia media,
     Duration at, {
     required bool onFull,
+    bool play = true,
   }) async {
     setState(() {
       _current = media;
@@ -612,7 +655,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       // If the browser blocks autoplay with sound, stay paused on the
       // controls: one tap on play then starts it with audio. Never fall back
       // to muted playback.
-      _video.play().toDart.ignore();
+      if (play) _video.play().toDart.ignore();
     }).toJS;
     _video.addEventListener('loadedmetadata', onMetadata);
     _video.src = url;
@@ -620,35 +663,39 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
 
   void _reachedEnd() {
     _endTimer?.cancel();
-    if (_onFull) {
-      _video.pause();
-      // Snap back from any overshoot to the exact end of the clip.
-      final media = _current;
-      if (media != null) _video.currentTime = _seconds(media.end);
-      return;
-    }
-    if (_waiting) return;
-    final full = _clip.full;
-    if (full != null) {
-      _continueIntoFull(full);
-    } else {
-      _video.pause();
-      setState(() => _waiting = true);
-    }
+    _video.pause();
+    // Snap back from any overshoot to the exact end.
+    final media = _current;
+    if (media != null) _video.currentTime = _seconds(media.end);
+    // The preview is over; the full clip shows as soon as it's recorded.
+    if (!_onFull && _clip.full == null) setState(() => _waiting = true);
   }
 
-  /// Picks up in the full clip right where the "before" part ended.
-  void _continueIntoFull(ClipMedia full) {
-    final playedBefore = _clip.past?.length ?? _clip.before;
-    _load(full, full.start + playedBefore, onFull: true);
+  /// Replaces the preview with the full clip, at the same moment of the
+  /// clip. It plays on if the preview was playing, or had played to its end
+  /// and was waiting for it.
+  void _showFull(ClipMedia full) {
+    final preview = _current;
+    var into = preview == null
+        ? Duration.zero
+        : Duration(microseconds: (_video.currentTime * 1e6).round()) -
+              preview.start;
+    if (into.isNegative) into = Duration.zero;
+    if (into > full.length) into = full.length;
+    _load(
+      full,
+      full.start + into,
+      onFull: true,
+      play: _waiting || !_video.paused,
+    );
   }
 
   void _onClipChanged() {
     final full = _clip.full;
-    if (_current == null && !_onFull) {
+    if (_current == null) {
       if (full != null || _clip.past != null) _start();
-    } else if (_waiting && full != null) {
-      _continueIntoFull(full);
+    } else if (!_onFull && full != null) {
+      _showFull(full);
     }
   }
 
@@ -680,6 +727,11 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
               style: TextStyle(color: Color(0xFFFB4934)),
             ),
           ),
+        if (_current != null && !_onFull && !_waiting)
+          const Align(
+            alignment: Alignment.topLeft,
+            child: Padding(padding: EdgeInsets.all(12), child: _PreviewLabel()),
+          ),
         if (_waiting)
           Align(
             alignment: Alignment.topCenter,
@@ -706,4 +758,23 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       ],
     );
   }
+}
+
+/// Marks the preview (the part before the press) while the full clip is
+/// still recording.
+class _PreviewLabel extends StatelessWidget {
+  const _PreviewLabel();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    key: Key('clip-preview'),
+    decoration: BoxDecoration(
+      color: Color(0xCC282828),
+      borderRadius: BorderRadius.all(Radius.circular(4)),
+    ),
+    child: Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Text('Preview', style: TextStyle(color: Color(0xFFEBDBB2))),
+    ),
+  );
 }

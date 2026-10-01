@@ -1333,3 +1333,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       now sits in the map's top-left corner, as wide as its content (at
       most 560 px), instead of centered across the top.
     - 181 Flutter tests pass.
+170. **On a grab, regardless of source, capture the preview with the past
+    seconds and show it at once; after the configured seconds, capture the
+    final clip with the total duration, so it's always full and correct and
+    no videos are joined. Always show the full clip, or the preview until
+    it exists.** Later: **trimming every 5 seconds is fine.** (2026-10-01)
+    - Recording already made the preview and the full clip as separate
+      recordings on every platform. The players joined them, playing the
+      preview and then continuing into the full file. Now the preview plays
+      alone, labelled "Preview", and the full clip replaces it as soon as
+      it's recorded, at the same moment.
+    - Web files weren't the clip's length: the full clip came from the
+      oldest recorder, with up to 2 × *before* of history. Chosen fix (of
+      trimming at keyframes, re-encoding, or player only): recorders ask for
+      a keyframe every 5 s, and `cutWebm` cuts each file to its window
+      without re-encoding, stating its duration.
+    - Tests: `webm_trim_test.dart` (a Chrome-like file: cut from the
+      keyframe before the window, frames once each, duration stated,
+      across a non-keyframe cluster break, cut twice, garbage left alone);
+      pool tests for the trimmer (preview and full, one call for shared
+      holds, a failed cut keeps the file). 188 Flutter tests pass.
+    - Checked with a real 20 s recording from headless Chrome's fake camera:
+      keyframes came at 0, 5, 10.05 and 15.05 s; a 7–17 s cut started at
+      the 5 s keyframe, ffmpeg decoded its VP8 and Opus cleanly, and Chrome
+      reported 12 s, seeked to 2 s and played. Not tried by pressing Clip in
+      the running app.

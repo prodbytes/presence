@@ -182,9 +182,10 @@ class _NativeCameraSource implements CameraSource {
   }
 }
 
-/// Plays a clip: the "before" recording first, then, once it has been
-/// recorded, continues into the full clip at the moment of the press.
-/// Mirrors the web player, on `video_player` (ExoPlayer).
+/// Plays a clip: the full clip once it's recorded, and until then the
+/// preview (the "before" part), on its own. When the full clip arrives it
+/// replaces the preview at the same moment of the clip. Mirrors the web
+/// player, on `video_player` (ExoPlayer).
 class ClipPlayerView extends StatefulWidget {
   const ClipPlayerView({super.key, required this.clip, this.controller});
 
@@ -249,6 +250,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     ClipMedia media,
     Duration at, {
     required bool onFull,
+    bool play = true,
   }) async {
     setState(() {
       _current = media;
@@ -272,7 +274,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     final old = _controller;
     await controller.seekTo(at);
     controller.addListener(_onTick);
-    await controller.play();
+    if (play) await controller.play();
     if (!mounted) {
       controller.dispose();
       return;
@@ -297,33 +299,38 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
 
   void _reachedEnd() {
     final controller = _controller!;
-    if (_onFull) {
-      controller
-        ..pause()
-        ..seekTo(_current!.end);
-      return;
-    }
-    if (_waiting) return;
-    final full = _clip.full;
-    if (full != null) {
-      _continueIntoFull(full);
-    } else {
-      controller.pause();
-      setState(() => _waiting = true);
-    }
+    controller
+      ..pause()
+      ..seekTo(_current!.end);
+    // The preview is over; the full clip shows as soon as it's recorded.
+    if (!_onFull && _clip.full == null) setState(() => _waiting = true);
   }
 
-  void _continueIntoFull(ClipMedia full) {
-    final playedBefore = _clip.past?.length ?? _clip.before;
-    _load(full, full.start + playedBefore, onFull: true);
+  /// Replaces the preview with the full clip, at the same moment of the
+  /// clip. It plays on if the preview was playing, or had played to its end
+  /// and was waiting for it.
+  void _showFull(ClipMedia full) {
+    final preview = _current;
+    final value = _controller?.value;
+    var into = preview == null || value == null
+        ? Duration.zero
+        : value.position - preview.start;
+    if (into.isNegative) into = Duration.zero;
+    if (into > full.length) into = full.length;
+    _load(
+      full,
+      full.start + into,
+      onFull: true,
+      play: _waiting || (value?.isPlaying ?? true),
+    );
   }
 
   void _onClipChanged() {
     final full = _clip.full;
-    if (_current == null && !_onFull) {
+    if (_current == null) {
       if (full != null || _clip.past != null) _start();
-    } else if (_waiting && full != null) {
-      _continueIntoFull(full);
+    } else if (!_onFull && full != null) {
+      _showFull(full);
     }
   }
 
@@ -334,8 +341,8 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     if (controller.value.isPlaying) {
       await controller.pause();
     } else {
-      // Replaying after the end starts the clip over.
-      if (_onFull && controller.value.position >= media.end - _endSlack) {
+      // Replaying after the end starts it over.
+      if (controller.value.position >= media.end - _endSlack) {
         await controller.seekTo(media.start);
       }
       await controller.play();
@@ -404,6 +411,18 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
               child: Text(
                 "Couldn't load this clip",
                 style: TextStyle(color: Color(0xFFFB4934)),
+              ),
+            ),
+          if (_current != null && !_onFull && !_waiting)
+            const Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Preview',
+                  key: Key('clip-preview'),
+                  style: TextStyle(color: Color(0xFFEBDBB2)),
+                ),
               ),
             ),
           if (_waiting)
