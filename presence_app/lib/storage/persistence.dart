@@ -14,6 +14,7 @@ import '../config.dart';
 import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
 import '../location/device_location.dart';
+import '../recognition/suggestion.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -392,7 +393,16 @@ class Persistence implements DeviceSettings {
         c['id']! as String: _restoreClip(media, c, cameraLabels),
     };
 
-    return [for (final record in records) _restoreEvent(record, clips)];
+    final events = [for (final record in records) _restoreEvent(record, clips)];
+    // Suggestions point at their clips' events.
+    final clipEvents = {
+      for (final e in [...?_log?.events, ...events])
+        if (e is ClipRequested) e.id: e,
+    };
+    for (final e in events.whereType<SubjectSuggestion>()) {
+      e.clip ??= clipEvents[e.clipEventId];
+    }
+    return events;
   }
 
   AppEvent _restoreEvent(
@@ -425,6 +435,11 @@ class Persistence implements DeviceSettings {
             userId: AppEvent.ownerOf(record),
           ),
         );
+      }
+    }
+    if (record['type'] == SubjectSuggestion.suggestionType) {
+      if (SubjectSuggestion.fromRecord(record) case final suggestion?) {
+        return suggestion;
       }
     }
     return AppEvent.fromRecord(record) ??

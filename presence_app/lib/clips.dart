@@ -434,7 +434,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
         listenable: _annotations,
         builder: (context, _) {
           final frame = _frame;
-          final frames = _annotations.frames.values.toList()
+          final frames = _annotations.tagFrames.values.toList()
             ..sort((a, b) => a.ms.compareTo(b.ms));
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -531,7 +531,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                         'them (frame at ${formatClipTime(frame.ms)}).',
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
-                    if (_annotations.isEmpty && frame == null)
+                    if (_annotations.tags.isEmpty && frame == null)
                       Text(
                         'Nobody tagged yet. Click someone on the video to '
                         'name them.',
@@ -576,8 +576,20 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                                 for (final a in _annotations.on(f.id))
                                   InputChip(
                                     key: Key('annotation-${a.id}'),
-                                    avatar: const Icon(Icons.place, size: 18),
-                                    label: Text(a.name),
+                                    // Recognized ones show how sure.
+                                    avatar: Icon(
+                                      a.source == TagSource.detected
+                                          ? Icons.auto_awesome
+                                          : Icons.place,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      a.source == TagSource.detected &&
+                                              a.confidence != null
+                                          ? '${a.name} · '
+                                                '${(a.confidence! * 100).round()} %'
+                                          : a.name,
+                                    ),
                                     tooltip: 'Rename',
                                     onPressed: () => _rename(a),
                                     deleteButtonTooltipMessage: 'Remove',

@@ -6,7 +6,8 @@
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
-  `ClipRequested` does.
+  `ClipRequested` does, and so does `SubjectSuggestion`, the **"Is this
+  Rex?"** question [recognition](recognition.md) asks, with Yes / No.
 - **Only this device, by default.** An **Only this device** filter chip
   (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
   launch: the timeline shows only

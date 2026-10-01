@@ -2,8 +2,27 @@ import 'package:flutter/foundation.dart';
 
 import 'events.dart';
 
-/// A person or pet someone named on a frame of a clip, at the spot they
-/// clicked.
+/// Where a tag came from.
+enum TagSource {
+  /// Someone clicked the spot and named them.
+  manual,
+
+  /// Recognized on the clip, sure enough to tag on its own.
+  detected,
+
+  /// Recognized, but not sure enough: waiting for someone to confirm it
+  /// (a `SubjectSuggestion` event asks). Not a tag until then.
+  suggested,
+
+  /// A suggestion someone confirmed.
+  confirmed;
+
+  /// Whether a person vouched for it, so recognition can learn from it.
+  bool get vouched => this == manual || this == confirmed;
+}
+
+/// A person or pet named on a frame of a clip, at a spot on it: clicked by
+/// someone, or found by recognition ([source]).
 @immutable
 class Annotation {
   const Annotation({
@@ -13,10 +32,17 @@ class Annotation {
     required this.y,
     this.frameId,
     this.frameMs,
+    this.source = TagSource.manual,
+    this.confidence,
   });
 
   final String id;
   final String name;
+
+  final TagSource source;
+
+  /// How sure recognition was, from 0 to 1 (recognized tags only).
+  final double? confidence;
 
   /// Where on the frame, from 0 (left/top) to 1 (right/bottom), relative to
   /// the video frame itself.
@@ -28,13 +54,15 @@ class Annotation {
   final String? frameId;
   final int? frameMs;
 
-  Annotation copyWith({String? name}) => Annotation(
+  Annotation copyWith({String? name, TagSource? source}) => Annotation(
     id: id,
     name: name ?? this.name,
     x: x,
     y: y,
     frameId: frameId,
     frameMs: frameMs,
+    source: source ?? this.source,
+    confidence: confidence,
   );
 
   Map<String, Object?> toJson() => {
@@ -44,6 +72,8 @@ class Annotation {
     'y': y,
     'frameId': ?frameId,
     'frameMs': ?frameMs,
+    if (source != TagSource.manual) 'source': source.name,
+    'confidence': ?confidence,
   };
 
   /// Null for a malformed entry (skipped rather than failing a restore).
@@ -58,6 +88,7 @@ class Annotation {
     }
     final frameId = json['frameId'];
     final frameMs = json['frameMs'];
+    final confidence = json['confidence'];
     return Annotation(
       id: id,
       name: name,
@@ -65,6 +96,9 @@ class Annotation {
       y: y.toDouble().clamp(0, 1),
       frameId: frameId is String ? frameId : null,
       frameMs: frameMs is num ? frameMs.toInt() : null,
+      // Older records, and unknown sources, are someone's clicks.
+      source: TagSource.values.asNameMap()[json['source']] ?? TagSource.manual,
+      confidence: confidence is num ? confidence.toDouble().clamp(0, 1) : null,
     );
   }
 }
@@ -115,16 +149,36 @@ class ClipAnnotations extends ChangeNotifier {
   final List<Annotation> _items;
   final Map<String, TagFrame> _frames;
 
+  /// Every entry, suggestions included (as stored).
   List<Annotation> get items => List.unmodifiable(_items);
 
+  /// The tags: every entry but suggestions waiting to be confirmed.
+  List<Annotation> get tags => [
+    for (final a in _items)
+      if (a.source != TagSource.suggested) a,
+  ];
+
+  /// No entries at all, suggestions included.
   bool get isEmpty => _items.isEmpty;
 
-  /// The frames tags were clicked on, by id.
+  /// The frames entries are on, by id (suggestions' frames included).
   Map<String, TagFrame> get frames => Map.unmodifiable(_frames);
 
-  /// The tags clicked on [frameId].
+  /// The frames [tags] are on, by id.
+  Map<String, TagFrame> get tagFrames => {
+    for (final id in {for (final a in tags) ?a.frameId}) id: ?_frames[id],
+  };
+
+  /// The tags on [frameId] (not suggestions).
   List<Annotation> on(String frameId) =>
-      _items.where((a) => a.frameId == frameId).toList();
+      tags.where((a) => a.frameId == frameId).toList();
+
+  Annotation? byId(String id) {
+    for (final a in _items) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
 
   /// A grabbed frame (its JPEG, at [ms] in the recording) ready for tags to
   /// be clicked on it. It's kept once its first tag is added.
@@ -132,7 +186,15 @@ class ClipAnnotations extends ChangeNotifier {
       TagFrame(id: AppEvent.newId(), jpeg: jpeg, ms: ms);
 
   /// Adds [name] at ([x], [y]) on [frame]; blank names are ignored.
-  Annotation? add(String name, double x, double y, {TagFrame? frame}) {
+  /// Recognition passes its [source] and [confidence].
+  Annotation? add(
+    String name,
+    double x,
+    double y, {
+    TagFrame? frame,
+    TagSource source = TagSource.manual,
+    double? confidence,
+  }) {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return null;
     if (frame != null) _frames[frame.id] = frame;
@@ -143,6 +205,8 @@ class ClipAnnotations extends ChangeNotifier {
       y: y.clamp(0, 1),
       frameId: frame?.id,
       frameMs: frame?.ms,
+      source: source,
+      confidence: confidence,
     );
     _items.add(annotation);
     notifyListeners();
@@ -154,6 +218,14 @@ class ClipAnnotations extends ChangeNotifier {
     final i = _items.indexWhere((a) => a.id == id);
     if (i < 0 || trimmed.isEmpty || _items[i].name == trimmed) return;
     _items[i] = _items[i].copyWith(name: trimmed);
+    notifyListeners();
+  }
+
+  /// Makes a suggestion a tag: someone confirmed it.
+  void confirm(String id) {
+    final i = _items.indexWhere((a) => a.id == id);
+    if (i < 0 || _items[i].source != TagSource.suggested) return;
+    _items[i] = _items[i].copyWith(source: TagSource.confirmed);
     notifyListeners();
   }
 
