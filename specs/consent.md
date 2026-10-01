@@ -26,29 +26,22 @@ device.
 
 ## The screen
 
-[lib/consent/consent_screen.dart](../presence_app/lib/consent/consent_screen.dart),
-in plain terms:
+[lib/consent/consent_screen.dart](../presence_app/lib/consent/consent_screen.dart):
+short, and one click to agree.
 
-- **"Before Presence starts recording"**: the app records video and sound
-  all the time, and lets you name people in clips. It's asked once on
-  this device.
-- **"You may record here"**: you own or manage the place, or have
-  permission to record it. The people who may be filmed know about it
-  (for example from a sign, where the law asks for one). Recording where
-  people expect privacy, or without the right to, can be illegal.
-  - Tick: **"I have the right to record where this device records."**
-- **"Faces are biometric data"**: a recording of someone is personal data.
-  When their face is used to recognise or identify them, as when naming
-  people in a clip, the GDPR counts it as biometric data, a sensitive kind
-  with stricter rules. Usually that means the people must have clearly
-  agreed, recordings are kept safe and only as long as needed, and anyone
-  can ask to see or delete what's about them. The user is responsible.
-  - Tick: **"I understand that faces used to identify people are biometric
-    data under the GDPR, and that I am responsible for using them
-    lawfully."**
-- **Agree and start** turns on only with both ticks. There's no way past
-  the screen without agreeing.
-- A small note says it isn't legal advice.
+- **"Before Presence starts recording"**, then "By continuing, you
+  confirm:".
+- **Two highlighted conditions**, each in a tinted, outlined box with an
+  icon, a bold statement and one plain line:
+  - 📹 **"I have the right to record here."** I own or manage this place,
+    or have permission, and people who may be filmed know about it.
+  - 🙂 **"Faces are biometric data, and I am responsible."** Under the
+    GDPR, faces used to identify people, as when naming them in clips,
+    need care: clear consent, safe keeping, and deleting on request.
+- **I agree**: one click accepts both and opens the app. There's no way
+  past the screen without it, and nothing to tick.
+- A small line says it's asked once on this device and isn't legal advice.
+- On a small phone the screen scrolls if it must; it doesn't overflow.
 
 ## The record
 
@@ -76,9 +69,10 @@ in plain terms:
   - a record is valid for its own device and version. Another device, an
     older version, an edited time, device or hash, or no record is not
     valid;
-  - a new device shows only the consent screen and opens no camera;
-    **Agree and start** needs both ticks; agreeing shows the app, opens
-    the camera and saves a record whose hash checks out;
+  - a new device shows only the consent screen, with both conditions and
+    no checkboxes, and opens no camera; one click on **I agree** shows the
+    app, opens the camera and saves a record whose hash checks out;
+  - on a 360 × 640 screen it doesn't overflow and **I agree** is reachable;
   - after a relaunch the app opens straight away;
   - a consent saved for another device ID asks again.
 - Other app tests skip the screen (`PresenceApp.consentGiven`, test-only).

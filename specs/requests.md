@@ -1236,7 +1236,43 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tabs now narrow (down to 40 dp) only where they don't fit.
     - New [subjects.md](subjects.md). The OpenStreetMap tiles and credit
       are shared with the Device map (`lib/location/map_parts.dart`).
-159. **Codespace creation still fails; the pasted creation logs were cut
+159. **On a subject's map, show one color per device and opacity per age
+    on the tracking dots per event.** (2026-10-01)
+    - Built (a color per device, with a device legend), then replaced by
+      request 161 before it merged.
+160. **When a user clicks an event on the map, open it in the Events tab.**
+    (2026-10-01)
+    - Tapping a dot closes the subject's screen, switches to Events, scrolls
+      to the event and outlines it for 4 s. Done in the same PR as 159,
+      since both change the subject map's dots.
+161. **Change it: make the color always match the subject, and the opacity
+    the age; never mind the device ID here.** (2026-10-01)
+    - Each subject has one color (`Subject.color`), picked from its name
+      among Gruvbox's seven accents, so it's the same everywhere: every
+      dot on its map, and the dot on its frames in the Subjects list and
+      under the map. Opacity still runs from 100 % (newest) to 15 %
+      (oldest).
+    - The device colors, the device legend and the device ID in the event
+      list are gone. A dot's tooltip gives its time and camera.
+    - 169 Flutter tests pass; the web release builds.
+162. **On top of the Subjects page, put a map merging all events, each
+    subject identified by a color, with a square of that color on the
+    subject's line for reference.** (2026-10-01)
+    - The Subjects tab now opens with a map of every subject's latest
+      located events, each dot in its subject's color and faded by age; a
+      clip with several subjects gets a dot for each, and tapping one
+      opens its event. Each subject's row has a matching color square
+      before the name.
+    - The subject screen's map and the new one share one map widget.
+163. **Make the consent shorter: one click to agree, with the two
+    conditions highlighted.** (2026-10-01)
+    - The consent screen drops its checkboxes and long sections: the two
+      conditions (the right to record; faces as biometric data under the
+      GDPR, and the user's responsibility) are highlighted boxes with a
+      bold statement and one plain line each, and **I agree** accepts.
+    - [consent.md](consent.md) updated. The consent version stays 1: what's
+      agreed to is the same, so devices that agreed aren't asked again.
+164. **Codespace creation still fails; the pasted creation logs were cut
     off before the error.** (2026-10-01)
     - Every log stopped inside the image build's Nix step, which listed and
       copied ~800 store paths (3.5 GiB download, 9.8 GiB unpacked). The
