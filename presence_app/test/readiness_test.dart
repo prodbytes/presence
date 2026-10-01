@@ -179,9 +179,12 @@ void main() {
   group('readiness indicator and clip message', () {
     late DateTime now;
 
-    Future<FakeCameraSource> pumpApp(WidgetTester tester) async {
+    Future<FakeCameraSource> pumpApp(
+      WidgetTester tester, {
+      Size size = const Size(1280, 800),
+    }) async {
       now = DateTime(2026, 9, 25, 12);
-      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main', immediatePast: media);
@@ -300,6 +303,36 @@ void main() {
       expect(find.text('Ready'), findsOneWidget);
       await settleStorage(tester);
     });
+
+    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+      testWidgets('the message is a pill beside the readiness one, at '
+          '${size.width.toInt()} wide', (tester) async {
+        await pumpApp(tester, size: size);
+        await advance(tester, const Duration(seconds: 16));
+        await tester.tap(find.byTooltip('Clip'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 600));
+
+        final message = find.byKey(const Key('clip-message'));
+        expect(message, findsOneWidget);
+        expect(find.byType(SnackBar), findsNothing);
+        final pill = tester.getRect(message);
+        final readiness = tester.getRect(find.byKey(const Key('readiness')));
+        // On the same line, just after it.
+        expect(pill.center.dy, closeTo(readiness.center.dy, 1));
+        expect(pill.left, closeTo(readiness.right + 8, 1));
+        // Clear of Flip and Clip, and of the screen's edge.
+        expect(pill.overlaps(tester.getRect(find.byTooltip('Clip'))), isFalse);
+        expect(pill.right, lessThanOrEqualTo(size.width - 16));
+        expect(tester.takeException(), isNull);
+
+        // Tapping it opens the clip's event, in Monitoring.
+        await tester.tap(message);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('events-page')), findsOneWidget);
+        await settleStorage(tester);
+      });
+    }
 
     testWidgets('motion clips pop their own message', (tester) async {
       final camera = await pumpApp(tester);

@@ -400,6 +400,9 @@ class HomeScreen extends StatefulWidget {
   /// (an admin's, with its extra button, on a 320 dp phone).
   static const double minTabWidth = 40;
 
+  /// How long the pill saying a clip started stays.
+  static const Duration clipMessageFor = Duration(seconds: 4);
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -484,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.auth.removeListener(_onAuthChanged);
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
+    _clipMessageTimer?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
     _battery.dispose();
@@ -511,26 +515,24 @@ class _HomeScreenState extends State<HomeScreen>
       ClipTrigger.startup => 'Startup clip',
       ClipTrigger.manual => 'Clip started',
     };
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('$started · saving the next $after s'),
-          // A brief pop; for motion clips, the readiness pill carries the
-          // cooldown after it. (With an action, snackbars otherwise stay
-          // until dismissed.)
-          persist: false,
-          duration: const Duration(seconds: 4),
-          // The events tab is only there with access.
-          action: _hasAccess
-              ? SnackBarAction(
-                  label: 'View',
-                  onPressed: () => _tabs.animateTo(HomeTab.monitoring.index),
-                )
-              : null,
-        ),
-      );
+    // A brief pill beside the readiness one; for motion clips, the
+    // readiness pill carries the cooldown after it.
+    _clipMessageTimer?.cancel();
+    _clipMessageTimer = Timer(HomeScreen.clipMessageFor, () {
+      if (mounted) setState(() => _clipMessage = null);
+    });
+    setState(
+      () => _clipMessage = (
+        icon: event.icon,
+        label: '$started · saving the next $after s',
+      ),
+    );
   }
+
+  /// The clip that just started, shown as a pill over the camera for
+  /// [HomeScreen.clipMessageFor].
+  ({IconData icon, String label})? _clipMessage;
+  Timer? _clipMessageTimer;
 
   /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
   /// when the tabs, the buttons after them and a sliver of the title don't
@@ -699,10 +701,26 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ],
           ),
-          // Bottom left, across from Flip and Clip: the battery and whether
-          // a clip now would be complete. Signed out, nothing.
-          if (_onCamera && _hasAccess)
-            _CameraStatus(rig: widget.rig, battery: _battery),
+          // Bottom left, across from Flip and Clip: the battery, whether a
+          // clip now would be complete, and a clip that just started.
+          // Signed out, only that clip.
+          if (_onCamera && (_hasAccess || _clipMessage != null))
+            _CameraStatus(
+              rig: widget.rig,
+              battery: _battery,
+              full: _hasAccess,
+              message: switch (_clipMessage) {
+                final m? => ClipMessagePill(
+                  icon: m.icon,
+                  label: m.label,
+                  // The events tab is only there with access.
+                  onView: _hasAccess
+                      ? () => _tabs.animateTo(HomeTab.monitoring.index)
+                      : null,
+                ),
+                null => null,
+              },
+            ),
         ],
       ),
       // Signed out, the camera shows with no buttons at all.
@@ -814,16 +832,65 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
   }
 }
 
+/// Says a clip just started ("Clip started · saving the next 15 s"), as a
+/// pill beside the readiness one. Tapping it opens the clip's event
+/// ([onView]), where there's access.
+class ClipMessagePill extends StatelessWidget {
+  const ClipMessagePill({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.onView,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onView;
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = StatusPill(
+      key: const Key('clip-message'),
+      leading: Icon(
+        icon,
+        size: 18,
+        color: Theme.of(context).colorScheme.primary,
+      ),
+      label: label,
+      semantics: onView == null ? label : '$label. Tap to view it.',
+    );
+    if (onView == null) return pill;
+    return GestureDetector(onTap: onView, child: pill);
+  }
+}
+
 /// The status pills over the camera, bottom left, across from Flip and
-/// Clip: the battery, its temperature (Android) and the readiness. In a
-/// row, level with the buttons, on wide screens. On phones they stack,
+/// Clip: the battery, its temperature (Android), the readiness and, beside
+/// it, a clip that just started ([message]). In a row, level with the
+/// buttons and clear of them, on wide screens. On phones they stack,
 /// starting just above the buttons' row, so however wide they are they
-/// never run into Flip and Clip.
+/// never run into Flip and Clip; the readiness and the message share the
+/// lowest line. A label that doesn't fit is cut short.
 class _CameraStatus extends StatelessWidget {
-  const _CameraStatus({required this.rig, required this.battery});
+  const _CameraStatus({
+    required this.rig,
+    required this.battery,
+    this.full = true,
+    this.message,
+  });
 
   final CameraRig rig;
   final BatteryController battery;
+
+  /// With access: the battery and readiness too. Signed out, only
+  /// [message].
+  final bool full;
+
+  /// The pill saying a clip just started, if one did.
+  final Widget? message;
+
+  /// Room kept on the right for Flip and Clip when the pills are in a row.
+  static const double buttonsRoom = 16 + 56 + 12 + 120;
 
   /// Narrower than this, the pills stack.
   static const double stackBelow = 600;
@@ -839,32 +906,52 @@ class _CameraStatus extends StatelessWidget {
       // 16 from the edges, like the floating buttons; in a row, centered
       // on them (the pills are 40 high, the buttons 56).
       left: 16 + padding.left,
+      right: (stacked ? 16 : buttonsRoom) + padding.right,
       bottom: 16 + padding.bottom + (stacked ? buttonRow : (56 - 40) / 2),
-      child: ListenableBuilder(
-        listenable: Listenable.merge([rig, battery]),
-        builder: (context, _) {
-          final reading = battery.reading;
-          final pills = [
-            if (reading != null) BatteryPill(battery: battery),
-            if (reading?.celsius != null)
-              BatteryTemperaturePill(battery: battery),
-            if (rig.active != null) ReadinessIndicator(rig: rig),
-          ];
-          return stacked
-              ? Column(
-                  key: const Key('camera-status'),
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: pills,
-                )
-              : Row(
-                  key: const Key('camera-status'),
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: pills,
-                );
-        },
+      // At the start of the room given; the pills keep their own width.
+      child: Align(
+        alignment: AlignmentDirectional.bottomStart,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([rig, battery]),
+          builder: (context, _) {
+            final reading = full ? battery.reading : null;
+            final readiness = full && rig.active != null
+                ? ReadinessIndicator(rig: rig)
+                : null;
+            final batteryPills = [
+              if (reading != null) BatteryPill(battery: battery),
+              if (reading?.celsius != null)
+                BatteryTemperaturePill(battery: battery),
+            ];
+            // The readiness, and the message beside it, cut short if need be.
+            final last = [
+              ?readiness,
+              if (message case final m?) Flexible(child: m),
+            ];
+            return stacked
+                ? Column(
+                    key: const Key('camera-status'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      ...batteryPills,
+                      if (last.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: last,
+                        ),
+                    ],
+                  )
+                : Row(
+                    key: const Key('camera-status'),
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [...batteryPills, ...last],
+                  );
+          },
+        ),
       ),
     );
   }

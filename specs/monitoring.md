@@ -40,7 +40,7 @@ the separate Events and Subjects tabs.
   the events list here: any subject's screen closes, the Monitoring tab
   shows, and the list scrolls to the event and outlines it for 4 s. An
   event of another device clears **Only this device** so it can show.
-- The "View" action on a clip's snackbar opens this tab.
+- Tapping the clip message pill over the camera opens this tab.
 
 ## Verified
 

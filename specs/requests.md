@@ -1454,3 +1454,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       at the bottom.
     - Tests that used sliders further down now scroll to them. 212 Flutter
       tests pass.
+182. **Make the status message a pill beside the readiness pill instead of a
+    separate line.** (2026-10-01)
+    - The "Clip started · saving the next 15 s" message (and its motion,
+      scheduled and startup forms) is no longer a snackbar along the
+      bottom: it's a pill with the clip's icon beside the readiness pill,
+      for 4 s, on the Camera tab. Tapping it opens Monitoring (it was the
+      snackbar's View).
+    - On phones the readiness and the message share the stack's lowest
+      line; on wide screens the row keeps clear of Flip and Clip. Pills cut
+      long labels short with an ellipsis.
+    - 214 Flutter tests pass (2 new: the pill's place at 320 and 1280 dp).
