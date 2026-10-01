@@ -32,16 +32,8 @@ RUN curl -fsSL -o /tmp/nix-install "https://releases.nixos.org/nix/nix-${NIX_VER
     && sh /tmp/nix-install --no-daemon \
     && rm /tmp/nix-install
 
-# Warm the nix store: the repo bind mount shadows the workspace at container
-# start, so only /nix/store survives the build. Fetch the locked store paths
-# straight from cache.nixos.org (no GitHub API needed at build time);
-# postCreateCommand runs the full `devbox install` against this warm cache.
-WORKDIR /tmp/devbox-warmup
-COPY --chown=vscode:vscode devbox.lock ./
-RUN export PATH="$HOME/.nix-profile/bin:$PATH" \
-    && SYS="$(uname -m)-linux" \
-    && jq -r --arg sys "$SYS" '.packages[].systems[$sys].outputs[]?.path // empty' devbox.lock \
-       | xargs -r nix-store --realise \
-    && sudo rm -rf /tmp/devbox-warmup
-
+# The Nix store is filled after the container starts (post-create.sh), not
+# here: a 10 GB image layer only slows the build, Codespaces rebuild the
+# image for each codespace anyway, and a failure there leaves a codespace
+# with a terminal instead of recovery mode.
 WORKDIR /workspaces/presence

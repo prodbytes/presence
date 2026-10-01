@@ -1272,3 +1272,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       bold statement and one plain line each, and **I agree** accepts.
     - [consent.md](consent.md) updated. The consent version stays 1: what's
       agreed to is the same, so devices that agreed aren't asked again.
+164. **Codespace creation still fails; the pasted creation logs were cut
+    off before the error.** (2026-10-01)
+    - Every log stopped inside the image build's Nix step, which listed and
+      copied ~800 store paths (3.5 GiB download, 9.8 GiB unpacked). The
+      error itself was never visible.
+    - The image no longer fills the Nix store. `post-create.sh` does it,
+      quietly, then `devbox install`; a failure names the step and prints
+      the free disk space. A failure there still opens the codespace with
+      a terminal.

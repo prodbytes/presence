@@ -19,8 +19,16 @@
   - It asks for a 4-core, 16 GB machine (`hostRequirements`).
   - It sets `PRESENCE_BIND_HOST=0.0.0.0`, so Floci in docker-in-docker
     reaches the dev servers (see [Local CDN](local-cdn.md)).
-  - [post-create.sh](../.devcontainer/post-create.sh) runs `devbox install`
-    and makes every shell pass `GITHUB_TOKEN` (which Codespaces provide)
+  - The image only installs devbox and Nix. It doesn't fill the Nix store:
+    that made a 9.8 GiB layer, Codespaces rebuild the image for each
+    codespace anyway, and a failed build leaves only recovery mode.
+  - [post-create.sh](../.devcontainer/post-create.sh) fills the store
+    with the locked paths from cache.nixos.org (`nix-store --quiet
+    --realise`, output dropped: listing and copying ~800 paths pushed the
+    error out of the creation log), then runs `devbox install`. On failure
+    it prints which step failed and `df -h` of `/` and `/nix`, and exits
+    non-zero; the codespace still opens, and the script can be run again.
+    It also makes every shell pass `GITHUB_TOKEN` (which Codespaces provide)
     to Nix as `NIX_CONFIG` access-tokens. Devbox has Nix resolve flakes
     through api.github.com (on install, and when `devbox services up`
     first installs process-compose), which answers 403 to unauthenticated
@@ -29,6 +37,9 @@
   - Verified with the Dev Containers CLI on an arm64 Mac: the image built,
     post-create installed everything, and `devbox services up` came up
     with every health check ✅. It wasn't run on an x86_64 Codespace.
+    After the Nix step moved to post-create, the image built and
+    post-create, run in a fresh container, fetched the 39 locked paths and
+    finished `devbox install` in 15 lines of output (arm64 Mac).
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:
