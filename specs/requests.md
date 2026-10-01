@@ -1418,3 +1418,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       and Settings. App-level tests now run with a blank map layer and a
       locator that fails at once, so Settings' map settles. 204 Flutter
       tests pass; web release and Android debug builds compile.
+176. **The Monitoring screen is broken: make the first row the map (left)
+    and the subjects (right), and the second row the full width for the
+    event cards.** (2026-10-01)
+    - Wide screens: the map and the subjects (340 dp) share the top row
+      (two fifths of the height), and the events fill the full width
+      below. Phones stay stacked.
+    - The clip card was stretching its thumbnail across the whole width
+      (the video filled the screen): from 600 dp on, the 16:9 thumbnail
+      (320 dp) now sits beside the details.

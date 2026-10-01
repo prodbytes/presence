@@ -210,6 +210,13 @@ class ClipEventCard extends StatelessWidget {
 
   final ClipRequested event;
 
+  /// From this width on, the thumbnail sits beside the details instead of
+  /// above them, so a wide timeline doesn't blow it up.
+  static const double sideBySideWidth = 600;
+
+  /// The thumbnail's width beside the details.
+  static const double sideThumbnailWidth = 320;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -217,75 +224,84 @@ class ClipEventCard extends StatelessWidget {
     final clip = event.clip;
     return ListenableBuilder(
       listenable: clip,
-      builder: (context, _) => Card.filled(
-        margin: EdgeInsets.zero,
-        color: scheme.surfaceContainerHighest,
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: clip.playable ? () => showClipPlayer(context, event) : null,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+      builder: (context, _) {
+        final thumbnail = AspectRatio(
+          key: const Key('clip-card-thumbnail'),
+          aspectRatio: 16 / 9,
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _Thumbnail(bytes: clip.thumbnail),
-                    if (clip.playable)
-                      Center(
-                        child: Icon(
-                          Icons.play_circle_fill,
-                          key: const Key('clip-play'),
-                          size: 48,
-                          color: scheme.primary,
-                        ),
-                      ),
-                  ],
+              _Thumbnail(bytes: clip.thumbnail),
+              if (clip.playable)
+                Center(
+                  child: Icon(
+                    Icons.play_circle_fill,
+                    key: const Key('clip-play'),
+                    size: 48,
+                    color: scheme.primary,
+                  ),
+                ),
+            ],
+          ),
+        );
+        final details = Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(event.icon, size: 20, color: scheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(event.title, style: theme.textTheme.titleSmall),
+                  ),
+                  Text(
+                    formatEventTime(event.time),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                clip.cameraLabel,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(event.icon, size: 20, color: scheme.primary),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            event.title,
-                            style: theme.textTheme.titleSmall,
-                          ),
-                        ),
-                        Text(
-                          formatEventTime(event.time),
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      clip.cameraLabel,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      clip.status,
-                      key: const Key('clip-status'),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+              Text(
+                clip.status,
+                key: const Key('clip-status'),
+                style: theme.textTheme.bodySmall,
               ),
             ],
           ),
-        ),
-      ),
+        );
+        return Card.filled(
+          margin: EdgeInsets.zero,
+          color: scheme.surfaceContainerHighest,
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: clip.playable ? () => showClipPlayer(context, event) : null,
+            child: LayoutBuilder(
+              builder: (context, box) => box.maxWidth >= sideBySideWidth
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(width: sideThumbnailWidth, child: thumbnail),
+                        Expanded(child: details),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [thumbnail, details],
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
