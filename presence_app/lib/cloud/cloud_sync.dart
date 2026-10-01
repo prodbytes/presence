@@ -28,6 +28,21 @@ abstract class CloudSession {
   Future<Uint8List> get(String key);
 }
 
+/// This device's settings, kept in the cloud per device
+/// ([CloudSync.settingsKey]). `Persistence` in the app.
+abstract class DeviceSettings {
+  /// This device's ID.
+  Future<String> get deviceId;
+
+  /// The settings as stored: `{deviceId, updatedAt, config}`, where
+  /// `updatedAt` is when they were last changed (ms since the epoch; 0 for
+  /// the defaults, never changed).
+  Future<Map<String, Object?>> settingsRecord();
+
+  /// Takes on a record fetched from the cloud, newer than the local one.
+  Future<void> applySettings(Map<String, Object?> record);
+}
+
 /// What a restore brought down from the cloud: records the device didn't
 /// have, and the recordings their clips use (by media ID).
 class RemoteRecords {
@@ -136,6 +151,7 @@ class CloudSync extends ChangeNotifier {
     required this._media,
     required Stream<void> changes,
     this.onRemote,
+    this.settings,
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(seconds: 15),
     this.restoreWindow = const Duration(days: 14),
@@ -150,6 +166,11 @@ class CloudSync extends ChangeNotifier {
   }
 
   final AuthService auth;
+
+  /// When given, this device's settings sync too: fetched on the first pass
+  /// for a user (taken on when newer than the local ones), and uploaded
+  /// whenever they change.
+  final DeviceSettings? settings;
 
   /// When given, only users with access (a role) sync.
   final RolesService? roles;
@@ -274,6 +295,7 @@ class CloudSync extends ChangeNotifier {
       final now = _now().toUtc();
       final last = _lastFullFetch;
       final full = last == null || now.difference(last) >= fullFetchEvery;
+      if (last == null) await _fetchSettings(session);
       await _fetch(
         session,
         _fetchPrefixes(now, first: last == null, full: full),
@@ -429,6 +451,41 @@ class CloudSync extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetches this device's settings, if the cloud has them, and hands them
+  /// to [settings] when they're newer than the local ones.
+  Future<void> _fetchSettings(CloudSession session) async {
+    final settings = this.settings;
+    if (settings == null) return;
+    final id = await settings.deviceId;
+    final key = settingsKey(id);
+    // Listed first: a new device has none, and a missing key is an error.
+    if (!(await session.list('devices/$id/')).contains(key)) return;
+    final bytes = await session.get(key);
+    // Remember what the cloud holds, so local settings that differ from
+    // it (older there, or damaged) are uploaded over it.
+    await (await _store).markSynced(
+      '${session.prefix}/$key',
+      _fingerprint(bytes),
+    );
+    final remote = jsonDecode(utf8.decode(bytes));
+    if (remote is! Map || remote['deviceId'] != id) return;
+    final local = await settings.settingsRecord();
+    if (_updatedAt(remote) > _updatedAt(local)) {
+      await settings.applySettings(remote.cast<String, Object?>());
+    }
+  }
+
+  static int _updatedAt(Map<Object?, Object?> record) =>
+      switch (record['updatedAt']) {
+        final int at => at,
+        _ => 0,
+      };
+
+  /// Where a device's settings go in the user's folder:
+  /// `devices/<deviceId>/settings.json`.
+  static String settingsKey(String deviceId) =>
+      'devices/$deviceId/settings.json';
+
   /// Whether an event key's day partition (see [eventKey]) can hold events
   /// at or after [since]: false only for a partition that ends before it.
   /// Flat keys, from before partitioning, have no day and are read.
@@ -458,6 +515,18 @@ class CloudSync extends ChangeNotifier {
       synced[objectKey] = fingerprint;
       _uploaded++;
       notifyListeners();
+    }
+
+    // This device's settings (tiny, and whenever they changed).
+    if (settings case final settings?) {
+      final record = await settings.settingsRecord();
+      final json = _json(record);
+      await upload(
+        settingsKey(record['deviceId']! as String),
+        _fingerprint(json),
+        () async => json,
+        'application/json',
+      );
     }
 
     // Only the user's events, and the clips they show.
