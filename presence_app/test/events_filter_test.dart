@@ -84,7 +84,7 @@ void main() {
   Finder checkbox() => find.byKey(const Key('this-device-only'));
 
   bool checked(WidgetTester tester) =>
-      tester.widget<CheckboxListTile>(checkbox()).value!;
+      tester.widget<FilterChip>(checkbox()).selected;
 
   testWidgets('shows only this device until the checkbox is cleared', (
     tester,

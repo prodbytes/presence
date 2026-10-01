@@ -115,7 +115,8 @@ class _SubjectsBuilder extends StatelessWidget {
 }
 
 /// A map merging every subject's latest events, each subject in its own
-/// color (on the Monitoring tab). Tapping a dot opens its event.
+/// color (on the Monitoring tab), with the subject's name beside its newest
+/// dot. Tapping a dot opens its event; tapping a name opens the subject.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -141,16 +142,37 @@ class SubjectsMap extends StatelessWidget {
       log: log,
       builder: (context, subjects) {
         final limit = config.subjects.mapEvents;
+        final dots = <_MapPoint>[];
+        final labels = <_MapLabel>[];
+        for (final subject in subjects) {
+          final mine = _dotsOf(
+            subject,
+            limit,
+            key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
+          );
+          dots.addAll(mine);
+          if (mine.isNotEmpty) {
+            labels.add((
+              sighting: mine.first.sighting,
+              subject: subject,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SubjectScreen(
+                    subjectId: subject.id,
+                    log: log,
+                    config: config,
+                    tiles: tiles,
+                    onOpenEvent: onOpenEvent,
+                  ),
+                ),
+              ),
+            ));
+          }
+        }
         return _SightingsMap(
           key: const Key('subjects-map'),
-          dots: [
-            for (final subject in subjects)
-              ..._dotsOf(
-                subject,
-                limit,
-                key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
-              ),
-          ],
+          dots: dots,
+          labels: labels,
           tiles: tiles,
           onOpen: onOpenEvent,
         );
@@ -159,77 +181,56 @@ class SubjectsMap extends StatelessWidget {
   );
 }
 
-/// Everyone tagged on clips, one card per subject, each with a square of
-/// their color and the frame from the latest event they're on, the most
-/// recently seen first. Tapping one opens its [SubjectScreen]. Laid out
-/// down a column, or along a strip ([direction] horizontal, on phones).
-class SubjectList extends StatelessWidget {
-  const SubjectList({
-    super.key,
-    required this.log,
-    required this.config,
-    this.tiles,
-    this.onOpenEvent,
-    this.direction = Axis.vertical,
-  });
+/// The subjects tagged on [event], once each, in tag order: a square of
+/// each one's color and their name (on the event's card).
+class EventSubjects extends StatelessWidget {
+  const EventSubjects({super.key, required this.event});
 
-  /// A card's width along a horizontal strip.
-  static const double stripCardWidth = 280;
-
-  final EventLog log;
-  final ConfigController config;
-  final ValueChanged<AppEvent>? onOpenEvent;
-  final Widget? tiles;
-  final Axis direction;
+  final ClipRequested event;
 
   @override
-  Widget build(BuildContext context) => _SubjectsBuilder(
-    log: log,
-    builder: (context, subjects) {
-      final horizontal = direction == Axis.horizontal;
-      if (subjects.isEmpty) {
-        const message = 'No subjects yet. Tag people and pets on a clip.';
-        // A strip has room for one line only.
-        return horizontal
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(message, textAlign: TextAlign.center),
-                ),
-              )
-            : const FeedMessage(icon: Icons.people_outline, message: message);
-      }
-      return ListView.separated(
-        key: const Key('subjects-list'),
-        scrollDirection: direction,
-        padding: horizontal
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
-            : const EdgeInsets.all(12),
-        itemCount: subjects.length,
-        separatorBuilder: (context, i) =>
-            horizontal ? const SizedBox(width: 8) : const SizedBox(height: 8),
-        itemBuilder: (context, i) {
-          final row = _SubjectRow(
-            subject: subjects[i],
-            compact: horizontal,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SubjectScreen(
-                  subjectId: subjects[i].id,
-                  log: log,
-                  config: config,
-                  tiles: tiles,
-                  onOpenEvent: onOpenEvent,
-                ),
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: event.annotations,
+    builder: (context, _) {
+      final theme = Theme.of(context);
+      final seen = <String>{};
+      final tags = [
+        for (final tag in event.annotations.items)
+          if (Subject.idOf(tag.name) case final id
+              when id.isNotEmpty && seen.add(id))
+            (id: id, name: tag.name.trim()),
+      ];
+      if (tags.isEmpty) return const SizedBox.shrink();
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Wrap(
+          key: const Key('event-subjects'),
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final t in tags)
+              Row(
+                key: Key('event-subject-${t.id}'),
+                mainAxisSize: MainAxisSize.min,
+                spacing: 6,
+                children: [
+                  SubjectSwatch(
+                    key: Key('event-subject-color-${t.id}'),
+                    color: Subject.colorOf(t.id),
+                    size: 12,
+                  ),
+                  Text(t.name, style: theme.textTheme.labelMedium),
+                ],
               ),
-            ),
-          );
-          return horizontal ? SizedBox(width: stripCardWidth, child: row) : row;
-        },
+          ],
+        ),
       );
     },
   );
 }
+
+/// A subject's name on a map, beside its newest dot.
+typedef _MapLabel = ({Sighting sighting, Subject subject, VoidCallback onTap});
 
 /// A dot on a map: where the device was for one of a subject's events, in
 /// the subject's color, faded by age.
@@ -279,104 +280,6 @@ class SubjectSwatch extends StatelessWidget {
       border: Border.all(color: Colors.white, width: 1.5),
     ),
   );
-}
-
-class _SubjectRow extends StatelessWidget {
-  const _SubjectRow({
-    required this.subject,
-    required this.onTap,
-    this.compact = false,
-  });
-
-  final Subject subject;
-  final VoidCallback onTap;
-
-  /// For a strip: a smaller frame, fitted in a fixed box, and one line per
-  /// text, so every card is the same height.
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final latest = subject.latest;
-    final count = subject.sightings.length;
-    return Card.filled(
-      key: Key('subject-${subject.id}'),
-      margin: EdgeInsets.zero,
-      color: scheme.surfaceContainerHighest,
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            spacing: 12,
-            children: [
-              if (compact)
-                SizedBox(
-                  width: 72,
-                  height: 96,
-                  child: FittedBox(
-                    child: SightingFrame(
-                      sighting: latest,
-                      color: subject.color,
-                      width: 72,
-                    ),
-                  ),
-                )
-              else
-                SightingFrame(
-                  sighting: latest,
-                  color: subject.color,
-                  width: 96,
-                ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      spacing: 8,
-                      children: [
-                        SubjectSwatch(
-                          key: Key('subject-color-${subject.id}'),
-                          color: subject.color,
-                        ),
-                        Flexible(
-                          child: Text(
-                            subject.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'Last seen ${formatSeen(latest.time)} · '
-                      '${latest.event.clip.cameraLabel}',
-                      maxLines: compact ? 2 : null,
-                      overflow: compact ? TextOverflow.ellipsis : null,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      count == 1 ? '1 event' : '$count events',
-                      maxLines: compact ? 1 : null,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// The frame a subject was tagged on, with a dot where they were clicked.
@@ -546,14 +449,26 @@ class SubjectScreen extends StatelessWidget {
 /// A map of [dots], opening on all of them (on the whole world without
 /// any). Tapping a dot opens its event.
 class _SightingsMap extends StatelessWidget {
-  const _SightingsMap({super.key, required this.dots, this.tiles, this.onOpen});
+  const _SightingsMap({
+    super.key,
+    required this.dots,
+    this.labels = const [],
+    this.tiles,
+    this.onOpen,
+  });
 
   /// Called with a tapped dot's event.
   final ValueChanged<AppEvent>? onOpen;
 
   /// Each subject's newest first, all with a location.
   final List<_MapPoint> dots;
+
+  /// Names beside dots, drawn over every dot.
+  final List<_MapLabel> labels;
   final Widget? tiles;
+
+  /// The widest a name gets before it's cut short.
+  static const double labelWidth = 160;
 
   static LatLng _at(Sighting s) =>
       LatLng(s.event.location!.latitude, s.event.location!.longitude);
@@ -600,6 +515,16 @@ class _SightingsMap extends StatelessWidget {
                   onTap: onOpen,
                 ),
               ),
+            // To the right of the point, clear of the dot.
+            for (final l in labels)
+              Marker(
+                key: Key('subjects-label-${l.subject.id}'),
+                point: _at(l.sighting),
+                width: labelWidth,
+                height: 24,
+                alignment: Alignment.centerRight,
+                child: _MapName(subject: l.subject, onTap: l.onTap),
+              ),
           ],
         ),
         const MapAttribution(),
@@ -638,6 +563,53 @@ class _MapDot extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: open == null ? null : () => open(event),
             child: _Dot(color: color, opacity: opacity),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A subject's name on a map, in a pill edged in its color. Tapping it
+/// opens the subject.
+class _MapName extends StatelessWidget {
+  const _MapName({required this.subject, required this.onTap});
+
+  final Subject subject;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12),
+        child: Semantics(
+          button: true,
+          label: 'Open ${subject.name}',
+          excludeSemantics: true,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Gruvbox.bg0.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: subject.color, width: 1.5),
+                ),
+                child: Text(
+                  subject.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: Gruvbox.fg,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),

@@ -116,7 +116,6 @@ void main() {
     expect(tabs(tester).index, HomeTab.monitoring.index);
     expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
     expect(find.byKey(const Key('subjects-map')), findsOneWidget);
-    expect(find.byKey(const Key('subjects-page')), findsOneWidget);
     expect(find.byKey(const Key('events-page')), findsOneWidget);
     expect(find.text('Application started'), findsOneWidget);
 

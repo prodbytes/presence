@@ -1,23 +1,24 @@
 # Events
 
-- Events appear on the [Monitoring](monitoring.md) tab, under the subjects'
-  map, in a vertically scrolling timeline, newest at the top. Each
+- Events appear on the [Monitoring](monitoring.md) tab, beside the subjects'
+  map (under it on phones), in a vertically scrolling timeline, newest at the top. Each
   entry is just a card, with no dot or rail beside it, and cards are 8 px
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
   `ClipRequested` does.
-- **Only this device, by default.** An **Only this device** checkbox sits
-  at the top of the timeline, checked at launch: the timeline shows only
+- **Only this device, by default.** An **Only this device** filter chip
+  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
+  launch: the timeline shows only
   events whose `deviceId` is this device's (events not saved yet, which
   have no device ID, count as this device's). Clearing it shows every
   device's events, such as those fetched from the cloud. The choice stays
-  while switching tabs, but not across restarts. The checkbox appears once
+  while switching tabs, but not across restarts. The chip appears once
   the device ID is known; before that, every event shows.
   - Filtered with nothing left, the timeline says "No events on this
-    device" under the checkbox.
+    device".
   - **Opening an event of another device** from elsewhere (see below)
-    clears the checkbox, so the event can show.
+    clears the chip, so the event can show.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - **Opening an event from elsewhere** (a dot on a [subject's](subjects.md)
   map) switches to the Monitoring tab, scrolls the timeline to that event and

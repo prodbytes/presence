@@ -17,7 +17,8 @@ and pets"), each with where the device was when they were seen
 
 ## On the Monitoring tab
 
-- Subjects show on the [Monitoring](monitoring.md) tab, with the events.
+- Subjects show on the [Monitoring](monitoring.md) tab, on the map and on
+  the events' cards; there is no subjects list.
 - **The subjects map** merges every subject's
   events: for each subject, a dot per event among their latest
   `mapEvents` that has a location, in **the subject's color**, the newest
@@ -25,21 +26,12 @@ and pets"), each with where the device was when they were seen
   with several subjects gets a dot for each. It opens on all the dots (the
   whole world without any), has the tiles' credit, and tapping a dot opens
   its event in the Monitoring tab's events list.
-- **The subjects list**, one card per subject, the **most recently seen
-  first** (a column on wide screens, a sideways strip of compact cards on
-  phones):
-  - the **frame** the subject was tagged on in their latest event, 96 px
-    wide at its own shape, with a dot in the subject's color where they
-    were clicked. A tag
-    without a frame shows the clip's thumbnail instead (no dot);
-  - a **square in the subject's color** before the name, to match them
-    with their dots on the map;
-  - the name;
-  - "Last seen 14:03:22 · Back camera": the event's time (with the date,
-    `2026-09-30 08:05:00`, when it isn't today) and camera;
-  - how many events they're on ("3 events").
-- With no tags yet: "No subjects yet. Tag people and pets on a clip."
-- Tapping a card opens the subject's screen.
+- **Names on the map:** beside each subject's newest located dot, the
+  subject's name in a dark pill edged in their color (up to 160 dp, cut
+  short with an ellipsis). Tapping it opens the subject's screen.
+- **On each clip's card** (`EventSubjects`): every subject tagged on it,
+  once, as written there, each after a **square in the subject's color**,
+  to match them with their dots on the map.
 
 ## A subject's screen
 
@@ -80,17 +72,18 @@ and pets"), each with where the device was when they were seen
 - `subjects_test.dart`: names grouped ignoring case, one event per clip,
   newest first, with the latest frame; the opacity runs from 1 to 0.15;
   the setting's default, range and round-trip, and old configs without it;
-  the list's order, frames and "Last seen" line, updating when a tag is
-  added; a subject's screen with the latest 20 of 26 dots, fading, then 25
+  a clip card's subjects and colors, updating when a tag is added; a
+  subject's screen with the latest 20 of 26 dots, fading, then 25
   after raising the setting, and the event without a location listed with
   no dot; a subject's color depends only on its name and spreads over
   the palette, and every dot has it, fading by age; the setting's slider;
-  the Monitoring tab between Camera and Device; tapping a dot far down the
+  the Monitoring tab between Camera and Settings; tapping a dot far down the
   timeline closes the subject's screen, shows the Monitoring tab with that
   event on screen and outlined, and the outline goes after 4 s; the
-  subjects map (top left, the list to its right) has every subject's located dots (one per subject on a
-  shared clip) in each subject's color, faded per subject, the rows'
-  squares match those colors, and a tapped dot opens its event.
+  subjects map (left of the events) has every subject's located dots (one
+  per subject on a shared clip) in each subject's color, faded per
+  subject, a name beside each subject's newest dot, the cards' squares
+  match those colors, and a tapped dot opens its event.
   `widget_test.dart`: the four tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.

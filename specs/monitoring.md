@@ -9,31 +9,30 @@ the separate Events and Subjects tabs.
 - Second in the app bar, after **Camera** and before **Settings** (the
   `monitor_heart` icon, tooltip "Monitoring"; see
   [Navigation](navigation.md)).
-- Swiping between tabs is off here: a sideways drag moves the map or the
-  subjects strip. Tap the tabs to leave.
+- Swiping between tabs is off here: a sideways drag moves the map. Tap
+  the tabs to leave.
 
 ## Layout
 
-- **Wide screens (720 dp and up), two rows:**
-  - **the top row** (two fifths of the height):
-    - **left:** the **map of every subject's events**, each subject in its
-      own color, the newest dot solid and older ones fading (see
-      [Subjects](subjects.md));
-    - **right (340 dp):** the **subjects**, one card per subject, the most
-      recently seen first. Tapping a card opens the subject's screen
-      (their map and history of events);
-  - **the second row, the full width:** **all events**, newest first, with
-    the **Only this device** checkbox at the top, checked by default (see
-    [Events](events.md)). At this width a clip's card puts its 16:9
-    thumbnail (320 dp wide) beside its details, rather than stretching it
-    across the screen (see [Clips](clips.md)).
-- **Phones (narrower), stacked:** the map (three tenths of the height),
-  then the subjects as a **sideways strip** of 280 dp cards (a smaller
-  frame and one line per text, so every card is the same height), then the
-  events filling the rest.
-- With nobody tagged yet, the map shows the whole world without dots, and
-  the subjects area says "No subjects yet. Tag people and pets on a clip."
-  (on one line in the strip).
+- **At the top, once the device ID is known:** the **Only this device**
+  filter chip (checked by default; see [Events](events.md)).
+- **Wide screens (720 dp and up), two columns:**
+  - **left:** the **map of every subject's events**, in a rounded,
+    outlined frame: each subject in its own color, the newest dot solid
+    and older ones fading, and **the subject's name beside their newest
+    dot**, in a pill edged in their color. Tapping a name opens the
+    subject's screen (their map and history of events; see
+    [Subjects](subjects.md));
+  - **right:** **all events**, newest first, as cards; a clip's card lists
+    its **subjects, each with a square in their color** (see
+    [Clips](clips.md)). The column is two fifths of the width, kept
+    between 360 and 520 dp; the map takes the rest.
+- **Phones (narrower):** the map (35% of the height) above the events.
+- The page is padded 16 dp (12 dp on phones), with the same gap between
+  the map and the events, and stops growing at 1600 dp, centered.
+- There is no subjects list: subjects are reached through their names on
+  the map, and seen on each event's card.
+- With nobody tagged yet, the map shows the whole world without dots.
 
 ## Opening an event
 
@@ -45,22 +44,24 @@ the separate Events and Subjects tabs.
 
 ## Verified
 
-- `monitoring_test.dart`: at 1500 dp the map is top left and the
-  subjects (340 dp) top right, in one row, and the events span the whole
-  width under both; a clip's card there has a 320 × 180 thumbnail with
-  the title beside it; at 400 dp the map, subjects and events stack, and
-  the card's title is under its thumbnail.
-- `subjects_test.dart`: on a wide screen the map is top left, the
-  subjects to its right and the events under the map; on a 360 dp phone
-  the map, the strip (horizontal, cards side by side) and the events stack
-  without overflow; the tab sits between Camera and Device, and the Events
-  and Subjects tabs are gone; a dot tapped on a subject's screen closes it
-  and outlines the event in this tab's list. `widget_test.dart`: the tabs
-  in order, and the tab shows the map, the subjects and the events. 202
-  Flutter tests pass.
+- `monitoring_test.dart`: at 1500 dp the map is on the left and the
+  events (520 dp) on the right, padded and 16 dp apart, from the same top;
+  at 2400 dp the page stops at 1600 dp, centered; a clip card's 16:9
+  thumbnail stays inside the events column; at 400 dp the map is above the
+  events; a clip card shows its subject.
+- `subjects_test.dart`: each clip card lists its subjects once, as
+  written, in their colors, updating when a tag is added; the map has
+  every subject's located dots in their colors, faded per subject, and a
+  name only beside each subject's newest dot; tapping a name opens the
+  subject's screen; on a 360 dp phone the map sits above the events; a dot
+  tapped on a subject's screen closes it and outlines the event in this
+  tab's list. `events_filter_test.dart`: the Only this device chip filters
+  and keeps its state across tabs. 212 Flutter tests pass.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations
 
-- On a phone the events get what's left under the map and the strip:
-  about half of a 740 dp screen.
+- Names on the map can overlap when subjects were last seen close
+  together.
+- A subject with no located event has no name on the map, so their screen
+  can't be opened from this tab.

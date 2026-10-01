@@ -79,11 +79,10 @@ in the app bar**, which flip between full screens.
     saving the next 15 s", with a **View** action that jumps to Events. It's
     set not to persist (Flutter otherwise keeps snackbars with actions until
     dismissed). For motion clips, the indicator carries the cooldown after it.
-- **Monitoring:** the map of every subject's events, the subjects, and
-  the event stream (with **Only this device**, checked by default) on one
-  screen: the map and subjects side by side on top of the events on wide
-  screens, stacked on phones (see
-  [Monitoring](monitoring.md)). Swiping between tabs is off there.
+- **Monitoring:** the map of every subject's events, with their names,
+  beside the event stream (above it on phones), and **Only this device**
+  (checked by default) at the top (see [Monitoring](monitoring.md)).
+  Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
   **full width**, with this device's location map as a section (see
   [Settings screen](settings.md)).

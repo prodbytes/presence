@@ -149,28 +149,35 @@ void main() {
         )
         .opacity;
 
-    testWidgets('lists subjects with their latest frame, and updates', (
-      tester,
-    ) async {
+    testWidgets("each event shows its subjects, and updates", (tester) async {
       await show(tester);
-      expect(find.textContaining('No subjects yet'), findsOneWidget);
+      expect(find.byKey(const Key('event-subjects')), findsNothing);
 
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 30),
-        clipWith(['Ana'], minutesAgo: 10),
+        clipWith(['Ana', ' rex ', 'REX'], minutesAgo: 10),
       ]);
       await tester.pump();
-      expect(find.text('Rex'), findsOneWidget);
+      // Tagged twice on one clip, shown once; as written on that clip.
+      expect(find.byKey(const Key('event-subject-rex')), findsNWidgets(2));
+      expect(find.byKey(const Key('event-subject-ana')), findsOneWidget);
+      expect(find.text('rex'), findsOneWidget);
       expect(find.text('Ana'), findsOneWidget);
-      expect(find.byKey(const Key('subject-frame')), findsNWidgets(2));
+      Color colorOf(Finder f) =>
+          ((tester.widget<Container>(
+                    find.descendant(of: f, matching: find.byType(Container)),
+                  )).decoration!
+                  as BoxDecoration)
+              .color!;
       expect(
-        tester.getTopLeft(find.text('Ana')).dy,
-        lessThan(tester.getTopLeft(find.text('Rex')).dy),
+        colorOf(find.byKey(const Key('event-subject-color-ana'))),
+        Subject.colorOf('ana'),
       );
       expect(
-        find.textContaining(RegExp(r'^Last seen .*11:50:00 · Back camera$')),
-        findsOneWidget,
+        colorOf(find.byKey(const Key('event-subject-color-rex')).first),
+        Subject.colorOf('rex'),
       );
+
       expect(
         formatSeen(DateTime(2026, 9, 30, 8, 5), DateTime(2026, 10, 1)),
         '2026-09-30 08:05:00',
@@ -184,7 +191,8 @@ void main() {
       final older = log.events.last as ClipRequested;
       older.annotations.add('Ana', 0.1, 0.1);
       await tester.pump();
-      expect(find.text('2 events'), findsOneWidget);
+      expect(find.byKey(const Key('event-subject-ana')), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('a subject opens on a map of its latest events, fading', (
@@ -196,7 +204,12 @@ void main() {
         clipWith(['Rex'], minutesAgo: 99, id: 'no-location'),
       ]);
       await show(tester);
-      await tester.tap(find.text('Rex'));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('subjects-label-rex')),
+          matching: find.byType(Text),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('subject-page')), findsOneWidget);
@@ -239,7 +252,12 @@ void main() {
           clipWith(['Rex'], minutesAgo: i, lat: 48 + i / 10),
       ]);
       await show(tester);
-      await tester.tap(find.text('Rex'));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('subjects-label-rex')),
+          matching: find.byType(Text),
+        ),
+      );
       await tester.pumpAndSettle();
 
       Color colorOfDot(String eventId) {
@@ -261,9 +279,7 @@ void main() {
       expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
     });
 
-    testWidgets('on a phone: the map, a strip of subjects, then events', (
-      tester,
-    ) async {
+    testWidgets('on a phone: the map above the events', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
         clipWith(['Ana', 'Rex'], minutesAgo: 2, lat: 48.2),
@@ -286,22 +302,11 @@ void main() {
       await tester.pumpAndSettle();
 
       final map = tester.getRect(find.byKey(const Key('subjects-map')));
-      final strip = tester.getRect(find.byKey(const Key('subjects-page')));
       final events = tester.getRect(find.byKey(const Key('events-page')));
-      expect(map.bottom, lessThanOrEqualTo(strip.top));
-      expect(strip.bottom, lessThanOrEqualTo(events.top));
-      expect(
-        tester
-            .widget<ListView>(find.byKey(const Key('subjects-list')))
-            .scrollDirection,
-        Axis.horizontal,
-      );
-      // Cards side by side.
-      expect(
-        tester.getTopLeft(find.byKey(const Key('subject-rex'))).dx,
-        lessThan(tester.getTopLeft(find.byKey(const Key('subject-ana'))).dx),
-      );
-      expect(find.text('Door opened'), findsOneWidget);
+      expect(map.bottom, lessThanOrEqualTo(events.top));
+      expect(map.width, closeTo(events.width, 2));
+      expect(find.byKey(const Key('subjects-page')), findsNothing);
+      expect(find.byKey(const Key('subjects-label-rex')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -331,27 +336,24 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The map sits top left, the subjects to its right, the events
-      // under it.
-      final map = find.byKey(const Key('subjects-map'));
-      expect(map, findsOneWidget);
-      final list = find.byKey(const Key('subjects-page'));
-      expect(
-        tester.getTopRight(map).dx,
-        lessThanOrEqualTo(tester.getTopLeft(list).dx),
-      );
-      expect(tester.getTopLeft(map).dy, lessThan(100));
-      expect(
-        tester.getBottomLeft(map).dy,
-        lessThanOrEqualTo(
-          tester.getTopLeft(find.byKey(const Key('events-page'))).dy,
-        ),
-      );
+      // Two columns: the map on the left, the events on the right, both
+      // the full height; no subjects list.
+      final map = tester.getRect(find.byKey(const Key('subjects-map')));
+      final events = tester.getRect(find.byKey(const Key('events-page')));
+      expect(map.right, lessThanOrEqualTo(events.left));
+      expect(events.right, lessThanOrEqualTo(1280));
+      expect(map.top, closeTo(events.top, 2));
+      expect(find.byKey(const Key('subjects-page')), findsNothing);
 
       // Every located event of every subject; the clip with both gets a
       // dot for each.
       final markers = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
-      expect(markers.markers, hasLength(4));
+      expect(
+        markers.markers.where(
+          (m) => (m.key! as ValueKey<String>).value.startsWith('subjects-dot-'),
+        ),
+        hasLength(4),
+      );
       Color colorOf(Finder f) =>
           (tester
                       .widget<Container>(
@@ -380,9 +382,37 @@ void main() {
       expect(opacity('subjects-dot-rex-event-1'), 1);
       expect(opacity('subjects-dot-rex-event-2'), closeTo(0.15, 1e-9));
 
-      // The rows' squares are the same colors.
-      expect(colorOf(find.byKey(const Key('subject-color-rex'))), rex);
-      expect(colorOf(find.byKey(const Key('subject-color-ana'))), ana);
+      // The events' squares are the same colors.
+      expect(
+        colorOf(find.byKey(const Key('event-subject-color-rex')).first),
+        rex,
+      );
+      expect(
+        colorOf(find.byKey(const Key('event-subject-color-ana')).first),
+        ana,
+      );
+
+      // A name beside each subject's newest dot only, edged in its color.
+      final labels = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
+      expect(
+        [
+          for (final m in labels.markers)
+            if (m.key case ValueKey<String>(:final value)
+                when value.startsWith('subjects-label-'))
+              (value, m.point.latitude),
+        ],
+        unorderedEquals([
+          ('subjects-label-rex', 48.1),
+          ('subjects-label-ana', 48.2),
+        ]),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('subjects-label-rex')),
+          matching: find.text('Rex'),
+        ),
+        findsOneWidget,
+      );
 
       // A tapped dot opens its event.
       await tester.tap(find.byKey(const Key('subjects-dot-ana-event-3')));
@@ -437,7 +467,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('No subjects yet'), findsOneWidget);
+    expect(find.byKey(const Key('subjects-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -474,7 +504,12 @@ void main() {
 
     await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rex'));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('subjects-label-rex')),
+        matching: find.byType(Text),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('subject-dot-rex-old')));
     await tester.pumpAndSettle();

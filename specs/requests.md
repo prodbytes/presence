@@ -1431,3 +1431,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "dev" label next to the title reads "dev 0.4.<Z>" when the build
       has a version (just "dev" without one), and is cut short with an
       ellipsis where there's no room.
+178. **Change the Monitoring screen: only two columns, the map and then the
+    events; each event shows its subjects and their colors.** Then, in the
+    same request: **on the map, label each subject's newest (full opacity)
+    dot with their name; move the checkbox to the top of the page; add some
+    padding and width control, make it look nice.** (2026-10-01)
+    - Monitoring: the map (rounded, outlined) on the left, the events on
+      the right (two fifths of the width, 360–520 dp); on phones the map
+      (35% of the height) above the events. 16 dp padding and gap (12 on
+      phones), the page centered past 1600 dp. The subjects list is gone.
+    - Clip cards list their subjects, each after a square in their color
+      (`EventSubjects`).
+    - The map labels each subject's newest located dot with their name, in
+      a pill edged in their color; tapping it opens the subject's screen.
+    - "Only this device" is a filter chip at the top of the tab
+      (`ThisDeviceOnly`), out of the timeline.
+    - 212 Flutter tests pass; web release builds.
