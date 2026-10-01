@@ -1,37 +1,40 @@
 #!/usr/bin/env bash
-# Continuous health monitor: one line per check, one emoji per service.
-# Runs via `devbox services up` (see process-compose.yaml) or standalone.
-# Check interval in seconds is configurable via HEALTH_CHECK_INTERVAL.
+# Continuous health monitor: every HEALTH_CHECK_INTERVAL seconds (15 by
+# default), one line per check, each with the time, an emoji, ✅/❌/⚪ and a
+# short reason. Runs via `devbox services up` (see process-compose.yaml) or
+# standalone.
 set -uo pipefail
 
 INTERVAL="${HEALTH_CHECK_INTERVAL:-15}"
+FLOCI="http://localhost:${FLOCI_PORT:-4566}"
+CDN_ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 
-check_web() {
-    if curl -fs -o /dev/null --max-time 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; then
-        echo "🌐 web ✅"
-    else
-        echo "🌐 web ❌"
-    fi
+# report <emoji> <name> <status emoji> [detail]
+report() {
+    printf '%s %s %-5s %s%s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" "$2" "$3" "${4:+ $4}"
 }
+
+# ok_if <emoji> <name> <detail> <command...>: ✅ when the command succeeds.
+ok_if() {
+    local emoji=$1 name=$2 detail=$3
+    shift 3
+    if "$@"; then report "$emoji" "$name" ✅ "$detail"; else report "$emoji" "$name" ❌ "$detail"; fi
+}
+
+# get <timeout> <curl args...>: succeeds on a 2xx answer.
+get() {
+    local timeout=$1
+    shift
+    curl -fs -o /dev/null --max-time "$timeout" "$@"
+}
+
+check_index() { ok_if 🏠 index "localhost:${INDEX_PORT:-8081}/" get 5 "http://localhost:${INDEX_PORT:-8081}/"; }
+
+check_web() { ok_if 🌐 web "localhost:${FLUTTER_WEB_PORT:-8080}/app/" get 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; }
 
 # The CloudFront distribution in Floci, addressed by its alias in the Host
 # header (so it works where *.localhost doesn't resolve).
-check_cdn() {
-    if curl -fs -o /dev/null --max-time 10 -H "Host: ${PRESENCE_CDN_ALIAS:-presence.localhost}" \
-            "http://localhost:${FLOCI_PORT:-4566}/app/"; then
-        echo "☁️ cdn ✅"
-    else
-        echo "☁️ cdn ❌"
-    fi
-}
-
-check_index() {
-    if curl -fs -o /dev/null --max-time 5 "http://localhost:${INDEX_PORT:-8081}/"; then
-        echo "🏠 index ✅"
-    else
-        echo "🏠 index ❌"
-    fi
-}
+check_cdn() { ok_if ☁️ cdn "$CDN_ALIAS/app/ in Floci" get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
 
 # HTTPS through the CDN on the public local name (the Google sign-in origin),
 # validating the certificate against mkcert's CA (not the system trust store,
@@ -40,16 +43,48 @@ check_index() {
 MKCERT_CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"
 check_https() {
     local host="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}" port="${FLOCI_HTTPS_PORT:-8443}"
-    if curl -fs -o /dev/null --max-time 10 --cacert "$MKCERT_CA" \
-            --resolve "$host:$port:127.0.0.1" "https://$host:$port/app/"; then
-        echo "🔒 https ✅"
+    ok_if 🔒 https "$host:$port/app/" get 10 --cacert "$MKCERT_CA" \
+        --resolve "$host:$port:127.0.0.1" "https://$host:$port/app/"
+}
+
+# setting <body> <emoji> <name> <json key> <when set> <when not set>
+setting() {
+    if [[ "$1" == *"\"$4\":true"* ]]; then
+        report "$2" "$3" ✅ "$5"
+    elif [[ "$1" == *"\"$4\":false"* ]]; then
+        report "$2" "$3" ⚪ "$6"
     else
-        echo "🔒 https ❌"
+        report "$2" "$3" ❌ "the API doesn't report it"
     fi
 }
 
+# The auth API through the CDN (GET /api/auth/anonymous, no token): its
+# execution mode, and whether the OIDC client and the AWS cloud-sync
+# settings are set (presence.auth.Settings). OIDC and AWS are only known
+# when the API answers.
+check_api() {
+    local body mode
+    body="$(curl -fs --max-time 10 -H "Host: $CDN_ALIAS" "$FLOCI/api/auth/anonymous")"
+    mode="$(sed -n 's/.*"mode":"\([A-Z]*\)".*/\1/p' <<<"$body")"
+    if [[ -z "$mode" ]]; then
+        report 🔌 api ❌ "/api/auth/anonymous didn't answer"
+        report 🔑 oidc ❌ "unknown: the API didn't answer"
+        report 🪣 aws ❌ "unknown: the API didn't answer"
+        return
+    fi
+    report 🔌 api ✅ "$mode mode"
+    setting "$body" 🔑 oidc oidc "GOOGLE_WEB_CLIENT_ID set: sign-in on" \
+        "GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role"
+    setting "$body" 🪣 aws aws "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set: events sync to S3" \
+        "COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3"
+}
+
 while true; do
-    # Add more services here, one check_* call per service, joined on one line
-    printf '%s %s %s %s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$(check_index)" "$(check_web)" "$(check_cdn)" "$(check_https)"
+    # Add more services here, one check_* function each.
+    check_index
+    check_web
+    check_cdn
+    check_https
+    check_api
     sleep "$INTERVAL"
 done

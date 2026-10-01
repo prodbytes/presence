@@ -182,11 +182,19 @@ That starts these services, wired up in
 | http://presence.localhost:4566/ | Floci, the local CloudFront, in front of the index, the app and the API |
 | https://local.presence.nu01.com:8443/ | The same over HTTPS, a public name for 127.0.0.1 that works as a Google OAuth origin |
 
-A `health-check` monitor logs one status line per check (every 15 s; set
-`HEALTH_CHECK_INTERVAL` to change it):
+A `health-check` monitor logs one line per check every 15 s (set
+`HEALTH_CHECK_INTERVAL` to change it). The API line comes from the local
+auth API's `/api/auth/anonymous`, which also says whether the OIDC and AWS
+settings are set. Without `.env` it looks like this:
 
 ```
-2026-07-09 20:02:10 🏠 index ✅ 🌐 web ✅ ☁️ cdn ✅ 🔒 https ✅
+2026-10-01 16:50:03 🏠 index ✅ localhost:8081/
+2026-10-01 16:50:03 🌐 web   ✅ localhost:8080/app/
+2026-10-01 16:50:03 ☁️ cdn   ✅ presence.localhost/app/ in Floci
+2026-10-01 16:50:03 🔒 https ✅ local.presence.nu01.com:8443/app/
+2026-10-01 16:50:03 🔌 api   ✅ DEV mode
+2026-10-01 16:50:03 🔑 oidc  ⚪ GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role
+2026-10-01 16:50:03 🪣 aws   ⚪ COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3
 ```
 
 Stop everything with `devbox services stop`. To run only the app, use

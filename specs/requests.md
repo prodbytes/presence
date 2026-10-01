@@ -1158,3 +1158,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       optional `GoogleWebClientId`, plus `Architecture`; the Floci hook
       passes all four parameters. Request 148 (dev container) is renumbered
       150, after main's entries.
+154. **Review the health check script: print one line per check, every
+    15 s, checking the API, AWS and the rest.** (2026-10-01)
+    - `scripts/health-check.sh` now prints one timestamped line per check
+      with a reason, and adds `🔌 api` (the local auth API's mode),
+      `🔑 oidc` and `🪣 aws` (whether the API reports their settings set).
+    - README example and [dev-environment.md](dev-environment.md) updated.
