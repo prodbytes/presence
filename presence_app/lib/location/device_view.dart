@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:battery_plus/battery_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../battery.dart';
 import '../theme.dart';
 import 'device_location.dart';
 import 'map_parts.dart';
@@ -18,9 +21,13 @@ class DeviceView extends StatefulWidget {
     required this.location,
     this.deviceId,
     this.tiles,
+    this.battery,
   });
 
   final LocationController location;
+
+  /// Reads the battery shown in the card; defaults to [DeviceBattery].
+  final BatteryReader? battery;
 
   /// This device's ID, once it's loaded.
   final String? deviceId;
@@ -42,6 +49,9 @@ class DeviceView extends StatefulWidget {
 
 class _DeviceViewState extends State<DeviceView> {
   final _map = MapController();
+
+  /// Read only while the Device tab is shown (the tab is built then).
+  late final _battery = BatteryController(widget.battery ?? DeviceBattery());
   Timer? _commit;
   bool _ready = false;
 
@@ -70,6 +80,7 @@ class _DeviceViewState extends State<DeviceView> {
   @override
   void dispose() {
     _commit?.cancel();
+    _battery.dispose();
     _location.removeListener(_onLocation);
     _map.dispose();
     super.dispose();
@@ -169,12 +180,18 @@ class _DeviceViewState extends State<DeviceView> {
           top: 12,
           left: 12,
           right: 12,
-          child: Center(
+          // A panel in the top-left corner, as wide as its content.
+          child: Align(
+            alignment: Alignment.topLeft,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 560),
-              child: _LocationCard(
-                deviceId: widget.deviceId,
-                location: _location,
+              child: IntrinsicWidth(
+                child: _LocationCard(
+                  key: const Key('device-card'),
+                  deviceId: widget.deviceId,
+                  location: _location,
+                  battery: _battery,
+                ),
               ),
             ),
           ),
@@ -216,10 +233,16 @@ class _DeviceViewState extends State<DeviceView> {
 
 /// The device's ID, where it is and how that was found.
 class _LocationCard extends StatelessWidget {
-  const _LocationCard({required this.deviceId, required this.location});
+  const _LocationCard({
+    super.key,
+    required this.deviceId,
+    required this.location,
+    required this.battery,
+  });
 
   final String? deviceId;
   final LocationController location;
+  final BatteryController battery;
 
   @override
   Widget build(BuildContext context) {
@@ -274,6 +297,7 @@ class _LocationCard extends StatelessWidget {
                   ),
                 ),
               ),
+            _BatteryField(battery: battery),
             Text(
               status,
               key: const Key('device-location-status'),
@@ -287,6 +311,86 @@ class _LocationCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The battery's charge and whether it's charging, once read.
+class _BatteryField extends StatelessWidget {
+  const _BatteryField({required this.battery});
+
+  final BatteryController battery;
+
+  /// Below this, the level shows as low (in the error color).
+  static const int low = 15;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: battery,
+    builder: (context, _) {
+      if (!battery.ready) return const SizedBox.shrink();
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
+      final reading = battery.reading;
+      final IconData icon;
+      final String text;
+      var color = scheme.onSurface;
+      if (reading == null) {
+        icon = Icons.battery_unknown;
+        text = kIsWeb ? 'Not available in this browser' : 'Not available';
+        color = scheme.onSurfaceVariant;
+      } else {
+        final level = reading.level.clamp(0, 100);
+        final charging = reading.state == BatteryState.charging;
+        icon = switch (reading.state) {
+          BatteryState.charging => Icons.battery_charging_full,
+          BatteryState.full => Icons.battery_full,
+          _ when level < low => Icons.battery_alert,
+          _ => _levelIcons[(level * (_levelIcons.length - 1) / 100).round()],
+        };
+        if (level < low && !charging) color = scheme.error;
+        text = [
+          '$level %',
+          switch (reading.state) {
+            BatteryState.charging => 'Charging',
+            BatteryState.full => 'Full',
+            BatteryState.connectedNotCharging => 'Plugged in, not charging',
+            BatteryState.discharging => 'On battery',
+            BatteryState.unknown => null,
+          },
+        ].nonNulls.join(' · ');
+      }
+      return _Field(
+        label: 'Battery',
+        child: Row(
+          key: const Key('device-battery'),
+          spacing: 4,
+          children: [
+            Icon(icon, size: 18, color: color),
+            Flexible(
+              child: Text(
+                text,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: color,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  /// From empty to full.
+  static const _levelIcons = [
+    Icons.battery_0_bar,
+    Icons.battery_1_bar,
+    Icons.battery_2_bar,
+    Icons.battery_3_bar,
+    Icons.battery_4_bar,
+    Icons.battery_5_bar,
+    Icons.battery_6_bar,
+    Icons.battery_full,
+  ];
 }
 
 /// A value in the location card, with a small label saying what it is.

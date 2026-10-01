@@ -5,6 +5,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
+import 'package:battery_plus/battery_plus.dart';
+import 'package:presence_app/battery.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/location/device_view.dart';
@@ -33,6 +35,21 @@ class FakeLocator implements Locator {
     if (failure case final failure?) throw failure;
     return position;
   }
+}
+
+/// Answers with [reading]; [changed] stands for charging starting or
+/// stopping.
+class FakeBattery implements BatteryReader {
+  FakeBattery(this.reading);
+
+  BatteryReading? reading;
+  final changed = StreamController<void>.broadcast();
+
+  @override
+  Future<BatteryReading?> read() async => reading;
+
+  @override
+  Stream<void> get changes => changed.stream;
 }
 
 void main() {
@@ -152,8 +169,13 @@ void main() {
       return result;
     }
 
-    Future<void> launch(WidgetTester tester, FakeLocator locator) async {
-      tester.view.physicalSize = const Size(400, 800);
+    Future<void> launch(
+      WidgetTester tester,
+      FakeLocator locator, {
+      BatteryReader? battery,
+      Size size = const Size(400, 800),
+    }) async {
+      tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
@@ -165,6 +187,7 @@ void main() {
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(),
           locator: locator,
+          battery: battery ?? FakeBattery(null),
           // No network in tests.
           mapTiles: const SizedBox(),
         ),
@@ -204,6 +227,24 @@ void main() {
       expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+      testWidgets('the info panel sits in the top-left corner at '
+          '${size.width.toInt()} wide', (tester) async {
+        await launch(tester, FakeLocator(), size: size);
+        await tester.tap(find.byTooltip('Device'));
+        await tester.pumpAndSettle();
+        final card = tester.getRect(find.byKey(const Key('device-card')));
+        final map = tester.getRect(find.byType(FlutterMap));
+        expect(card.left, map.left + 12);
+        expect(card.top, map.top + 12);
+        expect(card.right, lessThanOrEqualTo(size.width - 12));
+        // As wide as its content, not the screen.
+        expect(card.width, lessThanOrEqualTo(560));
+        if (size.width > 600) expect(card.width, lessThan(400));
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('labels say what each value is; buttons zoom in and out', (
       tester,
@@ -294,6 +335,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(again.calls, 1);
       expect(find.text('48.858400, 2.294500'), findsOneWidget);
+    });
+
+    testWidgets('shows the battery charge, and follows it', (tester) async {
+      final battery = FakeBattery((level: 82, state: BatteryState.charging));
+      await launch(tester, FakeLocator(), battery: battery);
+      await tester.tap(find.byTooltip('Device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Battery'), findsOneWidget);
+      expect(find.text('82 % · Charging'), findsOneWidget);
+      expect(find.byIcon(Icons.battery_charging_full), findsOneWidget);
+
+      // Unplugged: an event reads it again.
+      battery.reading = (level: 81, state: BatteryState.discharging);
+      battery.changed.add(null);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('81 % · On battery'), findsOneWidget);
+      expect(find.byIcon(Icons.battery_6_bar), findsOneWidget);
+
+      // The level drops without an event: read again every minute.
+      battery.reading = (level: 9, state: BatteryState.discharging);
+      await tester.pump(const Duration(minutes: 1));
+      expect(find.text('9 % · On battery'), findsOneWidget);
+      final icon = tester.widget<Icon>(find.byIcon(Icons.battery_alert));
+      expect(
+        icon.color,
+        Theme.of(tester.element(find.byWidget(icon))).colorScheme.error,
+      );
+
+      battery.reading = (level: 100, state: BatteryState.full);
+      battery.changed.add(null);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('100 % · Full'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('says when there is no battery reading', (tester) async {
+      await launch(tester, FakeLocator(), battery: FakeBattery(null));
+      await tester.tap(find.byTooltip('Device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Not available'), findsOneWidget);
+      expect(find.byIcon(Icons.battery_unknown), findsOneWidget);
     });
 
     testWidgets('without permission, the map asks to be moved', (tester) async {

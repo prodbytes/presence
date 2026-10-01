@@ -7,6 +7,7 @@ import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
+import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
@@ -278,6 +279,35 @@ void main() {
           .toList(),
       [first, first],
     );
+  });
+
+  testWidgets('every 15 s, events from another device join the timeline', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    await showEvents(tester);
+    expect(find.text('From the phone'), findsNothing);
+
+    // Another device of the same user uploads an event.
+    final record = <String, Object?>{
+      'id': 'phone-event',
+      'type': AppEvent.genericType,
+      'title': 'From the phone',
+      'time': clock.millisecondsSinceEpoch,
+      'userId': '1',
+    };
+    cloud.uploads['us-east-1:identity/${CloudSync.eventKey(record)}'] = (
+      bytes: Uint8List.fromList(utf8.encode(jsonEncode(record))),
+      contentType: 'application/json',
+    );
+
+    // The next periodic pass brings it down, with no restart.
+    clock = clock.add(const Duration(seconds: 15));
+    await tester.pump(const Duration(seconds: 15));
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('From the phone'), findsOneWidget);
   });
 
   testWidgets('after sign-in, clips from the cloud join the history', (
@@ -571,6 +601,100 @@ void main() {
     expect(clipEventRecord['clipState'], 'complete');
     expect(cameras.single['id'], 'device-123');
     expect(cameras.single['label'], 'Front door');
+  });
+
+  /// The settings records in the cloud, by key.
+  Map<String, Map<String, Object?>> cloudSettings(FakeCloudBackend cloud) => {
+    for (final MapEntry(:key, :value) in cloud.uploads.entries)
+      if (RegExp(r'/devices/[^/]+/settings\.json$').hasMatch(key))
+        key: (jsonDecode(utf8.decode(value.bytes)) as Map)
+            .cast<String, Object?>(),
+  };
+
+  void putCloudSettings(
+    FakeCloudBackend cloud,
+    String key,
+    Map<String, Object?> record,
+  ) => cloud.uploads[key] = (
+    bytes: Uint8List.fromList(utf8.encode(jsonEncode(record))),
+    contentType: 'application/json',
+  );
+
+  Future<String> settingsLabel(WidgetTester tester, String text) async {
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text(text), findsOneWidget);
+    return text;
+  }
+
+  testWidgets("signed in, this device's settings go to the cloud", (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+
+    // No settings anywhere: the defaults, uploaded under the device ID.
+    final saved = cloudSettings(cloud);
+    expect(saved, hasLength(1));
+    final MapEntry(:key, :value) = saved.entries.single;
+    final deviceId = value['deviceId']! as String;
+    expect(key, 'us-east-1:identity/devices/$deviceId/settings.json');
+    expect(value['updatedAt'], 0);
+    expect(value['config'], const PresenceConfig().toJson());
+
+    // A change goes up, with when it was made.
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('motion-switch')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    final changed = cloudSettings(cloud)[key]!;
+    expect(changed['updatedAt'], clock.millisecondsSinceEpoch);
+    expect(
+      (changed['config']! as Map)['motion'],
+      containsPair('enabled', false),
+    );
+  });
+
+  testWidgets('at start, newer settings in the cloud win; older ones lose', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    final key = cloudSettings(cloud).keys.single;
+    final deviceId = cloudSettings(cloud)[key]!['deviceId'];
+    await tester.pumpWidget(const SizedBox());
+    await settleStorage(tester);
+
+    // Changed elsewhere, later (another install of this device's storage).
+    final later = clock.add(const Duration(hours: 1)).millisecondsSinceEpoch;
+    putCloudSettings(cloud, key, {
+      'deviceId': deviceId,
+      'updatedAt': later,
+      'config': const PresenceConfig(camera: CameraConfig(brightness: -2))
+          .toJson(),
+    });
+    await launch(tester, cloud: cloud);
+    await settingsLabel(tester, '-2.0 EV');
+
+    // Kept on the device: no cloud needed from then on.
+    await refresh(tester);
+    await settingsLabel(tester, '-2.0 EV');
+    await tester.pumpWidget(const SizedBox());
+    await settleStorage(tester);
+
+    // An older record in the cloud doesn't undo it, and is replaced.
+    putCloudSettings(cloud, key, {
+      'deviceId': deviceId,
+      'updatedAt': 1,
+      'config': const PresenceConfig(camera: CameraConfig(brightness: 2))
+          .toJson(),
+    });
+    await launch(tester, cloud: cloud);
+    await settingsLabel(tester, '-2.0 EV');
+    expect(cloudSettings(cloud)[key]!['updatedAt'], later);
   });
 
   testWidgets('motion settings survive a refresh', (tester) async {

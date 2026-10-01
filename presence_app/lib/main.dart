@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
+import 'battery.dart';
 import 'auth/admin_screen.dart';
 import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
@@ -48,11 +49,15 @@ class PresenceApp extends StatefulWidget {
     this.consentGiven = false,
     this.locator,
     this.mapTiles,
+    this.battery,
   });
 
   /// Skips the recording consent, as if this device had given it (used by
   /// tests). The app itself always checks storage.
   final bool consentGiven;
+
+  /// Overrides the Device tab's battery reading (used by tests).
+  final BatteryReader? battery;
 
   /// Overrides the device's positioning (used by tests).
   final Locator? locator;
@@ -118,6 +123,7 @@ class _PresenceAppState extends State<PresenceApp> {
       currentUser: () => _auth.user?.id,
       // And records where the device is.
       currentLocation: () => _location.location,
+      now: widget.now,
       mediaStore: mediaIo == null
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
@@ -167,6 +173,8 @@ class _PresenceAppState extends State<PresenceApp> {
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,
+            // And this device's settings, kept per device.
+            settings: _persistence,
             // Clips and events fetched from the cloud after sign-in join the
             // local history, like a restore from IndexedDB.
             onRemote: (remote) async => _log.addHistory(
@@ -308,6 +316,7 @@ class _PresenceAppState extends State<PresenceApp> {
             deviceId: _deviceId,
             location: _location,
             mapTiles: widget.mapTiles,
+            battery: widget.battery,
           ),
         },
       ),
@@ -350,7 +359,11 @@ class HomeScreen extends StatefulWidget {
     this.deviceId,
     required this.location,
     this.mapTiles,
+    this.battery,
   });
+
+  /// The Device tab's battery reading, when not the device's (tests).
+  final BatteryReader? battery;
 
   /// Where this device is (the Device tab's map, and every event).
   final LocationController location;
@@ -403,6 +416,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// The event the Events tab scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
+
+  /// The Events tab's "Only this device" checkbox: on at launch, and kept
+  /// while switching tabs.
+  final _thisDeviceOnly = ValueNotifier(true);
 
   /// Shows [event] in the Events tab, closing any screen over the tabs (a
   /// subject's).
@@ -459,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
     _focusedEvent.dispose();
+    _thisDeviceOnly.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -649,7 +667,12 @@ class _HomeScreenState extends State<HomeScreen>
           SafeArea(
             key: const Key('events-page'),
             child: _ReadableWidth(
-              child: EventTimeline(log: widget.log, focus: _focusedEvent),
+              child: EventTimeline(
+                log: widget.log,
+                focus: _focusedEvent,
+                deviceId: widget.deviceId,
+                thisDeviceOnly: _thisDeviceOnly,
+              ),
             ),
           ),
           SafeArea(
@@ -668,6 +691,7 @@ class _HomeScreenState extends State<HomeScreen>
               location: widget.location,
               deviceId: widget.deviceId,
               tiles: widget.mapTiles,
+              battery: widget.battery,
             ),
           ),
           SafeArea(

@@ -2,6 +2,11 @@ import 'dart:async';
 
 import 'camera_source.dart';
 
+/// Cuts finished recordings down to their windows. All of [media] come
+/// from one file (clips that shared a held recorder); the result is in the
+/// same order. It may hand back any of them unchanged.
+typedef ClipTrimmer = Future<List<ClipMedia>> Function(List<ClipMedia> media);
+
 /// A single recording in progress.
 abstract class PoolRecorder {
   /// When recording actually began.
@@ -28,13 +33,32 @@ abstract class PoolRecorder {
 /// period ends, which gives the whole clip as one continuous file. Clips are
 /// cut to the exact window by seeking, using the recorded start times.
 ///
+/// With a [ClipTrimmer], each finished file is first cut down to its clip's
+/// window (on the web, `cutWebm`), so the full clip's file is the clip, not
+/// the recorder's whole history.
+///
 /// Call [tick] regularly (about once a second).
 class RecorderPool {
   RecorderPool({
     required this._startRecorder,
     required this._preRoll,
     DateTime Function()? now,
+    this._trim,
   }) : _now = now ?? DateTime.now;
+
+  final ClipTrimmer? _trim;
+
+  /// [_trim] applied to [media], keeping the originals if it fails.
+  Future<List<ClipMedia>> _trimmed(List<ClipMedia> media) async {
+    final trim = _trim;
+    if (trim == null) return media;
+    try {
+      final cut = await trim(media);
+      return cut.length == media.length ? cut : media;
+    } catch (_) {
+      return media;
+    }
+  }
 
   final PoolRecorder Function() _startRecorder;
   final Duration Function() _preRoll;
@@ -107,12 +131,14 @@ class RecorderPool {
       _entries.remove(preview);
       final startedAt = preview.recorder.startedAt;
       past = preview.recorder.finish().then(
-        (url) => ClipMedia(
-          url: url,
-          start: _offset(startedAt, windowStart),
-          end: _offset(startedAt, now),
-          mimeType: preview.recorder.mimeType,
-        ),
+        (url) async => (await _trimmed([
+          ClipMedia(
+            url: url,
+            start: _offset(startedAt, windowStart),
+            end: _offset(startedAt, now),
+            mimeType: preview.recorder.mimeType,
+          ),
+        ])).single,
       );
     }
 
@@ -136,16 +162,18 @@ class RecorderPool {
     _entries.remove(entry);
     final startedAt = entry.recorder.startedAt;
     entry.recorder.finish().then(
-      (url) {
-        for (final p in entry.pending) {
-          p.completer.complete(
+      (url) async {
+        final media = await _trimmed([
+          for (final p in entry.pending)
             ClipMedia(
               url: url,
               start: _offset(startedAt, p.windowStart),
               end: _offset(startedAt, p.windowEnd),
               mimeType: entry.recorder.mimeType,
             ),
-          );
+        ]);
+        for (final (i, p) in entry.pending.indexed) {
+          p.completer.complete(media[i]);
         }
       },
       onError: (Object e, StackTrace s) {

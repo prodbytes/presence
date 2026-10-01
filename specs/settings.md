@@ -54,7 +54,13 @@
     (sign-in is off), ⚠️ on one only;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
-- **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
-  brightness, the motion switch, threshold and cooldown, the schedule
-  switch and interval, and the events per subject) is saved to
-  local storage on every change and restored on launch.
+- **All settings are persistent, per device:** the whole `PresenceConfig`
+  (clip lengths, brightness, the motion switch, threshold and cooldown,
+  the schedule switch and interval, and the events per subject) is saved
+  to the local database on every
+  change and restored on launch. **When S3 is available** (cloud sync
+  configured, and a signed-in user with access), it's also kept in the
+  user's folder under the device ID, fetched at start and uploaded on
+  every change; otherwise the local database alone holds it. With
+  neither, the device starts with the defaults. See
+  [Configuration](configuration.md) and [Cloud sync](cloud-sync.md).

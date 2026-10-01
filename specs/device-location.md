@@ -1,7 +1,7 @@
 # Device location
 
 Where each device is: shown on a map on the **Device** tab, and recorded
-on every event.
+on every event. The tab also shows the device's battery.
 
 ## The Device tab
 
@@ -15,10 +15,12 @@ on every event.
   rotated; north stays up.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
-- A **card at the top** shows, each under a small label saying what it is,
+- A **panel in the top-left corner** (12 px in from the map's edges, as
+  wide as its content, at most 560 px and never past the screen) shows,
+  each under a small label saying what it is,
   the **Device ID** (selectable) and the **Position (latitude,
-  longitude)** (6 decimals, selectable), then where the position came
-  from:
+  longitude)** (6 decimals, selectable), the **Battery** (see below), then
+  where the position came from:
   - "This device's location · ±12 m": the device's own position, with the
     accuracy it reported;
   - "Set on the map": set by hand;
@@ -36,6 +38,30 @@ on every event.
 - With no location yet, the map opens on the whole world (zoom 2).
 - **Swiping between tabs is off on this tab**: a sideways drag moves the
   map. Tap the tabs to leave.
+
+## Battery
+
+- The card's **Battery** line shows the charge and whether it's charging,
+  with a matching icon
+  ([lib/battery.dart](../presence_app/lib/battery.dart)):
+  - "82 % · Charging" (`battery_charging_full`), "100 % · Full",
+    "81 % · On battery" or "Plugged in, not charging" (Android), with a
+    bar icon from empty to full for the level;
+  - below 15 % and not charging, a warning icon (`battery_alert`), with
+    the line in the error color;
+  - "Not available in this browser" (web) or "Not available" when there's
+    no reading.
+- Read through **`battery_plus`**: the platform's battery on Android and
+  iOS (no permission needed), and the browser's **Battery Status API**
+  (`navigator.getBattery()`) on the web. Chrome and Edge have it; Firefox
+  and Safari don't, so they show "Not available in this browser". There,
+  the plugin answers 0 % with an unknown state; that's taken as no
+  reading, not an empty battery.
+- `BatteryController` reads it when the tab opens, again when charging
+  starts or stops (the plugin's event), and **every minute** (level
+  changes have no event). It reads only while the Device tab is shown.
+  The line appears once the first reading is in.
+- The battery isn't stored or sent with events.
 
 ## Finding the location
 
@@ -101,12 +127,21 @@ on every event.
   turns off at the closest zoom; dragging the map sets the location, events before and after
   carry the device's and the map's, the choice survives a restart, and My
   location asks again; without permission the card asks for a move and
-  events have no location.
-- Web release and Android debug builds compile with the new plugins. Not
+  events have no location; the battery line shows the level and
+  charging, follows a charging change at once and a level drop within a
+  minute, warns below 15 %, shows Full, and says "Not available" without
+  a reading.
+- The panel sits in the top-left corner, as wide as its content, on a
+  320 dp phone and a 1280 px desktop.
+- Web release, Android debug and iOS debug (unsigned) builds compile with
+  the new plugins; the battery hasn't been tried on a phone or in a
+  browser yet. Not
   yet tried on a phone or in a browser with real positioning and tiles.
 
 ## Known limitations
 
+- No battery in Firefox and Safari (no Battery Status API). On a desktop
+  without a battery, Chrome reports 100 % and charging.
 - OpenStreetMap's public tile server is meant for light use and needs the
   credit shown; heavy use would need another tile provider.
 - The location is read once per launch; a moving device isn't followed.

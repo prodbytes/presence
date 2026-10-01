@@ -163,4 +163,85 @@ void main() {
     expect(await capture.past, isNull);
     expect(await capture.full, isNull);
   });
+
+  group('with a trimmer', () {
+    late List<List<ClipMedia>> trimCalls;
+    var failTrim = false;
+
+    setUp(() {
+      trimCalls = [];
+      failTrim = false;
+      pool = RecorderPool(
+        startRecorder: () {
+          final r = FakeRecorder(recorders.length, now);
+          recorders.add(r);
+          return r;
+        },
+        preRoll: () => preRoll,
+        now: () => now,
+        // Cuts each clip to its own file, starting 2 s before its window.
+        trim: (media) async {
+          trimCalls.add(media);
+          if (failTrim) throw StateError('cannot cut');
+          return [
+            for (final (i, m) in media.indexed)
+              ClipMedia(
+                url: '${m.liveUrl}-cut$i',
+                start: const Duration(seconds: 2),
+                end: const Duration(seconds: 2) + m.length,
+                mimeType: m.mimeType,
+              ),
+          ];
+        },
+      );
+    });
+
+    test('cuts the preview and the full clip to their windows', () async {
+      pool.tick();
+      await runFor(const Duration(seconds: 40));
+      final capture = pool.requestClip(before: preRoll, after: after);
+      final past = (await capture.past)!;
+      await runFor(after);
+      final full = (await capture.full)!;
+
+      expect(trimCalls, hasLength(2));
+      expect(past.liveUrl, endsWith('-cut0'));
+      expect(past.start, const Duration(seconds: 2));
+      expect(past.length, preRoll);
+      expect(full.liveUrl, endsWith('-cut0'));
+      expect(full.length, preRoll + after);
+    });
+
+    test('clips sharing a held recorder are cut in one call', () async {
+      pool.tick();
+      await runFor(const Duration(seconds: 40));
+      final first = pool.requestClip(before: preRoll, after: after);
+      await runFor(const Duration(seconds: 3));
+      final second = pool.requestClip(before: preRoll, after: after);
+      await runFor(after);
+      final a = (await first.full)!;
+      final b = (await second.full)!;
+
+      final fullCalls = trimCalls.where((c) => c.length == 2).toList();
+      expect(fullCalls, hasLength(1));
+      expect(a.liveUrl, endsWith('-cut0'));
+      expect(b.liveUrl, endsWith('-cut1'));
+      expect(a.length, preRoll + after);
+      expect(b.length, preRoll + after);
+    });
+
+    test('a failed cut keeps the whole recording', () async {
+      failTrim = true;
+      pool.tick();
+      await runFor(const Duration(seconds: 40));
+      final capture = pool.requestClip(before: preRoll, after: after);
+      final past = (await capture.past)!;
+      await runFor(after);
+      final full = (await capture.full)!;
+      expect(past.liveUrl, startsWith('rec-'));
+      expect(past.liveUrl, isNot(contains('-cut')));
+      expect(full.liveUrl, isNot(contains('-cut')));
+      expect(full.length, preRoll + after);
+    });
+  });
 }

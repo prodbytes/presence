@@ -1281,7 +1281,84 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       quietly, then `devbox install`; a failure names the step and prints
       the free disk space. A failure there still opens the codespace with
       a terminal.
-166. **Automatically trigger a grab every 240 minutes (configurable from
+165. **At start and every 15 s, re-sync events with S3: upload the ones only
+    on the device, download the ones only in the user's folder, at most two
+    weeks or 1000 of them, then update the Events and Subjects tabs, so
+    every device shows the same user data as S3.** (2026-10-01)
+    - `CloudSync` now fetches on every pass, not once per sign-in, and
+      passes run every 15 s (was a minute). The window is 14 days (was 7),
+      with at most 1000 events per pass, the newest first.
+    - Listings stay small: all of `events/` on a user's first pass, the
+      whole window once an hour, and otherwise only today's and yesterday's
+      partitions. A new remote event's clip is found by listing only its
+      own keys. `CloudSession.list` takes a prefix.
+    - Downloaded events join the event log, so both tabs update at once.
+166. **On the Events tab, show only this device's events by default, with a
+    checkbox at the top to see all devices.** (2026-10-01)
+    - `EventTimeline` takes the device ID and an "Only this device"
+      checkbox (a `ValueNotifier` kept by `HomeScreen`, so it survives tab
+      switches), on at launch. Events without a device ID yet count as
+      this device's. Opening another device's event from a subject's map
+      clears it.
+    - New `events_filter_test.dart`: filtered at launch, all after
+      clearing, kept across a tab switch, and a new event shows before
+      it's saved. 173 Flutter tests pass. Opening another device's event
+      isn't covered by a test.
+167. **Add a battery charge indicator to the Device screen, if possible,
+    using open web APIs or a Flutter alternative.** (2026-10-01)
+    - The Device tab's card has a **Battery** line: the charge, whether
+      it's charging, full or on battery, a matching icon, and a warning
+      below 15 %. "Not available in this browser" where there's no
+      reading.
+    - Read through `battery_plus` (Android, iOS, and the web's Battery
+      Status API, which Firefox and Safari lack), when the tab opens, when
+      charging changes and every minute. Not stored or sent.
+    - 173 Flutter tests pass; web release, Android debug and iOS debug
+      builds compile. Numbered after #99's 165.
+168. **Make sure settings are persistent per device; store them on S3 as
+    well, if S3 is available, or else use the local database. When the app
+    starts and the device ID is determined, fetch its settings or
+    initialize them with the defaults.** (2026-10-01)
+    - The settings record now carries `updatedAt`, when the user last
+      changed it, and stays in the local database as before.
+    - With S3 available, it also goes to
+      `<identityId>/devices/<deviceId>/settings.json`. The first sync pass
+      after start fetches it, and the newer of the two wins. Every change
+      is uploaded. A device with no record starts with the defaults and
+      uploads them.
+    - Without S3, only the local database is used.
+    - 181 Flutter tests pass; the web release builds.
+169. **Make the device info panel align to the top left.** (2026-10-01)
+    - The Device tab's info panel (device ID, position, battery, source)
+      now sits in the map's top-left corner, as wide as its content (at
+      most 560 px), instead of centered across the top.
+    - 181 Flutter tests pass.
+170. **On a grab, regardless of source, capture the preview with the past
+    seconds and show it at once; after the configured seconds, capture the
+    final clip with the total duration, so it's always full and correct and
+    no videos are joined. Always show the full clip, or the preview until
+    it exists.** Later: **trimming every 5 seconds is fine.** (2026-10-01)
+    - Recording already made the preview and the full clip as separate
+      recordings on every platform. The players joined them, playing the
+      preview and then continuing into the full file. Now the preview plays
+      alone, labelled "Preview", and the full clip replaces it as soon as
+      it's recorded, at the same moment.
+    - Web files weren't the clip's length: the full clip came from the
+      oldest recorder, with up to 2 × *before* of history. Chosen fix (of
+      trimming at keyframes, re-encoding, or player only): recorders ask for
+      a keyframe every 5 s, and `cutWebm` cuts each file to its window
+      without re-encoding, stating its duration.
+    - Tests: `webm_trim_test.dart` (a Chrome-like file: cut from the
+      keyframe before the window, frames once each, duration stated,
+      across a non-keyframe cluster break, cut twice, garbage left alone);
+      pool tests for the trimmer (preview and full, one call for shared
+      holds, a failed cut keeps the file). 188 Flutter tests pass.
+    - Checked with a real 20 s recording from headless Chrome's fake camera:
+      keyframes came at 0, 5, 10.05 and 15.05 s; a 7–17 s cut started at
+      the 5 s keyframe, ffmpeg decoded its VP8 and Opus cleanly, and Chrome
+      reported 12 s, seeked to 2 s and played. Not tried by pressing Clip in
+      the running app.
+171. **Automatically trigger a grab every 240 minutes (configurable from
     half an hour to daily in Settings), like the others, through the same
     pipeline.** Then, in the same request: **also take one when the app
     starts.** (2026-10-01)
@@ -1291,4 +1368,4 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       camera has a full "before" part, then a **scheduled clip** every
       interval from the last one, both through `requestClips` (triggers
       `startup` and `scheduled`).
-    - Numbered 166, after #99's 165.
+
