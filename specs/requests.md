@@ -1293,3 +1293,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       partitions. A new remote event's clip is found by listing only its
       own keys. `CloudSession.list` takes a prefix.
     - Downloaded events join the event log, so both tabs update at once.
+166. **On the Events tab, show only this device's events by default, with a
+    checkbox at the top to see all devices.** (2026-10-01)
+    - `EventTimeline` takes the device ID and an "Only this device"
+      checkbox (a `ValueNotifier` kept by `HomeScreen`, so it survives tab
+      switches), on at launch. Events without a device ID yet count as
+      this device's. Opening another device's event from a subject's map
+      clears it.
+    - New `events_filter_test.dart`: filtered at launch, all after
+      clearing, kept across a tab switch, and a new event shows before
+      it's saved. 173 Flutter tests pass. Opening another device's event
+      isn't covered by a test.
