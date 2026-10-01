@@ -1184,3 +1184,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       [device-location.md](device-location.md).
     - 151 Flutter tests pass; web release builds. Not tried on a device or
       in a browser with real positioning.
+154. **On the map, label the device ID as a device ID and the position as
+    a position, and add zoom in and out controls.** (2026-10-01)
+    - The Device tab's card labels "Device ID" and "Position (latitude,
+      longitude)".
+    - Zoom in / Zoom out buttons above My location step the zoom around the
+      center (2–19), turning off at their limits.

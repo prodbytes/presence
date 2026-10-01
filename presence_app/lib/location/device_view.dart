@@ -31,6 +31,10 @@ class DeviceView extends StatefulWidget {
   /// How close the map zooms in on the device's own position.
   static const double deviceZoom = 17;
 
+  /// How far out and in the map goes.
+  static const double minZoom = 2;
+  static const double maxZoom = 19;
+
   @override
   State<DeviceView> createState() => _DeviceViewState();
 }
@@ -99,6 +103,21 @@ class _DeviceViewState extends State<DeviceView> {
     });
   }
 
+  /// Zooms one step in ([by] 1) or out (-1), around the center, so the pin
+  /// and the device's location stay put.
+  void _zoom(double by) {
+    if (!_ready) return;
+    final camera = _map.camera;
+    _map.move(
+      camera.center,
+      (camera.zoom + by).clamp(DeviceView.minZoom, DeviceView.maxZoom),
+    );
+    setState(() {});
+  }
+
+  /// The map's zoom, once it's ready.
+  double get _zoomLevel => _ready ? _map.camera.zoom : DeviceView.minZoom;
+
   /// Longitudes past the date line, back into -180..180.
   static double _wrap(double longitude) => (longitude + 180) % 360 - 180;
 
@@ -115,14 +134,14 @@ class _DeviceViewState extends State<DeviceView> {
                 ? const LatLng(20, 0)
                 : LatLng(location.latitude, location.longitude),
             initialZoom: location == null ? 2 : DeviceView.deviceZoom,
-            minZoom: 2,
-            maxZoom: 19,
+            minZoom: DeviceView.minZoom,
+            maxZoom: DeviceView.maxZoom,
             backgroundColor: Gruvbox.bg0,
             // North stays up: there's nothing to orient.
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
-            onMapReady: () => _ready = true,
+            onMapReady: () => setState(() => _ready = true),
             onPositionChanged: _onMoved,
           ),
           children: [
@@ -167,16 +186,31 @@ class _DeviceViewState extends State<DeviceView> {
         Positioned(
           right: 16,
           bottom: 40,
-          child: FloatingActionButton(
-            heroTag: 'my-location',
-            tooltip: 'My location',
-            onPressed: _location.locating ? null : _location.locate,
-            child: _location.locating
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            spacing: 12,
+            children: [
+              // Zoom in and out, for those without pinch or a wheel.
+              _ZoomButtons(
+                onZoomIn: _ready && _zoomLevel < DeviceView.maxZoom
+                    ? () => _zoom(1)
+                    : null,
+                onZoomOut: _ready && _zoomLevel > DeviceView.minZoom
+                    ? () => _zoom(-1)
+                    : null,
+              ),
+              FloatingActionButton(
+                heroTag: 'my-location',
+                tooltip: 'My location',
+                onPressed: _location.locating ? null : _location.locate,
+                child: _location.locating
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.my_location),
+              ),
+            ],
           ),
         ),
       ],
@@ -224,18 +258,24 @@ class _LocationCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (deviceId case final deviceId?)
-              SelectableText(
-                deviceId,
-                key: const Key('device-page-id'),
-                style: theme.textTheme.titleSmall,
+              _Field(
+                label: 'Device ID',
+                child: SelectableText(
+                  deviceId,
+                  key: const Key('device-page-id'),
+                  style: theme.textTheme.titleSmall,
+                ),
               ),
             if (at != null)
-              SelectableText(
-                '${at.latitude.toStringAsFixed(6)}, '
-                '${at.longitude.toStringAsFixed(6)}',
-                key: const Key('device-coordinates'),
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              _Field(
+                label: 'Position (latitude, longitude)',
+                child: SelectableText(
+                  '${at.latitude.toStringAsFixed(6)}, '
+                  '${at.longitude.toStringAsFixed(6)}',
+                  key: const Key('device-coordinates'),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             Text(
@@ -248,6 +288,72 @@ class _LocationCard extends StatelessWidget {
               Text(error, style: small?.copyWith(color: scheme.error)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A value in the location card, with a small label saying what it is.
+class _Field extends StatelessWidget {
+  const _Field({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Zoom in (+) over zoom out (−), as one small control.
+class _ZoomButtons extends StatelessWidget {
+  const _ZoomButtons({required this.onZoomIn, required this.onZoomOut});
+
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: const Key('zoom-in'),
+            tooltip: 'Zoom in',
+            icon: const Icon(Icons.add),
+            onPressed: onZoomIn,
+          ),
+          const SizedBox(width: 32, child: Divider(height: 1)),
+          IconButton(
+            key: const Key('zoom-out'),
+            tooltip: 'Zoom out',
+            icon: const Icon(Icons.remove),
+            onPressed: onZoomOut,
+          ),
+        ],
       ),
     );
   }

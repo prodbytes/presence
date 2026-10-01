@@ -13,8 +13,10 @@ on every event.
   rotated; north stays up.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
-- A **card at the top** shows the device ID (selectable), the coordinates
-  (6 decimals, selectable) and where they came from:
+- A **card at the top** shows, each under a small label saying what it is,
+  the **Device ID** (selectable) and the **Position (latitude,
+  longitude)** (6 decimals, selectable), then where the position came
+  from:
   - "This device's location · ±12 m": the device's own position, with the
     accuracy it reported;
   - "Set on the map": set by hand;
@@ -25,6 +27,10 @@ on every event.
 - **My location** (a button at the bottom right) asks the device for its
   position again. It spins while waiting, and the map moves to the answer
   (zoom 17, or closer if already zoomed in).
+- **Zoom in (+) and Zoom out (−)** buttons sit above My location. Each
+  steps the zoom by one level around the center, between 2 (the world)
+  and 19, and turns off at its limit. Zooming keeps the center, so it
+  doesn't set the location (the pin stays on the same spot).
 - With no location yet, the map opens on the whole world (zoom 2).
 - **Swiping between tabs is off on this tab**: a sideways drag moves the
   map. Tap the tabs to leave.
@@ -88,7 +94,9 @@ on every event.
   map move during a slow reading wins; a denied permission leaves it
   unknown; damaged records read as none. In the app: the tab sits between
   Events and Settings and shows the pin, coordinates, accuracy, device ID
-  and credit; dragging the map sets the location, events before and after
+  and credit; the card labels the device ID and the position; the zoom
+  buttons step the zoom, keep the device's own location, and Zoom in
+  turns off at the closest zoom; dragging the map sets the location, events before and after
   carry the device's and the map's, the choice survives a restart, and My
   location asks again; without permission the card asks for a move and
   events have no location.

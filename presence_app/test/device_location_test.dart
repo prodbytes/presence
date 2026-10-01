@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/events.dart';
 import 'package:presence_app/location/device_location.dart';
+import 'package:presence_app/location/device_view.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
 
@@ -200,6 +202,45 @@ void main() {
       expect(find.byKey(const Key('device-page-id')), findsOneWidget);
       expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('labels say what each value is; buttons zoom in and out', (
+      tester,
+    ) async {
+      await launch(tester, FakeLocator());
+      await tester.tap(find.byTooltip('Device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Device ID'), findsOneWidget);
+      expect(find.text('Position (latitude, longitude)'), findsOneWidget);
+
+      double zoom() => tester
+          .widget<FlutterMap>(find.byType(FlutterMap))
+          .mapController!
+          .camera
+          .zoom;
+      final start = zoom();
+      await tester.tap(find.byTooltip('Zoom in'));
+      await tester.pumpAndSettle();
+      expect(zoom(), start + 1);
+      await tester.tap(find.byTooltip('Zoom out'));
+      await tester.tap(find.byTooltip('Zoom out'));
+      await tester.pumpAndSettle();
+      expect(zoom(), start - 1);
+      // Zooming keeps the center, so the device's own location stays.
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text("This device's location · ±5 m"), findsOneWidget);
+      expect(find.text('48.858400, 2.294500'), findsOneWidget);
+
+      // At the closest zoom, Zoom in turns off.
+      for (var i = 0; i < 25; i++) {
+        await tester.tap(find.byTooltip('Zoom in'));
+      }
+      await tester.pumpAndSettle();
+      expect(zoom(), DeviceView.maxZoom);
+      expect(
+        tester.widget<IconButton>(find.byKey(const Key('zoom-in'))).onPressed,
+        isNull,
+      );
     });
 
     testWidgets('moving the map sets the location, on every event after', (
