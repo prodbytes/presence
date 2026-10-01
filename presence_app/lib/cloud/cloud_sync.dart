@@ -20,8 +20,9 @@ abstract class CloudSession {
   /// Uploads [bytes] to [key], relative to [prefix].
   Future<void> put(String key, Uint8List bytes, String contentType);
 
-  /// Every key in the user's folder, relative to [prefix].
-  Future<List<String>> list();
+  /// Every key in the user's folder that starts with [under] (all of them
+  /// by default), relative to [prefix].
+  Future<List<String>> list([String under = '']);
 
   /// Downloads [key], relative to [prefix].
   Future<Uint8List> get(String key);
@@ -86,9 +87,9 @@ class _AwsSession implements CloudSession {
       );
 
   @override
-  Future<List<String>> list() async => [
+  Future<List<String>> list([String under = '']) async => [
     for (final key in await _bucket.list(
-      '$prefix/',
+      '$prefix/$under',
       credentials: _session.credentials,
     ))
       key.substring(prefix.length + 1),
@@ -105,13 +106,20 @@ enum CloudSyncState { off, syncing, synced, error }
 /// events with their folder in the cloud, straight from the device.
 ///
 /// - Signed out, nothing is synced.
-/// - On sign-in, the folder is fetched first: clips and events the device
-///   doesn't have (from another device, or an earlier install) are
-///   downloaded and handed to [onRemote]. Then everything stored and not
-///   yet uploaded goes up.
-/// - While signed in, a sync runs every [interval] (a minute), or sooner:
-///   each new event, and each clip once its recording is complete, goes up
-///   as soon as it's saved, whichever comes first.
+/// - Every pass fetches first: events in the user's folder the device
+///   doesn't have (from another device, or an earlier install), newest
+///   first and at most [maxFetch], no older than [restoreWindow], with
+///   their clips, are downloaded and handed to [onRemote] (the app stores
+///   them, and the Events and Subjects tabs show them). Then everything
+///   stored and not yet uploaded goes up. So every device of a user ends
+///   up with the same events as the bucket.
+/// - A pass runs at start (sign-in, or a session restored at launch), every
+///   [interval] (15 s), and soon after each new event or completed clip.
+/// - What a pass lists is kept small, since listing is billed per request:
+///   the first pass for a user lists all of `events/` (old unpartitioned
+///   keys included), one every [fullFetchEvery] lists each day of the
+///   [restoreWindow], and the others only today's and yesterday's
+///   partitions, where other devices' new events land.
 /// - Only the user's own events go up (their `userId`), with their clips.
 ///   Anonymous ones go up once the user takes them over
 ///   (`Persistence.claimAnonymous`); other users' never do.
@@ -129,8 +137,10 @@ class CloudSync extends ChangeNotifier {
     required Stream<void> changes,
     this.onRemote,
     this.debounce = const Duration(milliseconds: 500),
-    this.interval = const Duration(minutes: 1),
-    this.restoreWindow = const Duration(days: 7),
+    this.interval = const Duration(seconds: 15),
+    this.restoreWindow = const Duration(days: 14),
+    this.maxFetch = 1000,
+    this.fullFetchEvery = const Duration(hours: 1),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now {
     auth.addListener(_onAuthChanged);
@@ -147,14 +157,23 @@ class CloudSync extends ChangeNotifier {
   final Duration debounce;
   final Duration interval;
 
-  /// How far back the fetch after sign-in goes: a new device gets the last
-  /// week, not months of video. Older events stay in the cloud (until the
-  /// bucket expires them) and on the devices that recorded them.
+  /// How far back a fetch goes: a new device gets the last two weeks, not
+  /// months of video. Older events stay in the cloud (until the bucket
+  /// expires them) and on the devices that recorded them.
   final Duration restoreWindow;
+
+  /// The most events one fetch downloads, the newest first; the rest come
+  /// in later passes.
+  final int maxFetch;
+
+  /// How often a pass lists every day of the [restoreWindow] (to catch
+  /// events uploaded late, by a device that was offline) rather than only
+  /// today and yesterday.
+  final Duration fullFetchEvery;
   final DateTime Function() _now;
 
-  /// Receives what a sign-in's fetch downloaded, after it's marked as
-  /// synced (the app stores it and shows its events).
+  /// Receives what a fetch downloaded, after it's marked as synced (the app
+  /// stores it and shows its events).
   final Future<void> Function(RemoteRecords records)? onRemote;
   final Future<EventStore> _store;
   final Future<MediaStore> _media;
@@ -166,7 +185,10 @@ class CloudSync extends ChangeNotifier {
   String? _user;
   Timer? _timer;
   Timer? _periodic;
-  bool _fetchPending = false;
+
+  /// When the last pass that listed the whole window ran; null until the
+  /// first pass for this user, which lists all of `events/`.
+  DateTime? _lastFullFetch;
   int _downloaded = 0;
   Future<void>? _running;
   bool _again = false;
@@ -211,12 +233,11 @@ class CloudSync extends ChangeNotifier {
     _user = user;
     backend.reset();
     _periodic?.cancel();
+    _lastFullFetch = null;
     if (user == null) {
       _timer?.cancel();
-      _fetchPending = false;
       _set(CloudSyncState.off);
     } else {
-      _fetchPending = true;
       _periodic = Timer.periodic(interval, (_) => _schedule(immediately: true));
       _schedule(immediately: true);
     }
@@ -250,10 +271,14 @@ class CloudSync extends ChangeNotifier {
     }
     _set(CloudSyncState.syncing);
     Future<void> pass(CloudSession session) async {
-      if (_fetchPending) {
-        await _fetch(session);
-        _fetchPending = false;
-      }
+      final now = _now().toUtc();
+      final last = _lastFullFetch;
+      final full = last == null || now.difference(last) >= fullFetchEvery;
+      await _fetch(
+        session,
+        _fetchPrefixes(now, first: last == null, full: full),
+      );
+      if (full) _lastFullFetch = now;
       await _syncAll(session);
     }
 
@@ -278,17 +303,44 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
-  /// Downloads the events of the last [restoreWindow] in the user's folder
-  /// that the device doesn't have, with their clips (recording and
-  /// thumbnail) and tagged frames, marks them as synced, and hands them to
-  /// [onRemote]. Event keys are partitioned by day, so older events aren't
-  /// even read.
-  Future<void> _fetch(CloudSession session) async {
+  /// What a pass lists under the user's folder: all of `events/` on the
+  /// [first] pass, every day of the [restoreWindow] on a [full] one, and
+  /// otherwise today's and yesterday's partitions (UTC).
+  List<String> _fetchPrefixes(
+    DateTime now, {
+    required bool first,
+    required bool full,
+  }) {
+    if (first) return const ['events/'];
+    final days = full ? restoreWindow.inDays : 1;
+    return [
+      for (var d = 0; d <= days; d++)
+        _dayPrefix(now.subtract(Duration(days: d))),
+    ];
+  }
+
+  /// Downloads the events under [prefixes] that the device doesn't have,
+  /// from the last [restoreWindow] and at most [maxFetch] of them (the
+  /// newest first), with their clips (recording and thumbnail) and tagged
+  /// frames, marks them as synced, and hands them to [onRemote]. Event keys
+  /// are partitioned by day, so older events aren't even read.
+  Future<void> _fetch(CloudSession session, List<String> prefixes) async {
     final store = await _store;
-    final keys = (await session.list()).toSet();
+    final keys = <String>{
+      for (final under in prefixes) ...await session.list(under),
+    };
     final localEvents = {for (final e in await store.allEvents()) e['id']};
     final localClips = {for (final c in await store.allClips()) c['id']};
     final since = _now().toUtc().subtract(restoreWindow);
+
+    // Each new event's clip files and tagged frames, listed only for it.
+    final clipKeyCache = <String, Set<String>>{};
+    Future<Set<String>> clipKeys(
+      String clipId,
+    ) async => clipKeyCache[clipId] ??= {
+      for (final k in await session.list('clips/$clipId'))
+        if (k.startsWith('clips/$clipId.') || k.startsWith('clips/$clipId/')) k,
+    };
 
     Future<Map<String, Object?>> json(String key) async =>
         (jsonDecode(utf8.decode(await session.get(key))) as Map)
@@ -296,13 +348,20 @@ class CloudSync extends ChangeNotifier {
     Future<void> synced(String key, String fingerprint) =>
         store.markSynced('${session.prefix}/$key', fingerprint);
 
+    // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat ones
+    // from before partitioning (events/<id>.json). The newest day first:
+    // the zero-padded partitions sort by date.
+    final idOf = RegExp(r'^events/(?:.+/)?([^/]+)\.json$');
+    final missing = [
+      for (final key in keys)
+        if (idOf.firstMatch(key)?[1] case final id?
+            when !localEvents.contains(id) && _partitionMayBeSince(key, since))
+          key,
+    ]..sort((a, b) => b.compareTo(a));
+
     final events = <Map<String, Object?>>[];
-    for (final key in keys) {
-      // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat
-      // ones from before partitioning (events/<id>.json).
-      final id = RegExp(r'^events/(?:.+/)?([^/]+)\.json$').firstMatch(key)?[1];
-      if (id == null || localEvents.contains(id) || _disposed) continue;
-      if (!_partitionMayBeSince(key, since)) continue;
+    for (final key in missing.take(maxFetch)) {
+      if (_disposed) break;
       final event = await json(key);
       final time = event['time'];
       if (time is! int ||
@@ -319,9 +378,10 @@ class CloudSync extends ChangeNotifier {
       // The frames its tags were clicked on come back as images.
       final frames = <String, Uint8List>{};
       final clipId = event['clipId'];
+      final ofClip = clipId is String ? await clipKeys(clipId) : <String>{};
       for (final frameId in _frameIds(event)) {
         final frameKey = 'clips/$clipId/frames/$frameId.jpg';
-        if (!keys.contains(frameKey)) continue;
+        if (!ofClip.contains(frameKey)) continue;
         frames[frameId] = await session.get(frameKey);
         await synced(frameKey, frameId);
       }
@@ -338,7 +398,9 @@ class CloudSync extends ChangeNotifier {
     };
     for (final id in clipIds) {
       final key = 'clips/$id.json';
-      if (!keys.contains(key) || localClips.contains(id) || _disposed) continue;
+      if (localClips.contains(id) || _disposed) continue;
+      final ofClip = await clipKeys(id);
+      if (!ofClip.contains(key)) continue;
       final clip = await json(key);
       await synced(key, _fingerprint(_json(clip)));
       final ref = clip['full'] ?? clip['past'];
@@ -347,13 +409,13 @@ class CloudSync extends ChangeNotifier {
         final video = [
           'clips/$id.webm',
           'clips/$id.mp4',
-        ].where(keys.contains).firstOrNull;
+        ].where(ofClip.contains).firstOrNull;
         if (video != null) {
           media[mediaId] = await session.get(video);
           await synced(video, mediaId);
         }
       }
-      if (keys.contains('clips/$id.jpg')) {
+      if (ofClip.contains('clips/$id.jpg')) {
         clip['thumbnail'] = await session.get('clips/$id.jpg');
         await synced('clips/$id.jpg', 'thumbnail');
       }
@@ -496,9 +558,21 @@ class CloudSync extends ChangeNotifier {
       time is int ? time : 0,
       isUtc: true,
     );
-    final day = at.difference(DateTime.utc(at.year)).inDays + 1;
-    return 'events/year=${at.year}/day=${day.toString().padLeft(3, '0')}/'
-        '${event['id']}.json';
+    return '${_dayPrefix(at)}${event['id']}.json';
+  }
+
+  /// The partition holding events of [at]'s UTC day:
+  /// `events/year=2026/day=269/`.
+  static String _dayPrefix(DateTime at) {
+    final utc = at.toUtc();
+    final day =
+        DateTime.utc(
+          utc.year,
+          utc.month,
+          utc.day,
+        ).difference(DateTime.utc(utc.year)).inDays +
+        1;
+    return 'events/year=${utc.year}/day=${day.toString().padLeft(3, '0')}/';
   }
 
   static Uint8List _json(Map<String, Object?> record) =>

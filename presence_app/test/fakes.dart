@@ -226,6 +226,9 @@ class FakeCloudBackend implements CloudBackend {
   final uploads = <String, ({Uint8List bytes, String contentType})>{};
   final tokens = <String>[];
   final downloads = <String>[];
+
+  /// The prefix of each listing, in order ('' is the whole folder).
+  final listings = <String>[];
   int resets = 0;
 
   /// Thrown by the next connect(), once.
@@ -266,10 +269,13 @@ class FakeCloudSession implements CloudSession {
   }
 
   @override
-  Future<List<String>> list() async => [
-    for (final key in backend.uploads.keys)
-      if (key.startsWith('$prefix/')) key.substring(prefix.length + 1),
-  ];
+  Future<List<String>> list([String under = '']) async {
+    backend.listings.add(under);
+    return [
+      for (final key in backend.uploads.keys)
+        if (key.startsWith('$prefix/$under')) key.substring(prefix.length + 1),
+    ];
+  }
 
   @override
   Future<Uint8List> get(String key) async {
