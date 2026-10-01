@@ -205,9 +205,24 @@ class EventLog extends ChangeNotifier {
 
 /// Scrollable timeline of events, newest at the top.
 class EventTimeline extends StatefulWidget {
-  const EventTimeline({super.key, required this.log, this.focus});
+  const EventTimeline({
+    super.key,
+    required this.log,
+    this.focus,
+    this.deviceId,
+    this.thisDeviceOnly,
+  });
 
   final EventLog log;
+
+  /// This device's ID. Once it's known, the timeline shows only this
+  /// device's events unless [thisDeviceOnly] is unchecked.
+  final String? deviceId;
+
+  /// Whether only this device's events show (the checkbox at the top).
+  /// Kept by the caller, so it survives the tab being rebuilt; defaults to
+  /// an own one, on.
+  final ValueNotifier<bool>? thisDeviceOnly;
 
   /// The ID of an event to scroll to and outline (an event opened from
   /// elsewhere, such as a subject's map). Setting it again, even to the
@@ -224,6 +239,22 @@ class EventTimeline extends StatefulWidget {
 class _EventTimelineState extends State<EventTimeline> {
   final _scroll = ScrollController();
 
+  ValueNotifier<bool>? _ownFilter;
+  ValueNotifier<bool> get _filter =>
+      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(true));
+
+  /// The events shown: this device's while [_filter] is on. Events not
+  /// saved yet have no device ID; they're this device's.
+  List<AppEvent> get _shown {
+    final events = widget.log.events;
+    final device = widget.deviceId;
+    if (device == null || !_filter.value) return events;
+    return [
+      for (final e in events)
+        if (e.deviceId == null || e.deviceId == device) e,
+    ];
+  }
+
   /// Each card's key, to find it once it's built.
   final _cards = <String, GlobalKey>{};
 
@@ -236,6 +267,7 @@ class _EventTimelineState extends State<EventTimeline> {
     super.initState();
     widget.log.addListener(_onEvent);
     widget.focus?.addListener(_onFocus);
+    _filter.addListener(_onFilter);
     // The tab may be built only once the event was asked for.
     if (widget.focus?.value != null) _onFocus();
   }
@@ -251,12 +283,20 @@ class _EventTimelineState extends State<EventTimeline> {
       oldWidget.focus?.removeListener(_onFocus);
       widget.focus?.addListener(_onFocus);
     }
+    if (oldWidget.thisDeviceOnly != widget.thisDeviceOnly) {
+      (oldWidget.thisDeviceOnly ?? _ownFilter)?.removeListener(_onFilter);
+      _filter.addListener(_onFilter);
+    }
   }
+
+  void _onFilter() => setState(() {});
 
   @override
   void dispose() {
     widget.log.removeListener(_onEvent);
     widget.focus?.removeListener(_onFocus);
+    _filter.removeListener(_onFilter);
+    _ownFilter?.dispose();
     _unhighlight?.cancel();
     _scroll.dispose();
     super.dispose();
@@ -265,6 +305,11 @@ class _EventTimelineState extends State<EventTimeline> {
   void _onFocus() {
     final id = widget.focus?.value;
     if (id == null) return;
+    // An event of another device, opened from elsewhere: show them all.
+    if (!_shown.any((e) => e.id == id) &&
+        widget.log.events.any((e) => e.id == id)) {
+      _filter.value = false;
+    }
     _unhighlight?.cancel();
     _unhighlight = Timer(EventTimeline.highlightFor, () {
       if (mounted) setState(() => _highlighted = null);
@@ -289,7 +334,7 @@ class _EventTimelineState extends State<EventTimeline> {
         );
         return;
       }
-      final events = widget.log.events;
+      final events = _shown;
       final index = events.indexWhere((e) => e.id == id);
       if (index < 0 || tries >= 8) return;
       if (!_scroll.hasClients) return _reveal(id, tries + 1);
@@ -316,11 +361,31 @@ class _EventTimelineState extends State<EventTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    final events = widget.log.events;
+    final events = _shown;
+    // Until the device ID is known there's nothing to filter by.
+    if (widget.deviceId == null) return _list(events);
+    return Column(
+      children: [
+        CheckboxListTile(
+          key: const Key('this-device-only'),
+          value: _filter.value,
+          onChanged: (on) => _filter.value = on ?? true,
+          controlAffinity: ListTileControlAffinity.leading,
+          dense: true,
+          title: const Text('Only this device'),
+        ),
+        Expanded(child: _list(events)),
+      ],
+    );
+  }
+
+  Widget _list(List<AppEvent> events) {
     if (events.isEmpty) {
-      return const FeedMessage(
+      return FeedMessage(
         icon: Icons.notifications_none,
-        message: 'No events',
+        message: widget.log.events.isEmpty
+            ? 'No events'
+            : 'No events on this device',
       );
     }
     return ListView.separated(

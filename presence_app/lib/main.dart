@@ -414,6 +414,10 @@ class _HomeScreenState extends State<HomeScreen>
   /// The event the Events tab scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
 
+  /// The Events tab's "Only this device" checkbox: on at launch, and kept
+  /// while switching tabs.
+  final _thisDeviceOnly = ValueNotifier(true);
+
   /// Shows [event] in the Events tab, closing any screen over the tabs (a
   /// subject's).
   void _openEvent(AppEvent event) {
@@ -469,6 +473,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
     _focusedEvent.dispose();
+    _thisDeviceOnly.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -656,7 +661,12 @@ class _HomeScreenState extends State<HomeScreen>
           SafeArea(
             key: const Key('events-page'),
             child: _ReadableWidth(
-              child: EventTimeline(log: widget.log, focus: _focusedEvent),
+              child: EventTimeline(
+                log: widget.log,
+                focus: _focusedEvent,
+                deviceId: widget.deviceId,
+                thisDeviceOnly: _thisDeviceOnly,
+              ),
             ),
           ),
           SafeArea(

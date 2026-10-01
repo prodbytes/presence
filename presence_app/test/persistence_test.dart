@@ -280,6 +280,35 @@ void main() {
     );
   });
 
+  testWidgets('every 15 s, events from another device join the timeline', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    await showEvents(tester);
+    expect(find.text('From the phone'), findsNothing);
+
+    // Another device of the same user uploads an event.
+    final record = <String, Object?>{
+      'id': 'phone-event',
+      'type': AppEvent.genericType,
+      'title': 'From the phone',
+      'time': clock.millisecondsSinceEpoch,
+      'userId': '1',
+    };
+    cloud.uploads['us-east-1:identity/${CloudSync.eventKey(record)}'] = (
+      bytes: Uint8List.fromList(utf8.encode(jsonEncode(record))),
+      contentType: 'application/json',
+    );
+
+    // The next periodic pass brings it down, with no restart.
+    clock = clock.add(const Duration(seconds: 15));
+    await tester.pump(const Duration(seconds: 15));
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('From the phone'), findsOneWidget);
+  });
+
   testWidgets('after sign-in, clips from the cloud join the history', (
     tester,
   ) async {

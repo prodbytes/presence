@@ -1,9 +1,9 @@
 # Cloud sync
 
 Signed-in users' **clips (videos) and events sync with S3**, straight from
-the device. They're uploaded as they're saved, and at least every minute.
-After sign-in, the user's folder is fetched first, so clips and events from
-another device or an earlier install appear too. There's no backend in between:
+the device, both ways: at start and **every 15 s**, events only on the
+device go up and events only in the user's folder come down, so every
+device of a user shows the same events as the bucket. There's no backend in between:
 the app trades the user's Google ID token for temporary AWS credentials
 through a **Cognito identity pool**, and makes signed S3 uploads itself
 ([lib/cloud/](../presence_app/lib/cloud)).
@@ -33,41 +33,49 @@ Everything goes under the user's **Cognito identity ID**
   uploaded or fetched (see [Sign-in](sign-in.md) and
   [Membership](membership.md)). Sync starts once the roles check grants
   access.
-- **When the app loads for a member, fetch first:** at every app start
+- **Every pass fetches, then uploads.** A pass runs at every app start
   with a signed-in `presence_user` (a new sign-in, or a session restored
-  at launch, e.g. a reload), and whenever the user changes:
-  - the app lists the user's folder (`ListObjectsV2` on `<identityId>/`) and
-    downloads the **last week's** events the device doesn't have
-    (`CloudSync.restoreWindow`, 7 days), with their clips (details,
-    recording and thumbnail) and tagged frames:
-    - event keys are partitioned by UTC day, so partitions that end before
-      the week began aren't downloaded at all; in the week's first day,
-      each event's `time` decides;
-    - flat event keys from before partitioning are read to learn their
-      time, and skipped if older;
-    - only the clips those events use are downloaded;
-  - it marks them as synced, so they aren't uploaded back;
-  - it stores them (`Persistence.importRemote`, with recordings through
-    `MediaStore.saveBytes`) and adds their events to the timeline.
-
-  This runs once per app start and user. A new device (or one whose
-  storage was cleared) therefore starts with one week of history, about
-  10 GB at one 10 MB clip every 10 minutes, rather than everything in the
-  bucket. Events from other devices on the same Google account (hence the
-  same Cognito identity) appear too, if they're from the last week. Older
-  data stays in the bucket until it expires, and on the devices that
-  recorded it. Tests check a session restored at launch
-  (`persistence_test.dart`, "after sign-in, clips from the cloud join the
-  history") and the window (`cloud_sync_test.dart`, "a new device gets
-  only the last week").
-- **Then upload:** everything stored and not yet uploaded goes up. Clips go
+  at launch, e.g. a reload), whenever the user changes, **every 15 s**
+  (`CloudSync.interval`), and 0.5 s after an event is saved or a clip's
+  recording completes (`Persistence.changes`).
+- **Fetch:** the events in the user's folder that the device doesn't have
+  are downloaded, with their clips (details, recording and thumbnail) and
+  tagged frames:
+  - only from the last **two weeks** (`CloudSync.restoreWindow`, 14 days):
+    event keys are partitioned by UTC day, so older partitions aren't
+    read, and in the window's first day each event's `time` decides;
+  - at most **1000 events per pass** (`CloudSync.maxFetch`), the newest
+    first; any rest come down in later passes;
+  - only the clips those events use, each found by listing just its own
+    keys (`clips/<clipId>`);
+  - they're marked as synced, so they aren't uploaded back, stored
+    (`Persistence.importRemote`, with recordings through
+    `MediaStore.saveBytes`) and added to the event log, so the **Events and
+    Subjects tabs** show them at once.
+- **What a pass lists** (`ListObjectsV2`, billed per request, so kept
+  small):
+  - the first pass for a user (at start, sign-in or a user change) lists
+    all of `events/`, which also finds flat keys from before partitioning
+    (read to learn their time, and skipped if older);
+  - once an hour (`CloudSync.fullFetchEvery`), each day of the window (15
+    listings), to catch events a device uploaded late, after being
+    offline;
+  - every other pass, only **today's and yesterday's** partitions, where
+    other devices' new events land: about 11,500 listings a day per
+    device, roughly $0.06 a day at S3's $0.005 per 1000, against $0.43 for
+    listing the whole window every 15 s.
+- A new device (or one whose storage was cleared) therefore starts with
+  two weeks of history, rather than everything in the bucket. Events from
+  other devices on the same Google account (hence the same Cognito
+  identity) come down within 15 s. Older data stays in the bucket until it
+  expires, and on the devices that recorded it.
+- **Upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
-- **While signed in, whichever comes first:**
-  - **when a shot is taken:** each event goes up as soon as it's saved, and
-    a clip once its recording is complete (`Persistence.changes` fires after
-    both, and a sync pass follows 0.5 s later);
-  - **every minute:** a periodic pass (`CloudSync.interval`) catches anything
-    else.
+- Tests: `cloud_sync_test.dart` ("a new device gets only the last two
+  weeks"; another device's event on the next pass, listing only today and
+  yesterday; the hourly full listing; at most `maxFetch` per pass, newest
+  first) and `persistence_test.dart` (a session restored at launch; "every
+  15 s, events from another device join the timeline").
 - **Nothing twice:** the `synced` store keeps each uploaded object key with
   a fingerprint of its content (the SHA-256 of the JSON, or the media ID).
   An unchanged object is skipped. A changed one, such as a clip's event
@@ -122,7 +130,7 @@ In [presence_infra/](../presence_infra):
     undone. After that it's gone, and a lifecycle rule clears the leftover
     delete markers. Incomplete multipart uploads go after 1 day.
   - A new device, or one whose storage was cleared, restores only the last
-    week anyway (see "When" above). Devices keep their own copies of older
+    two weeks anyway (see "When" above). Devices keep their own copies of older
     events, and the app doesn't upload expired ones again (it remembers
     what it uploaded).
   - **S3 Intelligent-Tiering:**
@@ -194,4 +202,6 @@ In [presence_infra/](../presence_infra):
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
 - The fetch adds what's missing and never overwrites local records. A clip
-  deleted on one device isn't deleted elsewhere (nothing is deleted yet).
+  deleted on one device isn't deleted elsewhere (nothing is deleted yet),
+  and a change to an event another device already has (such as a tag
+  added later) doesn't reach it.
