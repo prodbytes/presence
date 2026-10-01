@@ -194,8 +194,12 @@ class CloudSync extends ChangeNotifier {
   }
 
   /// The user whose data syncs: the signed-in one, if they have access.
-  String? get _syncUser =>
-      (roles == null || roles!.hasAccess) ? auth.user?.id : null;
+  /// Never in dev mode, where access doesn't come from signing in.
+  String? get _syncUser => roles?.mode == ExecutionMode.dev
+      ? null
+      : (roles == null || roles!.hasAccess)
+      ? auth.user?.id
+      : null;
 
   void _onAuthChanged() {
     final user = _syncUser;

@@ -292,11 +292,30 @@ class FakeRolesClient implements RolesClient {
   Object? error;
   final tokens = <String>[];
 
+  /// What `GET /api/auth/anonymous` says; RBAC by default.
+  ExecutionMode mode = ExecutionMode.rbac;
+
+  /// Makes the start check fail (the API is unreachable).
+  Object? anonymousError;
+  int anonymousCalls = 0;
+
   @override
   Future<List<String>> fetch(String idToken) async {
     tokens.add(idToken);
     if (error case final e?) throw e;
     return roles;
+  }
+
+  @override
+  Future<AnonymousAccess> anonymous() async {
+    anonymousCalls++;
+    if (anonymousError case final e?) throw e;
+    return (
+      mode: mode,
+      roles: mode == ExecutionMode.dev
+          ? const [anonymousRole, userRole, adminRole]
+          : const [anonymousRole],
+    );
   }
 }
 

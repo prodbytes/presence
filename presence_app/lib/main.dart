@@ -20,6 +20,7 @@ import 'config.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'settings.dart';
+import 'system_health.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
@@ -278,9 +279,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _signedIn => widget.auth.user != null;
 
-  /// Signed in as a `presence_user`: the tabs, the camera's buttons and
-  /// cloud sync.
-  bool get _hasAccess => _signedIn && widget.roles.hasAccess;
+  /// No sign-in configured ([ExecutionMode.dev]): everything but what's
+  /// about accounts (sign-in, the account, sign-up and Admin).
+  bool get _dev => widget.roles.mode == ExecutionMode.dev;
+
+  /// Signed in as a `presence_user`, or [_dev]: the tabs, the camera's
+  /// buttons and (signed in) cloud sync.
+  bool get _hasAccess => _dev || (_signedIn && widget.roles.hasAccess);
 
   @override
   void initState() {
@@ -300,7 +305,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// Signing out hides the navigation, so go back to the camera. Sign-in
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
-    if (!_signedIn) _tabs.index = HomeTab.camera.index;
+    if (!_hasAccess) _tabs.index = HomeTab.camera.index;
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
       ScaffoldMessenger.of(context)
@@ -363,18 +368,33 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    // Nothing shows until the auth API says how the system runs.
+    if (widget.roles.state == AccessState.starting) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(key: Key('starting'))),
+      );
+    }
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
       backgroundColor: _onCamera ? Colors.black : scheme.surface,
       appBar: AppBar(
         titleSpacing: 12,
-        title: Text(
-          'Presence',
-          style: theme.textTheme.titleLarge?.copyWith(
-            color: scheme.primary,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Row(
+          spacing: 8,
+          children: [
+            Flexible(
+              child: Text(
+                'Presence',
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (_dev) const _DevModeLabel(),
+          ],
         ),
         backgroundColor: _onCamera ? Colors.transparent : scheme.surface,
         surfaceTintColor: Colors.transparent,
@@ -392,7 +412,7 @@ class _HomeScreenState extends State<HomeScreen>
               )
             : null,
         actions: [
-          if (!_signedIn) ...[
+          if (!_hasAccess && !_signedIn) ...[
             SignInAction(auth: widget.auth),
             const SizedBox(width: 12),
           ] else if (!_hasAccess) ...[
@@ -433,8 +453,9 @@ class _HomeScreenState extends State<HomeScreen>
                 ],
               ),
             ),
-            // Admins approve membership requests on their own screen.
-            if (widget.roles.isAdmin)
+            // Admins approve membership requests on their own screen (not
+            // in dev mode: there are no accounts).
+            if (!_dev && widget.roles.isAdmin)
               IconButton(
                 key: const Key('admin'),
                 tooltip: 'Admin',
@@ -449,7 +470,7 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             // Account (who's signed in, sign out): an action, not a tab.
-            AccountButton(auth: widget.auth, sync: widget.sync),
+            if (!_dev) AccountButton(auth: widget.auth, sync: widget.sync),
             const SizedBox(width: 4),
           ],
         ],
@@ -476,6 +497,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: SettingsView(
                 config: widget.config,
                 motionLevel: widget.rig.motionLevel,
+                health: SystemHealth(roles: widget.roles, sync: widget.sync),
               ),
             ),
           ),
@@ -668,5 +690,36 @@ class _KeepAliveState extends State<_KeepAlive>
   Widget build(BuildContext context) {
     super.build(context);
     return widget.child;
+  }
+}
+
+/// Says, quietly, that the system runs in [ExecutionMode.dev]: nobody signs
+/// in and everything is open.
+class _DevModeLabel extends StatelessWidget {
+  const _DevModeLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Tooltip(
+      message:
+          'Development mode: sign-in isn\'t configured, so everything '
+          'is open to everyone.',
+      child: Container(
+        key: const Key('dev-mode'),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outline),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Text(
+          'dev',
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
   }
 }

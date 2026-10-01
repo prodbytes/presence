@@ -22,7 +22,11 @@ there's no separate sign-in screen:
   - **Sign out** forgets it.
 
   Android and iOS don't need this: their Google SDKs keep the session.
-- **Signed out:** the camera shows full screen, always recording as
+- **Before anything shows**, the app asks the auth API for the
+  [execution mode](execution-mode.md). In DEV (no OIDC client) there's no
+  sign-in at all, and everything below about signing in doesn't apply.
+- **Signed out (RBAC):** the anonymous user (`presence_anonymous`) may only
+  sign in. The camera shows full screen, always recording as
   usual, with **no buttons on it** (no Flip, Clip or readiness), and the
   **navigation is hidden**: the app bar has only the "Presence" title and
   **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip

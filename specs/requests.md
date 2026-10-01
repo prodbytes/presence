@@ -1046,3 +1046,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     deployed `nu01.com` domains. The badges now point to `prodbytes/presence`.
     [dev-environment.md](dev-environment.md) describes what the README
     covers.
+146. **Start the app by asking the auth API for the execution mode: DEV
+    without OIDC settings (every role for the anonymous user, every feature
+    but the account ones, a discreet "dev" label), RBAC with them
+    (anonymous may only sign in, then roles as before).** Later in the same
+    request: **use S3 and Cognito only when their variables are set, and show
+    the API, AWS and OIDC health under the version in Settings.**
+    (2026-10-01)
+    - Auth API: `ExecutionMode` (DEV when `GOOGLE_WEB_CLIENT_ID` is empty),
+      role `presence_anonymous`, and the public, throttled
+      `GET /api/auth/anonymous`. `GoogleWebClientId` may be empty (DEV
+      authorizer audience `no-oidc-client`). The Floci hook deploys the API
+      without a client in DEV, with only that route. `deploy.sh`'s smoke
+      test requires RBAC.
+    - App: a spinner until the mode is known; falls back to DEV only
+      without a client ID of its own. DEV shows all tabs and camera
+      buttons, hides sign-in, account, sign-up and Admin, labels the title
+      "dev", and never syncs. New [execution-mode.md](execution-mode.md).
+    - S3 and Cognito were already used only with both IDs set; now
+      specified, and shown in the new Settings health line
+      (`🔌 API · ☁️ AWS · 🔑 OIDC`).
+    - 22 Java and 133 Flutter tests pass; checked live in DEV through
+      Floci and Chrome.

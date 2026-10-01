@@ -27,6 +27,14 @@
   `flutter-run.sh`) pass it too, with Z the time they started. A bare
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
+- **Health line**, under the version, as small as it
+  ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
+  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip:
+  - API: ✅ the start check answered (with the mode), ❌ it didn't (the
+    error), ⏳ still checking;
+  - AWS: ⚪ not configured (events stay on this device), ✅ configured
+    (synced, or waiting for sign-in), 🔄 syncing, ❌ the last sync failed;
+  - OIDC: ✅ a Google client ID is built in, ⚪ none (sign-in is off).
 - **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
   brightness, and the motion switch, threshold and cooldown) is saved to
   local storage on every change and restored on launch.

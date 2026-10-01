@@ -7,6 +7,11 @@ site (`/api/*` in the CloudFront distribution; see
 
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's roles,
   `{"email": "...", "roles": [...]}`;
+- **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a
+  token**): the [execution mode](execution-mode.md) and the anonymous
+  user's roles, `{"mode": "RBAC", "roles": ["presence_anonymous"]}`, or in
+  DEV every role. The mode is DEV when the function has no
+  `GOOGLE_WEB_CLIENT_ID`. Throttled to 20 requests/s (burst 50);
 - **`POST /api/auth/membership`** (`MembershipHandler`): a request for
   access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
   **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
@@ -15,11 +20,13 @@ site (`/api/*` in the CloudFront distribution; see
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
   and audience the web OAuth client, so tokens for other apps are refused.
+  `GoogleWebClientId` may be empty only for local development: the
+  audience is then `no-oidc-client`, which no token matches.
   Otherwise it answers 401 before a function runs. The functions only read
   the verified claims (`email`, `email_verified`, and `name` for requests).
 - **Roles:**
   - **`presence_user`** uses the app; **`presence_admin`** also approves
-    membership requests;
+    membership requests; **`presence_anonymous`** is nobody signed in;
   - nobody has roles by default;
   - a verified email whose domain is exactly one of `AllowedDomains`
     (comma-separated; `nu01.com` for now) gets both roles
@@ -44,7 +51,7 @@ site (`/api/*` in the CloudFront distribution; see
   `presence-auth-api` and `presence-rc-auth-api`) before the site, and passes
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
-  its authorizer are live.
+  its authorizer are live, and `/api/auth/anonymous` to report RBAC.
 - **The app** calls it after sign-in to decide what to show (see
   [Sign-in](sign-in.md)): without `presence_user`, only the account and
   sign-up.
@@ -55,6 +62,8 @@ site (`/api/*` in the CloudFront distribution; see
 - **Tests** (JUnit, `mvn test`):
   - the role rules: default none, the exact domains, verification, table
     roles, case and whitespace;
+  - the execution mode: DEV only without a client; the anonymous route's
+    answer in RBAC and DEV;
   - the handler's JSON: roles, no roles, no claims, escaping;
   - membership requests: verified email, empty and long messages, base64
     bodies, the hourly cooldown;

@@ -90,7 +90,10 @@ Everything goes under the user's **Cognito identity ID**
   is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
   IDs): `AWS_REGION` (default `us-east-1`), `COGNITO_IDENTITY_POOL_ID` and
-  `USER_DATA_BUCKET`. Sync is off when either ID is empty. In production,
+  `USER_DATA_BUCKET`. Sync is off when either ID is empty: no cloud
+  backend is created, so Cognito and S3 are never called and everything
+  stays on the device. It's also off in DEV ([execution
+  mode](execution-mode.md)). In production,
   `scripts/deploy.sh` sets them from the stack outputs; locally they come
   from `.env`.
 - The Google ID token is issued for the web client on every platform: web

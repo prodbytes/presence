@@ -137,8 +137,11 @@ roles, membership requests and the Admin screen work locally without AWS:
 - The hook runs past Floci's default 30 s, so compose sets
   `FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` to 180, and the process's readiness
   allows 6 minutes (the first run builds and pulls the Lambda image).
-- Without `GOOGLE_WEB_CLIENT_ID` or a build, the hook skips the API:
-  `/api/*` isn't routed and every signed-in user sees only sign-up.
+- The public `GET /api/auth/anonymous` route is always created. Without
+  `GOOGLE_WEB_CLIENT_ID` the API runs in **DEV** ([Execution
+  mode](execution-mode.md)): the stack gets an empty client ID, and the
+  hook creates no authorizer and none of the other routes. Without a build,
+  the hook skips the API and `/api/*` isn't routed.
 - Checked through `https://local.presence.nu01.com:8443`: `/api/auth`
   refuses a missing or forged token (401), and invoking the functions in
   Floci ran the whole flow. `boss@nu01.com` got both roles,
