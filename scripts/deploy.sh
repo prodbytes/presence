@@ -14,7 +14,8 @@
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site: /app/version.json must report this
 #      version, / must be the index page, and /api/auth must refuse a
-#      request without a token (401: the route and its authorizer are live)
+#      request without a token (401: the route and its authorizer are live),
+#      and /api/auth/anonymous must report RBAC mode
 #
 # Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
 # credentials. Settings, from the environment:
@@ -121,6 +122,7 @@ echo "==> deploying $AUTH_STACK"
   sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+      "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -160,6 +162,12 @@ check() {
   local auth
   auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth")"
   [[ "$auth" == 401 ]] || { echo "    /api/auth without a token answered $auth, want 401"; return 1; }
+  # Never DEV in AWS: that would give anonymous users every role. And AWS
+  # must have every expected setting.
+  local anonymous
+  anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
+  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}' ]] \
+    || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
 }
 for attempt in $(seq 1 30); do
   if check; then

@@ -25,18 +25,19 @@ Everything goes through `EventStore` and `MediaStore`.
 
 | Store | Key | Holds |
 |-------|-----|-------|
-| `cameras` | `id` (the browser's device ID) | label, last seen |
-| `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
+| `cameras` | `id` (the browser's media device ID for the camera) | label, last seen |
+| `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, device ID, user ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
-| `settings` | name (`config`) | the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade) |
+| `settings` | name (`config`, `device`) | `config`: the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)) |
 | `synced` | S3 object key | a fingerprint of what was uploaded there ([cloud sync](cloud-sync.md)) |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The
 clip references its event (`eventId`), its camera (`cameraId`) and its media.
-Camera IDs are the browser's device IDs, which stay stable for the site until
-its data is cleared.
+Camera IDs are the browser's media device IDs, which stay stable for the
+site until its data is cleared. They aren't the app's device ID
+(`deviceId` on events), which names the install.
 
 **How a clip is saved:**
 1. When Clip is pressed, the event and a clip record (state `recording`,

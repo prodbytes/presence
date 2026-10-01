@@ -1060,3 +1060,51 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       deploying `presence-user-data` and `presence-identity`, reading their
       outputs, finding the hosted zone ID). Step 2 of the local run links
       to it.
+146. **Start the app by asking the auth API for the execution mode: DEV
+    without OIDC settings (every role for the anonymous user, every feature
+    but the account ones, a discreet "dev" label), RBAC with them
+    (anonymous may only sign in, then roles as before).** Later in the same
+    request: **use S3 and Cognito only when their variables are set, and show
+    the API, AWS and OIDC health under the version in Settings.**
+    (2026-10-01)
+    - Auth API: `ExecutionMode` (DEV when `GOOGLE_WEB_CLIENT_ID` is empty),
+      role `presence_anonymous`, and the public, throttled
+      `GET /api/auth/anonymous`. `GoogleWebClientId` may be empty (DEV
+      authorizer audience `no-oidc-client`). The Floci hook deploys the API
+      without a client in DEV, with only that route. `deploy.sh`'s smoke
+      test requires RBAC.
+    - App: a spinner until the mode is known; falls back to DEV only
+      without a client ID of its own. DEV shows all tabs and camera
+      buttons, hides sign-in, account, sign-up and Admin, labels the title
+      "dev", and never syncs. New [execution-mode.md](execution-mode.md).
+    - S3 and Cognito were already used only with both IDs set; now
+      specified, and shown in the new Settings health line
+      (`🔌 API · ☁️ AWS · 🔑 OIDC`).
+    - 22 Java and 133 Flutter tests pass; checked live in DEV through
+      Floci and Chrome.
+147. **Define devices, users and places (device groups). Give each device
+    a funny, collision-resistant ID (`adjective_adjective_thing`, such as
+    `automatic_paranoid_gadget`) on first load; add the device ID and the
+    user ID to every event; when a user signs in, let them own the events
+    recorded anonymously on the device, so none are lost (3 grabs signed
+    out + 2 after = 5 events). Show the device ID discreetly under the
+    version in Settings, and a discreet emoji health check for API, OIDC
+    and AWS that asks the auth module whether the expected settings are
+    set.** (2026-10-01)
+    - New [devices-users-places.md](devices-users-places.md). `DeviceId`:
+      1053 adjectives × 1052 × 1091 things, about 1.2 billion IDs, made
+      with `Random.secure()` and kept in the `settings` store (`device`).
+    - Events carry `deviceId` and `userId` (the Google ID, or
+      `anonymous`). A sign-in, or a session restored at launch, takes over
+      the anonymous events (`Persistence.claimAnonymous`). Cloud sync now
+      uploads only the signed-in user's events and their clips.
+    - Places are defined but not built (no place ID yet).
+    - Auth API: `GET /api/auth/anonymous` adds
+      `"settings": {"oidc": …, "aws": …}` (`Settings`; new template
+      parameters `IdentityPoolId` and `UserDataBucket`, passed by
+      `deploy.sh` and, from `.env`, by the Floci hook). The deploy smoke
+      test requires both set.
+    - Settings: the device ID under the version; the health line compares
+      the API's settings with the build's own (⚠️ when they disagree).
+    - 23 Java and 142 Flutter tests pass; the local API answered with its
+      settings live through Floci.
