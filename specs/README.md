@@ -19,6 +19,8 @@ audio, so a clip can include the moments before someone pressed Clip.
   with its Clip, Flip and readiness controls.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states.
+- [Monitoring](monitoring.md): one tab with the subjects' map, the
+  subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus.
 - [Recording consent](consent.md): asked once per device, before anything
   shows or records: the right to record, and faces as biometric data under

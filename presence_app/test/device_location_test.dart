@@ -208,14 +208,14 @@ void main() {
         AppEventBusScope.of(tester.element(find.byType(Scaffold).first))
             .publish(AppEvent(icon: Icons.circle, title: title));
 
-    testWidgets('shows the device on the map, sits between Events and '
+    testWidgets('shows the device on the map, sits between Monitoring and '
         'Settings', (tester) async {
       await launch(tester, FakeLocator());
 
-      final events = tester.getCenter(find.byTooltip('Events'));
+      final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
       final device = tester.getCenter(find.byTooltip('Device'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
-      expect(events.dx, lessThan(device.dx));
+      expect(monitoring.dx, lessThan(device.dx));
       expect(device.dx, lessThan(settings.dx));
 
       await tester.tap(find.byTooltip('Device'));

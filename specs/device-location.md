@@ -5,7 +5,7 @@ on every event. The tab also shows the device's battery.
 
 ## The Device tab
 
-- A tab between **Subjects** and **Settings** (the `place` icon, tooltip
+- A tab between **Monitoring** and **Settings** (the `place` icon, tooltip
   "Device"; see [Navigation](navigation.md)). It shows a full-page map
   ([lib/location/device_view.dart](../presence_app/lib/location/device_view.dart)):
   `flutter_map` with OpenStreetMap tiles (no API key), credited
@@ -145,5 +145,5 @@ on every event. The tab also shows the device's battery.
 - OpenStreetMap's public tile server is meant for light use and needs the
   credit shown; heavy use would need another tile provider.
 - The location is read once per launch; a moving device isn't followed.
-- On 320 dp phones, the five tabs leave little room: the title shortens to
+- On 320 dp phones, the four tabs leave little room: the title shortens to
   an ellipsis.

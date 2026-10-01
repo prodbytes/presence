@@ -23,12 +23,12 @@ import 'cameras/cameras.dart';
 import 'events.dart';
 import 'location/device_location.dart';
 import 'location/device_view.dart';
+import 'monitoring.dart';
 import 'settings.dart';
 import 'system_health.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
-import 'subjects.dart';
 import 'theme.dart';
 
 void main() {
@@ -327,8 +327,7 @@ class _PresenceAppState extends State<PresenceApp> {
 /// The top-level destinations, as tabs in the app bar.
 enum HomeTab {
   camera('Camera', Icons.videocam),
-  events('Events', Icons.notifications),
-  subjects('Subjects', Icons.people),
+  monitoring('Monitoring', Icons.monitor_heart),
   device('Device', Icons.place),
   settings('Settings', Icons.settings);
 
@@ -339,8 +338,9 @@ enum HomeTab {
 }
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
-/// between the full-screen camera (the start tab), the event stream, the
-/// tagged subjects, the device's map and the settings. Swiping sideways flips too, except on
+/// between the full-screen camera (the start tab), monitoring (the subjects'
+/// map, the subjects and the event stream), the device's map and the
+/// settings. Swiping sideways flips too, except on
 /// the map, where dragging moves the map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
@@ -414,18 +414,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _onDevice => _tabs.index == HomeTab.device.index;
 
-  /// The event the Events tab scrolls to and outlines.
+  bool get _onMonitoring => _tabs.index == HomeTab.monitoring.index;
+
+  /// The event the Monitoring tab's timeline scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
 
-  /// The Events tab's "Only this device" checkbox: on at launch, and kept
+  /// The Monitoring tab's "Only this device" checkbox: on at launch, and kept
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
 
-  /// Shows [event] in the Events tab, closing any screen over the tabs (a
-  /// subject's).
+  /// Shows [event] in the Monitoring tab's timeline, closing any screen over
+  /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
     Navigator.of(context).popUntil((route) => route.isFirst);
-    _tabs.animateTo(HomeTab.events.index);
+    _tabs.animateTo(HomeTab.monitoring.index);
     // Cleared first, so asking for the same event again still scrolls.
     _focusedEvent
       ..value = null
@@ -515,7 +517,7 @@ class _HomeScreenState extends State<HomeScreen>
           action: _hasAccess
               ? SnackBarAction(
                   label: 'View',
-                  onPressed: () => _tabs.animateTo(HomeTab.events.index),
+                  onPressed: () => _tabs.animateTo(HomeTab.monitoring.index),
                 )
               : null,
         ),
@@ -652,7 +654,7 @@ class _HomeScreenState extends State<HomeScreen>
         controller: _tabs,
         // No swiping to the other tabs while they're hidden, nor on the
         // map: there, a drag moves the map.
-        physics: _hasAccess && !_onDevice
+        physics: _hasAccess && !_onDevice && !_onMonitoring
             ? null
             : const NeverScrollableScrollPhysics(),
         children: [
@@ -662,28 +664,15 @@ class _HomeScreenState extends State<HomeScreen>
               rig: widget.rig,
             ),
           ),
-          // Readable width on large screens (Material: don't stretch cards
-          // edge to edge on desktop).
           SafeArea(
-            key: const Key('events-page'),
-            child: _ReadableWidth(
-              child: EventTimeline(
-                log: widget.log,
-                focus: _focusedEvent,
-                deviceId: widget.deviceId,
-                thisDeviceOnly: _thisDeviceOnly,
-              ),
-            ),
-          ),
-          SafeArea(
-            key: const Key('subjects-page'),
-            child: _ReadableWidth(
-              child: SubjectsView(
-                log: widget.log,
-                config: widget.config,
-                tiles: widget.mapTiles,
-                onOpenEvent: _openEvent,
-              ),
+            child: MonitoringView(
+              log: widget.log,
+              config: widget.config,
+              tiles: widget.mapTiles,
+              onOpenEvent: _openEvent,
+              focus: _focusedEvent,
+              deviceId: widget.deviceId,
+              thisDeviceOnly: _thisDeviceOnly,
             ),
           ),
           SafeArea(

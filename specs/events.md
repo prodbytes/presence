@@ -1,6 +1,7 @@
 # Events
 
-- Events appear in a vertically scrolling timeline, newest at the top. Each
+- Events appear on the [Monitoring](monitoring.md) tab, under the subjects'
+  map, in a vertically scrolling timeline, newest at the top. Each
   entry is just a card, with no dot or rail beside it, and cards are 8 px
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time
@@ -19,7 +20,7 @@
     clears the checkbox, so the event can show.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - **Opening an event from elsewhere** (a dot on a [subject's](subjects.md)
-  map) switches to the Events tab, scrolls the timeline to that event and
+  map) switches to the Monitoring tab, scrolls the timeline to that event and
   outlines its card in the accent color for 4 s (`EventTimeline.focus`).
   Cards far down the list aren't built yet, so the timeline first jumps to
   where the card should be, from the average card height, until it's
