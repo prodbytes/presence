@@ -1400,3 +1400,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       scrolls this tab's events to its event, as before.
     - New [monitoring.md](monitoring.md); the other specs updated. 202
       Flutter tests pass; web release builds.
+176. **If the dev tag is shown, show the version in it.** (2026-10-01)
+    - The "dev" label next to the title reads "dev 0.4.<Z>" when the build
+      has a version (just "dev" without one), and is cut short with an
+      ellipsis where there's no room.
