@@ -1046,3 +1046,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     deployed `nu01.com` domains. The badges now point to `prodbytes/presence`.
     [dev-environment.md](dev-environment.md) describes what the README
     covers.
+147. **Commit the `.gitignore` change.** (2026-10-01)
+    - `.env.*` is ignored, so copies like `.env.ga` stay out of git;
+      `!.env.example` keeps the committed template tracked.
