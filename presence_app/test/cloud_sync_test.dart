@@ -346,7 +346,7 @@ void main() {
       },
     );
 
-    test('a new device gets only the last week', () async {
+    test('a new device gets only the last two weeks', () async {
       sync.dispose();
       const prefix = 'us-east-1:identity';
       final now = DateTime.utc(2026, 9, 27, 12);
@@ -377,20 +377,20 @@ void main() {
         );
       }
 
-      // 6 days ago (day 264): restored, with its clip.
+      // 13 days ago (day 257): restored, with its clip.
       event(
         CloudSync.eventKey({
           'id': 'new',
-          'time': ms(now.subtract(const Duration(days: 6))),
+          'time': ms(now.subtract(const Duration(days: 13))),
         }),
         'new',
-        now.subtract(const Duration(days: 6)),
+        now.subtract(const Duration(days: 13)),
         'c-new',
       );
       clip('c-new');
-      // Earlier on the first day of the window (day 263): its partition is
+      // Earlier on the first day of the window (day 256): its partition is
       // read, but the event is 8 h too old.
-      final edge = now.subtract(const Duration(days: 7, hours: 8));
+      final edge = now.subtract(const Duration(days: 14, hours: 8));
       event(CloudSync.eventKey({'id': 'edge', 'time': ms(edge)}), 'edge', edge);
       // 20 days ago: its partition isn't even downloaded, nor its clip.
       final old = now.subtract(const Duration(days: 20));
@@ -429,7 +429,7 @@ void main() {
       expect(backend.downloads, contains('events/flat.json'));
     });
 
-    test('the fetch runs once per sign-in', () async {
+    test('events already on the device aren\'t downloaded again', () async {
       await auth.signIn();
       await sync.idle();
       backend.downloads.clear();
@@ -467,6 +467,113 @@ void main() {
         backend.uploads.keys,
         contains('us-east-1:identity/events/year=1970/day=001/e9.json'),
       );
+    });
+
+    group('every pass fetches too', () {
+      const prefix = 'us-east-1:identity';
+      final now = DateTime.utc(2026, 10, 1, 12);
+      late DateTime clock;
+      late List<RemoteRecords> remote;
+
+      // Another device's event, uploaded to the user's folder.
+      void uploadedElsewhere(String id, DateTime time) {
+        final record = {'id': id, 'type': 'x', 'title': id, 'time': 0};
+        record['time'] = time.millisecondsSinceEpoch;
+        backend.uploads['$prefix/${CloudSync.eventKey(record)}'] = (
+          bytes: json(record),
+          contentType: 'application/json',
+        );
+      }
+
+      Future<void> start({int maxFetch = 1000}) async {
+        sync.dispose();
+        clock = now;
+        remote = [];
+        sync = CloudSync(
+          auth: auth,
+          backend: backend,
+          store: Future.value(store),
+          media: Future.value(IdbMediaStore(store)),
+          changes: changes.stream,
+          debounce: Duration.zero,
+          // Passes run by hand (changes.add) rather than on the timer.
+          interval: const Duration(hours: 24),
+          maxFetch: maxFetch,
+          onRemote: (r) async {
+            remote.add(r);
+            // As the app does: stored, so later passes skip them.
+            for (final e in r.events) {
+              await store.putEvent(e);
+            }
+          },
+          now: () => clock,
+        );
+        await auth.signIn();
+        await sync.idle();
+      }
+
+      Future<void> pass() async {
+        backend.listings.clear();
+        changes.add(null);
+        await sync.idle();
+      }
+
+      test('another device\'s new event comes down on the next pass, '
+          'which lists only today and yesterday', () async {
+        await start();
+        expect(backend.listings.first, 'events/', reason: 'first: all');
+
+        uploadedElsewhere(
+          'from-phone',
+          now.subtract(const Duration(minutes: 1)),
+        );
+        clock = now.add(const Duration(seconds: 15));
+        await pass();
+        expect(remote.last.events.single['id'], 'from-phone');
+        expect(remote.last.events.single['userId'], '1');
+        expect(
+          backend.listings.where((p) => p.startsWith('events/')).toList(),
+          ['events/year=2026/day=274/', 'events/year=2026/day=273/'],
+        );
+
+        // Already here: not downloaded again.
+        backend.downloads.clear();
+        await pass();
+        expect(backend.downloads, isEmpty);
+      });
+
+      test('once an hour, a pass lists every day of the two weeks', () async {
+        await start();
+        // Uploaded late, by a device that was offline: ten days old.
+        uploadedElsewhere('late', now.subtract(const Duration(days: 10)));
+        clock = now.add(const Duration(minutes: 30));
+        await pass();
+        expect(
+          remote.where((r) => r.events.any((e) => e['id'] == 'late')),
+          isEmpty,
+        );
+
+        clock = now.add(const Duration(hours: 1));
+        await pass();
+        expect(
+          backend.listings.where((p) => p.startsWith('events/')),
+          hasLength(15),
+          reason: 'today and the 14 days before',
+        );
+        expect(remote.last.events.single['id'], 'late');
+      });
+
+      test('at most maxFetch events per pass, the newest first', () async {
+        for (var d = 1; d <= 3; d++) {
+          uploadedElsewhere('day-$d', now.subtract(Duration(days: d)));
+        }
+        await start(maxFetch: 2);
+        expect(remote.single.events.map((e) => e['id']), ['day-1', 'day-2']);
+        // The rest on the next full pass.
+        clock = now.add(const Duration(hours: 1));
+        await pass();
+        expect(remote.last.events.map((e) => e['id']), ['day-3']);
+      });
     });
   });
 
