@@ -927,7 +927,7 @@ class DevModeLabel extends StatelessWidget {
           'sign-in isn\'t configured, so everything is open to everyone.',
       child: Container(
         key: const Key('dev-mode'),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           border: Border.all(color: scheme.outline),
           borderRadius: BorderRadius.circular(4),
@@ -936,7 +936,8 @@ class DevModeLabel extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
+          // labelLarge (14 sp): readable next to the title.
+          style: theme.textTheme.labelLarge?.copyWith(
             color: scheme.onSurfaceVariant,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),
