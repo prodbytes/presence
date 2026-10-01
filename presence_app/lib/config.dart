@@ -16,6 +16,7 @@ class PresenceConfig {
     this.clip = const ClipConfig(),
     this.camera = const CameraConfig(),
     this.motion = const MotionConfig(),
+    this.schedule = const ScheduleConfig(),
     this.subjects = const SubjectsConfig(),
   });
 
@@ -24,17 +25,20 @@ class PresenceConfig {
   final ClipConfig clip;
   final CameraConfig camera;
   final MotionConfig motion;
+  final ScheduleConfig schedule;
   final SubjectsConfig subjects;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
     CameraConfig? camera,
     MotionConfig? motion,
+    ScheduleConfig? schedule,
     SubjectsConfig? subjects,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
     motion: motion ?? this.motion,
+    schedule: schedule ?? this.schedule,
     subjects: subjects ?? this.subjects,
   );
 
@@ -43,6 +47,7 @@ class PresenceConfig {
     'clip': clip.toJson(),
     'camera': camera.toJson(),
     'motion': motion.toJson(),
+    'schedule': schedule.toJson(),
     'subjects': subjects.toJson(),
   };
 
@@ -53,6 +58,7 @@ class PresenceConfig {
     clip: ClipConfig.fromJson(_map(json['clip'])),
     camera: CameraConfig.fromJson(_map(json['camera'])),
     motion: MotionConfig.fromJson(_map(json['motion'])),
+    schedule: ScheduleConfig.fromJson(_map(json['schedule'])),
     subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
   );
 
@@ -75,10 +81,11 @@ class PresenceConfig {
       other.clip == clip &&
       other.camera == camera &&
       other.motion == motion &&
+      other.schedule == schedule &&
       other.subjects == subjects;
 
   @override
-  int get hashCode => Object.hash(clip, camera, motion, subjects);
+  int get hashCode => Object.hash(clip, camera, motion, schedule, subjects);
 }
 
 /// How long clips are around the moment they're requested.
@@ -219,6 +226,49 @@ class MotionConfig {
   int get hashCode => Object.hash(enabled, threshold, cooldown);
 }
 
+/// Automatic clips on a timer, whatever the picture does: one every
+/// [every], through the same path as the Clip button and motion clips.
+@immutable
+class ScheduleConfig {
+  const ScheduleConfig({this.enabled = true, this.every = defaultEvery});
+
+  static const Duration minEvery = Duration(minutes: 30);
+  static const Duration maxEvery = Duration(days: 1);
+  static const Duration everyStep = Duration(minutes: 30);
+  static const Duration defaultEvery = Duration(minutes: 240);
+
+  /// Whether a clip is taken every [every].
+  final bool enabled;
+
+  /// How long between scheduled clips: half an hour to a day.
+  final Duration every;
+
+  ScheduleConfig copyWith({bool? enabled, Duration? every}) => ScheduleConfig(
+    enabled: enabled ?? this.enabled,
+    every: _clampDuration(every ?? this.every, minEvery, maxEvery),
+  );
+
+  Map<String, Object?> toJson() => {
+    'enabled': enabled,
+    'everyMs': every.inMilliseconds,
+  };
+
+  factory ScheduleConfig.fromJson(Map<String, Object?> json) =>
+      const ScheduleConfig().copyWith(
+        enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
+        every: _ms(json['everyMs']),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ScheduleConfig &&
+      other.enabled == enabled &&
+      other.every == every;
+
+  @override
+  int get hashCode => Object.hash(enabled, every);
+}
+
 /// The Subjects screens.
 @immutable
 class SubjectsConfig {
@@ -277,6 +327,7 @@ class ConfigController extends ChangeNotifier {
   ClipConfig get clip => _config.clip;
   CameraConfig get camera => _config.camera;
   MotionConfig get motion => _config.motion;
+  ScheduleConfig get schedule => _config.schedule;
   SubjectsConfig get subjects => _config.subjects;
 }
 

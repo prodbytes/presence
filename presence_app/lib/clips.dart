@@ -139,6 +139,12 @@ enum ClipTrigger {
 
   /// Enough motion in the picture (automatic).
   motion,
+
+  /// The timer: one every `ScheduleConfig.every` (automatic).
+  scheduled,
+
+  /// The app started (automatic, with scheduled clips on).
+  startup,
 }
 
 /// Published when a clip starts: from the Clip button, or automatically on
@@ -154,12 +160,18 @@ class ClipRequested extends AppEvent {
     super.userId,
   }) : annotations = annotations ?? ClipAnnotations(),
        super(
-         icon: trigger == ClipTrigger.motion
-             ? Icons.directions_run
-             : Icons.videocam,
-         title: trigger == ClipTrigger.motion
-             ? 'Motion detected'
-             : 'Clip requested',
+         icon: switch (trigger) {
+           ClipTrigger.motion => Icons.directions_run,
+           ClipTrigger.scheduled => Icons.schedule,
+           ClipTrigger.startup => Icons.power_settings_new,
+           ClipTrigger.manual => Icons.videocam,
+         },
+         title: switch (trigger) {
+           ClipTrigger.motion => 'Motion detected',
+           ClipTrigger.scheduled => 'Scheduled clip',
+           ClipTrigger.startup => 'Startup clip',
+           ClipTrigger.manual => 'Clip requested',
+         },
          detail: clip.cameraLabel,
          type: clipRequestedType,
          cameraId: clip.cameraId,

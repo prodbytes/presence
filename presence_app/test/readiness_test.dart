@@ -281,7 +281,10 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Clip started · saving the next 15 s'), findsNothing);
 
-      camera.fullCompleters.single.complete(media);
+      // The press's clip (the startup clip came first, 15 s after the
+      // camera opened).
+      expect(camera.fullCompleters, hasLength(2));
+      camera.fullCompleters.last.complete(media);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('Ready'), findsOneWidget);

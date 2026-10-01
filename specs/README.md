@@ -30,6 +30,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
   tagging people and pets by clicking them on the video.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
+- [Scheduled clips](scheduled-clips.md): a clip at start, then one every
+  240 minutes (30 min to a day, in Settings).
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it; admins
@@ -42,7 +44,8 @@ audio, so a clip can include the moments before someone pressed Clip.
   its latest frame, and a map of their latest events, fading with age.
 - [Device location](device-location.md): the Device tab's map, setting
   the location by moving it, and the location on every event.
-- [Settings screen](settings.md): the motion, camera and clip settings.
+- [Settings screen](settings.md): the motion, camera, clip, schedule and
+  subject settings.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3 through a Cognito identity pool.
