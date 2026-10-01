@@ -39,6 +39,10 @@ services:
       # The auth API's JWT authorizer only accepts ID tokens for this client
       # (from the private .env; a public identifier, not a secret).
       GOOGLE_WEB_CLIENT_ID: ${GOOGLE_WEB_CLIENT_ID:-}
+      # Cloud sync's pool and bucket: the auth API only reports whether
+      # they're set (the app's health line).
+      COGNITO_IDENTITY_POOL_ID: ${COGNITO_IDENTITY_POOL_ID:-}
+      USER_DATA_BUCKET: ${USER_DATA_BUCKET:-}
       # Lambda containers are named presence-lambda-*, so shutdown can find
       # them (process-compose.yaml).
       FLOCI_SERVICES_LAMBDA_CONTAINER_NAME_PREFIX: presence-lambda
