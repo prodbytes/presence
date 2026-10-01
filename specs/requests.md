@@ -1127,3 +1127,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
 148. **Commit the `.gitignore` change.** (2026-10-01)
     - `.env.*` is ignored, so copies like `.env.ga` stay out of git;
       `!.env.example` keeps the committed template tracked.
+149. **Make the Codespaces link in the README default to 4 cores.**
+    (2026-10-01)
+    - The badge URL adds `?machine=standardLinux32gb` (4 cores, 16 GB), and
+      Codespaces step 1 says so and how to pick 4-core by hand.

@@ -8,7 +8,7 @@ records automatically when the picture moves, and lets you tag the people and
 pets in a clip. Signed-in users' clips and events sync to the cloud, so they
 can be viewed from another device.
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/prodbytes/presence)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/prodbytes/presence?machine=standardLinux32gb)
 [![Open in Dev Containers](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=007ACC&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/prodbytes/presence)
 
 - Production: **https://presence.nu01.com**
@@ -211,8 +211,10 @@ Pass `MODE=profile` or `MODE=debug` for other build modes, and
 
 ## Run it on GitHub Codespaces
 
-1. Click **Open in GitHub Codespaces** above, or, on the repo page, choose
-   **Code → Codespaces → Create codespace on main**.
+1. Click **Open in GitHub Codespaces** above; it selects a 4-core machine
+   (16 GB RAM), the smallest that runs Flutter, Floci and the Java Lambdas
+   together. Or, on the repo page, choose **Code → Codespaces → … → New with
+   options** and pick **4-core**.
 2. Wait for the container to build. Its `postCreateCommand` runs
    `devbox install`. The first run evaluates nixpkgs, which takes a few
    minutes; after that the environment starts instantly.
