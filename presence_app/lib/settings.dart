@@ -44,6 +44,9 @@ class SettingsView extends StatelessWidget {
             config.update((x) => x.copyWith(camera: f(x.camera)));
         void setMotion(MotionConfig Function(MotionConfig) f) =>
             config.update((x) => x.copyWith(motion: f(x.motion)));
+        void setSchedule(ScheduleConfig Function(ScheduleConfig) f) =>
+            config.update((x) => x.copyWith(schedule: f(x.schedule)));
+        final schedule = config.schedule;
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         return ListView(
@@ -124,6 +127,33 @@ class SettingsView extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            Text('Scheduled clips', style: theme.textTheme.titleMedium),
+            SwitchListTile(
+              key: const Key('schedule-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Clip at start and on a timer'),
+              subtitle: const Text('Same as pressing Clip'),
+              value: schedule.enabled,
+              onChanged: (on) => setSchedule((x) => x.copyWith(enabled: on)),
+            ),
+            _LabeledSlider(
+              key: const Key('schedule-every-slider'),
+              label: 'One clip every',
+              valueLabel: formatEvery(schedule.every),
+              value: schedule.every.inMinutes.toDouble(),
+              min: ScheduleConfig.minEvery.inMinutes.toDouble(),
+              max: ScheduleConfig.maxEvery.inMinutes.toDouble(),
+              divisions:
+                  (ScheduleConfig.maxEvery - ScheduleConfig.minEvery)
+                      .inMinutes ~/
+                  ScheduleConfig.everyStep.inMinutes,
+              onChanged: schedule.enabled
+                  ? (v) => setSchedule(
+                      (x) => x.copyWith(every: Duration(minutes: v.round())),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 16),
             Text('Subjects', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             _LabeledSlider(
@@ -174,6 +204,14 @@ class SettingsView extends StatelessWidget {
       },
     );
   }
+}
+
+/// A schedule interval, as "30 min", "4 h", "1 h 30 min" or "24 h".
+String formatEvery(Duration every) {
+  final hours = every.inHours;
+  final minutes = every.inMinutes % 60;
+  if (hours == 0) return '$minutes min';
+  return minutes == 0 ? '$hours h' : '$hours h $minutes min';
 }
 
 class _LabeledSlider extends StatelessWidget {

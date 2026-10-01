@@ -1358,3 +1358,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       the 5 s keyframe, ffmpeg decoded its VP8 and Opus cleanly, and Chrome
       reported 12 s, seeked to 2 s and played. Not tried by pressing Clip in
       the running app.
+171. **Automatically trigger a grab every 240 minutes (configurable from
+    half an hour to daily in Settings), like the others, through the same
+    pipeline.** Then, in the same request: **also take one when the app
+    starts.** (2026-10-01)
+    - New [scheduled-clips.md](scheduled-clips.md): `ScheduleConfig`
+      (`enabled`, `every`: 240 min, 30 min–24 h) and a **Scheduled clips**
+      Settings section. `CameraRig` takes a **startup clip** once the
+      camera has a full "before" part, then a **scheduled clip** every
+      interval from the last one, both through `requestClips` (triggers
+      `startup` and `scheduled`).
+

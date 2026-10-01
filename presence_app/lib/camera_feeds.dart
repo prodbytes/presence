@@ -53,6 +53,7 @@ class CameraRig extends ChangeNotifier {
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        _motion = MotionDetector(now: now) {
+    _scheduleFrom = _now();
     config.addListener(_applyBrightness);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
@@ -77,6 +78,56 @@ class CameraRig extends ChangeNotifier {
   /// The latest motion clip: while its "after" part records, the cooldown
   /// shows as recording.
   VideoClip? _latestMotionClip;
+
+  /// Scheduled clips count from the last one (the startup clip first), or
+  /// from app start until it's taken.
+  late final DateTime _scheduleFrom;
+  DateTime? _lastScheduledClip;
+  bool _startupClipTaken = false;
+  bool _scheduledClipStarting = false;
+  Timer? _scheduleTimer;
+
+  /// When the open camera opened: a scheduled clip waits until it has a
+  /// full "before" part.
+  DateTime? _openedAt;
+
+  /// How often the schedule is checked.
+  static const Duration scheduleCheck = Duration(seconds: 5);
+
+  /// When the next scheduled clip is due ([ScheduleConfig.every] after the
+  /// last one, or after app start), or null when they're off.
+  DateTime? get nextScheduledClip => config.schedule.enabled
+      ? (_lastScheduledClip ?? _scheduleFrom).add(config.schedule.every)
+      : null;
+
+  /// Takes the startup clip, then a scheduled clip whenever one is due,
+  /// once the camera is open and its "before" history is full: the same
+  /// path as the Clip button.
+  void _checkSchedule() {
+    final due = nextScheduledClip;
+    final target = bus;
+    final opened = _openedAt;
+    if (due == null ||
+        target == null ||
+        opened == null ||
+        !canClip ||
+        _scheduledClipStarting) {
+      return;
+    }
+    final now = _now();
+    final startup = !_startupClipTaken;
+    if ((!startup && now.isBefore(due)) ||
+        now.difference(opened) < config.clip.before) {
+      return;
+    }
+    _startupClipTaken = true;
+    _lastScheduledClip = now;
+    _scheduledClipStarting = true;
+    requestClips(
+      target,
+      trigger: startup ? ClipTrigger.startup : ClipTrigger.scheduled,
+    ).whenComplete(() => _scheduledClipStarting = false);
+  }
 
   /// Whether a clip taken now would be complete. It changes with time, so
   /// callers showing it should also refresh on a timer.
@@ -155,6 +206,7 @@ class CameraRig extends ChangeNotifier {
   /// Lists the cameras and opens the default one: the first back camera, or
   /// else the first camera (on web, the browser's default).
   Future<void> load() async {
+    _scheduleTimer ??= Timer.periodic(scheduleCheck, (_) => _checkSchedule());
     await _closeActive();
     _set(busy: true, error: null);
     try {
@@ -209,6 +261,7 @@ class CameraRig extends ChangeNotifier {
         return;
       }
       _active = source;
+      _openedAt = _now();
       _appliedBrightness = null;
       _applyBrightness();
       _watchMotion(source);
@@ -266,6 +319,7 @@ class CameraRig extends ChangeNotifier {
   }
 
   Future<void> _closeActive() async {
+    _openedAt = null;
     _motionFrames?.cancel();
     _motionFrames = null;
     motionLevel.value = null;
@@ -344,6 +398,7 @@ class CameraRig extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _scheduleTimer?.cancel();
     _latestMotionClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();

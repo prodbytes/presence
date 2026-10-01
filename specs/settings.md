@@ -20,6 +20,11 @@
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
+- **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):
+  - A **Clip at start and on a timer** switch (default on).
+  - **One clip every**, 30 min to 24 h in 30-minute steps, default
+    **4 h**, shown as "30 min", "4 h", "1 h 30 min"; off while the switch
+    is.
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).
@@ -51,7 +56,8 @@
     the build's own settings decide.
 - **All settings are persistent, per device:** the whole `PresenceConfig`
   (clip lengths, brightness, the motion switch, threshold and cooldown,
-  and the events per subject) is saved to the local database on every
+  the schedule switch and interval, and the events per subject) is saved
+  to the local database on every
   change and restored on launch. **When S3 is available** (cloud sync
   configured, and a signed-in user with access), it's also kept in the
   user's folder under the device ID, fetched at start and uploaded on

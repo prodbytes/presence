@@ -8,6 +8,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `clip` (`ClipConfig`) | `before` (15 s, 5–60 s, 5 s steps), `after` (15 s, 5–60 s) |
 | `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps) |
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (10 %, 1–50 %), `cooldown` (5 min, 1–60 min) |
+| `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (240 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
 | `subjects` (`SubjectsConfig`) | `mapEvents` (20, 5–100 in steps of 5): events on a [subject's](subjects.md) screen |
 
 - Each group owns its defaults and limits. `copyWith` clamps values into
@@ -21,7 +22,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
   time. Two changes before the next rebuild (for example, quick successive
   drags) both stick.
 - **Stored** as one versioned JSON record (`settings` store, key
-  `config`: `{version, clip, camera, motion, subjects, updatedAt}`), where
+  `config`: `{version, clip, camera, motion, schedule, subjects, updatedAt}`), where
   `updatedAt` is when the user last changed a setting (ms since the
   epoch; 0, or absent in older records, for the defaults). `fromJson` tolerates
   missing or invalid fields (defaults) and out-of-range values (clamped).

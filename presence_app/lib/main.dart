@@ -495,9 +495,12 @@ class _HomeScreenState extends State<HomeScreen>
       return;
     }
     final after = event.clip.after.inSeconds;
-    final started = event.trigger == ClipTrigger.motion
-        ? 'Motion detected'
-        : 'Clip started';
+    final started = switch (event.trigger) {
+      ClipTrigger.motion => 'Motion detected',
+      ClipTrigger.scheduled => 'Scheduled clip',
+      ClipTrigger.startup => 'Startup clip',
+      ClipTrigger.manual => 'Clip started',
+    };
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
