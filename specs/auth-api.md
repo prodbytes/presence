@@ -8,10 +8,17 @@ site (`/api/*` in the CloudFront distribution; see
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's roles,
   `{"email": "...", "roles": [...]}`;
 - **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a
-  token**): the [execution mode](execution-mode.md) and the anonymous
-  user's roles, `{"mode": "RBAC", "roles": ["presence_anonymous"]}`, or in
-  DEV every role. The mode is DEV when the function has no
+  token**): the [execution mode](execution-mode.md), the anonymous
+  user's roles (in DEV every role) and which expected settings the stack
+  has, `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings":
+  {"oidc": true, "aws": true}}`. The mode is DEV when the function has no
   `GOOGLE_WEB_CLIENT_ID`. Throttled to 20 requests/s (burst 50);
+- **Settings** (`Settings`): `oidc` is whether `GOOGLE_WEB_CLIENT_ID` is
+  set, `aws` whether both `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET`
+  are (template parameters `IdentityPoolId` and `UserDataBucket`, empty by
+  default). Only whether each is set is reported, never a value. The app
+  shows them in its Settings health line (see [Settings
+  screen](settings.md));
 - **`POST /api/auth/membership`** (`MembershipHandler`): a request for
   access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
   **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
@@ -51,7 +58,9 @@ site (`/api/*` in the CloudFront distribution; see
   `presence-auth-api` and `presence-rc-auth-api`) before the site, and passes
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
-  its authorizer are live, and `/api/auth/anonymous` to report RBAC.
+  its authorizer are live, and `/api/auth/anonymous` to report RBAC with
+  both settings set. `deploy.sh` passes the identity pool and bucket from
+  their stacks' outputs.
 - **The app** calls it after sign-in to decide what to show (see
   [Sign-in](sign-in.md)): without `presence_user`, only the account and
   sign-up.
@@ -63,7 +72,8 @@ site (`/api/*` in the CloudFront distribution; see
   - the role rules: default none, the exact domains, verification, table
     roles, case and whitespace;
   - the execution mode: DEV only without a client; the anonymous route's
-    answer in RBAC and DEV;
+    answer in RBAC and DEV, with its settings (AWS needs both the pool and
+    the bucket);
   - the handler's JSON: roles, no roles, no claims, escaping;
   - membership requests: verified email, empty and long messages, base64
     bodies, the hourly cooldown;

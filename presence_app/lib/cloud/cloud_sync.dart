@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../auth/auth_service.dart';
 import '../auth/roles_service.dart';
+import '../events.dart';
 import '../storage/event_store.dart';
 import '../storage/media_store.dart';
 import 'cognito.dart';
@@ -111,6 +112,9 @@ enum CloudSyncState { off, syncing, synced, error }
 /// - While signed in, a sync runs every [interval] (a minute), or sooner:
 ///   each new event, and each clip once its recording is complete, goes up
 ///   as soon as it's saved, whichever comes first.
+/// - Only the user's own events go up (their `userId`), with their clips.
+///   Anonymous ones go up once the user takes them over
+///   (`Persistence.claimAnonymous`); other users' never do.
 ///
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
@@ -308,6 +312,9 @@ class CloudSync extends ChangeNotifier {
           ).isBefore(since)) {
         continue;
       }
+      // Events in the user's folder are theirs, even from before events
+      // had owners.
+      event['userId'] ??= _user;
       await synced(key, _fingerprint(_json(event)));
       // The frames its tags were clicked on come back as images.
       final frames = <String, Uint8List>{};
@@ -391,10 +398,18 @@ class CloudSync extends ChangeNotifier {
       notifyListeners();
     }
 
+    // Only the user's events, and the clips they show.
+    final events = [
+      for (final record in await store.allEvents())
+        if (AppEvent.ownerOf(record) == _user) record,
+    ];
+    final eventIds = {for (final e in events) e['id']};
+
     // Clips first: recordings matter most.
     for (final clip in await store.allClips()) {
       final id = clip['id']! as String;
       if (clip['state'] != 'complete') continue;
+      if (!eventIds.contains(clip['eventId'])) continue;
       final ref = clip['full'] ?? clip['past'];
       if (ref is Map) {
         final mediaId = ref['mediaId']! as String;
@@ -430,7 +445,7 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
-    for (final record in await store.allEvents()) {
+    for (final record in events) {
       // Tagged frames go up as images next to the clip; the event's JSON
       // keeps the tags (name, position, frame id and time) without them.
       final frames = record['frames'];

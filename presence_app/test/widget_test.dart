@@ -174,7 +174,11 @@ void main() {
     expect(find.byType(TabBar), findsNothing);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
 
-    roles.answer.complete((mode: ExecutionMode.rbac, roles: [anonymousRole]));
+    roles.answer.complete((
+      mode: ExecutionMode.rbac,
+      roles: [anonymousRole],
+      settings: (oidc: true, aws: false),
+    ));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
     expect(find.byKey(const Key('starting')), findsNothing);

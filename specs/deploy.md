@@ -43,7 +43,7 @@ One CloudFront distribution serves the whole site, laid out like the local
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
   token (401), and `/api/auth/anonymous` must answer RBAC with only
-  `presence_anonymous`. It retries for up to 10 minutes.
+  `presence_anonymous`, and report the OIDC client and AWS settings set. It retries for up to 10 minutes.
 
 ## Release candidates (rc.presence.nu01.com)
 

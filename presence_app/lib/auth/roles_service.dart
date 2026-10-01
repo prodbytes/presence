@@ -29,8 +29,17 @@ enum ExecutionMode {
   rbac,
 }
 
-/// The execution mode and the anonymous user's roles.
-typedef AnonymousAccess = ({ExecutionMode mode, List<String> roles});
+/// Which of the settings the system expects the auth API has
+/// (`presence.auth.Settings`): an OIDC client, and AWS cloud sync (the
+/// identity pool and bucket). Null where it didn't say.
+typedef ApiSettings = ({bool? oidc, bool? aws});
+
+/// The execution mode, the anonymous user's roles and the API's settings.
+typedef AnonymousAccess = ({
+  ExecutionMode mode,
+  List<String> roles,
+  ApiSettings settings,
+});
 
 /// Where the app stands for the signed-in user.
 enum AccessState {
@@ -103,9 +112,14 @@ class HttpRolesClient implements RolesClient {
       final other => throw FormatException('Unknown execution mode: $other'),
     };
     final roles = body['roles'];
+    final settings = body['settings'];
+    bool? flag(String name) => settings is Map && settings[name] is bool
+        ? settings[name] as bool
+        : null;
     return (
       mode: mode,
       roles: roles is List ? [for (final r in roles) '$r'] : const <String>[],
+      settings: (oidc: flag('oidc'), aws: flag('aws')),
     );
   }
 }
@@ -153,6 +167,12 @@ class RolesService extends ChangeNotifier {
   /// Why the auth API didn't answer the start check, if it didn't.
   String? get apiError => _apiError;
 
+  ApiSettings _apiSettings = (oidc: null, aws: null);
+
+  /// Which expected settings the auth API reported at start; unknown
+  /// (null) until then, or if it didn't answer.
+  ApiSettings get apiSettings => _apiSettings;
+
   AccessState _state = AccessState.starting;
   List<String> _roles = const [];
   String? _error;
@@ -184,16 +204,23 @@ class RolesService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Presence: could not ask the execution mode: $e');
       _apiError = '$e';
+      const unknown = (oidc: null, aws: null);
       access = oidcClient
-          ? (mode: ExecutionMode.rbac, roles: const [anonymousRole])
+          ? (
+              mode: ExecutionMode.rbac,
+              roles: const [anonymousRole],
+              settings: unknown,
+            )
           : (
               mode: ExecutionMode.dev,
               roles: const [anonymousRole, userRole, adminRole],
+              settings: unknown,
             );
     }
     if (_disposed) return;
     _mode = access.mode;
     _anonymousRoles = access.roles;
+    _apiSettings = access.settings;
     if (access.mode == ExecutionMode.dev) {
       _set(AccessState.granted, access.roles);
       return;

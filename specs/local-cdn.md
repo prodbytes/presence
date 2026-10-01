@@ -142,6 +142,12 @@ roles, membership requests and the Admin screen work locally without AWS:
   mode](execution-mode.md)): the stack gets an empty client ID, and the
   hook creates no authorizer and none of the other routes. Without a build,
   the hook skips the API and `/api/*` isn't routed.
+- `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` from `.env` go to the
+  stack too (`process-compose.yaml` reads them, compose passes them to
+  Floci), so the route reports whether they're set. Without `.env` it
+  answers
+  `{"mode":"DEV","roles":[…every role…],"settings":{"oidc":false,"aws":false}}`
+  (checked live).
 - Checked through `https://local.presence.nu01.com:8443`: `/api/auth`
   refuses a missing or forged token (401), and invoking the functions in
   Floci ran the whole flow. `boss@nu01.com` got both roles,

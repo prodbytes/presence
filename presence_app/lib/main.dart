@@ -88,6 +88,7 @@ class _PresenceAppState extends State<PresenceApp> {
     // Subscribe before publishing: a broadcast stream drops events that
     // have no listener yet.
     _log = EventLog(_bus.stream);
+    _auth = widget.auth ?? GoogleAuthService();
     final mediaIo = widget.mediaIo;
     _persistence = Persistence(
       factory: widget.storage != null
@@ -95,12 +96,13 @@ class _PresenceAppState extends State<PresenceApp> {
           : newDefaultIdbFactory(),
       bus: _bus,
       config: _config,
+      // Each event belongs to whoever is signed in when it's recorded.
+      currentUser: () => _auth.user?.id,
       mediaStore: mediaIo == null
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
     );
     _bus.publish(AppEvent.appStarted());
-    _auth = widget.auth ?? GoogleAuthService();
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
       backend: widget.cameras ?? DeviceCameras(),
@@ -153,8 +155,23 @@ class _PresenceAppState extends State<PresenceApp> {
       ..restore(_log).catchError((Object e) {
         debugPrint('Presence: could not restore saved data: $e');
       });
+    // A session restored before launch takes over what was recorded
+    // signed out, as a sign-in does.
+    if (_auth.user case final user?) _claim(user.id);
+    _persistence.deviceId.then((id) {
+      if (mounted) setState(() => _deviceId = id);
+    }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
     requestPersistentStorage().ignore();
   }
+
+  /// This device's ID, once storage has it.
+  String? _deviceId;
+
+  void _claim(String userId) => _persistence
+      .claimAnonymous(userId)
+      .catchError(
+        (Object e) => debugPrint('Presence: could not claim events: $e'),
+      );
 
   late final AuthService _auth;
   late final RolesService _roles;
@@ -163,12 +180,14 @@ class _PresenceAppState extends State<PresenceApp> {
   CloudSync? _sync;
   String? _signedInAs;
 
-  /// Sign-ins and sign-outs go on the event stream too.
+  /// Sign-ins and sign-outs go on the event stream too. A sign-in takes
+  /// over the events recorded on this device while signed out.
   void _onAuthChanged() {
     final email = _auth.user?.email;
     if (email == _signedInAs) return;
     final previous = _signedInAs;
     _signedInAs = email;
+    if (_auth.user case final user?) _claim(user.id);
     _bus.publish(
       email != null
           ? AppEvent(icon: Icons.login, title: 'Signed in', detail: email)
@@ -206,6 +225,7 @@ class _PresenceAppState extends State<PresenceApp> {
           roles: _roles,
           membership: _membership,
           sync: _sync,
+          deviceId: _deviceId,
         ),
       ),
     );
@@ -241,7 +261,11 @@ class HomeScreen extends StatefulWidget {
     required this.roles,
     required this.membership,
     this.sync,
+    this.deviceId,
   });
+
+  /// This device's ID (shown in Settings), once it's loaded.
+  final String? deviceId;
 
   /// The signed-in user's roles: events and features need `presence_user`,
   /// the Admin screen `presence_admin`.
@@ -497,6 +521,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: SettingsView(
                 config: widget.config,
                 motionLevel: widget.rig.motionLevel,
+                deviceId: widget.deviceId,
                 health: SystemHealth(roles: widget.roles, sync: widget.sync),
               ),
             ),

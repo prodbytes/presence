@@ -27,14 +27,25 @@
   `flutter-run.sh`) pass it too, with Z the time they started. A bare
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
-- **Health line**, under the version, as small as it
+- **The device ID**, under the version, as small and quiet, and
+  selectable to copy, e.g. `automatic_paranoid_gadget` (see [Devices,
+  users and places](devices-users-places.md)).
+- **Health line**, under the device ID, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
-  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip:
+  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip. For AWS and
+  OIDC, the [auth API](auth-api.md)'s start check says whether its
+  expected settings are set (`settings` in `GET /api/auth/anonymous`), and
+  the app checks that against its own build:
   - API: ✅ the start check answered (with the mode), ❌ it didn't (the
     error), ⏳ still checking;
-  - AWS: ⚪ not configured (events stay on this device), ✅ configured
-    (synced, or waiting for sign-in), 🔄 syncing, ❌ the last sync failed;
-  - OIDC: ✅ a Google client ID is built in, ⚪ none (sign-in is off).
+  - AWS (the identity pool and bucket): ⚪ set on neither side (events stay
+    on this device), ⚠️ set on one side only (the tooltip says which), and
+    set on both: ✅ synced or waiting for sign-in, 🔄 syncing, ❌ the last
+    sync failed;
+  - OIDC (the Google client ID): ✅ set on both sides, ⚪ on neither
+    (sign-in is off), ⚠️ on one only;
+  - when the API didn't answer, or is older and doesn't report settings,
+    the build's own settings decide.
 - **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
   brightness, and the motion switch, threshold and cooldown) is saved to
   local storage on every change and restored on launch.

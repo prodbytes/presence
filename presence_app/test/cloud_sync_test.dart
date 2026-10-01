@@ -22,12 +22,14 @@ void main() {
 
   Future<void> seed() async {
     await store.putEvent({
+      'userId': '1',
       'id': 'e1',
       'type': 'appStarted',
       'title': 'Application started',
       'time': 1,
     });
     await store.putEvent({
+      'userId': '1',
       'id': 'e2',
       'type': 'clipRequested',
       'title': 'Clip',
@@ -122,6 +124,7 @@ void main() {
       expect(backend.uploads, isEmpty);
 
       await store.putEvent({
+        'userId': '1',
         'id': 'e1',
         'type': 'appStarted',
         'title': 'Application started',
@@ -141,7 +144,13 @@ void main() {
     await sync.idle();
     backend.uploads.clear();
 
-    await store.putEvent({'id': 'e3', 'type': 'x', 'title': 'New', 'time': 3});
+    await store.putEvent({
+      'userId': '1',
+      'id': 'e3',
+      'type': 'x',
+      'title': 'New',
+      'time': 3,
+    });
     changes.add(null);
     await sync.idle();
     expect(backend.uploads.keys, {
@@ -177,6 +186,7 @@ void main() {
     await auth.signOut();
     backend.uploads.clear();
     await store.putEvent({
+      'userId': '1',
       'id': 'e4',
       'type': 'x',
       'title': 'Later',
@@ -186,6 +196,50 @@ void main() {
     await sync.idle();
     expect(backend.uploads, isEmpty);
     expect(sync.state, CloudSyncState.off);
+  });
+
+  test('only the user\'s own events, and their clips, go up', () async {
+    // Recorded signed out (not yet taken over), and by someone else who
+    // used this device, with a finished clip.
+    await store.putEvent({
+      'id': 'anon',
+      'type': 'x',
+      'title': 'Signed out',
+      'time': 5,
+      'userId': 'anonymous',
+    });
+    await store.putEvent({
+      'id': 'legacy',
+      'type': 'x',
+      'title': 'From before owners',
+      'time': 6,
+    });
+    await store.putEvent({
+      'id': 'other',
+      'type': 'clipRequested',
+      'title': 'Clip',
+      'time': 7,
+      'clipId': 'c3',
+      'userId': '2',
+    });
+    await store.putMedia('c3-full', Uint8List.fromList([4]));
+    await store.putClip({
+      'id': 'c3',
+      'eventId': 'other',
+      'cameraId': 'cam',
+      'state': 'complete',
+      'full': {'mediaId': 'c3-full', 'startMs': 0, 'endMs': 1000},
+    });
+
+    await auth.signIn();
+    await sync.idle();
+    expect(backend.uploads.keys, {
+      'us-east-1:identity/clips/c1.webm',
+      'us-east-1:identity/clips/c1.jpg',
+      'us-east-1:identity/clips/c1.json',
+      'us-east-1:identity/events/year=1970/day=001/e1.json',
+      'us-east-1:identity/events/year=1970/day=001/e2.json',
+    });
   });
 
   group('fetch and periodic sync', () {
@@ -258,6 +312,8 @@ void main() {
           're1',
           're2',
         });
+        // Events in the user's folder are the user's.
+        expect(remote.single.events.map((e) => e['userId']).toSet(), {'1'});
         expect(remote.single.clips.single['id'], 'r1');
         expect(remote.single.clips.single['thumbnail'], [5]);
         expect(remote.single.media, {
@@ -399,6 +455,7 @@ void main() {
 
       // Saved without a change notification: only the timer finds it.
       await store.putEvent({
+        'userId': '1',
         'id': 'e9',
         'type': 'x',
         'title': 'Quiet',
@@ -456,6 +513,7 @@ void main() {
     'tagged frames upload as images; the event JSON keeps the tags',
     () async {
       await store.putEvent({
+        'userId': '1',
         'id': 't1',
         'type': 'clipRequested',
         'title': 'Clip',

@@ -4,15 +4,13 @@ import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
 
 /// One quiet line for the settings panel: whether the auth API answered,
-/// whether cloud sync (AWS) is set up and working, and whether sign-in
-/// (OIDC) is configured. Each part explains itself in a tooltip.
+/// and whether cloud sync (AWS) and sign-in (OIDC) are set up. For AWS and
+/// OIDC, the auth API says whether its expected settings are set
+/// ([RolesService.apiSettings]), and that's checked against this build's
+/// own: ⚠️ when they disagree. Each part explains itself in a tooltip.
 class SystemHealth extends StatelessWidget {
-  SystemHealth({
-    super.key,
-    required this.roles,
-    this.sync,
-    bool? oidcClient,
-  }) : oidcClient = oidcClient ?? hasOidcClient;
+  SystemHealth({super.key, required this.roles, this.sync, bool? oidcClient})
+    : oidcClient = oidcClient ?? hasOidcClient;
 
   final RolesService roles;
 
@@ -35,19 +33,33 @@ class SystemHealth extends StatelessWidget {
           ),
           final mode => ('✅', 'Auth API: answered (${mode.name} mode)'),
         };
-        final aws = switch (sync?.state) {
-          null => ('⚪', 'AWS: not configured; events stay on this device'),
-          CloudSyncState.error => (
-            '❌',
-            'AWS: sync failed (${sync!.error ?? 'unknown error'})',
-          ),
-          CloudSyncState.syncing => ('🔄', 'AWS: syncing'),
-          CloudSyncState.synced => ('✅', 'AWS: synced'),
-          CloudSyncState.off => ('✅', 'AWS: configured; syncs once signed in'),
+        final settings = roles.apiSettings;
+        final aws = switch (_setting(
+          'AWS',
+          api: settings.aws,
+          app: sync != null,
+          off: 'events stay on this device',
+        )) {
+          final status? => status,
+          // Set on both sides: how the sync is going.
+          _ => switch (sync?.state) {
+            CloudSyncState.error => (
+              '❌',
+              'AWS: sync failed (${sync!.error ?? 'unknown error'})',
+            ),
+            CloudSyncState.syncing => ('🔄', 'AWS: syncing'),
+            CloudSyncState.synced => ('✅', 'AWS: synced'),
+            _ => ('✅', 'AWS: set; syncs once signed in'),
+          },
         };
-        final oidc = oidcClient
-            ? ('✅', 'OIDC: Google sign-in configured')
-            : ('⚪', 'OIDC: not configured; sign-in is off');
+        final oidc =
+            _setting(
+              'OIDC',
+              api: settings.oidc,
+              app: oidcClient,
+              off: 'sign-in is off',
+            ) ??
+            ('✅', 'OIDC: Google sign-in set');
         final style = theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         );
@@ -73,4 +85,22 @@ class SystemHealth extends StatelessWidget {
       },
     );
   }
+
+  /// A setting's status from what the auth API reports ([api]; null when
+  /// it didn't) and this build's own ([app]). Null when both have it.
+  static (String, String)? _setting(
+    String name, {
+    required bool? api,
+    required bool app,
+    required String off,
+  }) => switch ((api, app)) {
+    (true, true) || (null, true) => null,
+    (false, false) => ('⚪', '$name: not set; $off'),
+    (null, false) => ('⚪', '$name: not set in this build; $off'),
+    (true, false) => (
+      '⚠️',
+      '$name: set in the auth API but not in this build; $off',
+    ),
+    (false, true) => ('⚠️', '$name: set in this build but not in the auth API'),
+  };
 }

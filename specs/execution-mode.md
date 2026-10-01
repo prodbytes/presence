@@ -44,7 +44,8 @@ with Google** only; after sign-in, `GET /api/auth` decides the rest.
 - The API reads the mode from `GOOGLE_WEB_CLIENT_ID` alone
   (`presence.auth.ExecutionMode`). `scripts/deploy.sh` refuses to deploy
   without it, and its smoke test requires `/api/auth/anonymous` to answer
-  exactly `{"mode":"RBAC","roles":["presence_anonymous"]}`.
+  exactly
+  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}`.
 - DEV only changes what the app shows. The API's other routes still need a
   Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
   none passes), and cloud sync needs a Google sign-in.

@@ -39,7 +39,8 @@ aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file /tmp/presence-auth-api.yaml --capabilities CAPABILITY_IAM \
-  --parameter-overrides "GoogleWebClientId=$CLIENT_ID" >/dev/null
+  --parameter-overrides "GoogleWebClientId=$CLIENT_ID" \
+    "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
