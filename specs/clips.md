@@ -11,7 +11,9 @@ file of *before* + *after* once the *after* seconds have passed.
    normally within milliseconds. So the event is **playable the moment it
    appears**. Its card shows the camera's current frame as a thumbnail, the
    camera name, the time, and a status line: "Previous 15 s ready ·
-   recording next 15 s…".
+   recording next 15 s…". On a narrow list the thumbnail is on top, 16:9
+   at the card's width; from 600 dp on it sits beside the details, 16:9
+   and 320 dp wide (`ClipEventCard.sideBySideWidth`).
    - Cameras publish independently: a slow camera doesn't hold up the
      others.
    - If a camera's before part takes longer than 2 s (`CameraRig.pastWait`),

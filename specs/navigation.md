@@ -73,7 +73,8 @@ in the app bar**, which flip between full screens.
     dismissed). For motion clips, the indicator carries the cooldown after it.
 - **Monitoring:** the map of every subject's events, the subjects, and
   the event stream (with **Only this device**, checked by default) on one
-  screen: two columns on wide screens, stacked on phones (see
+  screen: the map and subjects side by side on top of the events on wide
+  screens, stacked on phones (see
   [Monitoring](monitoring.md)). Swiping between tabs is off there.
 - **Device:** a map with this device's location, which moving the map
   overrides (see [Device location](device-location.md)).

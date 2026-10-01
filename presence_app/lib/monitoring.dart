@@ -26,7 +26,7 @@ class MonitoringView extends StatelessWidget {
   /// Below this width the screen stacks instead of using two columns.
   static const double twoColumnWidth = 720;
 
-  /// The subjects column's width on wide screens.
+  /// The subjects column's width on wide screens, beside the map.
   static const double subjectsWidth = 340;
 
   final EventLog log;
@@ -73,20 +73,27 @@ class MonitoringView extends StatelessWidget {
     return LayoutBuilder(
       key: const Key('monitoring-page'),
       builder: (context, box) {
+        // Wide: the map and the subjects side by side on top, the events
+        // across the whole width under them.
         if (box.maxWidth >= twoColumnWidth) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          return Column(
             children: [
               Expanded(
-                child: Column(
+                flex: 2,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(flex: 2, child: map),
-                    Expanded(flex: 3, child: events),
+                    Expanded(child: map),
+                    const VerticalDivider(width: 1),
+                    SizedBox(
+                      width: subjectsWidth,
+                      child: subjects(Axis.vertical),
+                    ),
                   ],
                 ),
               ),
-              const VerticalDivider(width: 1),
-              SizedBox(width: subjectsWidth, child: subjects(Axis.vertical)),
+              const Divider(height: 1),
+              Expanded(flex: 3, child: events),
             ],
           );
         }

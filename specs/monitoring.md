@@ -14,16 +14,19 @@ the separate Events and Subjects tabs.
 
 ## Layout
 
-- **Wide screens (720 dp and up), two columns:**
-  - **left, on top:** the **map of every subject's events** (two fifths of
-    the height), each subject in its own color, the newest dot solid and
-    older ones fading (see [Subjects](subjects.md));
-  - **left, below the map:** **all events**, newest first, with the
-    **Only this device** checkbox at the top, checked by default (see
-    [Events](events.md));
-  - **right, the whole height (340 dp):** the **subjects**, one card per
-    subject, the most recently seen first. Tapping a card opens the
-    subject's screen (their map and history of events).
+- **Wide screens (720 dp and up), two rows:**
+  - **the top row** (two fifths of the height):
+    - **left:** the **map of every subject's events**, each subject in its
+      own color, the newest dot solid and older ones fading (see
+      [Subjects](subjects.md));
+    - **right (340 dp):** the **subjects**, one card per subject, the most
+      recently seen first. Tapping a card opens the subject's screen
+      (their map and history of events);
+  - **the second row, the full width:** **all events**, newest first, with
+    the **Only this device** checkbox at the top, checked by default (see
+    [Events](events.md)). At this width a clip's card puts its 16:9
+    thumbnail (320 dp wide) beside its details, rather than stretching it
+    across the screen (see [Clips](clips.md)).
 - **Phones (narrower), stacked:** the map (three tenths of the height),
   then the subjects as a **sideways strip** of 280 dp cards (a smaller
   frame and one line per text, so every card is the same height), then the
@@ -42,6 +45,11 @@ the separate Events and Subjects tabs.
 
 ## Verified
 
+- `monitoring_test.dart`: at 1500 dp the map is top left and the
+  subjects (340 dp) top right, in one row, and the events span the whole
+  width under both; a clip's card there has a 320 × 180 thumbnail with
+  the title beside it; at 400 dp the map, subjects and events stack, and
+  the card's title is under its thumbnail.
 - `subjects_test.dart`: on a wide screen the map is top left, the
   subjects to its right and the events under the map; on a 360 dp phone
   the map, the strip (horizontal, cards side by side) and the events stack
