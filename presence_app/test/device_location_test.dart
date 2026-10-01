@@ -158,6 +158,7 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         PresenceApp(
+          consentGiven: true,
           key: UniqueKey(),
           cameras: noCameras,
           storage: storage,

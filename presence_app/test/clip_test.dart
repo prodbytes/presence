@@ -16,6 +16,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       PresenceApp(
+        consentGiven: true,
         cameras: cameras,
         mediaIo: fakeMediaIo,
         auth: FakeAuthService.signedIn(),

@@ -1204,3 +1204,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       longitude)".
     - Zoom in / Zoom out buttons above My location step the zoom around the
       center (2–19), turning off at their limits.
+157. **When a device ID is generated, before the UI is shown, check for a
+    consent verification hash for the device. Without one, ask for consent:
+    that the user has the right to record, and that face data is biometric
+    data under the GDPR, explained in plain terms. Once collected, don't
+    ask again.** (2026-10-01)
+    - New [consent.md](consent.md): `DeviceConsent` (a `consent` settings
+      record with the device ID, text version, time and a SHA-256
+      verification hash) and `ConsentScreen` (two ticks, then **Agree and
+      start**).
+    - At launch the app checks the consent before anything shows. The
+      cameras open only once it's given or found. Agreeing saves it and
+      publishes a "Recording consent given" event.

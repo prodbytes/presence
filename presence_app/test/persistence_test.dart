@@ -36,6 +36,7 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       PresenceApp(
+        consentGiven: true,
         // A new key forces a fresh app, like a page reload.
         key: UniqueKey(),
         cameras: openFakes(cameras),

@@ -10,6 +10,7 @@ import '../cameras/cameras.dart';
 import '../clips.dart';
 import '../events.dart';
 import '../config.dart';
+import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
 import '../location/device_location.dart';
 import 'event_store.dart';
@@ -140,6 +141,25 @@ class Persistence {
 
   /// This device's ID, generated on its first launch and kept from then on.
   Future<String> get deviceId => _deviceId;
+
+  /// Settings-store key of this device's recording consent.
+  static const String _consentKey = 'consent';
+
+  /// Whether this device has a valid recording consent
+  /// ([DeviceConsent.isValid]): for its own ID, to the current text, with a
+  /// matching verification hash.
+  Future<bool> hasConsent() async {
+    final store = await _store;
+    final id = await _deviceId;
+    return DeviceConsent.isValid(await store.getSettings(_consentKey), id);
+  }
+
+  /// Saves the recording consent given on this device at [at].
+  Future<void> giveConsent(DateTime at) async {
+    final store = await _store;
+    final id = await _deviceId;
+    await store.putSettings(_consentKey, DeviceConsent.record(id, at));
+  }
 
   /// Hands [userId] the events recorded on this device while nobody was
   /// signed in (and those saved before events had owners), so a sign-in

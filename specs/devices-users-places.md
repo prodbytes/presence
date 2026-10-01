@@ -22,6 +22,9 @@ not built yet.
   - It's saved in the `settings` store under `device` (`{"id": …}`), read
     and created in one transaction, so two tabs opening at once agree. On
     web, clearing the site's data makes a new device.
+- **Consent:** right after the ID is known, the device must have a
+  [recording consent](consent.md), asked once, before anything shows or
+  records.
 - **Settings shows it**, small and selectable, under the version (see
   [Settings screen](settings.md)), and so does the Device tab, with where
   the device is (see [Device location](device-location.md)).

@@ -1,7 +1,7 @@
 # Camera screen
 
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
-- On load, the app lists the device's cameras and opens the default one. On web, the browser asks for camera and microphone
+- On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
 - The grid has ceil(√n) columns, and the tiles fill the panel.
