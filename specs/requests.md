@@ -1051,3 +1051,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       private `setec-astronomy` repo, with its clone and
       `link-private.sh` commands. The setup is unchanged and still
       described in [dev-environment.md](dev-environment.md).
+143. **Add brief instructions for getting a Google account and OAuth
+    clients, setting up the AWS CLI for the other variables, and what each
+    variable is for.** (2026-10-01)
+    - The README has a new **Settings** section: a table of every `.env`
+      variable (purpose, source); Google OAuth steps (consent screen, web,
+      iOS and Android clients); and AWS steps (account, `aws configure`,
+      deploying `presence-user-data` and `presence-identity`, reading their
+      outputs, finding the hosted zone ID). Step 2 of the local run links
+      to it.
