@@ -37,6 +37,13 @@ Parameters:
     Description: >
       The bucket cloud sync uploads to (presence-user-data's
       UserDataBucketName). Only reported as set or not, for the app's health line.
+  Architecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+    Description: >
+      The Lambdas' CPU. arm64 in AWS; the local Floci deploy passes the
+      host's, so they run without emulation (x86_64 on GitHub Codespaces).
   AllowedDomains:
     Type: String
     Default: nu01.com
@@ -49,7 +56,7 @@ Globals:
   Function:
     Runtime: java25
     Architectures:
-      - arm64
+      - !Ref Architecture
     MemorySize: 512
     Timeout: 10
 

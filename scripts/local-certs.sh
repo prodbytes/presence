@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Generates the local HTTPS certificate for Floci's CloudFront with mkcert,
-# only when it's missing, expires within 30 days, or doesn't cover every
-# name below. Runs before Floci starts (4-floci in process-compose.yaml) or
-# standalone.
+# only when it's missing, expires within 30 days, doesn't cover every name
+# below, or wasn't signed by this machine's mkcert CA (e.g. a checkout
+# shared with a dev container, which has its own CA). Runs before Floci
+# starts (4-floci in process-compose.yaml) or standalone.
 #
 # The certificate is signed by mkcert's local CA (`mkcert -CAROOT`). mkcert
 # creates the CA on first use; browsers trust it only after a one-time
@@ -35,9 +36,15 @@ covers_all_names() {
     done
 }
 
+signed_by_this_ca() {
+    local ca
+    ca="$(mkcert -CAROOT)/rootCA.pem"
+    [[ -s "$ca" ]] && openssl verify -CAfile "$ca" "$CERT" >/dev/null 2>&1
+}
+
 if [[ -s "$CERT" && -s "$KEY" ]] \
         && openssl x509 -in "$CERT" -noout -checkend $((30 * 24 * 3600)) >/dev/null 2>&1 \
-        && covers_all_names; then
+        && covers_all_names && signed_by_this_ca; then
     echo "local-certs: $CERT is valid; nothing to do"
     exit 0
 fi

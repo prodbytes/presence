@@ -1,9 +1,22 @@
 {
+  "name": "Presence",
   "build": {
     "dockerfile": "Containerfile",
     "context": ".."
   },
   "remoteUser": "vscode",
+  // Flutter, Floci and the Java Lambdas together need more than the
+  // smallest machine.
+  "hostRequirements": {
+    "cpus": 4,
+    "memory": "16gb"
+  },
+  // Floci runs in docker-in-docker, where host-gateway is the bridge
+  // address, not loopback: the dev servers must listen on every interface
+  // for its CloudFront to reach them (only the container sees them).
+  "containerEnv": {
+    "PRESENCE_BIND_HOST": "0.0.0.0"
+  },
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
@@ -35,5 +48,5 @@
     "8081": { "label": "Index (redirect to /app/)" },
     "8443": { "label": "Floci HTTPS" }
   },
-  "postCreateCommand": "bash -lc 'devbox install'"
+  "postCreateCommand": "bash -lc 'bash .devcontainer/post-create.sh'"
 }

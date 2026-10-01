@@ -119,10 +119,11 @@ to reach (`FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`).
 
 ## Limitations
 
-- **Linux (incl. the dev container):** the Flutter dev server and the index bind to
-  127.0.0.1. On plain Docker, `host-gateway` is the bridge address, which
-  can't reach them (Docker Desktop on macOS forwards it to the host's
-  loopback). Running Floci with host networking would fix this.
+- **Linux outside the dev container:** the Flutter dev server and the
+  index bind to 127.0.0.1. On plain Docker, `host-gateway` is the bridge
+  address, which can't reach them (Docker Desktop on macOS forwards it to
+  the host's loopback). Set `PRESENCE_BIND_HOST=0.0.0.0`, as the dev
+  container does, to have them listen on every interface.
 - **Google sign-in** only works on origins registered with the OAuth client.
   Add `http://presence.localhost:4566` to the web client's authorized
   JavaScript origins to sign in through the CDN URL.
