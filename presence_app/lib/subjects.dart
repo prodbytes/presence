@@ -114,8 +114,10 @@ class _SubjectsBuilder extends StatelessWidget {
   );
 }
 
-/// The Subjects screen (the Subjects tab): everyone tagged on clips, each
-/// with the frame from the latest event they're on. Tapping one opens its
+/// The Subjects screen (the Subjects tab): on top, a map merging every
+/// subject's latest events, each subject in its own color; under it,
+/// everyone tagged on clips, each with a square of their color and the
+/// frame from the latest event they're on. Tapping one opens its
 /// [SubjectScreen].
 class SubjectsView extends StatelessWidget {
   const SubjectsView({
@@ -136,36 +138,113 @@ class SubjectsView extends StatelessWidget {
   final Widget? tiles;
 
   @override
-  Widget build(BuildContext context) => _SubjectsBuilder(
-    log: log,
-    builder: (context, subjects) {
-      if (subjects.isEmpty) {
-        return const FeedMessage(
-          icon: Icons.people_outline,
-          message: 'No subjects yet. Tag people and pets on a clip.',
-        );
-      }
-      return ListView.separated(
-        key: const Key('subjects-list'),
-        padding: const EdgeInsets.all(12),
-        itemCount: subjects.length,
-        separatorBuilder: (context, i) => const SizedBox(height: 8),
-        itemBuilder: (context, i) => _SubjectRow(
-          subject: subjects[i],
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => SubjectScreen(
-                subjectId: subjects[i].id,
-                log: log,
-                config: config,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: config,
+    builder: (context, _) => _SubjectsBuilder(
+      log: log,
+      builder: (context, subjects) {
+        if (subjects.isEmpty) {
+          return const FeedMessage(
+            icon: Icons.people_outline,
+            message: 'No subjects yet. Tag people and pets on a clip.',
+          );
+        }
+        final limit = config.subjects.mapEvents;
+        return Column(
+          children: [
+            Expanded(
+              flex: 2,
+              child: _SightingsMap(
+                key: const Key('subjects-map'),
+                dots: [
+                  for (final subject in subjects)
+                    ..._dotsOf(
+                      subject,
+                      limit,
+                      key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
+                    ),
+                ],
                 tiles: tiles,
-                onOpenEvent: onOpenEvent,
+                onOpen: onOpenEvent,
               ),
             ),
-          ),
-        ),
-      );
-    },
+            Expanded(
+              flex: 3,
+              child: ListView.separated(
+                key: const Key('subjects-list'),
+                padding: const EdgeInsets.all(12),
+                itemCount: subjects.length,
+                separatorBuilder: (context, i) => const SizedBox(height: 8),
+                itemBuilder: (context, i) => _SubjectRow(
+                  subject: subjects[i],
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => SubjectScreen(
+                        subjectId: subjects[i].id,
+                        log: log,
+                        config: config,
+                        tiles: tiles,
+                        onOpenEvent: onOpenEvent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// A dot on a map: where the device was for one of a subject's events, in
+/// the subject's color, faded by age.
+typedef _MapPoint = ({
+  Sighting sighting,
+  Color color,
+  double opacity,
+  String key,
+});
+
+/// The dots for [subject]'s latest [limit] events that have a location,
+/// the newest solid and older ones fading ([SubjectScreen.opacityOf]).
+List<_MapPoint> _dotsOf(
+  Subject subject,
+  int limit, {
+  required String Function(Sighting s) key,
+}) {
+  final located = [
+    for (final s in subject.sightings.take(limit))
+      if (s.event.location != null) s,
+  ];
+  return [
+    for (var i = 0; i < located.length; i++)
+      (
+        sighting: located[i],
+        color: subject.color,
+        opacity: SubjectScreen.opacityOf(i, located.length),
+        key: key(located[i]),
+      ),
+  ];
+}
+
+/// The square of a subject's color, matching its dots on the maps.
+class SubjectSwatch extends StatelessWidget {
+  const SubjectSwatch({super.key, required this.color, this.size = 14});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(3),
+      border: Border.all(color: Colors.white, width: 1.5),
+    ),
   );
 }
 
@@ -198,7 +277,22 @@ class _SubjectRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(subject.name, style: theme.textTheme.titleSmall),
+                    Row(
+                      spacing: 8,
+                      children: [
+                        SubjectSwatch(
+                          key: Key('subject-color-${subject.id}'),
+                          color: subject.color,
+                        ),
+                        Flexible(
+                          child: Text(
+                            subject.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall,
+                          ),
+                        ),
+                      ],
+                    ),
                     Text(
                       'Last seen ${formatSeen(latest.time)} · '
                       '${latest.event.clip.cameraLabel}',
@@ -361,8 +455,11 @@ class SubjectScreen extends StatelessWidget {
                 Expanded(
                   flex: 3,
                   child: _SightingsMap(
-                    sightings: located,
-                    color: color,
+                    dots: _dotsOf(
+                      subject,
+                      config.subjects.mapEvents,
+                      key: (s) => 'subject-dot-${s.event.id}',
+                    ),
                     tiles: tiles,
                     onOpen: onOpenEvent,
                   ),
@@ -385,22 +482,16 @@ class SubjectScreen extends StatelessWidget {
   );
 }
 
+/// A map of [dots], opening on all of them (on the whole world without
+/// any). Tapping a dot opens its event.
 class _SightingsMap extends StatelessWidget {
-  const _SightingsMap({
-    required this.sightings,
-    required this.color,
-    this.tiles,
-    this.onOpen,
-  });
+  const _SightingsMap({super.key, required this.dots, this.tiles, this.onOpen});
 
   /// Called with a tapped dot's event.
   final ValueChanged<AppEvent>? onOpen;
 
-  /// Newest first, all with a location.
-  final List<Sighting> sightings;
-
-  /// The subject's color ([Subject.color]).
-  final Color color;
+  /// Each subject's newest first, all with a location.
+  final List<_MapPoint> dots;
   final Widget? tiles;
 
   static LatLng _at(Sighting s) =>
@@ -408,8 +499,10 @@ class _SightingsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final points = [for (final s in sightings) _at(s)];
-    final count = sightings.length;
+    final points = [for (final d in dots) _at(d.sighting)];
+    // Faintest first, so newer dots are drawn on top.
+    final order = [for (var i = 0; i < dots.length; i++) i]
+      ..sort((a, b) => dots[a].opacity.compareTo(dots[b].opacity));
     return FlutterMap(
       options: MapOptions(
         // Opens on all the dots; on the whole world without any.
@@ -433,17 +526,16 @@ class _SightingsMap extends StatelessWidget {
         tiles ?? openStreetMapTiles(),
         MarkerLayer(
           markers: [
-            // Oldest first, so newer dots are drawn on top.
-            for (var i = count - 1; i >= 0; i--)
+            for (final i in order)
               Marker(
-                key: Key('subject-dot-${sightings[i].event.id}'),
+                key: Key(dots[i].key),
                 point: points[i],
                 width: 18,
                 height: 18,
                 child: _MapDot(
-                  sighting: sightings[i],
-                  color: color,
-                  opacity: SubjectScreen.opacityOf(i, count),
+                  sighting: dots[i].sighting,
+                  color: dots[i].color,
+                  opacity: dots[i].opacity,
                   onTap: onOpen,
                 ),
               ),
