@@ -15,19 +15,19 @@ and pets"), each with where the device was when they were seen
   restored, synced from the cloud and new events alike. Nothing extra is
   stored. Adding, renaming or removing a tag updates both screens at once.
 
-## The Subjects tab
+## On the Monitoring tab
 
-- A tab between **Events** and **Settings** (the `people` icon, tooltip
-  "Subjects"; see [Navigation](navigation.md)), at the same 560 px readable
-  width as Events.
-- **A map on top** (two fifths of the height) merges every subject's
+- Subjects show on the [Monitoring](monitoring.md) tab, with the events.
+- **The subjects map** merges every subject's
   events: for each subject, a dot per event among their latest
   `mapEvents` that has a location, in **the subject's color**, the newest
   solid and older ones fading, as on a subject's own map. A clip tagged
   with several subjects gets a dot for each. It opens on all the dots (the
   whole world without any), has the tiles' credit, and tapping a dot opens
-  its event in the Events tab.
-- Under it, one card per subject, the **most recently seen first**:
+  its event in the Monitoring tab's events list.
+- **The subjects list**, one card per subject, the **most recently seen
+  first** (a column on wide screens, a sideways strip of compact cards on
+  phones):
   - the **frame** the subject was tagged on in their latest event, 96 px
     wide at its own shape, with a dot in the subject's color where they
     were clicked. A tag
@@ -43,7 +43,7 @@ and pets"), each with where the device was when they were seen
 
 ## A subject's screen
 
-- A full screen pushed over the tabs (back returns to Subjects), titled
+- A full screen pushed over the tabs (back returns to Monitoring), titled
   with the subject's name.
 - **The map** (top three fifths): OpenStreetMap tiles with the credit, as on
   the Settings [location map](device-location.md), north up. **One dot per event**
@@ -56,8 +56,8 @@ and pets"), each with where the device was when they were seen
   - **Opacity = age**: the **newest dot is fully opaque**; older ones fade
     evenly by rank, down to 15 % for the oldest shown. Newer dots are
     drawn over older ones.
-  - **Tapping a dot opens its event in the Events tab**: the subject's
-    screen closes, the Events tab shows, and the timeline scrolls to the
+  - **Tapping a dot opens its event on the Monitoring tab**: the subject's
+    screen closes, the Monitoring tab shows, and its events list scrolls to the
     event and outlines it for 4 s (see [Events](events.md)). A dot's
     tooltip and screen-reader label give its time and camera.
   - It opens fitted on all the dots (48 px padding, at most zoom 17), or
@@ -85,13 +85,13 @@ and pets"), each with where the device was when they were seen
   after raising the setting, and the event without a location listed with
   no dot; a subject's color depends only on its name and spreads over
   the palette, and every dot has it, fading by age; the setting's slider;
-  the tab between Events and Device; tapping a dot far down the timeline
-  closes the subject's screen, shows the Events tab with that event on
-  screen and outlined, and the outline goes after 4 s; the Subjects map
-  above the list has every subject's located dots (one per subject on a
+  the Monitoring tab between Camera and Device; tapping a dot far down the
+  timeline closes the subject's screen, shows the Monitoring tab with that
+  event on screen and outlined, and the outline goes after 4 s; the
+  subjects map (top left, the list to its right) has every subject's located dots (one per subject on a
   shared clip) in each subject's color, faded per subject, the rows'
   squares match those colors, and a tapped dot opens its event.
-  `widget_test.dart`: the five tabs in order, and an admin's app bar fits
+  `widget_test.dart`: the four tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 

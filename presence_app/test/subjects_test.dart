@@ -11,6 +11,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/monitoring.dart';
 import 'package:presence_app/settings.dart';
 import 'package:presence_app/subjects.dart';
 
@@ -122,13 +123,14 @@ void main() {
     tearDown(() => bus.close());
 
     Future<void> show(WidgetTester tester) async {
-      tester.view.physicalSize = const Size(400, 800);
+      // Wide: the subjects list runs down the right.
+      tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SubjectsView(
+            body: MonitoringView(
               log: log,
               config: config,
               tiles: const SizedBox(),
@@ -259,6 +261,50 @@ void main() {
       expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
     });
 
+    testWidgets('on a phone: the map, a strip of subjects, then events', (
+      tester,
+    ) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
+        clipWith(['Ana', 'Rex'], minutesAgo: 2, lat: 48.2),
+        AppEvent(icon: Icons.circle, title: 'Door opened'),
+      ]);
+      tester.view.physicalSize = const Size(360, 740);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MonitoringView(
+              log: log,
+              config: config,
+              tiles: const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final map = tester.getRect(find.byKey(const Key('subjects-map')));
+      final strip = tester.getRect(find.byKey(const Key('subjects-page')));
+      final events = tester.getRect(find.byKey(const Key('events-page')));
+      expect(map.bottom, lessThanOrEqualTo(strip.top));
+      expect(strip.bottom, lessThanOrEqualTo(events.top));
+      expect(
+        tester
+            .widget<ListView>(find.byKey(const Key('subjects-list')))
+            .scrollDirection,
+        Axis.horizontal,
+      );
+      // Cards side by side.
+      expect(
+        tester.getTopLeft(find.byKey(const Key('subject-rex'))).dx,
+        lessThan(tester.getTopLeft(find.byKey(const Key('subject-ana'))).dx),
+      );
+      expect(find.text('Door opened'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('on top, a map of every subject, each in its color, and a '
         'matching square on each row', (tester) async {
       log.addHistory([
@@ -268,13 +314,13 @@ void main() {
         clipWith(['Ana'], minutesAgo: 4),
       ]);
       AppEvent? opened;
-      tester.view.physicalSize = const Size(400, 800);
+      tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: SubjectsView(
+            body: MonitoringView(
               log: log,
               config: config,
               tiles: const SizedBox(),
@@ -285,12 +331,21 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The map sits above the list.
+      // The map sits top left, the subjects to its right, the events
+      // under it.
       final map = find.byKey(const Key('subjects-map'));
       expect(map, findsOneWidget);
+      final list = find.byKey(const Key('subjects-page'));
+      expect(
+        tester.getTopRight(map).dx,
+        lessThanOrEqualTo(tester.getTopLeft(list).dx),
+      );
+      expect(tester.getTopLeft(map).dy, lessThan(100));
       expect(
         tester.getBottomLeft(map).dy,
-        lessThanOrEqualTo(tester.getTopLeft(find.text('Rex')).dy),
+        lessThanOrEqualTo(
+          tester.getTopLeft(find.byKey(const Key('events-page'))).dy,
+        ),
       );
 
       // Every located event of every subject; the clip with both gets a
@@ -352,7 +407,7 @@ void main() {
     });
   });
 
-  testWidgets('the Subjects tab sits between Events and Settings', (
+  testWidgets('the Monitoring tab sits between Camera and Settings', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -371,19 +426,22 @@ void main() {
     );
     await tester.pumpAndSettle();
     await settleStorage(tester);
-    final events = tester.getCenter(find.byTooltip('Events'));
-    final subjects = tester.getCenter(find.byTooltip('Subjects'));
+    final camera = tester.getCenter(find.byTooltip('Camera'));
+    final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
     final settings = tester.getCenter(find.byTooltip('Settings'));
-    expect(events.dx, lessThan(subjects.dx));
-    expect(subjects.dx, lessThan(settings.dx));
+    expect(camera.dx, lessThan(monitoring.dx));
+    expect(monitoring.dx, lessThan(settings.dx));
+    expect(find.byTooltip('Events'), findsNothing);
+    expect(find.byTooltip('Subjects'), findsNothing);
+    expect(find.byTooltip('Device'), findsNothing);
 
-    await tester.tap(find.byTooltip('Subjects'));
+    await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
     expect(find.textContaining('No subjects yet'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('tapping a dot opens its event in the Events tab', (
+  testWidgets('tapping a dot opens its event in the Monitoring timeline', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -414,7 +472,7 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
 
-    await tester.tap(find.byTooltip('Subjects'));
+    await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Rex'));
     await tester.pumpAndSettle();

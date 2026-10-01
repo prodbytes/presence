@@ -1368,6 +1368,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       camera has a full "before" part, then a **scheduled clip** every
       interval from the last one, both through `requestClips` (triggers
       `startup` and `scheduled`).
+172. **Push all changes, sync git, update Y and push an RC tag.**
+    (2026-10-01)
+    - Merged #103, #104, #105 and #102 (renumbering their request-log
+      entries 168–171), with the analyze and tests run on each merge.
+    - Y is now 4 (`version.Y.txt`): versions are `0.4.Z`.
+    - Tagged `main` as an RC with `scripts/release-rc.sh` (`0.4.<Z>-RC`),
+      which publishes the prerelease and deploys to
+      https://rc.presence.nu01.com.
 173. **Add the temperature in Celsius to the Device screen, if Flutter can
     get it.** (2026-10-01)
     - Flutter has no temperature API, and neither do browsers or iOS (only
@@ -1378,12 +1386,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       each battery reading (at open, on charging changes, every minute).
     - 202 Flutter tests pass; Android debug and web release builds compile.
       Not yet read on a phone.
+174. **Merge the Events and Subjects screens into "Monitoring": on top, to
+    the left, the map with all subjects and clickable events; on top, to the
+    right, the subjects, one card each, opening the subject's map and
+    history; below the map, all events, by default only this device's, with
+    a checkbox for all.** (2026-10-01)
+    - New Monitoring tab (`MonitoringView`) in place of Events and Subjects,
+      between Camera and Device. Wide screens (720 dp+): the map top left
+      with the events under it, the subjects down the right (340 dp).
+      Phones: the map, a sideways strip of compact subject cards, then the
+      events. Swiping between tabs is off on it, as on Device.
+    - `SubjectsView` split into `SubjectsMap` and `SubjectList`. A tapped dot
+      scrolls this tab's events to its event, as before.
+    - New [monitoring.md](monitoring.md); the other specs updated. 202
+      Flutter tests pass; web release builds.
 175. **Disband the Device screen as well: make the position label and map a
     section of Settings, make Settings full width (it already shows the
     device ID), and move the battery indicator over the camera screen, to
     the left, in the same style as the readiness indicator, which moves to
     the left as well.** (2026-10-01)
-    - No Device tab: four tabs (Camera, Events, Subjects, Settings).
     - Settings is full width and has a **Location** section: the labeled
       position and its source, then the map (40 % of the screen's height,
       200–320 px) with the pin, zoom and My location buttons. A drag on
@@ -1393,7 +1414,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       readiness pills, one style. In a row level with Flip and Clip on
       wide screens; stacked above the buttons' row on phones, so they never
       touch them.
-    - Stacked on #107 (the temperature). App-level tests now run with a
-      blank map layer and a locator that fails at once, so Settings' map
-      settles. 203 Flutter tests pass; web release and Android debug
-      builds compile.
+    - With Monitoring (174) merged first: three tabs, Camera, Monitoring
+      and Settings. App-level tests now run with a blank map layer and a
+      locator that fails at once, so Settings' map settles. 204 Flutter
+      tests pass; web release and Android debug builds compile.

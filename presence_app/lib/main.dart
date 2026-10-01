@@ -23,13 +23,13 @@ import 'consent/consent_screen.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'location/device_location.dart';
+import 'monitoring.dart';
 import 'settings.dart';
 import 'status_pill.dart';
 import 'system_health.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
-import 'subjects.dart';
 import 'theme.dart';
 
 void main() {
@@ -328,8 +328,7 @@ class _PresenceAppState extends State<PresenceApp> {
 /// The top-level destinations, as tabs in the app bar.
 enum HomeTab {
   camera('Camera', Icons.videocam),
-  events('Events', Icons.notifications),
-  subjects('Subjects', Icons.people),
+  monitoring('Monitoring', Icons.monitor_heart),
   settings('Settings', Icons.settings);
 
   const HomeTab(this.label, this.icon);
@@ -339,10 +338,10 @@ enum HomeTab {
 }
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
-/// between the full-screen camera (the start tab), the event stream, the
-/// tagged subjects and the settings (with the device's location map).
-/// Swiping sideways flips too, except while a finger is on that map, where
-/// dragging moves the map.
+/// between the full-screen camera (the start tab), monitoring (the subjects'
+/// map, the subjects and the event stream) and the settings (with the
+/// device's location map). Swiping sideways flips too, except on
+/// Monitoring (its map) and while a finger is on the Settings map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
 /// app bar has only the title and a sign-in button, and the screen stays on
@@ -421,18 +420,20 @@ class _HomeScreenState extends State<HomeScreen>
   /// so a drag moves the map.
   bool _mapHeld = false;
 
-  /// The event the Events tab scrolls to and outlines.
+  bool get _onMonitoring => _tabs.index == HomeTab.monitoring.index;
+
+  /// The event the Monitoring tab's timeline scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
 
-  /// The Events tab's "Only this device" checkbox: on at launch, and kept
+  /// The Monitoring tab's "Only this device" checkbox: on at launch, and kept
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
 
-  /// Shows [event] in the Events tab, closing any screen over the tabs (a
-  /// subject's).
+  /// Shows [event] in the Monitoring tab's timeline, closing any screen over
+  /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
     Navigator.of(context).popUntil((route) => route.isFirst);
-    _tabs.animateTo(HomeTab.events.index);
+    _tabs.animateTo(HomeTab.monitoring.index);
     // Cleared first, so asking for the same event again still scrolls.
     _focusedEvent
       ..value = null
@@ -523,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen>
           action: _hasAccess
               ? SnackBarAction(
                   label: 'View',
-                  onPressed: () => _tabs.animateTo(HomeTab.events.index),
+                  onPressed: () => _tabs.animateTo(HomeTab.monitoring.index),
                 )
               : null,
         ),
@@ -661,8 +662,8 @@ class _HomeScreenState extends State<HomeScreen>
           TabBarView(
             controller: _tabs,
             // No swiping to the other tabs while they're hidden, nor on the
-            // location map: there, a drag moves the map.
-            physics: _hasAccess && !_mapHeld
+            // maps: there, a drag moves the map.
+            physics: _hasAccess && !_onMonitoring && !_mapHeld
                 ? null
                 : const NeverScrollableScrollPhysics(),
             children: [
@@ -672,28 +673,15 @@ class _HomeScreenState extends State<HomeScreen>
                   rig: widget.rig,
                 ),
               ),
-              // Readable width on large screens (Material: don't stretch cards
-              // edge to edge on desktop).
               SafeArea(
-                key: const Key('events-page'),
-                child: _ReadableWidth(
-                  child: EventTimeline(
-                    log: widget.log,
-                    focus: _focusedEvent,
-                    deviceId: widget.deviceId,
-                    thisDeviceOnly: _thisDeviceOnly,
-                  ),
-                ),
-              ),
-              SafeArea(
-                key: const Key('subjects-page'),
-                child: _ReadableWidth(
-                  child: SubjectsView(
-                    log: widget.log,
-                    config: widget.config,
-                    tiles: widget.mapTiles,
-                    onOpenEvent: _openEvent,
-                  ),
+                child: MonitoringView(
+                  log: widget.log,
+                  config: widget.config,
+                  tiles: widget.mapTiles,
+                  onOpenEvent: _openEvent,
+                  focus: _focusedEvent,
+                  deviceId: widget.deviceId,
+                  thisDeviceOnly: _thisDeviceOnly,
                 ),
               ),
               // Full width, with the device's location map.
@@ -749,22 +737,6 @@ class _HomeScreenState extends State<HomeScreen>
           : null,
     );
   }
-}
-
-class _ReadableWidth extends StatelessWidget {
-  const _ReadableWidth({required this.child});
-
-  static const double maxWidth = 560;
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: maxWidth),
-      child: child,
-    ),
-  );
 }
 
 /// Whether a clip now would be complete: buffering the "before" history,

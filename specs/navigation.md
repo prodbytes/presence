@@ -5,8 +5,8 @@ runs on Android and web. It follows Material 3 top-level navigation: **tabs
 in the app bar**, which flip between full screens.
 
 - **App bar:** the title **Presence** (accent color, plain text) on the left.
-  In the top right are four icon tabs, in order **Camera**, **Events**,
-  **Subjects** and **Settings**, then a **Login** icon button. (The
+  In the top right are three icon tabs, in order **Camera**,
+  **Monitoring** and **Settings**, then a **Login** icon button. (The
   Device tab is gone: its map is a section of Settings, and the battery
   shows over the camera.)
   On 320 dp phones the title shortens to make room.
@@ -79,12 +79,10 @@ in the app bar**, which flip between full screens.
     saving the next 15 s", with a **View** action that jumps to Events. It's
     set not to persist (Flutter otherwise keeps snackbars with actions until
     dismissed). For motion clips, the indicator carries the cooldown after it.
-- **Events:** the event stream, full screen, with an **Only this device**
-  checkbox at the top (checked by default; see [Events](events.md)). On wide screens it's centered
-  at a readable width (max 560 px), so clip thumbnails don't stretch across
-  the desktop.
-- **Subjects:** the people and pets tagged on clips, each opening a map
-  of their latest events (see [Subjects](subjects.md)).
+- **Monitoring:** the map of every subject's events, the subjects, and
+  the event stream (with **Only this device**, checked by default) on one
+  screen: two columns on wide screens, stacked on phones (see
+  [Monitoring](monitoring.md)). Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
   **full width**, with this device's location map as a section (see
   [Settings screen](settings.md)).

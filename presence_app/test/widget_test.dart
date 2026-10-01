@@ -68,19 +68,17 @@ void main() {
       await pumpAt(tester, size);
 
       final camera = tester.getCenter(find.byTooltip('Camera'));
-      final events = tester.getCenter(find.byTooltip('Events'));
-      final subjects = tester.getCenter(find.byTooltip('Subjects'));
+      final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
       final login = tester.getCenter(find.byKey(const Key('account-button')));
       final title = tester.getRect(find.text('Presence'));
-      for (final c in [camera, events, subjects, settings, login]) {
+      for (final c in [camera, monitoring, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
         // Right of the title, which shrinks to make room on small phones.
         expect(c.dx, greaterThan(title.right));
       }
-      expect(camera.dx, lessThan(events.dx));
-      expect(events.dx, lessThan(subjects.dx));
-      expect(subjects.dx, lessThan(settings.dx));
+      expect(camera.dx, lessThan(monitoring.dx));
+      expect(monitoring.dx, lessThan(settings.dx));
       expect(find.byTooltip('Device'), findsNothing);
       expect(settings.dx, lessThan(login.dx));
     });
@@ -114,8 +112,11 @@ void main() {
     await pumpAt(tester, const Size(1280, 800));
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
 
-    await openTab(tester, 'Events');
-    expect(tabs(tester).index, HomeTab.events.index);
+    await openTab(tester, 'Monitoring');
+    expect(tabs(tester).index, HomeTab.monitoring.index);
+    expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
+    expect(find.byKey(const Key('subjects-map')), findsOneWidget);
+    expect(find.byKey(const Key('subjects-page')), findsOneWidget);
     expect(find.byKey(const Key('events-page')), findsOneWidget);
     expect(find.text('Application started'), findsOneWidget);
 
@@ -134,7 +135,7 @@ void main() {
 
     await tester.fling(find.byType(TabBarView), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
-    expect(tabs(tester).index, HomeTab.events.index);
+    expect(tabs(tester).index, HomeTab.monitoring.index);
   });
 
   Future<void> pumpGate(WidgetTester tester, PresenceApp app) async {
@@ -264,7 +265,7 @@ void main() {
       find.byTooltip('Signed in as Ana · ana@example.com'),
       findsOneWidget,
     );
-    await openTab(tester, 'Events');
+    await openTab(tester, 'Monitoring');
     expect(find.text('Signed in'), findsOneWidget);
 
     // Sign out from the account sheet: back to the camera, tabs hidden,
@@ -320,7 +321,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Clip'), findsOneWidget);
 
-    await openTab(tester, 'Events');
+    await openTab(tester, 'Monitoring');
     expect(find.byTooltip('Clip'), findsNothing);
   });
 
@@ -346,7 +347,7 @@ void main() {
 
     AppEventBusScope.of(tester.element(find.byType(HomeScreen)))
         .publish(AppEvent(icon: Icons.videocam, title: 'Motion detected'));
-    await openTab(tester, 'Events');
+    await openTab(tester, 'Monitoring');
 
     expect(find.text('Motion detected'), findsOneWidget);
     // Newest first: the new event sits above the startup event.

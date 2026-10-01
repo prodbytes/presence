@@ -59,8 +59,8 @@ Everything goes under the user's **Cognito identity ID**
     keys (`clips/<clipId>`);
   - they're marked as synced, so they aren't uploaded back, stored
     (`Persistence.importRemote`, with recordings through
-    `MediaStore.saveBytes`) and added to the event log, so the **Events and
-    Subjects tabs** show them at once.
+    `MediaStore.saveBytes`) and added to the event log, so the
+    **Monitoring** tab shows them at once.
 - **What a pass lists** (`ListObjectsV2`, billed per request, so kept
   small):
   - the first pass for a user (at start, sign-in or a user change) lists

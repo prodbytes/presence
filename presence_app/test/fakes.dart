@@ -144,7 +144,7 @@ const fakeMediaIo = MediaIo(readBytes: fakeReadBytes, createUrl: fakeCreateUrl);
 /// Opens the Events tab (a no-op if it's already showing).
 Future<void> showEvents(WidgetTester tester) async {
   if (find.byKey(const Key('events-page')).evaluate().isNotEmpty) return;
-  await tester.tap(find.byTooltip('Events'));
+  await tester.tap(find.byTooltip('Monitoring'));
   await tester.pumpAndSettle();
 }
 

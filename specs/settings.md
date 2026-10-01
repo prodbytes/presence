@@ -33,7 +33,7 @@
   sets the location, with zoom and My location buttons on the map. See
   [Device location and battery](device-location.md).
 - **The build's version** is at the very bottom, small and centred: only
-  `X.Y.Z`, e.g. "Presence 0.3.202609271247", with no `-RC`/`-GA` suffix.
+  `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
   as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
   `flutter-run.sh`) pass it too, with Z the time they started. A bare

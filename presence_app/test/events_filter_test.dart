@@ -77,7 +77,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await settleStorage(tester);
     await open(tester);
-    await tester.tap(find.byTooltip('Events'));
+    await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
   }
 
@@ -108,7 +108,7 @@ void main() {
     // The choice stays while switching tabs.
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Events'));
+    await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
     expect(checked(tester), isFalse);
     expect(find.text('Door opened there'), findsOneWidget);
