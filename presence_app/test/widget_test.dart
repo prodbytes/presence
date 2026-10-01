@@ -28,6 +28,8 @@ void main() {
         cameras: cameras ?? noCameras,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     await tester.pump();
@@ -67,18 +69,17 @@ void main() {
 
       final camera = tester.getCenter(find.byTooltip('Camera'));
       final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
-      final device = tester.getCenter(find.byTooltip('Device'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
       final login = tester.getCenter(find.byKey(const Key('account-button')));
       final title = tester.getRect(find.text('Presence'));
-      for (final c in [camera, monitoring, device, settings, login]) {
+      for (final c in [camera, monitoring, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
         // Right of the title, which shrinks to make room on small phones.
         expect(c.dx, greaterThan(title.right));
       }
       expect(camera.dx, lessThan(monitoring.dx));
-      expect(monitoring.dx, lessThan(device.dx));
-      expect(device.dx, lessThan(settings.dx));
+      expect(monitoring.dx, lessThan(settings.dx));
+      expect(find.byTooltip('Device'), findsNothing);
       expect(settings.dx, lessThan(login.dx));
     });
 
@@ -92,6 +93,8 @@ void main() {
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(const [userRole, adminRole]),
           consentGiven: true,
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
         ),
       );
       await tester.pump();
@@ -150,7 +153,15 @@ void main() {
     final backend = openFakes([FakeCameraSource('Main')]);
     // The real Google service and auth API client: tests configure no
     // client ID and reach no API, so the app starts in dev mode.
-    await pumpGate(tester, PresenceApp(cameras: backend, consentGiven: true));
+    await pumpGate(
+      tester,
+      PresenceApp(
+        cameras: backend,
+        consentGiven: true,
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(backend.opened, hasLength(1), reason: 'the camera still shows');
@@ -165,10 +176,7 @@ void main() {
     expect(tabs(tester).index, HomeTab.settings.index);
 
     // No API in tests, and no AWS or OIDC settings: events stay local.
-    await tester.ensureVisible(
-      find.byKey(const Key('system-health'), skipOffstage: false),
-    );
-    await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('system-health')));
     expect(find.text('🔌 API ❌'), findsOneWidget);
     expect(find.text('☁️ AWS ⚪'), findsOneWidget);
     expect(find.text('🔑 OIDC ⚪'), findsOneWidget);
@@ -177,10 +185,7 @@ void main() {
   testWidgets('settings show the API answered', (tester) async {
     await pumpAt(tester, const Size(1280, 800));
     await openTab(tester, 'Settings');
-    await tester.ensureVisible(
-      find.byKey(const Key('system-health'), skipOffstage: false),
-    );
-    await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('system-health')));
     expect(find.text('🔌 API ✅'), findsOneWidget);
     expect(find.text('☁️ AWS ⚪'), findsOneWidget);
   });
@@ -198,6 +203,8 @@ void main() {
         cameras: openFakes([FakeCameraSource('Main')]),
         auth: FakeAuthService(),
         rolesClient: roles,
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     await tester.pump();
@@ -229,6 +236,8 @@ void main() {
         cameras: backend,
         auth: FakeAuthService(),
         rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
 
@@ -290,6 +299,8 @@ void main() {
         cameras: noCameras,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     expect(find.byType(TabBar), findsOneWidget);

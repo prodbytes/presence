@@ -40,6 +40,7 @@ void main() {
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
         mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     await tester.pumpAndSettle();
