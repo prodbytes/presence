@@ -1236,3 +1236,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tabs now narrow (down to 40 dp) only where they don't fit.
     - New [subjects.md](subjects.md). The OpenStreetMap tiles and credit
       are shared with the Device map (`lib/location/map_parts.dart`).
+159. **Make the consent shorter: one click to agree, with the two
+    conditions highlighted.** (2026-10-01)
+    - The consent screen drops its checkboxes and long sections: the two
+      conditions (the right to record; faces as biometric data under the
+      GDPR, and the user's responsibility) are highlighted boxes with a
+      bold statement and one plain line each, and **I agree** accepts.
+    - [consent.md](consent.md) updated. The consent version stays 1: what's
+      agreed to is the same, so devices that agreed aren't asked again.

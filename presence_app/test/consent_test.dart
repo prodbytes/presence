@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
+import 'package:presence_app/consent/consent_screen.dart';
 import 'package:presence_app/consent/device_consent.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -90,23 +91,19 @@ void main() {
     ) async {
       final cameras = await launch(tester);
       expect(find.byKey(const Key('consent')), findsOneWidget);
-      expect(find.text('Faces are biometric data'), findsOneWidget);
+      // The two conditions, highlighted, and one button.
+      expect(find.byKey(const Key('consent-right-to-record')), findsOneWidget);
+      expect(find.text('I have the right to record here.'), findsOneWidget);
+      expect(find.byKey(const Key('consent-biometrics')), findsOneWidget);
+      expect(
+        find.text('Faces are biometric data, and I am responsible.'),
+        findsOneWidget,
+      );
+      expect(find.byType(Checkbox), findsNothing);
       expect(find.byType(TabBar), findsNothing);
       expect(cameras.opened, isEmpty, reason: 'no camera before consent');
 
-      // Both ticks are needed.
-      FilledButton agree() =>
-          tester.widget<FilledButton>(find.byKey(const Key('consent-agree')));
-      expect(agree().onPressed, isNull);
-      await tester.tap(find.byKey(const Key('consent-right-to-record')));
-      await tester.pump();
-      expect(agree().onPressed, isNull);
-      await tester.ensureVisible(find.byKey(const Key('consent-biometrics')));
-      await tester.tap(find.byKey(const Key('consent-biometrics')));
-      await tester.pump();
-      expect(agree().onPressed, isNotNull);
-
-      await tester.ensureVisible(find.byKey(const Key('consent-agree')));
+      // One click agrees.
       await tester.tap(find.byKey(const Key('consent-agree')));
       for (var i = 0; i < 3; i++) {
         await tester.pump(const Duration(seconds: 1));
@@ -125,15 +122,31 @@ void main() {
       );
     });
 
+    testWidgets('on a small phone it scrolls, without overflow, to I agree', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      var agreed = false;
+      await tester.pumpWidget(
+        MaterialApp(home: ConsentScreen(onAgree: () async => agreed = true)),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('consent-agree')),
+        200,
+      );
+      await tester.tap(find.byKey(const Key('consent-agree')));
+      await tester.pump();
+      expect(agreed, isTrue);
+    });
+
     testWidgets('once given, it is never asked again on the device', (
       tester,
     ) async {
       await launch(tester);
-      await tester.tap(find.byKey(const Key('consent-right-to-record')));
-      await tester.ensureVisible(find.byKey(const Key('consent-biometrics')));
-      await tester.tap(find.byKey(const Key('consent-biometrics')));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(const Key('consent-agree')));
       await tester.tap(find.byKey(const Key('consent-agree')));
       for (var i = 0; i < 3; i++) {
         await tester.pump(const Duration(seconds: 1));
