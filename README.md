@@ -70,16 +70,6 @@ Docker CLI with the `compose` plugin.
    cp .env.example .env    # then fill in the values you need
    ```
 
-   Maintainers keep the real settings (`.env`, `env.local/`) in the private
-   [setec-astronomy](https://github.com/prodbytes/setec-astronomy) repo,
-   under `presence.nu01/`. To use them, clone it next to this repo and link
-   them in:
-
-   ```bash
-   git clone https://github.com/prodbytes/setec-astronomy.git ../setec-astronomy
-   bash scripts/link-private.sh
-   ```
-
    Without a Google client ID, sign-in is off. Without the Cognito and bucket
    settings, cloud sync is off. The cameras and clips still work.
 3. Start everything:

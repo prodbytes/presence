@@ -1046,3 +1046,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     deployed `nu01.com` domains. The badges now point to `prodbytes/presence`.
     [dev-environment.md](dev-environment.md) describes what the README
     covers.
+142. **Remove the README's private-settings paragraph.** (2026-10-01)
+    - Dropped the note that maintainers keep `.env` and `env.local/` in the
+      private `setec-astronomy` repo, with its clone and
+      `link-private.sh` commands. The setup is unchanged and still
+      described in [dev-environment.md](dev-environment.md).
