@@ -19,6 +19,9 @@ public final class Roles {
     /** Also grants other users access. */
     public static final String ADMIN = "presence_admin";
 
+    /** Nobody signed in: may only sign in (or, in {@link ExecutionMode#DEV}, everything). */
+    public static final String ANONYMOUS = "presence_anonymous";
+
     private final Set<String> allowedDomains;
     private final Set<String> domainRoles;
     private final Function<String, Set<String>> declared;
@@ -49,6 +52,17 @@ public final class Roles {
             roles.addAll(domainRoles);
         }
         roles.addAll(declared.apply(normalized));
+        return roles;
+    }
+
+    /** The anonymous user's roles: only {@link #ANONYMOUS}, or every role in {@link ExecutionMode#DEV}. */
+    public static Set<String> anonymous(ExecutionMode mode) {
+        var roles = new TreeSet<String>();
+        roles.add(ANONYMOUS);
+        if (mode == ExecutionMode.DEV) {
+            roles.add(USER);
+            roles.add(ADMIN);
+        }
         return roles;
     }
 }

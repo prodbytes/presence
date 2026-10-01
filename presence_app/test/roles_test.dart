@@ -14,7 +14,12 @@ void main() {
       final auth = FakeAuthService();
       final client = FakeRolesClient([userRole]);
       final roles = RolesService(auth: auth, client: client);
+      expect(roles.state, AccessState.starting);
+      await settle();
       expect(roles.state, AccessState.signedOut);
+      expect(roles.mode, ExecutionMode.rbac);
+      expect(roles.roles, [anonymousRole], reason: 'may only sign in');
+      expect(roles.hasAccess, isFalse);
 
       final states = <AccessState>[];
       roles.addListener(() => states.add(roles.state));
@@ -66,6 +71,39 @@ void main() {
       await settle();
       expect(roles.state, AccessState.granted);
       expect(client.tokens, ['id-token-1', 'id-token-1-r1']);
+    });
+
+    test('dev mode: the anonymous user gets every role', () async {
+      final auth = FakeAuthService();
+      final client = FakeRolesClient()..mode = ExecutionMode.dev;
+      final roles = RolesService(auth: auth, client: client);
+      await settle();
+      expect(roles.mode, ExecutionMode.dev);
+      expect(roles.state, AccessState.granted);
+      expect(roles.roles, containsAll([anonymousRole, userRole, adminRole]));
+      // Sign-in doesn't matter in dev mode.
+      await auth.signIn();
+      await roles.refresh();
+      await settle();
+      expect(client.tokens, isEmpty);
+      expect(roles.state, AccessState.granted);
+    });
+
+    test('an unreachable API: dev without an OIDC client, else RBAC', () async {
+      for (final (oidc, mode) in [
+        (false, ExecutionMode.dev),
+        (true, ExecutionMode.rbac),
+      ]) {
+        final client = FakeRolesClient()..anonymousError = RolesException(404);
+        final roles = RolesService(
+          auth: FakeAuthService(),
+          client: client,
+          oidcClient: oidc,
+        );
+        await settle();
+        expect(roles.mode, mode, reason: 'oidc: $oidc');
+        expect(roles.hasAccess, mode == ExecutionMode.dev);
+      }
     });
 
     test('roles decide the navigation: none, member, admin', () async {
