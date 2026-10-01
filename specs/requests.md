@@ -1447,3 +1447,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - "Only this device" is a filter chip at the top of the tab
       (`ThisDeviceOnly`), out of the timeline.
     - 212 Flutter tests pass; web release builds.
+179. **Make the map and position the first setting in Settings.**
+    (2026-10-01)
+    - The Location section (position and map) is now the first in
+      Settings, above Camera; the version, device ID and health lines stay
+      at the bottom.
+    - Tests that used sliders further down now scroll to them. 212 Flutter
+      tests pass.

@@ -89,6 +89,17 @@ class _SettingsViewState extends State<SettingsView> {
           physics: _mapHeld ? const NeverScrollableScrollPhysics() : null,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
+            // First: where this device is, its position and the map.
+            if (location != null) ...[
+              Text('Location', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 8),
+              LocationSettings(
+                location: location,
+                tiles: widget.tiles,
+                onMapHeld: _onMapHeld,
+              ),
+              const SizedBox(height: 16),
+            ],
             Text('Camera', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             _BrightnessSlider(
@@ -205,16 +216,6 @@ class _SettingsViewState extends State<SettingsView> {
               onChanged: (v) =>
                   setSubjects((s) => s.copyWith(mapEvents: v.round())),
             ),
-            if (location != null) ...[
-              const SizedBox(height: 16),
-              Text('Location', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              LocationSettings(
-                location: location,
-                tiles: widget.tiles,
-                onMapHeld: _onMapHeld,
-              ),
-            ],
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),
