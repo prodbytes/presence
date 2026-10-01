@@ -1315,3 +1315,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       charging changes and every minute. Not stored or sent.
     - 173 Flutter tests pass; web release, Android debug and iOS debug
       builds compile. Numbered after #99's 165.
+169. **Make the device info panel align to the top left.** (2026-10-01)
+    - The Device tab's info panel (device ID, position, battery, source)
+      now sits in the map's top-left corner, as wide as its content (at
+      most 560 px), instead of centered across the top.
+    - 181 Flutter tests pass.
