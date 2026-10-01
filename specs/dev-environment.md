@@ -131,7 +131,9 @@ symlinks, `.env` → `../setec-astronomy/presence.nu01/.env` and `env.local`
 [scripts/link-private.sh](../scripts/link-private.sh) makes the links
 (`PRIVATE_DIR` and `TENANT` override the clone and the tenant); it
 refuses to replace a real file, and re-running it is harmless. Everything
-that reads `.env` (the run scripts, `make`) follows the link. The local
+that reads `.env` (the run scripts, `make`) follows the link. Variants such
+as `.env.ga` (`.env.*`) are git-ignored too, except the committed
+`.env.example`. The local
 HTTPS certificates in `presence_floci/certs/` stay here: `local-certs.sh`
 generates them per machine from its own mkcert CA.
 

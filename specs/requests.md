@@ -1124,3 +1124,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       the API's settings with the build's own (⚠️ when they disagree).
     - 23 Java and 142 Flutter tests pass; the local API answered with its
       settings live through Floci.
+148. **Commit the `.gitignore` change.** (2026-10-01)
+    - `.env.*` is ignored, so copies like `.env.ga` stay out of git;
+      `!.env.example` keeps the committed template tracked.
