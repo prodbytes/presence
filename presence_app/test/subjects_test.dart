@@ -23,7 +23,6 @@ ClipRequested clipWith(
   required int minutesAgo,
   double? lat,
   String id = '',
-  String? device,
 }) {
   final annotations = ClipAnnotations();
   final frame = annotations.newFrame(onePixelPng, 1200);
@@ -43,7 +42,6 @@ ClipRequested clipWith(
     annotations: annotations,
     time: DateTime(2026, 10, 1, 12).subtract(Duration(minutes: minutesAgo)),
     id: id.isEmpty ? 'event-$minutesAgo' : id,
-    deviceId: device,
   );
   if (lat != null) {
     event.location = DeviceLocation(
@@ -84,18 +82,16 @@ void main() {
     });
   });
 
-  test('one color per device, by its latest event', () {
-    final rex = subjectsOf([
-      clipWith(['Rex'], minutesAgo: 1, device: 'b'),
-      clipWith(['Rex'], minutesAgo: 2),
-      clipWith(['Rex'], minutesAgo: 3, device: 'a'),
-      clipWith(['Rex'], minutesAgo: 4, device: 'b'),
-    ]).single;
-    expect(SubjectScreen.colorsOf(rex.sightings), {
-      'b': SubjectScreen.deviceColors[0],
-      null: SubjectScreen.unknownDeviceColor,
-      'a': SubjectScreen.deviceColors[1],
-    });
+  test("a subject's color depends only on its name", () {
+    expect(Subject.colorOf('rex'), Subject.colorOf('rex'));
+    final subjects = subjectsOf([
+      clipWith(['Rex'], minutesAgo: 1),
+      clipWith([' REX '], minutesAgo: 2),
+    ]);
+    expect(subjects.single.color, Subject.colorOf('rex'));
+    // Spread over the palette.
+    final names = ['ana', 'rex', 'bob', 'cat', 'dog', 'eve', 'max', 'zoe'];
+    expect({for (final n in names) Subject.colorOf(n)}.length, greaterThan(3));
   });
 
   test('the number of events on a subject map is a stored setting', () {
@@ -231,15 +227,14 @@ void main() {
         find.byKey(const Key('subject-events')),
         const Offset(0, -200),
       );
-      expect(find.text('Unknown device · No location'), findsOneWidget);
+      expect(find.text('No location'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('dots are colored by device, with a legend', (tester) async {
+    testWidgets("dots take the subject's color, faded by age", (tester) async {
       log.addHistory([
-        clipWith(['Rex'], minutesAgo: 1, lat: 48.1, device: 'kitchen'),
-        clipWith(['Rex'], minutesAgo: 2, lat: 48.2, device: 'garage'),
-        clipWith(['Rex'], minutesAgo: 3, lat: 48.3, device: 'kitchen'),
+        for (var i = 1; i <= 3; i++)
+          clipWith(['Rex'], minutesAgo: i, lat: 48 + i / 10),
       ]);
       await show(tester);
       await tester.tap(find.text('Rex'));
@@ -255,21 +250,13 @@ void main() {
         return (box.decoration! as BoxDecoration).color!;
       }
 
-      expect(colorOfDot('event-1'), SubjectScreen.deviceColors[0]);
-      expect(colorOfDot('event-3'), SubjectScreen.deviceColors[0]);
-      expect(colorOfDot('event-2'), SubjectScreen.deviceColors[1]);
-      // Still fading by age, whatever the device.
+      final rex = Subject.colorOf('rex');
+      for (final id in ['event-1', 'event-2', 'event-3']) {
+        expect(colorOfDot(id), rex);
+      }
       expect(opacityOfDot(tester, 'event-1'), 1);
+      expect(opacityOfDot(tester, 'event-2'), closeTo(0.575, 1e-9));
       expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
-      final legend = find.byKey(const Key('subject-legend'));
-      expect(
-        find.descendant(of: legend, matching: find.text('kitchen')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: legend, matching: find.text('garage')),
-        findsOneWidget,
-      );
     });
 
     testWidgets('the setting is on the Settings screen', (tester) async {

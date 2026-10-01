@@ -40,7 +40,32 @@ class Subject {
   /// As it was written on the latest event.
   String get name => latest.tag.name;
 
+  /// This subject's color: its dots on the map and on its frames.
+  Color get color => colorOf(id);
+
   static String idOf(String name) => name.trim().toLowerCase();
+
+  /// The subjects' colors (Gruvbox's accents).
+  static const List<Color> colors = [
+    Gruvbox.red,
+    Gruvbox.blue,
+    Gruvbox.green,
+    Gruvbox.yellow,
+    Gruvbox.purple,
+    Gruvbox.aqua,
+    Gruvbox.orange,
+  ];
+
+  /// The color for the subject [id]: always the same one for a name, on
+  /// every screen and launch and on web and native alike (so not
+  /// [String.hashCode]). Past seven subjects, colors repeat.
+  static Color colorOf(String id) {
+    var hash = 0;
+    for (final unit in id.codeUnits) {
+      hash = (hash * 31 + unit) % 1000003;
+    }
+    return colors[hash % colors.length];
+  }
 }
 
 /// The subjects tagged in [events], the most recently seen first.
@@ -168,7 +193,7 @@ class _SubjectRow extends StatelessWidget {
           child: Row(
             spacing: 12,
             children: [
-              SightingFrame(sighting: latest, width: 96),
+              SightingFrame(sighting: latest, color: subject.color, width: 96),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -202,9 +227,17 @@ class _SubjectRow extends StatelessWidget {
 /// The frame a subject was tagged on, with a dot where they were clicked.
 /// Without one (a tag from before frames were kept), the clip's thumbnail.
 class SightingFrame extends StatelessWidget {
-  const SightingFrame({super.key, required this.sighting, required this.width});
+  const SightingFrame({
+    super.key,
+    required this.sighting,
+    required this.color,
+    required this.width,
+  });
 
   final Sighting sighting;
+
+  /// The subject's color, for the dot.
+  final Color color;
   final double width;
 
   @override
@@ -243,7 +276,7 @@ class SightingFrame extends StatelessWidget {
                         width: 8,
                         height: 8,
                         decoration: BoxDecoration(
-                          color: Gruvbox.red,
+                          color: color,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white),
                         ),
@@ -294,36 +327,6 @@ class SubjectScreen extends StatelessWidget {
   static double opacityOf(int rank, int count) =>
       count <= 1 ? 1 : 1 - rank * (1 - oldestOpacity) / (count - 1);
 
-  /// The dots' colors, one per device, in order of each device's latest
-  /// event. Past seven devices they repeat.
-  static const List<Color> deviceColors = [
-    Gruvbox.red,
-    Gruvbox.blue,
-    Gruvbox.green,
-    Gruvbox.yellow,
-    Gruvbox.purple,
-    Gruvbox.aqua,
-    Gruvbox.orange,
-  ];
-
-  /// Events whose device isn't known (not saved yet).
-  static const Color unknownDeviceColor = Gruvbox.gray;
-
-  /// The color of each device in [sightings] (newest first): the device of
-  /// the newest event gets the first color, the next device the second.
-  static Map<String?, Color> colorsOf(List<Sighting> sightings) {
-    final colors = <String?, Color>{};
-    var next = 0;
-    for (final s in sightings) {
-      final device = s.event.deviceId;
-      if (colors.containsKey(device)) continue;
-      colors[device] = device == null
-          ? unknownDeviceColor
-          : deviceColors[next++ % deviceColors.length];
-    }
-    return colors;
-  }
-
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: config,
@@ -348,7 +351,7 @@ class SubjectScreen extends StatelessWidget {
           for (final s in shown)
             if (s.event.location != null) s,
         ];
-        final colors = SubjectScreen.colorsOf(shown);
+        final color = subject.color;
         return Scaffold(
           key: const Key('subject-page'),
           appBar: AppBar(title: Text(subject.name)),
@@ -359,7 +362,7 @@ class SubjectScreen extends StatelessWidget {
                   flex: 3,
                   child: _SightingsMap(
                     sightings: located,
-                    colors: colors,
+                    color: color,
                     tiles: tiles,
                     onOpen: onOpenEvent,
                   ),
@@ -369,7 +372,7 @@ class SubjectScreen extends StatelessWidget {
                   child: _SightingList(
                     shown: shown,
                     located: located,
-                    colors: colors,
+                    color: color,
                     total: subject.sightings.length,
                   ),
                 ),
@@ -385,7 +388,7 @@ class SubjectScreen extends StatelessWidget {
 class _SightingsMap extends StatelessWidget {
   const _SightingsMap({
     required this.sightings,
-    required this.colors,
+    required this.color,
     this.tiles,
     this.onOpen,
   });
@@ -396,8 +399,8 @@ class _SightingsMap extends StatelessWidget {
   /// Newest first, all with a location.
   final List<Sighting> sightings;
 
-  /// Each device's color ([SubjectScreen.colorsOf]).
-  final Map<String?, Color> colors;
+  /// The subject's color ([Subject.color]).
+  final Color color;
   final Widget? tiles;
 
   static LatLng _at(Sighting s) =>
@@ -439,21 +442,13 @@ class _SightingsMap extends StatelessWidget {
                 height: 18,
                 child: _MapDot(
                   sighting: sightings[i],
-                  color: colors[sightings[i].event.deviceId]!,
+                  color: color,
                   opacity: SubjectScreen.opacityOf(i, count),
                   onTap: onOpen,
                 ),
               ),
           ],
         ),
-        // Which device each color is.
-        if (sightings.isNotEmpty)
-          _DeviceLegend(
-            devices: {
-              for (final s in sightings)
-                s.event.deviceId: colors[s.event.deviceId]!,
-            },
-          ),
         const MapAttribution(),
       ],
     );
@@ -477,7 +472,7 @@ class _MapDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final event = sighting.event;
-    final label = '${formatSeen(event.time)} · ${deviceLabel(event.deviceId)}';
+    final label = '${formatSeen(event.time)} · ${event.clip.cameraLabel}';
     final open = onTap;
     return Tooltip(
       message: label,
@@ -524,13 +519,13 @@ class _SightingList extends StatelessWidget {
   const _SightingList({
     required this.shown,
     required this.located,
-    required this.colors,
+    required this.color,
     required this.total,
   });
 
   final List<Sighting> shown;
   final List<Sighting> located;
-  final Map<String?, Color> colors;
+  final Color color;
   final int total;
 
   @override
@@ -556,23 +551,18 @@ class _SightingList extends StatelessWidget {
         for (final s in shown)
           ListTile(
             key: Key('subject-event-${s.event.id}'),
-            leading: SightingFrame(sighting: s, width: 64),
+            leading: SightingFrame(sighting: s, color: color, width: 64),
             title: Text('${formatSeen(s.time)} · ${s.event.clip.cameraLabel}'),
-            subtitle: Text(
-              [
-                deviceLabel(s.event.deviceId),
-                if (s.event.location case final at?)
-                  '${at.latitude.toStringAsFixed(5)}, '
-                      '${at.longitude.toStringAsFixed(5)}'
-                else
-                  'No location',
-              ].join(' · '),
-              style: small,
-            ),
+            subtitle: Text(switch (s.event.location) {
+              final at? =>
+                '${at.latitude.toStringAsFixed(5)}, '
+                    '${at.longitude.toStringAsFixed(5)}',
+              null => 'No location',
+            }, style: small),
             // The same dot as on the map, to match them up.
             trailing: located.contains(s)
                 ? _Dot(
-                    color: colors[s.event.deviceId]!,
+                    color: color,
                     opacity: SubjectScreen.opacityOf(
                       located.indexOf(s),
                       located.length,
@@ -588,56 +578,6 @@ class _SightingList extends StatelessWidget {
     );
   }
 }
-
-/// The devices on a subject's map, each with its dot color.
-class _DeviceLegend extends StatelessWidget {
-  const _DeviceLegend({required this.devices});
-
-  final Map<String?, Color> devices;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Container(
-        key: const Key('subject-legend'),
-        margin: const EdgeInsets.all(8),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: scheme.surface.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          spacing: 4,
-          children: [
-            for (final MapEntry(:key, :value) in devices.entries)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 6,
-                children: [
-                  _Dot(color: value, opacity: 1, size: 10),
-                  Flexible(
-                    child: Text(
-                      deviceLabel(key),
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall,
-                    ),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A device ID as shown, or "Unknown device" for an event not saved yet.
-String deviceLabel(String? deviceId) => deviceId ?? 'Unknown device';
 
 /// The time, with the date when it isn't today.
 String formatSeen(DateTime t, [DateTime? now]) {
