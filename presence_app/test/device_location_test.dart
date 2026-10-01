@@ -9,7 +9,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:presence_app/battery.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/location/device_location.dart';
-import 'package:presence_app/location/device_view.dart';
+import 'package:presence_app/location/location_settings.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
 
@@ -143,7 +143,7 @@ void main() {
     });
   });
 
-  group('Device tab', () {
+  group('Location and battery', () {
     late IdbFactory storage;
     setUp(() => storage = newIdbFactoryMemory());
 
@@ -174,6 +174,7 @@ void main() {
       FakeLocator locator, {
       BatteryReader? battery,
       Size size = const Size(400, 800),
+      List<FakeCameraSource> cameras = const [],
     }) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -182,7 +183,7 @@ void main() {
         PresenceApp(
           consentGiven: true,
           key: UniqueKey(),
-          cameras: noCameras,
+          cameras: cameras.isEmpty ? noCameras : openFakes(cameras),
           storage: storage,
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(),
@@ -208,52 +209,42 @@ void main() {
         AppEventBusScope.of(tester.element(find.byType(Scaffold).first))
             .publish(AppEvent(icon: Icons.circle, title: title));
 
-    testWidgets('shows the device on the map, sits between Events and '
-        'Settings', (tester) async {
-      await launch(tester, FakeLocator());
-
-      final events = tester.getCenter(find.byTooltip('Events'));
-      final device = tester.getCenter(find.byTooltip('Device'));
-      final settings = tester.getCenter(find.byTooltip('Settings'));
-      expect(events.dx, lessThan(device.dx));
-      expect(device.dx, lessThan(settings.dx));
-
-      await tester.tap(find.byTooltip('Device'));
+    /// Opens Settings and scrolls the whole location map into view.
+    Future<void> openLocation(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('device-pin')), findsOneWidget);
-      expect(find.text('48.858400, 2.294500'), findsOneWidget);
-      expect(find.text("This device's location · ±5 m"), findsOneWidget);
-      expect(find.byKey(const Key('device-page-id')), findsOneWidget);
-      expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
-      testWidgets('the info panel sits in the top-left corner at '
-          '${size.width.toInt()} wide', (tester) async {
-        await launch(tester, FakeLocator(), size: size);
-        await tester.tap(find.byTooltip('Device'));
-        await tester.pumpAndSettle();
-        final card = tester.getRect(find.byKey(const Key('device-card')));
-        final map = tester.getRect(find.byType(FlutterMap));
-        expect(card.left, map.left + 12);
-        expect(card.top, map.top + 12);
-        expect(card.right, lessThanOrEqualTo(size.width - 12));
-        // As wide as its content, not the screen.
-        expect(card.width, lessThanOrEqualTo(560));
-        if (size.width > 600) expect(card.width, lessThan(400));
-        expect(tester.takeException(), isNull);
-      });
+      await scrollSettingsTo(tester, find.byKey(const Key('location-map')));
     }
 
-    testWidgets('labels say what each value is; buttons zoom in and out', (
+    testWidgets('the location is a section of Settings; no Device tab', (
       tester,
     ) async {
       await launch(tester, FakeLocator());
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
-      expect(find.text('Device ID'), findsOneWidget);
+      expect(find.byTooltip('Device'), findsNothing);
+
+      await openLocation(tester);
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.byKey(const Key('device-pin')), findsOneWidget);
       expect(find.text('Position (latitude, longitude)'), findsOneWidget);
+      expect(find.text('48.858400, 2.294500'), findsOneWidget);
+      expect(find.text("This device's location · ±5 m"), findsOneWidget);
+      expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
+      // The device ID is already at the bottom of Settings, once.
+      expect(find.text('Device ID'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Settings is full width', (tester) async {
+      await launch(tester, FakeLocator(), size: const Size(1280, 800));
+      await openLocation(tester);
+      final map = tester.getRect(find.byKey(const Key('location-map')));
+      expect(map.left, 16);
+      expect(map.right, 1280 - 16);
+    });
+
+    testWidgets('the zoom buttons zoom in and out', (tester) async {
+      await launch(tester, FakeLocator());
+      await openLocation(tester);
 
       double zoom() => tester
           .widget<FlutterMap>(find.byType(FlutterMap))
@@ -278,7 +269,7 @@ void main() {
         await tester.tap(find.byTooltip('Zoom in'));
       }
       await tester.pumpAndSettle();
-      expect(zoom(), DeviceView.maxZoom);
+      expect(zoom(), LocationSettings.maxZoom);
       expect(
         tester.widget<IconButton>(find.byKey(const Key('zoom-in'))).onPressed,
         isNull,
@@ -293,31 +284,31 @@ void main() {
       publish(tester, 'Before');
       await settleStorage(tester);
 
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
-      await tester.drag(
-        find.byKey(const Key('device-page')),
-        const Offset(-150, 100),
-      );
+      await openLocation(tester);
+      final map = find.byKey(const Key('location-map'));
+      final before = tester.getRect(map);
+      await tester.drag(map, const Offset(-150, 100));
       await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
       expect(find.text('Set on the map'), findsOneWidget);
-      // Dragging the map doesn't flip to another tab.
-      expect(find.byKey(const Key('device-pin')), findsOneWidget);
+      // The drag moved the map: neither the list nor the tabs moved.
+      expect(tester.getRect(map), before);
+      expect(find.byKey(const Key('settings-page')), findsOneWidget);
+      expect(find.byKey(const Key('camera-page')), findsNothing);
 
       publish(tester, 'After');
       await settleStorage(tester);
       final stored = {
         for (final e in await storedEvents(tester)) e['title']: e['location'],
       };
-      final before = DeviceLocation.fromJson(stored['Before'])!;
+      final first = DeviceLocation.fromJson(stored['Before'])!;
       final after = DeviceLocation.fromJson(stored['After'])!;
-      expect(before.source, LocationSource.device);
-      expect(before.latitude, 48.8584);
+      expect(first.source, LocationSource.device);
+      expect(first.latitude, 48.8584);
       expect(after.source, LocationSource.map);
       // Dragged left and down: the center moved east and north.
-      expect(after.latitude, greaterThan(before.latitude));
-      expect(after.longitude, greaterThan(before.longitude));
+      expect(after.latitude, greaterThan(first.latitude));
+      expect(after.longitude, greaterThan(first.longitude));
 
       // A restart keeps the location set by hand, without asking the
       // device.
@@ -326,8 +317,7 @@ void main() {
       final again = FakeLocator();
       await launch(tester, again);
       expect(again.calls, 0);
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
+      await openLocation(tester);
       expect(find.text('Set on the map'), findsOneWidget);
 
       // My location asks the device again.
@@ -337,18 +327,19 @@ void main() {
       expect(find.text('48.858400, 2.294500'), findsOneWidget);
     });
 
-    testWidgets('shows the battery charge, and follows it', (tester) async {
+    testWidgets('the battery shows over the camera, and follows it', (
+      tester,
+    ) async {
       final battery = FakeBattery((
         level: 82,
         state: BatteryState.charging,
         celsius: null,
       ));
       await launch(tester, FakeLocator(), battery: battery);
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
-      expect(find.text('Battery'), findsOneWidget);
-      expect(find.text('82 % · Charging'), findsOneWidget);
+      final pill = find.byKey(const Key('battery'));
+      expect(find.descendant(of: pill, matching: find.text('82 %')), findsOne);
       expect(find.byIcon(Icons.battery_charging_full), findsOneWidget);
+      expect(find.byTooltip('Battery 82 %, charging'), findsOneWidget);
 
       // Unplugged: an event reads it again.
       battery.reading = (
@@ -359,7 +350,7 @@ void main() {
       battery.changed.add(null);
       await tester.pump();
       await tester.pump();
-      expect(find.text('81 % · On battery'), findsOneWidget);
+      expect(find.text('81 %'), findsOneWidget);
       expect(find.byIcon(Icons.battery_6_bar), findsOneWidget);
 
       // The level drops without an event: read again every minute.
@@ -369,7 +360,7 @@ void main() {
         celsius: null,
       );
       await tester.pump(const Duration(minutes: 1));
-      expect(find.text('9 % · On battery'), findsOneWidget);
+      expect(find.text('9 %'), findsOneWidget);
       final icon = tester.widget<Icon>(find.byIcon(Icons.battery_alert));
       expect(
         icon.color,
@@ -380,11 +371,16 @@ void main() {
       battery.changed.add(null);
       await tester.pump();
       await tester.pump();
-      expect(find.text('100 % · Full'), findsOneWidget);
+      expect(find.byTooltip('Battery 100 %, full'), findsOneWidget);
+
+      // Only over the camera.
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      expect(pill, findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets("shows the battery's temperature where it's reported", (
+    testWidgets("the battery's temperature shows where it's reported", (
       tester,
     ) async {
       final battery = FakeBattery((
@@ -393,9 +389,6 @@ void main() {
         celsius: 31.46,
       ));
       await launch(tester, FakeLocator(), battery: battery);
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
-      expect(find.text('Battery temperature'), findsOneWidget);
       expect(find.text('31.5 °C'), findsOneWidget);
       final scheme = Theme.of(tester.element(find.text('31.5 °C'))).colorScheme;
       Color? colorOf(String text) =>
@@ -409,7 +402,7 @@ void main() {
       await tester.pump();
       expect(colorOf('46.0 °C'), scheme.error);
 
-      // Not reported (iOS, web): no line at all.
+      // Not reported (iOS, web): no pill.
       battery.reading = (
         level: 60,
         state: BatteryState.charging,
@@ -418,17 +411,50 @@ void main() {
       battery.changed.add(null);
       await tester.pump();
       await tester.pump();
-      expect(find.text('Battery temperature'), findsNothing);
-      expect(find.text('60 % · Charging'), findsOneWidget);
+      expect(find.byKey(const Key('battery-temperature')), findsNothing);
+      expect(find.text('60 %'), findsOneWidget);
     });
 
-    testWidgets('says when there is no battery reading', (tester) async {
+    testWidgets('without a battery reading, no battery pill', (tester) async {
       await launch(tester, FakeLocator(), battery: FakeBattery(null));
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
-      expect(find.text('Not available'), findsOneWidget);
-      expect(find.byIcon(Icons.battery_unknown), findsOneWidget);
+      expect(find.byKey(const Key('battery')), findsNothing);
+      expect(tester.takeException(), isNull);
     });
+
+    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+      testWidgets('battery and readiness sit bottom left, clear of Flip and '
+          'Clip, at ${size.width.toInt()} wide', (tester) async {
+        await launch(
+          tester,
+          FakeLocator(),
+          size: size,
+          cameras: [FakeCameraSource('Back'), FakeCameraSource('Front')],
+          battery: FakeBattery((
+            level: 100,
+            state: BatteryState.connectedNotCharging,
+            celsius: 31.5,
+          )),
+        );
+        final status = tester.getRect(find.byKey(const Key('camera-status')));
+        final readiness = tester.getRect(find.byKey(const Key('readiness')));
+        final clip = tester.getRect(find.byTooltip('Clip'));
+        final flip = tester.getRect(find.byTooltip('Flip camera'));
+        expect(status.left, 16);
+        expect(status.overlaps(clip), isFalse);
+        expect(status.overlaps(flip), isFalse);
+        if (size.width < 600) {
+          // Stacked just above the buttons' row, the readiness lowest.
+          expect(status.bottom, lessThanOrEqualTo(clip.top));
+          final battery = tester.getRect(find.byKey(const Key('battery')));
+          expect(battery.bottom, lessThan(readiness.top));
+        } else {
+          // In a row, level with the buttons.
+          expect(readiness.bottom, closeTo(clip.bottom, 8));
+          expect(status.right, lessThan(flip.left));
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('without permission, the map asks to be moved', (tester) async {
       await launch(
@@ -437,8 +463,7 @@ void main() {
           failure: const LocationUnavailable('Location permission was denied'),
         ),
       );
-      await tester.tap(find.byTooltip('Device'));
-      await tester.pumpAndSettle();
+      await openLocation(tester);
       expect(
         find.text('Location permission was denied. Move the map to set it.'),
         findsOneWidget,

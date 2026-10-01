@@ -5,6 +5,7 @@ import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
 import 'auth/account_sheet.dart';
 import 'battery.dart';
+import 'battery_pills.dart';
 import 'auth/admin_screen.dart';
 import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
@@ -22,8 +23,8 @@ import 'consent/consent_screen.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'location/device_location.dart';
-import 'location/device_view.dart';
 import 'settings.dart';
+import 'status_pill.dart';
 import 'system_health.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
@@ -56,7 +57,7 @@ class PresenceApp extends StatefulWidget {
   /// tests). The app itself always checks storage.
   final bool consentGiven;
 
-  /// Overrides the Device tab's battery reading (used by tests).
+  /// Overrides the battery reading shown over the camera (used by tests).
   final BatteryReader? battery;
 
   /// Overrides the device's positioning (used by tests).
@@ -329,7 +330,6 @@ enum HomeTab {
   camera('Camera', Icons.videocam),
   events('Events', Icons.notifications),
   subjects('Subjects', Icons.people),
-  device('Device', Icons.place),
   settings('Settings', Icons.settings);
 
   const HomeTab(this.label, this.icon);
@@ -340,8 +340,9 @@ enum HomeTab {
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), the event stream, the
-/// tagged subjects, the device's map and the settings. Swiping sideways flips too, except on
-/// the map, where dragging moves the map.
+/// tagged subjects and the settings (with the device's location map).
+/// Swiping sideways flips too, except while a finger is on that map, where
+/// dragging moves the map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
 /// app bar has only the title and a sign-in button, and the screen stays on
@@ -362,10 +363,10 @@ class HomeScreen extends StatefulWidget {
     this.battery,
   });
 
-  /// The Device tab's battery reading, when not the device's (tests).
+  /// The battery reading over the camera, when not the device's (tests).
   final BatteryReader? battery;
 
-  /// Where this device is (the Device tab's map, and every event).
+  /// Where this device is (the Settings map, and every event).
   final LocationController location;
 
   /// The maps' tiles, when not OpenStreetMap's (tests).
@@ -412,7 +413,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
 
-  bool get _onDevice => _tabs.index == HomeTab.device.index;
+  /// The battery, shown over the camera; read every minute and on
+  /// charging changes.
+  late final _battery = BatteryController(widget.battery ?? DeviceBattery());
+
+  /// A finger is on the Settings location map: no swiping to other tabs,
+  /// so a drag moves the map.
+  bool _mapHeld = false;
 
   /// The event the Events tab scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
@@ -477,6 +484,7 @@ class _HomeScreenState extends State<HomeScreen>
     _clipEvents?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
+    _battery.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -648,62 +656,64 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ],
       ),
-      body: TabBarView(
-        controller: _tabs,
-        // No swiping to the other tabs while they're hidden, nor on the
-        // map: there, a drag moves the map.
-        physics: _hasAccess && !_onDevice
-            ? null
-            : const NeverScrollableScrollPhysics(),
+      body: Stack(
         children: [
-          _KeepAlive(
-            child: CameraFeedsView(
-              key: const Key('camera-page'),
-              rig: widget.rig,
-            ),
-          ),
-          // Readable width on large screens (Material: don't stretch cards
-          // edge to edge on desktop).
-          SafeArea(
-            key: const Key('events-page'),
-            child: _ReadableWidth(
-              child: EventTimeline(
-                log: widget.log,
-                focus: _focusedEvent,
-                deviceId: widget.deviceId,
-                thisDeviceOnly: _thisDeviceOnly,
+          TabBarView(
+            controller: _tabs,
+            // No swiping to the other tabs while they're hidden, nor on the
+            // location map: there, a drag moves the map.
+            physics: _hasAccess && !_mapHeld
+                ? null
+                : const NeverScrollableScrollPhysics(),
+            children: [
+              _KeepAlive(
+                child: CameraFeedsView(
+                  key: const Key('camera-page'),
+                  rig: widget.rig,
+                ),
               ),
-            ),
-          ),
-          SafeArea(
-            key: const Key('subjects-page'),
-            child: _ReadableWidth(
-              child: SubjectsView(
-                log: widget.log,
-                config: widget.config,
-                tiles: widget.mapTiles,
-                onOpenEvent: _openEvent,
+              // Readable width on large screens (Material: don't stretch cards
+              // edge to edge on desktop).
+              SafeArea(
+                key: const Key('events-page'),
+                child: _ReadableWidth(
+                  child: EventTimeline(
+                    log: widget.log,
+                    focus: _focusedEvent,
+                    deviceId: widget.deviceId,
+                    thisDeviceOnly: _thisDeviceOnly,
+                  ),
+                ),
               ),
-            ),
-          ),
-          SafeArea(
-            child: DeviceView(
-              location: widget.location,
-              deviceId: widget.deviceId,
-              tiles: widget.mapTiles,
-              battery: widget.battery,
-            ),
-          ),
-          SafeArea(
-            child: _ReadableWidth(
-              child: SettingsView(
-                config: widget.config,
-                motionLevel: widget.rig.motionLevel,
-                deviceId: widget.deviceId,
-                health: SystemHealth(roles: widget.roles, sync: widget.sync),
+              SafeArea(
+                key: const Key('subjects-page'),
+                child: _ReadableWidth(
+                  child: SubjectsView(
+                    log: widget.log,
+                    config: widget.config,
+                    tiles: widget.mapTiles,
+                    onOpenEvent: _openEvent,
+                  ),
+                ),
               ),
-            ),
+              // Full width, with the device's location map.
+              SafeArea(
+                child: SettingsView(
+                  config: widget.config,
+                  motionLevel: widget.rig.motionLevel,
+                  deviceId: widget.deviceId,
+                  health: SystemHealth(roles: widget.roles, sync: widget.sync),
+                  location: widget.location,
+                  tiles: widget.mapTiles,
+                  onMapHeld: (held) => setState(() => _mapHeld = held),
+                ),
+              ),
+            ],
           ),
+          // Bottom left, across from Flip and Clip: the battery and whether
+          // a clip now would be complete. Signed out, nothing.
+          if (_onCamera && _hasAccess)
+            _CameraStatus(rig: widget.rig, battery: _battery),
         ],
       ),
       // Signed out, the camera shows with no buttons at all.
@@ -733,9 +743,6 @@ class _HomeScreenState extends State<HomeScreen>
                       label: const Text('Clip'),
                       onPressed: _clip,
                     ),
-                  // Last on the right: whether a clip now would be complete.
-                  if (widget.rig.active != null)
-                    ReadinessIndicator(rig: widget.rig),
                 ],
               ),
             )
@@ -825,36 +832,66 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         'Camera not ready',
       ),
     };
-    return Tooltip(
-      message: semantics,
-      child: Semantics(
-        label: semantics,
-        liveRegion: true,
-        child: Container(
-          key: const Key('readiness'),
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              leading,
-              ExcludeSemantics(
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.onSurface,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    return StatusPill(
+      key: const Key('readiness'),
+      leading: leading,
+      label: label,
+      semantics: semantics,
+    );
+  }
+}
+
+/// The status pills over the camera, bottom left, across from Flip and
+/// Clip: the battery, its temperature (Android) and the readiness. In a
+/// row, level with the buttons, on wide screens. On phones they stack,
+/// starting just above the buttons' row, so however wide they are they
+/// never run into Flip and Clip.
+class _CameraStatus extends StatelessWidget {
+  const _CameraStatus({required this.rig, required this.battery});
+
+  final CameraRig rig;
+  final BatteryController battery;
+
+  /// Narrower than this, the pills stack.
+  static const double stackBelow = 600;
+
+  /// The floating buttons' height, and the gap above them.
+  static const double buttonRow = 56 + 8;
+
+  @override
+  Widget build(BuildContext context) {
+    final padding = MediaQuery.paddingOf(context);
+    final stacked = MediaQuery.sizeOf(context).width < stackBelow;
+    return Positioned(
+      // 16 from the edges, like the floating buttons; in a row, centered
+      // on them (the pills are 40 high, the buttons 56).
+      left: 16 + padding.left,
+      bottom: 16 + padding.bottom + (stacked ? buttonRow : (56 - 40) / 2),
+      child: ListenableBuilder(
+        listenable: Listenable.merge([rig, battery]),
+        builder: (context, _) {
+          final reading = battery.reading;
+          final pills = [
+            if (reading != null) BatteryPill(battery: battery),
+            if (reading?.celsius != null)
+              BatteryTemperaturePill(battery: battery),
+            if (rig.active != null) ReadinessIndicator(rig: rig),
+          ];
+          return stacked
+              ? Column(
+                  key: const Key('camera-status'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: pills,
+                )
+              : Row(
+                  key: const Key('camera-status'),
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 8,
+                  children: pills,
+                );
+        },
       ),
     );
   }

@@ -17,7 +17,7 @@ and pets"), each with where the device was when they were seen
 
 ## The Subjects tab
 
-- A tab between **Events** and **Device** (the `people` icon, tooltip
+- A tab between **Events** and **Settings** (the `people` icon, tooltip
   "Subjects"; see [Navigation](navigation.md)), at the same 560 px readable
   width as Events.
 - **A map on top** (two fifths of the height) merges every subject's
@@ -46,7 +46,7 @@ and pets"), each with where the device was when they were seen
 - A full screen pushed over the tabs (back returns to Subjects), titled
   with the subject's name.
 - **The map** (top three fifths): OpenStreetMap tiles with the credit, as on
-  the [Device](device-location.md) tab, north up. **One dot per event**
+  the Settings [location map](device-location.md), north up. **One dot per event**
   at the location the event recorded.
   - **Color = subject**: every dot, and the dot on the subject's frames
     here and in the Subjects list, is in the **subject's color**

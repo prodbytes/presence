@@ -1,6 +1,6 @@
 # Settings screen
 
-- The **Settings** tab.
+- The **Settings** tab, **full width** (no 560 px readable width).
 - **Motion** section:
   - A **Clip automatically on motion** switch (default on).
   - **Motion threshold**, 1–50% of the picture (default 10%).
@@ -28,6 +28,10 @@
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).
+- **Location** section, after Subjects: this device's position (labeled,
+  with where it came from) over a map with a center pin; moving the map
+  sets the location, with zoom and My location buttons on the map. See
+  [Device location and battery](device-location.md).
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.3.202609271247", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

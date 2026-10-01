@@ -5,8 +5,10 @@ runs on Android and web. It follows Material 3 top-level navigation: **tabs
 in the app bar**, which flip between full screens.
 
 - **App bar:** the title **Presence** (accent color, plain text) on the left.
-  In the top right are five icon tabs, in order **Camera**, **Events**,
-  **Subjects**, **Device** and **Settings**, then a **Login** icon button.
+  In the top right are four icon tabs, in order **Camera**, **Events**,
+  **Subjects** and **Settings**, then a **Login** icon button. (The
+  Device tab is gone: its map is a section of Settings, and the battery
+  shows over the camera.)
   On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
     Where that doesn't fit (an admin's app bar, with its extra button, on
@@ -16,8 +18,8 @@ in the app bar**, which flip between full screens.
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
 - **Flipping:** tapping a tab or swiping sideways moves between screens
-  (`TabBar` + `TabBarView`). On the Device tab a sideways drag moves the
-  map instead, so only the tabs flip away from it. The Camera screen is kept alive while other tabs
+  (`TabBar` + `TabBarView`). While a finger is on the Settings location
+  map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
@@ -37,8 +39,15 @@ in the app bar**, which flip between full screens.
     phones allow only one open camera. The new camera starts its rolling
     recording from scratch, so a clip right after a flip has less "before"
     history.
-  - **Readiness indicator:** the last item on the right of the button row
-    (Flip, Clip, then readiness). It shows whether a clip taken now would be
+  - **Status pills, bottom left**, across from Flip and Clip
+    (`_CameraStatus` in `lib/main.dart`): the **battery**, its
+    **temperature** (Android) and the **readiness indicator**, all in one
+    pill style (`StatusPill`), 16 px from the edges. On screens 600 px and
+    wider they're in a row, centered on the buttons. Narrower, they stack
+    (battery on top, readiness lowest), starting just above the buttons'
+    row, so they never run into Flip and Clip. See
+    [Device location and battery](device-location.md) for the battery.
+  - **Readiness indicator:** shows whether a clip taken now would be
     complete:
     - **"Ready"** (green dot): shown as soon as a camera is open, including
       right after a page reload or a flip. Only **automatic (motion)
@@ -56,8 +65,7 @@ in the app bar**, which flip between full screens.
       button is never blocked. With motion clips turned off there's no
       cooldown.
 
-    The countdown shows only the number.
-    That keeps Flip, Clip and the pill on one row on a 320 dp phone. The
+    The countdown shows only the number, to keep the pill short. The
     pill refreshes twice a second, and its tooltip and screen-reader label
     spell the state out ("Motion can clip again in 4:28").
     - **The motion cooldown survives restarts and page reloads.** On
@@ -77,10 +85,9 @@ in the app bar**, which flip between full screens.
   the desktop.
 - **Subjects:** the people and pets tagged on clips, each opening a map
   of their latest events (see [Subjects](subjects.md)).
-- **Device:** a map with this device's location, which moving the map
-  overrides (see [Device location](device-location.md)).
-- **Settings:** the clip settings as a normal screen (no longer a drawer),
-  same 560 px readable width.
+- **Settings:** the settings as a normal screen (no longer a drawer),
+  **full width**, with this device's location map as a section (see
+  [Settings screen](settings.md)).
 - The title no longer links to presence.nu01.com. On a full-screen camera,
   an accidental tap would open a browser. `url_launcher` was removed.
 - The Flutter demo UI was removed entirely.

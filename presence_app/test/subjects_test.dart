@@ -352,7 +352,7 @@ void main() {
     });
   });
 
-  testWidgets('the Subjects tab sits between Events and Device', (
+  testWidgets('the Subjects tab sits between Events and Settings', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(400, 800);
@@ -373,9 +373,9 @@ void main() {
     await settleStorage(tester);
     final events = tester.getCenter(find.byTooltip('Events'));
     final subjects = tester.getCenter(find.byTooltip('Subjects'));
-    final device = tester.getCenter(find.byTooltip('Device'));
+    final settings = tester.getCenter(find.byTooltip('Settings'));
     expect(events.dx, lessThan(subjects.dx));
-    expect(subjects.dx, lessThan(device.dx));
+    expect(subjects.dx, lessThan(settings.dx));
 
     await tester.tap(find.byTooltip('Subjects'));
     await tester.pumpAndSettle();
