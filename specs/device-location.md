@@ -6,8 +6,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
 
 ## The Location section of Settings
 
-- A section of the [Settings screen](settings.md), after Subjects and
-  before the version, device ID and health lines
+- The first section of the [Settings screen](settings.md), above Camera
+  (the version, device ID and health lines stay at the bottom)
   ([lib/location/location_settings.dart](../presence_app/lib/location/location_settings.dart)).
   The device ID isn't repeated here: Settings already shows it at the
   bottom.

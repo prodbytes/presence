@@ -708,8 +708,24 @@ void main() {
       of: find.byKey(Key(key)),
       matching: find.byType(Slider),
     );
+    await scrollSettingsTo(
+      tester,
+      find.byKey(const Key('motion-cooldown-slider')),
+    );
     await tester.drag(slider('motion-threshold-slider'), const Offset(1000, 0));
     await tester.drag(slider('motion-cooldown-slider'), const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    // Back up to the switch, above the sliders.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('motion-switch')),
+      -200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('settings-page')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
@@ -718,15 +734,19 @@ void main() {
     await refresh(tester);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-
-    expect(find.text('50 % of the picture'), findsOneWidget);
-    expect(find.text('1 min'), findsOneWidget);
+    await scrollSettingsTo(tester, find.byKey(const Key('motion-switch')));
     expect(
       tester
           .widget<SwitchListTile>(find.byKey(const Key('motion-switch')))
           .value,
       isFalse,
     );
+    await scrollSettingsTo(
+      tester,
+      find.byKey(const Key('motion-cooldown-slider')),
+    );
+    expect(find.text('50 % of the picture'), findsOneWidget);
+    expect(find.text('1 min'), findsOneWidget);
   });
 
   testWidgets('brightness survives a refresh', (tester) async {
@@ -771,10 +791,13 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
+    await scrollSettingsTo(tester, find.text('-0.5 EV'));
     expect(find.text('-0.5 EV'), findsOneWidget);
+    await scrollSettingsTo(tester, find.text('12 min'));
     expect(find.text('22 % of the picture'), findsOneWidget);
     expect(find.text('12 min'), findsOneWidget);
+    await scrollSettingsTo(tester, find.textContaining('Clips play'));
+    expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
   });
 
   testWidgets(
@@ -835,6 +858,7 @@ void main() {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('clip-after-slider')));
     await tester.drag(
       find.descendant(
         of: find.byKey(const Key('clip-before-slider')),
@@ -849,8 +873,10 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
     // Brightness is saved too (still the default here).
+    await scrollSettingsTo(tester, find.text('+1.0 EV'));
     expect(find.text('+1.0 EV'), findsOneWidget);
+    await scrollSettingsTo(tester, find.textContaining('Clips play'));
+    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
   });
 }

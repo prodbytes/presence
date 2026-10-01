@@ -185,6 +185,7 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('settings-page')), findsOneWidget);
+    await scrollSettingsTo(tester, find.textContaining('Clips play'));
     expect(find.text('Before the press'), findsOneWidget);
     expect(find.text('After the press'), findsOneWidget);
     expect(find.textContaining('Clips play 30 s in total'), findsOneWidget);
@@ -205,6 +206,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('clip-after-slider')));
     // Drag both sliders all the way: before to the max, after to the min.
     await tester.drag(
       find.descendant(
