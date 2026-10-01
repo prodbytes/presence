@@ -4,6 +4,8 @@
 
 # --- Local settings (see .env.example) ---
 .env
+.env.*
+!.env.example
 
 # --- Java ---
 *.class

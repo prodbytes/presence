@@ -14,6 +14,10 @@
 # template.yaml's AuthHttpApi. Its host, $API_ID.execute-api.localhost.floci.io,
 # is written to /tmp/presence-api-host, which 10-cloudfront.sh routes /api/*
 # to. Keep the routes below in step with template.yaml.
+#
+# Without GOOGLE_WEB_CLIENT_ID the API runs in DEV mode: only the public
+# GET /api/auth/anonymous route is created, and it gives the anonymous user
+# every role (presence.auth.ExecutionMode).
 set -eu
 
 BUILD=/opt/presence-auth-api
@@ -21,9 +25,9 @@ STACK=presence-local-auth-api
 API_ID="${PRESENCE_API_ID:-presence}"
 rm -f /tmp/presence-api-host
 
-if [ -z "${GOOGLE_WEB_CLIENT_ID:-}" ]; then
-  echo "presence: GOOGLE_WEB_CLIENT_ID isn't set (.env); no local auth API" >&2
-  exit 0
+CLIENT_ID="${GOOGLE_WEB_CLIENT_ID:-}"
+if [ -z "$CLIENT_ID" ]; then
+  echo "presence: GOOGLE_WEB_CLIENT_ID isn't set (.env); auth API in DEV mode" >&2
 fi
 if [ ! -f "$BUILD/template.yaml" ]; then
   echo "presence: no auth API build in $BUILD (scripts/build-auth-api.sh); no local auth API" >&2
@@ -42,7 +46,8 @@ aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file /tmp/presence-auth-api.yaml --capabilities CAPABILITY_IAM \
-  --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "Architecture=$ARCH" >/dev/null
+  --parameter-overrides "GoogleWebClientId=$CLIENT_ID" "Architecture=$ARCH" \
+    "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
@@ -56,26 +61,35 @@ if [ "$api" != "$API_ID" ]; then
   echo "presence: the auth API got ID $api, not $API_ID; CloudFront won't reach it" >&2
   exit 1
 fi
-# As in template.yaml: only Google ID tokens issued for the web client.
-authorizer=$(aws apigatewayv2 create-authorizer --api-id "$api" --name GoogleIdToken \
-  --authorizer-type JWT --identity-source '$request.header.Authorization' \
-  --jwt-configuration "Issuer=https://accounts.google.com,Audience=$GOOGLE_WEB_CLIENT_ID" \
-  --query AuthorizerId --output text)
-
-route() { # route <"METHOD /path"> <function logical ID>
+route() { # route <"METHOD /path"> <function logical ID> [authorizer ID]
   integration=$(aws apigatewayv2 create-integration --api-id "$api" \
     --integration-type AWS_PROXY --integration-uri "$(function_arn "$2")" \
     --payload-format-version 2.0 --query IntegrationId --output text)
-  aws apigatewayv2 create-route --api-id "$api" --route-key "$1" \
-    --authorization-type JWT --authorizer-id "$authorizer" \
-    --target "integrations/$integration" >/dev/null
+  if [ -n "${3:-}" ]; then
+    aws apigatewayv2 create-route --api-id "$api" --route-key "$1" \
+      --authorization-type JWT --authorizer-id "$3" \
+      --target "integrations/$integration" >/dev/null
+  else
+    aws apigatewayv2 create-route --api-id "$api" --route-key "$1" \
+      --target "integrations/$integration" >/dev/null
+  fi
 }
-route "GET /api/auth" AuthFunction
-route "POST /api/auth/membership" MembershipFunction
-route "GET /api/auth/membership" AdminFunction
-route "POST /api/auth/membership/grant" AdminFunction
-route "POST /api/auth/membership/dismiss" AdminFunction
+# Public, as in template.yaml: the execution mode and the anonymous roles.
+route "GET /api/auth/anonymous" AuthFunction
+if [ -n "$CLIENT_ID" ]; then
+  # As in template.yaml: only Google ID tokens issued for the web client.
+  authorizer=$(aws apigatewayv2 create-authorizer --api-id "$api" --name GoogleIdToken \
+    --authorizer-type JWT --identity-source '$request.header.Authorization' \
+    --jwt-configuration "Issuer=https://accounts.google.com,Audience=$CLIENT_ID" \
+    --query AuthorizerId --output text)
+  route "GET /api/auth" AuthFunction "$authorizer"
+  route "POST /api/auth/membership" MembershipFunction "$authorizer"
+  route "GET /api/auth/membership" AdminFunction "$authorizer"
+  route "POST /api/auth/membership/grant" AdminFunction "$authorizer"
+  route "POST /api/auth/membership/dismiss" AdminFunction "$authorizer"
+fi
 aws apigatewayv2 create-stage --api-id "$api" --stage-name '$default' --auto-deploy >/dev/null
 
 echo "$api.execute-api.localhost.floci.io" > /tmp/presence-api-host
-echo "presence: auth API $api deployed ($STACK)"
+mode=RBAC; [ -n "$CLIENT_ID" ] || mode=DEV
+echo "presence: auth API $api deployed ($STACK, $mode)"

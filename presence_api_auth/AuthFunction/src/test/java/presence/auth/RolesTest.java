@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RolesTest {
 
@@ -69,6 +70,56 @@ class RolesTest {
 
         var noClaims = handler.handleRequest(new APIGatewayV2HTTPEvent(), null);
         assertEquals("{\"email\":null,\"roles\":[]}", noClaims.getBody());
+    }
+
+    @Test
+    void theModeIsDevOnlyWithoutAnOidcClient() {
+        assertEquals(ExecutionMode.DEV, ExecutionMode.of(null));
+        assertEquals(ExecutionMode.DEV, ExecutionMode.of(" "));
+        assertEquals(ExecutionMode.RBAC, ExecutionMode.of("123-abc.apps.googleusercontent.com"));
+    }
+
+    @Test
+    void theAnonymousUserMayOnlySignInUnderRbac() {
+        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var response = handler.handleRequest(anonymous(), null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("no-store", response.getHeaders().get("Cache-Control"));
+        assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
+                + "\"settings\":{\"oidc\":true,\"aws\":false}}", response.getBody());
+    }
+
+    @Test
+    void theAnonymousUserGetsEveryRoleInDev() {
+        var handler = new AuthHandler(roles, ExecutionMode.DEV);
+        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_user\"],"
+                + "\"settings\":{\"oidc\":false,\"aws\":false}}",
+                handler.handleRequest(anonymous(), null).getBody());
+    }
+
+    @Test
+    void theAnonymousRouteSaysWhichSettingsAreSet() {
+        var handler = new AuthHandler(roles, ExecutionMode.RBAC,
+                Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket"));
+        assertTrue(handler.handleRequest(anonymous(), null).getBody()
+                .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true}}"));
+        assertEquals(new Settings(false, false), Settings.of(null, " ", ""));
+        // AWS sync needs both the identity pool and the bucket.
+        assertEquals(new Settings(true, false), Settings.of("id", "us-east-1:pool", null));
+        assertEquals(new Settings(false, false), Settings.of("", null, "bucket"));
+    }
+
+    @Test
+    void signedInUsersStillGetTheirOwnRolesInRbac() {
+        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var response = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
+        assertEquals("{\"email\":\"x@example.com\",\"roles\":[]}", response.getBody());
+    }
+
+    private static APIGatewayV2HTTPEvent anonymous() {
+        var event = new APIGatewayV2HTTPEvent();
+        event.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
+        return event;
     }
 
     @Test

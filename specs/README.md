@@ -20,6 +20,10 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states.
 - [Events](events.md): the event timeline and the app-wide event bus.
+- [Devices, users and places](devices-users-places.md): the device ID
+  (`automatic_paranoid_gadget`) and user ID on every event, and a sign-in
+  taking over the events recorded signed out; places (device groups) are
+  defined, not built.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
   tagging people and pets by clicking them on the video.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
@@ -27,6 +31,9 @@ audio, so a clip can include the moments before someone pressed Clip.
   clients.
 - [Membership](membership.md): users without access ask for it; admins
   grant it on the Admin screen.
+- [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
+  user gets every role, a "dev" label shows) or RBAC (sign in for roles),
+  asked of the auth API before the app shows anything.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
 - [Settings screen](settings.md): the motion, camera and clip settings.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
@@ -43,7 +50,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 **Backend**
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
-  (`presence_user`, `presence_admin`), and the membership routes (SAM,
+  (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
+  execution mode and which settings are set, no token), and the
+  membership routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
