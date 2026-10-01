@@ -66,14 +66,18 @@ void main() {
 
       final camera = tester.getCenter(find.byTooltip('Camera'));
       final events = tester.getCenter(find.byTooltip('Events'));
+      final device = tester.getCenter(find.byTooltip('Device'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
       final login = tester.getCenter(find.byKey(const Key('account-button')));
-      for (final c in [camera, events, settings, login]) {
+      final title = tester.getRect(find.text('Presence'));
+      for (final c in [camera, events, device, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
-        expect(c.dx, greaterThan(size.width / 2 - 40));
+        // Right of the title, which shrinks to make room on small phones.
+        expect(c.dx, greaterThan(title.right));
       }
       expect(camera.dx, lessThan(events.dx));
-      expect(events.dx, lessThan(settings.dx));
+      expect(events.dx, lessThan(device.dx));
+      expect(device.dx, lessThan(settings.dx));
       expect(settings.dx, lessThan(login.dx));
     });
   }

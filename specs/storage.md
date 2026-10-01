@@ -29,7 +29,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, device ID, user ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
-| `settings` | name (`config`, `device`) | `config`: the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)) |
+| `settings` | name (`config`, `device`, `location`) | `config`: the whole `PresenceConfig` as versioned JSON (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)); `location`: where it is ([Device location](device-location.md)) |
 | `synced` | S3 object key | a fingerprint of what was uploaded there ([cloud sync](cloud-sync.md)) |
 
 **References:** each event has a stable `id`, and events from a camera carry

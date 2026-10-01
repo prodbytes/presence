@@ -19,6 +19,8 @@ import 'cloud/s3.dart';
 import 'config.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
+import 'location/device_location.dart';
+import 'location/device_view.dart';
 import 'settings.dart';
 import 'system_health.dart';
 import 'storage/media_platform.dart';
@@ -41,7 +43,16 @@ class PresenceApp extends StatefulWidget {
     this.cloud,
     this.rolesClient,
     this.membershipClient,
+    this.locator,
+    this.mapTiles,
   });
+
+  /// Overrides the device's positioning (used by tests).
+  final Locator? locator;
+
+  /// Overrides the Device map's tiles (used by tests); defaults to
+  /// OpenStreetMap.
+  final Widget? mapTiles;
 
   /// Overrides membership requests (used by tests); defaults to
   /// `/api/auth/membership`.
@@ -81,6 +92,7 @@ class _PresenceAppState extends State<PresenceApp> {
   late final EventLog _log;
   late final Persistence _persistence;
   late final CameraRig _rig;
+  late final LocationController _location;
 
   @override
   void initState() {
@@ -98,10 +110,19 @@ class _PresenceAppState extends State<PresenceApp> {
       config: _config,
       // Each event belongs to whoever is signed in when it's recorded.
       currentUser: () => _auth.user?.id,
+      // And records where the device is.
+      currentLocation: () => _location.location,
       mediaStore: mediaIo == null
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
     );
+    _location = LocationController(
+      locator: widget.locator ?? DeviceLocator(),
+      load: _persistence.loadLocation,
+      save: _persistence.saveLocation,
+      now: widget.now,
+    );
+    _location.init().ignore();
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -200,6 +221,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _auth.removeListener(_onAuthChanged);
     _sync?.dispose();
     _roles.dispose();
+    _location.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -226,6 +248,8 @@ class _PresenceAppState extends State<PresenceApp> {
           membership: _membership,
           sync: _sync,
           deviceId: _deviceId,
+          location: _location,
+          mapTiles: widget.mapTiles,
         ),
       ),
     );
@@ -236,6 +260,7 @@ class _PresenceAppState extends State<PresenceApp> {
 enum HomeTab {
   camera('Camera', Icons.videocam),
   events('Events', Icons.notifications),
+  device('Device', Icons.place),
   settings('Settings', Icons.settings);
 
   const HomeTab(this.label, this.icon);
@@ -245,8 +270,9 @@ enum HomeTab {
 }
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
-/// between the full-screen camera (the start tab), the event stream and the
-/// settings. Swiping sideways flips too.
+/// between the full-screen camera (the start tab), the event stream, the
+/// device's map and the settings. Swiping sideways flips too, except on
+/// the map, where dragging moves the map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
 /// app bar has only the title and a sign-in button, and the screen stays on
@@ -262,7 +288,15 @@ class HomeScreen extends StatefulWidget {
     required this.membership,
     this.sync,
     this.deviceId,
+    required this.location,
+    this.mapTiles,
   });
+
+  /// Where this device is (the Device tab's map, and every event).
+  final LocationController location;
+
+  /// The Device map's tiles, when not OpenStreetMap's (tests).
+  final Widget? mapTiles;
 
   /// This device's ID (shown in Settings), once it's loaded.
   final String? deviceId;
@@ -300,6 +334,8 @@ class _HomeScreenState extends State<HomeScreen>
   )..addListener(() => setState(() {}));
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
+
+  bool get _onDevice => _tabs.index == HomeTab.device.index;
 
   bool get _signedIn => widget.auth.user != null;
 
@@ -501,8 +537,11 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       body: TabBarView(
         controller: _tabs,
-        // No swiping to the other tabs while they're hidden.
-        physics: _hasAccess ? null : const NeverScrollableScrollPhysics(),
+        // No swiping to the other tabs while they're hidden, nor on the
+        // map: there, a drag moves the map.
+        physics: _hasAccess && !_onDevice
+            ? null
+            : const NeverScrollableScrollPhysics(),
         children: [
           _KeepAlive(
             child: CameraFeedsView(
@@ -515,6 +554,13 @@ class _HomeScreenState extends State<HomeScreen>
           SafeArea(
             key: const Key('events-page'),
             child: _ReadableWidth(child: EventTimeline(log: widget.log)),
+          ),
+          SafeArea(
+            child: DeviceView(
+              location: widget.location,
+              deviceId: widget.deviceId,
+              tiles: widget.mapTiles,
+            ),
           ),
           SafeArea(
             child: _ReadableWidth(
