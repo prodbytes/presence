@@ -38,6 +38,8 @@ audio, so a clip can include the moments before someone pressed Clip.
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
+- [Subjects](subjects.md): the people and pets tagged on clips, each with
+  its latest frame, and a map of their latest events, fading with age.
 - [Device location](device-location.md): the Device tab's map, setting
   the location by moving it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera and clip settings.

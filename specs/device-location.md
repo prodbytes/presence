@@ -5,11 +5,13 @@ on every event.
 
 ## The Device tab
 
-- A tab between **Events** and **Settings** (the `place` icon, tooltip
+- A tab between **Subjects** and **Settings** (the `place` icon, tooltip
   "Device"; see [Navigation](navigation.md)). It shows a full-page map
   ([lib/location/device_view.dart](../presence_app/lib/location/device_view.dart)):
   `flutter_map` with OpenStreetMap tiles (no API key), credited
-  "© OpenStreetMap contributors" in the bottom-left corner. The map can't be
+  "© OpenStreetMap contributors" in the bottom-left corner (shared with
+  the [Subjects](subjects.md) maps:
+  [lib/location/map_parts.dart](../presence_app/lib/location/map_parts.dart)). The map can't be
   rotated; north stays up.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
@@ -108,4 +110,5 @@ on every event.
 - OpenStreetMap's public tile server is meant for light use and needs the
   credit shown; heavy use would need another tile provider.
 - The location is read once per launch; a moving device isn't followed.
-- On 320 dp phones, the four tabs leave little room: the title shortens.
+- On 320 dp phones, the five tabs leave little room: the title shortens to
+  an ellipsis.

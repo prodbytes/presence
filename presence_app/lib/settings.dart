@@ -35,6 +35,7 @@ class SettingsView extends StatelessWidget {
         final clip = config.clip;
         final camera = config.camera;
         final motion = config.motion;
+        final subjects = config.subjects;
         // Each change applies to the *current* config, not the one this
         // build saw: two changes before the next rebuild must both stick.
         void setClip(ClipConfig Function(ClipConfig) f) =>
@@ -43,6 +44,8 @@ class SettingsView extends StatelessWidget {
             config.update((x) => x.copyWith(camera: f(x.camera)));
         void setMotion(MotionConfig Function(MotionConfig) f) =>
             config.update((x) => x.copyWith(motion: f(x.motion)));
+        void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
+            config.update((x) => x.copyWith(subjects: f(x.subjects)));
         return ListView(
           key: const Key('settings-page'),
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -119,6 +122,22 @@ class SettingsView extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+            const SizedBox(height: 16),
+            Text('Subjects', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _LabeledSlider(
+              key: const Key('subject-events-slider'),
+              label: "Latest events on a subject's map",
+              valueLabel: '${subjects.mapEvents}',
+              value: subjects.mapEvents.toDouble(),
+              min: SubjectsConfig.minMapEvents.toDouble(),
+              max: SubjectsConfig.maxMapEvents.toDouble(),
+              divisions:
+                  (SubjectsConfig.maxMapEvents - SubjectsConfig.minMapEvents) ~/
+                  SubjectsConfig.mapEventsStep,
+              onChanged: (v) =>
+                  setSubjects((s) => s.copyWith(mapEvents: v.round())),
             ),
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[

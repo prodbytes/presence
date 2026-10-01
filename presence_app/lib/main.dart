@@ -27,6 +27,7 @@ import 'system_health.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
+import 'subjects.dart';
 import 'theme.dart';
 
 void main() {
@@ -56,8 +57,7 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the device's positioning (used by tests).
   final Locator? locator;
 
-  /// Overrides the Device map's tiles (used by tests); defaults to
-  /// OpenStreetMap.
+  /// Overrides the maps' tiles (used by tests); defaults to OpenStreetMap.
   final Widget? mapTiles;
 
   /// Overrides membership requests (used by tests); defaults to
@@ -319,6 +319,7 @@ class _PresenceAppState extends State<PresenceApp> {
 enum HomeTab {
   camera('Camera', Icons.videocam),
   events('Events', Icons.notifications),
+  subjects('Subjects', Icons.people),
   device('Device', Icons.place),
   settings('Settings', Icons.settings);
 
@@ -330,7 +331,7 @@ enum HomeTab {
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), the event stream, the
-/// device's map and the settings. Swiping sideways flips too, except on
+/// tagged subjects, the device's map and the settings. Swiping sideways flips too, except on
 /// the map, where dragging moves the map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
@@ -354,7 +355,7 @@ class HomeScreen extends StatefulWidget {
   /// Where this device is (the Device tab's map, and every event).
   final LocationController location;
 
-  /// The Device map's tiles, when not OpenStreetMap's (tests).
+  /// The maps' tiles, when not OpenStreetMap's (tests).
   final Widget? mapTiles;
 
   /// This device's ID (shown in Settings), once it's loaded.
@@ -380,6 +381,10 @@ class HomeScreen extends StatefulWidget {
   /// Width of each icon tab: Material's 48 dp minimum touch target, which
   /// leaves room for the title on 320 dp phones.
   static const double tabWidth = 48;
+
+  /// How narrow tabs get when the app bar can't fit them at [tabWidth]
+  /// (an admin's, with its extra button, on a 320 dp phone).
+  static const double minTabWidth = 40;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -481,6 +486,19 @@ class _HomeScreenState extends State<HomeScreen>
       );
   }
 
+  /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
+  /// when the tabs, the buttons after them and a sliver of the title don't
+  /// fit the screen.
+  double _tabWidth(BuildContext context) {
+    final buttons =
+        (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
+    const titleRoom = 12 + 16;
+    final fit =
+        (MediaQuery.sizeOf(context).width - titleRoom - buttons) /
+        HomeTab.values.length;
+    return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
+  }
+
   Future<void> _clip() => widget.rig.requestClips(AppEventBusScope.of(context));
 
   @override
@@ -555,7 +573,7 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(width: 4),
           ] else ...[
             SizedBox(
-              width: HomeScreen.tabWidth * HomeTab.values.length,
+              width: _tabWidth(context) * HomeTab.values.length,
               child: TabBar(
                 controller: _tabs,
                 dividerHeight: 0,
@@ -613,6 +631,16 @@ class _HomeScreenState extends State<HomeScreen>
           SafeArea(
             key: const Key('events-page'),
             child: _ReadableWidth(child: EventTimeline(log: widget.log)),
+          ),
+          SafeArea(
+            key: const Key('subjects-page'),
+            child: _ReadableWidth(
+              child: SubjectsView(
+                log: widget.log,
+                config: widget.config,
+                tiles: widget.mapTiles,
+              ),
+            ),
           ),
           SafeArea(
             child: DeviceView(

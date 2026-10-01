@@ -1216,3 +1216,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - At launch the app checks the consent before anything shows. The
       cameras open only once it's given or found. Agreeing saves it and
       publishes a "Recording consent given" event.
+158. **Add a "Subjects" navigation screen listing the identified subjects,
+    each with a frame captured on the last event with that subject; a
+    line opens a "Subject" screen with a map and a dot per event with the
+    subject, the most recent fully opaque and older ones more transparent;
+    by default the last 20 events, configurable in Settings.** (2026-10-01)
+    - New Subjects tab between Events and Device: one card per tagged name
+      (matched ignoring case), most recently seen first, with the frame
+      from their latest event and a dot where they were clicked, when
+      they were last seen and how many events they're on.
+    - Tapping a card opens the subject's screen: an OpenStreetMap map with
+      a red dot at each event's location, fading from 100 % (newest) to
+      15 % (oldest shown), fitted on the dots; under it, the events, which
+      play their clip when tapped.
+    - New Settings section, **Subjects**: "Latest events on a subject's
+      map", 5–100, default 20 (`SubjectsConfig.mapEvents`, stored with the
+      config).
+    - With five tabs, an admin's app bar overflowed a 320 dp phone; the
+      tabs now narrow (down to 40 dp) only where they don't fit.
+    - New [subjects.md](subjects.md). The OpenStreetMap tiles and credit
+      are shared with the Device map (`lib/location/map_parts.dart`).

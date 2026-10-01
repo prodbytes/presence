@@ -16,6 +16,7 @@ class PresenceConfig {
     this.clip = const ClipConfig(),
     this.camera = const CameraConfig(),
     this.motion = const MotionConfig(),
+    this.subjects = const SubjectsConfig(),
   });
 
   static const int version = 1;
@@ -23,15 +24,18 @@ class PresenceConfig {
   final ClipConfig clip;
   final CameraConfig camera;
   final MotionConfig motion;
+  final SubjectsConfig subjects;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
     CameraConfig? camera,
     MotionConfig? motion,
+    SubjectsConfig? subjects,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
     motion: motion ?? this.motion,
+    subjects: subjects ?? this.subjects,
   );
 
   Map<String, Object?> toJson() => {
@@ -39,6 +43,7 @@ class PresenceConfig {
     'clip': clip.toJson(),
     'camera': camera.toJson(),
     'motion': motion.toJson(),
+    'subjects': subjects.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -48,6 +53,7 @@ class PresenceConfig {
     clip: ClipConfig.fromJson(_map(json['clip'])),
     camera: CameraConfig.fromJson(_map(json['camera'])),
     motion: MotionConfig.fromJson(_map(json['motion'])),
+    subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -68,10 +74,11 @@ class PresenceConfig {
       other is PresenceConfig &&
       other.clip == clip &&
       other.camera == camera &&
-      other.motion == motion;
+      other.motion == motion &&
+      other.subjects == subjects;
 
   @override
-  int get hashCode => Object.hash(clip, camera, motion);
+  int get hashCode => Object.hash(clip, camera, motion, subjects);
 }
 
 /// How long clips are around the moment they're requested.
@@ -212,6 +219,38 @@ class MotionConfig {
   int get hashCode => Object.hash(enabled, threshold, cooldown);
 }
 
+/// The Subjects screens.
+@immutable
+class SubjectsConfig {
+  const SubjectsConfig({this.mapEvents = defaultMapEvents});
+
+  static const int minMapEvents = 5;
+  static const int maxMapEvents = 100;
+  static const int mapEventsStep = 5;
+  static const int defaultMapEvents = 20;
+
+  /// How many of a subject's latest events its screen shows (and maps).
+  final int mapEvents;
+
+  SubjectsConfig copyWith({int? mapEvents}) => SubjectsConfig(
+    mapEvents: (mapEvents ?? this.mapEvents).clamp(minMapEvents, maxMapEvents),
+  );
+
+  Map<String, Object?> toJson() => {'mapEvents': mapEvents};
+
+  factory SubjectsConfig.fromJson(Map<String, Object?> json) =>
+      const SubjectsConfig().copyWith(
+        mapEvents: _num(json['mapEvents'])?.round(),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is SubjectsConfig && other.mapEvents == mapEvents;
+
+  @override
+  int get hashCode => mapEvents.hashCode;
+}
+
 /// Holds the current [PresenceConfig] and notifies listeners when it
 /// changes. Owned by the app; the Settings screen, cameras, motion
 /// detection and persistence all read from it.
@@ -238,6 +277,7 @@ class ConfigController extends ChangeNotifier {
   ClipConfig get clip => _config.clip;
   CameraConfig get camera => _config.camera;
   MotionConfig get motion => _config.motion;
+  SubjectsConfig get subjects => _config.subjects;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>
