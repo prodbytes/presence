@@ -107,7 +107,9 @@ The [README](../README.md) is the project's front page. It covers:
   `HOSTED_ZONE_ID` for deploys); and a table of every `.env` variable
   (purpose and source). It doesn't mention the private settings repo;
 - running it locally with devbox and on GitHub Codespaces, both pointing
-  back to Before you start;
+  back to Before you start. The Open in GitHub Codespaces badge links to
+  `codespaces.new/prodbytes/presence?machine=standardLinux32gb`, so it
+  defaults to a 4-core, 16 GB machine;
 - deploying to Floci: what `devbox services up` deploys into it (the
   `presence-local-auth-api` stack and the CloudFront distribution), that
   it needs `GOOGLE_WEB_CLIENT_ID`, redeploying with
