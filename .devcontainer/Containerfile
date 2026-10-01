@@ -8,13 +8,14 @@ RUN apt-get update \
         curl \
         git \
         jq \
+        lsof \
         sudo \
         unzip \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Consider pinning the devbox version so image rebuilds don't drift from devbox.lock
-# ENV DEVBOX_USE_VERSION=0.17.5
+# Pinned, so image rebuilds don't drift: the installer fetches this version.
+ENV DEVBOX_USE_VERSION=0.18.1
 RUN curl -fsSL https://get.jetify.com/devbox | bash -s -- -f \
     && chmod 755 /usr/local/bin/devbox
 
@@ -23,7 +24,13 @@ USER vscode
 
 # Devbox needs Nix. Install it single-user (--no-daemon): containers have no
 # systemd for the nix daemon, and this way the store is owned by vscode.
-RUN curl -fsSL https://nixos.org/nix/install | sh -s -- --no-daemon
+# A pinned release, with its installer checked against the published hash.
+ARG NIX_VERSION=2.35.0
+ARG NIX_INSTALL_SHA256=78142338c3a78fe1b58f56ebcadbe7bbd22f9a304b954daff53c5d14608771f0
+RUN curl -fsSL -o /tmp/nix-install "https://releases.nixos.org/nix/nix-${NIX_VERSION}/install" \
+    && echo "${NIX_INSTALL_SHA256}  /tmp/nix-install" | sha256sum -c - \
+    && sh /tmp/nix-install --no-daemon \
+    && rm /tmp/nix-install
 
 # Warm the nix store: the repo bind mount shadows the workspace at container
 # start, so only /nix/store survives the build. Fetch the locked store paths
@@ -37,4 +44,4 @@ RUN export PATH="$HOME/.nix-profile/bin:$PATH" \
        | xargs -r nix-store --realise \
     && sudo rm -rf /tmp/devbox-warmup
 
-WORKDIR /workspaces/blank-devbox
+WORKDIR /workspaces/presence

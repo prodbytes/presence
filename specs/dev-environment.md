@@ -13,6 +13,22 @@
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
   (Flutter web), 4566 (Floci), 8081 (index) and 8443 (Floci HTTPS).
+  - It pins devbox (0.18.1) and Nix (2.35.0, its installer checked against
+    the published SHA-256), and the docker-in-docker feature
+    (`devcontainer-lock.json`).
+  - It asks for a 4-core, 16 GB machine (`hostRequirements`).
+  - It sets `PRESENCE_BIND_HOST=0.0.0.0`, so Floci in docker-in-docker
+    reaches the dev servers (see [Local CDN](local-cdn.md)).
+  - [post-create.sh](../.devcontainer/post-create.sh) runs `devbox install`
+    and makes every shell pass `GITHUB_TOKEN` (which Codespaces provide)
+    to Nix as `NIX_CONFIG` access-tokens. Devbox has Nix resolve flakes
+    through api.github.com (on install, and when `devbox services up`
+    first installs process-compose), which answers 403 to unauthenticated
+    callers past 60 requests an hour per IP. The token stays in the
+    environment; the line in `~/.profile` and `~/.bashrc` only reads it.
+  - Verified with the Dev Containers CLI on an arm64 Mac: the image built,
+    post-create installed everything, and `devbox services up` came up
+    with every health check ✅. It wasn't run on an x86_64 Codespace.
 - Flutter web runs on the `web-server` device, so the container doesn't need
   Chrome.
 - `devbox services up` ([process-compose.yaml](../process-compose.yaml)) starts:

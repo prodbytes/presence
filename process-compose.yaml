@@ -74,7 +74,8 @@ processes:
   5-index:
     # The site root (presence_index/site), which redirects to /app/. Floci's
     # distribution uses it as the default origin.
-    command: python3 -m http.server ${INDEX_PORT:-8081} --bind 127.0.0.1 --directory presence_index/site
+    # PRESENCE_BIND_HOST: see scripts/flutter-web.sh.
+    command: python3 -m http.server ${INDEX_PORT:-8081} --bind ${PRESENCE_BIND_HOST:-127.0.0.1} --directory presence_index/site
     readiness_probe:
       http_get:
         host: localhost

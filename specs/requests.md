@@ -1046,3 +1046,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     deployed `nu01.com` domains. The badges now point to `prodbytes/presence`.
     [dev-environment.md](dev-environment.md) describes what the README
     covers.
+148. **Review the dev container so the system works on a new GitHub
+    Codespace, and fix what's needed.** (2026-10-01)
+    - `devbox install` failed: Nix got HTTP 403 from api.github.com
+      (unauthenticated rate limit). New `.devcontainer/post-create.sh`
+      passes the codespace's `GITHUB_TOKEN` to Nix (`NIX_CONFIG`), in
+      post-create and every shell, without writing the token to disk.
+    - Floci couldn't reach the dev servers in docker-in-docker: they bound
+      127.0.0.1. `PRESENCE_BIND_HOST` (0.0.0.0 in the dev container).
+    - The auth API's arm64 Lambdas wouldn't run on x86_64 Codespaces: a
+      template `Architecture` parameter, set from the host by the Floci
+      hook (AWS stays arm64).
+    - `local-certs.sh` also regenerates a certificate from another
+      machine's mkcert CA.
+    - Pinned devbox 0.18.1 and Nix 2.35.0 (checksummed installer), locked
+      the docker-in-docker feature, added `lsof` (used to stop the web
+      server), `hostRequirements` (4 cores, 16 GB), and fixed the stale
+      `/workspaces/blank-devbox` workdir.
+    - Verified with the Dev Containers CLI on an arm64 Mac; not run on an
+      x86_64 Codespace.

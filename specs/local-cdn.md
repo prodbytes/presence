@@ -73,7 +73,9 @@ web client's local origin**.
   `presence_floci/certs/presence.pem` and `presence-key.pem` for
   `local.presence.nu01.com`, `presence.localhost`, `*.presence.localhost`, `localhost`, `127.0.0.1`
   and `::1`. It regenerates them only when they're missing, expire within
-  30 days or don't cover every name. The folder is git-ignored.
+  30 days, don't cover every name, or weren't signed by this machine's
+  mkcert CA (a checkout shared with the dev container, which has its own
+  CA). The folder is git-ignored.
 - Floci loads them (`FLOCI_TLS_ENABLED`, `FLOCI_TLS_CERT_PATH`,
   `FLOCI_TLS_KEY_PATH`) and also listens for HTTPS on 8443
   (`FLOCI_TLS_AWS_HTTPS_PORT`; 8443 avoids a privileged port), published
@@ -100,8 +102,12 @@ web client's local origin**.
 
 - `mkcert -install` needs the user's password, so it isn't automated.
   Until it's run, browsers warn about the certificate.
-- On Linux, including the dev container, it doesn't reach the origins as
-  is: plain Docker's `host-gateway` is the bridge address, not loopback.
+- On plain Linux Docker, `host-gateway` is the bridge address, not
+  loopback, so origins bound to 127.0.0.1 are out of reach. The dev
+  container sets `PRESENCE_BIND_HOST=0.0.0.0`, which the Flutter dev
+  server and the index bind to (default 127.0.0.1); elsewhere on Linux,
+  set it by hand. Verified in the dev container (docker-in-docker): the
+  CDN answered 200 for `/app/` and `/`, and the health line was all ✅.
 - Google sign-in through this URL needs `http://presence.localhost:4566`
   added to the web OAuth client's authorized JavaScript origins.
 
@@ -113,6 +119,10 @@ roles, membership requests and the Admin screen work locally without AWS:
 - **Build:** [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs
   `sam build` before Floci starts (in the `4-floci` command), only when
   `presence_api_auth` changed. compose mounts the build read-only.
+- **CPU:** the hook passes the host's architecture (`Architecture`:
+  `arm64` on Apple silicon, `x86_64` on GitHub Codespaces), so Floci runs
+  the Lambdas without emulation. AWS keeps the template's default,
+  `arm64`.
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
   `template.yaml` as the stack `presence-local-auth-api`: the three Java 25

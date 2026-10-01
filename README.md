@@ -131,9 +131,11 @@ Pass `MODE=profile` or `MODE=debug` for other build modes, and
 
 1. Click **Open in GitHub Codespaces** above, or, on the repo page, choose
    **Code → Codespaces → Create codespace on main**.
-2. Wait for the container to build. Its `postCreateCommand` runs
-   `devbox install`. The first run evaluates nixpkgs, which takes a few
-   minutes; after that the environment starts instantly.
+2. Wait for the container to build. It needs a 4-core, 16 GB machine.
+   Its `postCreateCommand` ([post-create.sh](.devcontainer/post-create.sh))
+   runs `devbox install` with the codespace's `GITHUB_TOKEN`, so Nix isn't
+   rate-limited by GitHub. The first run evaluates nixpkgs, which takes a
+   few minutes; after that the environment starts instantly.
 3. Create `.env` from [.env.example](.env.example) if you need sign-in or
    cloud sync. Codespaces can provide the values as
    [Codespaces secrets](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces).
@@ -150,7 +152,9 @@ Pass `MODE=profile` or `MODE=debug` for other build modes, and
 The same dev container also works locally in VS Code (the **Dev
 Containers** badge above, or **Reopen in Container**). It ships the
 [docker-in-docker feature](https://github.com/devcontainers/features/tree/main/src/docker-in-docker),
-so Floci and `docker ps` work inside it.
+so Floci and `docker ps` work inside it. Outside Codespaces, export
+`GITHUB_TOKEN` (for example `export GITHUB_TOKEN=$(gh auth token)`) before
+opening it if `devbox install` fails with HTTP 403.
 
 > Google sign-in only works from origins registered on the OAuth client, so
 > it won't work on a Codespaces URL unless you add that origin to your own
@@ -236,7 +240,8 @@ The [Containerfile](.devcontainer/Containerfile) starts from Microsoft's
 1. Devbox is installed as root. Everything else then runs as the `vscode`
    user, so the Nix store's owner matches the container's `remoteUser`.
 2. Nix is installed in single-user mode (`--no-daemon`). Containers have no
-   systemd, so the multi-user Nix daemon can't run.
+   systemd, so the multi-user Nix daemon can't run. Devbox and Nix are
+   pinned, and the Nix installer is checked against its published hash.
 3. At build time, the locked store paths are downloaded straight from
    `cache.nixos.org` to fill `/nix/store` in advance. This makes no GitHub
    API calls, so builds don't hit unauthenticated rate limits.

@@ -30,12 +30,19 @@ if [ ! -f "$BUILD/template.yaml" ]; then
   exit 0
 fi
 
+# The host's CPU, so Floci runs the Lambdas without emulation (arm64 on
+# Apple silicon, x86_64 on GitHub Codespaces).
+case "$(uname -m)" in
+  aarch64 | arm64) ARCH=arm64 ;;
+  *) ARCH=x86_64 ;;
+esac
+
 aws s3 mb s3://presence-local-sam >/dev/null
 aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file /tmp/presence-auth-api.yaml --capabilities CAPABILITY_IAM \
-  --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" >/dev/null
+  --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "Architecture=$ARCH" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
