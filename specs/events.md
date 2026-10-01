@@ -1,7 +1,7 @@
 # Events
 
-- Events appear on the [Monitoring](monitoring.md) tab, under the subjects'
-  map, in a vertically scrolling timeline, newest at the top. Each
+- Events appear on the [Monitoring](monitoring.md) tab, in the second row
+  under the subjects' map and the subjects, in a vertically scrolling timeline, newest at the top. Each
   entry is just a card, with no dot or rail beside it, and cards are 8 px
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time

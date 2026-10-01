@@ -123,7 +123,7 @@ void main() {
     tearDown(() => bus.close());
 
     Future<void> show(WidgetTester tester) async {
-      // Wide: the subjects list runs down the right.
+      // Wide: the subjects column is at its widest.
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -261,49 +261,78 @@ void main() {
       expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
     });
 
-    testWidgets('on a phone: the map, a strip of subjects, then events', (
-      tester,
-    ) async {
-      log.addHistory([
-        clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
-        clipWith(['Ana', 'Rex'], minutesAgo: 2, lat: 48.2),
-        AppEvent(icon: Icons.circle, title: 'Door opened'),
-      ]);
-      tester.view.physicalSize = const Size(360, 740);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: MonitoringView(
-              log: log,
-              config: config,
-              tiles: const SizedBox(),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
+    void expectTwoRows(WidgetTester tester) {
       final map = tester.getRect(find.byKey(const Key('subjects-map')));
-      final strip = tester.getRect(find.byKey(const Key('subjects-page')));
+      final subjects = tester.getRect(find.byKey(const Key('subjects-page')));
       final events = tester.getRect(find.byKey(const Key('events-page')));
-      expect(map.bottom, lessThanOrEqualTo(strip.top));
-      expect(strip.bottom, lessThanOrEqualTo(events.top));
+      final page = tester.getRect(find.byKey(const Key('monitoring-page')));
+      // First row: the map, then the subjects to its right, side by side.
+      expect(map.top, page.top);
+      expect(subjects.top, page.top);
+      expect(map.right, lessThanOrEqualTo(subjects.left));
+      expect(map.bottom, closeTo(subjects.bottom, 1));
+      // Second row: the events, the full width, under both.
+      expect(events.top, greaterThanOrEqualTo(map.bottom));
+      expect(events.left, page.left);
+      expect(events.right, page.right);
+      expect(events.bottom, page.bottom);
       expect(
         tester
             .widget<ListView>(find.byKey(const Key('subjects-list')))
             .scrollDirection,
-        Axis.horizontal,
+        Axis.vertical,
       );
-      // Cards side by side.
-      expect(
-        tester.getTopLeft(find.byKey(const Key('subject-rex'))).dx,
-        lessThan(tester.getTopLeft(find.byKey(const Key('subject-ana'))).dx),
-      );
-      expect(find.text('Door opened'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
+    }
+
+    for (final (name, size) in [
+      ('a phone', const Size(360, 740)),
+      ('a wide screen', const Size(1280, 800)),
+    ]) {
+      testWidgets('on $name: map and subjects, then the events below', (
+        tester,
+      ) async {
+        log.addHistory([
+          clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
+          clipWith(['Ana', 'Rex'], minutesAgo: 2, lat: 48.2),
+          AppEvent(icon: Icons.circle, title: 'Door opened'),
+          AppEvent(icon: Icons.circle, title: 'Door closed'),
+        ]);
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: MonitoringView(
+                log: log,
+                config: config,
+                tiles: const SizedBox(),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expectTwoRows(tester);
+        // Subjects one under the other, the latest first.
+        expect(
+          tester.getTopLeft(find.byKey(const Key('subject-rex'))).dy,
+          lessThan(tester.getTopLeft(find.byKey(const Key('subject-ana'))).dy),
+        );
+        // Events as cards, one per row.
+        expect(find.text('Door opened'), findsOneWidget);
+        final cards = find.descendant(
+          of: find.byKey(const Key('events-page')),
+          matching: find.byType(EventCard),
+        );
+        expect(cards, findsNWidgets(2));
+        final first = tester.getRect(cards.at(0));
+        final second = tester.getRect(cards.at(1));
+        expect(first.bottom, lessThanOrEqualTo(second.top));
+        expect(first.left, second.left);
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('on top, a map of every subject, each in its color, and a '
         'matching square on each row', (tester) async {
@@ -331,22 +360,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // The map sits top left, the subjects to its right, the events
-      // under it.
-      final map = find.byKey(const Key('subjects-map'));
-      expect(map, findsOneWidget);
-      final list = find.byKey(const Key('subjects-page'));
-      expect(
-        tester.getTopRight(map).dx,
-        lessThanOrEqualTo(tester.getTopLeft(list).dx),
-      );
-      expect(tester.getTopLeft(map).dy, lessThan(100));
-      expect(
-        tester.getBottomLeft(map).dy,
-        lessThanOrEqualTo(
-          tester.getTopLeft(find.byKey(const Key('events-page'))).dy,
-        ),
-      );
+      expectTwoRows(tester);
 
       // Every located event of every subject; the clip with both gets a
       // dot for each.

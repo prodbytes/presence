@@ -26,10 +26,10 @@ and pets"), each with where the device was when they were seen
   whole world without any), has the tiles' credit, and tapping a dot opens
   its event in the Monitoring tab's events list.
 - **The subjects list**, one card per subject, the **most recently seen
-  first** (a column on wide screens, a sideways strip of compact cards on
-  phones):
+  first**, down a column beside the map (in a column narrower than 260 dp
+  the frame sits above the text):
   - the **frame** the subject was tagged on in their latest event, 96 px
-    wide at its own shape, with a dot in the subject's color where they
+    wide at its own shape (the card's width when stacked), with a dot in the subject's color where they
     were clicked. A tag
     without a frame shows the clip's thumbnail instead (no dot);
   - a **square in the subject's color** before the name, to match them

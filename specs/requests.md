@@ -1400,3 +1400,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       scrolls this tab's events to its event, as before.
     - New [monitoring.md](monitoring.md); the other specs updated. 202
       Flutter tests pass; web release builds.
+175. **The Monitoring tab is still wrong; start it from scratch: two rows,
+    the first split in two columns for the map and the subjects, the second
+    only for events, one row per event.** Then: **events should be cards,
+    as they were before.** (2026-10-01)
+    - `MonitoringView` rewritten: the same layout on every screen. First
+      row (45% of the height): the map on the left, the subjects on the
+      right (340 dp, or 45% of the width when narrower). Second row: the
+      events timeline, one card per row, unchanged cards, at most 640 dp
+      wide and centered so a clip's thumbnail fits the row.
+    - `SubjectList` is a column only (the phone strip is gone); a card
+      narrower than 260 dp puts its frame above the text.
+    - Specs updated; 204 Flutter tests pass; web release builds.

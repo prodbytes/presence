@@ -161,8 +161,8 @@ class SubjectsMap extends StatelessWidget {
 
 /// Everyone tagged on clips, one card per subject, each with a square of
 /// their color and the frame from the latest event they're on, the most
-/// recently seen first. Tapping one opens its [SubjectScreen]. Laid out
-/// down a column, or along a strip ([direction] horizontal, on phones).
+/// recently seen first, down a column. Tapping one opens its
+/// [SubjectScreen].
 class SubjectList extends StatelessWidget {
   const SubjectList({
     super.key,
@@ -170,62 +170,42 @@ class SubjectList extends StatelessWidget {
     required this.config,
     this.tiles,
     this.onOpenEvent,
-    this.direction = Axis.vertical,
   });
-
-  /// A card's width along a horizontal strip.
-  static const double stripCardWidth = 280;
 
   final EventLog log;
   final ConfigController config;
   final ValueChanged<AppEvent>? onOpenEvent;
   final Widget? tiles;
-  final Axis direction;
 
   @override
   Widget build(BuildContext context) => _SubjectsBuilder(
     log: log,
     builder: (context, subjects) {
-      final horizontal = direction == Axis.horizontal;
       if (subjects.isEmpty) {
-        const message = 'No subjects yet. Tag people and pets on a clip.';
-        // A strip has room for one line only.
-        return horizontal
-            ? const Center(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(message, textAlign: TextAlign.center),
-                ),
-              )
-            : const FeedMessage(icon: Icons.people_outline, message: message);
+        return const FeedMessage(
+          icon: Icons.people_outline,
+          message: 'No subjects yet. Tag people and pets on a clip.',
+        );
       }
       return ListView.separated(
         key: const Key('subjects-list'),
-        scrollDirection: direction,
-        padding: horizontal
-            ? const EdgeInsets.symmetric(horizontal: 12, vertical: 8)
-            : const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(12),
         itemCount: subjects.length,
-        separatorBuilder: (context, i) =>
-            horizontal ? const SizedBox(width: 8) : const SizedBox(height: 8),
-        itemBuilder: (context, i) {
-          final row = _SubjectRow(
-            subject: subjects[i],
-            compact: horizontal,
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SubjectScreen(
-                  subjectId: subjects[i].id,
-                  log: log,
-                  config: config,
-                  tiles: tiles,
-                  onOpenEvent: onOpenEvent,
-                ),
+        separatorBuilder: (context, i) => const SizedBox(height: 8),
+        itemBuilder: (context, i) => _SubjectRow(
+          subject: subjects[i],
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => SubjectScreen(
+                subjectId: subjects[i].id,
+                log: log,
+                config: config,
+                tiles: tiles,
+                onOpenEvent: onOpenEvent,
               ),
             ),
-          );
-          return horizontal ? SizedBox(width: stripCardWidth, child: row) : row;
-        },
+          ),
+        ),
       );
     },
   );
@@ -282,18 +262,13 @@ class SubjectSwatch extends StatelessWidget {
 }
 
 class _SubjectRow extends StatelessWidget {
-  const _SubjectRow({
-    required this.subject,
-    required this.onTap,
-    this.compact = false,
-  });
+  const _SubjectRow({required this.subject, required this.onTap});
+
+  /// Narrower than this, the frame goes above the text instead of beside.
+  static const double stackBelow = 260;
 
   final Subject subject;
   final VoidCallback onTap;
-
-  /// For a strip: a smaller frame, fitted in a fixed box, and one line per
-  /// text, so every card is the same height.
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -301,6 +276,36 @@ class _SubjectRow extends StatelessWidget {
     final scheme = theme.colorScheme;
     final latest = subject.latest;
     final count = subject.sightings.length;
+    final quiet = theme.textTheme.bodySmall?.copyWith(
+      color: scheme.onSurfaceVariant,
+    );
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          spacing: 8,
+          children: [
+            SubjectSwatch(
+              key: Key('subject-color-${subject.id}'),
+              color: subject.color,
+            ),
+            Flexible(
+              child: Text(
+                subject.name,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+          ],
+        ),
+        Text(
+          'Last seen ${formatSeen(latest.time)} · '
+          '${latest.event.clip.cameraLabel}',
+          style: quiet,
+        ),
+        Text(count == 1 ? '1 event' : '$count events', style: quiet),
+      ],
+    );
     return Card.filled(
       key: Key('subject-${subject.id}'),
       margin: EdgeInsets.zero,
@@ -310,68 +315,35 @@ class _SubjectRow extends StatelessWidget {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Row(
-            spacing: 12,
-            children: [
-              if (compact)
-                SizedBox(
-                  width: 72,
-                  height: 96,
-                  child: FittedBox(
-                    child: SightingFrame(
+          child: LayoutBuilder(
+            builder: (context, box) {
+              if (box.maxWidth < stackBelow) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    SightingFrame(
                       sighting: latest,
                       color: subject.color,
-                      width: 72,
+                      width: box.maxWidth,
                     ),
-                  ),
-                )
-              else
-                SightingFrame(
-                  sighting: latest,
-                  color: subject.color,
-                  width: 96,
-                ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      spacing: 8,
-                      children: [
-                        SubjectSwatch(
-                          key: Key('subject-color-${subject.id}'),
-                          color: subject.color,
-                        ),
-                        Flexible(
-                          child: Text(
-                            subject.name,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Text(
-                      'Last seen ${formatSeen(latest.time)} · '
-                      '${latest.event.clip.cameraLabel}',
-                      maxLines: compact ? 2 : null,
-                      overflow: compact ? TextOverflow.ellipsis : null,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    Text(
-                      count == 1 ? '1 event' : '$count events',
-                      maxLines: compact ? 1 : null,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
+                    text,
                   ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
-            ],
+                );
+              }
+              return Row(
+                spacing: 12,
+                children: [
+                  SightingFrame(
+                    sighting: latest,
+                    color: subject.color,
+                    width: 96,
+                  ),
+                  Expanded(child: text),
+                  Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
+                ],
+              );
+            },
           ),
         ),
       ),

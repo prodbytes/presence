@@ -10,27 +10,27 @@ the separate Events and Subjects tabs.
   `monitor_heart` icon, tooltip "Monitoring"; see
   [Navigation](navigation.md)).
 - Swiping between tabs is off here, as on the Device tab: a sideways drag
-  moves the map or the subjects strip. Tap the tabs to leave.
+  moves the map. Tap the tabs to leave.
 
 ## Layout
 
-- **Wide screens (720 dp and up), two columns:**
-  - **left, on top:** the **map of every subject's events** (two fifths of
-    the height), each subject in its own color, the newest dot solid and
-    older ones fading (see [Subjects](subjects.md));
-  - **left, below the map:** **all events**, newest first, with the
-    **Only this device** checkbox at the top, checked by default (see
-    [Events](events.md));
-  - **right, the whole height (340 dp):** the **subjects**, one card per
-    subject, the most recently seen first. Tapping a card opens the
-    subject's screen (their map and history of events).
-- **Phones (narrower), stacked:** the map (three tenths of the height),
-  then the subjects as a **sideways strip** of 280 dp cards (a smaller
-  frame and one line per text, so every card is the same height), then the
-  events filling the rest.
+Two rows, on every screen size:
+
+- **First row (45% of the height), two columns:**
+  - **left:** the **map of every subject's events**, each subject in its
+    own color, the newest dot solid and older ones fading (see
+    [Subjects](subjects.md));
+  - **right:** the **subjects**, one card per subject, one under the other,
+    the most recently seen first (340 dp wide, or 45% of the width on
+    narrower screens). Tapping a card opens the subject's screen (their map
+    and history of events). In a column narrower than 260 dp, a card puts
+    the frame above the name and details instead of beside them.
+- **Second row, only events:** **all events**, newest first, one card per
+  row, as before (see [Events](events.md)), with the **Only this device**
+  checkbox at the top, checked by default. The cards are at most 640 dp
+  wide, centered, so a clip's 16:9 thumbnail stays shorter than the row.
 - With nobody tagged yet, the map shows the whole world without dots, and
-  the subjects area says "No subjects yet. Tag people and pets on a clip."
-  (on one line in the strip).
+  the subjects column says "No subjects yet. Tag people and pets on a clip."
 
 ## Opening an event
 
@@ -42,17 +42,17 @@ the separate Events and Subjects tabs.
 
 ## Verified
 
-- `subjects_test.dart`: on a wide screen the map is top left, the
-  subjects to its right and the events under the map; on a 360 dp phone
-  the map, the strip (horizontal, cards side by side) and the events stack
-  without overflow; the tab sits between Camera and Device, and the Events
-  and Subjects tabs are gone; a dot tapped on a subject's screen closes it
-  and outlines the event in this tab's list. `widget_test.dart`: the tabs
-  in order, and the tab shows the map, the subjects and the events. 202
-  Flutter tests pass.
+- `subjects_test.dart`: on a 360 dp phone and a 1280 dp screen, the map
+  and the subjects share the first row side by side (subjects stacked
+  vertically), and the events fill the second row, full width, as cards one
+  under the other, without overflow; the tab sits between Camera and
+  Device, and the Events and Subjects tabs are gone; a dot tapped on a
+  subject's screen closes it and outlines the event in this tab's list.
+  `widget_test.dart`: the tabs in order, and the tab shows the map, the
+  subjects and the events. 204 Flutter tests pass.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations
 
-- On a phone the events get what's left under the map and the strip:
-  about half of a 740 dp screen.
+- On a phone the subjects column is narrow (about 160 dp), so each card
+  shows the frame above a wrapped name and details.

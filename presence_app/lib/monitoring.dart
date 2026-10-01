@@ -7,10 +7,10 @@ import 'subjects.dart';
 
 /// The Monitoring tab: what happened and who was seen, on one screen.
 ///
-/// On a wide screen, the map of every subject's events sits top left with
-/// all events under it, and the subjects list runs down the right. On a
-/// phone they stack: the map, a strip of subject cards, then the events.
-/// Tapping a dot on the map scrolls the events to its event.
+/// Two rows. The first is split in two columns: the map of every subject's
+/// events on the left, the subjects on the right. The second row is all
+/// events, one card per row, centered. Tapping a dot on the map
+/// scrolls the events to its event.
 class MonitoringView extends StatelessWidget {
   const MonitoringView({
     super.key,
@@ -23,11 +23,17 @@ class MonitoringView extends StatelessWidget {
     this.thisDeviceOnly,
   });
 
-  /// Below this width the screen stacks instead of using two columns.
-  static const double twoColumnWidth = 720;
+  /// The share of the height the first row (map and subjects) takes.
+  static const double topShare = 0.45;
 
-  /// The subjects column's width on wide screens.
+  /// The subjects column's widest; narrower screens give it [subjectsShare]
+  /// of the width.
   static const double subjectsWidth = 340;
+  static const double subjectsShare = 0.45;
+
+  /// The event cards' widest, centered in the second row, so a clip's
+  /// 16:9 thumbnail stays shorter than the row.
+  static const double eventsWidth = 640;
 
   final EventLog log;
   final ConfigController config;
@@ -46,59 +52,62 @@ class MonitoringView extends StatelessWidget {
   final ValueNotifier<bool>? thisDeviceOnly;
 
   @override
-  Widget build(BuildContext context) {
-    final map = SubjectsMap(
-      log: log,
-      config: config,
-      tiles: tiles,
-      onOpenEvent: onOpenEvent,
-    );
-    final events = KeyedSubtree(
-      key: const Key('events-page'),
-      child: EventTimeline(
-        log: log,
-        focus: focus,
-        deviceId: deviceId,
-        thisDeviceOnly: thisDeviceOnly,
-      ),
-    );
-    SubjectList subjects(Axis direction) => SubjectList(
-      key: const Key('subjects-page'),
-      log: log,
-      config: config,
-      tiles: tiles,
-      onOpenEvent: onOpenEvent,
-      direction: direction,
-    );
-    return LayoutBuilder(
-      key: const Key('monitoring-page'),
-      builder: (context, box) {
-        if (box.maxWidth >= twoColumnWidth) {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    Expanded(flex: 2, child: map),
-                    Expanded(flex: 3, child: events),
-                  ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    key: const Key('monitoring-page'),
+    builder: (context, box) {
+      final subjectsColumn = (box.maxWidth * subjectsShare).clamp(
+        0.0,
+        subjectsWidth,
+      );
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: box.maxHeight * topShare,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SubjectsMap(
+                    log: log,
+                    config: config,
+                    tiles: tiles,
+                    onOpenEvent: onOpenEvent,
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                SizedBox(
+                  width: subjectsColumn,
+                  child: SubjectList(
+                    key: const Key('subjects-page'),
+                    log: log,
+                    config: config,
+                    tiles: tiles,
+                    onOpenEvent: onOpenEvent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: KeyedSubtree(
+              key: const Key('events-page'),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: eventsWidth),
+                  child: EventTimeline(
+                    log: log,
+                    focus: focus,
+                    deviceId: deviceId,
+                    thisDeviceOnly: thisDeviceOnly,
+                  ),
                 ),
               ),
-              const VerticalDivider(width: 1),
-              SizedBox(width: subjectsWidth, child: subjects(Axis.vertical)),
-            ],
-          );
-        }
-        return Column(
-          children: [
-            SizedBox(height: box.maxHeight * 0.3, child: map),
-            SizedBox(height: 136, child: subjects(Axis.horizontal)),
-            const Divider(height: 1),
-            Expanded(child: events),
-          ],
-        );
-      },
-    );
-  }
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
