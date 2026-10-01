@@ -60,9 +60,22 @@ Docker CLI with the `compose` plugin.
 
 ## Before you start
 
-Do these once, before you start the dev environment or deploy. Without the
-Google OAuth clients, sign-in is off; without AWS, cloud sync is off and
-you can't deploy. The cameras and clips work either way.
+Do these once, before you start the dev environment or deploy. Both are
+optional for local development, but know what you give up:
+
+> [!WARNING]
+> **Without OIDC** (no `GOOGLE_WEB_CLIENT_ID`), authentication is disabled:
+> the system runs in [DEV mode](specs/execution-mode.md), nobody signs in,
+> and the anonymous user gets every role, so anyone who can open the app
+> has full access. Use it only on your own machine; deploys refuse to run
+> without it.
+>
+> **Without the AWS settings** (`COGNITO_IDENTITY_POOL_ID` and
+> `USER_DATA_BUCKET`), no events or clips are shipped to S3: everything
+> stays on the device. Without AWS access you also can't deploy.
+
+The cameras and clips work either way. Settings shows which of these are
+set, under the version: `🔌 API · ☁️ AWS · 🔑 OIDC`.
 
 ### 1. Get the code and tools
 

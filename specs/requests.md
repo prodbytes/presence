@@ -1158,6 +1158,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       optional `GoogleWebClientId`, plus `Architecture`; the Floci hook
       passes all four parameters. Request 148 (dev container) is renumbered
       150, after main's entries.
+152. **Merge all pending PRs, and say in the README that without OIDC
+    authentication is disabled and the anonymous user gets all access, and
+    that without the AWS settings no events are shipped to S3.**
+    (2026-10-01)
+    - Merged #84 and #86, then #80–#83 and #85, resolving their
+      request-log numbering (142–148). #87 and #88 were merged separately
+      (entry 151).
+    - README "Before you start": a warning with both consequences, and a
+      pointer to the Settings health line that shows them.
+153. **Check the health logs and fix the issues (the web app's CDN and
+    HTTPS checks failing).** (2026-10-01)
+    - Cause: the Floci container was stopped by a `devbox services stop` in
+      another checkout (its `docker compose down` shares the project), and
+      `4-floci` ended with exit code 0, so `restart: on_failure` never
+      brought it back. The web app itself stayed up.
+    - Restarted `4-floci` in the running instance; every check went ✅.
+    - `4-floci` now has `restart: always`.
 154. **Review the health check script: print one line per check, every
     15 s, checking the API, AWS and the rest.** (2026-10-01)
     - `scripts/health-check.sh` now prints one timestamped line per check

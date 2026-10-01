@@ -41,7 +41,10 @@
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
     [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
-    mkcert certificate exists
+    mkcert certificate exists. It restarts whenever it ends (`restart:
+    always`), because a container stopped from outside, for example by
+    another checkout's `devbox services stop` (the compose project is
+    shared), ends `compose up` with exit code 0
   - the site index (`5-index`: `python3 -m http.server` on
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
   - the health monitor
