@@ -67,19 +67,43 @@ void main() {
 
       final camera = tester.getCenter(find.byTooltip('Camera'));
       final events = tester.getCenter(find.byTooltip('Events'));
+      final subjects = tester.getCenter(find.byTooltip('Subjects'));
       final device = tester.getCenter(find.byTooltip('Device'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
       final login = tester.getCenter(find.byKey(const Key('account-button')));
       final title = tester.getRect(find.text('Presence'));
-      for (final c in [camera, events, device, settings, login]) {
+      for (final c in [camera, events, subjects, device, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
         // Right of the title, which shrinks to make room on small phones.
         expect(c.dx, greaterThan(title.right));
       }
       expect(camera.dx, lessThan(events.dx));
-      expect(events.dx, lessThan(device.dx));
+      expect(events.dx, lessThan(subjects.dx));
+      expect(subjects.dx, lessThan(device.dx));
       expect(device.dx, lessThan(settings.dx));
       expect(settings.dx, lessThan(login.dx));
+    });
+
+    testWidgets("an admin's app bar fits at $name", (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        PresenceApp(
+          cameras: noCameras,
+          auth: FakeAuthService.signedIn(),
+          rolesClient: FakeRolesClient(const [userRole, adminRole]),
+          consentGiven: true,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('admin')), findsOneWidget);
+      expect(
+        tester.getRect(find.byKey(const Key('account-button'))).right,
+        lessThanOrEqualTo(size.width),
+      );
+      expect(tester.takeException(), isNull);
     });
   }
 

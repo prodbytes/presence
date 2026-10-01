@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../theme.dart';
 import 'device_location.dart';
+import 'map_parts.dart';
 
 /// The Device screen: a map centered on this device, with a pin in the
 /// middle. Moving the map moves the pin, and sets the device's location by
@@ -145,13 +146,8 @@ class _DeviceViewState extends State<DeviceView> {
             onPositionChanged: _onMoved,
           ),
           children: [
-            widget.tiles ??
-                TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                  userAgentPackageName: 'com.nu01.presence',
-                ),
-            // OpenStreetMap's tiles require the credit.
-            const _Attribution(),
+            widget.tiles ?? openStreetMapTiles(),
+            const MapAttribution(),
           ],
         ),
         // The pin's tip marks the center of the map.
@@ -354,34 +350,6 @@ class _ZoomButtons extends StatelessWidget {
             onPressed: onZoomOut,
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The tiles' credit, small in the bottom-left corner.
-class _Attribution extends StatelessWidget {
-  const _Attribution();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Align(
-      alignment: Alignment.bottomLeft,
-      child: Container(
-        margin: const EdgeInsets.all(4),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        child: Text(
-          '© OpenStreetMap contributors',
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
       ),
     );
   }

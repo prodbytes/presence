@@ -5,10 +5,13 @@ runs on Android and web. It follows Material 3 top-level navigation: **tabs
 in the app bar**, which flip between full screens.
 
 - **App bar:** the title **Presence** (accent color, plain text) on the left.
-  In the top right are four icon tabs, in order **Camera**, **Events**,
-  **Device** and **Settings**, then a **Login** icon button. On 320 dp
-  phones the title shortens to make room.
+  In the top right are five icon tabs, in order **Camera**, **Events**,
+  **Subjects**, **Device** and **Settings**, then a **Login** icon button.
+  On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
+    Where that doesn't fit (an admin's app bar, with its extra button, on
+    a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
+    overflows.
     An indicator marks the selected tab.
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
@@ -71,6 +74,8 @@ in the app bar**, which flip between full screens.
 - **Events:** the event stream, full screen. On wide screens it's centered
   at a readable width (max 560 px), so clip thumbnails don't stretch across
   the desktop.
+- **Subjects:** the people and pets tagged on clips, each opening a map
+  of their latest events (see [Subjects](subjects.md)).
 - **Device:** a map with this device's location, which moving the map
   overrides (see [Device location](device-location.md)).
 - **Settings:** the clip settings as a normal screen (no longer a drawer),

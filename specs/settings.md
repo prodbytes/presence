@@ -20,6 +20,9 @@
   - **After the press**, default 15 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
+- **Subjects** section: **Latest events on a subject's map**, 5–100 in
+  steps of 5, default **20**: how many of a subject's latest events its
+  screen lists and maps (see [Subjects](subjects.md)).
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.3.202609271247", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
@@ -47,5 +50,6 @@
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
 - **All settings are persistent:** the whole `PresenceConfig` (clip lengths,
-  brightness, and the motion switch, threshold and cooldown) is saved to
+  brightness, the motion switch, threshold and cooldown, and the events
+  per subject) is saved to
   local storage on every change and restored on launch.
