@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'camera_feeds.dart';
@@ -204,9 +205,17 @@ class EventLog extends ChangeNotifier {
 
 /// Scrollable timeline of events, newest at the top.
 class EventTimeline extends StatefulWidget {
-  const EventTimeline({super.key, required this.log});
+  const EventTimeline({super.key, required this.log, this.focus});
 
   final EventLog log;
+
+  /// The ID of an event to scroll to and outline (an event opened from
+  /// elsewhere, such as a subject's map). Setting it again, even to the
+  /// same ID, scrolls to it again.
+  final ValueListenable<String?>? focus;
+
+  /// How long an event opened through [focus] stays outlined.
+  static const Duration highlightFor = Duration(seconds: 4);
 
   @override
   State<EventTimeline> createState() => _EventTimelineState();
@@ -215,10 +224,20 @@ class EventTimeline extends StatefulWidget {
 class _EventTimelineState extends State<EventTimeline> {
   final _scroll = ScrollController();
 
+  /// Each card's key, to find it once it's built.
+  final _cards = <String, GlobalKey>{};
+
+  /// The outlined event, while [EventTimeline.highlightFor] lasts.
+  String? _highlighted;
+  Timer? _unhighlight;
+
   @override
   void initState() {
     super.initState();
     widget.log.addListener(_onEvent);
+    widget.focus?.addListener(_onFocus);
+    // The tab may be built only once the event was asked for.
+    if (widget.focus?.value != null) _onFocus();
   }
 
   @override
@@ -228,13 +247,57 @@ class _EventTimelineState extends State<EventTimeline> {
       oldWidget.log.removeListener(_onEvent);
       widget.log.addListener(_onEvent);
     }
+    if (oldWidget.focus != widget.focus) {
+      oldWidget.focus?.removeListener(_onFocus);
+      widget.focus?.addListener(_onFocus);
+    }
   }
 
   @override
   void dispose() {
     widget.log.removeListener(_onEvent);
+    widget.focus?.removeListener(_onFocus);
+    _unhighlight?.cancel();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _onFocus() {
+    final id = widget.focus?.value;
+    if (id == null) return;
+    _unhighlight?.cancel();
+    _unhighlight = Timer(EventTimeline.highlightFor, () {
+      if (mounted) setState(() => _highlighted = null);
+    });
+    setState(() => _highlighted = id);
+    _reveal(id);
+  }
+
+  /// Scrolls [id]'s card into view. Cards far down the list aren't built,
+  /// so it first jumps to where the card should be, guessing from the
+  /// average card height, until the card is built.
+  void _reveal(String id, [int tries = 0]) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final card = _cards[id]?.currentContext;
+      if (card != null) {
+        Scrollable.ensureVisible(
+          card,
+          alignment: 0.3,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+      final events = widget.log.events;
+      final index = events.indexWhere((e) => e.id == id);
+      if (index < 0 || tries >= 8) return;
+      if (!_scroll.hasClients) return _reveal(id, tries + 1);
+      final p = _scroll.position;
+      final perCard = (p.maxScrollExtent + p.viewportDimension) / events.length;
+      _scroll.jumpTo((index * perCard).clamp(0, p.maxScrollExtent));
+      _reveal(id, tries + 1);
+    });
   }
 
   void _onEvent() {
@@ -265,7 +328,26 @@ class _EventTimelineState extends State<EventTimeline> {
       padding: const EdgeInsets.all(12),
       itemCount: events.length,
       separatorBuilder: (context, i) => const SizedBox(height: 8),
-      itemBuilder: (context, i) => events[i].buildCard(context),
+      itemBuilder: (context, i) {
+        final event = events[i];
+        final card = KeyedSubtree(
+          key: _cards.putIfAbsent(event.id, GlobalKey.new),
+          child: event.buildCard(context),
+        );
+        if (event.id != _highlighted) return card;
+        return DecoratedBox(
+          key: const Key('event-highlight'),
+          position: DecorationPosition.foreground,
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: card,
+        );
+      },
     );
   }
 }

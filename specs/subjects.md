@@ -36,16 +36,28 @@ and pets"), each with where the device was when they were seen
 - A full screen pushed over the tabs (back returns to Subjects), titled
   with the subject's name.
 - **The map** (top three fifths): OpenStreetMap tiles with the credit, as on
-  the [Device](device-location.md) tab, north up. **One red dot per
-  event** at the location the event recorded. The **newest dot is fully
-  opaque**; older ones fade evenly by rank, down to 15 % for the oldest
-  shown. Newer dots are drawn over older ones.
+  the [Device](device-location.md) tab, north up. **One dot per event**
+  at the location the event recorded.
+  - **Color = device**: each device that recorded the events gets its own
+    color, in order of its latest event shown: red, blue, green, yellow,
+    purple, aqua, orange (Gruvbox), then repeating past seven devices.
+    Events whose device isn't known yet (not saved) are gray.
+    A **legend** in the top-left corner names each device on the map
+    (its device ID, or "Unknown device") next to its color.
+  - **Opacity = age**: the **newest dot is fully opaque**; older ones fade
+    evenly by rank, down to 15 % for the oldest shown, whatever their
+    device. Newer dots are drawn over older ones.
+  - **Tapping a dot opens its event in the Events tab**: the subject's
+    screen closes, the Events tab shows, and the timeline scrolls to the
+    event and outlines it for 4 s (see [Events](events.md)). A dot's
+    tooltip and screen-reader label give its time and device.
   - It opens fitted on all the dots (48 px padding, at most zoom 17), or
     on the whole world (zoom 2) when none has a location.
 - **The list** (below the map): "Latest 20 of 26 events" (or "26 events"
   when all are shown), then each event, newest first: its frame, time and
-  camera, the coordinates (5 decimals) or "No location", and the same dot,
-  at the same opacity, as on the map. Tapping an event plays its clip.
+  camera, its device ID and the coordinates (5 decimals) or "No
+  location", and the same dot, in the same color and opacity, as on the
+  map. Tapping an event in the list plays its clip.
 - **It shows the latest 20 events by default**, set on the Settings screen
   (**Latest events on a subject's map**, 5–100 in steps of 5;
   `SubjectsConfig.mapEvents`, see [Configuration](configuration.md)).
@@ -63,7 +75,11 @@ and pets"), each with where the device was when they were seen
   the list's order, frames and "Last seen" line, updating when a tag is
   added; a subject's screen with the latest 20 of 26 dots, fading, then 25
   after raising the setting, and the event without a location listed with
-  no dot; the setting's slider; the tab between Events and Device.
+  no dot; one color per device in order of its latest event, with unknown
+  devices gray, the dots' colors and the legend; the setting's slider;
+  the tab between Events and Device; tapping a dot far down the timeline
+  closes the subject's screen, shows the Events tab with that event on
+  screen and outlined, and the outline goes after 4 s.
   `widget_test.dart`: the five tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
@@ -72,6 +88,8 @@ and pets"), each with where the device was when they were seen
 
 - Subjects are matched by name only: two people tagged with the same name
   are one subject, and one person tagged with two spellings is two.
+- Colors are given per screen, so a device can have different colors on
+  two subjects' maps.
 - The dots are where the **device** was, not the subject: every event from
   one fixed camera lands on the same spot.
 - Only events in this device's history count (its own, and those synced

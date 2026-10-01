@@ -23,6 +23,7 @@ ClipRequested clipWith(
   required int minutesAgo,
   double? lat,
   String id = '',
+  String? device,
 }) {
   final annotations = ClipAnnotations();
   final frame = annotations.newFrame(onePixelPng, 1200);
@@ -42,6 +43,7 @@ ClipRequested clipWith(
     annotations: annotations,
     time: DateTime(2026, 10, 1, 12).subtract(Duration(minutes: minutesAgo)),
     id: id.isEmpty ? 'event-$minutesAgo' : id,
+    deviceId: device,
   );
   if (lat != null) {
     event.location = DeviceLocation(
@@ -79,6 +81,20 @@ void main() {
         SubjectScreen.opacityOf(5, 20),
         greaterThan(SubjectScreen.opacityOf(6, 20)),
       );
+    });
+  });
+
+  test('one color per device, by its latest event', () {
+    final rex = subjectsOf([
+      clipWith(['Rex'], minutesAgo: 1, device: 'b'),
+      clipWith(['Rex'], minutesAgo: 2),
+      clipWith(['Rex'], minutesAgo: 3, device: 'a'),
+      clipWith(['Rex'], minutesAgo: 4, device: 'b'),
+    ]).single;
+    expect(SubjectScreen.colorsOf(rex.sightings), {
+      'b': SubjectScreen.deviceColors[0],
+      null: SubjectScreen.unknownDeviceColor,
+      'a': SubjectScreen.deviceColors[1],
     });
   });
 
@@ -215,8 +231,45 @@ void main() {
         find.byKey(const Key('subject-events')),
         const Offset(0, -200),
       );
-      expect(find.text('No location'), findsOneWidget);
+      expect(find.text('Unknown device · No location'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('dots are colored by device, with a legend', (tester) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1, device: 'kitchen'),
+        clipWith(['Rex'], minutesAgo: 2, lat: 48.2, device: 'garage'),
+        clipWith(['Rex'], minutesAgo: 3, lat: 48.3, device: 'kitchen'),
+      ]);
+      await show(tester);
+      await tester.tap(find.text('Rex'));
+      await tester.pumpAndSettle();
+
+      Color colorOfDot(String eventId) {
+        final box = tester.widget<Container>(
+          find.descendant(
+            of: find.byKey(Key('subject-dot-$eventId')),
+            matching: find.byType(Container),
+          ),
+        );
+        return (box.decoration! as BoxDecoration).color!;
+      }
+
+      expect(colorOfDot('event-1'), SubjectScreen.deviceColors[0]);
+      expect(colorOfDot('event-3'), SubjectScreen.deviceColors[0]);
+      expect(colorOfDot('event-2'), SubjectScreen.deviceColors[1]);
+      // Still fading by age, whatever the device.
+      expect(opacityOfDot(tester, 'event-1'), 1);
+      expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
+      final legend = find.byKey(const Key('subject-legend'));
+      expect(
+        find.descendant(of: legend, matching: find.text('kitchen')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: legend, matching: find.text('garage')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('the setting is on the Settings screen', (tester) async {
@@ -265,6 +318,59 @@ void main() {
     await tester.tap(find.byTooltip('Subjects'));
     await tester.pumpAndSettle();
     expect(find.textContaining('No subjects yet'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tapping a dot opens its event in the Events tab', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      PresenceApp(
+        cameras: noCameras,
+        auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
+        storage: newIdbFactoryMemory(),
+        consentGiven: true,
+        locator: _NoLocation(),
+        mapTiles: const SizedBox(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    final bus = AppEventBusScope.of(
+      tester.element(find.byType(Scaffold).first),
+    );
+    // Rex's older sighting ends up far down the timeline.
+    bus.publish(clipWith(['Rex'], minutesAgo: 0, lat: 48.2, id: 'rex-old'));
+    for (var i = 0; i < 30; i++) {
+      bus.publish(AppEvent(icon: Icons.circle, title: 'Filler $i'));
+    }
+    bus.publish(clipWith(['Rex'], minutesAgo: 0, lat: 48.1, id: 'rex-new'));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    await tester.tap(find.byTooltip('Subjects'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rex'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('subject-dot-rex-old')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('subject-page')), findsNothing);
+    expect(find.byKey(const Key('events-page')), findsOneWidget);
+    final highlight = find.byKey(const Key('event-highlight'));
+    expect(highlight, findsOneWidget);
+    final card = tester.getRect(highlight);
+    expect(card.top, greaterThanOrEqualTo(0));
+    expect(card.bottom, lessThanOrEqualTo(800));
+    expect(find.text('Filler 29'), findsNothing, reason: 'scrolled to it');
+
+    // The outline goes after a few seconds.
+    await tester.pump(const Duration(seconds: 5));
+    expect(highlight, findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
