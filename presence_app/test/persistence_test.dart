@@ -47,6 +47,8 @@ void main() {
         auth: auth ?? FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
         cloud: cloud,
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     await tester.pumpAndSettle();
@@ -246,6 +248,7 @@ void main() {
     // Settings shows the device's ID.
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('device-id')));
     expect(
       tester
           .widget<SelectableText>(

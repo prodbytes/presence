@@ -6,11 +6,11 @@ the separate Events and Subjects tabs.
 
 ## The tab
 
-- Second in the app bar, after **Camera** and before **Device** (the
+- Second in the app bar, after **Camera** and before **Settings** (the
   `monitor_heart` icon, tooltip "Monitoring"; see
   [Navigation](navigation.md)).
-- Swiping between tabs is off here, as on the Device tab: a sideways drag
-  moves the map or the subjects strip. Tap the tabs to leave.
+- Swiping between tabs is off here: a sideways drag moves the map or the
+  subjects strip. Tap the tabs to leave.
 
 ## Layout
 

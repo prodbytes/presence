@@ -21,6 +21,8 @@ void main() {
         mediaIo: fakeMediaIo,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
       ),
     );
     await tester.pumpAndSettle();

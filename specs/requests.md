@@ -1400,3 +1400,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       scrolls this tab's events to its event, as before.
     - New [monitoring.md](monitoring.md); the other specs updated. 202
       Flutter tests pass; web release builds.
+175. **Disband the Device screen as well: make the position label and map a
+    section of Settings, make Settings full width (it already shows the
+    device ID), and move the battery indicator over the camera screen, to
+    the left, in the same style as the readiness indicator, which moves to
+    the left as well.** (2026-10-01)
+    - Settings is full width and has a **Location** section: the labeled
+      position and its source, then the map (40 % of the screen's height,
+      200–320 px) with the pin, zoom and My location buttons. A drag on
+      the map moves it, not the list or the tabs. The device ID isn't
+      repeated there.
+    - Over the camera, bottom left: battery, temperature (Android) and
+      readiness pills, one style. In a row level with Flip and Clip on
+      wide screens; stacked above the buttons' row on phones, so they never
+      touch them.
+    - With Monitoring (174) merged first: three tabs, Camera, Monitoring
+      and Settings. App-level tests now run with a blank map layer and a
+      locator that fails at once, so Settings' map settles. 204 Flutter
+      tests pass; web release and Android debug builds compile.

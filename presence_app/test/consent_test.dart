@@ -62,6 +62,8 @@ void main() {
           storage: storage,
           auth: FakeAuthService.signedIn(),
           rolesClient: FakeRolesClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
         ),
       );
       for (var i = 0; i < 3; i++) {
