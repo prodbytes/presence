@@ -401,6 +401,20 @@ class _HomeScreenState extends State<HomeScreen>
 
   bool get _onDevice => _tabs.index == HomeTab.device.index;
 
+  /// The event the Events tab scrolls to and outlines.
+  final _focusedEvent = ValueNotifier<String?>(null);
+
+  /// Shows [event] in the Events tab, closing any screen over the tabs (a
+  /// subject's).
+  void _openEvent(AppEvent event) {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _tabs.animateTo(HomeTab.events.index);
+    // Cleared first, so asking for the same event again still scrolls.
+    _focusedEvent
+      ..value = null
+      ..value = event.id;
+  }
+
   bool get _signedIn => widget.auth.user != null;
 
   /// No sign-in configured ([ExecutionMode.dev]): everything but what's
@@ -444,6 +458,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.auth.removeListener(_onAuthChanged);
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
+    _focusedEvent.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -630,7 +645,9 @@ class _HomeScreenState extends State<HomeScreen>
           // edge to edge on desktop).
           SafeArea(
             key: const Key('events-page'),
-            child: _ReadableWidth(child: EventTimeline(log: widget.log)),
+            child: _ReadableWidth(
+              child: EventTimeline(log: widget.log, focus: _focusedEvent),
+            ),
           ),
           SafeArea(
             key: const Key('subjects-page'),
@@ -639,6 +656,7 @@ class _HomeScreenState extends State<HomeScreen>
                 log: widget.log,
                 config: widget.config,
                 tiles: widget.mapTiles,
+                onOpenEvent: _openEvent,
               ),
             ),
           ),
