@@ -89,6 +89,21 @@
   3.47.5, which built the GTK bundle. CI builds the same targets for
   releases; see [Release builds](release.md).
 
+## README
+
+The [README](../README.md) is the project's front page. It covers:
+
+- what Presence is: tracking what happens in a private place you're
+  responsible for;
+- a notice that users must make sure local law allows them to record
+  (video and audio) where they set it up;
+- the technology and main libraries;
+- running it locally with devbox, and on GitHub Codespaces;
+- deploying to AWS: `*RC*` tags deploy to https://rc.presence.nu01.com,
+  and `*GA` tags to production, https://presence.nu01.com;
+- contributing: contributions are welcome, and merged changes are deployed
+  automatically with the next tag.
+
 ## Private settings
 
 `.env` and `env.local/` (the OAuth client files downloaded from the Cloud

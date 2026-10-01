@@ -1032,3 +1032,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
 140. **Merge all pending PRs.** (2026-09-28)
     - Merged #77 (3-month expiry) and #78 (one-week restore), resolving
       the request-log conflict.
+
+## 2026-10-01
+
+141. **Rewrite the README.** It still described the `blank-devbox`
+    template. Now it covers: what Presence is (tracking what happens in a
+    private place); a notice to check that local law allows recording
+    there; the technology and main libraries; running locally with devbox;
+    running on Codespaces; deploying to AWS (`*RC*` tags to
+    https://rc.presence.nu01.com, `*GA` tags to production at
+    https://presence.nu01.com); and contributing (welcome, deployed
+    automatically). The request named `hu01.com`; the README uses the
+    deployed `nu01.com` domains. The badges now point to `prodbytes/presence`.
+    [dev-environment.md](dev-environment.md) describes what the README
+    covers.
