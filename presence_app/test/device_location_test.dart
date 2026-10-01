@@ -338,7 +338,11 @@ void main() {
     });
 
     testWidgets('shows the battery charge, and follows it', (tester) async {
-      final battery = FakeBattery((level: 82, state: BatteryState.charging));
+      final battery = FakeBattery((
+        level: 82,
+        state: BatteryState.charging,
+        celsius: null,
+      ));
       await launch(tester, FakeLocator(), battery: battery);
       await tester.tap(find.byTooltip('Device'));
       await tester.pumpAndSettle();
@@ -347,7 +351,11 @@ void main() {
       expect(find.byIcon(Icons.battery_charging_full), findsOneWidget);
 
       // Unplugged: an event reads it again.
-      battery.reading = (level: 81, state: BatteryState.discharging);
+      battery.reading = (
+        level: 81,
+        state: BatteryState.discharging,
+        celsius: null,
+      );
       battery.changed.add(null);
       await tester.pump();
       await tester.pump();
@@ -355,7 +363,11 @@ void main() {
       expect(find.byIcon(Icons.battery_6_bar), findsOneWidget);
 
       // The level drops without an event: read again every minute.
-      battery.reading = (level: 9, state: BatteryState.discharging);
+      battery.reading = (
+        level: 9,
+        state: BatteryState.discharging,
+        celsius: null,
+      );
       await tester.pump(const Duration(minutes: 1));
       expect(find.text('9 % · On battery'), findsOneWidget);
       final icon = tester.widget<Icon>(find.byIcon(Icons.battery_alert));
@@ -364,12 +376,50 @@ void main() {
         Theme.of(tester.element(find.byWidget(icon))).colorScheme.error,
       );
 
-      battery.reading = (level: 100, state: BatteryState.full);
+      battery.reading = (level: 100, state: BatteryState.full, celsius: null);
       battery.changed.add(null);
       await tester.pump();
       await tester.pump();
       expect(find.text('100 % · Full'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets("shows the battery's temperature where it's reported", (
+      tester,
+    ) async {
+      final battery = FakeBattery((
+        level: 60,
+        state: BatteryState.discharging,
+        celsius: 31.46,
+      ));
+      await launch(tester, FakeLocator(), battery: battery);
+      await tester.tap(find.byTooltip('Device'));
+      await tester.pumpAndSettle();
+      expect(find.text('Battery temperature'), findsOneWidget);
+      expect(find.text('31.5 °C'), findsOneWidget);
+      final scheme = Theme.of(tester.element(find.text('31.5 °C'))).colorScheme;
+      Color? colorOf(String text) =>
+          tester.widget<Text>(find.text(text)).style?.color;
+      expect(colorOf('31.5 °C'), scheme.onSurface);
+
+      // Hot: in the error color.
+      battery.reading = (level: 60, state: BatteryState.charging, celsius: 46);
+      battery.changed.add(null);
+      await tester.pump();
+      await tester.pump();
+      expect(colorOf('46.0 °C'), scheme.error);
+
+      // Not reported (iOS, web): no line at all.
+      battery.reading = (
+        level: 60,
+        state: BatteryState.charging,
+        celsius: null,
+      );
+      battery.changed.add(null);
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Battery temperature'), findsNothing);
+      expect(find.text('60 % · Charging'), findsOneWidget);
     });
 
     testWidgets('says when there is no battery reading', (tester) async {

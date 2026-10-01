@@ -298,6 +298,7 @@ class _LocationCard extends StatelessWidget {
                 ),
               ),
             _BatteryField(battery: battery),
+            _TemperatureField(battery: battery),
             Text(
               status,
               key: const Key('device-location-status'),
@@ -391,6 +392,49 @@ class _BatteryField extends StatelessWidget {
     Icons.battery_6_bar,
     Icons.battery_full,
   ];
+}
+
+/// The battery's temperature in °C, where the platform reports it
+/// (Android); nothing elsewhere.
+class _TemperatureField extends StatelessWidget {
+  const _TemperatureField({required this.battery});
+
+  final BatteryController battery;
+
+  /// From this up, the battery is hot (in the error color): Android
+  /// phones start throttling charging around here.
+  static const double hot = 45;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: battery,
+    builder: (context, _) {
+      final celsius = battery.reading?.celsius;
+      if (celsius == null) return const SizedBox.shrink();
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
+      final color = celsius >= hot ? scheme.error : scheme.onSurface;
+      return _Field(
+        label: 'Battery temperature',
+        child: Row(
+          key: const Key('device-temperature'),
+          spacing: 4,
+          children: [
+            Icon(Icons.thermostat, size: 18, color: color),
+            Flexible(
+              child: Text(
+                '${celsius.toStringAsFixed(1)} °C',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: color,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// A value in the location card, with a small label saying what it is.

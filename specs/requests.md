@@ -1368,7 +1368,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       camera has a full "before" part, then a **scheduled clip** every
       interval from the last one, both through `requestClips` (triggers
       `startup` and `scheduled`).
-169. **Merge the Events and Subjects screens into "Monitoring": on top, to
+172. **Push all changes, sync git, update Y and push an RC tag.**
+    (2026-10-01)
+    - Merged #103, #104, #105 and #102 (renumbering their request-log
+      entries 168–171), with the analyze and tests run on each merge.
+    - Y is now 4 (`version.Y.txt`): versions are `0.4.Z`.
+    - Tagged `main` as an RC with `scripts/release-rc.sh` (`0.4.<Z>-RC`),
+      which publishes the prerelease and deploys to
+      https://rc.presence.nu01.com.
+173. **Add the temperature in Celsius to the Device screen, if Flutter can
+    get it.** (2026-10-01)
+    - Flutter has no temperature API, and neither do browsers or iOS (only
+      a thermal state there). Android reports the battery's temperature, so
+      the Device panel shows "Battery temperature: 31.5 °C" on Android,
+      hot (error color) from 45 °C, and nothing elsewhere.
+    - Read through a new `presence/device` channel in `MainActivity`, with
+      each battery reading (at open, on charging changes, every minute).
+    - 202 Flutter tests pass; Android debug and web release builds compile.
+      Not yet read on a phone.
+174. **Merge the Events and Subjects screens into "Monitoring": on top, to
     the left, the map with all subjects and clickable events; on top, to the
     right, the subjects, one card each, opening the subject's map and
     history; below the map, all events, by default only this device's, with
