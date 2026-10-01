@@ -1236,3 +1236,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tabs now narrow (down to 40 dp) only where they don't fit.
     - New [subjects.md](subjects.md). The OpenStreetMap tiles and credit
       are shared with the Device map (`lib/location/map_parts.dart`).
+159. **Codespace creation still fails; the pasted creation logs were cut
+    off before the error.** (2026-10-01)
+    - Every log stopped inside the image build's Nix step, which listed and
+      copied ~800 store paths (3.5 GiB download, 9.8 GiB unpacked). The
+      error itself was never visible.
+    - The image no longer fills the Nix store. `post-create.sh` does it,
+      quietly, then `devbox install`; a failure names the step and prints
+      the free disk space. A failure there still opens the codespace with
+      a terminal.

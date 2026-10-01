@@ -236,11 +236,14 @@ Pass `MODE=profile` or `MODE=debug` for other build modes, and
    (16 GB RAM), the smallest that runs Flutter, Floci and the Java Lambdas
    together. Or, on the repo page, choose **Code → Codespaces → … → New with
    options** and pick **4-core**.
-2. Wait for the container to build. Its `postCreateCommand`
-   ([post-create.sh](.devcontainer/post-create.sh)) runs `devbox install`
-   with the codespace's `GITHUB_TOKEN`, so Nix isn't rate-limited by
-   GitHub. The first run evaluates nixpkgs, which takes a few minutes;
-   after that the environment starts instantly.
+2. Wait for the container to build and set up. Its `postCreateCommand`
+   ([post-create.sh](.devcontainer/post-create.sh)) downloads the locked
+   tools (about 3.5 GB) and runs `devbox install` with the codespace's
+   `GITHUB_TOKEN`, so Nix isn't rate-limited by GitHub. That takes several
+   minutes the first time; after that the environment starts instantly.
+   If it fails, the codespace still opens: the creation log's last lines
+   say which step failed and how much disk is left, and
+   `bash .devcontainer/post-create.sh` runs it again.
 3. Create `.env` from [.env.example](.env.example) with the values from
    [Before you start](#before-you-start) (steps 2 to 4; the tools are
    already installed) if you need sign-in or cloud sync. Codespaces can provide the values as
@@ -401,11 +404,11 @@ The [Containerfile](.devcontainer/Containerfile) starts from Microsoft's
 2. Nix is installed in single-user mode (`--no-daemon`). Containers have no
    systemd, so the multi-user Nix daemon can't run. Devbox and Nix are
    pinned, and the Nix installer is checked against its published hash.
-3. At build time, the locked store paths are downloaded straight from
-   `cache.nixos.org` to fill `/nix/store` in advance. This makes no GitHub
-   API calls, so builds don't hit unauthenticated rate limits.
-4. On container start, `postCreateCommand` runs `devbox install`, which
-   finds the large downloads already cached.
+3. The image stops there; it doesn't fill the Nix store. On container
+   start, `postCreateCommand` downloads the locked store paths straight from
+   `cache.nixos.org` (no GitHub API calls), quietly so the creation log
+   stays readable, then runs `devbox install`, which finds them cached. A
+   failure reports the step and the free disk space.
 
 ## License
 
