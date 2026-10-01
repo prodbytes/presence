@@ -8,6 +8,7 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
+import '../cloud/cloud_sync.dart' show DeviceSettings;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
@@ -32,15 +33,17 @@ import 'media_store.dart';
 /// Every event it saves gets this device's ID ([deviceId]), its owner (the
 /// [currentUser] when it's published, or [AppEvent.anonymousUserId]) and
 /// the [currentLocation] when it's published.
-class Persistence {
+class Persistence implements DeviceSettings {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
     required this.config,
     this.currentUser,
     this.currentLocation,
+    DateTime Function()? now,
     MediaStore Function(EventStore store)? mediaStore,
-  }) : _store = factory.then(EventStore.open) {
+  }) : _store = factory.then(EventStore.open),
+       _now = now ?? DateTime.now {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
     _media.ignore();
     _deviceId = _store.then((store) => store.deviceId(DeviceId.generate));
@@ -51,6 +54,19 @@ class Persistence {
   }
 
   final ConfigController config;
+  final DateTime Function() _now;
+
+  /// When the settings were last changed, ms since the epoch: by the user,
+  /// or by taking on newer ones from the cloud. 0 for the defaults.
+  int _configUpdatedAt = 0;
+
+  /// Completes once the saved settings are loaded (cloud sync waits for it,
+  /// to compare them with the cloud's).
+  final _configLoaded = Completer<void>();
+
+  /// Set while settings from the cloud are applied, which isn't a change
+  /// by the user.
+  bool _applyingRemote = false;
 
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
@@ -100,19 +116,25 @@ class Persistence {
   Future<void> _restore(EventLog log) async {
     final store = await _store;
 
-    // The whole configuration is one record. Older versions stored a flat
-    // "clip" settings record: read that if there's no config yet.
-    final saved = await store.getSettings(_configKey);
-    final legacy = saved == null ? await store.getSettings(_legacyKey) : null;
-    if (!_disposed) {
-      if (saved != null) {
-        config.config = PresenceConfig.fromJson(saved);
-      } else if (legacy != null) {
-        config.config = PresenceConfig.fromLegacy(legacy);
+    // The whole configuration is one record, with when it last changed.
+    // Older versions stored a flat "clip" settings record: read that if
+    // there's no config yet. With neither, the defaults stand.
+    try {
+      final saved = await store.getSettings(_configKey);
+      final legacy = saved == null ? await store.getSettings(_legacyKey) : null;
+      if (!_disposed) {
+        if (saved != null) {
+          config.config = PresenceConfig.fromJson(saved);
+          if (saved['updatedAt'] case final int at) _configUpdatedAt = at;
+        } else if (legacy != null) {
+          config.config = PresenceConfig.fromLegacy(legacy);
+        }
       }
+      if (_disposed) return;
+      config.addListener(_saveConfig);
+    } finally {
+      if (!_configLoaded.isCompleted) _configLoaded.complete();
     }
-    if (_disposed) return;
-    config.addListener(_saveConfig);
 
     final records = await store.allEvents();
     final history = await _loadHistory(store, records);
@@ -140,6 +162,7 @@ class Persistence {
   }
 
   /// This device's ID, generated on its first launch and kept from then on.
+  @override
   Future<String> get deviceId => _deviceId;
 
   /// Settings-store key of this device's recording consent.
@@ -292,12 +315,47 @@ class Persistence {
     if (!_changes.isClosed) _changes.add(null);
   }
 
+  /// The user changed a setting.
   void _saveConfig() {
-    final json = config.config.toJson();
+    if (_applyingRemote) return;
+    _configUpdatedAt = _now().millisecondsSinceEpoch;
+    _writeConfig();
+  }
+
+  void _writeConfig() {
+    final json = {...config.config.toJson(), 'updatedAt': _configUpdatedAt};
     _track(() async {
       final store = await _store;
       await store.putSettings(_configKey, json);
+      // Cloud sync uploads the new settings.
+      _changed();
     }());
+  }
+
+  @override
+  Future<Map<String, Object?>> settingsRecord() async {
+    await _configLoaded.future;
+    return {
+      'deviceId': await _deviceId,
+      'updatedAt': _configUpdatedAt,
+      'config': config.config.toJson(),
+    };
+  }
+
+  @override
+  Future<void> applySettings(Map<String, Object?> record) async {
+    await _configLoaded.future;
+    final json = record['config'];
+    final at = record['updatedAt'];
+    if (_disposed || json is! Map || at is! int) return;
+    _applyingRemote = true;
+    try {
+      config.config = PresenceConfig.fromJson(json.cast<String, Object?>());
+    } finally {
+      _applyingRemote = false;
+    }
+    _configUpdatedAt = at;
+    _writeConfig();
   }
 
   void _saveCameras() {

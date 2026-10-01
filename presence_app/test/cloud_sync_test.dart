@@ -700,4 +700,80 @@ void main() {
     expect(sync.state, CloudSyncState.off);
     roles.dispose();
   });
+
+  group("this device's settings", () {
+    late FakeDeviceSettings settings;
+    late CloudSync withSettings;
+    const key = 'us-east-1:identity/devices/dev-1/settings.json';
+
+    setUp(() {
+      sync.dispose();
+      settings = FakeDeviceSettings();
+      withSettings = sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        settings: settings,
+      );
+    });
+
+    test('listed only on the first pass, and uploaded when changed', () async {
+      await auth.signIn();
+      await withSettings.idle();
+      expect(backend.uploads.keys, contains(key));
+      changes.add(null);
+      await withSettings.idle();
+      expect(backend.listings.where((l) => l.startsWith('devices/')), [
+        'devices/dev-1/',
+      ]);
+
+      final before = backend.uploads[key]!.bytes;
+      settings.record = {...settings.record, 'updatedAt': 5};
+      changes.add(null);
+      await withSettings.idle();
+      expect(backend.uploads[key]!.bytes, isNot(before));
+      expect(settings.applied, isEmpty);
+    });
+
+    test("another device's record, or a damaged one, is ignored", () async {
+      backend.uploads[key] = (
+        bytes: Uint8List.fromList(
+          utf8.encode(jsonEncode({'deviceId': 'other', 'updatedAt': 99})),
+        ),
+        contentType: 'application/json',
+      );
+      await auth.signIn();
+      await withSettings.idle();
+      expect(settings.applied, isEmpty);
+      // And replaced with this device's.
+      expect(
+        jsonDecode(utf8.decode(backend.uploads[key]!.bytes)),
+        containsPair('deviceId', 'dev-1'),
+      );
+    });
+  });
+}
+
+class FakeDeviceSettings implements DeviceSettings {
+  Map<String, Object?> record = {
+    'deviceId': 'dev-1',
+    'updatedAt': 0,
+    'config': <String, Object?>{},
+  };
+  final applied = <Map<String, Object?>>[];
+
+  @override
+  Future<String> get deviceId async => record['deviceId']! as String;
+
+  @override
+  Future<Map<String, Object?>> settingsRecord() async => record;
+
+  @override
+  Future<void> applySettings(Map<String, Object?> remote) async {
+    applied.add(remote);
+    record = remote;
+  }
 }

@@ -1,6 +1,7 @@
 # Cloud sync
 
-Signed-in users' **clips (videos) and events sync with S3**, straight from
+Signed-in users' **clips (videos), events and each device's settings
+sync with S3**, straight from
 the device, both ways: at start and **every 15 s**, events only on the
 device go up and events only in the user's folder come down, so every
 device of a user shows the same events as the bucket. There's no backend in between:
@@ -19,6 +20,7 @@ Everything goes under the user's **Cognito identity ID**
 | `<identityId>/clips/<clipId>.jpg` | the thumbnail |
 | `<identityId>/clips/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/<clipId>.json` | the clip record: camera, window, lengths, state, media reference |
+| `<identityId>/devices/<deviceId>/settings.json` | the device's settings: `{deviceId, updatedAt, config}` (see [Configuration](configuration.md)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 ## When
@@ -33,6 +35,13 @@ Everything goes under the user's **Cognito identity ID**
   uploaded or fetched (see [Sign-in](sign-in.md) and
   [Membership](membership.md)). Sync starts once the roles check grants
   access.
+- **This device's settings:** the first pass for a user (at start, sign-in
+  or a user change) lists `devices/<deviceId>/` and, if the record is
+  there, downloads it; the newer `updatedAt` wins (see
+  [Configuration](configuration.md)). Every pass then uploads the local
+  record if it differs from what the cloud holds. A settings change
+  signals a pass, like a new event. One listing per start; other devices
+  of the user don't read this device's settings.
 - **Every pass fetches, then uploads.** A pass runs at every app start
   with a signed-in `presence_user` (a new sign-in, or a session restored
   at launch, e.g. a reload), whenever the user changes, **every 15 s**
@@ -158,6 +167,12 @@ In [presence_infra/](../presence_infra):
 
 ## Verified
 
+- Settings: `cloud_sync_test.dart` (the settings listing only on the
+  first pass, an upload when they change, another device's or a damaged
+  record ignored and replaced) and `persistence_test.dart` (signed in,
+  the defaults go up under the device ID and a change follows with its
+  time; at start a newer cloud record wins and stays on the device, and
+  an older one loses and is replaced).
 - Fetch and timer tests:
   - on sign-in, a remote clip (details, video, thumbnail) and event are
     downloaded, handed over and not uploaded back, while local items are

@@ -1315,7 +1315,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       charging changes and every minute. Not stored or sent.
     - 173 Flutter tests pass; web release, Android debug and iOS debug
       builds compile. Numbered after #99's 165.
-168. **On a grab, regardless of source, capture the preview with the past
+168. **Make sure settings are persistent per device; store them on S3 as
+    well, if S3 is available, or else use the local database. When the app
+    starts and the device ID is determined, fetch its settings or
+    initialize them with the defaults.** (2026-10-01)
+    - The settings record now carries `updatedAt`, when the user last
+      changed it, and stays in the local database as before.
+    - With S3 available, it also goes to
+      `<identityId>/devices/<deviceId>/settings.json`. The first sync pass
+      after start fetches it, and the newer of the two wins. Every change
+      is uploaded. A device with no record starts with the defaults and
+      uploads them.
+    - Without S3, only the local database is used.
+    - 181 Flutter tests pass; the web release builds.
+169. **Make the device info panel align to the top left.** (2026-10-01)
+    - The Device tab's info panel (device ID, position, battery, source)
+      now sits in the map's top-left corner, as wide as its content (at
+      most 560 px), instead of centered across the top.
+    - 181 Flutter tests pass.
+170. **On a grab, regardless of source, capture the preview with the past
     seconds and show it at once; after the configured seconds, capture the
     final clip with the total duration, so it's always full and correct and
     no videos are joined. Always show the full clip, or the preview until

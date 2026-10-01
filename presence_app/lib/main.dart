@@ -123,6 +123,7 @@ class _PresenceAppState extends State<PresenceApp> {
       currentUser: () => _auth.user?.id,
       // And records where the device is.
       currentLocation: () => _location.location,
+      now: widget.now,
       mediaStore: mediaIo == null
           ? null
           : (store) => IdbMediaStore(store, mediaIo),
@@ -172,6 +173,8 @@ class _PresenceAppState extends State<PresenceApp> {
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,
+            // And this device's settings, kept per device.
+            settings: _persistence,
             // Clips and events fetched from the cloud after sign-in join the
             // local history, like a restore from IndexedDB.
             onRemote: (remote) async => _log.addHistory(
