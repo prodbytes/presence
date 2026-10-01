@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart' show describeCameraError;
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
@@ -111,18 +114,76 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('without a client ID: the camera, no tabs, and a note', (
+  testWidgets('dev mode (no client ID): everything but accounts, labelled', (
     tester,
   ) async {
     final backend = openFakes([FakeCameraSource('Main')]);
-    // The real Google service: tests configure no client ID.
+    // The real Google service and auth API client: tests configure no
+    // client ID and reach no API, so the app starts in dev mode.
     await pumpGate(tester, PresenceApp(cameras: backend));
+    await tester.pumpAndSettle();
 
     expect(backend.opened, hasLength(1), reason: 'the camera still shows');
-    expect(find.byType(TabBar), findsNothing);
-    await tester.tap(find.byKey(const Key('account-button')));
+    expect(find.byKey(const Key('dev-mode')), findsOneWidget);
+    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byKey(const Key('account-button')), findsNothing);
+    expect(find.byKey(const Key('google-sign-in')), findsNothing);
+    expect(find.byKey(const Key('sign-up')), findsNothing);
+    expect(find.byKey(const Key('admin')), findsNothing);
+    await openTab(tester, 'Settings');
+    expect(tabs(tester).index, HomeTab.settings.index);
+
+    // No API in tests, and no AWS or OIDC settings: events stay local.
+    await tester.ensureVisible(
+      find.byKey(const Key('system-health'), skipOffstage: false),
+    );
     await tester.pumpAndSettle();
-    expect(find.textContaining("isn't set up yet"), findsOneWidget);
+    expect(find.text('🔌 API ❌'), findsOneWidget);
+    expect(find.text('☁️ AWS ⚪'), findsOneWidget);
+    expect(find.text('🔑 OIDC ⚪'), findsOneWidget);
+  });
+
+  testWidgets('settings show the API answered', (tester) async {
+    await pumpAt(tester, const Size(1280, 800));
+    await openTab(tester, 'Settings');
+    await tester.ensureVisible(
+      find.byKey(const Key('system-health'), skipOffstage: false),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('🔌 API ✅'), findsOneWidget);
+    expect(find.text('☁️ AWS ⚪'), findsOneWidget);
+  });
+
+  testWidgets('nothing shows until the execution mode is known', (
+    tester,
+  ) async {
+    final roles = _SlowRolesClient();
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      PresenceApp(
+        cameras: openFakes([FakeCameraSource('Main')]),
+        auth: FakeAuthService(),
+        rolesClient: roles,
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('starting')), findsOneWidget);
+    expect(find.byType(TabBar), findsNothing);
+    expect(find.byKey(const Key('google-sign-in')), findsNothing);
+
+    roles.answer.complete((
+      mode: ExecutionMode.rbac,
+      roles: [anonymousRole],
+      settings: (oidc: true, aws: false),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byKey(const Key('starting')), findsNothing);
+    expect(find.byKey(const Key('dev-mode')), findsNothing);
+    expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
   });
 
   testWidgets('signed out: camera and sign-in only; signed in: all buttons', (
@@ -350,4 +411,12 @@ void main() {
       'Something went wrong while starting the camera.',
     );
   });
+}
+
+/// Answers the start check only when the test says so.
+class _SlowRolesClient extends FakeRolesClient {
+  final answer = Completer<AnonymousAccess>();
+
+  @override
+  Future<AnonymousAccess> anonymous() => answer.future;
 }

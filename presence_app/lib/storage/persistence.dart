@@ -10,6 +10,7 @@ import '../cameras/cameras.dart';
 import '../clips.dart';
 import '../events.dart';
 import '../config.dart';
+import '../identity/device_id.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
@@ -25,23 +26,36 @@ import 'media_store.dart';
 ///
 /// It subscribes to the bus as soon as it's created, so it doesn't miss
 /// events published while the database is still opening.
+///
+/// Every event it saves gets this device's ID ([deviceId]) and its owner:
+/// the [currentUser] when it's saved, or [AppEvent.anonymousUserId].
 class Persistence {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
     required this.config,
+    this.currentUser,
     MediaStore Function(EventStore store)? mediaStore,
   }) : _store = factory.then(EventStore.open) {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
     _media.ignore();
+    _deviceId = _store.then((store) => store.deviceId(DeviceId.generate));
+    _deviceId.ignore();
     _subscription = bus.stream.listen(_onEvent);
     // Errors surface through the operations that await the store.
     _store.ignore();
   }
 
   final ConfigController config;
+
+  /// The signed-in user's ID, or null when nobody is signed in.
+  final String? Function()? currentUser;
+
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
+  late final Future<String> _deviceId;
+  EventLog? _log;
+  Future<void>? _restoring;
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
   final StreamController<void> _changes = StreamController<void>.broadcast();
@@ -57,7 +71,12 @@ class Persistence {
 
   /// Loads saved settings and history into [log]. Settings are saved on
   /// every change from then on.
-  Future<void> restore(EventLog log) async {
+  Future<void> restore(EventLog log) {
+    _log = log;
+    return _restoring = _restore(log);
+  }
+
+  Future<void> _restore(EventLog log) async {
     final store = await _store;
 
     // The whole configuration is one record. Older versions stored a flat
@@ -97,6 +116,46 @@ class Persistence {
   /// Saves the cameras the rig opens, so stored clips keep their camera.
   void attachRig(CameraRig rig) {
     _rig = rig..addListener(_saveCameras);
+  }
+
+  /// This device's ID, generated on its first launch and kept from then on.
+  Future<String> get deviceId => _deviceId;
+
+  /// Hands [userId] the events recorded on this device while nobody was
+  /// signed in (and those saved before events had owners), so a sign-in
+  /// loses none of them: they show and sync as the user's from then on.
+  /// Runs after the history is restored and pending saves are done.
+  Future<void> claimAnonymous(String userId) {
+    final pending = List.of(_pending);
+    final restoring = _restoring;
+    final claim = () async {
+      await restoring?.then((_) {}, onError: (Object _) {});
+      await Future.wait(pending);
+      if (_disposed) return;
+      final store = await _store;
+      bool anonymous(String? owner) =>
+          owner == null || owner == AppEvent.anonymousUserId;
+      // The events in memory first: their records are the freshest, and
+      // later saves of them (a clip completing, a tag) must keep the owner.
+      final claimed = <String>{};
+      for (final event in _log?.events ?? const <AppEvent>[]) {
+        if (!anonymous(event.userId)) continue;
+        event.userId = userId;
+        claimed.add(event.id);
+        await store.putEvent(event.toRecord());
+      }
+      // Then any stored ones that aren't in memory.
+      for (final record in await store.allEvents()) {
+        if (claimed.contains(record['id']) ||
+            !anonymous(AppEvent.ownerOf(record))) {
+          continue;
+        }
+        await store.putEvent({...record, 'userId': userId});
+      }
+      _changed();
+    }();
+    _track(claim);
+    return claim;
   }
 
   /// The open database and recordings, for readers such as `CloudSync`.
@@ -152,9 +211,12 @@ class Persistence {
   }
 
   void _onEvent(AppEvent event) {
+    // Who's signed in now, not once the database is open.
+    event.userId ??= currentUser?.call() ?? AppEvent.anonymousUserId;
     _track(() async {
       final store = await _store;
       try {
+        event.deviceId ??= await _deviceId;
         await store.putEvent(event.toRecord());
         _changed();
       } catch (e) {
@@ -253,6 +315,8 @@ class Persistence {
             ),
             id: record['id']! as String,
             time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
+            deviceId: record['deviceId'] as String?,
+            userId: AppEvent.ownerOf(record),
           ),
         );
       }
@@ -265,6 +329,8 @@ class Persistence {
               ? 'Clip recording missing'
               : record['detail'] as String?,
           cameraId: record['cameraId'] as String?,
+          deviceId: record['deviceId'] as String?,
+          userId: AppEvent.ownerOf(record),
           time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),
           id: record['id']! as String,
         );

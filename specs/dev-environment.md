@@ -98,8 +98,23 @@ The [README](../README.md) is the project's front page. It covers:
 - a notice that users must make sure local law allows them to record
   (video and audio) where they set it up;
 - the technology and main libraries;
-- running it locally with devbox, and on GitHub Codespaces;
-- deploying to AWS: `*RC*` tags deploy to https://rc.presence.nu01.com,
+- **Before you start**, ahead of every run and deploy section, in order:
+  getting the code and tools (Devbox, Docker, clone, `.env`,
+  `devbox shell`); creating the Google OAuth consent screen and the web,
+  iOS and Android clients; setting up AWS access (`aws configure sso`,
+  deploying the `presence-user-data` and `presence-identity` stacks,
+  reading `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET`, and
+  `HOSTED_ZONE_ID` for deploys); and a table of every `.env` variable
+  (purpose and source). It doesn't mention the private settings repo;
+- running it locally with devbox and on GitHub Codespaces, both pointing
+  back to Before you start;
+- deploying to Floci: what `devbox services up` deploys into it (the
+  `presence-local-auth-api` stack and the CloudFront distribution), that
+  it needs `GOOGLE_WEB_CLIENT_ID`, redeploying with
+  `devbox services restart 4-floci`, and inspecting it with the AWS CLI
+  (`--endpoint-url http://localhost:4566`, dummy credentials). Cloud sync
+  isn't emulated;
+- deploying to AWS (it first sends readers to Before you start): `*RC*` tags deploy to https://rc.presence.nu01.com,
   and `*GA` tags to production, https://presence.nu01.com;
 - contributing: contributions are welcome, and merged changes are deployed
   automatically with the next tag.

@@ -8,6 +8,10 @@
   `ClipRequested` does.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - On launch, the app pushes an **Application started** event.
+- Every event carries the **device** it was recorded on (`deviceId`) and
+  the **user** it belongs to (`userId`, or `anonymous` until a user signs
+  in and takes it over). See [Devices, users and
+  places](devices-users-places.md).
 - With no events, the panel shows a "No events" empty state.
 - Events flow through an app-wide **event bus**: a plain Dart broadcast
   `StreamController` (`AppEventBus` in
