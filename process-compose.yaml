@@ -69,7 +69,11 @@ processes:
       # Lambda image.
       failure_threshold: 180
     availability:
-      restart: on_failure
+      # Always, not on_failure: when the container is stopped from outside
+      # (a `docker compose down`, e.g. another checkout's
+      # `devbox services stop`), `compose up` exits 0, and the CDN, HTTPS
+      # and the API would stay down until a manual restart.
+      restart: always
       backoff_seconds: 5
 
   5-index:

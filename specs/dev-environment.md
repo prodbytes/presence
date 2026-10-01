@@ -41,11 +41,21 @@
   - Floci as the local CloudFront (`4-floci`; see
     [Local CDN](local-cdn.md)), over HTTP and HTTPS, after
     [scripts/local-certs.sh](../scripts/local-certs.sh) makes sure the
-    mkcert certificate exists
+    mkcert certificate exists. It restarts whenever it ends (`restart:
+    always`), because a container stopped from outside, for example by
+    another checkout's `devbox services stop` (the compose project is
+    shared), ends `compose up` with exit code 0
   - the site index (`5-index`: `python3 -m http.server` on
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
-  - the health monitor, which logs the status of the index, the web app,
-    the CDN and the CDN over HTTPS.
+  - the health monitor
+    ([scripts/health-check.sh](../scripts/health-check.sh)): every 15 s
+    (`HEALTH_CHECK_INTERVAL`), one line per check, each with the time, an
+    emoji, ✅ / ❌ / ⚪ and a reason. It checks the index, the web app, the
+    CDN, the CDN over HTTPS, and the auth API through the CDN
+    (`/api/auth/anonymous`: its mode). From the API's answer it also
+    reports OIDC (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off) and
+    AWS (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪
+    nothing shipped to S3); both are ❌ when the API doesn't answer.
 
   The health monitor waits until the web server, Floci and the index all
   pass

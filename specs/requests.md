@@ -1167,7 +1167,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (entry 151).
     - README "Before you start": a warning with both consequences, and a
       pointer to the Settings health line that shows them.
-153. **Add a "Device" navigation target that opens a map with the device's
+153. **Check the health logs and fix the issues (the web app's CDN and
+    HTTPS checks failing).** (2026-10-01)
+    - Cause: the Floci container was stopped by a `devbox services stop` in
+      another checkout (its `docker compose down` shares the project), and
+      `4-floci` ended with exit code 0, so `restart: on_failure` never
+      brought it back. The web app itself stayed up.
+    - Restarted `4-floci` in the running instance; every check went ✅.
+    - `4-floci` now has `restart: always`.
+154. **Review the health check script: print one line per check, every
+    15 s, checking the API, AWS and the rest.** (2026-10-01)
+    - `scripts/health-check.sh` now prints one timestamped line per check
+      with a reason, and adds `🔌 api` (the local auth API's mode),
+      `🔑 oidc` and `🪣 aws` (whether the API reports their settings set).
+    - README example and [dev-environment.md](dev-environment.md) updated.
+155. **Add a "Device" navigation target that opens a map with the device's
     location, as close as possible; let the user override the location by
     repositioning the map; send the device's position on events too.**
     (2026-10-01)
@@ -1184,7 +1198,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       [device-location.md](device-location.md).
     - 151 Flutter tests pass; web release builds. Not tried on a device or
       in a browser with real positioning.
-154. **On the map, label the device ID as a device ID and the position as
+156. **On the map, label the device ID as a device ID and the position as
     a position, and add zoom in and out controls.** (2026-10-01)
     - The Device tab's card labels "Device ID" and "Position (latitude,
       longitude)".
