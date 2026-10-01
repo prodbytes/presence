@@ -1281,3 +1281,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       quietly, then `devbox install`; a failure names the step and prints
       the free disk space. A failure there still opens the codespace with
       a terminal.
+165. **At start and every 15 s, re-sync events with S3: upload the ones only
+    on the device, download the ones only in the user's folder, at most two
+    weeks or 1000 of them, then update the Events and Subjects tabs, so
+    every device shows the same user data as S3.** (2026-10-01)
+    - `CloudSync` now fetches on every pass, not once per sign-in, and
+      passes run every 15 s (was a minute). The window is 14 days (was 7),
+      with at most 1000 events per pass, the newest first.
+    - Listings stay small: all of `events/` on a user's first pass, the
+      whole window once an hour, and otherwise only today's and yesterday's
+      partitions. A new remote event's clip is found by listing only its
+      own keys. `CloudSession.list` takes a prefix.
+    - Downloaded events join the event log, so both tabs update at once.
