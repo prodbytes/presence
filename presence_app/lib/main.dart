@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
@@ -23,6 +24,9 @@ import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
+import 'identity/add_device.dart';
+import 'identity/join_link.dart';
+import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'monitoring.dart';
 import 'settings.dart';
@@ -52,7 +56,12 @@ class PresenceApp extends StatefulWidget {
     this.locator,
     this.mapTiles,
     this.battery,
+    this.links,
   });
+
+  /// Overrides the links the app is opened with (used by tests); defaults
+  /// to `app_links`: the page's address on web, App Links on Android.
+  final Stream<Uri>? links;
 
   /// Skips the recording consent, as if this device had given it (used by
   /// tests). The app itself always checks storage.
@@ -200,6 +209,23 @@ class _PresenceAppState extends State<PresenceApp> {
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
     _checkConsent();
     requestPersistentStorage().ignore();
+    // Opened with a link to add this device: the first one, and any while
+    // running.
+    _links = (widget.links ?? AppLinks().uriLinkStream).listen((uri) {
+      final join = JoinLink.parse(uri);
+      if (join != null && mounted) setState(() => _join = join);
+    }, onError: (Object e) => debugPrint('Presence: no launch link: $e'));
+  }
+
+  StreamSubscription<Uri>? _links;
+
+  /// The link this device was opened with to join a user's devices, until
+  /// it's handled or dismissed.
+  JoinLink? _join;
+
+  void _joinHandled() {
+    clearLaunchQuery();
+    setState(() => _join = null);
   }
 
   /// This device's ID, once storage has it.
@@ -279,6 +305,7 @@ class _PresenceAppState extends State<PresenceApp> {
   @override
   void dispose() {
     _auth.removeListener(_onAuthChanged);
+    _links?.cancel();
     _sync?.dispose();
     _roles.dispose();
     _location.dispose();
@@ -319,6 +346,8 @@ class _PresenceAppState extends State<PresenceApp> {
             location: _location,
             mapTiles: widget.mapTiles,
             battery: widget.battery,
+            join: _join,
+            onJoinHandled: _joinHandled,
           ),
         },
       ),
@@ -361,7 +390,16 @@ class HomeScreen extends StatefulWidget {
     required this.location,
     this.mapTiles,
     this.battery,
+    this.join,
+    this.onJoinHandled,
   });
+
+  /// The link this device was opened with to become one of a user's
+  /// devices ([JoinLink]), until handled: a banner says what's left to do.
+  final JoinLink? join;
+
+  /// The join link was handled (joined) or dismissed.
+  final VoidCallback? onJoinHandled;
 
   /// The battery reading over the camera, when not the device's (tests).
   final BatteryReader? battery;
@@ -479,6 +517,41 @@ class _HomeScreenState extends State<HomeScreen>
     setState(() {});
   }
 
+  /// The join link that was announced as joined, so it's announced once.
+  JoinLink? _announced;
+
+  /// Where [HomeScreen.join] stands. Once joined, a message says so and the
+  /// link is done.
+  JoinStatus? _joinStatus() {
+    final join = widget.join;
+    if (join == null) return null;
+    final status = JoinStatus.of(
+      join,
+      deviceId: widget.deviceId,
+      userId: widget.auth.user?.id,
+      checking: widget.auth.checking,
+      dev: _dev,
+    );
+    if (status == JoinStatus.joined && _announced != join) {
+      _announced = join;
+      final email = widget.auth.user?.email;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              email == null
+                  ? 'Presence is open on this device: ${widget.deviceId}'
+                  : 'This device is now one of $email\'s: ${widget.deviceId}',
+            ),
+          ),
+        );
+        widget.onJoinHandled?.call();
+      });
+    }
+    return status;
+  }
+
   @override
   void dispose() {
     widget.auth.removeListener(_onAuthChanged);
@@ -557,6 +630,7 @@ class _HomeScreenState extends State<HomeScreen>
         body: Center(child: CircularProgressIndicator(key: Key('starting'))),
       );
     }
+    final joinStatus = _joinStatus();
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
@@ -692,6 +766,16 @@ class _HomeScreenState extends State<HomeScreen>
                   motionLevel: widget.rig.motionLevel,
                   deviceId: widget.deviceId,
                   health: SystemHealth(roles: widget.roles, sync: widget.sync),
+                  addDevice: switch (widget.deviceId) {
+                    final deviceId? => AddDeviceButton(
+                      link: JoinLink.build(
+                        from: deviceId,
+                        userId: _dev ? null : widget.auth.user?.id,
+                      ),
+                      email: _dev ? null : widget.auth.user?.email,
+                    ),
+                    null => null,
+                  },
                   location: widget.location,
                   tiles: widget.mapTiles,
                   onMapHeld: (held) => setState(() => _mapHeld = held),
@@ -703,6 +787,22 @@ class _HomeScreenState extends State<HomeScreen>
           // a clip now would be complete. Signed out, nothing.
           if (_onCamera && _hasAccess)
             _CameraStatus(rig: widget.rig, battery: _battery),
+          // Opened with a link to add this device: what's left to do.
+          if (joinStatus != null)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: JoinBanner(
+                    status: joinStatus,
+                    email: widget.auth.user?.email,
+                    onSignOut: widget.auth.signOut,
+                    onDismiss: () => widget.onJoinHandled?.call(),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       // Signed out, the camera shows with no buttons at all.

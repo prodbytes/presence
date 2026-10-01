@@ -32,6 +32,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- App Links: "Add a device" links (https://<site>/app/?from=…)
+                 open the app where it's installed, the site elsewhere.
+                 Opening them without asking needs the site's
+                 /.well-known/assetlinks.json, with the signing key. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="presence.nu01.com" />
+                <data android:host="rc.presence.nu01.com" />
+                <data android:pathPrefix="/app" />
+            </intent-filter>
+            <!-- The links go to app_links, not to Flutter's router. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false" />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

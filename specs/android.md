@@ -61,6 +61,12 @@ Android uses the standard dashcam technique instead
   app's private `clips/` folder, not database rows, because sembast keeps
   its whole database in memory. If private storage is unavailable, data is
   kept in memory for the session.
+- **App Links:** the manifest's `autoVerify` intent filter takes
+  `https://presence.nu01.com/app…` and `https://rc.presence.nu01.com/app…`
+  links (the [Add a device](add-device.md) links) to `app_links`, with
+  Flutter's own deep linking off (`flutter_deeplinking_enabled`). Without
+  the site's `assetlinks.json`, Android doesn't open them in the app by
+  itself yet.
 
 ## Known limitations
 

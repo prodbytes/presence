@@ -48,6 +48,9 @@ audio, so a clip can include the moments before someone pressed Clip.
   the location by moving it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule and
   subject settings.
+- [Add a device](add-device.md): a QR code and Share button, last in
+  Settings, that open Presence on another device as a new device of the
+  same user, after a sign-in checked against the link.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3 through a Cognito identity pool.

@@ -28,6 +28,11 @@ not built yet.
 - **Settings shows it**, small and selectable, under the version (see
   [Settings screen](settings.md)), above the Location section with where
   the device is (see [Device location and battery](device-location.md)).
+- **Adding a device:** Settings' **Add a device** shows a QR code and a
+  link that open Presence on another device. That device keeps its own
+  device ID (the link's is the sharing device's, never copied) and, after a
+  sign-in checked against the link, is one more device of the same user. See
+  [Add a device](add-device.md).
 
 ## Users
 
