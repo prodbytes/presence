@@ -100,6 +100,11 @@ The [README](../README.md) is the project's front page. It covers:
 - the technology and main libraries;
 - running it locally with devbox, and on GitHub Codespaces (it doesn't
   mention the private settings repo);
+- settings: a table of every `.env` variable (purpose and source), how to
+  create the Google OAuth consent screen and the web, iOS and Android
+  clients, and how to set up the AWS CLI, deploy the `presence-user-data`
+  and `presence-identity` stacks and read `COGNITO_IDENTITY_POOL_ID`,
+  `USER_DATA_BUCKET` and `HOSTED_ZONE_ID`;
 - deploying to AWS: `*RC*` tags deploy to https://rc.presence.nu01.com,
   and `*GA` tags to production, https://presence.nu01.com;
 - contributing: contributions are welcome, and merged changes are deployed
