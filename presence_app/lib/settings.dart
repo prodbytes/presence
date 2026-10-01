@@ -10,10 +10,14 @@ class SettingsView extends StatelessWidget {
     super.key,
     required this.config,
     this.motionLevel,
+    this.deviceId,
     this.health,
   });
 
-  /// A status line under the version (the API, AWS and OIDC).
+  /// This device's ID, shown under the version once it's loaded.
+  final String? deviceId;
+
+  /// A status line under the device ID (the API, AWS and OIDC).
   final Widget? health;
 
   /// The app's configuration; every control edits it.
@@ -128,8 +132,22 @@ class SettingsView extends StatelessWidget {
                 ),
               ),
             ],
+            // Which device this is, as its events say (selectable, to copy).
+            if (deviceId case final deviceId?) ...[
+              SizedBox(height: AppVersion.version.isEmpty ? 32 : 4),
+              SelectableText(
+                deviceId,
+                key: const Key('device-id'),
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (health case final health?) ...[
-              SizedBox(height: AppVersion.version.isEmpty ? 32 : 8),
+              SizedBox(
+                height: AppVersion.version.isEmpty && deviceId == null ? 32 : 8,
+              ),
               health,
             ],
           ],

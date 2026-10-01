@@ -8,8 +8,9 @@ Description: >
   requests. API Gateway's HTTP API checks the Google ID token (JWT
   authorizer) before the functions run; they read the verified claims.
   GET /api/auth/anonymous, the only route without a token, returns the
-  execution mode (DEV without GoogleWebClientId, else RBAC) and the
-  anonymous user's roles.
+  execution mode (DEV without GoogleWebClientId, else RBAC), the
+  anonymous user's roles, and whether the OIDC client and cloud sync
+  (IdentityPoolId, UserDataBucket) are set.
   Nobody has roles, except verified emails at one of AllowedDomains
   (presence_user and presence_admin) and users listed in
   the UserRoles table (email -> roles). Served under /api/* by the site's
@@ -24,6 +25,18 @@ Parameters:
       Empty only for local development (Floci): the API then runs in DEV mode,
       where the anonymous user gets every role. scripts/deploy.sh requires it.
     AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
+  IdentityPoolId:
+    Type: String
+    Default: ''
+    Description: >
+      The Cognito identity pool cloud sync uses (presence-identity's
+      IdentityPoolId). Only reported as set or not, for the app's health line.
+  UserDataBucket:
+    Type: String
+    Default: ''
+    Description: >
+      The bucket cloud sync uploads to (presence-user-data's
+      UserDataBucketName). Only reported as set or not, for the app's health line.
   AllowedDomains:
     Type: String
     Default: nu01.com
@@ -120,6 +133,9 @@ Resources:
           DOMAIN_ROLES: presence_user,presence_admin
           # Decides the ExecutionMode: DEV when empty, else RBAC.
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
+          # GET /api/auth/anonymous says whether these are set (Settings).
+          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
+          USER_DATA_BUCKET: !Ref UserDataBucket
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable

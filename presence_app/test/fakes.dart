@@ -295,6 +295,9 @@ class FakeRolesClient implements RolesClient {
   /// What `GET /api/auth/anonymous` says; RBAC by default.
   ExecutionMode mode = ExecutionMode.rbac;
 
+  /// What `GET /api/auth/anonymous` says is set.
+  ApiSettings settings = (oidc: null, aws: null);
+
   /// Makes the start check fail (the API is unreachable).
   Object? anonymousError;
   int anonymousCalls = 0;
@@ -315,6 +318,7 @@ class FakeRolesClient implements RolesClient {
       roles: mode == ExecutionMode.dev
           ? const [anonymousRole, userRole, adminRole]
           : const [anonymousRole],
+      settings: settings,
     );
   }
 }

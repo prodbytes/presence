@@ -1068,3 +1068,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (`🔌 API · ☁️ AWS · 🔑 OIDC`).
     - 22 Java and 133 Flutter tests pass; checked live in DEV through
       Floci and Chrome.
+147. **Define devices, users and places (device groups). Give each device
+    a funny, collision-resistant ID (`adjective_adjective_thing`, such as
+    `automatic_paranoid_gadget`) on first load; add the device ID and the
+    user ID to every event; when a user signs in, let them own the events
+    recorded anonymously on the device, so none are lost (3 grabs signed
+    out + 2 after = 5 events). Show the device ID discreetly under the
+    version in Settings, and a discreet emoji health check for API, OIDC
+    and AWS that asks the auth module whether the expected settings are
+    set.** (2026-10-01)
+    - New [devices-users-places.md](devices-users-places.md). `DeviceId`:
+      1053 adjectives × 1052 × 1091 things, about 1.2 billion IDs, made
+      with `Random.secure()` and kept in the `settings` store (`device`).
+    - Events carry `deviceId` and `userId` (the Google ID, or
+      `anonymous`). A sign-in, or a session restored at launch, takes over
+      the anonymous events (`Persistence.claimAnonymous`). Cloud sync now
+      uploads only the signed-in user's events and their clips.
+    - Places are defined but not built (no place ID yet).
+    - Auth API: `GET /api/auth/anonymous` adds
+      `"settings": {"oidc": …, "aws": …}` (`Settings`; new template
+      parameters `IdentityPoolId` and `UserDataBucket`, passed by
+      `deploy.sh` and, from `.env`, by the Floci hook). The deploy smoke
+      test requires both set.
+    - Settings: the device ID under the version; the health line compares
+      the API's settings with the build's own (⚠️ when they disagree).
+    - 23 Java and 142 Flutter tests pass; the local API answered with its
+      settings live through Floci.

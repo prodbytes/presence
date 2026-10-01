@@ -19,10 +19,16 @@ Everything goes under the user's **Cognito identity ID**
 | `<identityId>/clips/<clipId>.jpg` | the thumbnail |
 | `<identityId>/clips/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/<clipId>.json` | the clip record: camera, window, lengths, state, media reference |
-| `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each event record (type, title, detail, time, camera, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
+| `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 ## When
 
+- **Only the user's own:** a pass uploads the events whose `userId` is the
+  signed-in user's, and only the clips (and tagged frames) of those
+  events. Events recorded signed out go up once the sign-in takes them
+  over, moments later; another user's never do. Fetched events get the
+  user's ID if they have none. See [Devices, users and
+  places](devices-users-places.md).
 - **Signed out, or signed in without `presence_user`:** nothing is
   uploaded or fetched (see [Sign-in](sign-in.md) and
   [Membership](membership.md)). Sync starts once the roles check grants

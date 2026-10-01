@@ -9,6 +9,7 @@ import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
+import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
 
@@ -28,6 +29,7 @@ void main() {
     WidgetTester tester, {
     List<FakeCameraSource> cameras = const [],
     CloudBackend? cloud,
+    FakeAuthService? auth,
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -40,7 +42,7 @@ void main() {
         storage: storage,
         mediaIo: fakeMediaIo,
         now: () => clock,
-        auth: FakeAuthService.signedIn(),
+        auth: auth ?? FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
         cloud: cloud,
       ),
@@ -186,6 +188,94 @@ void main() {
         matching: find.textContaining('Backed up'),
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('events recorded signed out become the user\'s at sign-in', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    final auth = FakeAuthService();
+    await launch(tester, cloud: cloud, auth: auth);
+    final bus = AppEventBusScope.of(tester.element(find.byType(HomeScreen)));
+    void record(String title) =>
+        bus.publish(AppEvent(icon: Icons.videocam, title: title));
+
+    // Three before signing in, two after: the user gets all five.
+    for (final n in [1, 2, 3]) {
+      record('Grab $n');
+    }
+    await settleStorage(tester);
+    expect(cloud.uploads, isEmpty, reason: 'signed out: nothing syncs');
+    await auth.signIn();
+    await settleStorage(tester);
+    for (final n in [4, 5]) {
+      record('Grab $n');
+    }
+    await settleStorage(tester);
+    await settleStorage(tester);
+
+    const prefix = 'us-east-1:identity';
+    final uploaded = [
+      for (final MapEntry(:key, :value) in cloud.uploads.entries)
+        if (key.startsWith('$prefix/events/'))
+          (jsonDecode(utf8.decode(value.bytes)) as Map).cast<String, Object?>(),
+    ];
+    final grabs = uploaded
+        .where((e) => '${e['title']}'.startsWith('Grab '))
+        .toList();
+    expect(grabs.map((e) => e['title']).toSet(), {
+      for (final n in [1, 2, 3, 4, 5]) 'Grab $n',
+    });
+    // Every event is the user's, and was recorded on this device.
+    expect(uploaded.map((e) => e['userId']).toSet(), {'1'});
+    final devices = uploaded.map((e) => e['deviceId']).toSet();
+    expect(devices, hasLength(1));
+    expect(devices.single, matches(DeviceId.pattern));
+    // So are the stored ones, and the ones in the timeline.
+    final store = await run(tester, EventStore.open(storage));
+    final stored = await run(tester, store.allEvents());
+    expect(stored.map(AppEvent.ownerOf).toSet(), {'1'});
+    expect(stored.map((e) => e['deviceId']).toSet(), devices);
+    await showEvents(tester);
+    final log = tester.widget<EventTimeline>(find.byType(EventTimeline)).log;
+    expect(log.events.map((e) => e.userId).toSet(), {'1'});
+
+    // Settings shows the device's ID.
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<SelectableText>(
+            find.byKey(const Key('device-id'), skipOffstage: false),
+          )
+          .data,
+      devices.single,
+    );
+  });
+
+  testWidgets('the device ID is made once and kept across refreshes', (
+    tester,
+  ) async {
+    Future<String?> deviceId() async {
+      final store = await run(tester, EventStore.open(storage));
+      final events = await run(tester, store.allEvents());
+      return events.first['deviceId'] as String?;
+    }
+
+    await launch(tester);
+    final first = await deviceId();
+    expect(first, matches(DeviceId.pattern));
+    await refresh(tester);
+    final store = await run(tester, EventStore.open(storage));
+    final events = await run(tester, store.allEvents());
+    // Two launches, one device.
+    expect(
+      events
+          .where((e) => e['type'] == AppEvent.appStartedType)
+          .map((e) => e['deviceId'])
+          .toList(),
+      [first, first],
     );
   });
 
