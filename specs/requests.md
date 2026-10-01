@@ -1281,3 +1281,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       quietly, then `devbox install`; a failure names the step and prints
       the free disk space. A failure there still opens the codespace with
       a terminal.
+165. **On the Events tab, show only this device's events by default, with a
+    checkbox at the top to see all devices.** (2026-10-01)
+    - `EventTimeline` takes the device ID and an "Only this device"
+      checkbox (a `ValueNotifier` kept by `HomeScreen`, so it survives tab
+      switches), on at launch. Events without a device ID yet count as
+      this device's. Opening another device's event from a subject's map
+      clears it.
+    - New `events_filter_test.dart`: filtered at launch, all after
+      clearing, kept across a tab switch, and a new event shows before
+      it's saved. 173 Flutter tests pass. Opening another device's event
+      isn't covered by a test.

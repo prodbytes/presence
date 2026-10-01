@@ -71,7 +71,8 @@ in the app bar**, which flip between full screens.
     saving the next 15 s", with a **View** action that jumps to Events. It's
     set not to persist (Flutter otherwise keeps snackbars with actions until
     dismissed). For motion clips, the indicator carries the cooldown after it.
-- **Events:** the event stream, full screen. On wide screens it's centered
+- **Events:** the event stream, full screen, with an **Only this device**
+  checkbox at the top (checked by default; see [Events](events.md)). On wide screens it's centered
   at a readable width (max 560 px), so clip thumbnails don't stretch across
   the desktop.
 - **Subjects:** the people and pets tagged on clips, each opening a map
