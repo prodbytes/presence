@@ -7,6 +7,9 @@ Description: >
   Admin screen's routes (presence_admin only) list and approve those
   requests. API Gateway's HTTP API checks the Google ID token (JWT
   authorizer) before the functions run; they read the verified claims.
+  GET /api/auth/anonymous, the only route without a token, returns the
+  execution mode (DEV without GoogleWebClientId, else RBAC) and the
+  anonymous user's roles.
   Nobody has roles, except verified emails at one of AllowedDomains
   (presence_user and presence_admin) and users listed in
   the UserRoles table (email -> roles). Served under /api/* by the site's
@@ -15,12 +18,19 @@ Description: >
 Parameters:
   GoogleWebClientId:
     Type: String
-    Description: The Google web OAuth client; ID tokens must be issued for it (their aud)
-    AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+    Default: ''
+    Description: >
+      The Google web OAuth client; ID tokens must be issued for it (their aud).
+      Empty only for local development (Floci): the API then runs in DEV mode,
+      where the anonymous user gets every role. scripts/deploy.sh requires it.
+    AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
   AllowedDomains:
     Type: String
     Default: nu01.com
     Description: Comma-separated email domains whose verified users get presence_user and presence_admin
+
+Conditions:
+  HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
 
 Globals:
   Function:
@@ -77,6 +87,10 @@ Resources:
         "POST /api/auth/membership":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # Public (no token): the app asks it at every start.
+        "GET /api/auth/anonymous":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -86,8 +100,10 @@ Resources:
             IdentitySource: $request.header.Authorization
             JwtConfiguration:
               issuer: https://accounts.google.com
+              # Without a client (DEV), no token can match: only the
+              # anonymous route answers.
               audience:
-                - !Ref GoogleWebClientId
+                - !If [HasGoogleClient, !Ref GoogleWebClientId, no-oidc-client]
 
   AuthFunction:
     Type: AWS::Serverless::Function
@@ -102,6 +118,8 @@ Resources:
           # than a parameter: stacks keep a parameter's old value when a
           # deploy doesn't pass it, which once left "admin" in place.
           DOMAIN_ROLES: presence_user,presence_admin
+          # Decides the ExecutionMode: DEV when empty, else RBAC.
+          GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
@@ -112,6 +130,15 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth
             Method: get
+        # The execution mode and the anonymous user's roles, without a token.
+        Anonymous:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/anonymous
+            Method: get
+            Auth:
+              Authorizer: NONE
 
   MembershipFunction:
     Type: AWS::Serverless::Function

@@ -19,22 +19,40 @@ import java.util.stream.Collectors;
  * {@code GET /api/auth}: the signed-in user's roles, as
  * {@code {"email": "...", "roles": [...]}}. The HTTP API's JWT authorizer has
  * already verified the Google ID token, so the claims can be trusted.
+ *
+ * <p>{@code GET /api/auth/anonymous} (no token, no authorizer): the
+ * {@link ExecutionMode} and the anonymous user's roles, as
+ * {@code {"mode": "RBAC", "roles": ["presence_anonymous"]}}. The app asks it
+ * before it shows anything.
  */
 public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
+    static final String ANONYMOUS_ROUTE = "GET /api/auth/anonymous";
+
     private final Roles roles;
+    private final ExecutionMode mode;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AuthHandler() {
-        this(fromEnvironment());
+        this(fromEnvironment(), ExecutionMode.fromEnvironment());
     }
 
     AuthHandler(Roles roles) {
+        this(roles, ExecutionMode.RBAC);
+    }
+
+    AuthHandler(Roles roles, ExecutionMode mode) {
         this.roles = roles;
+        this.mode = mode;
     }
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        if (event != null && ANONYMOUS_ROUTE.equals(event.getRouteKey())) {
+            return response(200, "{\"mode\":" + Json.string(mode.name()) + ",\"roles\":["
+                    + Roles.anonymous(mode).stream().map(Json::string).collect(Collectors.joining(","))
+                    + "]}");
+        }
         var claims = claims(event);
         var email = claims.get("email");
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));

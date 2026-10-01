@@ -72,6 +72,42 @@ class RolesTest {
     }
 
     @Test
+    void theModeIsDevOnlyWithoutAnOidcClient() {
+        assertEquals(ExecutionMode.DEV, ExecutionMode.of(null));
+        assertEquals(ExecutionMode.DEV, ExecutionMode.of(" "));
+        assertEquals(ExecutionMode.RBAC, ExecutionMode.of("123-abc.apps.googleusercontent.com"));
+    }
+
+    @Test
+    void theAnonymousUserMayOnlySignInUnderRbac() {
+        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var response = handler.handleRequest(anonymous(), null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("no-store", response.getHeaders().get("Cache-Control"));
+        assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"]}", response.getBody());
+    }
+
+    @Test
+    void theAnonymousUserGetsEveryRoleInDev() {
+        var handler = new AuthHandler(roles, ExecutionMode.DEV);
+        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_user\"]}",
+                handler.handleRequest(anonymous(), null).getBody());
+    }
+
+    @Test
+    void signedInUsersStillGetTheirOwnRolesInRbac() {
+        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var response = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
+        assertEquals("{\"email\":\"x@example.com\",\"roles\":[]}", response.getBody());
+    }
+
+    private static APIGatewayV2HTTPEvent anonymous() {
+        var event = new APIGatewayV2HTTPEvent();
+        event.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
+        return event;
+    }
+
+    @Test
     void emailsAreEscapedInTheResponse() {
         var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()));
         var response = handler.handleRequest(event(Map.of("email", "a\"b@example.com", "email_verified", "true")), null);

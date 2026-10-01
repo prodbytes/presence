@@ -6,7 +6,15 @@ import 'config.dart';
 
 /// The Settings screen (the Settings tab).
 class SettingsView extends StatelessWidget {
-  const SettingsView({super.key, required this.config, this.motionLevel});
+  const SettingsView({
+    super.key,
+    required this.config,
+    this.motionLevel,
+    this.health,
+  });
+
+  /// A status line under the version (the API, AWS and OIDC).
+  final Widget? health;
 
   /// The app's configuration; every control edits it.
   final ConfigController config;
@@ -119,6 +127,10 @@ class SettingsView extends StatelessWidget {
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
+            ],
+            if (health case final health?) ...[
+              SizedBox(height: AppVersion.version.isEmpty ? 32 : 8),
+              health,
             ],
           ],
         );
