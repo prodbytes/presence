@@ -1255,3 +1255,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The device colors, the device legend and the device ID in the event
       list are gone. A dot's tooltip gives its time and camera.
     - 169 Flutter tests pass; the web release builds.
+162. **On top of the Subjects page, put a map merging all events, each
+    subject identified by a color, with a square of that color on the
+    subject's line for reference.** (2026-10-01)
+    - The Subjects tab now opens with a map of every subject's latest
+      located events, each dot in its subject's color and faded by age; a
+      clip with several subjects gets a dot for each, and tapping one
+      opens its event. Each subject's row has a matching color square
+      before the name.
+    - The subject screen's map and the new one share one map widget.

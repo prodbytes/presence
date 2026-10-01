@@ -20,11 +20,20 @@ and pets"), each with where the device was when they were seen
 - A tab between **Events** and **Device** (the `people` icon, tooltip
   "Subjects"; see [Navigation](navigation.md)), at the same 560 px readable
   width as Events.
-- One card per subject, the **most recently seen first**:
+- **A map on top** (two fifths of the height) merges every subject's
+  events: for each subject, a dot per event among their latest
+  `mapEvents` that has a location, in **the subject's color**, the newest
+  solid and older ones fading, as on a subject's own map. A clip tagged
+  with several subjects gets a dot for each. It opens on all the dots (the
+  whole world without any), has the tiles' credit, and tapping a dot opens
+  its event in the Events tab.
+- Under it, one card per subject, the **most recently seen first**:
   - the **frame** the subject was tagged on in their latest event, 96 px
     wide at its own shape, with a dot in the subject's color where they
     were clicked. A tag
     without a frame shows the clip's thumbnail instead (no dot);
+  - a **square in the subject's color** before the name, to match them
+    with their dots on the map;
   - the name;
   - "Last seen 14:03:22 · Back camera": the event's time (with the date,
     `2026-09-30 08:05:00`, when it isn't today) and camera;
@@ -78,7 +87,10 @@ and pets"), each with where the device was when they were seen
   the palette, and every dot has it, fading by age; the setting's slider;
   the tab between Events and Device; tapping a dot far down the timeline
   closes the subject's screen, shows the Events tab with that event on
-  screen and outlined, and the outline goes after 4 s.
+  screen and outlined, and the outline goes after 4 s; the Subjects map
+  above the list has every subject's located dots (one per subject on a
+  shared clip) in each subject's color, faded per subject, the rows'
+  squares match those colors, and a tapped dot opens its event.
   `widget_test.dart`: the five tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.

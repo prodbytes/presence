@@ -259,6 +259,81 @@ void main() {
       expect(opacityOfDot(tester, 'event-3'), closeTo(0.15, 1e-9));
     });
 
+    testWidgets('on top, a map of every subject, each in its color, and a '
+        'matching square on each row', (tester) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
+        clipWith(['Rex', 'Ana'], minutesAgo: 2, lat: 48.2),
+        clipWith(['Ana'], minutesAgo: 3, lat: 48.3),
+        clipWith(['Ana'], minutesAgo: 4),
+      ]);
+      AppEvent? opened;
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SubjectsView(
+              log: log,
+              config: config,
+              tiles: const SizedBox(),
+              onOpenEvent: (e) => opened = e,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The map sits above the list.
+      final map = find.byKey(const Key('subjects-map'));
+      expect(map, findsOneWidget);
+      expect(
+        tester.getBottomLeft(map).dy,
+        lessThanOrEqualTo(tester.getTopLeft(find.text('Rex')).dy),
+      );
+
+      // Every located event of every subject; the clip with both gets a
+      // dot for each.
+      final markers = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
+      expect(markers.markers, hasLength(4));
+      Color colorOf(Finder f) =>
+          (tester
+                      .widget<Container>(
+                        find.descendant(
+                          of: f,
+                          matching: find.byType(Container),
+                        ),
+                      )
+                      .decoration!
+                  as BoxDecoration)
+              .color!;
+      final rex = Subject.colorOf('rex'), ana = Subject.colorOf('ana');
+      expect(colorOf(find.byKey(const Key('subjects-dot-rex-event-1'))), rex);
+      expect(colorOf(find.byKey(const Key('subjects-dot-rex-event-2'))), rex);
+      expect(colorOf(find.byKey(const Key('subjects-dot-ana-event-2'))), ana);
+      expect(colorOf(find.byKey(const Key('subjects-dot-ana-event-3'))), ana);
+      // Faded per subject, by age: Rex's newest solid, his older one faint.
+      double opacity(String key) => tester
+          .widget<Opacity>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(Opacity),
+            ),
+          )
+          .opacity;
+      expect(opacity('subjects-dot-rex-event-1'), 1);
+      expect(opacity('subjects-dot-rex-event-2'), closeTo(0.15, 1e-9));
+
+      // The rows' squares are the same colors.
+      expect(colorOf(find.byKey(const Key('subject-color-rex'))), rex);
+      expect(colorOf(find.byKey(const Key('subject-color-ana'))), ana);
+
+      // A tapped dot opens its event.
+      await tester.tap(find.byKey(const Key('subjects-dot-ana-event-3')));
+      expect(opened?.id, 'event-3');
+    });
+
     testWidgets('the setting is on the Settings screen', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
