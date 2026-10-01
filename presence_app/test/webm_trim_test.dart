@@ -74,7 +74,9 @@ Uint8List recording({
   for (final (ms, track, key) in frames) {
     final isVideoKey = track == 1 && key;
     // Also a cluster break that isn't at a keyframe, at 12.5 s.
-    if (clusterMs == null || isVideoKey || (ms >= 12500 && clusterMs < 12500)) {
+    if (clusterMs == null ||
+        isVideoKey ||
+        (ms >= 12500 && clusterMs < 12500)) {
       flush();
       clusterMs = ms;
     }
