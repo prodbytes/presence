@@ -58,28 +58,119 @@ Docker isn't part of devbox. The services need a running Docker daemon
 (Docker Desktop on macOS, or docker-in-docker in the dev container) and the
 Docker CLI with the `compose` plugin.
 
-## Run it locally with devbox
+## Before you start
+
+Do these once, before you start the dev environment or deploy. Without the
+Google OAuth clients, sign-in is off; without AWS, cloud sync is off and
+you can't deploy. The cameras and clips work either way.
+
+### 1. Get the code and tools
 
 1. Install [Devbox](https://www.jetify.com/devbox/docs/installing_devbox/)
    and Docker.
-2. Clone the repo and add your settings:
+2. Clone the repo, create your `.env` and enter the environment (the first
+   run takes a few minutes):
 
    ```bash
    git clone git@github.com:prodbytes/presence.git
    cd presence
-   cp .env.example .env    # then fill in the values you need
+   cp .env.example .env
+   devbox shell
    ```
 
-   Without a Google client ID, sign-in is off. Without the Cognito and bucket
-   settings, cloud sync is off. The cameras and clips still work.
-   [Settings](#settings) explains where each value comes from.
-3. Start everything:
+### 2. Create the Google OAuth clients
+
+1. Sign in to the [Google Cloud Console](https://console.cloud.google.com/)
+   with a Google account and create a project (or pick one).
+2. Under **APIs & Services → OAuth consent screen**, set up the consent
+   screen (External, with the app's name and your email). While it's in
+   testing, add the accounts that will sign in as test users.
+3. Under **APIs & Services → Credentials → Create credentials → OAuth
+   client ID**, create:
+   - a **Web application** client with Authorized JavaScript origins
+     `http://localhost:8080` and `https://local.presence.nu01.com:8443`
+     (add your deployed domains later). It needs no redirect URI. Copy its
+     ID into `GOOGLE_WEB_CLIENT_ID` and its secret into
+     `GOOGLE_WEB_CLIENT_SECRET`;
+   - an **iOS** client with bundle ID `com.nu01.presence`, for
+     `GOOGLE_IOS_CLIENT_ID`;
+   - an **Android** client with package `com.nu01.presence` and your
+     signing key's SHA-1 (`keytool -list -v -alias androiddebugkey
+     -keystore ~/.android/debug.keystore -storepass android` for the debug
+     key), for `GOOGLE_ANDROID_CLIENT_ID`.
+
+### 3. Set up AWS access
+
+1. Create an [AWS account](https://aws.amazon.com/) if you don't have one,
+   and an IAM Identity Center user or access key that can create
+   CloudFormation stacks, S3 buckets, Cognito identity pools and IAM roles.
+2. Configure the CLI (it's in the devbox shell from step 1), then check it
+   works:
 
    ```bash
-   devbox shell            # enter the environment (the first run takes a few minutes)
-   devbox run mkcert -install   # once, so browsers trust the local HTTPS certificate
-   devbox services up      # add --pcflags "--tui=false" when not in a terminal
+   aws configure sso          # or: aws configure, with an access key
+   aws sts get-caller-identity
    ```
+
+3. Create the bucket and identity pool from
+   [presence_infra/](presence_infra), with your web client ID:
+
+   ```bash
+   GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env)"
+   aws cloudformation deploy --region us-east-1 \
+     --stack-name presence-user-data \
+     --template-file presence_infra/user-data.yaml
+   aws cloudformation deploy --region us-east-1 \
+     --stack-name presence-identity \
+     --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
+     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID"
+   ```
+
+4. Copy the outputs into `.env` as `COGNITO_IDENTITY_POOL_ID` and
+   `USER_DATA_BUCKET`:
+
+   ```bash
+   aws cloudformation describe-stacks --region us-east-1 --stack-name presence-identity \
+     --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text
+   aws cloudformation describe-stacks --region us-east-1 --stack-name presence-user-data \
+     --query "Stacks[0].Outputs[?OutputKey=='UserDataBucketName'].OutputValue" --output text
+   ```
+
+5. If you'll deploy to AWS, find your domain's zone ID for `HOSTED_ZONE_ID` (the
+   part after `/hostedzone/`):
+
+   ```bash
+   aws route53 list-hosted-zones --query "HostedZones[].[Name,Id]" --output text
+   ```
+
+### 4. Check your settings
+
+The settings live in `.env` (git-ignored; [.env.example](.env.example)
+lists the names). Only `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`,
+`AWS_REGION`, `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` reach the
+app ([scripts/dart-defines.sh](scripts/dart-defines.sh)). They're compiled
+in, so never add a secret to that list.
+
+| Variable | Purpose | Where it comes from |
+|---|---|---|
+| `GOOGLE_WEB_CLIENT_ID` | Google sign-in. Every platform's ID token is issued for this client, and Cognito and the auth API trust it | Google Cloud: the Web application client |
+| `GOOGLE_IOS_CLIENT_ID` | Google sign-in on iOS (its reversed ID is the app's URL scheme) | Google Cloud: the iOS client |
+| `GOOGLE_ANDROID_CLIENT_ID` | Reference only. Google matches Android by package name and signing key, so the app doesn't use it | Google Cloud: the Android client |
+| `GOOGLE_WEB_CLIENT_SECRET` | Not used by the app. It's kept for a future backend and is never passed to Flutter | Google Cloud: the Web application client |
+| `AWS_REGION` | The region of the cloud-sync resources (`us-east-1`) | Your choice |
+| `COGNITO_IDENTITY_POOL_ID` | Cloud sync: trades the Google ID token for temporary AWS credentials | Output `IdentityPoolId` of the `presence-identity` stack |
+| `USER_DATA_BUCKET` | Cloud sync: the S3 bucket for clips and events | Output `UserDataBucketName` of the `presence-user-data` stack |
+| `HOSTED_ZONE_ID` | Deploys only: the Route 53 zone of the site's domain | Route 53 |
+
+## Run it locally with devbox
+
+After [Before you start](#before-you-start), from the repo inside
+`devbox shell`:
+
+```bash
+devbox run mkcert -install   # once, so browsers trust the local HTTPS certificate
+devbox services up           # add --pcflags "--tui=false" when not in a terminal
+```
 
 That starts these services, wired up in
 [process-compose.yaml](process-compose.yaml):
@@ -118,88 +209,6 @@ make clean
 Pass `MODE=profile` or `MODE=debug` for other build modes, and
 `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
 
-## Settings
-
-The settings live in `.env` (git-ignored; [.env.example](.env.example)
-lists the names). Only `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`,
-`AWS_REGION`, `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` reach the
-app ([scripts/dart-defines.sh](scripts/dart-defines.sh)). They're compiled
-in, so never add a secret to that list.
-
-| Variable | Purpose | Where it comes from |
-|---|---|---|
-| `GOOGLE_WEB_CLIENT_ID` | Google sign-in. Every platform's ID token is issued for this client, and Cognito and the auth API trust it | Google Cloud: the Web application client |
-| `GOOGLE_IOS_CLIENT_ID` | Google sign-in on iOS (its reversed ID is the app's URL scheme) | Google Cloud: the iOS client |
-| `GOOGLE_ANDROID_CLIENT_ID` | Reference only. Google matches Android by package name and signing key, so the app doesn't use it | Google Cloud: the Android client |
-| `GOOGLE_WEB_CLIENT_SECRET` | Not used by the app. It's kept for a future backend and is never passed to Flutter | Google Cloud: the Web application client |
-| `AWS_REGION` | The region of the cloud-sync resources (`us-east-1`) | Your choice |
-| `COGNITO_IDENTITY_POOL_ID` | Cloud sync: trades the Google ID token for temporary AWS credentials | Output `IdentityPoolId` of the `presence-identity` stack |
-| `USER_DATA_BUCKET` | Cloud sync: the S3 bucket for clips and events | Output `UserDataBucketName` of the `presence-user-data` stack |
-| `HOSTED_ZONE_ID` | Deploys only: the Route 53 zone of the site's domain | Route 53 |
-
-### Google OAuth
-
-1. Sign in to the [Google Cloud Console](https://console.cloud.google.com/)
-   with a Google account and create a project (or pick one).
-2. Under **APIs & Services → OAuth consent screen**, set up the consent
-   screen (External, with the app's name and your email). While it's in
-   testing, add the accounts that will sign in as test users.
-3. Under **APIs & Services → Credentials → Create credentials → OAuth
-   client ID**, create:
-   - a **Web application** client with Authorized JavaScript origins
-     `http://localhost:8080` and `https://local.presence.nu01.com:8443`
-     (add your deployed domains later). It needs no redirect URI. Copy its
-     ID into `GOOGLE_WEB_CLIENT_ID` and its secret into
-     `GOOGLE_WEB_CLIENT_SECRET`;
-   - an **iOS** client with bundle ID `com.nu01.presence`, for
-     `GOOGLE_IOS_CLIENT_ID`;
-   - an **Android** client with package `com.nu01.presence` and your
-     signing key's SHA-1 (`keytool -list -v -alias androiddebugkey
-     -keystore ~/.android/debug.keystore -storepass android` for the debug
-     key), for `GOOGLE_ANDROID_CLIENT_ID`.
-
-### AWS CLI and cloud sync
-
-1. Create an [AWS account](https://aws.amazon.com/) if you don't have one,
-   and an IAM Identity Center user or access key that can create
-   CloudFormation stacks, S3 buckets, Cognito identity pools and IAM roles.
-2. Configure the CLI (it's in the devbox shell), then check it works:
-
-   ```bash
-   aws configure sso          # or: aws configure, with an access key
-   aws sts get-caller-identity
-   ```
-
-3. Create the bucket and identity pool from
-   [presence_infra/](presence_infra), with your web client ID:
-
-   ```bash
-   GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env)"
-   aws cloudformation deploy --region us-east-1 \
-     --stack-name presence-user-data \
-     --template-file presence_infra/user-data.yaml
-   aws cloudformation deploy --region us-east-1 \
-     --stack-name presence-identity \
-     --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
-     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID"
-   ```
-
-4. Read the outputs into `.env`:
-
-   ```bash
-   aws cloudformation describe-stacks --region us-east-1 --stack-name presence-identity \
-     --query "Stacks[0].Outputs[?OutputKey=='IdentityPoolId'].OutputValue" --output text
-   aws cloudformation describe-stacks --region us-east-1 --stack-name presence-user-data \
-     --query "Stacks[0].Outputs[?OutputKey=='UserDataBucketName'].OutputValue" --output text
-   ```
-
-5. For deploys only, find your domain's zone ID for `HOSTED_ZONE_ID` (the
-   part after `/hostedzone/`):
-
-   ```bash
-   aws route53 list-hosted-zones --query "HostedZones[].[Name,Id]" --output text
-   ```
-
 ## Run it on GitHub Codespaces
 
 1. Click **Open in GitHub Codespaces** above, or, on the repo page, choose
@@ -207,8 +216,9 @@ in, so never add a secret to that list.
 2. Wait for the container to build. Its `postCreateCommand` runs
    `devbox install`. The first run evaluates nixpkgs, which takes a few
    minutes; after that the environment starts instantly.
-3. Create `.env` from [.env.example](.env.example) if you need sign-in or
-   cloud sync. Codespaces can provide the values as
+3. Create `.env` from [.env.example](.env.example) with the values from
+   [Before you start](#before-you-start) (steps 2 to 4; the tools are
+   already installed) if you need sign-in or cloud sync. Codespaces can provide the values as
    [Codespaces secrets](https://docs.github.com/en/codespaces/managing-your-codespaces/managing-your-account-specific-secrets-for-github-codespaces).
 4. In the terminal:
 
@@ -244,8 +254,9 @@ and the Admin screen work without an AWS account:
 
 To deploy:
 
-1. Put `GOOGLE_WEB_CLIENT_ID` in `.env` (see [Settings](#settings)), or
-   the auth API is skipped and signed-in users see only sign-up.
+1. Create the Google OAuth clients and put `GOOGLE_WEB_CLIENT_ID` in
+   `.env` ([Before you start](#before-you-start), step 2), or the auth API
+   is skipped and signed-in users see only sign-up.
 2. Start the services and wait for `4-floci` to be ready. The first run
    builds the API and pulls the Lambda image, which takes a few minutes:
 
@@ -278,6 +289,10 @@ Cloud sync isn't emulated: it still uses the AWS bucket and identity pool
 from `.env`.
 
 ## Deploy to AWS
+
+First complete [Before you start](#before-you-start): the deploy needs the
+Google web client ID and AWS credentials, and a deploy to your own account
+needs `HOSTED_ZONE_ID`.
 
 Everything is deployed by [scripts/deploy.sh](scripts/deploy.sh) into
 `us-east-1`. It deploys the stacks in this order:

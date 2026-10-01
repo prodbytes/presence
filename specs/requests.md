@@ -1068,6 +1068,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       it. Checked locally: the stack reported `CREATE_COMPLETE` before
       and after a restart, the distribution listed both aliases, `/app/`
       answered 200 and `/api/auth` 401 over HTTPS.
+145. **Make the guide cover creating the OAuth keys and getting AWS access
+    before deploying or starting the dev environment.** (2026-10-01)
+    - The README's setup is now **Before you start**, placed before
+      running and deploying: 1. code and tools, 2. Google OAuth clients,
+      3. AWS access and the cloud-sync stacks, 4. the variable table.
+      "Run it locally" is just `mkcert -install` and
+      `devbox services up`. Codespaces, Deploy to Floci and Deploy to AWS
+      link back to it.
 146. **Start the app by asking the auth API for the execution mode: DEV
     without OIDC settings (every role for the anonymous user, every feature
     but the account ones, a discreet "dev" label), RBAC with them
