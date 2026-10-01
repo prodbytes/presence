@@ -1167,3 +1167,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (entry 151).
     - README "Before you start": a warning with both consequences, and a
       pointer to the Settings health line that shows them.
+153. **Add a "Device" navigation target that opens a map with the device's
+    location, as close as possible; let the user override the location by
+    repositioning the map; send the device's position on events too.**
+    (2026-10-01)
+    - New Device tab between Events and Settings: an OpenStreetMap map
+      (`flutter_map`) with a fixed center pin, a card with the device ID,
+      coordinates and source, and a My location button. Swiping between
+      tabs is off there, so drags move the map.
+    - The device's position comes from `geolocator` at best accuracy, read
+      at launch (Android and iOS location permissions added). Moving the
+      map sets the location by hand; it's kept across restarts until My
+      location.
+    - Every event gets `location` (`lat`, `lng`, `accuracy`, `source`,
+      `time`) when it's published, in storage and the cloud JSON. New
+      [device-location.md](device-location.md).
+    - 151 Flutter tests pass; web release builds. Not tried on a device or
+      in a browser with real positioning.

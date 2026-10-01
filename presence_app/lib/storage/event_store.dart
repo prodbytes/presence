@@ -8,10 +8,10 @@ import 'package:idb_shim/idb_shim.dart';
 /// | Store      | Key               | Holds                                   |
 /// |------------|-------------------|-----------------------------------------|
 /// | `cameras`  | `id` (camera ID)  | label, last seen                        |
-/// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID, device ID, user ID |
+/// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID, device ID, user ID, location |
 /// | `clips`    | `id`, index `eventId` | camera, window, media IDs, thumbnail |
 /// | `media`    | media ID          | recording bytes                         |
-/// | `settings` | name              | the config; `device`: this device's ID  |
+/// | `settings` | name              | the config; `device`: this device's ID; `location`: its location |
 /// | `synced`   | object key        | fingerprint of what was uploaded (v2)   |
 class EventStore {
   EventStore._(this._db);

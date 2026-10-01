@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'camera_feeds.dart';
+import 'location/device_location.dart';
 
 /// Something that happened, shown in the Events timeline and saved to
 /// storage.
@@ -16,6 +17,7 @@ class AppEvent {
     this.cameraId,
     this.deviceId,
     this.userId,
+    this.location,
     DateTime? time,
     String? id,
   }) : time = time ?? DateTime.now(),
@@ -67,6 +69,10 @@ class AppEvent {
   /// from anonymous, when a user signs in on the device.
   String? userId;
 
+  /// Where the device was when the event was published: its own position,
+  /// or the one set on the Device screen's map. Null while it's unknown.
+  DeviceLocation? location;
+
   /// The stored form of this event. Subclasses keep their extra data in
   /// their own records (a clip's recordings live in the clips store).
   Map<String, Object?> toRecord() => {
@@ -78,6 +84,7 @@ class AppEvent {
     'cameraId': cameraId,
     'deviceId': deviceId,
     'userId': userId,
+    'location': location?.toJson(),
   };
 
   /// Rebuilds a stored event of a plain type. Returns null for types that
@@ -88,7 +95,7 @@ class AppEvent {
     final id = record['id']! as String;
     final deviceId = record['deviceId'] as String?;
     final userId = ownerOf(record);
-    return switch (type) {
+    final event = switch (type) {
       appStartedType => AppEvent.appStarted(
         time: time,
         id: id,
@@ -109,6 +116,7 @@ class AppEvent {
       ),
       _ => null,
     };
+    return event?..location = DeviceLocation.fromJson(record['location']);
   }
 
   /// The user a stored event belongs to. Events saved before events had
