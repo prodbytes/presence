@@ -1454,3 +1454,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       at the bottom.
     - Tests that used sliders further down now scroll to them. 212 Flutter
       tests pass.
+181. **Add a "show system events" flag in the monitoring view: default true
+    in dev mode and false in other modes; marked, show all events,
+    including application started and system events; unmarked, only grab
+    events.** (2026-10-01)
+    - A **Show system events** filter chip sits next to Only this device at
+      the top of Monitoring. Off, the timeline shows only grabs
+      (`ClipRequested`: by hand, on motion, scheduled, at start); on, every
+      event. It starts on in DEV and off in RBAC, and keeps its state
+      across tabs.
+    - Off with only system events, the timeline says "No grabs yet: system
+      events are hidden". Opening a hidden event from elsewhere turns it on.
+    - Tests that look for system events in RBAC turn the chip on first
+      (`revealSystemEvents`). 215 Flutter tests pass.

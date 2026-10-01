@@ -430,6 +430,11 @@ class _HomeScreenState extends State<HomeScreen>
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
 
+  /// The Monitoring tab's "Show system events" chip: on in DEV, off
+  /// otherwise (only grabs), and kept while switching tabs. Made on first
+  /// use, once the execution mode is known.
+  late final _showSystemEvents = ValueNotifier(_dev);
+
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
   /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
@@ -486,6 +491,7 @@ class _HomeScreenState extends State<HomeScreen>
     _clipEvents?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
+    _showSystemEvents.dispose();
     _battery.dispose();
     _tabs.dispose();
     super.dispose();
@@ -683,6 +689,7 @@ class _HomeScreenState extends State<HomeScreen>
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   thisDeviceOnly: _thisDeviceOnly,
+                  showSystemEvents: _showSystemEvents,
                 ),
               ),
               // Full width, with the device's location map.

@@ -10,7 +10,8 @@ import 'subjects.dart';
 /// Two columns on a wide screen: the map of every subject's events on the
 /// left, all events on the right, each clip's card showing its subjects in
 /// their colors. On a phone the map sits above the events. Once the device
-/// ID is known, the "Only this device" chip sits at the top. Tapping a dot on
+/// ID is known, the "Only this device" chip sits at the top, next to the
+/// "Show system events" chip. Tapping a dot on
 /// the map scrolls the events to its event; tapping a subject's name opens
 /// the subject.
 class MonitoringView extends StatefulWidget {
@@ -23,6 +24,7 @@ class MonitoringView extends StatefulWidget {
     this.focus,
     this.deviceId,
     this.thisDeviceOnly,
+    this.showSystemEvents,
   });
 
   /// Below this width the map goes above the events instead of beside.
@@ -56,6 +58,9 @@ class MonitoringView extends StatefulWidget {
   final String? deviceId;
   final ValueNotifier<bool>? thisDeviceOnly;
 
+  /// The "Show system events" chip ([EventTimeline.showSystemEvents]).
+  final ValueNotifier<bool>? showSystemEvents;
+
   @override
   State<MonitoringView> createState() => _MonitoringViewState();
 }
@@ -65,9 +70,14 @@ class _MonitoringViewState extends State<MonitoringView> {
   ValueNotifier<bool> get _filter =>
       widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(true));
 
+  ValueNotifier<bool>? _ownSystem;
+  ValueNotifier<bool> get _system =>
+      widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
+
   @override
   void dispose() {
     _ownFilter?.dispose();
+    _ownSystem?.dispose();
     super.dispose();
   }
 
@@ -86,6 +96,7 @@ class _MonitoringViewState extends State<MonitoringView> {
         focus: widget.focus,
         deviceId: widget.deviceId,
         thisDeviceOnly: _filter,
+        showSystemEvents: _system,
         padding: padding,
       ),
     );
@@ -107,15 +118,21 @@ class _MonitoringViewState extends State<MonitoringView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Until the device ID is known there's nothing to filter
-                  // by.
-                  if (widget.deviceId != null) ...[
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: ThisDeviceOnly(value: _filter),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        // Until the device ID is known there's nothing to
+                        // filter by.
+                        if (widget.deviceId != null)
+                          ThisDeviceOnly(value: _filter),
+                        ShowSystemEvents(value: _system),
+                      ],
                     ),
-                    SizedBox(height: gap),
-                  ],
+                  ),
+                  SizedBox(height: gap),
                   Expanded(
                     child: wide
                         ? Row(

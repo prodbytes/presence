@@ -19,6 +19,22 @@
     device".
   - **Opening an event of another device** from elsewhere (see below)
     clears the chip, so the event can show.
+- **Show system events: on in DEV, off otherwise.** A **Show system
+  events** filter chip (`ShowSystemEvents`), next to Only this device,
+  decides which events show:
+  - **on:** every event, such as **Application started**, sign-ins and
+    sign-outs, the recording consent and other plain events;
+  - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
+    requested, Motion detected, Scheduled clip, Startup clip).
+  - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
+    the execution mode is known. The choice stays while switching tabs, but
+    not across restarts. It always shows, even before the device ID is
+    known.
+  - Off, with only system events left, the timeline says "No grabs yet:
+    system events are hidden".
+  - **Opening a hidden system event** from elsewhere turns it on, so the
+    event can show.
+  - It only filters the timeline: every event is still saved and synced.
 - When a new event arrives, the timeline scrolls back to the top to show it.
 - **Opening an event from elsewhere** (a dot on a [subject's](subjects.md)
   map) switches to the Monitoring tab, scrolls the timeline to that event and
