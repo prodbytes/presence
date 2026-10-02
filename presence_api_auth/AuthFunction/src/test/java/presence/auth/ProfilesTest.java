@@ -107,7 +107,7 @@ class ProfilesTest {
         for (var i = 0; i < 5_000; i++) {
             var id = ProfileId.generate(random);
             assertTrue(ProfileId.PATTERN.matcher(id).matches(), id);
-            var parts = id.split("-");
+            var parts = id.split("_");
             assertNotEquals(parts[0], parts[1]);
             assertTrue(ProfileId.ANIMALS.contains(parts[2]), id);
             seen.add(id);

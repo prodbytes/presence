@@ -6,7 +6,7 @@ site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)):
 
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's **profile**
-  and roles, `{"email": "...", "profile": "automatic-paranoid-axolotl",
+  and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",
   "roles": [...]}`. The profile is the one linked to the token's subject
   (`iss` and `sub`), or a new one created and linked at the first
   sign-in, for every signed-in user, with or without roles. **Data belongs

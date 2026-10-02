@@ -42,7 +42,7 @@ typedef AnonymousAccess = ({
 });
 
 /// What `GET /api/auth` says about the signed-in user: their roles and
-/// their profile's ID (`automatic-paranoid-axolotl`), the same at every
+/// their profile's ID (`automatic_paranoid_axolotl`), the same at every
 /// sign-in with the same account. Null if the API didn't say.
 typedef UserAccess = ({List<String> roles, String? profile});
 

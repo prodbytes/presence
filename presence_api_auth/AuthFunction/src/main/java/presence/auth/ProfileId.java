@@ -11,8 +11,8 @@ import java.util.Random;
 import java.util.regex.Pattern;
 
 /**
- * A profile's ID: two different adjectives and an animal, joined by hyphens,
- * such as {@code automatic-paranoid-axolotl}. Like the app's device IDs
+ * A profile's ID: two different adjectives and an animal, joined by underscores,
+ * such as {@code automatic_paranoid_axolotl}. Like the app's device IDs
  * ({@code automatic_paranoid_gadget}), with the same 1053 adjectives, and
  * 1031 animals ({@code adjectives.txt}, {@code animals.txt}): about 1.1
  * billion IDs. Random IDs alone could repeat, so {@link Profiles} only
@@ -23,8 +23,8 @@ public final class ProfileId {
     static final List<String> ADJECTIVES = words("adjectives.txt");
     static final List<String> ANIMALS = words("animals.txt");
 
-    /** What an ID looks like: {@code adjective-adjective-animal}, lowercase. */
-    static final Pattern PATTERN = Pattern.compile("[a-z]+-[a-z]+-[a-z]+");
+    /** What an ID looks like: {@code adjective_adjective_animal}, lowercase. */
+    static final Pattern PATTERN = Pattern.compile("[a-z]+_[a-z]+_[a-z]+");
 
     private static final Random SECURE = new SecureRandom();
 
@@ -48,7 +48,7 @@ public final class ProfileId {
         if (second >= first) {
             second++;
         }
-        return ADJECTIVES.get(first) + "-" + ADJECTIVES.get(second) + "-"
+        return ADJECTIVES.get(first) + "_" + ADJECTIVES.get(second) + "_"
                 + ANIMALS.get(random.nextInt(ANIMALS.size()));
     }
 

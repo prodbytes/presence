@@ -12,7 +12,7 @@ events detected from them. The cameras are always recording, video and
 audio, so a clip can include the moments before someone pressed Clip.
 
 **Data belongs to profiles, not logins.** Every signed-in user has a
-[profile](profiles.md) (`automatic-paranoid-axolotl`), found by the
+[profile](profiles.md) (`automatic_paranoid_axolotl`), found by the
 subject they sign in with, or created and linked at their first sign-in.
 A user's data is meant to be scoped to their profile, so they can change
 emails, add or switch authentication providers, or add collaborators
@@ -44,7 +44,7 @@ see [Profiles](profiles.md#not-scoped-to-the-profile-yet).)
   240 minutes (30 min to a day, in Settings).
 - [Profiles](profiles.md): **the owner of a user's data.** Each sign-in
   loads the profile linked to its subject (`<iss>#<sub>`), or creates one
-  and links it; IDs like `automatic-paranoid-axolotl`, never repeated.
+  and links it; IDs like `automatic_paranoid_axolotl`, never repeated.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it; admins

@@ -60,7 +60,7 @@
   quiet, one labelled line each, the IDs selectable to copy:
   - **Device** `automatic_paranoid_gadget` (see [Devices, users and
     places](devices-users-places.md)), or *loading…* until it's known;
-  - **Profile** `huge-wavy-darter`, the signed-in user's
+  - **Profile** `huge_wavy_darter`, the signed-in user's
     [profile](profiles.md), or, in italics, why there's none: *none in
     DEV*, *checking…*, *not signed in*, or *unavailable* (the auth API
     didn't give one).

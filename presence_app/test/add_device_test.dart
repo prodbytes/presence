@@ -159,7 +159,7 @@ void main() {
       expect(find.text('Profile '), findsOneWidget);
       expect(
         tester.widget<SelectableText>(find.byKey(const Key('profile-id'))).data,
-        'automatic-paranoid-axolotl',
+        'automatic_paranoid_axolotl',
       );
       // The device ID comes first, then the profile ID.
       expect(
