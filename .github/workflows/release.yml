@@ -129,13 +129,17 @@ jobs:
             name: android
             os: ubuntu-latest
           # Flutter doesn't cross-compile Linux desktop, so each
-          # architecture builds on a runner of that architecture.
+          # architecture builds on a runner of that architecture. Ubuntu
+          # 22.04 (GLib 2.72, glibc 2.35), not 24.04: the binary needs the
+          # GLib it was built against, and Debian 12 / Raspberry Pi OS
+          # Bookworm has 2.74, so a 24.04 build fails there with
+          # "undefined symbol: g_once_init_enter_pointer".
           - target: linux
             name: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-22.04
           - target: linux
             name: linux-arm64
-            os: ubuntu-24.04-arm
+            os: ubuntu-22.04-arm
           - target: ios
             name: ios
             os: macos-latest
