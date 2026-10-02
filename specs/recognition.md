@@ -100,7 +100,8 @@ surely is tagged on the clip; whoever only might be is asked about
   returns each frame upright, at most 960 px wide, as a JPEG (null for one
   it can't read), which Dart decodes. See [Android](android.md).
 - **iOS:** not yet (the switch says "Not available on this device yet").
-  `tflite_flutter` supports iOS, so it needs only `framesAt` in Swift.
+  `tflite_flutter` supports iOS, so it needs only `framesAt` in Swift; the
+  iOS app already links its `TensorFlowLiteC` 2.12 through CocoaPods.
 - **Models** (`assets/models/`, 14 MB; on web fetched only when
   recognition first runs, in the Android app bundled): see [assets/models/README.md](../presence_app/assets/models/README.md)
   for sources, checksums and licenses.

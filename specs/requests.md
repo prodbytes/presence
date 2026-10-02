@@ -1486,4 +1486,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - New on-device integration test, run on an Android 15 emulator: the
       same face scores as on web, `framesAt` on an MP4, and a clip where
       Grace Hopper appears at 1 s tagged on the 1.0 s frame. 233 Flutter
-      tests pass; web, Android debug and release build.
+      tests pass; web, Android debug and release, and iOS (unsigned) build.
+    - iOS now builds through CocoaPods (`tflite_flutter` ships its
+      `TensorFlowLiteC` that way): `Podfile`, `Podfile.lock` and the Xcode
+      project's Pods.
