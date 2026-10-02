@@ -16,7 +16,8 @@ the separate Events and Subjects tabs.
 
 - **At the top,** in one row that wraps on narrow phones: on the left the
   **Search events** field (220 dp; filters the events as you type, with
-  an x to clear it), then the **Only this device** filter chip (checked by
+  an x to clear it) with its **shown / all** event count beside it (see
+  [Events](events.md)), then the **Only this device** filter chip (checked by
   default; shown once the device ID is known), then the **Show system
   events** chip (checked by default in DEV only: off, only grabs show). On
   a 320 dp phone the chips go on the rows below the field. See
@@ -70,7 +71,10 @@ the separate Events and Subjects tabs.
   suggestions) and object tags, ignoring case; a clip given object tags
   after the search was typed shows up; the x clears it and every event shows
   again; it combines with Show system events; at 320 dp it fits, the chips
-  below it. 259 Flutter tests pass.
+  below it; the shown / all count sits between the field and the chips
+  (on the field's row at 320 dp) and follows the search, the chips, new
+  events and late object tags. `events_filter_test.dart` also checks that
+  the device filter changes the shown count, not the total.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations

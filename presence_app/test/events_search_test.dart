@@ -106,6 +106,10 @@ void main() {
       for (final _ in inEvents(find.text(title)).evaluate()) title,
   ];
 
+  /// The "shown / all" count beside the field.
+  String count(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const Key('event-count'))).data!;
+
   Future<void> type(WidgetTester tester, String text) async {
     await tester.enterText(field(), text);
     await tester.pumpAndSettle();
@@ -148,7 +152,11 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(titles(tester), ['Clip requested']);
-    expect(inEvents(find.byKey(const Key('clip-object-bicycle'))), findsOneWidget);
+    expect(
+      inEvents(find.byKey(const Key('clip-object-bicycle'))),
+      findsOneWidget,
+    );
+    expect(count(tester), '1 / 4');
   });
 
   testWidgets('the field sits top left, on the chips row', (tester) async {
@@ -159,6 +167,36 @@ void main() {
     expect(search.left, closeTo(page.left + 16, 0.5));
     expect(search.right, lessThan(chip.left));
     expect(search.center.dy, closeTo(chip.center.dy, 1));
+    // The count sits between the field and the chips.
+    final counts = tester.getRect(find.byKey(const Key('event-count')));
+    expect(counts.left, greaterThan(search.right));
+    expect(counts.right, lessThan(chip.left));
+    expect(counts.center.dy, closeTo(search.center.dy, 1));
+  });
+
+  testWidgets('the count is the events shown out of all', (tester) async {
+    await show(tester);
+    expect(count(tester), '4 / 4');
+    expect(find.byTooltip('4 of 4 events shown'), findsOneWidget);
+
+    await type(tester, 'door');
+    expect(count(tester), '2 / 4');
+    await type(tester, 'milo');
+    expect(count(tester), '0 / 4');
+
+    // The chips count too.
+    await type(tester, '');
+    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.pumpAndSettle();
+    expect(count(tester), '2 / 4');
+
+    // New events join both numbers.
+    bus.add(AppEvent(icon: Icons.circle, title: 'Just now'));
+    await tester.pumpAndSettle();
+    expect(count(tester), '2 / 5');
+    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.pumpAndSettle();
+    expect(count(tester), '5 / 5');
   });
 
   testWidgets('typing filters the events; the x clears it', (tester) async {
@@ -218,6 +256,10 @@ void main() {
     expect(search.right, lessThanOrEqualTo(320 - 12));
     expect(system.right, lessThanOrEqualTo(320 - 12));
     expect(system.top, greaterThanOrEqualTo(search.bottom));
+    // The count stays on the field's row.
+    final counts = tester.getRect(find.byKey(const Key('event-count')));
+    expect(counts.right, lessThanOrEqualTo(320 - 12));
+    expect(counts.center.dy, closeTo(search.center.dy, 1));
 
     await type(tester, 'a long search that is wider than the field');
     expect(tester.takeException(), isNull);

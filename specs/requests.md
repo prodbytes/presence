@@ -1687,3 +1687,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       access opens on the camera, and signing in later goes back to it;
       the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
       release builds.
+201. **Show the event counts (matching / all) beside the search at the top
+    of the Events (Monitoring) tab.** (2026-10-02)
+    - New `EventCount` right after the search field: "shown / all", where
+      *shown* is what the timeline lists after the search and the chips,
+      and *all* is every event in the log. It has a tooltip ("2 of 12 events
+      shown").
+    - The timeline's filter steps are now static helpers
+      (`EventTimeline.ofDevices`, `ofKinds`, `matching`) used by both, so
+      the count and the list always agree.
+    - The field and the count share one row; on a 320 dp phone the field
+      gets narrower so the count stays beside it.
+    - Tests: the count follows the search, Show system events, new events,
+      late object tags and Only this device; where it sits at 1280 and
+      320 dp. 271 Flutter tests pass.
