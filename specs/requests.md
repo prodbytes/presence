@@ -1674,3 +1674,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (2 new); `sam validate --lint` passes. In local Floci, the deployed
       `AuthFunction` created a profile and link, and returned the same
       profile on the second call.
+197. **Make both the device ID and the profile ID separated by `_`.**
+    (2026-10-02)
+    - Profile IDs are now `adjective_adjective_animal`
+      (`huge_wavy_darter`), like device IDs; `ProfileId.PATTERN` and the
+      examples across the auth API, the app and the specs follow. Device
+      IDs already used underscores and are unchanged.
+    - The two can now be the same string (191 animals are also device
+      "things"); they're separate namespaces, and the spec says so.
+    - Made on #133 before it merged, so no hyphenated profile was ever
+      deployed. 32 JUnit tests and 269 Flutter tests pass.

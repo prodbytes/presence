@@ -36,8 +36,11 @@
 
 - Like [device IDs](devices-users-places.md#devices), a profile ID is
   two different adjectives and an **animal**, lowercase, joined by
-  **hyphens**: `automatic-paranoid-axolotl` (`ProfileId`). Device IDs use
-  underscores, so the two never look alike.
+  **underscores**: `automatic_paranoid_axolotl` (`ProfileId`), the same
+  shape as a device ID (`automatic_paranoid_gadget`). The two are
+  separate namespaces: 191 animals are also device "things", so a profile
+  and a device can have the same ID string. Where both show, as in
+  Settings, a label says which is which.
 - The words: the device ID's **1053 adjectives** and **1031 animals**
   (`presence_api_auth/AuthFunction/src/main/resources/presence/auth/`
   `adjectives.txt`, `animals.txt`), a-z only, each unique, with words that
@@ -74,7 +77,7 @@ AWS):
 ## In the API and the app
 
 - `GET /api/auth` answers `{"email": "...", "profile":
-  "automatic-paranoid-axolotl", "roles": [...]}`; `profile` is `null` only
+  "automatic_paranoid_axolotl", "roles": [...]}`; `profile` is `null` only
   for a token without an issuer or subject.
 - The app reads it into `RolesService.profile`
   ([lib/auth/roles_service.dart](../presence_app/lib/auth/roles_service.dart)),

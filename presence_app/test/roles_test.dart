@@ -48,7 +48,7 @@ void main() {
       await auth.signIn();
       await settle();
       expect(roles.state, AccessState.denied);
-      expect(roles.profile, 'automatic-paranoid-axolotl');
+      expect(roles.profile, 'automatic_paranoid_axolotl');
 
       client.error = Exception('down');
       await roles.refresh();
@@ -56,7 +56,7 @@ void main() {
 
       client.error = null;
       await roles.refresh();
-      expect(roles.profile, 'automatic-paranoid-axolotl');
+      expect(roles.profile, 'automatic_paranoid_axolotl');
       await auth.signOut();
       expect(roles.profile, isNull);
     });
@@ -72,11 +72,11 @@ void main() {
       ).fetch('t');
 
       final ana = await answer(
-        '{"email":"ana@example.com","profile":"automatic-paranoid-axolotl",'
+        '{"email":"ana@example.com","profile":"automatic_paranoid_axolotl",'
         '"roles":["presence_user"]}',
       );
       expect(ana.roles, [userRole]);
-      expect(ana.profile, 'automatic-paranoid-axolotl');
+      expect(ana.profile, 'automatic_paranoid_axolotl');
       // No subject, or an API from before profiles.
       final none = await answer('{"email":null,"profile":null,"roles":[]}');
       expect(none.roles, isEmpty);

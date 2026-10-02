@@ -82,7 +82,7 @@ Resources:
         PointInTimeRecoveryEnabled: true
 
   # Profiles: whose data it is, outliving the ways its owner signs in.
-  # {"id": "<adjective>-<adjective>-<animal>", "createdAt", "lastSignInAt"} (epoch ms).
+  # {"id": "<adjective>_<adjective>_<animal>", "createdAt", "lastSignInAt"} (epoch ms).
   ProfilesTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain

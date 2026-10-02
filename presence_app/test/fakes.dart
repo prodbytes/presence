@@ -315,7 +315,7 @@ class FakeRolesClient implements RolesClient {
   List<String> roles;
 
   /// The profile ID `GET /api/auth` answers with.
-  String? profile = 'automatic-paranoid-axolotl';
+  String? profile = 'automatic_paranoid_axolotl';
   Object? error;
   final tokens = <String>[];
 
