@@ -1744,3 +1744,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       What a device uploaded under the old keys isn't uploaded again.
     - [Cloud sync](cloud-sync.md) and the bucket template's description
       updated. 271 Flutter tests pass (one new); web release builds.
+206. **Add the Raspberry Pi dependencies and instructions to the README.**
+    (2026-10-02)
+    - New README section "Run it on a Raspberry Pi": 64-bit Raspberry Pi
+      OS (Bookworm or newer) with the desktop, `sudo apt install -y curl
+      libgtk-3-0 libegl1 libgles2`, then
+      `curl -fsSL https://sh.presence.nu01.com | sh`; where it installs,
+      how to update, and the web fallback. Also in
+      [Install script](install-script.md#raspberry-pi).
+    - Also asked: drop the download's checksum check ("just run it"). Not
+      done in this change; the script still verifies when the release API
+      answers.
