@@ -1687,3 +1687,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       access opens on the camera, and signing in later goes back to it;
       the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
       release builds.
+200. **(Fix found testing `curl -fsSL https://sh.presence.nu01.com | sh` for
+    the Raspberry Pi.)** (2026-10-02)
+    - The `0.5.202610021047-GA` arm64 bundle failed on Debian 12 (the base
+      of Raspberry Pi OS Bookworm): `undefined symbol:
+      g_once_init_enter_pointer`, because the Ubuntu 24.04 build needs
+      GLib 2.80 and Debian 12 has 2.74.
+    - The Linux release jobs now run on `ubuntu-22.04` and
+      `ubuntu-22.04-arm`. Their PR bundles run (still up after 30 s under
+      Xvfb) on Debian 12 arm64 and x64, and on Ubuntu 24.04 x64.
