@@ -14,9 +14,12 @@ the separate Events and Subjects tabs.
 
 ## Layout
 
-- **At the top:** the **Only this device** filter chip (checked by
+- **At the top,** in one row that wraps on narrow phones: on the left the
+  **Search events** field (220 dp; filters the events as you type, with
+  an x to clear it), then the **Only this device** filter chip (checked by
   default; shown once the device ID is known), then the **Show system
-  events** chip (checked by default in DEV only: off, only grabs show). See
+  events** chip (checked by default in DEV only: off, only grabs show). On
+  a 320 dp phone the chips go on the rows below the field. See
   [Events](events.md).
 - **Wide screens (720 dp and up), two columns:**
   - **left:** the **map of every subject's events**, in a rounded,
@@ -61,8 +64,12 @@ the separate Events and Subjects tabs.
   and keeps its state across tabs. `system_events_test.dart`: signed in
   (RBAC), only the clip shows until Show system events is checked, and the
   choice stays across tabs; with no grabs, the hidden-events message; in
-  DEV, system events show by default and hide when cleared. 215 Flutter
-  tests pass.
+  DEV, system events show by default and hide when cleared.
+  `events_search_test.dart`: the search field sits top left on the chips
+  row; typing filters by title, detail, camera label and tags (not
+  suggestions), ignoring case; the x clears it and every event shows
+  again; it combines with Show system events; at 320 dp it fits, the chips
+  below it. 259 Flutter tests pass.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations
