@@ -1609,3 +1609,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       searched again.
     - Two new recognizer tests drive it through the event bus with a clip
       still recording. 256 Flutter tests pass.
+193. **The recognition pipeline must have two segments, one to identify
+    subjects (people and pets) and another to identify tags (human, cat,
+    dog, bicycle, bottle). Subjects have identity (person Julio, dog Fido);
+    tags are just for future search (videos of cats and bicycles).**
+    (2026-10-02)
+    - Recognition now runs two segments on the same frames and the same
+      EfficientDet pass: **subjects** as before, and **object tags**: every
+      one of the detector's 80 COCO labels (`person` named `human`) scoring
+      0.5 or more, each kept once per clip from the first frame it's seen
+      on, over the whole clip. They need no references.
+    - Stored with the clip as `objectTags: [{label, ms, score}]` (absent
+      until searched), synced with its event, shown as chips on the clip's
+      card. A clip already searched for objects isn't searched again.
+    - Settings: **Tag objects in new clips** (default on,
+      `recognition.objects`). Auto also tags objects on clips without them
+      and says "Also saw: cat, bicycle."
+    - `Vision.analyse` returns a `FrameAnalysis` (subjects seen, objects);
+      once every subject is found, frames only go through the detector.
+    - 262 Flutter tests pass (6 new), the real-model Chrome tests pass (the
+      Hopper frame gets `human`), and the web release builds. The Android
+      integration test is updated but not rerun.

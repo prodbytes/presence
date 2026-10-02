@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'image.dart';
@@ -60,10 +60,22 @@ class Seen {
   }
 }
 
+/// What one frame shows: the people and pets on it, as [seen] by the
+/// subjects' segment (with embeddings), and the [objects] on it, by label,
+/// with their best score, for the object tags' segment.
+@immutable
+class FrameAnalysis {
+  const FrameAnalysis({this.seen = const [], this.objects = const {}});
+
+  final List<Seen> seen;
+  final Map<String, double> objects;
+}
+
 /// The four models recognition runs, all TensorFlow Lite, bundled under
 /// `assets/models/` (see its README for sources and licenses):
 ///
-/// - EfficientDet-Lite0 (COCO): people, cats and dogs on a frame;
+/// - EfficientDet-Lite0 (COCO): people, cats and dogs on a frame, and every
+///   other object it knows (object tags);
 /// - BlazeFace (short range): a face on a person;
 /// - MobileFaceNet: a face's embedding;
 /// - MobileNetV3 small (image embedder): a person's or pet's look.
@@ -82,6 +94,10 @@ class VisionModels {
 
   /// The least detection score that counts.
   static const double minDetection = 0.4;
+
+  /// The least score for an object tag: higher, as a wrong label can't be
+  /// caught by matching.
+  static const double minObject = 0.5;
   static const double minFace = 0.5;
 
   static Future<VisionModels> load(
@@ -104,8 +120,8 @@ class VisionModels {
   final TfliteModel _faceNet;
   final TfliteModel _embedder;
 
-  /// The people, cats and dogs on [image].
-  Future<List<Detection>> detect(RgbaImage image) async {
+  /// The people, cats and dogs on [image], and every object's best score.
+  Future<(List<Detection>, Map<String, double>)> detect(RgbaImage image) async {
     final outputs = await _detector.run(
       toTensor(
         image,
@@ -118,7 +134,10 @@ class VisionModels {
     final n = efficientDetAnchors.length ~/ 4;
     final scores = outputs.firstWhere((o) => o.length == n * cocoClasses);
     final boxes = outputs.firstWhere((o) => o.length == n * 4);
-    return decodeDetections(scores, boxes, threshold: minDetection);
+    return (
+      decodeDetections(scores, boxes, threshold: minDetection),
+      decodeObjects(scores, threshold: minObject),
+    );
   }
 
   /// The face on the person at [box] of [image], if one shows.
@@ -190,10 +209,17 @@ class VisionModels {
   }
 
   /// Everyone on [image], with their embeddings ([faces]: whether to look
-  /// for faces at all).
-  Future<List<Seen>> analyse(RgbaImage image, {bool faces = true}) async {
+  /// for faces at all; [subjects]: whether to embed anyone, or only list
+  /// the objects), and the objects on it.
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+  }) async {
+    final (detections, objects) = await detect(image);
+    if (!subjects) return FrameAnalysis(objects: objects);
     final seen = <Seen>[];
-    for (final d in await detect(image)) {
+    for (final d in detections) {
       final found = faces && d.kind == SeenKind.person
           ? await face(image, d.box)
           : null;
@@ -206,7 +232,7 @@ class VisionModels {
         ),
       );
     }
-    return seen;
+    return FrameAnalysis(seen: seen, objects: objects);
   }
 
   void dispose() {
@@ -236,12 +262,98 @@ double cosine(Float32List a, Float32List b) {
   return dot;
 }
 
-/// EfficientDet-Lite0's COCO class count, and the classes kept.
+/// EfficientDet-Lite0's COCO class count, and the classes kept as
+/// subjects.
 const int cocoClasses = 90;
 const Map<int, SeenKind> keptClasses = {
   0: SeenKind.person,
   16: SeenKind.cat,
   17: SeenKind.dog,
+};
+
+/// Object tags' labels, by COCO class (the 80 the model was trained on; the
+/// other 10 are unused). People are `human`.
+const Map<int, String> cocoLabels = {
+  0: 'human',
+  1: 'bicycle',
+  2: 'car',
+  3: 'motorcycle',
+  4: 'airplane',
+  5: 'bus',
+  6: 'train',
+  7: 'truck',
+  8: 'boat',
+  9: 'traffic light',
+  10: 'fire hydrant',
+  12: 'stop sign',
+  13: 'parking meter',
+  14: 'bench',
+  15: 'bird',
+  16: 'cat',
+  17: 'dog',
+  18: 'horse',
+  19: 'sheep',
+  20: 'cow',
+  21: 'elephant',
+  22: 'bear',
+  23: 'zebra',
+  24: 'giraffe',
+  26: 'backpack',
+  27: 'umbrella',
+  30: 'handbag',
+  31: 'tie',
+  32: 'suitcase',
+  33: 'frisbee',
+  34: 'skis',
+  35: 'snowboard',
+  36: 'sports ball',
+  37: 'kite',
+  38: 'baseball bat',
+  39: 'baseball glove',
+  40: 'skateboard',
+  41: 'surfboard',
+  42: 'tennis racket',
+  43: 'bottle',
+  45: 'wine glass',
+  46: 'cup',
+  47: 'fork',
+  48: 'knife',
+  49: 'spoon',
+  50: 'bowl',
+  51: 'banana',
+  52: 'apple',
+  53: 'sandwich',
+  54: 'orange',
+  55: 'broccoli',
+  56: 'carrot',
+  57: 'hot dog',
+  58: 'pizza',
+  59: 'donut',
+  60: 'cake',
+  61: 'chair',
+  62: 'couch',
+  63: 'potted plant',
+  64: 'bed',
+  66: 'dining table',
+  69: 'toilet',
+  71: 'tv',
+  72: 'laptop',
+  73: 'mouse',
+  74: 'remote',
+  75: 'keyboard',
+  76: 'cell phone',
+  77: 'microwave',
+  78: 'oven',
+  79: 'toaster',
+  80: 'sink',
+  81: 'refrigerator',
+  83: 'book',
+  84: 'clock',
+  85: 'vase',
+  86: 'scissors',
+  87: 'teddy bear',
+  88: 'hair drier',
+  89: 'toothbrush',
 };
 
 /// EfficientDet-Lite0's anchors at 320 px, as (cy, cx, h, w) fractions,
@@ -304,6 +416,24 @@ List<Detection> decodeDetections(
     0.5,
     sameGroup: (a, b) => a.kind == b.kind,
   );
+}
+
+/// The objects in EfficientDet's raw [scores] (per anchor, every COCO
+/// class, 0 to 1): each label scoring [threshold] or more on some anchor,
+/// with its best score.
+Map<String, double> decodeObjects(
+  Float32List scores, {
+  double threshold = VisionModels.minObject,
+}) {
+  final found = <String, double>{};
+  for (var i = 0; i < scores.length; i++) {
+    final score = scores[i];
+    if (score < threshold) continue;
+    final label = cocoLabels[i % cocoClasses];
+    if (label == null) continue;
+    if (score > (found[label] ?? 0)) found[label] = score;
+  }
+  return found;
 }
 
 /// BlazeFace (short range)'s anchors at 128 px, as (cx, cy) fractions:

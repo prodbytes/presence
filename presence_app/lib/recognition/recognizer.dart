@@ -18,9 +18,14 @@ import 'suggestion.dart';
 import 'vision.dart';
 
 /// What recognition needs from the models: everyone on a picture, with
-/// their embeddings. [VisionModels] is the real one.
+/// their embeddings (unless not [subjects]), and the objects on it.
+/// [VisionModels] is the real one.
 abstract interface class Vision {
-  Future<List<Seen>> analyse(RgbaImage image, {bool faces = true});
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+  });
 }
 
 class _ModelsVision implements Vision {
@@ -29,8 +34,11 @@ class _ModelsVision implements Vision {
   final VisionModels _models;
 
   @override
-  Future<List<Seen>> analyse(RgbaImage image, {bool faces = true}) =>
-      _models.analyse(image, faces: faces);
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+  }) => _models.analyse(image, faces: faces, subjects: subjects);
 }
 
 /// How a recognition run went.
@@ -47,27 +55,38 @@ enum RecognitionOutcome {
   /// Everyone recognition knows is already on the clip.
   allTagged,
 
-  /// The clip was searched.
+  /// The clip was searched for subjects.
   searched,
 }
 
-/// What a recognition run found: the subjects it [tagged], and those it
-/// only [asked] about (a [SubjectSuggestion] each), as named.
+/// What a recognition run found: its [outcome] for subjects, the subjects
+/// it [tagged], those it only [asked] about (a [SubjectSuggestion] each),
+/// as named, and the [objects] it tagged, by label.
 @immutable
 class RecognitionResult {
   const RecognitionResult(
     this.outcome, {
     this.tagged = const [],
     this.asked = const [],
+    this.objects = const [],
   });
 
   final RecognitionOutcome outcome;
   final List<String> tagged;
   final List<String> asked;
+  final List<String> objects;
 }
 
-/// Finds the subjects on every new clip, once its full recording (before +
-/// after) is saved.
+/// Searches every new clip, once its full recording (before + after) is
+/// saved, in two
+/// segments fed by the same frames and detector:
+///
+/// - **subjects**, who has an identity (Julio, Fido): people and pets
+///   matched against those tagged before;
+/// - **object tags**, what was there, for search: `human`, `cat`,
+///   `bicycle`, `bottle`… ([ClipAnnotations.objects]), each label once per
+///   clip, from the first frame it's seen on. Off with
+///   [RecognitionConfig.objects]; a clip already searched isn't again.
 ///
 /// Each subject's references are the frames of tags someone made or
 /// confirmed ([TagSource.vouched]); recognized tags never become
@@ -169,8 +188,9 @@ class SubjectRecognizer {
     return run;
   }
 
-  /// Recognizes the subjects on [event]'s clip (once it's recorded). New
-  /// clips are only searched with recognition on; [onRequest] runs anyway.
+  /// Recognizes the subjects and objects on [event]'s clip (once it's
+  /// recorded). New clips are only searched as Settings say; [onRequest]
+  /// runs anyway.
   @visibleForTesting
   Future<RecognitionResult> recognize(
     ClipRequested event, {
@@ -179,13 +199,17 @@ class SubjectRecognizer {
     if (!supported) {
       return const RecognitionResult(RecognitionOutcome.unsupported);
     }
-    if (!onRequest && !config.recognition.enabled) {
+    final settings = config.recognition;
+    // A new clip already searched for subjects (with Auto) isn't again.
+    final subjectsOn =
+        onRequest || (settings.enabled && !_searched.contains(event.id));
+    final objectsOn =
+        (onRequest || settings.objects) && event.annotations.objects == null;
+    if (!subjectsOn && !objectsOn) {
       return const RecognitionResult(RecognitionOutcome.off);
     }
-    if (!onRequest && _searched.contains(event.id)) {
-      return const RecognitionResult(RecognitionOutcome.searched);
-    }
-    if (!_hasReferences(event)) {
+    final references = subjectsOn && _hasReferences(event);
+    if (!references && !objectsOn) {
       return const RecognitionResult(RecognitionOutcome.noReferences);
     }
     final media = await _full(event.clip);
@@ -200,67 +224,93 @@ class SubjectRecognizer {
       _vision = null;
       rethrow;
     }
-    final gallery = await _gallery(vision, event);
+    final gallery = references
+        ? await _gallery(vision, event)
+        : const <GalleryEntry>[];
     if (_disposed) return const RecognitionResult(RecognitionOutcome.searched);
-    if (gallery.isEmpty) {
-      return const RecognitionResult(RecognitionOutcome.noReferences);
-    }
 
-    final settings = config.recognition;
     final faces = gallery.any((g) => g.face != null);
     final found = {
       for (final a in event.annotations.items) Subject.idOf(a.name),
     };
     final everyone = {for (final g in gallery) g.subjectId};
-    if (everyone.every(found.contains)) {
-      _searched.add(event.id);
-      return const RecognitionResult(RecognitionOutcome.allTagged);
-    }
+    final outcome = !subjectsOn
+        ? RecognitionOutcome.off
+        : gallery.isEmpty
+        ? RecognitionOutcome.noReferences
+        : everyone.every(found.contains)
+        ? RecognitionOutcome.allTagged
+        : RecognitionOutcome.searched;
+    if (outcome == RecognitionOutcome.allTagged) _searched.add(event.id);
+    var lookForSubjects = outcome == RecognitionOutcome.searched;
+    if (!lookForSubjects && !objectsOn) return RecognitionResult(outcome);
+
     final tagged = <String>[];
     // Subjects only good enough to ask about: the first frame they were.
     final asks = <String, (Match, TagFrame)>{};
+    // Objects, by label: the first frame each was seen on.
+    final objects = <String, ObjectTag>{};
     final started = DateTime.now();
     var frames = 0;
     await for (final frame in _sampler.sample(media, every: every)) {
-      if (_disposed) {
-        return RecognitionResult(RecognitionOutcome.searched, tagged: tagged);
-      }
+      if (_disposed) return RecognitionResult(outcome, tagged: tagged);
       frames++;
-      final seen = await vision.analyse(frame.image, faces: faces);
-      final matches = matchFrame(
-        seen,
-        gallery,
-        skip: found,
-        minConfidence: settings.ask,
+      final analysis = await vision.analyse(
+        frame.image,
+        faces: faces,
+        subjects: lookForSubjects,
       );
-      TagFrame? tagFrame;
-      for (final match in matches) {
-        final sure = match.confidence >= settings.autoTag;
-        if (!sure && asks.containsKey(match.subjectId)) continue;
-        tagFrame ??= await _tagFrame(event, frame);
-        if (tagFrame == null) break;
-        if (sure) {
-          final (x, y) = match.seen.spot;
-          event.annotations.add(
-            match.entry.name,
-            x,
-            y,
-            frame: tagFrame,
-            source: TagSource.detected,
-            confidence: match.confidence,
+      if (objectsOn) {
+        for (final MapEntry(key: label, value: score)
+            in analysis.objects.entries) {
+          objects.putIfAbsent(
+            label,
+            () => ObjectTag(
+              label: label,
+              ms: frame.position.inMilliseconds,
+              score: score,
+            ),
           );
-          found.add(match.subjectId);
-          tagged.add(match.entry.name);
-          asks.remove(match.subjectId);
-        } else {
-          asks[match.subjectId] = (match, tagFrame);
         }
       }
-      if (everyone.every(found.contains)) break;
+      if (lookForSubjects) {
+        final matches = matchFrame(
+          analysis.seen,
+          gallery,
+          skip: found,
+          minConfidence: settings.ask,
+        );
+        TagFrame? tagFrame;
+        for (final match in matches) {
+          final sure = match.confidence >= settings.autoTag;
+          if (!sure && asks.containsKey(match.subjectId)) continue;
+          tagFrame ??= await _tagFrame(event, frame);
+          if (tagFrame == null) break;
+          if (sure) {
+            final (x, y) = match.seen.spot;
+            event.annotations.add(
+              match.entry.name,
+              x,
+              y,
+              frame: tagFrame,
+              source: TagSource.detected,
+              confidence: match.confidence,
+            );
+            found.add(match.subjectId);
+            tagged.add(match.entry.name);
+            asks.remove(match.subjectId);
+          } else {
+            asks[match.subjectId] = (match, tagFrame);
+          }
+        }
+        if (everyone.every(found.contains)) lookForSubjects = false;
+      }
+      // The whole clip for objects; for subjects, until everyone's found.
+      if (!lookForSubjects && !objectsOn) break;
       // Let the app draw between frames.
       await Future<void>.delayed(Duration.zero);
     }
-    _searched.add(event.id);
+    if (outcome == RecognitionOutcome.searched) _searched.add(event.id);
     for (final (match, tagFrame) in asks.values) {
       final (x, y) = match.seen.spot;
       final suggestion = event.annotations.add(
@@ -283,15 +333,18 @@ class SubjectRecognizer {
         ),
       );
     }
+    if (objectsOn) event.annotations.setObjects(objects.values);
     debugPrint(
-      'Presence: recognized ${found.length} subject(s), asked about '
-      '${asks.length}, on $frames frame(s) of ${event.id} in '
+      'Presence: recognized ${tagged.length} subject(s), asked about '
+      '${asks.length}, saw ${objects.length} kind(s) of object, on $frames '
+      'frame(s) of ${event.id} in '
       '${DateTime.now().difference(started).inMilliseconds} ms',
     );
     return RecognitionResult(
-      RecognitionOutcome.searched,
+      outcome,
       tagged: tagged,
       asked: [for (final (match, _) in asks.values) match.entry.name],
+      objects: [for (final o in objects.values) o.label],
     );
   }
 
@@ -380,7 +433,7 @@ class SubjectRecognizer {
     final image = frame == null ? null : await _decode(frame.jpeg);
     final seen = image == null
         ? const <Seen>[]
-        : await vision.analyse(image, faces: true);
+        : (await vision.analyse(image, faces: true)).seen;
     return _references[tag.id] = pickTagged(seen, tag.x, tag.y);
   }
 
