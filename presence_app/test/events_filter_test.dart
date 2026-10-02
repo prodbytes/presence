@@ -79,6 +79,7 @@ void main() {
     await open(tester);
     await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
+    await revealSystemEvents(tester);
   }
 
   Finder checkbox() => find.byKey(const Key('this-device-only'));

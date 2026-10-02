@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
@@ -148,6 +148,15 @@ Future<void> showEvents(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// Turns on the Monitoring tab's "Show system events" chip (off by default
+/// outside DEV), so plain events such as "Application started" show.
+Future<void> revealSystemEvents(WidgetTester tester) async {
+  final chip = find.byKey(const Key('show-system-events'));
+  if (tester.widget<FilterChip>(chip).selected) return;
+  await tester.tap(chip);
+  await tester.pumpAndSettle();
+}
+
 /// Goes to the Camera tab, presses Clip, waits for the events to publish
 /// (up to CameraRig.pastWait), then shows the Events tab.
 Future<void> clipAndShowEvents(WidgetTester tester) async {
@@ -203,7 +212,15 @@ class FakeAuthService extends AuthService {
   @override
   String? get unavailableReason => null;
   @override
-  String? get error => null;
+  String? get error => _error;
+  String? _error;
+
+  /// A sign-in that fails with [error].
+  void fail(String error) {
+    _error = error;
+    notifyListeners();
+  }
+
   @override
   Future<void> init() async {}
   @override

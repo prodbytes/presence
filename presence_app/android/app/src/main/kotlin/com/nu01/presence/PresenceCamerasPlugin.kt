@@ -56,38 +56,56 @@ class PresenceCamerasPlugin(
      * file's rotation flag applied), at most [maxWidth] px wide, as a JPEG.
      */
     private fun frameAt(path: String, ms: Long, maxWidth: Int): CompletableFuture<ByteArray?> =
+        framesAt(path, listOf(ms), maxWidth).thenApply { it.first() }
+
+    /**
+     * The frames at each of [times] (ms) of the recording at [path], as
+     * [frameAt] makes them, with the file opened once; null where a frame
+     * can't be read. For recognition, which samples a whole clip.
+     */
+    private fun framesAt(path: String, times: List<Long>, maxWidth: Int): CompletableFuture<List<ByteArray?>> =
         CompletableFuture.supplyAsync({
             val retriever = MediaMetadataRetriever()
             try {
                 retriever.setDataSource(path)
-                val frame = retriever.getFrameAtTime(ms * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
-                    ?: return@supplyAsync null
                 val degrees = retriever.extractMetadata(
                     MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION,
                 )?.toIntOrNull() ?: 0
-                val upright = if (degrees == 0) {
-                    frame
-                } else {
-                    Bitmap.createBitmap(
-                        frame, 0, 0, frame.width, frame.height,
-                        Matrix().apply { postRotate(degrees.toFloat()) }, true,
-                    )
-                }
-                val scale = minOf(1f, maxWidth.toFloat() / upright.width)
-                val scaled = Bitmap.createScaledBitmap(
-                    upright,
-                    (upright.width * scale).toInt(),
-                    (upright.height * scale).toInt(),
-                    true,
-                )
-                ByteArrayOutputStream().use { out ->
-                    scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
-                    out.toByteArray()
-                }
+                // One unreadable frame doesn't lose the others.
+                times.map { ms -> runCatching { jpegAt(retriever, ms, degrees, maxWidth) }.getOrNull() }
             } finally {
                 retriever.release()
             }
         }, frames)
+
+    private fun jpegAt(retriever: MediaMetadataRetriever, ms: Long, degrees: Int, maxWidth: Int): ByteArray? {
+        val frame = retriever.getFrameAtTime(ms * 1000, MediaMetadataRetriever.OPTION_CLOSEST)
+            ?: return null
+        val upright = if (degrees == 0) {
+            frame
+        } else {
+            Bitmap.createBitmap(
+                frame, 0, 0, frame.width, frame.height,
+                Matrix().apply { postRotate(degrees.toFloat()) }, true,
+            )
+        }
+        val scale = minOf(1f, maxWidth.toFloat() / upright.width)
+        val scaled = Bitmap.createScaledBitmap(
+            upright,
+            (upright.width * scale).toInt(),
+            (upright.height * scale).toInt(),
+            true,
+        )
+        return try {
+            ByteArrayOutputStream().use { out ->
+                scaled.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                out.toByteArray()
+            }
+        } finally {
+            // A batch decodes many frames: free each as soon as it's encoded.
+            for (bitmap in setOf(frame, upright, scaled)) bitmap.recycle()
+        }
+    }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
@@ -114,6 +132,14 @@ class PresenceCamerasPlugin(
                     frameAt(
                         call.argument<String>("path")!!,
                         call.longArg("ms"),
+                        (call.argument<Number>("maxWidth") ?: 960).toInt(),
+                    ),
+                ) { it }
+                "framesAt" -> reply(
+                    result,
+                    framesAt(
+                        call.argument<String>("path")!!,
+                        call.argument<List<Number>>("ms")!!.map { it.toLong() },
                         (call.argument<Number>("maxWidth") ?: 960).toInt(),
                     ),
                 ) { it }

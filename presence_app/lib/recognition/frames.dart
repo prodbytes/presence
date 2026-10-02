@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import '../cameras/camera_source.dart';
-import 'frames_stub.dart'
+import 'frames_native.dart'
     if (dart.library.js_interop) 'frames_web.dart'
     as platform;
 import 'image.dart';
@@ -21,7 +21,8 @@ class SampledFrame {
 
 /// Reads frames out of clips, for recognition.
 abstract class ClipFrameSampler {
-  /// This platform's sampler: a hidden `<video>` on web.
+  /// This platform's sampler: a hidden `<video>` on web, the platform's
+  /// video decoder on Android (`framesAt` on `presence/cameras`).
   factory ClipFrameSampler() = platform.PlatformFrameSampler;
 
   bool get supported;

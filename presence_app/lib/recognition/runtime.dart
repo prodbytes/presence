@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 
-import 'runtime_stub.dart'
+import 'runtime_native.dart'
     if (dart.library.js_interop) 'runtime_web.dart'
     as platform;
 
-/// Runs TensorFlow Lite models: TensorFlow.js on web (`runtime_web.dart`).
+/// Runs TensorFlow Lite models: TensorFlow.js on web (`runtime_web.dart`),
+/// LiteRT through `tflite_flutter` on Android (`runtime_native.dart`).
 /// Every platform runs the same `.tflite` files, so they give the same
 /// results.
 abstract class TfliteRuntime {

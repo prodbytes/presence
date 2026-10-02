@@ -36,7 +36,7 @@
   screen lists and maps (see [Subjects](subjects.md)).
 - **Recognition** section (see [Subject recognition](recognition.md)):
   - A **Recognize subjects in new clips** switch (default on). Where there's
-    no runtime (Android and iOS for now) it's off and disabled, and says
+    no runtime (iOS for now) it's off and disabled, and says
     "Not available on this device yet".
   - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
     default **80 %**.
@@ -71,6 +71,10 @@
     (sign-in is off), ⚠️ on one only;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
+- **Add a device**, the last thing, under the health line: a button with a
+  QR-code icon that opens a QR code of a link, with **Share** and **Copy
+  link**, to open Presence on another device as a new device of the same
+  user (see [Add a device](add-device.md)).
 - **All settings are persistent, per device:** the whole `PresenceConfig`
   (clip lengths, brightness, the motion switch, threshold and cooldown,
   the schedule switch and interval, and the events per subject) is saved

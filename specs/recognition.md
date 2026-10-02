@@ -11,8 +11,8 @@ surely is tagged on the clip; whoever only might be is asked about
   **full recording** is saved. Clips run one at a time, in the background,
   on the device that recorded them. Restored and synced clips aren't run.
 - Only with **Recognize subjects in new clips** on (Settings, default on)
-  and on a platform that has the runtime: **web** for now. Android and iOS
-  come next, with the same models (see [Platforms](platforms.md)).
+  and on a platform that has the runtime: **web** and **Android**. iOS
+  comes next, with the same models (see [Platforms](platforms.md)).
 - **On request, on any clip:** the player's **Auto** button (see
   [Clips](clips.md), "Naming people and pets") runs the same search on the
   clip it shows: restored and synced clips too, and even with **Recognize
@@ -118,10 +118,19 @@ surely is tagged on the clip; whoever only might be is asked about
   loaded on first use (see [web/tfjs/README.md](../presence_app/web/tfjs/README.md));
   frames from a hidden, muted `<video>` seeked through the recording and
   drawn on a canvas.
-- **Android, iOS:** not yet (the switch says "Not available on this device
-  yet").
-- **Models** (`assets/models/`, 14 MB, fetched only when recognition first
-  runs): see [assets/models/README.md](../presence_app/assets/models/README.md)
+- **Android:** **LiteRT** (TensorFlow Lite, `com.google.ai.edge.litert`
+  1.4.0) through Google's **`tflite_flutter`** plugin (0.12.1, Dart FFI),
+  4 CPU threads; each model runs in its own background isolate
+  (`IsolateInterpreter`), so the app doesn't stall. Frames come from the
+  `framesAt` method of the `presence/cameras` channel:
+  `MediaMetadataRetriever` opens the MP4 once per batch of 8 times and
+  returns each frame upright, at most 960 px wide, as a JPEG (null for one
+  it can't read), which Dart decodes. See [Android](android.md).
+- **iOS:** not yet (the switch says "Not available on this device yet").
+  `tflite_flutter` supports iOS, so it needs only `framesAt` in Swift; the
+  iOS app already links its `TensorFlowLiteC` 2.12 through CocoaPods.
+- **Models** (`assets/models/`, 14 MB; on web fetched only when
+  recognition first runs, in the Android app bundled): see [assets/models/README.md](../presence_app/assets/models/README.md)
   for sources, checksums and licenses.
 
 ## Verified
@@ -157,8 +166,21 @@ surely is tagged on the clip; whoever only might be is asked about
     order, the right colours at the right times, each with a JPEG.
 - The same model outputs as TensorFlow Lite in Python (`ai-edge-litert`)
   for the same inputs.
-- 238 Flutter tests pass, plus the 3 in Chrome. Web release build compiles.
-  Not yet tried end to end in the app with a camera.
+- `integration_test/recognition_android_test.dart`, on an Android 15
+  emulator (arm64), with clips made by ffmpeg
+  (`integration_test/push_fixtures.sh`):
+  - LiteRT gives the same face cosines as TensorFlow.js in Chrome
+    (Lincoln–Lincoln 0.88, Lincoln–Hopper 0.61); a 410 × 480 frame takes
+    about 240 ms on the emulator;
+  - `framesAt` reads a red / green / blue MP4 at 0, 0.5, … 2.5 s, the right
+    colour each time, each with a JPEG;
+  - the recognizer, all real: Grace Hopper tagged on her photo, then a new
+    3 s clip where she appears at 1 s gets a recognized "Grace" tag (100 %)
+    on the 1.0 s frame, on her, and stops there (0.9 s in all).
+- 253 Flutter tests pass (with the Auto button's), plus the 3 in Chrome and the 3 on Android. Web
+  release, Android debug and release builds compile (the release APK
+  carries LiteRT's libraries for arm64, armv7 and x86_64).
+  Not yet tried end to end in the app with a camera, nor on a phone.
 
 ## Known limitations
 
@@ -177,4 +199,6 @@ surely is tagged on the clip; whoever only might be is asked about
   clip). A Web Worker would avoid it.
 - References are rebuilt after each launch (the first clip searched after a
   launch takes longer).
-- Android and iOS don't recognize yet.
+- iOS doesn't recognize yet.
+- LiteRT adds about 7 MB per ABI to the Android app (its GPU library comes
+  along, unused), and the models 14 MB.
