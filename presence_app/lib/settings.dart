@@ -248,6 +248,20 @@ class _SettingsViewState extends State<SettingsView> {
                   ? (on) => setRecognition((r) => r.copyWith(enabled: on))
                   : null,
             ),
+            SwitchListTile(
+              key: const Key('recognition-objects-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Tag objects in new clips'),
+              subtitle: Text(
+                _recognitionSupported
+                    ? 'Human, cat, dog, bicycle, bottle… for search'
+                    : 'Not available on this device yet',
+              ),
+              value: recognition.objects && _recognitionSupported,
+              onChanged: _recognitionSupported
+                  ? (on) => setRecognition((r) => r.copyWith(objects: on))
+                  : null,
+            ),
             _LabeledSlider(
               key: const Key('recognition-auto-slider'),
               label: 'Tag automatically when at least',

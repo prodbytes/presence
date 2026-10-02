@@ -1596,7 +1596,81 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "Settings is full width" test became a check of the new layout at
       360 and 1280 px, with a drag beside the map that scrolls the list.
       254 Flutter tests pass.
-192. **Make the GitHub Actions build both arm and x86 Linux, and the release
+192. **After a clip is fully recorded (before + after), run the recognition
+    pipeline to identify subjects: same rule, first frame matching only, no
+    duplicates.** (2026-10-02)
+    - New clips were already searched, but each was queued the moment it
+      was published and then waited in the queue for its "after" part, so
+      a clip still recording held up the others and the player's Auto. Now
+      a new clip is queued only once its full recording is saved.
+    - Same rules as Auto: a subject is tagged (or asked about) once, on the
+      first frame they're found on; subjects already on the clip are
+      skipped. A new clip already searched with Auto while recording isn't
+      searched again.
+    - Two new recognizer tests drive it through the event bus with a clip
+      still recording. 256 Flutter tests pass.
+193. **The recognition pipeline must have two segments, one to identify
+    subjects (people and pets) and another to identify tags (human, cat,
+    dog, bicycle, bottle). Subjects have identity (person Julio, dog Fido);
+    tags are just for future search (videos of cats and bicycles).**
+    (2026-10-02)
+    - Recognition now runs two segments on the same frames and the same
+      EfficientDet pass: **subjects** as before, and **object tags**: every
+      one of the detector's 80 COCO labels (`person` named `human`) scoring
+      0.5 or more, each kept once per clip from the first frame it's seen
+      on, over the whole clip. They need no references.
+    - Stored with the clip as `objectTags: [{label, ms, score}]` (absent
+      until searched), synced with its event, shown as chips on the clip's
+      card. A clip already searched for objects isn't searched again.
+    - Settings: **Tag objects in new clips** (default on,
+      `recognition.objects`). Auto also tags objects on clips without them
+      and says "Also saw: cat, bicycle."
+    - `Vision.analyse` returns a `FrameAnalysis` (subjects seen, objects);
+      once every subject is found, frames only go through the detector.
+    - 262 Flutter tests pass (6 new), the real-model Chrome tests pass (the
+      Hopper frame gets `human`), and the web release builds. The Android
+      integration test is updated but not rerun.
+194. **Add a search bar on top of the events page, top left, beside the
+    checkboxes.** (2026-10-02)
+    - A **Search events** field (`EventSearch`, 220 dp, with a search icon
+      and an x to clear) leads the Monitoring tab's filter row, before Only
+      this device and Show system events; the row wraps on narrow phones.
+    - Typing filters the timeline live, case-insensitive, on each event's
+      title, detail, camera label and, for clips, the names tagged on them
+      (not unconfirmed suggestions). It combines with the chips, says
+      `No events match "<text>"` when nothing matches, keeps its text
+      across tabs, and clears itself when an event it hides is opened from
+      a map. The fields searched live in one function,
+      `eventSearchFields` / `eventMatches` in `lib/events.dart`.
+    - New `events_search_test.dart` (5 tests). The subjects test that opens
+      a far-down event now runs at 400 x 900, since the field adds a row to
+      the phone header. 267 Flutter tests pass (after merging #126 and #130); web release builds.
+195. **Create a script to `curl | sh` that downloads, extracts and runs the
+    right Presence app; fall back to web if no native one works.**
+    (2026-10-02)
+    - Added [scripts/install.sh](../scripts/install.sh) (POSIX `sh`): the
+      latest GA's Linux bundle for x64 or arm64, sha256-checked when the
+      release API answers, kept in `~/.local/share/presence/<tag>/` and run;
+      otherwise, or when the download, the libraries, the display or the
+      app fail, it opens https://presence.nu01.com. See
+      [Install script](install-script.md); the README shows the command.
+    - Tested in Ubuntu 24.04 amd64 and arm64 containers (native run under
+      Xvfb, cache reuse, missing libraries, no display, no arm64 asset).
+196. **Fix conflicts and merge** (#126, #130 and #128). (2026-10-02)
+    - Merged in request order: #126, then #130 after merging `main` into
+      it (in the recognizer, a new clip already searched with Auto skips
+      only the subjects' segment; object tags still run if it has none),
+      then #128 (its request-log entry renumbered #194). 267 Flutter tests
+      pass on the result; web release builds.
+197. **Make the search work with object tags, then sync everything.**
+    (2026-10-02)
+    - The Events search also matches a clip's object tags ("bicycle" finds
+      the clips with a bicycle).
+    - While searching, the list matches again when a clip's tags or object
+      tags change, so a clip recognition tags after the search was typed
+      shows up then (this was a known limitation).
+    - 268 Flutter tests pass; web release builds.
+198. **Make the GitHub Actions build both arm and x86 Linux, and the release
     have them both.** (2026-10-02)
     - The release workflow's `linux` build runs twice: x64 on
       `ubuntu-latest` and arm64 on `ubuntu-24.04-arm`, since Flutter

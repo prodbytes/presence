@@ -1,17 +1,26 @@
 # Subject recognition
 
-Every new clip is searched for the [subjects](subjects.md) tagged before:
-the people and pets someone named on earlier clips. Whoever is recognized
-surely is tagged on the clip; whoever only might be is asked about
-([lib/recognition/](../presence_app/lib/recognition)).
+Every new clip is searched in two segments, fed by the same frames and the
+same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
+
+- **Subjects**, who has an identity (the person Julio, the dog Fido): the
+  [subjects](subjects.md) someone tagged on earlier clips. Whoever is
+  recognized surely is tagged on the clip; whoever only might be is asked
+  about.
+- **Object tags**, what was there, with no identity, for search later
+  ("clips with cats and bicycles"): `human`, `cat`, `dog`, `bicycle`,
+  `bottle` and the rest of the 80 kinds of object the detector knows.
 
 ## When it runs
 
-- On each **new clip** (pressed, motion, scheduled or startup), once its
-  **full recording** is saved. Clips run one at a time, in the background,
-  on the device that recorded them. Restored and synced clips aren't run.
-- Only with **Recognize subjects in new clips** on (Settings, default on)
-  and on a platform that has the runtime: **web** and **Android**. iOS
+- On each **new clip** (pressed, motion, scheduled or startup), once it's
+  **fully recorded** (before + after) and saved. Only then is it queued:
+  clips run one at a time, in the background, on the device that recorded
+  them, and one still recording doesn't hold up the others (nor Auto on
+  another clip). Restored and synced clips aren't run.
+- A new clip already searched with **Auto** while it was recording isn't
+  searched again once it's done (it has its object tags by then, too).
+- Only on a platform that has the runtime: **web** and **Android**. iOS
   comes next, with the same models (see [Platforms](platforms.md)).
 - **On request, on any clip:** the player's **Auto** button (see
   [Clips](clips.md), "Naming people and pets") runs the same search on the
@@ -19,8 +28,13 @@ surely is tagged on the clip; whoever only might be is asked about
   subjects in new clips** off. It runs on the device, after any clip
   already being searched, and waits for the full recording if it isn't
   saved yet.
-- Only when some subject has a **reference**: a tag someone made, or a
-  suggestion someone confirmed, with its frame.
+- **Subjects** only with **Recognize subjects in new clips** on (or on
+  request), and only when some subject has a **reference**: a tag someone
+  made, or a suggestion someone confirmed, with its frame.
+- **Object tags** only with **Tag objects in new clips** on (Settings,
+  default on; or on request), and only on a clip not searched for objects
+  yet: once it has its object tags (even none), it isn't searched for them
+  again, not even by Auto. They need no references.
 
 ## How
 
@@ -32,13 +46,18 @@ surely is tagged on the clip; whoever only might be is asked about
    session, never stored or synced.
 2. **Frames.** The clip is sampled **every 0.5 s**, from its start to its
    end, at most 960 px wide.
-3. **Who's there.** On each frame:
-   - **EfficientDet-Lite0** finds people, cats and dogs (score 0.4 or more;
+3. **Who's there.** On each frame, **EfficientDet-Lite0** scores every
+   COCO class on every anchor, once, for both segments:
+   - **object tags:** each of the 80 labels scoring **0.5** or more
+     somewhere on the frame, with its best score (`person` is `human`);
+   - **subjects** (while someone's still to be found):
+     EfficientDet's people, cats and dogs (score 0.4 or more;
      overlaps merged);
-   - for each person, **BlazeFace** looks for a face in a square around
+     for each person, **BlazeFace** looks for a face in a square around
      them; **MobileFaceNet** embeds it, cropped square at 1.1× its box and
-     turned so the eyes are level;
-   - everyone gets a **look** embedding (**MobileNetV3**) of their box.
+     turned so the eyes are level; everyone gets a **look** embedding
+     (**MobileNetV3**) of their box. Once every subject is found, frames
+     only go through the detector.
 4. **Matching.** Each person or pet is compared with every reference of the
    same sort (people with people, pets with pets): **by face** when both
    show one, **by look** otherwise. The cosine similarity becomes a
@@ -60,8 +79,25 @@ surely is tagged on the clip; whoever only might be is asked about
    - below: nothing.
 
    A subject is tagged or asked about at most once per clip; later frames
-   don't add more. Subjects already on the clip are skipped, and sampling
-   stops once every subject is found.
+   don't add more. Subjects already on the clip are skipped, and the
+   subjects' segment stops once every subject is found.
+6. **Object tags:** each label is kept **once per clip**, from the **first
+   frame** it scores on (`ms` into the recording) with that frame's score;
+   later frames don't add it again. The whole clip is sampled for them,
+   then stored together, in order of first sighting.
+
+## Object tags
+
+- Kept with the clip, in `ClipAnnotations.objects`, saved in its record as
+  `objectTags: [{label, ms, score}]`, and synced in the event JSON like its
+  subject tags. No `objectTags` means not searched yet; `[]` means
+  searched, nothing seen. Malformed entries are skipped on restore.
+- The clip's card shows them as small outlined chips under its subjects
+  ("human", "bicycle"), in order of first sighting.
+- The Events **search** matches them: "bicycle" finds the clips with a
+  bicycle (see [Events](events.md)).
+- They're labels, not subjects: no names, colors, maps, references or
+  questions, and they never make anyone a subject.
 
 ## Auto, in the player
 
@@ -77,11 +113,14 @@ surely is tagged on the clip; whoever only might be is asked about
     clip." (subjects already on it, suggestions included, are skipped), or
     "Nobody to look for yet: tag someone on another clip first." (no
     reference shows anyone where it was clicked);
-  - "Couldn't run recognition; try again." if the models didn't load.
+  - "Couldn't run recognition; try again." if the models didn't load;
+  - followed by "Also saw: cat, bicycle." when it tagged objects (only on
+    a clip without object tags yet).
 - Where recognition can't run (Android and iOS for now) the button is
   disabled, with the tooltip "Not available on this device yet".
 - Each run returns a `RecognitionResult` (`SubjectRecognizer.recognizeNow`):
-  its outcome and the names tagged and asked about. The app reaches the
+  its outcome for subjects, the names tagged and asked about, and the
+  object labels tagged. The app reaches the
   recognizer through `SubjectRecognizerScope`, above `MaterialApp`.
 
 ## The question
@@ -110,7 +149,8 @@ surely is tagged on the clip; whoever only might be is asked about
 
 - **Shared Dart** (`vision.dart`, `matching.dart`, `recognizer.dart`):
   pre-processing (bilinear sampling, crops, rotation), EfficientDet's
-  anchors and box decoding, BlazeFace's anchors, non-maximum suppression,
+  anchors, box decoding and labels (`cocoLabels`, `decodeObjects`;
+  `VisionModels.analyse` returns a `FrameAnalysis` of both), BlazeFace's anchors, non-maximum suppression,
   matching and thresholds. Each platform only runs the models and reads
   frames, so all give the same results.
 - **Web:** **TensorFlow.js** with `@tensorflow/tfjs-tflite` (TensorFlow
@@ -135,7 +175,9 @@ surely is tagged on the clip; whoever only might be is asked about
 
 ## Verified
 
-- `recognition_test.dart`: EfficientDet and BlazeFace decoding; pixel
+- `recognition_test.dart`: EfficientDet and BlazeFace decoding; object
+  labels (80, `human` for people, best score once, unsure and unused
+  classes left out); pixel
   scales, rotation and black outside the picture; confidence scales; faces
   compared when both show, looks otherwise, people never matched to pets;
   one subject per person, surest first; a tag picks the smallest detection
@@ -146,11 +188,20 @@ surely is tagged on the clip; whoever only might be is asked about
   used), stops once everyone's found, skips who's tagged, never learns from
   recognized tags, and does nothing when off; the card's Yes and No; on
   request it runs even when off and reports who it tagged and asked
-  about, then that everyone is on the clip; nobody to look for (none
+  about, then that everyone is on the clip; a new clip published while
+  recording isn't searched until its full recording is done, Auto on
+  another clip runs meanwhile, and its subject is tagged once, on the
+  first frame they're on; a new clip searched with Auto isn't searched
+  again; nobody to look for (none
   tagged, or the tag points at nobody) and nobody found; a failed model
-  load doesn't block the next run; the player's Auto tags a sure match and
-  says so; Auto disabled where recognition can't run, and fitting a
-  320 dp phone's dialog.
+  load doesn't block the next run; object tags: each label once, from its
+  first frame, over the whole clip, with nobody to look for, and not again
+  once searched; they keep going after every subject is found (subjects
+  only embedded until then); off in Settings, none stored; their record
+  round-trip (absent, empty, malformed); the clip's card shows them; the
+  player's Auto tags a sure match and the objects, and says so; Auto
+  disabled where recognition can't run, and fitting a 320 dp phone's
+  dialog.
 - `persistence_test.dart`: a suggestion and its question survive a refresh,
   can be answered after it, and the answer survives another.
 - `test/chrome/` (`flutter test --platform chrome test/chrome/`; the
@@ -160,8 +211,9 @@ surely is tagged on the clip; whoever only might be is asked about
     1280 × 720 frame is found (box overlap > 0.6) with her face in the
     upper half, and her face matches her own photo at more than 80 %;
     Lincoln's two photos score 0.88, above every Lincoln–Hopper pair
-    (0.47–0.61); Hopper young and old score 0.63 (an "ask"). A frame takes
-    about 170 ms (debug build);
+    (0.47–0.61); Hopper young and old score 0.63 (an "ask"); the same frame
+    gets the `human` object tag. A frame takes about 170–210 ms (debug
+    build);
   - the sampler on a real `MediaRecorder` WebM: a frame every 0.5 s, in
     order, the right colours at the right times, each with a JPEG.
 - The same model outputs as TensorFlow Lite in Python (`ai-edge-litert`)
@@ -177,7 +229,8 @@ surely is tagged on the clip; whoever only might be is asked about
   - the recognizer, all real: Grace Hopper tagged on her photo, then a new
     3 s clip where she appears at 1 s gets a recognized "Grace" tag (100 %)
     on the 1.0 s frame, on her, and stops there (0.9 s in all).
-- 253 Flutter tests pass (with the Auto button's), plus the 3 in Chrome and the 3 on Android. Web
+- 262 Flutter tests pass, plus the 3 in Chrome (rerun with object tags)
+  and the 3 on Android (updated, not rerun with object tags). Web
   release, Android debug and release builds compile (the release APK
   carries LiteRT's libraries for arm64, armv7 and x86_64).
   Not yet tried end to end in the app with a camera, nor on a phone.
@@ -197,6 +250,14 @@ surely is tagged on the clip; whoever only might be is asked about
 - On web the models run on the page's main thread: the app may stutter for
   about 0.2 s per frame while a clip is searched (around 10 s for a 30 s
   clip). A Web Worker would avoid it.
+- **Object tags are COCO's 80 labels only**, at 0.5 from a small detector
+  run at 320 px: small or far objects are missed, and similar ones mixed
+  up (a cat as a dog). No real-footage accuracy check yet, and other
+  labels than `human` haven't been checked on real pictures.
+- Object tags make the whole clip be sampled even once every subject is
+  found (only the detector, about a third of a frame's time).
+- Clips recorded before object tags (or with them off) get them only from
+  Auto, which then searches the whole clip.
 - References are rebuilt after each launch (the first clip searched after a
   launch takes longer).
 - iOS doesn't recognize yet.

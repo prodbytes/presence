@@ -484,6 +484,10 @@ class _HomeScreenState extends State<HomeScreen>
   /// use, once the execution mode is known.
   late final _showSystemEvents = ValueNotifier(_dev);
 
+  /// The Monitoring tab's events search: blank at launch, and kept while
+  /// switching tabs.
+  final _eventSearch = ValueNotifier('');
+
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
   /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
@@ -607,6 +611,7 @@ class _HomeScreenState extends State<HomeScreen>
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
     _showSystemEvents.dispose();
+    _eventSearch.dispose();
     _battery.dispose();
     _tabs.dispose();
     super.dispose();
@@ -795,6 +800,7 @@ class _HomeScreenState extends State<HomeScreen>
                   deviceId: widget.deviceId,
                   thisDeviceOnly: _thisDeviceOnly,
                   showSystemEvents: _showSystemEvents,
+                  search: _eventSearch,
                 ),
               ),
               // Full width, with the device's location map.
