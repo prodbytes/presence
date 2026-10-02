@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../annotations.dart';
 import '../cameras/camera_source.dart';
@@ -32,6 +33,39 @@ class _ModelsVision implements Vision {
       _models.analyse(image, faces: faces);
 }
 
+/// How a recognition run went.
+enum RecognitionOutcome {
+  /// This platform can't run the models.
+  unsupported,
+
+  /// Off in Settings (only for new clips; asking on a clip runs anyway).
+  off,
+
+  /// Nobody to look for: no subject has a vouched tag showing someone.
+  noReferences,
+
+  /// Everyone recognition knows is already on the clip.
+  allTagged,
+
+  /// The clip was searched.
+  searched,
+}
+
+/// What a recognition run found: the subjects it [tagged], and those it
+/// only [asked] about (a [SubjectSuggestion] each), as named.
+@immutable
+class RecognitionResult {
+  const RecognitionResult(
+    this.outcome, {
+    this.tagged = const [],
+    this.asked = const [],
+  });
+
+  final RecognitionOutcome outcome;
+  final List<String> tagged;
+  final List<String> asked;
+}
+
 /// Finds the subjects on every new clip, once its full recording is saved.
 ///
 /// Each subject's references are the frames of tags someone made or
@@ -43,6 +77,7 @@ class _ModelsVision implements Vision {
 /// [RecognitionConfig.ask] gets a [TagSource.suggested] entry instead, on
 /// the first frame it did, and a [SubjectSuggestion] event asks about it.
 /// Subjects already on the clip are skipped. Clips are done one at a time.
+/// [recognizeNow] runs it on any clip, on request (the player's Auto).
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -99,22 +134,48 @@ class SubjectRecognizer {
 
   void _onEvent(AppEvent event) {
     if (event is! ClipRequested || event.clip.capture == null) return;
-    _queue = _queue.then((_) async {
-      try {
-        await recognize(event);
-      } catch (e, stack) {
-        debugPrint('Presence: recognition failed on ${event.id}: $e\n$stack');
-      }
-    });
+    _enqueue(event, onRequest: false).then(
+      (_) {},
+      onError: (Object e, StackTrace stack) =>
+          debugPrint('Presence: recognition failed on ${event.id}: $e\n$stack'),
+    );
   }
 
-  /// Recognizes the subjects on [event]'s clip (once it's recorded).
+  /// Runs recognition on [event]'s clip now, after any clip already being
+  /// searched, even with recognition off in Settings: someone asked.
+  /// Throws if the models can't load.
+  Future<RecognitionResult> recognizeNow(ClipRequested event) =>
+      _enqueue(event, onRequest: true);
+
+  Future<RecognitionResult> _enqueue(
+    ClipRequested event, {
+    required bool onRequest,
+  }) {
+    final run = _queue.then((_) => recognize(event, onRequest: onRequest));
+    _queue = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
+  /// Recognizes the subjects on [event]'s clip (once it's recorded). New
+  /// clips are only searched with recognition on; [onRequest] runs anyway.
   @visibleForTesting
-  Future<void> recognize(ClipRequested event) async {
-    if (!supported || !config.recognition.enabled) return;
+  Future<RecognitionResult> recognize(
+    ClipRequested event, {
+    bool onRequest = false,
+  }) async {
+    if (!supported) {
+      return const RecognitionResult(RecognitionOutcome.unsupported);
+    }
+    if (!onRequest && !config.recognition.enabled) {
+      return const RecognitionResult(RecognitionOutcome.off);
+    }
+    if (!_hasReferences(event)) {
+      return const RecognitionResult(RecognitionOutcome.noReferences);
+    }
     final media = await _full(event.clip);
-    if (media == null || _disposed) return;
-    if (!_hasReferences(event)) return;
+    if (media == null || _disposed) {
+      return const RecognitionResult(RecognitionOutcome.searched);
+    }
     final Vision vision;
     try {
       vision = await (_vision ??= _loadVision());
@@ -124,7 +185,10 @@ class SubjectRecognizer {
       rethrow;
     }
     final gallery = await _gallery(vision, event);
-    if (gallery.isEmpty || _disposed) return;
+    if (_disposed) return const RecognitionResult(RecognitionOutcome.searched);
+    if (gallery.isEmpty) {
+      return const RecognitionResult(RecognitionOutcome.noReferences);
+    }
 
     final settings = config.recognition;
     final faces = gallery.any((g) => g.face != null);
@@ -132,12 +196,18 @@ class SubjectRecognizer {
       for (final a in event.annotations.items) Subject.idOf(a.name),
     };
     final everyone = {for (final g in gallery) g.subjectId};
+    if (everyone.every(found.contains)) {
+      return const RecognitionResult(RecognitionOutcome.allTagged);
+    }
+    final tagged = <String>[];
     // Subjects only good enough to ask about: the first frame they were.
     final asks = <String, (Match, TagFrame)>{};
     final started = DateTime.now();
     var frames = 0;
     await for (final frame in _sampler.sample(media, every: every)) {
-      if (_disposed) return;
+      if (_disposed) {
+        return RecognitionResult(RecognitionOutcome.searched, tagged: tagged);
+      }
       frames++;
       final seen = await vision.analyse(frame.image, faces: faces);
       final matches = matchFrame(
@@ -163,6 +233,7 @@ class SubjectRecognizer {
             confidence: match.confidence,
           );
           found.add(match.subjectId);
+          tagged.add(match.entry.name);
           asks.remove(match.subjectId);
         } else {
           asks[match.subjectId] = (match, tagFrame);
@@ -198,6 +269,11 @@ class SubjectRecognizer {
       'Presence: recognized ${found.length} subject(s), asked about '
       '${asks.length}, on $frames frame(s) of ${event.id} in '
       '${DateTime.now().difference(started).inMilliseconds} ms',
+    );
+    return RecognitionResult(
+      RecognitionOutcome.searched,
+      tagged: tagged,
+      asked: [for (final (match, _) in asks.values) match.entry.name],
     );
   }
 
@@ -317,4 +393,25 @@ class SubjectRecognizer {
     _disposed = true;
     _subscription.cancel();
   }
+}
+
+/// Puts the app's [SubjectRecognizer] within reach of its screens (the
+/// clip player's Auto button).
+class SubjectRecognizerScope extends InheritedWidget {
+  const SubjectRecognizerScope({
+    super.key,
+    required this.recognizer,
+    required super.child,
+  });
+
+  final SubjectRecognizer recognizer;
+
+  /// The recognizer above [context], if any.
+  static SubjectRecognizer? maybeOf(BuildContext context) => context
+      .getInheritedWidgetOfExactType<SubjectRecognizerScope>()
+      ?.recognizer;
+
+  @override
+  bool updateShouldNotify(SubjectRecognizerScope oldWidget) =>
+      recognizer != oldWidget.recognizer;
 }

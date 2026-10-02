@@ -327,34 +327,37 @@ class _PresenceAppState extends State<PresenceApp> {
   Widget build(BuildContext context) {
     return AppEventBusScope(
       bus: _bus,
-      child: MaterialApp(
-        title: 'Presence',
-        debugShowCheckedModeBanner: false,
-        theme: gruvboxSoftDarkTheme(),
-        home: switch (_consented) {
-          // Nothing shows until the device's consent is known.
-          null => const Scaffold(
-            body: Center(
-              child: CircularProgressIndicator(key: Key('checking-consent')),
+      child: SubjectRecognizerScope(
+        recognizer: _recognizer,
+        child: MaterialApp(
+          title: 'Presence',
+          debugShowCheckedModeBanner: false,
+          theme: gruvboxSoftDarkTheme(),
+          home: switch (_consented) {
+            // Nothing shows until the device's consent is known.
+            null => const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(key: Key('checking-consent')),
+              ),
             ),
-          ),
-          false => ConsentScreen(onAgree: _agree),
-          true => HomeScreen(
-            log: _log,
-            rig: _rig,
-            config: _config,
-            auth: _auth,
-            roles: _roles,
-            membership: _membership,
-            sync: _sync,
-            deviceId: _deviceId,
-            location: _location,
-            mapTiles: widget.mapTiles,
-            battery: widget.battery,
-            join: _join,
-            onJoinHandled: _joinHandled,
-          ),
-        },
+            false => ConsentScreen(onAgree: _agree),
+            true => HomeScreen(
+              log: _log,
+              rig: _rig,
+              config: _config,
+              auth: _auth,
+              roles: _roles,
+              membership: _membership,
+              sync: _sync,
+              deviceId: _deviceId,
+              location: _location,
+              mapTiles: widget.mapTiles,
+              battery: widget.battery,
+              join: _join,
+              onJoinHandled: _joinHandled,
+            ),
+          },
+        ),
       ),
     );
   }

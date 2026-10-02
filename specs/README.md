@@ -30,7 +30,7 @@ audio, so a clip can include the moments before someone pressed Clip.
   taking over the events recorded signed out; places (device groups) are
   defined, not built.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
-  tagging people and pets by clicking them on the video.
+  tagging people and pets by clicking them on the video, or with Auto.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   240 minutes (30 min to a day, in Settings).
@@ -44,7 +44,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
 - [Subjects](subjects.md): the people and pets tagged on clips, each with
   its latest frame, and a map of their latest events, fading with age.
-- [Subject recognition](recognition.md): new clips searched for the
+- [Subject recognition](recognition.md): new clips (and any clip, with the
+  player's Auto) searched for the
   subjects tagged before (TensorFlow Lite models, TensorFlow.js on web):
   tagged when sure, "Is this Rex?" when unsure.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'annotations.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
+import 'recognition/recognizer.dart';
 import 'subjects.dart';
 
 /// A clip around one Clip press, for one camera. Its recordings arrive over
@@ -365,6 +366,10 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   TagFrame? _frame;
   bool _grabbing = false;
 
+  /// Whether Auto is searching the clip, and what it last found.
+  bool _recognizing = false;
+  String? _autoResult;
+
   ClipRequested get _event => widget.event;
   ClipAnnotations get _annotations => _event.annotations;
 
@@ -416,6 +421,27 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
     _annotations.add(name, fraction.dx, fraction.dy, frame: frame);
   }
 
+  /// Auto: looks for the known subjects on the clip, on this device, and
+  /// tags the ones recognized surely (see `recognition/recognizer.dart`).
+  Future<void> _autoTag(SubjectRecognizer recognizer) async {
+    setState(() {
+      _recognizing = true;
+      _autoResult = null;
+    });
+    String message;
+    try {
+      message = autoTagMessage(await recognizer.recognizeNow(_event));
+    } catch (e) {
+      debugPrint('Presence: Auto failed on ${_event.id}: $e');
+      message = "Couldn't run recognition; try again.";
+    }
+    if (!mounted) return;
+    setState(() {
+      _recognizing = false;
+      _autoResult = message;
+    });
+  }
+
   Future<void> _rename(Annotation annotation) async {
     final name = await _askName(
       context,
@@ -429,6 +455,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final recognizer = SubjectRecognizerScope.maybeOf(context);
     return SingleChildScrollView(
       child: ListenableBuilder(
         listenable: _annotations,
@@ -495,40 +522,84 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   spacing: 8,
                   children: [
-                    Row(
+                    // The buttons go under the title when they don't fit
+                    // beside it.
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      runSpacing: 8,
                       children: [
-                        Expanded(
-                          child: Text(
-                            'People and pets',
-                            style: textTheme.titleSmall,
-                          ),
+                        Text('People and pets', style: textTheme.titleSmall),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            if (frame == null && recognizer != null)
+                              Tooltip(
+                                message: recognizer.supported
+                                    ? 'Tag the people and pets tagged before, '
+                                          'recognized on this device'
+                                    : 'Not available on this device yet',
+                                child: FilledButton.tonalIcon(
+                                  key: const Key('auto-tag'),
+                                  icon: _recognizing
+                                      ? const SizedBox.square(
+                                          dimension: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.auto_awesome),
+                                  label: const Text('Auto'),
+                                  onPressed:
+                                      _recognizing || !recognizer.supported
+                                      ? null
+                                      : () => _autoTag(recognizer),
+                                ),
+                              ),
+                            if (frame == null)
+                              FilledButton.tonalIcon(
+                                key: const Key('tag-frame'),
+                                icon: _grabbing
+                                    ? const SizedBox.square(
+                                        dimension: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.crop_free),
+                                label: const Text('Tag this frame'),
+                                onPressed: _grabbing ? null : _grabFrame,
+                              )
+                            else
+                              FilledButton(
+                                key: const Key('done-tagging'),
+                                onPressed: () => setState(() => _frame = null),
+                                child: const Text('Done'),
+                              ),
+                          ],
                         ),
-                        if (frame == null)
-                          FilledButton.tonalIcon(
-                            key: const Key('tag-frame'),
-                            icon: _grabbing
-                                ? const SizedBox.square(
-                                    dimension: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.crop_free),
-                            label: const Text('Tag this frame'),
-                            onPressed: _grabbing ? null : _grabFrame,
-                          )
-                        else
-                          FilledButton(
-                            key: const Key('done-tagging'),
-                            onPressed: () => setState(() => _frame = null),
-                            child: const Text('Done'),
-                          ),
                       ],
                     ),
                     if (frame != null)
                       Text(
                         'Click each person or pet on the video to name '
                         'them (frame at ${formatClipTime(frame.ms)}).',
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    if (_recognizing)
+                      Text(
+                        _event.clip.fullDone
+                            ? 'Looking for the people and pets tagged '
+                                  'before…'
+                            : 'Waiting for the clip to finish recording…',
+                        key: const Key('auto-tag-status'),
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      )
+                    else if (_autoResult case final result?)
+                      Text(
+                        result,
+                        key: const Key('auto-tag-result'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                     if (_annotations.tags.isEmpty && frame == null)
@@ -615,6 +686,29 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
       ),
     );
   }
+}
+
+/// What Auto says it did, from [result].
+String autoTagMessage(RecognitionResult result) {
+  String names(List<String> n) => n.length == 1
+      ? n.single
+      : '${n.sublist(0, n.length - 1).join(', ')} and ${n.last}';
+  return switch (result) {
+    RecognitionResult(outcome: RecognitionOutcome.unsupported) =>
+      'Recognition is not available on this device yet.',
+    RecognitionResult(outcome: RecognitionOutcome.noReferences) =>
+      'Nobody to look for yet: tag someone on another clip first.',
+    RecognitionResult(outcome: RecognitionOutcome.allTagged) =>
+      'Everyone tagged before is already on this clip.',
+    RecognitionResult(tagged: [], asked: []) => 'Nobody recognized.',
+    RecognitionResult(:final tagged, :final asked) => [
+      if (tagged.isNotEmpty) 'Tagged ${names(tagged)}.',
+      if (asked.isNotEmpty)
+        'Not sure about ${names(asked)}: answer '
+            '${asked.length == 1 ? '"Is this ${asked.single}?"' : 'the questions'}'
+            ' in the events.',
+    ].join(' '),
+  };
 }
 
 /// A grabbed frame, with markers for its tags; a click anywhere on it

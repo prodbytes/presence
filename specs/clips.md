@@ -96,6 +96,12 @@ spot clicked
 - **Tag this frame** grabs the frame the same way, without a first name.
   This is also how tagging works with a screen reader, whose layer covers
   the `<video>`.
+- **Auto**, beside it, tags whoever it recognizes among the people and
+  pets tagged before, on this device: the clip is searched as new clips
+  are, and it says who it tagged or asked about (see
+  [Subject recognition](recognition.md), "Auto, in the player"). Disabled
+  where recognition can't run yet (Android, iOS). On a narrow dialog the
+  two buttons go under the "People and pets" title.
 - The frame is grabbed as a JPEG at most 960 px wide
   (`ClipPlayerController.captureFrame`):
   - **web:** the `<video>` is drawn onto a canvas (`toBlob`, JPEG 0.85), at
