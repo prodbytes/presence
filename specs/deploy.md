@@ -28,6 +28,10 @@ One CloudFront distribution serves the whole site, laid out like the local
     only by the distribution (OAC), the distribution (HTTP/2 and HTTP/3,
     HTTPS only, TLS 1.2+, AWS's managed security-headers policy), and
     Route 53 A/AAAA aliases.
+  - [presence_sh/template.yaml](../presence_sh/template.yaml), stack
+    `presence-sh`: https://sh.presence.nu01.com, the
+    [install URL](install-url.md), deployed after the site by
+    [scripts/deploy-sh.sh](../scripts/deploy-sh.sh).
   - Everything is in `us-east-1`, in the account recorded in the private
     repo (`setec-astronomy`, `presence.nu01/README.md`).
 - **Content:** files are uploaded with `Cache-Control: no-cache`, because

@@ -1,7 +1,8 @@
 # Deploys a *GA tag to production, https://presence.nu01.com: the Flutter
 # web app (/app/), the index page (/) and the auth API (/api/auth), with the
 # user-data bucket and identity pool, through scripts/deploy.sh. It ends by checking that the live site serves this
-# tag's version.
+# tag's version. It then deploys https://sh.presence.nu01.com, which serves
+# the install script (scripts/deploy-sh.sh).
 #
 # AWS access is keyless: GitHub's OIDC token is exchanged for the
 # presence-github-deploy role (presence_infra/github-deploy.yaml), which
@@ -82,3 +83,9 @@ jobs:
           TAG: ${{ github.ref_name }}
           HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
         run: bash scripts/deploy.sh
+
+      # https://sh.presence.nu01.com: the curl | sh install script.
+      - name: Deploy the install script
+        env:
+          HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
+        run: bash scripts/deploy-sh.sh

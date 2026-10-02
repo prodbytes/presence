@@ -10,6 +10,10 @@ templates.
 | [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix. See [specs/cloud-sync.md](../specs/cloud-sync.md) |
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`, limited to `presence-rc-*` resources and the `rc.presence.nu01.com` records) |
 
+The install URL, https://sh.presence.nu01.com, is its own component:
+[presence_sh/](../presence_sh) (stack `presence-sh`, deployed by
+`scripts/deploy-sh.sh`).
+
 `scripts/deploy.sh` deploys every stack except `presence-github-deploy`, in
 this order: `presence-user-data`, `presence-identity`, the auth API
 (`presence-auth-api`, SAM), then `presence-web`. With `STAGE=rc` it deploys the

@@ -1687,3 +1687,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       access opens on the camera, and signing in later goes back to it;
       the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
       release builds.
+200. **Create a presence-sh component with the template for a bucket,
+    distribution, records and ACM certificate to serve the curl bang URL;
+    test it until it works on a Raspberry Pi. Every GA release updates it.**
+    (2026-10-02)
+    - Added [presence_sh/](../presence_sh) (stack `presence-sh`): an ACM
+      certificate for `sh.presence.nu01.com`, a private bucket, a
+      CloudFront distribution that serves `install.sh` at every path
+      (HTTPS only) and A/AAAA records. See [Install URL](install-url.md).
+    - [scripts/deploy-sh.sh](../scripts/deploy-sh.sh) deploys it, uploads
+      the script, invalidates and smoke-tests it; the Deploy workflow runs
+      it on every `*GA` tag after the site.
+    - Deployed by hand: `/` and `/install.sh` serve the script, http
+      gets 403. The README and the script now show
+      `curl -fsSL https://sh.presence.nu01.com | sh`.
+    - Merged #129 and released `0.5.202610021047-GA`, the first GA with a
+      `linux-arm64` bundle, for the Pi.
