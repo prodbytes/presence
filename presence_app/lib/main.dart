@@ -438,6 +438,11 @@ class _HomeScreenState extends State<HomeScreen>
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
 
+  /// The Monitoring tab's "Show system events" chip: on in DEV, off
+  /// otherwise (only grabs), and kept while switching tabs. Made on first
+  /// use, once the execution mode is known.
+  late final _showSystemEvents = ValueNotifier(_dev);
+
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
   /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
@@ -525,6 +530,7 @@ class _HomeScreenState extends State<HomeScreen>
     _messageTimer?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
+    _showSystemEvents.dispose();
     _battery.dispose();
     _tabs.dispose();
     super.dispose();
@@ -711,6 +717,7 @@ class _HomeScreenState extends State<HomeScreen>
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   thisDeviceOnly: _thisDeviceOnly,
+                  showSystemEvents: _showSystemEvents,
                 ),
               ),
               // Full width, with the device's location map.
@@ -1056,7 +1063,7 @@ class DevModeLabel extends StatelessWidget {
           'sign-in isn\'t configured, so everything is open to everyone.',
       child: Container(
         key: const Key('dev-mode'),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           border: Border.all(color: scheme.outline),
           borderRadius: BorderRadius.circular(4),
@@ -1065,7 +1072,8 @@ class DevModeLabel extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
+          // labelLarge (14 sp): readable next to the title.
+          style: theme.textTheme.labelLarge?.copyWith(
             color: scheme.onSurfaceVariant,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

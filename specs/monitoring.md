@@ -14,8 +14,10 @@ the separate Events and Subjects tabs.
 
 ## Layout
 
-- **At the top, once the device ID is known:** the **Only this device**
-  filter chip (checked by default; see [Events](events.md)).
+- **At the top:** the **Only this device** filter chip (checked by
+  default; shown once the device ID is known), then the **Show system
+  events** chip (checked by default in DEV only: off, only grabs show). See
+  [Events](events.md).
 - **Wide screens (720 dp and up), two columns:**
   - **left:** the **map of every subject's events**, in a rounded,
     outlined frame: each subject in its own color, the newest dot solid
@@ -56,7 +58,11 @@ the separate Events and Subjects tabs.
   subject's screen; on a 360 dp phone the map sits above the events; a dot
   tapped on a subject's screen closes it and outlines the event in this
   tab's list. `events_filter_test.dart`: the Only this device chip filters
-  and keeps its state across tabs. 212 Flutter tests pass.
+  and keeps its state across tabs. `system_events_test.dart`: signed in
+  (RBAC), only the clip shows until Show system events is checked, and the
+  choice stays across tabs; with no grabs, the hidden-events message; in
+  DEV, system events show by default and hide when cleared. 215 Flutter
+  tests pass.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations

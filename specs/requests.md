@@ -1475,7 +1475,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       section in Settings.
     - 233 Flutter tests pass, plus 3 in Chrome with the real models and a
       real `MediaRecorder` WebM; web release builds.
-182. **Make the status message a pill beside the readiness pill instead of a
+181. **Increase the font size of the dev tag.** (2026-10-01)
+    - The "dev" label's text is 14 sp (`labelLarge`, was 11 sp
+      `labelSmall`), with a little more padding (8 × 2 dp). It still cuts
+      short with an ellipsis where there's no room.
+182. **Add a "show system events" flag in the monitoring view: default true
+    in dev mode and false in other modes; marked, show all events,
+    including application started and system events; unmarked, only grab
+    events.** (2026-10-01)
+    - A **Show system events** filter chip sits next to Only this device at
+      the top of Monitoring. Off, the timeline shows only grabs
+      (`ClipRequested`: by hand, on motion, scheduled, at start) and the
+      recognition suggestions about them ("Is this Rex?"); on, every
+      event. It starts on in DEV and off in RBAC, and keeps its state
+      across tabs.
+    - Off with only system events, the timeline says "No grabs yet: system
+      events are hidden". Opening a hidden event from elsewhere turns it on.
+    - Tests that look for system events in RBAC turn the chip on first
+      (`revealSystemEvents`). 215 Flutter tests pass.
+183. **Make the status message a pill beside the readiness pill instead of a
     separate line.** (2026-10-01)
     - The "Clip started · saving the next 15 s" message (and its motion,
       scheduled and startup forms) is no longer a snackbar along the
@@ -1486,14 +1504,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       line; on wide screens the row keeps clear of Flip and Clip. Pills cut
       long labels short with an ellipsis.
     - 214 Flutter tests pass (2 new: the pill's place at 320 and 1280 dp).
-183. **In the camera view, make messages show as a pill beside the
+184. **In the camera view, make messages show as a pill beside the
     readiness pill, to the right, at the bottom, so they don't move or
     cover other components.** (2026-10-02)
     - Every message on the Camera tab is now that pill (`CameraMessage`):
-      the clip messages (from #182) and "Sign-in failed: …", which was
+      the clip messages (from #183) and "Sign-in failed: …", which was
       still a snackbar (it pushed Flip and Clip up). A newer message
       replaces the shown one; each stays 4 s. On other tabs the sign-in
       error is still a snackbar.
-    - Added to the same PR as #182, with `main` merged in.
+    - Added to the same PR as #183, with `main` merged in.
     - 237 Flutter tests pass (new: the sign-in error as a pill; a message
       leaves the readiness pill and Clip where they were).
