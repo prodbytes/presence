@@ -1645,3 +1645,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - New `events_search_test.dart` (5 tests). The subjects test that opens
       a far-down event now runs at 400 x 900, since the field adds a row to
       the phone header. 267 Flutter tests pass (after merging #126 and #130); web release builds.
+195. **Fix conflicts and merge** (#126, #130 and #128). (2026-10-02)
+    - Merged in request order: #126, then #130 after merging `main` into
+      it (in the recognizer, a new clip already searched with Auto skips
+      only the subjects' segment; object tags still run if it has none),
+      then #128 (its request-log entry renumbered #194). 267 Flutter tests
+      pass on the result; web release builds.
+196. **Make the search work with object tags, then sync everything.**
+    (2026-10-02)
+    - The Events search also matches a clip's object tags ("bicycle" finds
+      the clips with a bicycle).
+    - While searching, the list matches again when a clip's tags or object
+      tags change, so a clip recognition tags after the search was typed
+      shows up then (this was a known limitation).
+    - 268 Flutter tests pass; web release builds.

@@ -128,6 +128,27 @@ void main() {
     expect(any('nobody'), isFalse);
     // Blank shows everything.
     expect(events.every((e) => eventMatches(e, '  ')), isTrue);
+    // Object tags, once recognition has them.
+    expect(eventMatches(door, 'cat'), isFalse);
+    expect(eventMatches(rex, 'bicycle'), isFalse);
+    (rex as ClipRequested).annotations.setObjects(const [
+      ObjectTag(label: 'bicycle', ms: 0, score: 0.8),
+    ]);
+    expect(eventMatches(rex, 'BICYCLE'), isTrue);
+  });
+
+  testWidgets('object tags found later show up in the search', (tester) async {
+    await show(tester);
+    await type(tester, 'bicycle');
+    expect(titles(tester), isEmpty);
+    // Recognition tags the front door clip with a bicycle after the search.
+    final clip = log.events.firstWhere((e) => e.id == 'event-2');
+    (clip as ClipRequested).annotations.setObjects(const [
+      ObjectTag(label: 'bicycle', ms: 1500, score: 0.7),
+    ]);
+    await tester.pumpAndSettle();
+    expect(titles(tester), ['Clip requested']);
+    expect(inEvents(find.byKey(const Key('clip-object-bicycle'))), findsOneWidget);
   });
 
   testWidgets('the field sits top left, on the chips row', (tester) async {

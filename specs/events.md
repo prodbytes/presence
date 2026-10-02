@@ -13,8 +13,9 @@
   chips (before them); on a narrow phone the chips wrap onto the rows
   below it. Typing filters the timeline live, ignoring case and the spaces
   around the text: an event shows if its **title**, **detail**, **camera
-  label** or, for a clip, **the name of someone tagged on it** contains
-  the text. Suggestions waiting for an answer aren't tags, so they don't
+  label** or, for a clip, **the name of someone tagged on it** or **one of
+  its [object tags](recognition.md)** (`cat`, `bicycle`…) contains the
+  text. Suggestions waiting for an answer aren't tags, so they don't
   match a clip; the "Is this Rex?" event matches through its own title,
   and its clip's camera label. An **x** in the field clears it; blank,
   every event shows, as before.
@@ -27,9 +28,9 @@
   - What's searched is one function, `eventSearchFields` (used by
     `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
     a new searchable field is one more line there.
-  - Known limitation: the list refilters when the text, a chip or the
-    events change, not when a clip's tags are edited, so a tag added while
-    searching shows on the next change.
+  - While searching, the list also matches again whenever a clip's tags
+    or object tags change, so a clip recognition tags after the search was
+    typed shows up then.
 - **Only this device, by default.** An **Only this device** filter chip
   (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
   launch: the timeline shows only
