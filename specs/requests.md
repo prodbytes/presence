@@ -1645,13 +1645,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - New `events_search_test.dart` (5 tests). The subjects test that opens
       a far-down event now runs at 400 x 900, since the field adds a row to
       the phone header. 267 Flutter tests pass (after merging #126 and #130); web release builds.
-195. **Fix conflicts and merge** (#126, #130 and #128). (2026-10-02)
+195. **Create a script to `curl | sh` that downloads, extracts and runs the
+    right Presence app; fall back to web if no native one works.**
+    (2026-10-02)
+    - Added [scripts/install.sh](../scripts/install.sh) (POSIX `sh`): the
+      latest GA's Linux bundle for x64 or arm64, sha256-checked when the
+      release API answers, kept in `~/.local/share/presence/<tag>/` and run;
+      otherwise, or when the download, the libraries, the display or the
+      app fail, it opens https://presence.nu01.com. See
+      [Install script](install-script.md); the README shows the command.
+    - Tested in Ubuntu 24.04 amd64 and arm64 containers (native run under
+      Xvfb, cache reuse, missing libraries, no display, no arm64 asset).
+196. **Fix conflicts and merge** (#126, #130 and #128). (2026-10-02)
     - Merged in request order: #126, then #130 after merging `main` into
       it (in the recognizer, a new clip already searched with Auto skips
       only the subjects' segment; object tags still run if it has none),
       then #128 (its request-log entry renumbered #194). 267 Flutter tests
       pass on the result; web release builds.
-196. **Make the search work with object tags, then sync everything.**
+197. **Make the search work with object tags, then sync everything.**
     (2026-10-02)
     - The Events search also matches a clip's object tags ("bicycle" finds
       the clips with a bicycle).
