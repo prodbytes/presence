@@ -250,6 +250,18 @@ class EventTimeline extends StatefulWidget {
   static bool isGrab(AppEvent event) =>
       event is ClipRequested || event is SubjectSuggestion;
 
+  /// [events] of [userId], the signed-in user (null signed out): theirs,
+  /// and those recorded signed out, which the next sign-in takes over
+  /// (`Persistence.claimAnonymous`). Events not saved yet have no owner;
+  /// they're the current user's.
+  static List<AppEvent> ofUser(List<AppEvent> events, String? userId) => [
+    for (final e in events)
+      if (e.userId == null ||
+          e.userId == AppEvent.anonymousUserId ||
+          e.userId == userId)
+        e,
+  ];
+
   /// [events] of the devices shown: this device's while [thisDeviceOnly]
   /// is on and [deviceId] is known. Events not saved yet have no device ID;
   /// they're this device's.
@@ -628,14 +640,16 @@ class _EventSearchState extends State<EventSearch> {
   );
 }
 
-/// The event counts beside the [EventSearch] field: how many events the
-/// timeline shows (after the search and the filter chips) out of every
-/// event in the log, as "3 / 12". Follows the same notifiers as the
-/// [EventTimeline], so the two always agree.
+/// The event counts beside the [EventSearch] field, as "3 / 12": *all* is
+/// every event of [userId] on this device ([EventTimeline.ofUser]: recorded
+/// here, restored, or fetched from the cloud, so it grows as sync brings
+/// more), and *matching* those of them left after the search and the filter
+/// chips, with the same steps as the [EventTimeline].
 class EventCount extends StatelessWidget {
   const EventCount({
     super.key,
     required this.log,
+    required this.userId,
     required this.deviceId,
     required this.thisDeviceOnly,
     required this.showSystemEvents,
@@ -643,6 +657,9 @@ class EventCount extends StatelessWidget {
   });
 
   final EventLog log;
+
+  /// The signed-in user's ID; null signed out.
+  final String? userId;
   final String? deviceId;
   final ValueListenable<bool> thisDeviceOnly;
   final ValueListenable<bool> showSystemEvents;
@@ -664,11 +681,12 @@ class EventCount extends StatelessWidget {
           if (e is ClipRequested) e.annotations,
       ]),
       builder: (context, _) {
-        final all = log.events.length;
+        final mine = EventTimeline.ofUser(log.events, userId);
+        final all = mine.length;
         final shown = EventTimeline.matching(
           EventTimeline.ofKinds(
             EventTimeline.ofDevices(
-              log.events,
+              mine,
               deviceId: deviceId,
               thisDeviceOnly: thisDeviceOnly.value,
             ),

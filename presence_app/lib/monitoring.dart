@@ -12,8 +12,9 @@ import 'subjects.dart';
 /// their colors. On a phone the map sits above the events. Once the device
 /// ID is known, the "Only this device" chip sits at the top, next to the
 /// "Show system events" chip, both after the events search field (top
-/// left) and its count of events shown out of all ([EventCount]). Tapping a dot on the map scrolls the events to its event;
-/// tapping a subject's name opens the subject.
+/// left) and its matching / all events count ([EventCount]). Tapping a
+/// dot on the map scrolls the events to its event; tapping a subject's
+/// name opens the subject.
 class MonitoringView extends StatefulWidget {
   const MonitoringView({
     super.key,
@@ -23,6 +24,7 @@ class MonitoringView extends StatefulWidget {
     this.onOpenEvent,
     this.focus,
     this.deviceId,
+    this.userId,
     this.thisDeviceOnly,
     this.showSystemEvents,
     this.search,
@@ -57,6 +59,10 @@ class MonitoringView extends StatefulWidget {
 
   /// This device's ID, for the "Only this device" chip.
   final String? deviceId;
+
+  /// The signed-in user's ID (null signed out): the events count counts
+  /// only theirs ([EventCount]).
+  final String? userId;
   final ValueNotifier<bool>? thisDeviceOnly;
 
   /// The "Show system events" chip ([EventTimeline.showSystemEvents]).
@@ -144,6 +150,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                             const SizedBox(width: 8),
                             EventCount(
                               log: widget.log,
+                              userId: widget.userId,
                               deviceId: widget.deviceId,
                               thisDeviceOnly: _filter,
                               showSystemEvents: _system,
