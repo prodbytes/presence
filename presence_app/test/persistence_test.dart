@@ -119,6 +119,7 @@ void main() {
 
     await refresh(tester);
     await showEvents(tester);
+    await revealSystemEvents(tester);
 
     expect(inEvents(find.text('Application started')), findsNWidgets(2));
     expect(inEvents(find.text('Door opened')), findsOneWidget);
@@ -312,6 +313,8 @@ void main() {
     await tester.pump(const Duration(seconds: 15));
     await settleStorage(tester);
     await tester.pumpAndSettle();
+    await showEvents(tester);
+    await revealSystemEvents(tester);
     expect(find.text('From the phone'), findsOneWidget);
   });
 
