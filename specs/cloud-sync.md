@@ -50,9 +50,12 @@ Everything goes under the user's **Cognito identity ID**
 - **Fetch:** the events in the user's folder that the device doesn't have
   are downloaded, with their clips (details, recording and thumbnail) and
   tagged frames:
-  - only from the last **two weeks** (`CloudSync.restoreWindow`, 14 days):
-    event keys are partitioned by UTC day, so older partitions aren't
-    read, and in the window's first day each event's `time` decides;
+  - only from the last **two weeks** (`CloudSync.restoreWindow`, 14 days),
+    or the History setting when that's shorter (`CloudSync.keep`), so
+    nothing the device deletes as too old comes back ([event
+    retention](event-retention.md)): event keys are partitioned by UTC
+    day, so older partitions aren't read, and in the window's first day
+    each event's `time` decides;
   - at most **1000 events per pass** (`CloudSync.maxFetch`), the newest
     first; any rest come down in later passes;
   - only the clips those events use, each found by listing just its own

@@ -222,6 +222,55 @@ class Persistence implements DeviceSettings {
     return claim;
   }
 
+  /// Deletes every event from before [cutoff] from the device: its record,
+  /// its clip (details and recordings), and the suggestions about that
+  /// clip, then takes them out of the event log. Runs after the history is
+  /// restored and pending saves are done. Returns how many events went.
+  Future<int> deleteEventsBefore(DateTime cutoff) {
+    final pending = List.of(_pending);
+    final restoring = _restoring;
+    final delete = () async {
+      await restoring?.then((_) {}, onError: (Object _) {});
+      await Future.wait(pending);
+      if (_disposed) return 0;
+      final store = await _store;
+      final records = await store.allEvents();
+      final before = cutoff.millisecondsSinceEpoch;
+      final old = {
+        for (final r in records)
+          if (r['time'] case final int time when time < before)
+            r['id']! as String,
+      };
+      if (old.isEmpty) return 0;
+      // A suggestion goes with the clip it asks about.
+      final ids = {
+        ...old,
+        for (final r in records)
+          if (r['type'] == SubjectSuggestion.suggestionType &&
+              old.contains(r['clipEventId']))
+            r['id']! as String,
+      };
+      final clips = [
+        for (final c in await store.allClips())
+          if (ids.contains(c['eventId'])) c,
+      ];
+      await store.deleteEvents(ids, [
+        for (final c in clips) c['id']! as String,
+      ]);
+      await (await _media).delete([
+        for (final c in clips)
+          for (final ref in [c['past'], c['full']])
+            if (ref is Map && ref['mediaId'] is String)
+              ref['mediaId']! as String,
+      ]);
+      _watched.removeAll(ids);
+      _log?.remove(ids);
+      return ids.length;
+    }();
+    _track(delete);
+    return delete;
+  }
+
   /// The open database and recordings, for readers such as `CloudSync`.
   Future<EventStore> get store => _store;
   Future<MediaStore> get media => _media;
@@ -301,7 +350,8 @@ class Persistence implements DeviceSettings {
   ClipRequested _watchAnnotations(ClipRequested event) {
     if (_watched.add(event.id)) {
       event.annotations.addListener(() {
-        if (_disposed) return;
+        // Not once it's deleted (`deleteEventsBefore`).
+        if (_disposed || !_watched.contains(event.id)) return;
         _track(() async {
           final store = await _store;
           await store.putEvent(event.toRecord());

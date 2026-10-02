@@ -9,6 +9,7 @@ void main() {
       after: Duration(seconds: 10),
     ),
     camera: CameraConfig(brightness: -0.5),
+    history: HistoryConfig(keep: Duration(days: 45)),
     motion: MotionConfig(
       enabled: false,
       threshold: 22,
@@ -24,6 +25,7 @@ void main() {
     expect(c.motion.enabled, isTrue);
     expect(c.motion.threshold, 10);
     expect(c.motion.cooldown, const Duration(minutes: 5));
+    expect(c.history.keep, const Duration(days: 14));
   });
 
   test('round-trips through JSON', () {
@@ -45,6 +47,15 @@ void main() {
     expect(c.camera.brightness, CameraConfig.maxBrightness);
     expect(c.motion.threshold, MotionConfig.minThreshold);
     expect(c.motion.cooldown, MotionConfig.minCooldown);
+    // Events are kept a day to three months.
+    expect(
+      const HistoryConfig().copyWith(keep: Duration.zero).keep,
+      const Duration(days: 1),
+    );
+    expect(
+      const HistoryConfig().copyWith(keep: const Duration(days: 365)).keep,
+      const Duration(days: 90),
+    );
   });
 
   test('missing or invalid stored values fall back to defaults', () {
@@ -67,7 +78,8 @@ void main() {
       'motionThreshold': 22,
       'motionCooldownMs': 720000,
     });
-    expect(c, custom);
+    // The flat record had no History setting: the default stands.
+    expect(c, custom.copyWith(history: const HistoryConfig()));
   });
 
   test('the controller notifies only on real changes', () {

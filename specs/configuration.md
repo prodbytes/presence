@@ -10,6 +10,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (10 %, 1–50 %), `cooldown` (5 min, 1–60 min) |
 | `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (240 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
 | `subjects` (`SubjectsConfig`) | `mapEvents` (20, 5–100 in steps of 5): events on a [subject's](subjects.md) screen |
+| `history` (`HistoryConfig`) | `keep` (14 days, 1–90 days in 1-day steps): events older than this are deleted from the device ([event retention](event-retention.md)) |
 
 - Each group owns its defaults and limits. `copyWith` clamps values into
   range. Groups and the whole config have value equality.
