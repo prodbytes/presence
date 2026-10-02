@@ -1587,3 +1587,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       link, and **Copy link** and **Share** in place
       (`AddDeviceSection`).
     - 253 Flutter tests pass; web release builds.
+191. **On the Settings panel, put the location beside the map, to the
+    right, so that scrolling doesn't hit the map.** (2026-10-02)
+    - The Location section is a row: the map on the left, and to its right
+      the position (label, coordinates, where it came from) in a column 36 %
+      of the width (120–320 px). A drag on that column scrolls Settings; the
+      map still takes drags on itself.
+    - The "Settings is full width" test became a check of the new layout at
+      360 and 1280 px, with a drag beside the map that scrolls the list.
+      254 Flutter tests pass.

@@ -3,9 +3,10 @@
 - The **Settings** tab, **full width** (no 560 px readable width).
 - Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
   Subjects, Recognition.
-- **Location** section, first: this device's position (labeled, with
-  where it came from) over a map with a center pin; moving the map sets
-  the location, with zoom and My location buttons on the map. See
+- **Location** section, first: a map with a center pin and, to its right,
+  this device's position (labeled, with where it came from), so a drag
+  beside the map scrolls the list; moving the map sets the location, with
+  zoom and My location buttons on the map. See
   [Device location and battery](device-location.md).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its

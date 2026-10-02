@@ -9,8 +9,10 @@ import '../theme.dart';
 import 'device_location.dart';
 import 'map_parts.dart';
 
-/// The Settings screen's **Location** section: this device's position and
-/// where it came from, over a map centered on it with a pin in the middle.
+/// The Settings screen's **Location** section: a map centered on this
+/// device with a pin in the middle, and to its right the position and where
+/// it came from. That column is plain screen, so a drag there scrolls the
+/// list, as the map takes drags for itself.
 /// Moving the map moves the pin, and sets the device's location by hand;
 /// **My location** asks the device again.
 class LocationSettings extends StatefulWidget {
@@ -39,6 +41,14 @@ class LocationSettings extends StatefulWidget {
       (screen.height * 0.4).clamp(minMapHeight, maxMapHeight);
   static const double minMapHeight = 200;
   static const double maxMapHeight = 320;
+
+  /// The position's column, right of the map: [sideShare] of the width,
+  /// between [minSideWidth] and [maxSideWidth].
+  static double sideWidthFor(double width) =>
+      (width * sideShare).clamp(minSideWidth, maxSideWidth);
+  static const double sideShare = 0.36;
+  static const double minSideWidth = 120;
+  static const double maxSideWidth = 320;
 
   /// How close the map zooms in on the device's own position.
   static const double deviceZoom = 17;
@@ -149,105 +159,106 @@ class _LocationSettingsState extends State<LocationSettings> {
   @override
   Widget build(BuildContext context) {
     final location = _location.location;
-    return Column(
-      key: const Key('location-settings'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Position(location: _location),
-        const SizedBox(height: 8),
-        Listener(
-          onPointerDown: (_) => _hold(1),
-          onPointerUp: (_) => _hold(-1),
-          onPointerCancel: (_) => _hold(-1),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              key: const Key('location-map'),
-              height: LocationSettings.mapHeightFor(MediaQuery.sizeOf(context)),
-              child: Stack(
+    final map = Listener(
+      onPointerDown: (_) => _hold(1),
+      onPointerUp: (_) => _hold(-1),
+      onPointerCancel: (_) => _hold(-1),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          key: const Key('location-map'),
+          height: LocationSettings.mapHeightFor(MediaQuery.sizeOf(context)),
+          child: Stack(
+            children: [
+              FlutterMap(
+                mapController: _map,
+                options: MapOptions(
+                  initialCenter: location == null
+                      ? const LatLng(20, 0)
+                      : LatLng(location.latitude, location.longitude),
+                  initialZoom: location == null
+                      ? 2
+                      : LocationSettings.deviceZoom,
+                  minZoom: LocationSettings.minZoom,
+                  maxZoom: LocationSettings.maxZoom,
+                  backgroundColor: Gruvbox.bg0,
+                  // North stays up: there's nothing to orient.
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                  ),
+                  onMapReady: () => setState(() => _ready = true),
+                  onPositionChanged: _onMoved,
+                ),
                 children: [
-                  FlutterMap(
-                    mapController: _map,
-                    options: MapOptions(
-                      initialCenter: location == null
-                          ? const LatLng(20, 0)
-                          : LatLng(location.latitude, location.longitude),
-                      initialZoom: location == null
-                          ? 2
-                          : LocationSettings.deviceZoom,
-                      minZoom: LocationSettings.minZoom,
-                      maxZoom: LocationSettings.maxZoom,
-                      backgroundColor: Gruvbox.bg0,
-                      // North stays up: there's nothing to orient.
-                      interactionOptions: const InteractionOptions(
-                        flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-                      ),
-                      onMapReady: () => setState(() => _ready = true),
-                      onPositionChanged: _onMoved,
-                    ),
-                    children: [
-                      widget.tiles ?? openStreetMapTiles(),
-                      const MapAttribution(),
-                    ],
-                  ),
-                  // The pin's tip marks the center of the map.
-                  const IgnorePointer(
-                    child: Center(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 40),
-                        child: Icon(
-                          Icons.place,
-                          key: Key('device-pin'),
-                          size: 40,
-                          color: Gruvbox.red,
-                          shadows: [Shadow(blurRadius: 4)],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 12,
-                    bottom: 12,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      spacing: 12,
-                      children: [
-                        // Zoom in and out, for those without pinch or a
-                        // wheel.
-                        _ZoomButtons(
-                          onZoomIn:
-                              _ready && _zoomLevel < LocationSettings.maxZoom
-                              ? () => _zoom(1)
-                              : null,
-                          onZoomOut:
-                              _ready && _zoomLevel > LocationSettings.minZoom
-                              ? () => _zoom(-1)
-                              : null,
-                        ),
-                        FloatingActionButton.small(
-                          heroTag: 'my-location',
-                          tooltip: 'My location',
-                          onPressed: _location.locating
-                              ? null
-                              : _location.locate,
-                          child: _location.locating
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.my_location),
-                        ),
-                      ],
-                    ),
-                  ),
+                  widget.tiles ?? openStreetMapTiles(),
+                  const MapAttribution(),
                 ],
               ),
-            ),
+              // The pin's tip marks the center of the map.
+              const IgnorePointer(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 40),
+                    child: Icon(
+                      Icons.place,
+                      key: Key('device-pin'),
+                      size: 40,
+                      color: Gruvbox.red,
+                      shadows: [Shadow(blurRadius: 4)],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 12,
+                  children: [
+                    // Zoom in and out, for those without pinch or a
+                    // wheel.
+                    _ZoomButtons(
+                      onZoomIn: _ready && _zoomLevel < LocationSettings.maxZoom
+                          ? () => _zoom(1)
+                          : null,
+                      onZoomOut: _ready && _zoomLevel > LocationSettings.minZoom
+                          ? () => _zoom(-1)
+                          : null,
+                    ),
+                    FloatingActionButton.small(
+                      heroTag: 'my-location',
+                      tooltip: 'My location',
+                      onPressed: _location.locating ? null : _location.locate,
+                      child: _location.locating
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
+    );
+    return LayoutBuilder(
+      builder: (context, box) => Row(
+        key: const Key('location-settings'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 16,
+        children: [
+          Expanded(child: map),
+          SizedBox(
+            key: const Key('location-position'),
+            width: LocationSettings.sideWidthFor(box.maxWidth),
+            child: _Position(location: _location),
+          ),
+        ],
+      ),
     );
   }
 }
