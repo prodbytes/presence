@@ -212,7 +212,15 @@ class FakeAuthService extends AuthService {
   @override
   String? get unavailableReason => null;
   @override
-  String? get error => null;
+  String? get error => _error;
+  String? _error;
+
+  /// A sign-in that fails with [error].
+  void fail(String error) {
+    _error = error;
+    notifyListeners();
+  }
+
   @override
   Future<void> init() async {}
   @override

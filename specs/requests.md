@@ -1493,3 +1493,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       events are hidden". Opening a hidden event from elsewhere turns it on.
     - Tests that look for system events in RBAC turn the chip on first
       (`revealSystemEvents`). 215 Flutter tests pass.
+183. **Make the status message a pill beside the readiness pill instead of a
+    separate line.** (2026-10-01)
+    - The "Clip started · saving the next 15 s" message (and its motion,
+      scheduled and startup forms) is no longer a snackbar along the
+      bottom: it's a pill with the clip's icon beside the readiness pill,
+      for 4 s, on the Camera tab. Tapping it opens Monitoring (it was the
+      snackbar's View).
+    - On phones the readiness and the message share the stack's lowest
+      line; on wide screens the row keeps clear of Flip and Clip. Pills cut
+      long labels short with an ellipsis.
+    - 214 Flutter tests pass (2 new: the pill's place at 320 and 1280 dp).
+184. **In the camera view, make messages show as a pill beside the
+    readiness pill, to the right, at the bottom, so they don't move or
+    cover other components.** (2026-10-02)
+    - Every message on the Camera tab is now that pill (`CameraMessage`):
+      the clip messages (from #183) and "Sign-in failed: …", which was
+      still a snackbar (it pushed Flip and Clip up). A newer message
+      replaces the shown one; each stays 4 s. On other tabs the sign-in
+      error is still a snackbar.
+    - Added to the same PR as #183, with `main` merged in.
+    - 237 Flutter tests pass (new: the sign-in error as a pill; a message
+      leaves the readiness pill and Clip where they were).
