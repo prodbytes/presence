@@ -21,6 +21,13 @@ in the app bar**, which flip between full screens.
   (`TabBar` + `TabBarView`). While a finger is on the Settings location
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
+- **A browser refresh stays on the open tab** (Camera, Monitoring or
+  Settings): each switch is remembered in the browser tab's
+  `sessionStorage` (`presence.tab`, `lib/tab_memory.dart`), and the app
+  opens on it again once the tabs can show (access is known only after the
+  roles load; signed out, it stays on the camera and keeps the memory for
+  later). A new browser tab, or blocked storage, starts on the Camera. The
+  Android and iOS apps don't refresh, so they always start on the Camera.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
   the camera, with a dark gradient scrim to keep the title and tabs

@@ -1596,3 +1596,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "Settings is full width" test became a check of the new layout at
       360 and 1280 px, with a drag beside the map that scrolls the list.
       254 Flutter tests pass.
+192. **Make a browser refresh keep the same view (camera / events /
+    settings).** (2026-10-02)
+    - The open tab is remembered in the browser tab's `sessionStorage`
+      (`TabMemory`), and restored on load once there's access; a new
+      browser tab still starts on the Camera, and the apps are unchanged.
+    - Tests: restored after a reload for each tab, an unknown value or no
+      access opens on the camera, and signing in later goes back to it;
+      the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
+      release builds.
