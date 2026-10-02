@@ -1486,3 +1486,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       line; on wide screens the row keeps clear of Flip and Clip. Pills cut
       long labels short with an ellipsis.
     - 214 Flutter tests pass (2 new: the pill's place at 320 and 1280 dp).
+183. **In the camera view, make messages show as a pill beside the
+    readiness pill, to the right, at the bottom, so they don't move or
+    cover other components.** (2026-10-02)
+    - Every message on the Camera tab is now that pill (`CameraMessage`):
+      the clip messages (from #182) and "Sign-in failed: …", which was
+      still a snackbar (it pushed Flip and Clip up). A newer message
+      replaces the shown one; each stays 4 s. On other tabs the sign-in
+      error is still a snackbar.
+    - Added to the same PR as #182, with `main` merged in.
+    - 237 Flutter tests pass (new: the sign-in error as a pill; a message
+      leaves the readiness pill and Clip where they were).

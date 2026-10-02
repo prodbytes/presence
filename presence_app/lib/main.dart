@@ -405,8 +405,8 @@ class HomeScreen extends StatefulWidget {
   /// (an admin's, with its extra button, on a 320 dp phone).
   static const double minTabWidth = 40;
 
-  /// How long the pill saying a clip started stays.
-  static const Duration clipMessageFor = Duration(seconds: 4);
+  /// How long a message over the camera stays.
+  static const Duration messageFor = Duration(seconds: 4);
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -480,11 +480,41 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
+      _showMessage(
+        CameraMessage(
+          icon: Icons.error_outline,
+          label: 'Sign-in failed: $error',
+          error: true,
+        ),
+        elsewhere: true,
+      );
     }
     _shownError = error;
     setState(() {});
+  }
+
+  /// The message over the camera, a pill after the readiness pill, for
+  /// [HomeScreen.messageFor]; null when there's none.
+  CameraMessage? _message;
+  Timer? _messageTimer;
+
+  /// Shows [message]: on the Camera tab as a pill after the readiness one,
+  /// so nothing over the camera moves or is covered; a newer message
+  /// replaces it. On the other tabs, a snackbar if [elsewhere], else
+  /// nothing.
+  void _showMessage(CameraMessage message, {bool elsewhere = false}) {
+    if (!_onCamera) {
+      if (elsewhere) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message.label)));
+      }
+      return;
+    }
+    _messageTimer?.cancel();
+    _messageTimer = Timer(HomeScreen.messageFor, () {
+      if (mounted) setState(() => _message = null);
+    });
+    setState(() => _message = message);
   }
 
   @override
@@ -492,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen>
     widget.auth.removeListener(_onAuthChanged);
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
-    _clipMessageTimer?.cancel();
+    _messageTimer?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
     _battery.dispose();
@@ -520,24 +550,15 @@ class _HomeScreenState extends State<HomeScreen>
       ClipTrigger.startup => 'Startup clip',
       ClipTrigger.manual => 'Clip started',
     };
-    // A brief pill beside the readiness one; for motion clips, the
-    // readiness pill carries the cooldown after it.
-    _clipMessageTimer?.cancel();
-    _clipMessageTimer = Timer(HomeScreen.clipMessageFor, () {
-      if (mounted) setState(() => _clipMessage = null);
-    });
-    setState(
-      () => _clipMessage = (
+    // For motion clips, the readiness pill carries the cooldown after it.
+    _showMessage(
+      CameraMessage(
         icon: event.icon,
         label: '$started · saving the next $after s',
+        opensEvents: true,
       ),
     );
   }
-
-  /// The clip that just started, shown as a pill over the camera for
-  /// [HomeScreen.clipMessageFor].
-  ({IconData icon, String label})? _clipMessage;
-  Timer? _clipMessageTimer;
 
   /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
   /// when the tabs, the buttons after them and a sliver of the title don't
@@ -707,19 +728,18 @@ class _HomeScreenState extends State<HomeScreen>
             ],
           ),
           // Bottom left, across from Flip and Clip: the battery, whether a
-          // clip now would be complete, and a clip that just started.
-          // Signed out, only that clip.
-          if (_onCamera && (_hasAccess || _clipMessage != null))
+          // clip now would be complete, and after it the latest message.
+          // Signed out, only the message.
+          if (_onCamera && (_hasAccess || _message != null))
             _CameraStatus(
               rig: widget.rig,
               battery: _battery,
               full: _hasAccess,
-              message: switch (_clipMessage) {
-                final m? => ClipMessagePill(
-                  icon: m.icon,
-                  label: m.label,
+              message: switch (_message) {
+                final m? => CameraMessagePill(
+                  message: m,
                   // The events tab is only there with access.
-                  onView: _hasAccess
+                  onView: m.opensEvents && _hasAccess
                       ? () => _tabs.animateTo(HomeTab.monitoring.index)
                       : null,
                 ),
@@ -837,29 +857,46 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
   }
 }
 
-/// Says a clip just started ("Clip started · saving the next 15 s"), as a
-/// pill beside the readiness one. Tapping it opens the clip's event
-/// ([onView]), where there's access.
-class ClipMessagePill extends StatelessWidget {
-  const ClipMessagePill({
-    super.key,
+/// A message over the camera: a clip that started, a sign-in that failed.
+@immutable
+class CameraMessage {
+  const CameraMessage({
     required this.icon,
     required this.label,
-    this.onView,
+    this.opensEvents = false,
+    this.error = false,
   });
 
   final IconData icon;
   final String label;
+
+  /// Tapping it opens Monitoring, where its event is (a clip).
+  final bool opensEvents;
+
+  /// Something went wrong: its icon is in the error color.
+  final bool error;
+}
+
+/// A [CameraMessage] as a pill after the readiness one, where it moves and
+/// covers nothing; tapping it opens the clip's event ([onView]), where
+/// there's one and access. A label too long for the room is cut short; the
+/// tooltip has it all.
+class CameraMessagePill extends StatelessWidget {
+  const CameraMessagePill({super.key, required this.message, this.onView});
+
+  final CameraMessage message;
   final VoidCallback? onView;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = message.label;
     final pill = StatusPill(
-      key: const Key('clip-message'),
+      key: const Key('camera-message'),
       leading: Icon(
-        icon,
+        message.icon,
         size: 18,
-        color: Theme.of(context).colorScheme.primary,
+        color: message.error ? scheme.error : scheme.primary,
       ),
       label: label,
       semantics: onView == null ? label : '$label. Tap to view it.',

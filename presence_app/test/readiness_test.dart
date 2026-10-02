@@ -313,7 +313,7 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 600));
 
-        final message = find.byKey(const Key('clip-message'));
+        final message = find.byKey(const Key('camera-message'));
         expect(message, findsOneWidget);
         expect(find.byType(SnackBar), findsNothing);
         final pill = tester.getRect(message);
@@ -333,6 +333,58 @@ void main() {
         await settleStorage(tester);
       });
     }
+
+    testWidgets('signed out, a failed sign-in is a pill too, not a snackbar', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final auth = FakeAuthService();
+      await tester.pumpWidget(
+        PresenceApp(
+          consentGiven: true,
+          cameras: openFakes([FakeCameraSource('Main', immediatePast: media)]),
+          mediaIo: fakeMediaIo,
+          auth: auth,
+          rolesClient: FakeRolesClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      auth.fail('popup closed');
+      await tester.pump();
+
+      final message = find.byKey(const Key('camera-message'));
+      expect(message, findsOneWidget);
+      expect(find.text('Sign-in failed: popup closed'), findsOneWidget);
+      expect(find.byType(SnackBar), findsNothing);
+      // Bottom left, as the only pill (no readiness signed out).
+      final pill = tester.getRect(message);
+      expect(pill.left, 16);
+      expect(pill.right, lessThanOrEqualTo(400 - 16));
+
+      await tester.pump(const Duration(seconds: 5));
+      expect(message, findsNothing);
+      await settleStorage(tester);
+    });
+
+    testWidgets('a message moves nothing: readiness and Clip stay put', (
+      tester,
+    ) async {
+      await pumpApp(tester, size: const Size(320, 640));
+      await advance(tester, const Duration(seconds: 16));
+      final readiness = tester.getRect(find.byKey(const Key('readiness')));
+      final clip = tester.getRect(find.byTooltip('Clip'));
+      await tester.tap(find.byTooltip('Clip'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byKey(const Key('camera-message')), findsOneWidget);
+      expect(tester.getRect(find.byKey(const Key('readiness'))), readiness);
+      expect(tester.getRect(find.byTooltip('Clip')), clip);
+      await settleStorage(tester);
+    });
 
     testWidgets('motion clips pop their own message', (tester) async {
       final camera = await pumpApp(tester);

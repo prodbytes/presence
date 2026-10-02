@@ -41,12 +41,12 @@ in the app bar**, which flip between full screens.
     history.
   - **Status pills, bottom left**, across from Flip and Clip
     (`_CameraStatus` in `lib/main.dart`): the **battery**, its
-    **temperature** (Android), the **readiness indicator** and, beside it
-    for 4 s, the **clip message** when a clip starts, all in one pill style
+    **temperature** (Android), the **readiness indicator** and, after it
+    for 4 s, the latest **message**, all in one pill style
     (`StatusPill`), 16 px from the edges. On screens 600 px and wider
     they're in a row, centered on the buttons and kept clear of them.
     Narrower, they stack (battery on top), starting just above the buttons'
-    row, so they never run into Flip and Clip; the readiness and the clip
+    row, so they never run into Flip and Clip; the readiness and the
     message share the lowest line. A label too long for the room is cut
     short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
@@ -77,16 +77,21 @@ in the app bar**, which flip between full screens.
       re-fire early just because the app restarted. Verified in Chrome: a
       reload 6 s after "4:28" showed "4:22", matching the stored event
       time.
-  - **When any clip starts** (the Clip button, motion, the schedule or the
-    start), a **clip message pill** (`ClipMessagePill`) shows beside the
-    readiness pill for 4 s, with the clip's icon: "Clip started · saving
-    the next 15 s", "Motion detected · …", "Scheduled clip · …" or
-    "Startup clip · …". A newer clip replaces it and restarts the 4 s.
-    **Tapping it** opens Monitoring, where the clip's event is (with
-    access). It replaced a snackbar along the bottom. It shows only on the
-    Camera tab; signed out, it's the only pill (no battery or readiness),
-    and tapping it does nothing. For motion clips, the indicator carries
-    the cooldown after it.
+  - **Messages on the Camera tab are a pill** (`CameraMessage`,
+    `CameraMessagePill`), never a snackbar: at the bottom, to the right of
+    the readiness pill, for 4 s, so nothing over the camera moves (a
+    snackbar pushed Flip and Clip up) or is covered. A newer message
+    replaces it and restarts the 4 s. A label too long for the room is cut
+    short; its tooltip has it all. Signed out, it's the only pill (no
+    battery or readiness), bottom left. The messages:
+    - **a clip starts** (the Clip button, motion, the schedule or the
+      start), with the clip's icon: "Clip started · saving the next 15 s",
+      "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".
+      **Tapping it** opens Monitoring, where the clip's event is (with
+      access). On the other tabs it doesn't show. For motion clips, the
+      indicator carries the cooldown after it;
+    - **a sign-in fails**: "Sign-in failed: <reason>", with the icon in
+      the error color. On another tab it's still a snackbar.
 - **Monitoring:** the map of every subject's events, with their names,
   beside the event stream (above it on phones), and **Only this device**
   (checked by default) at the top (see [Monitoring](monitoring.md)).
