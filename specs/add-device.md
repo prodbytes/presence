@@ -7,10 +7,10 @@ device of the same user
 
 ## Sharing (Settings)
 
-- **The last thing in Settings**, under the health line: an **Add a
-  device** button with a QR-code icon. It shows once the device ID is known.
-- It opens a dialog with:
-  - a **QR code** of the link, dark on white with a quiet zone;
+- **The last thing in Settings**, under the health line, shown in place
+  (no dialog) once the device ID is known: an **Add a device** title with a
+  QR-code icon, then
+  - a **QR code** of the link, 200 px, dark on white with a quiet zone;
   - "Scan with another device to open Presence there as <email>. It becomes
     a new device, with its own ID." (no "as …" in DEV);
   - the link itself, small and selectable;
@@ -79,8 +79,8 @@ top of the screen, over every tab, until it's done or dismissed (✕):
   - the link has the device ID and the user code, not the account ID; it
     reads back; links without `from` aren't join links;
   - every row of the table above, from `JoinStatus.of`;
-  - Settings ends with Add a device, below the device ID, and its QR code,
-    Share and Copy link; the link is this device's and the user's; in DEV
+  - Settings ends with Add a device, below the device ID, shown in place
+    (no dialog): its QR code, link, Share and Copy link; the link is this device's and the user's; in DEV
     it has no user;
   - opened signed out: the sign-in banner; signing in as the same user
     joins, with the message, and the device keeps its own ID;
