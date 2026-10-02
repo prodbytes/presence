@@ -1561,3 +1561,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       player the app's recognizer. The title and buttons wrap on narrow
       dialogs.
     - 238 Flutter tests pass; web release builds.
+188. **Sync git: merge all pending PRs and check out main; wait for all
+    agents to be done and sync again.** (2026-10-02)
+    - Merged #116, #117, #118 and #115, then, once the other sessions were
+      idle, #120 and #121, each after merging `main` into it, resolving
+      conflicts (request-log numbers, now #181–#187; `pubspec`; the app
+      root, with both the recognizer scope and the join link), and passing
+      the tests (253 at the end) and builds.
+    - Recognition suggestions ("Is this Rex?") count as grabs, so they
+      show with Show system events off.
+    - #112 (an earlier Monitoring layout, replaced by #113) stays open,
+      not merged.
