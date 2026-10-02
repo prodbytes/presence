@@ -36,7 +36,7 @@
   screen lists and maps (see [Subjects](subjects.md)).
 - **Recognition** section (see [Subject recognition](recognition.md)):
   - A **Recognize subjects in new clips** switch (default on). Where there's
-    no runtime (Android and iOS for now) it's off and disabled, and says
+    no runtime (iOS for now) it's off and disabled, and says
     "Not available on this device yet".
   - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
     default **80 %**.

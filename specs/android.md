@@ -62,6 +62,26 @@ Android uses the standard dashcam technique instead
   its whole database in memory. If private storage is unavailable, data is
   kept in memory for the session.
 
+## Subject recognition
+
+- [Recognition](recognition.md) runs the bundled `.tflite` models with
+  **LiteRT** through Google's `tflite_flutter` plugin (Dart FFI, a
+  background isolate per model).
+- **`framesAt`** (`presence/cameras`): `{path, ms: [..], maxWidth}` →
+  a JPEG per time (null where a frame can't be read), from one
+  `MediaMetadataRetriever` per call, each frame upright and scaled as
+  `frameAt`'s; bitmaps are recycled as soon as they're encoded. `frameAt`
+  is now `framesAt` with one time.
+- **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
+  Kotlin on the toolchain default (21), which Kotlin rejects; the root
+  `build.gradle.kts` pins that plugin's Kotlin to JVM 11.
+- **On-device test:** `integration_test/recognition_android_test.dart`
+  (fixtures pushed with `integration_test/push_fixtures.sh`, which needs
+  `ffmpeg` and `adb`); see [Subject recognition](recognition.md#verified).
+  An emulator works: `sdkmanager "emulator"
+  "system-images;android-35;google_apis;arm64-v8a"`, then `avdmanager
+  create avd` and `emulator -avd <name> -no-window`.
+
 ## Known limitations
 
 - The Android app is locked to portrait (`screenOrientation="portrait"`):

@@ -46,8 +46,11 @@ dependencies:
   latlong2: ^0.10.1
   geolocator: ^14.1.1
   battery_plus: ^7.1.1
+  tflite_flutter: ^0.12.1
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to
