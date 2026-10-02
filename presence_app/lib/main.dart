@@ -25,6 +25,7 @@ import 'cameras/cameras.dart';
 import 'events.dart';
 import 'location/device_location.dart';
 import 'monitoring.dart';
+import 'recognition/recognizer.dart';
 import 'settings.dart';
 import 'status_pill.dart';
 import 'system_health.dart';
@@ -106,6 +107,7 @@ class _PresenceAppState extends State<PresenceApp> {
   late final Persistence _persistence;
   late final CameraRig _rig;
   late final LocationController _location;
+  late final SubjectRecognizer _recognizer;
 
   @override
   void initState() {
@@ -137,6 +139,8 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _location.init().ignore();
+    // Finds the subjects on each new clip once it's recorded.
+    _recognizer = SubjectRecognizer(bus: _bus, log: _log, config: _config);
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -282,6 +286,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.dispose();
     _roles.dispose();
     _location.dispose();
+    _recognizer.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();

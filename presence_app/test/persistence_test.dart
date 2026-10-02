@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
+import 'package:presence_app/annotations.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
@@ -12,6 +13,7 @@ import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'fakes.dart';
@@ -878,5 +880,62 @@ void main() {
     expect(find.text('+1.0 EV'), findsOneWidget);
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
     expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
+  });
+
+  testWidgets('a suggestion survives a refresh, and can still be answered', (
+    tester,
+  ) async {
+    final camera = FakeCameraSource('Front door');
+    await launch(tester, cameras: [camera]);
+    await pressClip(tester);
+    camera.pastCompleters.single.complete(past);
+    await settleStorage(tester);
+    camera.fullCompleters.single.complete(full);
+    await settleStorage(tester);
+
+    // What recognition does when it's unsure.
+    final event = clipEvent(tester);
+    final frame = event.annotations.newFrame(onePixelPng, 12000);
+    final entry = event.annotations.add(
+      'Ana',
+      0.4,
+      0.5,
+      frame: frame,
+      source: TagSource.suggested,
+      confidence: 0.64,
+    )!;
+    AppEventBusScope.of(tester.element(find.byType(Scaffold).first)).publish(
+      SubjectSuggestion(
+        clipEventId: event.id,
+        annotationId: entry.id,
+        subjectName: 'Ana',
+        confidence: 0.64,
+        clip: event,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    expect(inEvents(find.text('Is this Ana?')), findsOneWidget);
+    // Not a subject until confirmed.
+    expect(find.byKey(const Key('event-subject-ana')), findsNothing);
+
+    await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
+    expect(inEvents(find.text('Is this Ana?')), findsOneWidget);
+    expect(find.textContaining('64 % sure · Front door'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('suggestion-yes')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(find.byKey(const Key('event-subject-ana')), findsOneWidget);
+
+    // The answer is saved too.
+    await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
+    expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(
+      clipEvent(tester).annotations.byId(entry.id)!.source,
+      TagSource.confirmed,
+    );
   });
 }

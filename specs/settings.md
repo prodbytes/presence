@@ -2,7 +2,7 @@
 
 - The **Settings** tab, **full width** (no 560 px readable width).
 - Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
-  Subjects.
+  Subjects, Recognition.
 - **Location** section, first: this device's position (labeled, with
   where it came from) over a map with a center pin; moving the map sets
   the location, with zoom and My location buttons on the map. See
@@ -34,6 +34,17 @@
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).
+- **Recognition** section (see [Subject recognition](recognition.md)):
+  - A **Recognize subjects in new clips** switch (default on). Where there's
+    no runtime (Android and iOS for now) it's off and disabled, and says
+    "Not available on this device yet".
+  - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
+    default **80 %**.
+  - **Ask me when at least** 30–95 % sure, default **50 %**; never above
+    the first (raising it past it stops at it, and lowering the first
+    lowers it).
+  - Both sliders are off while the switch is. Stored as
+    `recognition: {enabled, autoTag, ask}`.
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

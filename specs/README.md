@@ -44,6 +44,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Configuration](configuration.md): `PresenceConfig` and how it's stored.
 - [Subjects](subjects.md): the people and pets tagged on clips, each with
   its latest frame, and a map of their latest events, fading with age.
+- [Subject recognition](recognition.md): new clips searched for the
+  subjects tagged before (TensorFlow Lite models, TensorFlow.js on web):
+  tagged when sure, "Is this Rex?" when unsure.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule and

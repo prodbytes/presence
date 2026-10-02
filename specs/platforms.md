@@ -33,6 +33,7 @@
 | Battery over the camera | Battery Status API (Chrome, Edge; not Firefox, Safari) | ✅ | ✅ |
 | Battery temperature (°C) over the camera | — (no web API) | ✅ battery broadcast | — (no public API) |
 | Portrait lock | — | ✅ | ✅ (iPhone) |
+| [Subject recognition](recognition.md) | TensorFlow.js (`tfjs-tflite`, WebAssembly) + hidden `<video>` | — (next: same models, LiteRT) | — (next) |
 | Verified on a device | Chrome (fake camera): recording, clips, audio playback timing, motion clip end to end | DOOGEE S40 | build + simulator only (see below) |
 
 The only remaining differences are platform limits, not missing features:
