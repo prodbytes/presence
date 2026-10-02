@@ -1712,3 +1712,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The Linux release jobs now run on `ubuntu-22.04` and
       `ubuntu-22.04-arm`. Their PR bundles run (still up after 30 s under
       Xvfb) on Debian 12 arm64 and x64, and on Ubuntu 24.04 x64.
+203. **When the app loads, and every 3 hours, delete all events older than
+    2 weeks (configurable in Settings from 1 day to three months).**
+    (2026-10-02)
+    - New `HistoryConfig` (`history: {keepMs}`): 14 days by default, 1–90
+      days in 1-day steps. Settings has a new **History** section with a
+      **Keep events for** slider.
+    - `EventRetention` runs `Persistence.deleteEventsBefore` once the
+      history is restored at load, then every 3 h. It deletes the events,
+      their clip records and recordings, and suggestions about deleted
+      clips, from storage and from the event log. A new setting applies on
+      the next run, so dragging the slider deletes nothing.
+    - Cloud sync's fetch window shrinks to the setting when it's shorter
+      than two weeks, so deleted events don't come back from S3. Nothing
+      is deleted from S3.
+    - New spec: [event-retention.md](event-retention.md).
+    - Tests that store fixed-date events now give the app a matching clock,
+      so they won't break once those dates are more than two weeks old.
+      278 Flutter tests pass; the web release builds.
