@@ -94,6 +94,8 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   searched, nothing seen. Malformed entries are skipped on restore.
 - The clip's card shows them as small outlined chips under its subjects
   ("human", "bicycle"), in order of first sighting.
+- The Events **search** matches them: "bicycle" finds the clips with a
+  bicycle (see [Events](events.md)).
 - They're labels, not subjects: no names, colors, maps, references or
   questions, and they never make anyone a subject.
 

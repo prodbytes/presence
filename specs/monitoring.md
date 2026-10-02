@@ -66,8 +66,9 @@ the separate Events and Subjects tabs.
   choice stays across tabs; with no grabs, the hidden-events message; in
   DEV, system events show by default and hide when cleared.
   `events_search_test.dart`: the search field sits top left on the chips
-  row; typing filters by title, detail, camera label and tags (not
-  suggestions), ignoring case; the x clears it and every event shows
+  row; typing filters by title, detail, camera label, tags (not
+  suggestions) and object tags, ignoring case; a clip given object tags
+  after the search was typed shows up; the x clears it and every event shows
   again; it combines with Show system events; at 320 dp it fits, the chips
   below it. 259 Flutter tests pass.
 - Web release build compiles. Not yet tried in a browser with real tiles.

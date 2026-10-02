@@ -1656,3 +1656,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       [Install script](install-script.md); the README shows the command.
     - Tested in Ubuntu 24.04 amd64 and arm64 containers (native run under
       Xvfb, cache reuse, missing libraries, no display, no arm64 asset).
+196. **Fix conflicts and merge** (#126, #130 and #128). (2026-10-02)
+    - Merged in request order: #126, then #130 after merging `main` into
+      it (in the recognizer, a new clip already searched with Auto skips
+      only the subjects' segment; object tags still run if it has none),
+      then #128 (its request-log entry renumbered #194). 267 Flutter tests
+      pass on the result; web release builds.
+197. **Make the search work with object tags, then sync everything.**
+    (2026-10-02)
+    - The Events search also matches a clip's object tags ("bicycle" finds
+      the clips with a bicycle).
+    - While searching, the list matches again when a clip's tags or object
+      tags change, so a clip recognition tags after the search was typed
+      shows up then (this was a known limitation).
+    - 268 Flutter tests pass; web release builds.

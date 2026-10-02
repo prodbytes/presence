@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'location/device_location.dart';
@@ -436,6 +437,19 @@ class _EventTimelineState extends State<EventTimeline> {
 
   @override
   Widget build(BuildContext context) {
+    if (_search.value.trim().isEmpty) return _list(context);
+    // Recognition tags clips once they're recorded: match again when a
+    // clip's tags or object tags change.
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        for (final e in _ofKinds)
+          if (e is ClipRequested) e.annotations,
+      ]),
+      builder: (context, _) => _list(context),
+    );
+  }
+
+  Widget _list(BuildContext context) {
     final events = _shown;
     if (events.isEmpty) {
       return FeedMessage(
@@ -479,8 +493,9 @@ class _EventTimelineState extends State<EventTimeline> {
 }
 
 /// The texts the Events search looks in for [event]: its title and detail,
-/// and for a clip its camera's label and the names tagged on it (not
-/// suggestions waiting for an answer). Add a field here to make it
+/// and for a clip its camera's label, the names tagged on it (not
+/// suggestions waiting for an answer) and its object tags (`cat`,
+/// `bicycle`…). Add a field here to make it
 /// searchable.
 Iterable<String> eventSearchFields(AppEvent event) sync* {
   yield event.title;
@@ -496,6 +511,9 @@ Iterable<String> eventSearchFields(AppEvent event) sync* {
     if (event is ClipRequested) {
       for (final tag in clip.annotations.tags) {
         yield tag.name;
+      }
+      for (final object in clip.annotations.objects ?? const <ObjectTag>[]) {
+        yield object.label;
       }
     }
   }
