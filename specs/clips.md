@@ -116,10 +116,17 @@ spot clicked
 - Tags are listed by frame: the frame's thumbnail and time (click it to tag
   more on that frame), then a chip per name: click to **rename**, × to
   **remove**. A frame is dropped once its last tag is removed.
+- **Where a tag came from** (`source`): someone's click (`manual`, the
+  default, not stored), [recognition](recognition.md) (`detected`, with its
+  `confidence`), a recognition **suggestion** waiting for an answer
+  (`suggested`: not a tag, left out of this list, the card and the maps),
+  or a suggestion someone confirmed (`confirmed`). Recognized tags show ✨
+  and their confidence on their chip ("Rex · 86 %").
 - **Stored with the event:** the clip event (`ClipRequested`) keeps a
   `ClipAnnotations`, saved in its record as
-  `annotations: [{id, name, x, y, frameId, frameMs}]` plus
-  `frames: {frameId: JPEG bytes}` (only frames some tag uses).
+  `annotations: [{id, name, x, y, frameId, frameMs, source?, confidence?}]`
+  plus `frames: {frameId: JPEG bytes}` (only frames some entry uses,
+  suggestions included).
   `Persistence` re-saves the event on every change and signals
   [cloud sync](cloud-sync.md), which uploads the frames as images beside the
   clip and the event JSON with the tags. Restores, including from the

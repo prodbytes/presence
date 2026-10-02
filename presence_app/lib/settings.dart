@@ -5,6 +5,7 @@ import 'app_version.dart';
 import 'config.dart';
 import 'location/device_location.dart';
 import 'location/location_settings.dart';
+import 'recognition/runtime.dart';
 
 /// The Settings screen (the Settings tab), full width.
 class SettingsView extends StatefulWidget {
@@ -84,6 +85,16 @@ class _SettingsViewState extends State<SettingsView> {
         final schedule = config.schedule;
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
+        final recognition = config.recognition;
+        void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
+            config.update((x) => x.copyWith(recognition: f(x.recognition)));
+        String percent(double v) => '${(v * 100).round()} %';
+        const confidenceSteps =
+            ((RecognitionConfig.maxConfidence -
+                        RecognitionConfig.minConfidence) /
+                    RecognitionConfig.step +
+                0.5) ~/
+            1;
         return ListView(
           key: const Key('settings-page'),
           physics: _mapHeld ? const NeverScrollableScrollPhysics() : null,
@@ -216,6 +227,47 @@ class _SettingsViewState extends State<SettingsView> {
               onChanged: (v) =>
                   setSubjects((s) => s.copyWith(mapEvents: v.round())),
             ),
+            const SizedBox(height: 16),
+            Text('Recognition', style: theme.textTheme.titleMedium),
+            SwitchListTile(
+              key: const Key('recognition-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Recognize subjects in new clips'),
+              subtitle: Text(
+                _recognitionSupported
+                    ? 'People and pets tagged before, found on this device'
+                    : 'Not available on this device yet',
+              ),
+              value: recognition.enabled && _recognitionSupported,
+              onChanged: _recognitionSupported
+                  ? (on) => setRecognition((r) => r.copyWith(enabled: on))
+                  : null,
+            ),
+            _LabeledSlider(
+              key: const Key('recognition-auto-slider'),
+              label: 'Tag automatically when at least',
+              valueLabel: '${percent(recognition.autoTag)} sure',
+              value: recognition.autoTag,
+              min: RecognitionConfig.minConfidence,
+              max: RecognitionConfig.maxConfidence,
+              divisions: confidenceSteps,
+              onChanged: recognition.enabled && _recognitionSupported
+                  ? (v) =>
+                        setRecognition((r) => r.copyWith(autoTag: _toStep(v)))
+                  : null,
+            ),
+            _LabeledSlider(
+              key: const Key('recognition-ask-slider'),
+              label: 'Ask me when at least',
+              valueLabel: '${percent(recognition.ask)} sure',
+              value: recognition.ask,
+              min: RecognitionConfig.minConfidence,
+              max: RecognitionConfig.maxConfidence,
+              divisions: confidenceSteps,
+              onChanged: recognition.enabled && _recognitionSupported
+                  ? (v) => setRecognition((r) => r.copyWith(ask: _toStep(v)))
+                  : null,
+            ),
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),
@@ -260,6 +312,13 @@ String formatEvery(Duration every) {
   if (hours == 0) return '$minutes min';
   return minutes == 0 ? '$hours h' : '$hours h $minutes min';
 }
+
+/// Whether subject recognition can run here (see `recognition/`).
+final bool _recognitionSupported = TfliteRuntime().supported;
+
+/// [v] rounded to the confidence sliders' 5 % steps.
+double _toStep(double v) =>
+    (v / RecognitionConfig.step).round() * RecognitionConfig.step;
 
 class _LabeledSlider extends StatelessWidget {
   const _LabeledSlider({

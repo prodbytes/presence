@@ -6,7 +6,8 @@
   apart.
 - Each event card shows an icon, a title, an optional detail line and the time
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
-  `ClipRequested` does.
+  `ClipRequested` does, and so does `SubjectSuggestion`, the **"Is this
+  Rex?"** question [recognition](recognition.md) asks, with Yes / No.
 - **Only this device, by default.** An **Only this device** filter chip
   (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
   launch: the timeline shows only
@@ -25,7 +26,9 @@
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
-    requested, Motion detected, Scheduled clip, Startup clip).
+    requested, Motion detected, Scheduled clip, Startup clip), and the
+    [recognition](recognition.md) suggestions about them ("Is this Rex?",
+    `SubjectSuggestion`), which wait for an answer.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
     the execution mode is known. The choice stays while switching tabs, but
     not across restarts. It always shows, even before the device ID is

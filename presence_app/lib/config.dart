@@ -18,6 +18,7 @@ class PresenceConfig {
     this.motion = const MotionConfig(),
     this.schedule = const ScheduleConfig(),
     this.subjects = const SubjectsConfig(),
+    this.recognition = const RecognitionConfig(),
   });
 
   static const int version = 1;
@@ -27,6 +28,7 @@ class PresenceConfig {
   final MotionConfig motion;
   final ScheduleConfig schedule;
   final SubjectsConfig subjects;
+  final RecognitionConfig recognition;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -34,12 +36,14 @@ class PresenceConfig {
     MotionConfig? motion,
     ScheduleConfig? schedule,
     SubjectsConfig? subjects,
+    RecognitionConfig? recognition,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
     motion: motion ?? this.motion,
     schedule: schedule ?? this.schedule,
     subjects: subjects ?? this.subjects,
+    recognition: recognition ?? this.recognition,
   );
 
   Map<String, Object?> toJson() => {
@@ -49,6 +53,7 @@ class PresenceConfig {
     'motion': motion.toJson(),
     'schedule': schedule.toJson(),
     'subjects': subjects.toJson(),
+    'recognition': recognition.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -60,6 +65,7 @@ class PresenceConfig {
     motion: MotionConfig.fromJson(_map(json['motion'])),
     schedule: ScheduleConfig.fromJson(_map(json['schedule'])),
     subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
+    recognition: RecognitionConfig.fromJson(_map(json['recognition'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -82,10 +88,12 @@ class PresenceConfig {
       other.camera == camera &&
       other.motion == motion &&
       other.schedule == schedule &&
-      other.subjects == subjects;
+      other.subjects == subjects &&
+      other.recognition == recognition;
 
   @override
-  int get hashCode => Object.hash(clip, camera, motion, schedule, subjects);
+  int get hashCode =>
+      Object.hash(clip, camera, motion, schedule, subjects, recognition);
 }
 
 /// How long clips are around the moment they're requested.
@@ -301,6 +309,66 @@ class SubjectsConfig {
   int get hashCode => mapEvents.hashCode;
 }
 
+/// Recognizing subjects on new clips (see `recognition/`): on or off, and
+/// how sure it must be to tag on its own, or to ask.
+@immutable
+class RecognitionConfig {
+  const RecognitionConfig({
+    this.enabled = true,
+    this.autoTag = defaultAutoTag,
+    this.ask = defaultAsk,
+  });
+
+  static const double minConfidence = 0.3;
+  static const double maxConfidence = 0.95;
+  static const double step = 0.05;
+  static const double defaultAutoTag = 0.8;
+  static const double defaultAsk = 0.5;
+
+  final bool enabled;
+
+  /// From this confidence (0 to 1) a recognized subject is tagged.
+  final double autoTag;
+
+  /// From this confidence, below [autoTag], a `SubjectSuggestion` asks
+  /// whether it's them. Never above [autoTag].
+  final double ask;
+
+  RecognitionConfig copyWith({bool? enabled, double? autoTag, double? ask}) {
+    final auto = (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence);
+    final asking = (ask ?? this.ask).clamp(minConfidence, maxConfidence);
+    return RecognitionConfig(
+      enabled: enabled ?? this.enabled,
+      autoTag: auto,
+      // Raising "ask" past "tag" would leave nothing to ask about.
+      ask: asking > auto ? auto : asking,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'enabled': enabled,
+    'autoTag': autoTag,
+    'ask': ask,
+  };
+
+  factory RecognitionConfig.fromJson(Map<String, Object?> json) =>
+      const RecognitionConfig().copyWith(
+        enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
+        autoTag: _num(json['autoTag']),
+        ask: _num(json['ask']),
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is RecognitionConfig &&
+      other.enabled == enabled &&
+      other.autoTag == autoTag &&
+      other.ask == ask;
+
+  @override
+  int get hashCode => Object.hash(enabled, autoTag, ask);
+}
+
 /// Holds the current [PresenceConfig] and notifies listeners when it
 /// changes. Owned by the app; the Settings screen, cameras, motion
 /// detection and persistence all read from it.
@@ -329,6 +397,7 @@ class ConfigController extends ChangeNotifier {
   MotionConfig get motion => _config.motion;
   ScheduleConfig get schedule => _config.schedule;
   SubjectsConfig get subjects => _config.subjects;
+  RecognitionConfig get recognition => _config.recognition;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

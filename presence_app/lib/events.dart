@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'location/device_location.dart';
+import 'recognition/suggestion.dart';
 
 /// Something that happened, shown in the Events timeline and saved to
 /// storage.
@@ -232,12 +233,15 @@ class EventTimeline extends StatefulWidget {
 
   /// Whether system events show (the [ShowSystemEvents] chip): on, every
   /// event, such as "Application started" and sign-ins; off, only grabs
-  /// ([ClipRequested]: a clip, by hand, on motion, at start or on a
-  /// schedule). Kept by the caller; defaults to an own one, on.
+  /// ([isGrab]: clips, by hand, on motion, at start or on a schedule, and
+  /// the suggestions about them). Kept by the caller; defaults to an own one, on.
   final ValueNotifier<bool>? showSystemEvents;
 
-  /// Whether [event] is a grab, shown even with system events hidden.
-  static bool isGrab(AppEvent event) => event is ClipRequested;
+  /// Whether [event] is a grab, shown even with system events hidden: a
+  /// clip, or a suggestion about one ("Is this Rex?"), which waits for an
+  /// answer.
+  static bool isGrab(AppEvent event) =>
+      event is ClipRequested || event is SubjectSuggestion;
 
   /// The ID of an event to scroll to and outline (an event opened from
   /// elsewhere, such as a subject's map). Setting it again, even to the
