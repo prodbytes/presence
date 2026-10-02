@@ -1596,3 +1596,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "Settings is full width" test became a check of the new layout at
       360 and 1280 px, with a drag beside the map that scrolls the list.
       254 Flutter tests pass.
+192. **Create a script to `curl | sh` that downloads, extracts and runs the
+    right Presence app; fall back to web if no native one works.**
+    (2026-10-02)
+    - Added [scripts/install.sh](../scripts/install.sh) (POSIX `sh`): the
+      latest GA's Linux bundle for x64 or arm64, sha256-checked when the
+      release API answers, kept in `~/.local/share/presence/<tag>/` and run;
+      otherwise, or when the download, the libraries, the display or the
+      app fail, it opens https://presence.nu01.com. See
+      [Install script](install-script.md); the README shows the command.
+    - Tested in Ubuntu 24.04 amd64 and arm64 containers (native run under
+      Xvfb, cache reuse, missing libraries, no display, no arm64 asset).
