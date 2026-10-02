@@ -1454,6 +1454,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       at the bottom.
     - Tests that used sliders further down now scroll to them. 212 Flutter
       tests pass.
+180. **Every time a clip is grabbed, detect whether it contains any
+    subject, with the best technology for each platform (TensorFlow, with
+    TensorFlow.js and Dart): recognize all subjects on the event, on the
+    first frame each appears.** Answers: above a configurable threshold,
+    tag automatically; with low confidence, emit an event asking the user
+    to tag; people by face with appearance as the fallback; web first,
+    then mobile. (2026-10-01)
+    - New [recognition.md](recognition.md): new clips are sampled every
+      0.5 s once recorded; EfficientDet-Lite0 finds people, cats and dogs,
+      BlazeFace and MobileFaceNet embed faces, MobileNetV3 embeds looks;
+      each is compared with the subjects' references (their latest vouched
+      tags' frames). From 80 % (Settings) a recognized tag, from 50 % a
+      suggestion and a "Is this Rex?" event with Yes / No.
+    - The same `.tflite` models on every platform, decoded and matched in
+      shared Dart; on web through TensorFlow.js (`tfjs-tflite`), served
+      with the app. Android and iOS come in the next PR.
+    - Tags have a source (manual, detected, suggested, confirmed) and a
+      confidence; suggestions aren't tags until confirmed. A Recognition
+      section in Settings.
+    - 233 Flutter tests pass, plus 3 in Chrome with the real models and a
+      real `MediaRecorder` WebM; web release builds.
 182. **Make the status message a pill beside the readiness pill instead of a
     separate line.** (2026-10-01)
     - The "Clip started · saving the next 15 s" message (and its motion,

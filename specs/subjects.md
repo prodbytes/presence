@@ -6,7 +6,9 @@ and pets"), each with where the device was when they were seen
 
 ## Who is a subject
 
-- Every **name tagged on a clip** is a subject. Tags with the same name,
+- Every **name tagged on a clip** is a subject, whether someone tagged it
+  or [recognition](recognition.md) did; a recognition **suggestion** counts
+  only once someone confirms it. Tags with the same name,
   ignoring case and surrounding spaces, are the same subject ("Rex" and
   " rex "). The name shows as written on the latest event.
 - A subject's **events** are the clip events (`ClipRequested`) with that

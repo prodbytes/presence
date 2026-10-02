@@ -384,6 +384,11 @@ Future<void> scrollSettingsTo(WidgetTester tester, Finder finder) async {
     );
     await tester.pumpAndSettle();
   }
-  await tester.ensureVisible(finder);
+  // Centered, so what's just above and below shows too.
+  final scrolled = Scrollable.ensureVisible(
+    tester.element(finder),
+    alignment: 0.5,
+  );
   await tester.pumpAndSettle();
+  await scrolled;
 }
