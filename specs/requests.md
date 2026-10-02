@@ -1475,3 +1475,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       section in Settings.
     - 233 Flutter tests pass, plus 3 in Chrome with the real models and a
       real `MediaRecorder` WebM; web release builds.
+181. **Increase the font size of the dev tag.** (2026-10-01)
+    - The "dev" label's text is 14 sp (`labelLarge`, was 11 sp
+      `labelSmall`), with a little more padding (8 × 2 dp). It still cuts
+      short with an ellipsis where there's no room.
