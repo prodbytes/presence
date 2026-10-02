@@ -39,13 +39,16 @@
   - A **Recognize subjects in new clips** switch (default on). Where there's
     no runtime (iOS for now) it's off and disabled, and says
     "Not available on this device yet".
+  - A **Tag objects in new clips** switch (default on), "Human, cat, dog,
+    bicycle, bottle… for search": the [object tags](recognition.md).
+    Disabled the same way where there's no runtime.
   - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
     default **80 %**.
   - **Ask me when at least** 30–95 % sure, default **50 %**; never above
     the first (raising it past it stops at it, and lowering the first
     lowers it).
-  - Both sliders are off while the switch is. Stored as
-    `recognition: {enabled, autoTag, ask}`.
+  - Both sliders are off while the subjects switch is. Stored as
+    `recognition: {enabled, objects, autoTag, ask}`.
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

@@ -8,6 +8,29 @@
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
   `ClipRequested` does, and so does `SubjectSuggestion`, the **"Is this
   Rex?"** question [recognition](recognition.md) asks, with Yes / No.
+- **Search.** A **Search events** field (`EventSearch`) sits at the top
+  left of the Monitoring tab, 220 dp wide, on the same row as the filter
+  chips (before them); on a narrow phone the chips wrap onto the rows
+  below it. Typing filters the timeline live, ignoring case and the spaces
+  around the text: an event shows if its **title**, **detail**, **camera
+  label** or, for a clip, **the name of someone tagged on it** or **one of
+  its [object tags](recognition.md)** (`cat`, `bicycle`…) contains the
+  text. Suggestions waiting for an answer aren't tags, so they don't
+  match a clip; the "Is this Rex?" event matches through its own title,
+  and its clip's camera label. An **x** in the field clears it; blank,
+  every event shows, as before.
+  - The search works together with the chips: an event shows only if it
+    passes both. With nothing matching, the timeline says
+    `No events match "<text>"`.
+  - The text stays while switching tabs, but not across restarts.
+  - **Opening an event the search hides** from elsewhere clears it, so the
+    event can show.
+  - What's searched is one function, `eventSearchFields` (used by
+    `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
+    a new searchable field is one more line there.
+  - While searching, the list also matches again whenever a clip's tags
+    or object tags change, so a clip recognition tags after the search was
+    typed shows up then.
 - **Only this device, by default.** An **Only this device** filter chip
   (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
   launch: the timeline shows only
@@ -21,7 +44,7 @@
   - **Opening an event of another device** from elsewhere (see below)
     clears the chip, so the event can show.
 - **Show system events: on in DEV, off otherwise.** A **Show system
-  events** filter chip (`ShowSystemEvents`), next to Only this device,
+  events** filter chip (`ShowSystemEvents`), after Only this device,
   decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;

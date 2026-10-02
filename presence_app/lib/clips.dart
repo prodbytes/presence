@@ -184,7 +184,8 @@ class ClipRequested extends AppEvent {
   final VideoClip clip;
   final ClipTrigger trigger;
 
-  /// The people and pets named in this clip (edited under the player).
+  /// The people and pets named in this clip (edited under the player), and
+  /// the objects recognition saw on it.
   final ClipAnnotations annotations;
 
   /// `partial` while only the "before" part exists, `complete` once the
@@ -201,6 +202,9 @@ class ClipRequested extends AppEvent {
     // The clicked frames (JPEG bytes, by id). Kept in the local record;
     // cloud sync uploads them as images next to the clip instead.
     if (!annotations.isEmpty) 'frames': annotations.framesToRecord(),
+    // What recognition saw (for search); absent until the clip is searched.
+    if (annotations.objects case final objects?)
+      'objectTags': [for (final o in objects) o.toJson()],
   };
 
   @override
@@ -279,6 +283,7 @@ class ClipEventCard extends StatelessWidget {
                 style: theme.textTheme.bodySmall,
               ),
               EventSubjects(event: event),
+              ClipObjectTags(annotations: event.annotations),
             ],
           ),
         );
@@ -693,7 +698,7 @@ String autoTagMessage(RecognitionResult result) {
   String names(List<String> n) => n.length == 1
       ? n.single
       : '${n.sublist(0, n.length - 1).join(', ')} and ${n.last}';
-  return switch (result) {
+  final subjects = switch (result) {
     RecognitionResult(outcome: RecognitionOutcome.unsupported) =>
       'Recognition is not available on this device yet.',
     RecognitionResult(outcome: RecognitionOutcome.noReferences) =>
@@ -709,6 +714,52 @@ String autoTagMessage(RecognitionResult result) {
             ' in the events.',
     ].join(' '),
   };
+  if (result.objects.isEmpty) return subjects;
+  return '$subjects Also saw: ${result.objects.join(', ')}.';
+}
+
+/// A clip's object tags (`human`, `cat`, `bicycle`…), as small chips, by
+/// first sighting; nothing until it's been searched, or if nothing was seen.
+class ClipObjectTags extends StatelessWidget {
+  const ClipObjectTags({super.key, required this.annotations});
+
+  final ClipAnnotations annotations;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: annotations,
+    builder: (context, _) {
+      final objects = annotations.objects ?? const [];
+      if (objects.isEmpty) return const SizedBox.shrink();
+      final theme = Theme.of(context);
+      final scheme = theme.colorScheme;
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Wrap(
+          key: const Key('clip-objects'),
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final o in objects)
+              Container(
+                key: Key('clip-object-${o.label}'),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  border: Border.all(color: scheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  o.label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 /// A grabbed frame, with markers for its tags; a click anywhere on it
