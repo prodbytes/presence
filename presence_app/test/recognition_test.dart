@@ -100,21 +100,37 @@ class FakeSampler implements ClipFrameSampler {
   }
 }
 
-/// Answers from a script: per frame (by image width), who's there.
+/// Answers from a script: per frame (by image width), who's there, and
+/// which [objects].
 class FakeVision implements Vision {
-  FakeVision(this.frames, this.references);
+  FakeVision(this.frames, this.references, {this.objects = const {}});
 
   final Map<int, List<Seen>> frames;
 
   /// For reference frames (decoded as 1000 + n wide).
   final Map<int, List<Seen>> references;
+  final Map<int, Map<String, double>> objects;
+
+  /// Pictures analysed for subjects (embeddings), and frames at all.
   int calls = 0;
+  int frameCalls = 0;
 
   @override
-  Future<List<Seen>> analyse(RgbaImage image, {bool faces = true}) async {
-    calls++;
-    if (image.width >= 1000) return references[image.width - 1000] ?? [];
-    return frames[image.width - 1] ?? [];
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+  }) async {
+    if (subjects) calls++;
+    if (image.width >= 1000) {
+      return FrameAnalysis(seen: references[image.width - 1000] ?? []);
+    }
+    frameCalls++;
+    final i = image.width - 1;
+    return FrameAnalysis(
+      seen: subjects ? frames[i] ?? [] : const [],
+      objects: objects[i] ?? const {},
+    );
   }
 }
 
@@ -146,6 +162,23 @@ void main() {
         closeTo(anchors[15000 * 4 + 1] + 0.5 * anchors[15000 * 4 + 3], 1e-6),
       );
       expect(person.box.height, closeTo(anchors[15000 * 4 + 2], 1e-6));
+    });
+
+    test('object tags: every known label, its best score, once', () {
+      final n = efficientDetAnchors.length ~/ 4;
+      final scores = Float32List(n * cocoClasses);
+      scores[10 * cocoClasses + 1] = 0.7; // bicycle
+      scores[20 * cocoClasses + 1] = 0.9; // a better bicycle
+      scores[30 * cocoClasses + 43] = 0.6; // bottle
+      scores[40 * cocoClasses] = 0.8; // a person: "human"
+      scores[50 * cocoClasses + 17] = 0.45; // a dog, too unsure
+      scores[60 * cocoClasses + 11] = 0.99; // unused class
+      final found = decodeObjects(scores);
+      expect(found.keys.toSet(), {'bicycle', 'bottle', 'human'});
+      expect(found['bicycle'], closeTo(0.9, 1e-6));
+      expect(cocoLabels, hasLength(80));
+      expect(cocoLabels[16], 'cat');
+      expect(cocoLabels[17], 'dog');
     });
 
     test('BlazeFace: box and eyes from an anchor, as fractions', () {
@@ -322,13 +355,19 @@ void main() {
     test('recognition settings: defaults, limits, ask under tag', () {
       const r = RecognitionConfig();
       expect(r.enabled, isTrue);
+      expect(r.objects, isTrue);
       expect(r.autoTag, 0.8);
       expect(r.ask, 0.5);
       expect(r.copyWith(autoTag: 2).autoTag, RecognitionConfig.maxConfidence);
       expect(r.copyWith(ask: 0.9).ask, 0.8);
       expect(r.copyWith(autoTag: 0.4).ask, 0.4);
       final config = const PresenceConfig().copyWith(
-        recognition: r.copyWith(enabled: false, autoTag: 0.9, ask: 0.6),
+        recognition: r.copyWith(
+          enabled: false,
+          objects: false,
+          autoTag: 0.9,
+          ask: 0.6,
+        ),
       );
       expect(PresenceConfig.fromJson(config.toJson()), config);
       expect(PresenceConfig.fromJson({'version': 1}).recognition, r);
@@ -372,6 +411,30 @@ void main() {
       expect(a.byId(suggested.id)!.source, TagSource.confirmed);
       expect(TagSource.confirmed.vouched, isTrue);
       expect(TagSource.detected.vouched, isFalse);
+    });
+
+    test('object tags round-trip with the clip; none until searched', () {
+      final event = ClipRequested(clip(), id: 'c1');
+      expect(event.toRecord().containsKey('objectTags'), isFalse);
+      event.annotations.setObjects(const [
+        ObjectTag(label: 'cat', ms: 1500, score: 0.6),
+      ]);
+      final record = event.toRecord();
+      expect(record['objectTags'], [
+        {'label': 'cat', 'ms': 1500, 'score': 0.6},
+      ]);
+      final back = ClipAnnotations.fromJson(null, null, record['objectTags']);
+      expect(back.objects, event.annotations.objects);
+      expect(ClipAnnotations.fromJson(null).objects, isNull);
+      // Searched, nothing seen: kept as such.
+      expect(ClipAnnotations.fromJson(null, null, []).objects, isEmpty);
+      expect(
+        ClipAnnotations.fromJson(null, null, [
+          {'label': '', 'ms': 0, 'score': 1},
+          'junk',
+        ]).objects,
+        isEmpty,
+      );
     });
 
     test('subjects leave out suggestions', () {
@@ -559,13 +622,89 @@ void main() {
       ]);
       final vision = FakeVision({}, {});
       config.update(
-        (c) => c.copyWith(recognition: c.recognition.copyWith(enabled: false)),
+        (c) => c.copyWith(
+          recognition: c.recognition.copyWith(enabled: false, objects: false),
+        ),
       );
-      await recognizer(
-        vision,
-        FakeSampler(1),
-      ).recognize(ClipRequested(clip(), id: 'new'));
-      expect(vision.calls, 0);
+      final event = ClipRequested(clip(), id: 'new');
+      await recognizer(vision, FakeSampler(1)).recognize(event);
+      expect(vision.calls + vision.frameCalls, 0);
+      expect(event.annotations.objects, isNull);
+    });
+
+    test('object tags: each label once, from its first frame', () async {
+      // Nobody tagged before: only the object tags' segment runs.
+      final vision = FakeVision(
+        {},
+        {},
+        objects: {
+          0: {'human': 0.7},
+          1: {'cat': 0.6, 'human': 0.9},
+          3: {'bicycle': 0.8, 'cat': 0.95},
+        },
+      );
+      final r = recognizer(vision, FakeSampler(4));
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await r.recognize(event);
+      expect(result.outcome, RecognitionOutcome.noReferences);
+      expect(result.objects, ['human', 'cat', 'bicycle']);
+      expect(event.annotations.objects, const [
+        ObjectTag(label: 'human', ms: 1000, score: 0.7),
+        ObjectTag(label: 'cat', ms: 1500, score: 0.6),
+        ObjectTag(label: 'bicycle', ms: 2500, score: 0.8),
+      ]);
+      expect(vision.frameCalls, 4, reason: 'the whole clip');
+      expect(vision.calls, 0, reason: 'nobody to embed');
+      expect(event.annotations.isEmpty, isTrue, reason: 'no subject tags');
+
+      // Searched once: not again, not even on request.
+      await r.recognize(event);
+      final again = await r.recognizeNow(event);
+      expect(again.objects, isEmpty);
+      expect(vision.frameCalls, 4);
+    });
+
+    test('object tags keep going once every subject is found', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          0: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+        objects: {
+          2: {'dog': 0.8},
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await recognizer(vision, FakeSampler(3)).recognize(event);
+      expect(result.tagged, ['Rex']);
+      expect(result.objects, ['dog']);
+      // One reference, then subjects on the first frame only.
+      expect(vision.calls, 2);
+      expect(vision.frameCalls, 3);
+    });
+
+    test('object tags off: subjects only, and nothing stored', () async {
+      config.update(
+        (c) => c.copyWith(recognition: c.recognition.copyWith(objects: false)),
+      );
+      final vision = FakeVision(
+        {},
+        {},
+        objects: {
+          0: {'cat': 0.9},
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await recognizer(vision, FakeSampler(2)).recognize(event);
+      expect(result.outcome, RecognitionOutcome.noReferences);
+      expect(vision.frameCalls, 0);
+      expect(event.annotations.objects, isNull);
     });
     test('on request it runs even when off, and says what it found', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
@@ -683,6 +822,9 @@ void main() {
         {
           1: [seenAt(body, face: 0)],
         },
+        objects: {
+          0: {'cat': 0.9},
+        },
       ),
       decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
     );
@@ -699,11 +841,31 @@ void main() {
     expect(auto, findsOneWidget);
     await tester.tap(auto);
     for (var i = 0; i < 20; i++) {
-      await tester.pump();
+      // Recognition yields to the app between frames.
+      await tester.pump(const Duration(milliseconds: 1));
     }
-    expect(find.text('Tagged Rex.'), findsOneWidget);
+    expect(find.text('Tagged Rex. Also saw: cat.'), findsOneWidget);
     expect(find.textContaining('Rex · 100 %'), findsOneWidget);
     expect(event.annotations.tags.single.source, TagSource.detected);
+    expect(event.annotations.objects!.single.label, 'cat');
+  });
+
+  testWidgets("the clip's card shows its object tags", (tester) async {
+    final event = ClipRequested(clip(), id: 'c');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ClipEventCard(event: event)),
+      ),
+    );
+    expect(find.byKey(const Key('clip-objects')), findsNothing);
+    event.annotations.setObjects(const [
+      ObjectTag(label: 'human', ms: 0, score: 0.9),
+      ObjectTag(label: 'bicycle', ms: 500, score: 0.7),
+    ]);
+    await tester.pump();
+    expect(find.byKey(const Key('clip-object-human')), findsOneWidget);
+    expect(find.byKey(const Key('clip-object-bicycle')), findsOneWidget);
+    expect(find.text('bicycle'), findsOneWidget);
   });
 
   testWidgets('Auto is off where recognition cannot run', (tester) async {
