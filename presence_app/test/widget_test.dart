@@ -9,6 +9,7 @@ import 'package:presence_app/camera_feeds.dart' show describeCameraError;
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/tab_memory.dart';
 import 'package:presence_app/theme.dart';
 
 import 'fakes.dart';
@@ -107,6 +108,83 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  group('a browser refresh keeps the tab', () {
+    Future<void> launch(
+      WidgetTester tester,
+      TabMemory memory, {
+      FakeAuthService? auth,
+      FakeRolesClient? roles,
+    }) async {
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        PresenceApp(
+          // A new key is a fresh app, like a reload.
+          key: UniqueKey(),
+          consentGiven: true,
+          cameras: noCameras,
+          auth: auth ?? FakeAuthService.signedIn(),
+          rolesClient: roles ?? FakeRolesClient(),
+          mapTiles: const SizedBox(),
+          locator: NoLocation(),
+          tabMemory: memory,
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('it opens on the tab it was on, and remembers each one', (
+      tester,
+    ) async {
+      final memory = InMemoryTabMemory();
+      await launch(tester, memory);
+      expect(tabs(tester).index, HomeTab.camera.index);
+      expect(memory.tab, isNull, reason: 'nothing chosen yet');
+
+      await openTab(tester, 'Settings');
+      expect(memory.tab, 'settings');
+      await launch(tester, memory);
+      expect(tabs(tester).index, HomeTab.settings.index);
+      expect(find.byKey(const Key('settings-page')), findsOneWidget);
+
+      await openTab(tester, 'Monitoring');
+      expect(memory.tab, 'monitoring');
+      await launch(tester, memory);
+      expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
+
+      await openTab(tester, 'Camera');
+      await launch(tester, memory);
+      expect(tabs(tester).index, HomeTab.camera.index);
+    });
+
+    testWidgets('an unknown tab, or no access, opens on the camera', (
+      tester,
+    ) async {
+      await launch(tester, InMemoryTabMemory('nowhere'));
+      expect(tabs(tester).index, HomeTab.camera.index);
+
+      // Signed out: no tabs to go back to, so the camera, and the memory
+      // is kept for when there's access.
+      final memory = InMemoryTabMemory('settings');
+      await launch(tester, memory, auth: FakeAuthService());
+      expect(find.byType(TabBar), findsNothing);
+      expect(find.byKey(const Key('settings-page')), findsNothing);
+      expect(memory.tab, 'settings');
+
+      // Once signed in (and the roles load), back to it.
+      final auth = FakeAuthService();
+      await launch(tester, memory, auth: auth);
+      await auth.signIn();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(tabs(tester).index, HomeTab.settings.index);
+    });
+  });
 
   testWidgets('each tab flips to its own screen', (tester) async {
     await pumpAt(tester, const Size(1280, 800));

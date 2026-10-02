@@ -33,6 +33,7 @@ import 'recognition/recognizer.dart';
 import 'settings.dart';
 import 'status_pill.dart';
 import 'system_health.dart';
+import 'tab_memory.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
@@ -49,6 +50,7 @@ class PresenceApp extends StatefulWidget {
     this.storage,
     this.mediaIo,
     this.now,
+    this.tabMemory,
     this.auth,
     this.cloud,
     this.rolesClient,
@@ -90,6 +92,10 @@ class PresenceApp extends StatefulWidget {
 
   /// Overrides the clock (used by tests).
   final DateTime Function()? now;
+
+  /// Overrides where the open tab is remembered across refreshes (used by
+  /// tests).
+  final TabMemory? tabMemory;
 
   /// Overrides sign-in (used by tests); defaults to Google.
   final AuthService? auth;
@@ -355,6 +361,7 @@ class _PresenceAppState extends State<PresenceApp> {
               battery: widget.battery,
               join: _join,
               onJoinHandled: _joinHandled,
+              tabMemory: widget.tabMemory,
             ),
           },
         ),
@@ -400,7 +407,12 @@ class HomeScreen extends StatefulWidget {
     this.battery,
     this.join,
     this.onJoinHandled,
+    this.tabMemory,
   });
+
+  /// Where the open tab is remembered, so a browser refresh comes back to
+  /// it; defaults to the platform's ([TabMemory]).
+  final TabMemory? tabMemory;
 
   /// The link this device was opened with to become one of a user's
   /// devices ([JoinLink]), until handled: a banner says what's left to do.
@@ -458,7 +470,28 @@ class _HomeScreenState extends State<HomeScreen>
   late final TabController _tabs = TabController(
     length: HomeTab.values.length,
     vsync: this,
-  )..addListener(() => setState(() {}));
+  )..addListener(_onTabChanged);
+
+  late final TabMemory _tabMemory = widget.tabMemory ?? TabMemory();
+
+  /// The tab open before a refresh, until the tabs can show (access is
+  /// known only once the roles load).
+  HomeTab? _restoreTab;
+
+  void _onTabChanged() {
+    if (!_tabs.indexIsChanging) {
+      _tabMemory.write(HomeTab.values[_tabs.index].name);
+    }
+    setState(() {});
+  }
+
+  /// Opens the tab remembered from before a refresh, once there's access.
+  void _restore() {
+    final tab = _restoreTab;
+    if (tab == null || !_hasAccess) return;
+    _restoreTab = null;
+    _tabs.index = tab.index;
+  }
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
 
@@ -514,11 +547,14 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
+    _restoreTab = HomeTab.values.asNameMap()[_tabMemory.read()];
+    _restore();
   }
 
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    _restore();
     if (mounted) setState(() {});
   }
 
@@ -528,6 +564,7 @@ class _HomeScreenState extends State<HomeScreen>
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    _restore();
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
       _showMessage(

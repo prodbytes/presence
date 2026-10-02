@@ -1678,3 +1678,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (`linux-x64`, `linux-arm64`) for the job and artifact names.
     - Releases carry `presence-<tag>-linux-x64.tar.gz` and
       `presence-<tag>-linux-arm64.tar.gz`.
+199. **Make a browser refresh keep the same view (camera / events /
+    settings).** (2026-10-02)
+    - The open tab is remembered in the browser tab's `sessionStorage`
+      (`TabMemory`), and restored on load once there's access; a new
+      browser tab still starts on the Camera, and the apps are unchanged.
+    - Tests: restored after a reload for each tab, an unknown value or no
+      access opens on the camera, and signing in later goes back to it;
+      the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
+      release builds.
