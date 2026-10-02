@@ -1561,3 +1561,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       player the app's recognizer. The title and buttons wrap on narrow
       dialogs.
     - 238 Flutter tests pass; web release builds.
+188. **Merge (#120, recognition on Android), clean, update Y, rebuild.**
+    (2026-10-02)
+    - #120 was already merged. Removed the recognition worktree and the
+      merged branches.
+    - Y is now 5 (`version.Y.txt`): versions are `0.5.Z`.
+    - Rebuilt from `main` after `flutter clean`: `make` (web, Android
+      release APK, iOS unsigned), and the dev services restarted.
