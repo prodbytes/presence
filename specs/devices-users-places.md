@@ -27,7 +27,8 @@ not built yet.
 - **Consent:** right after the ID is known, the device must have a
   [recording consent](consent.md), asked once, before anything shows or
   records.
-- **Settings shows it**, small and selectable, under the version (see
+- **Settings always shows it**, small and selectable, under the version
+  and above the profile ID (see
   [Settings screen](settings.md)), above the Location section with where
   the device is (see [Device location and battery](device-location.md)).
 - **Adding a device:** Settings' **Add a device** shows a QR code and a

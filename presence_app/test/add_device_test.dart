@@ -9,7 +9,9 @@ import 'package:presence_app/auth/auth_service.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/identity/join_link.dart';
+import 'package:presence_app/config.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/settings.dart';
 
 import 'fakes.dart';
 
@@ -143,6 +145,61 @@ void main() {
           find.byKey(const Key('device-id'), skipOffstage: false),
         )
         .data!;
+
+    testWidgets('Settings always shows the device and profile IDs', (
+      tester,
+    ) async {
+      final roles = FakeRolesClient();
+      await launch(tester, roles: roles);
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+      expect(deviceIdShown(tester), matches(DeviceId.pattern));
+      expect(find.text('Device '), findsOneWidget);
+      expect(find.text('Profile '), findsOneWidget);
+      expect(
+        tester.widget<SelectableText>(find.byKey(const Key('profile-id'))).data,
+        'automatic-paranoid-axolotl',
+      );
+      // The device ID comes first, then the profile ID.
+      expect(
+        tester.getTopLeft(find.byKey(const Key('profile-id'))).dy,
+        greaterThan(tester.getTopLeft(find.byKey(const Key('device-id'))).dy),
+      );
+    });
+
+    testWidgets('without a profile, Settings says why', (tester) async {
+      final roles = FakeRolesClient()..profile = null;
+      await launch(tester, roles: roles);
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+      expect(find.text('unavailable'), findsOneWidget);
+
+      final dev = FakeRolesClient()..mode = ExecutionMode.dev;
+      await launch(tester, auth: FakeAuthService(), roles: dev);
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+      expect(find.text('none in DEV'), findsOneWidget);
+      expect(deviceIdShown(tester), matches(DeviceId.pattern));
+    });
+
+    testWidgets('before the device ID loads, Settings says so', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SettingsView(
+              config: ConfigController(),
+              noProfile: 'not signed in',
+            ),
+          ),
+        ),
+      );
+      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+      expect(find.text('loading…'), findsOneWidget);
+      expect(find.text('not signed in'), findsOneWidget);
+    });
 
     testWidgets('Settings ends with a QR code for this device and user', (
       tester,

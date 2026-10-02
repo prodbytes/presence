@@ -1674,3 +1674,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (2 new); `sam validate --lint` passes. In local Floci, the deployed
       `AuthFunction` created a profile and link, and returned the same
       profile on the second call.
+196. **Always show the device ID and the profile ID on the Settings view.**
+    (2026-10-02)
+    - Under the version, two labelled lines, always there: **Device**
+      `automatic_paranoid_gadget` (*loading…* until known) and **Profile**
+      `huge-wavy-darter` (or why there's none: *none in DEV*,
+      *checking…*, *not signed in*, *unavailable*). The IDs stay
+      selectable (`device-id`, `profile-id` keys).
+    - `SettingsView` takes `profileId` and `noProfile`; the home screen
+      passes `RolesService.profile` and the reason.
+    - Stacked on #133 (profiles). 272 Flutter tests pass (3 new in
+      `add_device_test.dart`); the web release builds.
