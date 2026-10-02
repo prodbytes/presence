@@ -25,7 +25,9 @@ the separate Events and Subjects tabs.
   - **left:** the **map of every subject's events**, in a rounded,
     outlined frame: each subject in its own color, the newest dot solid
     and older ones fading, and **the subject's name beside their newest
-    dot**, in a pill edged in their color. Tapping a name opens the
+    dot**, in a pill edged in their color. It opens **centered on the
+    newest event, zoomed out to show all of them**, with **zoom buttons**
+    (see [Subjects](subjects.md#the-maps-view)). Tapping a name opens the
     subject's screen (their map and history of events; see
     [Subjects](subjects.md));
   - **right:** **all events**, newest first, as cards; a clip's card lists
