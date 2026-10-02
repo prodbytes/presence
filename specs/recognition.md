@@ -7,9 +7,13 @@ surely is tagged on the clip; whoever only might be is asked about
 
 ## When it runs
 
-- On each **new clip** (pressed, motion, scheduled or startup), once its
-  **full recording** is saved. Clips run one at a time, in the background,
-  on the device that recorded them. Restored and synced clips aren't run.
+- On each **new clip** (pressed, motion, scheduled or startup), once it's
+  **fully recorded** (before + after) and saved. Only then is it queued:
+  clips run one at a time, in the background, on the device that recorded
+  them, and one still recording doesn't hold up the others (nor Auto on
+  another clip). Restored and synced clips aren't run.
+- A new clip already searched with **Auto** while it was recording isn't
+  searched again once it's done.
 - Only with **Recognize subjects in new clips** on (Settings, default on)
   and on a platform that has the runtime: **web** and **Android**. iOS
   comes next, with the same models (see [Platforms](platforms.md)).
@@ -146,7 +150,11 @@ surely is tagged on the clip; whoever only might be is asked about
   used), stops once everyone's found, skips who's tagged, never learns from
   recognized tags, and does nothing when off; the card's Yes and No; on
   request it runs even when off and reports who it tagged and asked
-  about, then that everyone is on the clip; nobody to look for (none
+  about, then that everyone is on the clip; a new clip published while
+  recording isn't searched until its full recording is done, Auto on
+  another clip runs meanwhile, and its subject is tagged once, on the
+  first frame they're on; a new clip searched with Auto isn't searched
+  again; nobody to look for (none
   tagged, or the tag points at nobody) and nobody found; a failed model
   load doesn't block the next run; the player's Auto tags a sure match and
   says so; Auto disabled where recognition can't run, and fitting a
@@ -177,7 +185,7 @@ surely is tagged on the clip; whoever only might be is asked about
   - the recognizer, all real: Grace Hopper tagged on her photo, then a new
     3 s clip where she appears at 1 s gets a recognized "Grace" tag (100 %)
     on the 1.0 s frame, on her, and stops there (0.9 s in all).
-- 253 Flutter tests pass (with the Auto button's), plus the 3 in Chrome and the 3 on Android. Web
+- 256 Flutter tests pass, plus the 3 in Chrome and the 3 on Android. Web
   release, Android debug and release builds compile (the release APK
   carries LiteRT's libraries for arm64, armv7 and x86_64).
   Not yet tried end to end in the app with a camera, nor on a phone.

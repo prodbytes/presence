@@ -1596,3 +1596,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "Settings is full width" test became a check of the new layout at
       360 and 1280 px, with a drag beside the map that scrolls the list.
       254 Flutter tests pass.
+192. **After a clip is fully recorded (before + after), run the recognition
+    pipeline to identify subjects: same rule, first frame matching only, no
+    duplicates.** (2026-10-02)
+    - New clips were already searched, but each was queued the moment it
+      was published and then waited in the queue for its "after" part, so
+      a clip still recording held up the others and the player's Auto. Now
+      a new clip is queued only once its full recording is saved.
+    - Same rules as Auto: a subject is tagged (or asked about) once, on the
+      first frame they're found on; subjects already on the clip are
+      skipped. A new clip already searched with Auto while recording isn't
+      searched again.
+    - Two new recognizer tests drive it through the event bus with a clip
+      still recording. 256 Flutter tests pass.
