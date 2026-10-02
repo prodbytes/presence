@@ -29,6 +29,7 @@ import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'monitoring.dart';
+import 'recognition/recognizer.dart';
 import 'settings.dart';
 import 'status_pill.dart';
 import 'system_health.dart';
@@ -115,6 +116,7 @@ class _PresenceAppState extends State<PresenceApp> {
   late final Persistence _persistence;
   late final CameraRig _rig;
   late final LocationController _location;
+  late final SubjectRecognizer _recognizer;
 
   @override
   void initState() {
@@ -146,6 +148,8 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _location.init().ignore();
+    // Finds the subjects on each new clip once it's recorded.
+    _recognizer = SubjectRecognizer(bus: _bus, log: _log, config: _config);
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -309,6 +313,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.dispose();
     _roles.dispose();
     _location.dispose();
+    _recognizer.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -438,6 +443,9 @@ class HomeScreen extends StatefulWidget {
   /// (an admin's, with its extra button, on a 320 dp phone).
   static const double minTabWidth = 40;
 
+  /// How long a message over the camera stays.
+  static const Duration messageFor = Duration(seconds: 4);
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -467,6 +475,11 @@ class _HomeScreenState extends State<HomeScreen>
   /// The Monitoring tab's "Only this device" checkbox: on at launch, and kept
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
+
+  /// The Monitoring tab's "Show system events" chip: on in DEV, off
+  /// otherwise (only grabs), and kept while switching tabs. Made on first
+  /// use, once the execution mode is known.
+  late final _showSystemEvents = ValueNotifier(_dev);
 
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
   /// the tabs (a subject's).
@@ -510,8 +523,14 @@ class _HomeScreenState extends State<HomeScreen>
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Sign-in failed: $error')));
+      _showMessage(
+        CameraMessage(
+          icon: Icons.error_outline,
+          label: 'Sign-in failed: $error',
+          error: true,
+        ),
+        elsewhere: true,
+      );
     }
     _shownError = error;
     setState(() {});
@@ -537,14 +556,14 @@ class _HomeScreenState extends State<HomeScreen>
       final email = widget.auth.user?.email;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              email == null
-                  ? 'Presence is open on this device: ${widget.deviceId}'
-                  : 'This device is now one of $email\'s: ${widget.deviceId}',
-            ),
+        _showMessage(
+          CameraMessage(
+            icon: Icons.devices,
+            label: email == null
+                ? 'Presence is open on this device: ${widget.deviceId}'
+                : 'This device is now one of $email\'s: ${widget.deviceId}',
           ),
+          elsewhere: true,
         );
         widget.onJoinHandled?.call();
       });
@@ -552,13 +571,39 @@ class _HomeScreenState extends State<HomeScreen>
     return status;
   }
 
+  /// The message over the camera, a pill after the readiness pill, for
+  /// [HomeScreen.messageFor]; null when there's none.
+  CameraMessage? _message;
+  Timer? _messageTimer;
+
+  /// Shows [message]: on the Camera tab as a pill after the readiness one,
+  /// so nothing over the camera moves or is covered; a newer message
+  /// replaces it. On the other tabs, a snackbar if [elsewhere], else
+  /// nothing.
+  void _showMessage(CameraMessage message, {bool elsewhere = false}) {
+    if (!_onCamera) {
+      if (elsewhere) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message.label)));
+      }
+      return;
+    }
+    _messageTimer?.cancel();
+    _messageTimer = Timer(HomeScreen.messageFor, () {
+      if (mounted) setState(() => _message = null);
+    });
+    setState(() => _message = message);
+  }
+
   @override
   void dispose() {
     widget.auth.removeListener(_onAuthChanged);
     widget.roles.removeListener(_onAccessChanged);
     _clipEvents?.cancel();
+    _messageTimer?.cancel();
     _focusedEvent.dispose();
     _thisDeviceOnly.dispose();
+    _showSystemEvents.dispose();
     _battery.dispose();
     _tabs.dispose();
     super.dispose();
@@ -584,25 +629,14 @@ class _HomeScreenState extends State<HomeScreen>
       ClipTrigger.startup => 'Startup clip',
       ClipTrigger.manual => 'Clip started',
     };
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('$started · saving the next $after s'),
-          // A brief pop; for motion clips, the readiness pill carries the
-          // cooldown after it. (With an action, snackbars otherwise stay
-          // until dismissed.)
-          persist: false,
-          duration: const Duration(seconds: 4),
-          // The events tab is only there with access.
-          action: _hasAccess
-              ? SnackBarAction(
-                  label: 'View',
-                  onPressed: () => _tabs.animateTo(HomeTab.monitoring.index),
-                )
-              : null,
-        ),
-      );
+    // For motion clips, the readiness pill carries the cooldown after it.
+    _showMessage(
+      CameraMessage(
+        icon: event.icon,
+        label: '$started · saving the next $after s',
+        opensEvents: true,
+      ),
+    );
   }
 
   /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
@@ -757,6 +791,7 @@ class _HomeScreenState extends State<HomeScreen>
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   thisDeviceOnly: _thisDeviceOnly,
+                  showSystemEvents: _showSystemEvents,
                 ),
               ),
               // Full width, with the device's location map.
@@ -783,10 +818,25 @@ class _HomeScreenState extends State<HomeScreen>
               ),
             ],
           ),
-          // Bottom left, across from Flip and Clip: the battery and whether
-          // a clip now would be complete. Signed out, nothing.
-          if (_onCamera && _hasAccess)
-            _CameraStatus(rig: widget.rig, battery: _battery),
+          // Bottom left, across from Flip and Clip: the battery, whether a
+          // clip now would be complete, and after it the latest message.
+          // Signed out, only the message.
+          if (_onCamera && (_hasAccess || _message != null))
+            _CameraStatus(
+              rig: widget.rig,
+              battery: _battery,
+              full: _hasAccess,
+              message: switch (_message) {
+                final m? => CameraMessagePill(
+                  message: m,
+                  // The events tab is only there with access.
+                  onView: m.opensEvents && _hasAccess
+                      ? () => _tabs.animateTo(HomeTab.monitoring.index)
+                      : null,
+                ),
+                null => null,
+              },
+            ),
           // Opened with a link to add this device: what's left to do.
           if (joinStatus != null)
             SafeArea(
@@ -914,16 +964,82 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
   }
 }
 
+/// A message over the camera: a clip that started, a sign-in that failed.
+@immutable
+class CameraMessage {
+  const CameraMessage({
+    required this.icon,
+    required this.label,
+    this.opensEvents = false,
+    this.error = false,
+  });
+
+  final IconData icon;
+  final String label;
+
+  /// Tapping it opens Monitoring, where its event is (a clip).
+  final bool opensEvents;
+
+  /// Something went wrong: its icon is in the error color.
+  final bool error;
+}
+
+/// A [CameraMessage] as a pill after the readiness one, where it moves and
+/// covers nothing; tapping it opens the clip's event ([onView]), where
+/// there's one and access. A label too long for the room is cut short; the
+/// tooltip has it all.
+class CameraMessagePill extends StatelessWidget {
+  const CameraMessagePill({super.key, required this.message, this.onView});
+
+  final CameraMessage message;
+  final VoidCallback? onView;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = message.label;
+    final pill = StatusPill(
+      key: const Key('camera-message'),
+      leading: Icon(
+        message.icon,
+        size: 18,
+        color: message.error ? scheme.error : scheme.primary,
+      ),
+      label: label,
+      semantics: onView == null ? label : '$label. Tap to view it.',
+    );
+    if (onView == null) return pill;
+    return GestureDetector(onTap: onView, child: pill);
+  }
+}
+
 /// The status pills over the camera, bottom left, across from Flip and
-/// Clip: the battery, its temperature (Android) and the readiness. In a
-/// row, level with the buttons, on wide screens. On phones they stack,
+/// Clip: the battery, its temperature (Android), the readiness and, beside
+/// it, a clip that just started ([message]). In a row, level with the
+/// buttons and clear of them, on wide screens. On phones they stack,
 /// starting just above the buttons' row, so however wide they are they
-/// never run into Flip and Clip.
+/// never run into Flip and Clip; the readiness and the message share the
+/// lowest line. A label that doesn't fit is cut short.
 class _CameraStatus extends StatelessWidget {
-  const _CameraStatus({required this.rig, required this.battery});
+  const _CameraStatus({
+    required this.rig,
+    required this.battery,
+    this.full = true,
+    this.message,
+  });
 
   final CameraRig rig;
   final BatteryController battery;
+
+  /// With access: the battery and readiness too. Signed out, only
+  /// [message].
+  final bool full;
+
+  /// The pill saying a clip just started, if one did.
+  final Widget? message;
+
+  /// Room kept on the right for Flip and Clip when the pills are in a row.
+  static const double buttonsRoom = 16 + 56 + 12 + 120;
 
   /// Narrower than this, the pills stack.
   static const double stackBelow = 600;
@@ -939,32 +1055,52 @@ class _CameraStatus extends StatelessWidget {
       // 16 from the edges, like the floating buttons; in a row, centered
       // on them (the pills are 40 high, the buttons 56).
       left: 16 + padding.left,
+      right: (stacked ? 16 : buttonsRoom) + padding.right,
       bottom: 16 + padding.bottom + (stacked ? buttonRow : (56 - 40) / 2),
-      child: ListenableBuilder(
-        listenable: Listenable.merge([rig, battery]),
-        builder: (context, _) {
-          final reading = battery.reading;
-          final pills = [
-            if (reading != null) BatteryPill(battery: battery),
-            if (reading?.celsius != null)
-              BatteryTemperaturePill(battery: battery),
-            if (rig.active != null) ReadinessIndicator(rig: rig),
-          ];
-          return stacked
-              ? Column(
-                  key: const Key('camera-status'),
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: 8,
-                  children: pills,
-                )
-              : Row(
-                  key: const Key('camera-status'),
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 8,
-                  children: pills,
-                );
-        },
+      // At the start of the room given; the pills keep their own width.
+      child: Align(
+        alignment: AlignmentDirectional.bottomStart,
+        child: ListenableBuilder(
+          listenable: Listenable.merge([rig, battery]),
+          builder: (context, _) {
+            final reading = full ? battery.reading : null;
+            final readiness = full && rig.active != null
+                ? ReadinessIndicator(rig: rig)
+                : null;
+            final batteryPills = [
+              if (reading != null) BatteryPill(battery: battery),
+              if (reading?.celsius != null)
+                BatteryTemperaturePill(battery: battery),
+            ];
+            // The readiness, and the message beside it, cut short if need be.
+            final last = [
+              ?readiness,
+              if (message case final m?) Flexible(child: m),
+            ];
+            return stacked
+                ? Column(
+                    key: const Key('camera-status'),
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: 8,
+                    children: [
+                      ...batteryPills,
+                      if (last.isNotEmpty)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 8,
+                          children: last,
+                        ),
+                    ],
+                  )
+                : Row(
+                    key: const Key('camera-status'),
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 8,
+                    children: [...batteryPills, ...last],
+                  );
+          },
+        ),
       ),
     );
   }
@@ -1027,7 +1163,7 @@ class DevModeLabel extends StatelessWidget {
           'sign-in isn\'t configured, so everything is open to everyone.',
       child: Container(
         key: const Key('dev-mode'),
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
           border: Border.all(color: scheme.outline),
           borderRadius: BorderRadius.circular(4),
@@ -1036,7 +1172,8 @@ class DevModeLabel extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.labelSmall?.copyWith(
+          // labelLarge (14 sp): readable next to the title.
+          style: theme.textTheme.labelLarge?.copyWith(
             color: scheme.onSurfaceVariant,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

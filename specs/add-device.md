@@ -62,7 +62,7 @@ top of the screen, over every tab, until it's done or dismissed (✕):
 | This is the device that shared the link (`from` is this device's ID) | "This is the device that shared the link. Open it on another device to add that one." |
 | Signed out (RBAC) | "To add this device, sign in with the Google account that shared the link." The app bar's sign-in button does the rest |
 | Signed in as another account (the user code doesn't match) | "The link was shared by another Google account than <email>…", with **Sign out** |
-| Signed in as the same account, or DEV, or a link without a user | joined: a message "This device is now one of <email>'s: <device ID>" (in DEV, "Presence is open on this device: <device ID>"), and no banner |
+| Signed in as the same account, or DEV, or a link without a user | joined: a message "This device is now one of <email>'s: <device ID>" (in DEV, "Presence is open on this device: <device ID>"), as the camera's message pill, or a snackbar on another tab; no banner |
 
 - Once joined or dismissed, the link is done. On web, the page's query is
   dropped from the address (`history.replaceState`), so a reload doesn't

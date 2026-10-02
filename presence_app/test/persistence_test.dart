@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
+import 'package:presence_app/annotations.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
@@ -12,6 +13,7 @@ import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'fakes.dart';
@@ -117,6 +119,7 @@ void main() {
 
     await refresh(tester);
     await showEvents(tester);
+    await revealSystemEvents(tester);
 
     expect(inEvents(find.text('Application started')), findsNWidgets(2));
     expect(inEvents(find.text('Door opened')), findsOneWidget);
@@ -310,6 +313,8 @@ void main() {
     await tester.pump(const Duration(seconds: 15));
     await settleStorage(tester);
     await tester.pumpAndSettle();
+    await showEvents(tester);
+    await revealSystemEvents(tester);
     expect(find.text('From the phone'), findsOneWidget);
   });
 
@@ -708,8 +713,24 @@ void main() {
       of: find.byKey(Key(key)),
       matching: find.byType(Slider),
     );
+    await scrollSettingsTo(
+      tester,
+      find.byKey(const Key('motion-cooldown-slider')),
+    );
     await tester.drag(slider('motion-threshold-slider'), const Offset(1000, 0));
     await tester.drag(slider('motion-cooldown-slider'), const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    // Back up to the switch, above the sliders.
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('motion-switch')),
+      -200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const Key('settings-page')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
@@ -718,15 +739,19 @@ void main() {
     await refresh(tester);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
-
-    expect(find.text('50 % of the picture'), findsOneWidget);
-    expect(find.text('1 min'), findsOneWidget);
+    await scrollSettingsTo(tester, find.byKey(const Key('motion-switch')));
     expect(
       tester
           .widget<SwitchListTile>(find.byKey(const Key('motion-switch')))
           .value,
       isFalse,
     );
+    await scrollSettingsTo(
+      tester,
+      find.byKey(const Key('motion-cooldown-slider')),
+    );
+    expect(find.text('50 % of the picture'), findsOneWidget);
+    expect(find.text('1 min'), findsOneWidget);
   });
 
   testWidgets('brightness survives a refresh', (tester) async {
@@ -771,10 +796,13 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
+    await scrollSettingsTo(tester, find.text('-0.5 EV'));
     expect(find.text('-0.5 EV'), findsOneWidget);
+    await scrollSettingsTo(tester, find.text('12 min'));
     expect(find.text('22 % of the picture'), findsOneWidget);
     expect(find.text('12 min'), findsOneWidget);
+    await scrollSettingsTo(tester, find.textContaining('Clips play'));
+    expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
   });
 
   testWidgets(
@@ -835,6 +863,7 @@ void main() {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('clip-after-slider')));
     await tester.drag(
       find.descendant(
         of: find.byKey(const Key('clip-before-slider')),
@@ -849,8 +878,67 @@ void main() {
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
     // Brightness is saved too (still the default here).
+    await scrollSettingsTo(tester, find.text('+1.0 EV'));
     expect(find.text('+1.0 EV'), findsOneWidget);
+    await scrollSettingsTo(tester, find.textContaining('Clips play'));
+    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
+  });
+
+  testWidgets('a suggestion survives a refresh, and can still be answered', (
+    tester,
+  ) async {
+    final camera = FakeCameraSource('Front door');
+    await launch(tester, cameras: [camera]);
+    await pressClip(tester);
+    camera.pastCompleters.single.complete(past);
+    await settleStorage(tester);
+    camera.fullCompleters.single.complete(full);
+    await settleStorage(tester);
+
+    // What recognition does when it's unsure.
+    final event = clipEvent(tester);
+    final frame = event.annotations.newFrame(onePixelPng, 12000);
+    final entry = event.annotations.add(
+      'Ana',
+      0.4,
+      0.5,
+      frame: frame,
+      source: TagSource.suggested,
+      confidence: 0.64,
+    )!;
+    AppEventBusScope.of(tester.element(find.byType(Scaffold).first)).publish(
+      SubjectSuggestion(
+        clipEventId: event.id,
+        annotationId: entry.id,
+        subjectName: 'Ana',
+        confidence: 0.64,
+        clip: event,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    expect(inEvents(find.text('Is this Ana?')), findsOneWidget);
+    // Not a subject until confirmed.
+    expect(find.byKey(const Key('event-subject-ana')), findsNothing);
+
+    await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
+    expect(inEvents(find.text('Is this Ana?')), findsOneWidget);
+    expect(find.textContaining('64 % sure · Front door'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('suggestion-yes')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(find.byKey(const Key('event-subject-ana')), findsOneWidget);
+
+    // The answer is saved too.
+    await refresh(tester, cameras: [camera]);
+    await showEvents(tester);
+    expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(
+      clipEvent(tester).annotations.byId(entry.id)!.source,
+      TagSource.confirmed,
+    );
   });
 }

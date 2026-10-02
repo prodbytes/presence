@@ -40,12 +40,16 @@ class StatusPill extends StatelessWidget {
             spacing: 8,
             children: [
               leading,
-              ExcludeSemantics(
-                child: Text(
-                  label,
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: labelColor ?? scheme.onSurface,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+              Flexible(
+                child: ExcludeSemantics(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: labelColor ?? scheme.onSurface,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
               ),

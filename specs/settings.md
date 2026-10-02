@@ -1,12 +1,12 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- **Motion** section:
-  - A **Clip automatically on motion** switch (default on).
-  - **Motion threshold**, 1–50% of the picture (default 10%).
-  - A **live motion meter** showing the open camera's current score, with a
-    marker at the threshold, to help calibrate it.
-  - **At most one automatic clip every** 1–60 minutes (default 5).
+- Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
+  Subjects, Recognition.
+- **Location** section, first: this device's position (labeled, with
+  where it came from) over a map with a center pin; moving the map sets
+  the location, with zoom and My location buttons on the map. See
+  [Device location and battery](device-location.md).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its
   recordings, as auto-exposure compensation. Cameras opened later, after a
@@ -14,6 +14,12 @@
   the camera supports (the S40: −2 to +2 EV). On web it uses the browser's
   `exposureCompensation` constraint, where the camera supports it, and does
   nothing elsewhere.
+- **Motion** section:
+  - A **Clip automatically on motion** switch (default on).
+  - **Motion threshold**, 1–50% of the picture (default 10%).
+  - A **live motion meter** showing the open camera's current score, with a
+    marker at the threshold, to help calibrate it.
+  - **At most one automatic clip every** 1–60 minutes (default 5).
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
   - **Before the press**, default 15 s. This also sets how much history the
     cameras keep recording.
@@ -28,10 +34,17 @@
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).
-- **Location** section, after Subjects: this device's position (labeled,
-  with where it came from) over a map with a center pin; moving the map
-  sets the location, with zoom and My location buttons on the map. See
-  [Device location and battery](device-location.md).
+- **Recognition** section (see [Subject recognition](recognition.md)):
+  - A **Recognize subjects in new clips** switch (default on). Where there's
+    no runtime (Android and iOS for now) it's off and disabled, and says
+    "Not available on this device yet".
+  - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
+    default **80 %**.
+  - **Ask me when at least** 30–95 % sure, default **50 %**; never above
+    the first (raising it past it stops at it, and lowering the first
+    lowers it).
+  - Both sliders are off while the switch is. Stored as
+    `recognition: {enabled, autoTag, ask}`.
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

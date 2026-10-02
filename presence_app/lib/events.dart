@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'camera_feeds.dart';
+import 'clips.dart';
 import 'location/device_location.dart';
+import 'recognition/suggestion.dart';
 
 /// Something that happened, shown in the Events timeline and saved to
 /// storage.
@@ -211,6 +213,7 @@ class EventTimeline extends StatefulWidget {
     this.focus,
     this.deviceId,
     this.thisDeviceOnly,
+    this.showSystemEvents,
     this.padding = const EdgeInsets.all(12),
   });
 
@@ -227,6 +230,18 @@ class EventTimeline extends StatefulWidget {
   /// at the top of the Monitoring tab). Kept by the caller, so it survives
   /// the tab being rebuilt; defaults to an own one, on.
   final ValueNotifier<bool>? thisDeviceOnly;
+
+  /// Whether system events show (the [ShowSystemEvents] chip): on, every
+  /// event, such as "Application started" and sign-ins; off, only grabs
+  /// ([isGrab]: clips, by hand, on motion, at start or on a schedule, and
+  /// the suggestions about them). Kept by the caller; defaults to an own one, on.
+  final ValueNotifier<bool>? showSystemEvents;
+
+  /// Whether [event] is a grab, shown even with system events hidden: a
+  /// clip, or a suggestion about one ("Is this Rex?"), which waits for an
+  /// answer.
+  static bool isGrab(AppEvent event) =>
+      event is ClipRequested || event is SubjectSuggestion;
 
   /// The ID of an event to scroll to and outline (an event opened from
   /// elsewhere, such as a subject's map). Setting it again, even to the
@@ -247,9 +262,13 @@ class _EventTimelineState extends State<EventTimeline> {
   ValueNotifier<bool> get _filter =>
       widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(true));
 
-  /// The events shown: this device's while [_filter] is on. Events not
-  /// saved yet have no device ID; they're this device's.
-  List<AppEvent> get _shown {
+  ValueNotifier<bool>? _ownSystem;
+  ValueNotifier<bool> get _system =>
+      widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
+
+  /// The events of the devices shown: this device's while [_filter] is on.
+  /// Events not saved yet have no device ID; they're this device's.
+  List<AppEvent> get _ofDevices {
     final events = widget.log.events;
     final device = widget.deviceId;
     if (device == null || !_filter.value) return events;
@@ -257,6 +276,13 @@ class _EventTimelineState extends State<EventTimeline> {
       for (final e in events)
         if (e.deviceId == null || e.deviceId == device) e,
     ];
+  }
+
+  /// The events shown: [_ofDevices], only the grabs while [_system] is off.
+  List<AppEvent> get _shown {
+    final events = _ofDevices;
+    if (_system.value) return events;
+    return events.where(EventTimeline.isGrab).toList();
   }
 
   /// Each card's key, to find it once it's built.
@@ -272,6 +298,7 @@ class _EventTimelineState extends State<EventTimeline> {
     widget.log.addListener(_onEvent);
     widget.focus?.addListener(_onFocus);
     _filter.addListener(_onFilter);
+    _system.addListener(_onFilter);
     // The tab may be built only once the event was asked for.
     if (widget.focus?.value != null) _onFocus();
   }
@@ -291,6 +318,10 @@ class _EventTimelineState extends State<EventTimeline> {
       (oldWidget.thisDeviceOnly ?? _ownFilter)?.removeListener(_onFilter);
       _filter.addListener(_onFilter);
     }
+    if (oldWidget.showSystemEvents != widget.showSystemEvents) {
+      (oldWidget.showSystemEvents ?? _ownSystem)?.removeListener(_onFilter);
+      _system.addListener(_onFilter);
+    }
   }
 
   void _onFilter() => setState(() {});
@@ -300,7 +331,9 @@ class _EventTimelineState extends State<EventTimeline> {
     widget.log.removeListener(_onEvent);
     widget.focus?.removeListener(_onFocus);
     _filter.removeListener(_onFilter);
+    _system.removeListener(_onFilter);
     _ownFilter?.dispose();
+    _ownSystem?.dispose();
     _unhighlight?.cancel();
     _scroll.dispose();
     super.dispose();
@@ -310,9 +343,14 @@ class _EventTimelineState extends State<EventTimeline> {
     final id = widget.focus?.value;
     if (id == null) return;
     // An event of another device, opened from elsewhere: show them all.
-    if (!_shown.any((e) => e.id == id) &&
+    if (!_ofDevices.any((e) => e.id == id) &&
         widget.log.events.any((e) => e.id == id)) {
       _filter.value = false;
+    }
+    // A system event, with them hidden: show them.
+    if (!_shown.any((e) => e.id == id) &&
+        widget.log.events.any((e) => e.id == id)) {
+      _system.value = true;
     }
     _unhighlight?.cancel();
     _unhighlight = Timer(EventTimeline.highlightFor, () {
@@ -371,7 +409,9 @@ class _EventTimelineState extends State<EventTimeline> {
         icon: Icons.notifications_none,
         message: widget.log.events.isEmpty
             ? 'No events'
-            : 'No events on this device',
+            : _ofDevices.isEmpty
+            ? 'No events on this device'
+            : 'No grabs yet: system events are hidden',
       );
     }
     return ListView.separated(
@@ -419,6 +459,27 @@ class ThisDeviceOnly extends StatelessWidget {
       onSelected: (selected) => value.value = selected,
       avatar: on ? null : const Icon(Icons.devices_other, size: 18),
       label: const Text('Only this device'),
+    ),
+  );
+}
+
+/// The "Show system events" filter chip, with a check while on, switching
+/// [value] (the timeline's [EventTimeline.showSystemEvents]). On in DEV, off
+/// otherwise, at launch.
+class ShowSystemEvents extends StatelessWidget {
+  const ShowSystemEvents({super.key, required this.value});
+
+  final ValueNotifier<bool> value;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: value,
+    builder: (context, on, _) => FilterChip(
+      key: const Key('show-system-events'),
+      selected: on,
+      onSelected: (selected) => value.value = selected,
+      avatar: on ? null : const Icon(Icons.settings_suggest, size: 18),
+      label: const Text('Show system events'),
     ),
   );
 }

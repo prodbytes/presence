@@ -222,8 +222,19 @@ void main() {
       await launch(tester, FakeLocator());
       expect(find.byTooltip('Device'), findsNothing);
 
+      // The first section, above Camera.
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Location')).dy,
+        lessThan(tester.getTopLeft(find.text('Camera')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('Location')).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('location-map'))).dy),
+      );
+
       await openLocation(tester);
-      expect(find.text('Location'), findsOneWidget);
       expect(find.byKey(const Key('device-pin')), findsOneWidget);
       expect(find.text('Position (latitude, longitude)'), findsOneWidget);
       expect(find.text('48.858400, 2.294500'), findsOneWidget);
