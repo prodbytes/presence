@@ -15,6 +15,7 @@ class SettingsView extends StatefulWidget {
     this.motionLevel,
     this.deviceId,
     this.health,
+    this.addDevice,
     this.location,
     this.tiles,
     this.onMapHeld,
@@ -36,6 +37,10 @@ class SettingsView extends StatefulWidget {
 
   /// A status line under the device ID (the API, AWS and OIDC).
   final Widget? health;
+
+  /// The last thing: opens a QR code and a Share button, to open Presence
+  /// on another device as a new device of the same user.
+  final Widget? addDevice;
 
   /// The app's configuration; every control edits it.
   final ConfigController config;
@@ -297,6 +302,10 @@ class _SettingsViewState extends State<SettingsView> {
                 height: AppVersion.version.isEmpty && deviceId == null ? 32 : 8,
               ),
               health,
+            ],
+            if (widget.addDevice case final addDevice?) ...[
+              const SizedBox(height: 16),
+              addDevice,
             ],
           ],
         );

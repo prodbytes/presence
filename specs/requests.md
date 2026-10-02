@@ -1515,3 +1515,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added to the same PR as #183, with `main` merged in.
     - 237 Flutter tests pass (new: the sign-in error as a pill; a message
       leaves the readiness pill and Clip where they were).
+185. **A QR code sharing function: last in Settings, an icon with a Share
+    button and a QR code, to open the app (or the site, without the app) on
+    another device as a new device, with a new device ID, of the same user;
+    unauthenticated, sign in, checked to be the same user.** (2026-10-01)
+    - Settings ends with **Add a device**: a dialog with a QR code of
+      `<app>/?from=<device ID>&user=<user code>`, Share (the system's share
+      sheet, or a copy) and Copy link. The user code is a short SHA-256 of
+      the Google account ID, so the link has no account ID or token.
+    - A device opened with the link keeps its own device ID and shows a
+      banner: sign in with the account that shared it; another account
+      (with Sign out); or this is the sharing device. The same user joins,
+      with a message; the web address drops the link's query.
+    - Android: an App Link intent filter for the site's `/app` hands links
+      to the app (`app_links`); it needs an `assetlinks.json` (the release
+      key's SHA-256) to open them without asking. iOS opens the site.
+    - Added `qr_flutter`, `share_plus` and `app_links`. 220 Flutter tests
+      pass; the web release and an Android debug APK build.
+    - Spec: new [Add a device](add-device.md).
