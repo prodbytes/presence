@@ -66,7 +66,8 @@ class RecognitionResult {
   final List<String> asked;
 }
 
-/// Finds the subjects on every new clip, once its full recording is saved.
+/// Finds the subjects on every new clip, once its full recording (before +
+/// after) is saved.
 ///
 /// Each subject's references are the frames of tags someone made or
 /// confirmed ([TagSource.vouched]); recognized tags never become
@@ -76,8 +77,11 @@ class RecognitionResult {
 /// [TagSource.detected] tag. A subject only reaching
 /// [RecognitionConfig.ask] gets a [TagSource.suggested] entry instead, on
 /// the first frame it did, and a [SubjectSuggestion] event asks about it.
-/// Subjects already on the clip are skipped. Clips are done one at a time.
-/// [recognizeNow] runs it on any clip, on request (the player's Auto).
+/// Subjects already on the clip are skipped, so none is tagged twice. Clips
+/// are done one at a time, each queued once it's fully recorded, so one
+/// still recording doesn't hold up the others. [recognizeNow] runs it on
+/// any clip, on request (the player's Auto); a new clip already searched
+/// that way isn't searched again.
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -126,6 +130,9 @@ class SubjectRecognizer {
   /// one found where it was clicked).
   final _references = <String, Seen?>{};
 
+  /// The clips searched in full, by event ID.
+  final _searched = <String>{};
+
   /// Whether recognition can run on this platform.
   bool get supported => _runtime.supported && _sampler.supported;
 
@@ -134,11 +141,17 @@ class SubjectRecognizer {
 
   void _onEvent(AppEvent event) {
     if (event is! ClipRequested || event.clip.capture == null) return;
-    _enqueue(event, onRequest: false).then(
-      (_) {},
-      onError: (Object e, StackTrace stack) =>
-          debugPrint('Presence: recognition failed on ${event.id}: $e\n$stack'),
-    );
+    // Wait for the "after" part outside the queue.
+    _full(event.clip)
+        .then<void>((media) async {
+          if (media == null || _disposed) return;
+          await _enqueue(event, onRequest: false);
+        })
+        .catchError(
+          (Object e, StackTrace stack) => debugPrint(
+            'Presence: recognition failed on ${event.id}: $e\n$stack',
+          ),
+        );
   }
 
   /// Runs recognition on [event]'s clip now, after any clip already being
@@ -169,6 +182,9 @@ class SubjectRecognizer {
     if (!onRequest && !config.recognition.enabled) {
       return const RecognitionResult(RecognitionOutcome.off);
     }
+    if (!onRequest && _searched.contains(event.id)) {
+      return const RecognitionResult(RecognitionOutcome.searched);
+    }
     if (!_hasReferences(event)) {
       return const RecognitionResult(RecognitionOutcome.noReferences);
     }
@@ -197,6 +213,7 @@ class SubjectRecognizer {
     };
     final everyone = {for (final g in gallery) g.subjectId};
     if (everyone.every(found.contains)) {
+      _searched.add(event.id);
       return const RecognitionResult(RecognitionOutcome.allTagged);
     }
     final tagged = <String>[];
@@ -243,6 +260,7 @@ class SubjectRecognizer {
       // Let the app draw between frames.
       await Future<void>.delayed(Duration.zero);
     }
+    _searched.add(event.id);
     for (final (match, tagFrame) in asks.values) {
       final (x, y) = match.seen.spot;
       final suggestion = event.annotations.add(
