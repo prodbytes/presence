@@ -59,6 +59,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3 through a Cognito identity pool.
+- [Recording and data formats](data-formats.md): the video codecs and
+  containers per platform, the JSON records, and the S3 layout (JSON and
+  media in separate trees, partitioned by day) for querying with Athena.
 - [App icon](app-icon.md): the icon masters and generated icons.
 
 **Platforms**

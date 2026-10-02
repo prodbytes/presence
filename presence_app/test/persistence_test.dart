@@ -175,11 +175,15 @@ void main() {
     final prefix = 'us-east-1:identity';
     expect(cloud.tokens, isNotEmpty);
     // The full recording (its stored bytes), thumbnail and details.
-    final video = cloud.uploads['$prefix/clips/$clipId.webm'];
+    final video = cloud.uploads['$prefix/media/$clipId.webm'];
     expect(video, isNotNull);
     expect(String.fromCharCodes(video!.bytes), 'blob:full');
-    expect(cloud.uploads, contains('$prefix/clips/$clipId.jpg'));
-    expect(cloud.uploads, contains('$prefix/clips/$clipId.json'));
+    expect(cloud.uploads, contains('$prefix/media/$clipId.jpg'));
+    // The record, alone with other JSON in its day partition.
+    final record = cloud.uploads.keys.singleWhere(
+      (k) => k.endsWith('/$clipId.json'),
+    );
+    expect(record, matches(RegExp('^$prefix/clips/year=\\d{4}/day=\\d{3}/')));
     // Every event, the clip's included.
     final events = cloud.uploads.keys.where(
       (k) => k.startsWith('$prefix/events/'),
@@ -326,27 +330,28 @@ void main() {
     Uint8List json(Map<String, Object?> m) =>
         Uint8List.fromList(utf8.encode(jsonEncode(m)));
     final requested = DateTime(2026, 9, 24, 8).millisecondsSinceEpoch;
-    cloud.uploads['$prefix/clips/remote-clip.json'] = (
-      bytes: json({
-        'id': 'remote-clip',
-        'eventId': 'remote-event',
-        'cameraId': 'garage-cam',
-        'cameraLabel': 'Garage',
-        'requestedAt': requested,
-        'beforeMs': 15000,
-        'afterMs': 15000,
-        'supported': true,
-        'state': 'complete',
-        'full': {
-          'mediaId': 'remote-clip-full',
-          'startMs': 0,
-          'endMs': 30000,
-          'mimeType': 'video/webm',
-        },
-      }),
-      contentType: 'application/json',
-    );
-    cloud.uploads['$prefix/clips/remote-clip.webm'] = (
+    cloud.uploads['$prefix/${CloudSync.clipRecordKey('remote-clip', requested)}'] =
+        (
+          bytes: json({
+            'id': 'remote-clip',
+            'eventId': 'remote-event',
+            'cameraId': 'garage-cam',
+            'cameraLabel': 'Garage',
+            'requestedAt': requested,
+            'beforeMs': 15000,
+            'afterMs': 15000,
+            'supported': true,
+            'state': 'complete',
+            'full': {
+              'mediaId': 'remote-clip-full',
+              'startMs': 0,
+              'endMs': 30000,
+              'mimeType': 'video/webm',
+            },
+          }),
+          contentType: 'application/json',
+        );
+    cloud.uploads['$prefix/media/remote-clip.webm'] = (
       bytes: Uint8List.fromList('remote-video'.codeUnits),
       contentType: 'video/webm',
     );
