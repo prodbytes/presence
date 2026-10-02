@@ -1712,3 +1712,35 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The Linux release jobs now run on `ubuntu-22.04` and
       `ubuntu-22.04-arm`. Their PR bundles run (still up after 30 s under
       Xvfb) on Debian 12 arm64 and x64, and on Ubuntu 24.04 x64.
+202. **(The sync of #197, finished)** (2026-10-02)
+    - After #132, merged #127 (a browser refresh keeps the open tab) after
+      merging `main` into it twice, as `main` moved meanwhile (request-log
+      numbers only; 270 Flutter tests passed); #129 and #131 were merged by
+      their own sessions. The main folder was fast-forwarded to `main`.
+203. **What is the current average size of a clip on our bucket? And how big
+    is the metadata JSON for a clip?** (2026-10-02)
+    - Answered, nothing changed: on the production bucket 92 clips (all
+      WebM), 12.7 MB on average (6.8–14.9 MB); a clip record about 394 B,
+      a clip event about 301 B (500 B with tags), a thumbnail about 20 KB.
+      Now in [Recording and data formats](data-formats.md).
+204. **Empty all buckets.** (2026-10-02)
+    - Asked first which ones: emptied only the two user-data buckets (prod
+      and RC), every version and delete marker included (716 in all, about
+      1.3 GB); the web, install-script and SAM buckets were left alone.
+      Devices still hold their own copies.
+205. **Add a section to the spec explaining how videos and metadata are
+    recorded (file formats and encoding) and how they're represented on
+    S3; make sure the metadata can be queried on S3 in the future, with
+    friendly formats.** (2026-10-02)
+    - New [Recording and data formats](data-formats.md): the containers,
+      codecs, sizes, frame and bit rates per platform; the JSON rules (one
+      compact UTF-8 object per file, no binary, epoch-ms UTC times, `…Ms`
+      durations); each record's fields; the S3 layout; and an Athena table
+      (partition projection) with an example query.
+    - The S3 layout changed so the JSON can be queried without meeting
+      media: clip records moved from `clips/<clipId>.json` to
+      `clips/year=YYYY/day=DDD/<clipId>.json` (their event's day), and the
+      recordings, thumbnails and tagged frames from `clips/` to `media/`.
+      What a device uploaded under the old keys isn't uploaded again.
+    - [Cloud sync](cloud-sync.md) and the bucket template's description
+      updated. 271 Flutter tests pass (one new); web release builds.

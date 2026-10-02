@@ -4,8 +4,10 @@ Description: >
   user's clips (videos) and events here, straight from the device, under the
   user's Cognito identity ID (the subject of the identity pool in
   identity.yaml, whose authenticated role may read and write only that
-  prefix): <identityId>/clips/<clipId>.{webm,mp4,jpg,json} and, partitioned
-  by the UTC day of the year, <identityId>/events/year=YYYY/day=DDD/<eventId>.json.
+  prefix): media under <identityId>/media/ (<clipId>.{webm,mp4,jpg}, tagged
+  frames), and JSON only, partitioned by the UTC day of the year, under
+  <identityId>/events/year=YYYY/day=DDD/ and <identityId>/clips/year=YYYY/day=DDD/
+  (see specs/data-formats.md).
 
 Parameters:
   AllowedOrigins:
