@@ -21,13 +21,15 @@ app binaries with `make` and publishes them as a GitHub release.
     the version files run the builds only,
     without a release.
   - Tag names must be letters, digits, `.`, `_` and `-`.
-- **Version:** the `prepare` job resolves one version for all four builds
+- **Version:** the `prepare` job resolves one version for all five builds
   (see [Versioning](#versioning)). A tag that carries `X.Y.Z` (e.g.
   `1.0.202609261530-RC`) keeps its Z, and fails if its X.Y doesn't match the
   version files; any other run gets Z from the current time.
 - **Builds:** one job per target, all with Flutter 3.47.5 (cloned at its
-  tag): `web`, `android` (JDK 17) and `linux` (GTK build packages) on
-  `ubuntu-latest`, and `ios` on `macos-latest`. Each runs `make <target>`.
+  tag): `web` and `android` (JDK 17) on `ubuntu-latest`, `linux` (GTK build
+  packages) twice, x64 on `ubuntu-latest` and arm64 on `ubuntu-24.04-arm`
+  (Flutter doesn't cross-compile Linux desktop), and `ios` on
+  `macos-latest`. Each runs `make <target>`.
 - **Release name:** `presence-<tag>`, e.g. `presence-1.0.0-RC2` for the
   tag `1.0.0-RC2` (tags stay `X.Y.Z-KK`).
 - **Release assets**, uploaded to a new release or replacing same-named
@@ -35,7 +37,9 @@ app binaries with `make` and publishes them as a GitHub release.
   - `presence-<tag>-web.zip`: the contents of `build/web/`.
   - `presence-<tag>-android.apk`: the release APK.
   - `presence-<tag>-ios-unsigned.zip`: the unsigned `Runner.app`.
-  - `presence-<tag>-linux-x64.tar.gz`: the Linux `bundle/`.
+  - `presence-<tag>-linux-x64.tar.gz` and
+    `presence-<tag>-linux-arm64.tar.gz`: the Linux `bundle/` for each
+    architecture (named from Flutter's `build/linux/<arch>/` folder).
 - **Settings:** the job writes a `.env` with only the Google client IDs,
   from the repository **variables** `GOOGLE_WEB_CLIENT_ID` and
   `GOOGLE_IOS_CLIENT_ID`. They're public identifiers that get compiled into
@@ -101,6 +105,5 @@ The app version is `X.Y.Z`, resolved by
   installed over an earlier build without uninstalling first. A release
   keystore, kept in repository secrets, would fix both.
 - The iOS app is unsigned, so it can't be installed on a device as is.
-- The Linux bundle is x64 only.
 - The build number (Unix seconds) outgrows Android's `versionCode` limit in
   2036.
