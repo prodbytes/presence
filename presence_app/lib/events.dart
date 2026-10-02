@@ -214,6 +214,7 @@ class EventTimeline extends StatefulWidget {
     this.deviceId,
     this.thisDeviceOnly,
     this.showSystemEvents,
+    this.search,
     this.padding = const EdgeInsets.all(12),
   });
 
@@ -236,6 +237,11 @@ class EventTimeline extends StatefulWidget {
   /// ([isGrab]: clips, by hand, on motion, at start or on a schedule, and
   /// the suggestions about them). Kept by the caller; defaults to an own one, on.
   final ValueNotifier<bool>? showSystemEvents;
+
+  /// The [EventSearch] text: only the events it matches ([eventMatches])
+  /// show; blank, every one. Kept by the caller; defaults to an own one,
+  /// blank.
+  final ValueNotifier<String>? search;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
   /// clip, or a suggestion about one ("Is this Rex?"), which waits for an
@@ -278,11 +284,26 @@ class _EventTimelineState extends State<EventTimeline> {
     ];
   }
 
-  /// The events shown: [_ofDevices], only the grabs while [_system] is off.
-  List<AppEvent> get _shown {
+  ValueNotifier<String>? _ownSearch;
+  ValueNotifier<String> get _search =>
+      widget.search ?? (_ownSearch ??= ValueNotifier(''));
+
+  /// [_ofDevices], only the grabs while [_system] is off.
+  List<AppEvent> get _ofKinds {
     final events = _ofDevices;
     if (_system.value) return events;
     return events.where(EventTimeline.isGrab).toList();
+  }
+
+  /// The events shown: [_ofKinds], only those matching [_search].
+  List<AppEvent> get _shown {
+    final events = _ofKinds;
+    final query = _search.value;
+    if (query.trim().isEmpty) return events;
+    return [
+      for (final e in events)
+        if (eventMatches(e, query)) e,
+    ];
   }
 
   /// Each card's key, to find it once it's built.
@@ -299,6 +320,7 @@ class _EventTimelineState extends State<EventTimeline> {
     widget.focus?.addListener(_onFocus);
     _filter.addListener(_onFilter);
     _system.addListener(_onFilter);
+    _search.addListener(_onFilter);
     // The tab may be built only once the event was asked for.
     if (widget.focus?.value != null) _onFocus();
   }
@@ -322,6 +344,10 @@ class _EventTimelineState extends State<EventTimeline> {
       (oldWidget.showSystemEvents ?? _ownSystem)?.removeListener(_onFilter);
       _system.addListener(_onFilter);
     }
+    if (oldWidget.search != widget.search) {
+      (oldWidget.search ?? _ownSearch)?.removeListener(_onFilter);
+      _search.addListener(_onFilter);
+    }
   }
 
   void _onFilter() => setState(() {});
@@ -332,8 +358,10 @@ class _EventTimelineState extends State<EventTimeline> {
     widget.focus?.removeListener(_onFocus);
     _filter.removeListener(_onFilter);
     _system.removeListener(_onFilter);
+    _search.removeListener(_onFilter);
     _ownFilter?.dispose();
     _ownSystem?.dispose();
+    _ownSearch?.dispose();
     _unhighlight?.cancel();
     _scroll.dispose();
     super.dispose();
@@ -348,9 +376,14 @@ class _EventTimelineState extends State<EventTimeline> {
       _filter.value = false;
     }
     // A system event, with them hidden: show them.
-    if (!_shown.any((e) => e.id == id) &&
+    if (!_ofKinds.any((e) => e.id == id) &&
         widget.log.events.any((e) => e.id == id)) {
       _system.value = true;
+    }
+    // An event the search hides: clear it.
+    if (!_shown.any((e) => e.id == id) &&
+        widget.log.events.any((e) => e.id == id)) {
+      _search.value = '';
     }
     _unhighlight?.cancel();
     _unhighlight = Timer(EventTimeline.highlightFor, () {
@@ -411,7 +444,9 @@ class _EventTimelineState extends State<EventTimeline> {
             ? 'No events'
             : _ofDevices.isEmpty
             ? 'No events on this device'
-            : 'No grabs yet: system events are hidden',
+            : _ofKinds.isEmpty
+            ? 'No grabs yet: system events are hidden'
+            : 'No events match "${_search.value.trim()}"',
       );
     }
     return ListView.separated(
@@ -441,6 +476,123 @@ class _EventTimelineState extends State<EventTimeline> {
       },
     );
   }
+}
+
+/// The texts the Events search looks in for [event]: its title and detail,
+/// and for a clip its camera's label and the names tagged on it (not
+/// suggestions waiting for an answer). Add a field here to make it
+/// searchable.
+Iterable<String> eventSearchFields(AppEvent event) sync* {
+  yield event.title;
+  if (event.detail case final detail?) yield detail;
+  final clip = switch (event) {
+    ClipRequested() => event,
+    SubjectSuggestion(:final clip) => clip,
+    _ => null,
+  };
+  if (clip != null) {
+    yield clip.clip.cameraLabel;
+    // A suggestion's own name is in its title; its clip's tags aren't it.
+    if (event is ClipRequested) {
+      for (final tag in clip.annotations.tags) {
+        yield tag.name;
+      }
+    }
+  }
+}
+
+/// Whether [event] matches the Events search [query]: one of its
+/// [eventSearchFields] contains it, ignoring case and the spaces around
+/// it. A blank query matches every event.
+bool eventMatches(AppEvent event, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return eventSearchFields(event).any((f) => f.toLowerCase().contains(q));
+}
+
+/// The search field at the top of the Monitoring tab, before the filter
+/// chips: what's typed goes to [value] (the timeline's
+/// [EventTimeline.search]) as it's typed, and the x clears it.
+class EventSearch extends StatefulWidget {
+  const EventSearch({super.key, required this.value});
+
+  final ValueNotifier<String> value;
+
+  /// Its width; narrow enough to share a 320 dp phone's row with nothing
+  /// else, so the chips go on the next row.
+  static const double width = 220;
+
+  @override
+  State<EventSearch> createState() => _EventSearchState();
+}
+
+class _EventSearchState extends State<EventSearch> {
+  late final _controller = TextEditingController(text: widget.value.value);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.value.addListener(_onValue);
+  }
+
+  @override
+  void didUpdateWidget(EventSearch oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      oldWidget.value.removeListener(_onValue);
+      widget.value.addListener(_onValue);
+      _onValue();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.value.removeListener(_onValue);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Follows [EventSearch.value] when it's changed elsewhere (cleared when
+  /// an event it hides is opened).
+  void _onValue() {
+    if (_controller.text != widget.value.value) {
+      _controller.text = widget.value.value;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: EventSearch.width,
+    // Rebuilt as it's typed, for the x.
+    child: ValueListenableBuilder(
+      valueListenable: _controller,
+      builder: (context, text, _) => TextField(
+        key: const Key('event-search'),
+        controller: _controller,
+        onChanged: (text) => widget.value.value = text,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          isDense: true,
+          hintText: 'Search events',
+          prefixIcon: const Icon(Icons.search, size: 20),
+          border: const OutlineInputBorder(),
+          // The x, while there's something to clear.
+          suffixIcon: text.text.isEmpty
+              ? null
+              : IconButton(
+                  key: const Key('event-search-clear'),
+                  tooltip: 'Clear search',
+                  icon: const Icon(Icons.close, size: 18),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    _controller.clear();
+                    widget.value.value = '';
+                  },
+                ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// The "Only this device" filter chip, with a check while on, switching

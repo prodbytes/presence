@@ -11,9 +11,9 @@ import 'subjects.dart';
 /// left, all events on the right, each clip's card showing its subjects in
 /// their colors. On a phone the map sits above the events. Once the device
 /// ID is known, the "Only this device" chip sits at the top, next to the
-/// "Show system events" chip. Tapping a dot on
-/// the map scrolls the events to its event; tapping a subject's name opens
-/// the subject.
+/// "Show system events" chip, both after the events search field (top
+/// left). Tapping a dot on the map scrolls the events to its event;
+/// tapping a subject's name opens the subject.
 class MonitoringView extends StatefulWidget {
   const MonitoringView({
     super.key,
@@ -25,6 +25,7 @@ class MonitoringView extends StatefulWidget {
     this.deviceId,
     this.thisDeviceOnly,
     this.showSystemEvents,
+    this.search,
   });
 
   /// Below this width the map goes above the events instead of beside.
@@ -61,6 +62,9 @@ class MonitoringView extends StatefulWidget {
   /// The "Show system events" chip ([EventTimeline.showSystemEvents]).
   final ValueNotifier<bool>? showSystemEvents;
 
+  /// The events search field's text ([EventTimeline.search]).
+  final ValueNotifier<String>? search;
+
   @override
   State<MonitoringView> createState() => _MonitoringViewState();
 }
@@ -74,10 +78,15 @@ class _MonitoringViewState extends State<MonitoringView> {
   ValueNotifier<bool> get _system =>
       widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
 
+  ValueNotifier<String>? _ownSearch;
+  ValueNotifier<String> get _search =>
+      widget.search ?? (_ownSearch ??= ValueNotifier(''));
+
   @override
   void dispose() {
     _ownFilter?.dispose();
     _ownSystem?.dispose();
+    _ownSearch?.dispose();
     super.dispose();
   }
 
@@ -97,6 +106,7 @@ class _MonitoringViewState extends State<MonitoringView> {
         deviceId: widget.deviceId,
         thisDeviceOnly: _filter,
         showSystemEvents: _system,
+        search: _search,
         padding: padding,
       ),
     );
@@ -123,7 +133,9 @@ class _MonitoringViewState extends State<MonitoringView> {
                     child: Wrap(
                       spacing: 8,
                       runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        EventSearch(value: _search),
                         // Until the device ID is known there's nothing to
                         // filter by.
                         if (widget.deviceId != null)

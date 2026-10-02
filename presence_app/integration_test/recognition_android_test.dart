@@ -77,7 +77,9 @@ void main() {
     final hopper = await image('hopper_1.jpg');
     await models.analyse(hopper); // Warm up.
     final watch = Stopwatch()..start();
-    final seen = await models.analyse(hopper);
+    final analysis = await models.analyse(hopper);
+    final seen = analysis.seen;
+    expect(analysis.objects['human'], greaterThan(VisionModels.minObject));
     // ignore: avoid_print
     print(
       'one ${hopper.width} × ${hopper.height} frame: '
@@ -88,7 +90,7 @@ void main() {
     expect(person.faceVector, hasLength(192));
 
     Future<Float32List> face(String name) async =>
-        (await models.analyse(await image(name)))
+        (await models.analyse(await image(name))).seen
             .firstWhere((s) => s.faceVector != null)
             .faceVector!;
     final lincoln1 = await face('lincoln_1.jpg');

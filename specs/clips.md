@@ -97,8 +97,9 @@ spot clicked
   This is also how tagging works with a screen reader, whose layer covers
   the `<video>`.
 - **Auto**, beside it, tags whoever it recognizes among the people and
-  pets tagged before, on this device: the clip is searched as new clips
-  are, and it says who it tagged or asked about (see
+  pets tagged before, on this device, and the clip's object tags if it has
+  none yet: the clip is searched as new clips are, and it says who it
+  tagged or asked about, and what objects it saw (see
   [Subject recognition](recognition.md), "Auto, in the player"). Disabled
   where recognition can't run yet (Android, iOS). On a narrow dialog the
   two buttons go under the "People and pets" title.
@@ -132,13 +133,15 @@ spot clicked
   `ClipAnnotations`, saved in its record as
   `annotations: [{id, name, x, y, frameId, frameMs, source?, confidence?}]`
   plus `frames: {frameId: JPEG bytes}` (only frames some entry uses,
-  suggestions included).
+  suggestions included), and the clip's object tags as
+  `objectTags: [{label, ms, score}]` once it's searched for them (see
+  [Subject recognition](recognition.md), "Object tags").
   `Persistence` re-saves the event on every change and signals
   [cloud sync](cloud-sync.md), which uploads the frames as images beside the
   clip and the event JSON with the tags. Restores, including from the
   cloud, bring the frames and names back; malformed entries are skipped.
 - A clip's card lists everyone tagged on it, each after a square in their
-  color, and the **Monitoring** tab's map shows the events they're on, with
+  color, then its object tags as small chips, and the **Monitoring** tab's map shows the events they're on, with
   their names (see [Subjects](subjects.md)).
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
   JSON round-trip that skips bad entries), and at app level a frame grabbed
