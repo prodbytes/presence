@@ -1,7 +1,10 @@
 #!/bin/sh
 # Downloads, extracts and runs the latest Presence release for this machine:
 #
-#   curl -fsSL https://raw.githubusercontent.com/prodbytes/presence/main/scripts/install.sh | sh
+#   curl -fsSL https://sh.presence.nu01.com | sh
+#
+# (https://sh.presence.nu01.com serves this file: presence_sh/, deployed
+# on *GA tags. The raw GitHub URL of this file on main works too.)
 #
 # On Linux x64 or arm64 it runs the native bundle, kept in
 # ${XDG_DATA_HOME:-~/.local/share}/presence/<tag>/ so later runs of the same

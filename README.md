@@ -16,12 +16,13 @@ can be viewed from another device.
 - Run the latest release on this machine:
 
   ```sh
-  curl -fsSL https://raw.githubusercontent.com/prodbytes/presence/main/scripts/install.sh | sh
+  curl -fsSL https://sh.presence.nu01.com | sh
   ```
 
   On Linux x64 or arm64 it downloads and runs the native app (it needs
   `libgtk-3-0 libegl1 libgles2`); anywhere else, or if the native app
-  can't run, it opens the web app. See [specs/install-script.md](specs/install-script.md).
+  can't run, it opens the web app. See [specs/install-script.md](specs/install-script.md);
+  [presence_sh/](presence_sh) serves it.
 
 > [!IMPORTANT]
 > **Make sure you're allowed to record.** Presence records video *and
