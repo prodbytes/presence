@@ -1533,3 +1533,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added `qr_flutter`, `share_plus` and `app_links`. 220 Flutter tests
       pass; the web release and an Android debug APK build.
     - Spec: new [Add a device](add-device.md).
+186. **Merge (recognition on web, #119) and start Android.** (2026-10-02)
+    - Merged #119.
+    - Recognition on Android: LiteRT through `tflite_flutter` (the same
+      models, a background isolate each), and a new `framesAt` channel
+      method reading many frames of an MP4 with one
+      `MediaMetadataRetriever`. The Settings switch works there now.
+    - The root Gradle build pins `tflite_flutter`'s Kotlin to JVM 11 (its
+      Java target).
+    - New on-device integration test, run on an Android 15 emulator: the
+      same face scores as on web, `framesAt` on an MP4, and a clip where
+      Grace Hopper appears at 1 s tagged on the 1.0 s frame. 233 Flutter
+      tests pass; web, Android debug and release, and iOS (unsigned) build.
+    - iOS now builds through CocoaPods (`tflite_flutter` ships its
+      `TensorFlowLiteC` that way): `Podfile`, `Podfile.lock` and the Xcode
+      project's Pods.

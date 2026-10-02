@@ -49,8 +49,11 @@ dependencies:
   qr_flutter: ^4.1.0
   share_plus: ^13.3.0
   app_links: ^7.2.1
+  tflite_flutter: ^0.12.1
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  integration_test:
     sdk: flutter
 
   # The "flutter_lints" package below contains a set of recommended lints to

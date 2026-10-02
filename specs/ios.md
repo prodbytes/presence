@@ -23,6 +23,11 @@ The Swift counterpart of the Android layer
   list, open/close, pre-roll, brightness, clip parts, thumbnail) and motion
   events. The front preview is mirrored in Dart (`mirror` flag); recordings
   aren't. The screen is kept awake.
+- **CocoaPods:** `tflite_flutter` (for [recognition](recognition.md))
+  ships through CocoaPods (`TensorFlowLiteC` 2.12), so the project has a
+  `Podfile`, `Podfile.lock` and the Pods in its Xcode project;
+  `flutter build ios` runs `pod install` (CocoaPods must be installed, as
+  on GitHub's macOS runners). Recognition itself isn't on iOS yet.
 - `Info.plist` declares camera and **microphone** usage, locks iPhone to
   portrait, and names the app "Presence".
 - **Verified:** it builds with Xcode 27, and on the iOS simulator the
