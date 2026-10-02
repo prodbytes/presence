@@ -245,13 +245,40 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('Settings is full width', (tester) async {
-      await launch(tester, FakeLocator(), size: const Size(1280, 800));
-      await openLocation(tester);
-      final map = tester.getRect(find.byKey(const Key('location-map')));
-      expect(map.left, 16);
-      expect(map.right, 1280 - 16);
-    });
+    for (final size in [const Size(360, 740), const Size(1280, 800)]) {
+      testWidgets('the position sits right of the map, and a drag there '
+          'scrolls the list, at ${size.width.toInt()} wide', (tester) async {
+        await launch(tester, FakeLocator(), size: size);
+        await openLocation(tester);
+        // Full width: the map on the left, the position on the right.
+        final section = tester.getRect(
+          find.byKey(const Key('location-settings')),
+        );
+        expect(section.left, 16);
+        expect(section.right, size.width - 16);
+        final map = tester.getRect(find.byKey(const Key('location-map')));
+        final side = tester.getRect(find.byKey(const Key('location-position')));
+        expect(map.left, 16);
+        expect(side.left, map.right + 16);
+        expect(side.right, size.width - 16);
+        expect(
+          tester.getRect(find.byKey(const Key('device-coordinates'))).left,
+          greaterThanOrEqualTo(side.left),
+        );
+        expect(tester.takeException(), isNull);
+
+        // A drag up beside the map scrolls Settings: the map moves too.
+        await tester.dragFrom(
+          Offset(side.center.dx, map.center.dy),
+          const Offset(0, -150),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.byKey(const Key('location-map'))).top,
+          lessThan(map.top),
+        );
+      });
+    }
 
     testWidgets('the zoom buttons zoom in and out', (tester) async {
       await launch(tester, FakeLocator());
