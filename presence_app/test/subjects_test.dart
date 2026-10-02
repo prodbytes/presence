@@ -474,7 +474,9 @@ void main() {
   testWidgets('tapping a dot opens its event in the Monitoring timeline', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(400, 800);
+    // Tall enough for a clip card under the search field and the chips,
+    // which take three rows in the test font.
+    tester.view.physicalSize = const Size(400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -520,7 +522,7 @@ void main() {
     expect(highlight, findsOneWidget);
     final card = tester.getRect(highlight);
     expect(card.top, greaterThanOrEqualTo(0));
-    expect(card.bottom, lessThanOrEqualTo(800));
+    expect(card.bottom, lessThanOrEqualTo(900));
     expect(find.text('Filler 29'), findsNothing, reason: 'scrolled to it');
 
     // The outline goes after a few seconds.

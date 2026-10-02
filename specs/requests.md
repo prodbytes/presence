@@ -1630,3 +1630,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - 262 Flutter tests pass (6 new), the real-model Chrome tests pass (the
       Hopper frame gets `human`), and the web release builds. The Android
       integration test is updated but not rerun.
+194. **Add a search bar on top of the events page, top left, beside the
+    checkboxes.** (2026-10-02)
+    - A **Search events** field (`EventSearch`, 220 dp, with a search icon
+      and an x to clear) leads the Monitoring tab's filter row, before Only
+      this device and Show system events; the row wraps on narrow phones.
+    - Typing filters the timeline live, case-insensitive, on each event's
+      title, detail, camera label and, for clips, the names tagged on them
+      (not unconfirmed suggestions). It combines with the chips, says
+      `No events match "<text>"` when nothing matches, keeps its text
+      across tabs, and clears itself when an event it hides is opened from
+      a map. The fields searched live in one function,
+      `eventSearchFields` / `eventMatches` in `lib/events.dart`.
+    - New `events_search_test.dart` (5 tests). The subjects test that opens
+      a far-down event now runs at 400 x 900, since the field adds a row to
+      the phone header. 267 Flutter tests pass (after merging #126 and #130); web release builds.
