@@ -148,7 +148,7 @@ void main() {
 
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Front door')), findsOneWidget);
-    expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
+    expect(inEvents(find.text('15 s clip ready')), findsOneWidget);
     expect(inEvents(find.byKey(const Key('clip-thumbnail'))), findsOneWidget);
 
     final clip = clipEvent(tester).clip;
@@ -571,7 +571,7 @@ void main() {
     expect(
       inEvents(
         find.text(
-          'Previous 15 s only: the app closed before the next 15 s '
+          'Previous 5 s only: the app closed before the next 10 s '
           'were recorded',
         ),
       ),
@@ -882,7 +882,7 @@ void main() {
     await scrollSettingsTo(tester, find.text('+1.0 EV'));
     expect(find.text('+1.0 EV'), findsOneWidget);
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
-    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
+    expect(find.textContaining('Clips play 70 s in total'), findsOneWidget);
   });
 
   testWidgets('a suggestion survives a refresh, and can still be answered', (

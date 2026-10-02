@@ -1687,3 +1687,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       access opens on the camera, and signing in later goes back to it;
       the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
       release builds.
+200. **Change the default clip times to 5 s before the trigger and 10 s
+    after.** (2026-10-02)
+    - `ClipConfig` defaults are now `before` 5 s and `after` 10 s
+      (`defaultBefore`, `defaultAfter`, replacing the single
+      `defaultLength` of 15 s), so a default clip is 15 s. The 5–60 s range
+      and 5 s steps are unchanged, and settings already saved on a device or
+      in the cloud keep their values.
+    - The startup clip comes 5 s after a camera opens (once its "before"
+      part is full).
+    - Tests and the specs' example texts follow the new defaults. 270
+      Flutter tests pass.
