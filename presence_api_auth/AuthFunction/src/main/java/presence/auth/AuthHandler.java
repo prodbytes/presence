@@ -16,9 +16,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * {@code GET /api/auth}: the signed-in user's roles, as
- * {@code {"email": "...", "roles": [...]}}. The HTTP API's JWT authorizer has
- * already verified the Google ID token, so the claims can be trusted.
+ * {@code GET /api/auth}: the signed-in user's {@link Profiles profile} and
+ * roles, as {@code {"email": "...", "profile": "<id>", "roles": [...]}}. The
+ * profile is found by the token's subject ({@code iss} and {@code sub}), or
+ * created and linked to it at the first sign-in. The HTTP API's JWT
+ * authorizer has already verified the Google ID token, so the claims can be
+ * trusted.
  *
  * <p>{@code GET /api/auth/anonymous} (no token, no authorizer): the
  * {@link ExecutionMode}, the anonymous user's roles and which expected
@@ -31,24 +34,27 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
     static final String ANONYMOUS_ROUTE = "GET /api/auth/anonymous";
 
     private final Roles roles;
+    private final Profiles profiles;
     private final ExecutionMode mode;
     private final Settings settings;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AuthHandler() {
-        this(fromEnvironment(), ExecutionMode.fromEnvironment(), Settings.fromEnvironment());
+        this(fromEnvironment(), profilesFromEnvironment(), ExecutionMode.fromEnvironment(),
+                Settings.fromEnvironment());
     }
 
-    AuthHandler(Roles roles) {
-        this(roles, ExecutionMode.RBAC);
+    AuthHandler(Roles roles, Profiles profiles) {
+        this(roles, profiles, ExecutionMode.RBAC);
     }
 
-    AuthHandler(Roles roles, ExecutionMode mode) {
-        this(roles, mode, new Settings(mode == ExecutionMode.RBAC, false));
+    AuthHandler(Roles roles, Profiles profiles, ExecutionMode mode) {
+        this(roles, profiles, mode, new Settings(mode == ExecutionMode.RBAC, false));
     }
 
-    AuthHandler(Roles roles, ExecutionMode mode, Settings settings) {
+    AuthHandler(Roles roles, Profiles profiles, ExecutionMode mode, Settings settings) {
         this.roles = roles;
+        this.profiles = profiles;
         this.mode = mode;
         this.settings = settings;
     }
@@ -64,7 +70,9 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var email = claims.get("email");
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
         var granted = roles.of(email, verified);
+        var profile = profiles.of(claims.get("iss"), claims.get("sub"), email);
         var body = "{\"email\":" + (email == null ? "null" : Json.string(email))
+                + ",\"profile\":" + (profile == null ? "null" : Json.string(profile))
                 + ",\"roles\":[" + granted.stream().map(Json::string).collect(Collectors.joining(","))
                 + "]}";
         return response(200, body);
@@ -91,8 +99,17 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var table = System.getenv("USER_ROLES_TABLE");
         var domains = list(System.getenv("ALLOWED_DOMAINS"));
         var domainRoles = list(System.getenv("DOMAIN_ROLES"));
-        var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
+        var dynamo = dynamo();
         return new Roles(domains, domainRoles, email -> declaredRoles(dynamo, table, email));
+    }
+
+    static Profiles profilesFromEnvironment() {
+        return new Profiles(Profiles.dynamoStore(dynamo(),
+                System.getenv("PROFILES_TABLE"), System.getenv("PROFILE_SUBJECTS_TABLE")));
+    }
+
+    static DynamoDbClient dynamo() {
+        return DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
     }
 
     /** A comma-separated setting's non-blank items. */

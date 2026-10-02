@@ -41,6 +41,11 @@ typedef AnonymousAccess = ({
   ApiSettings settings,
 });
 
+/// What `GET /api/auth` says about the signed-in user: their roles and
+/// their profile's ID (`automatic-paranoid-axolotl`), the same at every
+/// sign-in with the same account. Null if the API didn't say.
+typedef UserAccess = ({List<String> roles, String? profile});
+
 /// Where the app stands for the signed-in user.
 enum AccessState {
   /// Asking the auth API for the execution mode, before anything shows.
@@ -60,10 +65,10 @@ enum AccessState {
   denied,
 }
 
-/// Asks the auth API (`GET /api/auth`) for a user's roles.
+/// Asks the auth API (`GET /api/auth`) for a user's roles and profile.
 abstract class RolesClient {
-  /// The roles for the user whose Google ID token is [idToken].
-  Future<List<String>> fetch(String idToken);
+  /// The roles and profile of the user whose Google ID token is [idToken].
+  Future<UserAccess> fetch(String idToken);
 
   /// The execution mode and the anonymous user's roles, without a token.
   Future<AnonymousAccess> anonymous();
@@ -90,7 +95,7 @@ class HttpRolesClient implements RolesClient {
   final http.Client _client;
 
   @override
-  Future<List<String>> fetch(String idToken) async {
+  Future<UserAccess> fetch(String idToken) async {
     final response = await _client.get(
       base.resolve('/api/auth'),
       headers: {'authorization': 'Bearer $idToken'},
@@ -98,7 +103,11 @@ class HttpRolesClient implements RolesClient {
     if (response.statusCode != 200) throw RolesException(response.statusCode);
     final body = (jsonDecode(response.body) as Map).cast<String, Object?>();
     final roles = body['roles'];
-    return roles is List ? [for (final r in roles) '$r'] : const [];
+    final profile = body['profile'];
+    return (
+      roles: roles is List ? [for (final r in roles) '$r'] : const <String>[],
+      profile: profile is String && profile.isNotEmpty ? profile : null,
+    );
   }
 
   @override
@@ -175,6 +184,7 @@ class RolesService extends ChangeNotifier {
 
   AccessState _state = AccessState.starting;
   List<String> _roles = const [];
+  String? _profile;
   String? _error;
   String? _user;
   String? _token;
@@ -183,6 +193,11 @@ class RolesService extends ChangeNotifier {
 
   AccessState get state => _state;
   List<String> get roles => _roles;
+
+  /// The signed-in user's profile ID, from the auth API: whose data it is.
+  /// Null while signed out, checking, in [ExecutionMode.dev], or if the
+  /// check failed.
+  String? get profile => _profile;
 
   /// Why the last check failed, if it did.
   String? get error => _error;
@@ -250,29 +265,42 @@ class RolesService extends ChangeNotifier {
       return;
     }
     if (token == null) {
-      _set(AccessState.denied, const [], 'No ID token to check roles with');
+      _set(
+        AccessState.denied,
+        const [],
+        error: 'No ID token to check roles with',
+      );
       return;
     }
     _set(AccessState.checking, const []);
     try {
-      final roles = await _client.fetch(token);
+      final access = await _client.fetch(token);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
       _set(
-        roles.contains(userRole) ? AccessState.granted : AccessState.denied,
-        roles,
+        access.roles.contains(userRole)
+            ? AccessState.granted
+            : AccessState.denied,
+        access.roles,
+        profile: access.profile,
       );
     } catch (e) {
       if (generation != _generation) return;
       debugPrint('Presence: could not check roles: $e');
-      _set(AccessState.denied, const [], '$e');
+      _set(AccessState.denied, const [], error: '$e');
     }
   }
 
-  void _set(AccessState state, List<String> roles, [String? error]) {
+  void _set(
+    AccessState state,
+    List<String> roles, {
+    String? error,
+    String? profile,
+  }) {
     if (_disposed) return;
     _state = state;
     _roles = List.unmodifiable(roles);
+    _profile = profile;
     _error = error;
     notifyListeners();
   }

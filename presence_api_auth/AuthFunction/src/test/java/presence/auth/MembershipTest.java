@@ -165,11 +165,11 @@ class MembershipTest {
     @Test
     void nu01UsersGetBothRolesAndOthersGetInOnlyOnceGranted() {
         var auth = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN),
-                e -> granted.getOrDefault(e, Set.of())));
+                e -> granted.getOrDefault(e, Set.of())), RolesTest.profiles());
         var get = "GET /api/auth";
-        assertEquals("{\"email\":\"boss@nu01.com\",\"roles\":[\"presence_admin\",\"presence_user\"]}",
+        assertEquals("{\"email\":\"boss@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\",\"presence_user\"]}",
                 auth.handleRequest(route(get, "boss@nu01.com", null), null).getBody());
-        assertEquals("{\"email\":\"ana@example.com\",\"roles\":[]}",
+        assertEquals("{\"email\":\"ana@example.com\",\"profile\":null,\"roles\":[]}",
                 auth.handleRequest(route(get, "ana@example.com", null), null).getBody());
 
         // Ana asks, and can't approve herself.
@@ -180,7 +180,7 @@ class MembershipTest {
         // An admin approves: Ana is a presence_user, not an admin.
         assertEquals(200, admin.handleRequest(
                 route("POST /api/auth/membership/grant", "boss@nu01.com", "ana@example.com"), null).getStatusCode());
-        assertEquals("{\"email\":\"ana@example.com\",\"roles\":[\"presence_user\"]}",
+        assertEquals("{\"email\":\"ana@example.com\",\"profile\":null,\"roles\":[\"presence_user\"]}",
                 auth.handleRequest(route(get, "ana@example.com", null), null).getBody());
         assertEquals(403, admin.handleRequest(route("GET /api/auth/membership", "ana@example.com", null), null)
                 .getStatusCode());

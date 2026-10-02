@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/main.dart';
@@ -34,6 +36,52 @@ void main() {
       await auth.signOut();
       expect(roles.state, AccessState.signedOut);
       expect(roles.hasAccess, isFalse);
+    });
+
+    test('the profile comes with the roles, whatever they are', () async {
+      final auth = FakeAuthService();
+      final client = FakeRolesClient.none();
+      final roles = RolesService(auth: auth, client: client);
+      await settle();
+      expect(roles.profile, isNull, reason: 'signed out');
+
+      await auth.signIn();
+      await settle();
+      expect(roles.state, AccessState.denied);
+      expect(roles.profile, 'automatic-paranoid-axolotl');
+
+      client.error = Exception('down');
+      await roles.refresh();
+      expect(roles.profile, isNull, reason: 'a failed check');
+
+      client.error = null;
+      await roles.refresh();
+      expect(roles.profile, 'automatic-paranoid-axolotl');
+      await auth.signOut();
+      expect(roles.profile, isNull);
+    });
+
+    test('HttpRolesClient reads the profile', () async {
+      Future<UserAccess> answer(String body) => HttpRolesClient(
+        Uri.parse('https://presence.test/'),
+        client: MockClient((request) async {
+          expect(request.url.path, '/api/auth');
+          expect(request.headers['authorization'], 'Bearer t');
+          return http.Response(body, 200);
+        }),
+      ).fetch('t');
+
+      final ana = await answer(
+        '{"email":"ana@example.com","profile":"automatic-paranoid-axolotl",'
+        '"roles":["presence_user"]}',
+      );
+      expect(ana.roles, [userRole]);
+      expect(ana.profile, 'automatic-paranoid-axolotl');
+      // No subject, or an API from before profiles.
+      final none = await answer('{"email":null,"profile":null,"roles":[]}');
+      expect(none.roles, isEmpty);
+      expect(none.profile, isNull);
+      expect((await answer('{"email":"a@b.c","roles":[]}')).profile, isNull);
     });
 
     test('no roles, or a failed check, denies access', () async {

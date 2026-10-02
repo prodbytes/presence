@@ -1645,3 +1645,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - New `events_search_test.dart` (5 tests). The subjects test that opens
       a far-down event now runs at 400 x 900, since the field adds a row to
       the phone header. 267 Flutter tests pass (after merging #126 and #130); web release builds.
+195. **Create the concept of a profile, mostly in the auth module: when a
+    user logs in, find the profile associated with that subject and load
+    it; if there is none, create one and associate them, so it's current
+    and found at the next login. This is so users can add collaborators,
+    change emails or authentication providers without losing their data,
+    which should be scoped to their profiles. Make it prominent in the
+    spec. Make the profile ID like the device ID, `adjective-adjective-animal`,
+    with word lists long enough to have no collisions.** (2026-10-02)
+    - New [Profiles](profiles.md) spec, stated at the top of the spec index:
+      data belongs to profiles, not logins.
+    - Auth API: `ProfilesTable` (`id`, `createdAt`, `lastSignInAt`) and
+      `ProfileSubjectsTable` (`<iss>#<sub>` → `profileId`, `email`,
+      `linkedAt`). `GET /api/auth` finds the subject's profile, or creates
+      one and links it (`Profiles`), and answers `"profile"` beside the
+      roles, for every signed-in user. Two racing first sign-ins share the
+      first link. The route is now throttled (20/s, burst 50).
+    - Profile IDs (`ProfileId`): two different adjectives and an animal,
+      hyphenated (`huge-wavy-darter`), from the device ID's 1053 adjectives
+      and 1031 new animals: about 1.14 billion. A conditional put means no
+      two profiles ever share an ID; a taken one is redrawn (10 tries).
+    - App: `RolesClient.fetch` returns `UserAccess` (roles and profile);
+      `RolesService.profile` holds it.
+    - Not done yet, and listed in the spec: events' `userId`, the cloud
+      sync folder and roles still use the Google account or email, and
+      there's no way to link another subject to a profile.
+    - 32 JUnit tests pass (9 new in `ProfilesTest`), 269 Flutter tests
+      (2 new); `sam validate --lint` passes. In local Floci, the deployed
+      `AuthFunction` created a profile and link, and returned the same
+      profile on the second call.

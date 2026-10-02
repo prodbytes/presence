@@ -40,7 +40,9 @@ there's no separate sign-in screen:
   ("Sign-in failed: <reason>"; see [Navigation](navigation.md)).
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
-  with the Google ID token) for the user's roles:
+  with the Google ID token) for the user's roles and their
+  [profile](profiles.md), which the API finds by the account, or creates
+  at the first sign-in (`RolesService.profile`):
   - **With `presence_user`,** the user gets everything below. Other roles
     alone don't count.
   - **With `presence_admin` too,** an **Admin** icon also shows, left of

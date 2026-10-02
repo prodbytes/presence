@@ -1,7 +1,9 @@
 # Devices, users and places
 
 Three things events belong to. Every event records the **device** it was
-recorded on and the **user** it belongs to. **Places** are defined here but
+recorded on and the **user** it belongs to. Above the user is the
+signed-in user's [profile](profiles.md), the intended owner of all their
+data; events don't carry it yet. **Places** are defined here but
 not built yet.
 
 ## Devices
@@ -38,6 +40,11 @@ not built yet.
 
 - A **user** is a signed-in Google account. Its ID is the account's stable
   Google ID (`AuthUser.id`, the token's `sub`), not the email.
+- **Every user has a [profile](profiles.md)**, loaded at sign-in
+  (`RolesService.profile`, e.g. `automatic-paranoid-axolotl`): the owner
+  their data should be scoped to, so it survives a new email, another
+  provider or added collaborators. Events still record the Google ID as
+  `userId`; moving them to the profile is a next step.
 - **Anonymous:** what's recorded while nobody is signed in belongs to the
   user `anonymous` (`AppEvent.anonymousUserId`). That's everything in
   [DEV](execution-mode.md), where nobody signs in.

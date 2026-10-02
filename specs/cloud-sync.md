@@ -12,7 +12,10 @@ through a **Cognito identity pool**, and makes signed S3 uploads itself
 ## What's uploaded, and where
 
 Everything goes under the user's **Cognito identity ID**
-(`us-east-1:<uuid>`), in the user-data bucket:
+(`us-east-1:<uuid>`), in the user-data bucket. That identity comes from
+the Google account, not the user's [profile](profiles.md): scoping the
+folder to the profile is a next step (see
+[Profiles](profiles.md#not-scoped-to-the-profile-yet)).
 
 | Object | Content |
 |---|---|
