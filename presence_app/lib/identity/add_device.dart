@@ -5,39 +5,17 @@ import 'package:share_plus/share_plus.dart';
 
 import 'join_link.dart';
 
-/// The last thing in Settings: opens [AddDeviceDialog], with a QR code and
-/// a Share button for [link] ([JoinLink.build]).
-class AddDeviceButton extends StatelessWidget {
-  const AddDeviceButton({super.key, required this.link, this.email});
+/// The last thing in Settings: a QR code of [link] ([JoinLink.build]), to
+/// scan with another device, the link itself, and buttons to share or copy
+/// it. The other device opens Presence (the app, where it's installed and
+/// handles the link, or else the site) as a new device of the same user.
+class AddDeviceSection extends StatelessWidget {
+  const AddDeviceSection({super.key, required this.link, this.email});
 
   /// The join link for this device and user.
   final Uri link;
 
   /// Who is signed in, to say whose device the new one will be.
-  final String? email;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: TextButton.icon(
-      key: const Key('add-device'),
-      icon: const Icon(Icons.qr_code_2),
-      label: const Text('Add a device'),
-      onPressed: () => showDialog<void>(
-        context: context,
-        builder: (_) => AddDeviceDialog(link: link, email: email),
-      ),
-    ),
-  );
-}
-
-/// A QR code for [link], to scan with another device, and buttons to
-/// share or copy it. The other device opens Presence (the app, where it's
-/// installed and handles the link, or else the site) as a new device of the
-/// same user.
-class AddDeviceDialog extends StatelessWidget {
-  const AddDeviceDialog({super.key, required this.link, this.email});
-
-  final Uri link;
   final String? email;
 
   /// Copies the link, and says so.
@@ -74,63 +52,70 @@ class AddDeviceDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final who = email == null ? '' : ' as $email';
-    return AlertDialog(
-      icon: const Icon(Icons.qr_code_2),
-      title: const Text('Add a device'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+    return Column(
+      key: const Key('add-device'),
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          spacing: 8,
           children: [
-            // Dark on white, with a quiet zone, as scanners expect.
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(12),
-              // A fixed size: the dialog measures its content, and the QR
-              // code's layout can't be measured.
-              child: SizedBox.square(
-                dimension: 200,
-                child: QrImageView(
-                  key: const Key('add-device-qr'),
-                  data: '$link',
-                  size: 200,
-                  padding: EdgeInsets.zero,
-                  semanticsLabel: 'QR code for $link',
-                ),
-              ),
+            const Icon(Icons.qr_code_2),
+            Text('Add a device', style: theme.textTheme.titleMedium),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Dark on white, with a quiet zone, as scanners expect.
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(12),
+          child: SizedBox.square(
+            dimension: 200,
+            child: QrImageView(
+              key: const Key('add-device-qr'),
+              data: '$link',
+              size: 200,
+              padding: EdgeInsets.zero,
+              semanticsLabel: 'QR code for $link',
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Scan with another device to open Presence there$who. '
-              'It becomes a new device, with its own ID.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Scan with another device to open Presence there$who. '
+          'It becomes a new device, with its own ID.',
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+        ),
+        const SizedBox(height: 8),
+        SelectableText(
+          '$link',
+          key: const Key('add-device-link'),
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton.icon(
+              key: const Key('add-device-copy'),
+              icon: const Icon(Icons.copy),
+              label: const Text('Copy link'),
+              onPressed: () => _copy(context, link),
             ),
-            const SizedBox(height: 8),
-            SelectableText(
-              '$link',
-              key: const Key('add-device-link'),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            Builder(
+              builder: (context) => FilledButton.icon(
+                key: const Key('add-device-share'),
+                icon: const Icon(Icons.share),
+                label: const Text('Share'),
+                onPressed: () => _share(context, link),
               ),
             ),
           ],
-        ),
-      ),
-      actions: [
-        TextButton.icon(
-          key: const Key('add-device-copy'),
-          icon: const Icon(Icons.copy),
-          label: const Text('Copy link'),
-          onPressed: () => _copy(context, link),
-        ),
-        Builder(
-          builder: (context) => FilledButton.icon(
-            key: const Key('add-device-share'),
-            icon: const Icon(Icons.share),
-            label: const Text('Share'),
-            onPressed: () => _share(context, link),
-          ),
         ),
       ],
     );

@@ -71,8 +71,8 @@
     (sign-in is off), ⚠️ on one only;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
-- **Add a device**, the last thing, under the health line: a button with a
-  QR-code icon that opens a QR code of a link, with **Share** and **Copy
+- **Add a device**, the last thing, under the health line, shown in place
+  (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
   user (see [Add a device](add-device.md)).
 - **All settings are persistent, per device:** the whole `PresenceConfig`

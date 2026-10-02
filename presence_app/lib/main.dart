@@ -805,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen>
                   deviceId: widget.deviceId,
                   health: SystemHealth(roles: widget.roles, sync: widget.sync),
                   addDevice: switch (widget.deviceId) {
-                    final deviceId? => AddDeviceButton(
+                    final deviceId? => AddDeviceSection(
                       link: JoinLink.build(
                         from: deviceId,
                         userId: _dev ? null : widget.auth.user?.id,

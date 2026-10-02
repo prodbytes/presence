@@ -111,13 +111,13 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Opens "Add a device", last in Settings, and returns its link.
+    /// Scrolls to "Add a device", last in Settings, and returns its link.
     Future<Uri> openAddDevice(WidgetTester tester) async {
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
-      await scrollSettingsTo(tester, find.byKey(const Key('add-device')));
-      await tester.tap(find.byKey(const Key('add-device')));
-      await tester.pumpAndSettle();
+      // Shown in place, no dialog.
+      await scrollSettingsTo(tester, find.byKey(const Key('add-device-share')));
+      expect(find.byType(Dialog), findsNothing);
       expect(
         find.descendant(
           of: find.byKey(const Key('add-device-qr')),

@@ -1579,3 +1579,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       show with Show system events off.
     - #112 (an earlier Monitoring layout, replaced by #113) stays open,
       not merged.
+190. **Make the QR code appear at the end of Settings, no need for a popup:
+    show the QR code, link and Share button at the end of Settings.**
+    (2026-10-02)
+    - The Add a device button and its dialog are gone: the end of Settings
+      shows an **Add a device** title, the QR code, the explanation, the
+      link, and **Copy link** and **Share** in place
+      (`AddDeviceSection`).
+    - 253 Flutter tests pass; web release builds.
