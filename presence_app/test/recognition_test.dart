@@ -567,6 +567,174 @@ void main() {
       ).recognize(ClipRequested(clip(), id: 'new'));
       expect(vision.calls, 0);
     });
+    test('on request it runs even when off, and says what it found', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      const other = Box(0.75, 0.2, 0.95, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+        tagged(2, ['Ana']),
+      ]);
+      config.update(
+        (c) => c.copyWith(recognition: c.recognition.copyWith(enabled: false)),
+      );
+      final vision = FakeVision(
+        {
+          0: [
+            seenAt(body, face: angleFor(0.9)),
+            seenAt(other, face: 100 + angleFor(0.6)),
+          ],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+          2: [seenAt(body, face: 100)],
+        },
+      );
+      final r = recognizer(vision, FakeSampler(2));
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await r.recognizeNow(event);
+      expect(result.outcome, RecognitionOutcome.searched);
+      expect(result.tagged, ['Rex']);
+      expect(result.asked, ['Ana']);
+      expect(event.annotations.tags.single.source, TagSource.detected);
+      expect(autoTagMessage(result), contains('Tagged Rex.'));
+      expect(autoTagMessage(result), contains('"Is this Ana?"'));
+
+      // Again: everyone known is on the clip now (Ana as a suggestion).
+      final again = await r.recognizeNow(event);
+      expect(again.outcome, RecognitionOutcome.allTagged);
+      expect(event.annotations.items, hasLength(2));
+    });
+
+    test('on request: nobody to look for, or nobody found', () async {
+      final vision = FakeVision({}, {});
+      final r = recognizer(vision, FakeSampler(2));
+      final noOne = await r.recognizeNow(ClipRequested(clip(), id: 'a'));
+      expect(noOne.outcome, RecognitionOutcome.noReferences);
+      expect(autoTagMessage(noOne), contains('tag someone'));
+
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      // Rex's tag points at nobody: still no one to look for.
+      expect(
+        (await r.recognizeNow(ClipRequested(clip(), id: 'b'))).outcome,
+        RecognitionOutcome.noReferences,
+      );
+
+      vision.references[2] = [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)];
+      log.addHistory([
+        tagged(2, ['Rex']),
+      ]);
+      final none = await r.recognizeNow(ClipRequested(clip(), id: 'c'));
+      expect(none.outcome, RecognitionOutcome.searched);
+      expect(autoTagMessage(none), 'Nobody recognized.');
+    });
+
+    test('a failed run on request leaves the queue working', () async {
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      var loads = 0;
+      final vision = FakeVision({}, {
+        1: [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)],
+      });
+      final r = SubjectRecognizer(
+        bus: bus,
+        log: log,
+        config: config,
+        runtime: FakeRuntime(),
+        sampler: FakeSampler(1),
+        loadVision: () async {
+          if (loads++ == 0) throw StateError('no models');
+          return vision;
+        },
+        decode: (jpeg) async {
+          final width = 1000 + jpeg.first;
+          return RgbaImage(width, 1, Uint8List(width * 4));
+        },
+      );
+      await expectLater(
+        r.recognizeNow(ClipRequested(clip(), id: 'a')),
+        throwsStateError,
+      );
+      final result = await r.recognizeNow(ClipRequested(clip(), id: 'b'));
+      expect(result.outcome, RecognitionOutcome.searched);
+    });
+  });
+
+  testWidgets("the player's Auto tags who it recognizes", (tester) async {
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    final a = ClipAnnotations();
+    final frame = TagFrame(id: 'ref-1', jpeg: Uint8List.fromList([1]), ms: 0);
+    a.add('Rex', 0.5, 0.5, frame: frame);
+    log.addHistory([ClipRequested(clip(), annotations: a, id: 'old')]);
+    const body = Box(0.3, 0.2, 0.7, 1);
+    final recognizer = SubjectRecognizer(
+      bus: bus,
+      log: log,
+      config: ConfigController(),
+      runtime: FakeRuntime(),
+      sampler: FakeSampler(1),
+      loadVision: () async => FakeVision(
+        {
+          0: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      ),
+      decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
+    );
+    final event = ClipRequested(clip(), id: 'new');
+    await tester.pumpWidget(
+      SubjectRecognizerScope(
+        recognizer: recognizer,
+        child: MaterialApp(
+          home: Scaffold(body: ClipPlayerDialog(event: event)),
+        ),
+      ),
+    );
+    final auto = find.byKey(const Key('auto-tag'));
+    expect(auto, findsOneWidget);
+    await tester.tap(auto);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump();
+    }
+    expect(find.text('Tagged Rex.'), findsOneWidget);
+    expect(find.textContaining('Rex · 100 %'), findsOneWidget);
+    expect(event.annotations.tags.single.source, TagSource.detected);
+  });
+
+  testWidgets('Auto is off where recognition cannot run', (tester) async {
+    // The player in a dialog on a 320 dp phone: the buttons must fit.
+    tester.view
+      ..physicalSize = const Size(240, 900)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bus = AppEventBus();
+    final recognizer = SubjectRecognizer(
+      bus: bus,
+      log: EventLog(bus.stream),
+      config: ConfigController(),
+      runtime: FakeRuntime()..supported = false,
+      sampler: FakeSampler(1),
+    );
+    await tester.pumpWidget(
+      SubjectRecognizerScope(
+        recognizer: recognizer,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ClipPlayerDialog(event: ClipRequested(clip(), id: 'c')),
+          ),
+        ),
+      ),
+    );
+    final button = tester.widget<ButtonStyleButton>(
+      find.byKey(const Key('auto-tag')),
+    );
+    expect(button.onPressed, isNull);
+    expect(find.byTooltip('Not available on this device yet'), findsOneWidget);
   });
 
   testWidgets('a suggestion asks, and Yes makes it a tag', (tester) async {

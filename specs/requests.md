@@ -1475,3 +1475,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       section in Settings.
     - 233 Flutter tests pass, plus 3 in Chrome with the real models and a
       real `MediaRecorder` WebM; web release builds.
+181. **Besides the "Tag" button, in the event player screen, add an "Auto"
+    button that tries to tag automatically based on known subjects (people
+    and pets), client side only.** (2026-10-02)
+    - The player has **Auto** (✨) beside **Tag this frame**: it runs
+      [recognition](recognition.md) on the clip shown, on the device, even
+      on restored clips and with recognition off in Settings, and says who
+      it tagged, who it asked about, or why it found no one. Disabled
+      where recognition can't run (Android, iOS).
+    - `SubjectRecognizer.recognizeNow` queues a run after any in progress
+      and returns a `RecognitionResult`; `SubjectRecognizerScope` gives the
+      player the app's recognizer. The title and buttons wrap on narrow
+      dialogs.
+    - 238 Flutter tests pass; web release builds.

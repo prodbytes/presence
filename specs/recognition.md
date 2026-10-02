@@ -13,6 +13,12 @@ surely is tagged on the clip; whoever only might be is asked about
 - Only with **Recognize subjects in new clips** on (Settings, default on)
   and on a platform that has the runtime: **web** for now. Android and iOS
   come next, with the same models (see [Platforms](platforms.md)).
+- **On request, on any clip:** the player's **Auto** button (see
+  [Clips](clips.md), "Naming people and pets") runs the same search on the
+  clip it shows: restored and synced clips too, and even with **Recognize
+  subjects in new clips** off. It runs on the device, after any clip
+  already being searched, and waits for the full recording if it isn't
+  saved yet.
 - Only when some subject has a **reference**: a tag someone made, or a
   suggestion someone confirmed, with its frame.
 
@@ -56,6 +62,27 @@ surely is tagged on the clip; whoever only might be is asked about
    A subject is tagged or asked about at most once per clip; later frames
    don't add more. Subjects already on the clip are skipped, and sampling
    stops once every subject is found.
+
+## Auto, in the player
+
+- **Auto** (✨) sits beside **Tag this frame** under the player. While it
+  runs it shows a spinner and "Looking for the people and pets tagged
+  before…" ("Waiting for the clip to finish recording…" first, if
+  needed). Then it says what it did:
+  - "Tagged Rex and Ana." for the recognized tags, which appear in the
+    list at once;
+  - "Not sure about Bo: answer "Is this Bo?" in the events." for the
+    suggestions (each with its question event, as for new clips);
+  - "Nobody recognized.", "Everyone tagged before is already on this
+    clip." (subjects already on it, suggestions included, are skipped), or
+    "Nobody to look for yet: tag someone on another clip first." (no
+    reference shows anyone where it was clicked);
+  - "Couldn't run recognition; try again." if the models didn't load.
+- Where recognition can't run (Android and iOS for now) the button is
+  disabled, with the tooltip "Not available on this device yet".
+- Each run returns a `RecognitionResult` (`SubjectRecognizer.recognizeNow`):
+  its outcome and the names tagged and asked about. The app reaches the
+  recognizer through `SubjectRecognizerScope`, above `MaterialApp`.
 
 ## The question
 
@@ -108,7 +135,13 @@ surely is tagged on the clip; whoever only might be is asked about
   round-trip; the recognizer (fake models) tags a sure match on its first
   frame, asks about an unsure one on its first frame (one JPEG per frame
   used), stops once everyone's found, skips who's tagged, never learns from
-  recognized tags, and does nothing when off; the card's Yes and No.
+  recognized tags, and does nothing when off; the card's Yes and No; on
+  request it runs even when off and reports who it tagged and asked
+  about, then that everyone is on the clip; nobody to look for (none
+  tagged, or the tag points at nobody) and nobody found; a failed model
+  load doesn't block the next run; the player's Auto tags a sure match and
+  says so; Auto disabled where recognition can't run, and fitting a
+  320 dp phone's dialog.
 - `persistence_test.dart`: a suggestion and its question survive a refresh,
   can be answered after it, and the answer survives another.
 - `test/chrome/` (`flutter test --platform chrome test/chrome/`; the
@@ -124,7 +157,7 @@ surely is tagged on the clip; whoever only might be is asked about
     order, the right colours at the right times, each with a JPEG.
 - The same model outputs as TensorFlow Lite in Python (`ai-edge-litert`)
   for the same inputs.
-- 233 Flutter tests pass, plus the 3 in Chrome. Web release build compiles.
+- 238 Flutter tests pass, plus the 3 in Chrome. Web release build compiles.
   Not yet tried end to end in the app with a camera.
 
 ## Known limitations
