@@ -706,6 +706,86 @@ void main() {
       expect(vision.frameCalls, 0);
       expect(event.annotations.objects, isNull);
     });
+
+    /// A new clip as the camera publishes it: [full] completes once its
+    /// "after" part is recorded.
+    ClipRequested recording(Completer<ClipMedia?> full) => ClipRequested(
+      VideoClip(
+        cameraId: 'cam',
+        cameraLabel: 'Back camera',
+        before: const Duration(seconds: 15),
+        after: const Duration(seconds: 15),
+        capture: ClipCapture(past: Future.value(), full: full.future),
+      ),
+      id: 'new',
+    );
+
+    final media = ClipMedia(
+      url: 'blob:new',
+      start: Duration.zero,
+      end: const Duration(seconds: 30),
+    );
+
+    test('a new clip is searched once fully recorded, not before', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          // Rex surely on the second frame and every one after.
+          1: [seenAt(body, face: angleFor(0.9))],
+          2: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      );
+      final r = recognizer(vision, FakeSampler(3));
+      final full = Completer<ClipMedia?>();
+      final event = recording(full);
+      bus.publish(event);
+      await pumpEventQueue();
+      expect(vision.calls, 0, reason: 'still recording');
+
+      // Auto on another clip isn't held up by the one recording.
+      final other = await r.recognizeNow(ClipRequested(clip(), id: 'other'));
+      expect(other.tagged, ['Rex']);
+
+      full.complete(media);
+      await pumpEventQueue();
+      await r.idle;
+      final rex = event.annotations.items.single;
+      expect(rex.name, 'Rex');
+      expect(rex.source, TagSource.detected);
+      // The first frame Rex is on, and none after.
+      expect(event.annotations.frames[rex.frameId]!.ms, 1500);
+      expect(event.annotations.frames, hasLength(1));
+    });
+
+    test('a new clip searched on request is not searched again', () async {
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      // Nobody on the clip, so only the "searched" mark stops a second run.
+      final vision = FakeVision({}, {
+        1: [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)],
+      });
+      final r = recognizer(vision, FakeSampler(3));
+      final full = Completer<ClipMedia?>();
+      final event = recording(full);
+      bus.publish(event);
+      final asked = r.recognizeNow(event);
+      await pumpEventQueue();
+      full.complete(media);
+      expect((await asked).outcome, RecognitionOutcome.searched);
+      await pumpEventQueue();
+      await r.idle;
+      // One reference, then three frames, once.
+      expect(vision.calls, 4);
+      expect(event.annotations.isEmpty, isTrue);
+    });
+
     test('on request it runs even when off, and says what it found', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       const other = Box(0.75, 0.2, 0.95, 1);

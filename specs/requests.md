@@ -1596,6 +1596,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - The "Settings is full width" test became a check of the new layout at
       360 and 1280 px, with a drag beside the map that scrolls the list.
       254 Flutter tests pass.
+192. **After a clip is fully recorded (before + after), run the recognition
+    pipeline to identify subjects: same rule, first frame matching only, no
+    duplicates.** (2026-10-02)
+    - New clips were already searched, but each was queued the moment it
+      was published and then waited in the queue for its "after" part, so
+      a clip still recording held up the others and the player's Auto. Now
+      a new clip is queued only once its full recording is saved.
+    - Same rules as Auto: a subject is tagged (or asked about) once, on the
+      first frame they're found on; subjects already on the clip are
+      skipped. A new clip already searched with Auto while recording isn't
+      searched again.
+    - Two new recognizer tests drive it through the event bus with a clip
+      still recording. 256 Flutter tests pass.
 193. **The recognition pipeline must have two segments, one to identify
     subjects (people and pets) and another to identify tags (human, cat,
     dog, bicycle, bottle). Subjects have identity (person Julio, dog Fido);
@@ -1614,6 +1627,6 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       and says "Also saw: cat, bicycle."
     - `Vision.analyse` returns a `FrameAnalysis` (subjects seen, objects);
       once every subject is found, frames only go through the detector.
-    - 260 Flutter tests pass (6 new), the real-model Chrome tests pass (the
+    - 262 Flutter tests pass (6 new), the real-model Chrome tests pass (the
       Hopper frame gets `human`), and the web release builds. The Android
       integration test is updated but not rerun.
