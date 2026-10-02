@@ -1670,7 +1670,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tags change, so a clip recognition tags after the search was typed
       shows up then (this was a known limitation).
     - 268 Flutter tests pass; web release builds.
-198. **Make a browser refresh keep the same view (camera / events /
+198. **Make the GitHub Actions build both arm and x86 Linux, and the release
+    have them both.** (2026-10-02)
+    - The release workflow's `linux` build runs twice: x64 on
+      `ubuntu-latest` and arm64 on `ubuntu-24.04-arm`, since Flutter
+      doesn't cross-compile Linux desktop. Matrix entries got a `name`
+      (`linux-x64`, `linux-arm64`) for the job and artifact names.
+    - Releases carry `presence-<tag>-linux-x64.tar.gz` and
+      `presence-<tag>-linux-arm64.tar.gz`.
+199. **Make a browser refresh keep the same view (camera / events /
     settings).** (2026-10-02)
     - The open tab is remembered in the browser tab's `sessionStorage`
       (`TabMemory`), and restored on load once there's access; a new
