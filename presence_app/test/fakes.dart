@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
@@ -145,6 +145,15 @@ const fakeMediaIo = MediaIo(readBytes: fakeReadBytes, createUrl: fakeCreateUrl);
 Future<void> showEvents(WidgetTester tester) async {
   if (find.byKey(const Key('events-page')).evaluate().isNotEmpty) return;
   await tester.tap(find.byTooltip('Monitoring'));
+  await tester.pumpAndSettle();
+}
+
+/// Turns on the Monitoring tab's "Show system events" chip (off by default
+/// outside DEV), so plain events such as "Application started" show.
+Future<void> revealSystemEvents(WidgetTester tester) async {
+  final chip = find.byKey(const Key('show-system-events'));
+  if (tester.widget<FilterChip>(chip).selected) return;
+  await tester.tap(chip);
   await tester.pumpAndSettle();
 }
 

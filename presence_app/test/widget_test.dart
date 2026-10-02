@@ -117,6 +117,7 @@ void main() {
     expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
     expect(find.byKey(const Key('subjects-map')), findsOneWidget);
     expect(find.byKey(const Key('events-page')), findsOneWidget);
+    await revealSystemEvents(tester);
     expect(find.text('Application started'), findsOneWidget);
 
     await openTab(tester, 'Settings');
@@ -268,6 +269,7 @@ void main() {
       findsOneWidget,
     );
     await openTab(tester, 'Monitoring');
+    await revealSystemEvents(tester);
     expect(find.text('Signed in'), findsOneWidget);
 
     // Sign out from the account sheet: back to the camera, tabs hidden,
@@ -350,6 +352,7 @@ void main() {
     AppEventBusScope.of(tester.element(find.byType(HomeScreen)))
         .publish(AppEvent(icon: Icons.videocam, title: 'Motion detected'));
     await openTab(tester, 'Monitoring');
+    await revealSystemEvents(tester);
 
     expect(find.text('Motion detected'), findsOneWidget);
     // Newest first: the new event sits above the startup event.
