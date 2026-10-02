@@ -76,7 +76,7 @@ List<Subject> subjectsOf(Iterable<AppEvent> events) {
   for (final event in clips) {
     final frames = event.annotations.frames;
     final seen = <String>{};
-    for (final tag in event.annotations.items) {
+    for (final tag in event.annotations.tags) {
       final id = Subject.idOf(tag.name);
       // Tagged twice in one clip is still one event.
       if (id.isEmpty || !seen.add(id)) continue;
@@ -195,10 +195,14 @@ class EventSubjects extends StatelessWidget {
       final theme = Theme.of(context);
       final seen = <String>{};
       final tags = [
-        for (final tag in event.annotations.items)
+        for (final tag in event.annotations.tags)
           if (Subject.idOf(tag.name) case final id
               when id.isNotEmpty && seen.add(id))
-            (id: id, name: tag.name.trim()),
+            (
+              id: id,
+              name: tag.name.trim(),
+              detected: tag.source == TagSource.detected,
+            ),
       ];
       if (tags.isEmpty) return const SizedBox.shrink();
       return Padding(
@@ -220,6 +224,17 @@ class EventSubjects extends StatelessWidget {
                     size: 12,
                   ),
                   Text(t.name, style: theme.textTheme.labelMedium),
+                  // Found by recognition, not tagged by someone.
+                  if (t.detected)
+                    Tooltip(
+                      message: 'Recognized automatically',
+                      child: Icon(
+                        Icons.auto_awesome,
+                        key: Key('event-subject-detected-${t.id}'),
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                 ],
               ),
           ],
