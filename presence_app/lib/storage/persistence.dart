@@ -428,6 +428,7 @@ class Persistence implements DeviceSettings {
             annotations: ClipAnnotations.fromJson(
               record['annotations'],
               record['frames'],
+              record['objectTags'],
             ),
             id: record['id']! as String,
             time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),

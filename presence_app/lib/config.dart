@@ -310,11 +310,13 @@ class SubjectsConfig {
 }
 
 /// Recognizing subjects on new clips (see `recognition/`): on or off, and
-/// how sure it must be to tag on its own, or to ask.
+/// how sure it must be to tag on its own, or to ask; and tagging the
+/// objects seen on them ([objects]).
 @immutable
 class RecognitionConfig {
   const RecognitionConfig({
     this.enabled = true,
+    this.objects = true,
     this.autoTag = defaultAutoTag,
     this.ask = defaultAsk,
   });
@@ -327,6 +329,9 @@ class RecognitionConfig {
 
   final bool enabled;
 
+  /// Whether new clips get object tags (`human`, `cat`, `bicycle`...).
+  final bool objects;
+
   /// From this confidence (0 to 1) a recognized subject is tagged.
   final double autoTag;
 
@@ -334,11 +339,17 @@ class RecognitionConfig {
   /// whether it's them. Never above [autoTag].
   final double ask;
 
-  RecognitionConfig copyWith({bool? enabled, double? autoTag, double? ask}) {
+  RecognitionConfig copyWith({
+    bool? enabled,
+    bool? objects,
+    double? autoTag,
+    double? ask,
+  }) {
     final auto = (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence);
     final asking = (ask ?? this.ask).clamp(minConfidence, maxConfidence);
     return RecognitionConfig(
       enabled: enabled ?? this.enabled,
+      objects: objects ?? this.objects,
       autoTag: auto,
       // Raising "ask" past "tag" would leave nothing to ask about.
       ask: asking > auto ? auto : asking,
@@ -347,6 +358,7 @@ class RecognitionConfig {
 
   Map<String, Object?> toJson() => {
     'enabled': enabled,
+    'objects': objects,
     'autoTag': autoTag,
     'ask': ask,
   };
@@ -354,6 +366,7 @@ class RecognitionConfig {
   factory RecognitionConfig.fromJson(Map<String, Object?> json) =>
       const RecognitionConfig().copyWith(
         enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
+        objects: json['objects'] is bool ? json['objects']! as bool : null,
         autoTag: _num(json['autoTag']),
         ask: _num(json['ask']),
       );
@@ -362,11 +375,12 @@ class RecognitionConfig {
   bool operator ==(Object other) =>
       other is RecognitionConfig &&
       other.enabled == enabled &&
+      other.objects == objects &&
       other.autoTag == autoTag &&
       other.ask == ask;
 
   @override
-  int get hashCode => Object.hash(enabled, autoTag, ask);
+  int get hashCode => Object.hash(enabled, objects, autoTag, ask);
 }
 
 /// Holds the current [PresenceConfig] and notifies listeners when it

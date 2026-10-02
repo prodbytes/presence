@@ -82,9 +82,12 @@ void main() {
     }
     await models.analyse(frame); // Warm up.
     final watch = Stopwatch()..start();
-    final seen = await models.analyse(frame);
+    final analysis = await models.analyse(frame);
     // ignore: avoid_print
     print('one 1280 × 720 frame: ${watch.elapsedMilliseconds} ms');
+    final seen = analysis.seen;
+    // The object tags' segment sees her too.
+    expect(analysis.objects['human'], greaterThan(VisionModels.minObject));
     final person = seen.firstWhere((s) => s.detection.kind == SeenKind.person);
     final truth = Box(
       100 / 1280,
@@ -101,7 +104,7 @@ void main() {
     expect(person.lookVector, hasLength(1024));
 
     // The same face on its own photo matches it surely.
-    final alone = (await models.analyse(hopper)).first;
+    final alone = (await models.analyse(hopper)).seen.first;
     expect(
       faceConfidence(cosine(person.faceVector!, alone.faceVector!)),
       greaterThan(0.8),
@@ -111,7 +114,7 @@ void main() {
   test('the same person is closer than someone else', () async {
     if (!serving) return markTestSkipped('no server at $server');
     Future<Float32List> face(String name) async {
-      final seen = await models.analyse(await fixture(name));
+      final seen = (await models.analyse(await fixture(name))).seen;
       return seen.firstWhere((s) => s.faceVector != null).faceVector!;
     }
 

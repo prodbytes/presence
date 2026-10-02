@@ -103,6 +103,47 @@ class Annotation {
   }
 }
 
+/// What recognition saw on a clip, for search ("clips with a cat"): a
+/// [label] such as `human`, `cat` or `bicycle`, with no identity (that's
+/// what subjects are for). Kept once per clip, from the first frame it was
+/// seen on ([ms] into the recording), with that frame's [score].
+@immutable
+class ObjectTag {
+  const ObjectTag({required this.label, required this.ms, required this.score});
+
+  final String label;
+  final int ms;
+  final double score;
+
+  Map<String, Object?> toJson() => {'label': label, 'ms': ms, 'score': score};
+
+  /// Null for a malformed entry.
+  static ObjectTag? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final label = json['label'];
+    final ms = json['ms'];
+    final score = json['score'];
+    if (label is! String || label.isEmpty || ms is! num || score is! num) {
+      return null;
+    }
+    return ObjectTag(
+      label: label,
+      ms: ms.toInt(),
+      score: score.toDouble().clamp(0, 1),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ObjectTag &&
+      other.label == label &&
+      other.ms == ms &&
+      other.score == score;
+
+  @override
+  int get hashCode => Object.hash(label, ms, score);
+}
+
 /// A frame grabbed from a clip for tagging: its JPEG and its time.
 @immutable
 class TagFrame {
@@ -115,17 +156,24 @@ class TagFrame {
 
 /// The people and pets named in one clip, as many as needed, each on a
 /// frame grabbed from the clip. Stored with the clip's event: the tags as
-/// `annotations`, the frame images as `frames` (id -> JPEG). Listeners hear
-/// every change.
+/// `annotations`, the frame images as `frames` (id -> JPEG). Its [objects]
+/// (`objectTags`) sit beside them. Listeners hear every change.
 class ClipAnnotations extends ChangeNotifier {
   ClipAnnotations([
     Iterable<Annotation> items = const [],
     Map<String, TagFrame> frames = const {},
+    Iterable<ObjectTag>? objects,
   ]) : _items = List.of(items),
-       _frames = Map.of(frames);
+       _frames = Map.of(frames),
+       _objects = objects == null ? null : List.of(objects);
 
-  /// Rebuilds the list from an event record's `annotations` and `frames`.
-  factory ClipAnnotations.fromJson(Object? annotations, [Object? frames]) {
+  /// Rebuilds the list from an event record's `annotations`, `frames` and
+  /// `objectTags`.
+  factory ClipAnnotations.fromJson(
+    Object? annotations, [
+    Object? frames,
+    Object? objectTags,
+  ]) {
     final items = [
       if (annotations is List)
         for (final entry in annotations) ?Annotation.fromJson(entry),
@@ -143,11 +191,29 @@ class ClipAnnotations extends ChangeNotifier {
         }
       }
     }
-    return ClipAnnotations(items, restored);
+    return ClipAnnotations(
+      items,
+      restored,
+      objectTags is List
+          ? [for (final entry in objectTags) ?ObjectTag.fromJson(entry)]
+          : null,
+    );
   }
 
   final List<Annotation> _items;
   final Map<String, TagFrame> _frames;
+  List<ObjectTag>? _objects;
+
+  /// What recognition saw on the clip, by first sighting; null until the
+  /// clip has been searched for objects (empty: searched, nothing seen).
+  List<ObjectTag>? get objects =>
+      _objects == null ? null : List.unmodifiable(_objects!);
+
+  /// Sets what recognition saw, once the clip has been searched.
+  void setObjects(Iterable<ObjectTag> objects) {
+    _objects = List.of(objects);
+    notifyListeners();
+  }
 
   /// Every entry, suggestions included (as stored).
   List<Annotation> get items => List.unmodifiable(_items);
