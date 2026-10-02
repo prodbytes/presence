@@ -148,7 +148,10 @@ void main() {
     ]);
     await tester.pumpAndSettle();
     expect(titles(tester), ['Clip requested']);
-    expect(inEvents(find.byKey(const Key('clip-object-bicycle'))), findsOneWidget);
+    expect(
+      inEvents(find.byKey(const Key('clip-object-bicycle'))),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the field sits top left, on the chips row', (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
+import 'package:latlong2/latlong.dart';
 
 import 'package:presence_app/annotations.dart';
 import 'package:presence_app/clips.dart';
@@ -108,6 +109,28 @@ void main() {
       PresenceConfig.fromJson({'version': 1}).subjects,
       const SubjectsConfig(),
     );
+  });
+
+  test('framing points around the newest centers the fit on it', () {
+    const newest = LatLng(48.1, 2.29);
+    final framed = framedAround(newest, const [
+      LatLng(48.4, 2.29),
+      LatLng(49.2, 3.5),
+    ]);
+    final projection = const Epsg3857().projection;
+    final xs = [for (final p in framed) projection.projectXY(p).$1];
+    final ys = [for (final p in framed) projection.projectXY(p).$2];
+    final (cx, cy) = projection.projectXY(newest);
+    double mid(List<double> v) =>
+        (v.reduce((a, b) => a < b ? a : b) +
+            v.reduce((a, b) => a > b ? a : b)) /
+        2;
+    expect(mid(xs), closeTo(cx, 1e-6));
+    expect(mid(ys), closeTo(cy, 1e-6));
+    expect(framed, containsAll(const [LatLng(48.4, 2.29), LatLng(49.2, 3.5)]));
+    // Past the date line, the mirror stops at it.
+    final wrapped = framedAround(const LatLng(0, 179), const [LatLng(0, 170)]);
+    expect(wrapped.last.longitude, 180);
   });
 
   group('screens', () {
@@ -308,6 +331,69 @@ void main() {
       expect(find.byKey(const Key('subjects-page')), findsNothing);
       expect(find.byKey(const Key('subjects-label-rex')), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('the map centers on the newest event, out far enough for '
+        'all, and has zoom buttons', (tester) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
+        clipWith(['Ana'], minutesAgo: 2, lat: 48.4),
+        clipWith(['Rex'], minutesAgo: 3, lat: 49.2),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+
+      final map = tester.getRect(find.byKey(const Key('subjects-map')));
+      Offset dot(String id) => tester.getCenter(find.byKey(Key(id)));
+      final newest = dot('subjects-dot-rex-event-1');
+      final others = [
+        dot('subjects-dot-ana-event-2'),
+        dot('subjects-dot-rex-event-3'),
+      ];
+      // The newest in the middle, not the middle of the three.
+      expect(newest.dx, closeTo(map.center.dx, 1));
+      expect(newest.dy, closeTo(map.center.dy, 1));
+      // All of them in view, the farthest near the edge (48 px padding).
+      for (final o in others) {
+        expect(map.deflate(40).contains(o), isTrue, reason: '$o in $map');
+      }
+      expect(others.last.dy - map.top, lessThan(map.height / 4));
+
+      // Zoom in spreads the dots (around the center), zoom out brings
+      // them back.
+      final zoomIn = find.byKey(const Key('sightings-zoom-in'));
+      final zoomOut = find.byKey(const Key('sightings-zoom-out'));
+      expect(zoomIn, findsOneWidget);
+      // The nearer dot: the farther one leaves the view zoomed in.
+      final near = (others.first - newest).distance;
+      await tester.tap(zoomIn);
+      await tester.pumpAndSettle();
+      expect(
+        (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
+            .distance,
+        closeTo(near * 2, 2),
+      );
+      await tester.tap(zoomOut);
+      await tester.pumpAndSettle();
+      expect(
+        (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
+            .distance,
+        closeTo(near, 2),
+      );
+    });
+
+    testWidgets('without located events, the whole world, zoomed out', (
+      tester,
+    ) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+      final out = tester.widget<IconButton>(
+        find.byKey(const Key('sightings-zoom-out')),
+      );
+      expect(out.onPressed, isNull, reason: 'already as far out as it goes');
     });
 
     testWidgets('on top, a map of every subject, each in its color, and a '
