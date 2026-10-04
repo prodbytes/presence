@@ -77,9 +77,11 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /**
          * An OpenID token for the profile's identity
          * ({@code GetOpenIdTokenForDeveloperIdentity}). The first call links
-         * the profile to the identity.
+         * the profile to the identity, which Cognito allows only with one of
+         * the identity's logins: the caller's Google ID token, when it signs
+         * in to that identity.
          */
-        String openIdToken(String identityId, String profileId);
+        String openIdToken(String identityId, String profileId, String googleIdToken);
 
         /** Whether the identity's folder in the bucket holds nothing. */
         boolean folderEmpty(String identityId);
@@ -173,7 +175,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
-        var token = backend.openIdToken(profile.identityId(), profile.id());
+        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
         return response(200, "{\"identityId\":" + Json.string(profile.identityId())
                 + ",\"token\":" + Json.string(token) + "}");
     }
@@ -186,8 +188,10 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!isUser(caller, profile)) {
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
-        // The folder is settled before anyone joins it.
-        withIdentity(caller, profile);
+        // The folder is settled, and the profile linked to it, before anyone
+        // joins it: a member's Google token can't link it.
+        profile = withIdentity(caller, profile);
+        backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
         var code = newCode(random);
         var expiresAt = profiles.clock().instant().plus(CODE_TTL);
         backend.saveCode(hash(code), new LinkCode(profile.id(), caller.email(), expiresAt));
