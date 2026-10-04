@@ -55,7 +55,7 @@ class CameraRig extends ChangeNotifier {
   }) : _now = now ?? DateTime.now,
        _motion = MotionDetector(now: now) {
     _scheduleFrom = _now();
-    config.addListener(_applyBrightness);
+    config.addListener(_onConfigChanged);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
     _lifecycle = AppLifecycleListener(onResume: _retryFailed);
@@ -273,6 +273,31 @@ class CameraRig extends ChangeNotifier {
   }
 
   double? _appliedBrightness;
+  Timer? _brightnessRestart;
+
+  /// How long the brightness setting must stay unchanged before the camera
+  /// restarts with it, so dragging the slider restarts it once.
+  static const Duration brightnessRestartDelay = Duration(milliseconds: 800);
+
+  /// A new brightness setting restarts the open camera with it (after
+  /// [brightnessRestartDelay]); it's applied live meanwhile.
+  void _onConfigChanged() {
+    final ev = config.camera.brightness;
+    if (_active == null || ev == _appliedBrightness) return;
+    _applyBrightness();
+    _brightnessRestart?.cancel();
+    _brightnessRestart = Timer(brightnessRestartDelay, _restartCamera);
+  }
+
+  /// Closes and reopens the selected camera, which opens with the current
+  /// brightness. Skipped while a camera is opening or switching: that one
+  /// gets the current value anyway.
+  Future<void> _restartCamera() async {
+    if (_disposed || _busy || _active == null) return;
+    await _closeActive();
+    if (_disposed) return;
+    await _openCurrent();
+  }
 
   /// Sends the brightness setting to the open camera when it changes.
   void _applyBrightness() {
@@ -426,10 +451,11 @@ class CameraRig extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _scheduleTimer?.cancel();
+    _brightnessRestart?.cancel();
     _latestMotionClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();
-    config.removeListener(_applyBrightness);
+    config.removeListener(_onConfigChanged);
     _lifecycle.dispose();
     _active?.dispose();
     _active = null;

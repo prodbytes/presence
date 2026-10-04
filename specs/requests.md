@@ -2131,6 +2131,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       emulator and a wireless device, several, unauthorized,
       `ANDROID_SERIAL`). Not run on a phone: none was attached (macOS saw
       no phone on USB).
+230. **When the brightness setting changes, restart the camera view with
+    the new setting.** (2026-10-05)
+    - `CameraRig` still applies a new brightness live, then closes and
+      reopens the open camera 0.8 s after the last change
+      (`brightnessRestartDelay`), so dragging the slider restarts it once.
+      Skipped while a camera is opening or switching (it opens with the
+      current value).
+    - Specs: [Settings](settings.md). 324 Flutter tests pass (the
+      brightness test now checks the restart).
+
 230. **When the grab button is pressed in the All cameras mode, generate a
     global capture event that makes all cameras take a grab, so the next
     S3 sync shows the current state of all cameras; in the single camera

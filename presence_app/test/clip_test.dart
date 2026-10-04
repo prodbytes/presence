@@ -311,12 +311,13 @@ void main() {
     expect(inEvents(find.text('Selfie')), findsOneWidget);
   });
 
-  testWidgets('cameras open brighter, and follow the brightness slider', (
+  testWidgets('cameras open brighter, and restart with a new brightness', (
     tester,
   ) async {
     final back = FakeCameraSource('Main', facing: CameraFacing.back);
     final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
-    await pumpApp(tester, openFakes([back, front]));
+    final backend = openFakes([back, front]);
+    await pumpApp(tester, backend);
 
     // Default: +1 EV.
     expect(back.brightness, [1.0]);
@@ -333,7 +334,15 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('+2.0 EV'), findsOneWidget);
-    // Applied live to the open camera.
+    // Applied live to the open camera...
+    expect(back.brightness.last, 2.0);
+    expect(backend.opened, ['cam-Main']);
+
+    // ...which then restarts with it, once the slider has settled.
+    await tester.pump(CameraRig.brightnessRestartDelay);
+    await tester.pumpAndSettle();
+    expect(back.disposed, isTrue);
+    expect(backend.opened, ['cam-Main', 'cam-Main']);
     expect(back.brightness.last, 2.0);
 
     // A camera opened later (flip) gets the current value too.
