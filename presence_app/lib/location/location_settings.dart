@@ -218,7 +218,7 @@ class _LocationSettingsState extends State<LocationSettings> {
                   children: [
                     // Zoom in and out, for those without pinch or a
                     // wheel.
-                    _ZoomButtons(
+                    MapZoomButtons(
                       onZoomIn: _ready && _zoomLevel < LocationSettings.maxZoom
                           ? () => _zoom(1)
                           : null,
@@ -316,43 +316,6 @@ class _Position extends StatelessWidget {
         if (at != null && error != null)
           Text(error, style: small?.copyWith(color: scheme.error)),
       ],
-    );
-  }
-}
-
-/// Zoom in (+) over zoom out (−), as one small control.
-class _ZoomButtons extends StatelessWidget {
-  const _ZoomButtons({required this.onZoomIn, required this.onZoomOut});
-
-  final VoidCallback? onZoomIn;
-  final VoidCallback? onZoomOut;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh,
-      elevation: 3,
-      borderRadius: BorderRadius.circular(12),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            key: const Key('zoom-in'),
-            tooltip: 'Zoom in',
-            icon: const Icon(Icons.add),
-            onPressed: onZoomIn,
-          ),
-          const SizedBox(width: 32, child: Divider(height: 1)),
-          IconButton(
-            key: const Key('zoom-out'),
-            tooltip: 'Zoom out',
-            icon: const Icon(Icons.remove),
-            onPressed: onZoomOut,
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1755,3 +1755,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Also asked: drop the download's checksum check ("just run it"). Not
       done in this change; the script still verifies when the release API
       answers.
+207. **Make the events map centered on the latest event and zoomed out to
+    catch all events; add zoom controls as well.** (2026-10-02)
+    - The Monitoring tab's subjects map, and each subject's map, open
+      centered on the newest event, as close as they can be with every
+      dot in view (48 px padding, zoom 17 at most): each dot and its
+      mirror through the newest, in Web Mercator, are fitted
+      (`framedAround`). The whole world without located events, as before.
+    - Zoom in and out buttons in the bottom-right corner, one step around
+      the center, off at zoom 2 and 19. The Settings location map's zoom
+      buttons moved to `MapZoomButtons` in `lib/location/map_parts.dart`,
+      shared by both.
+    - Spec: new "The map's view" section in [Subjects](subjects.md).
+    - 274 Flutter tests pass (3 new in `subjects_test.dart`); the web
+      release builds.
