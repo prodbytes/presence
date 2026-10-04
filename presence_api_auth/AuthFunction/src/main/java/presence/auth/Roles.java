@@ -55,6 +55,20 @@ public final class Roles {
         return roles;
     }
 
+    /**
+     * The roles for {@code email} plus, when its account is linked to a
+     * profile another account owns, the owner's: one person, the same roles
+     * whichever of their accounts signs in. {@code ownerEmail} (null when
+     * none) was verified when the profile was made.
+     */
+    public Set<String> of(String email, boolean emailVerified, String ownerEmail) {
+        var roles = new TreeSet<>(of(email, emailVerified));
+        if (emailVerified && ownerEmail != null && !ownerEmail.equalsIgnoreCase(email == null ? "" : email.trim())) {
+            roles.addAll(of(ownerEmail, true));
+        }
+        return roles;
+    }
+
     /** The anonymous user's roles: only {@link #ANONYMOUS}, or every role in {@link ExecutionMode#DEV}. */
     public static Set<String> anonymous(ExecutionMode mode) {
         var roles = new TreeSet<String>();

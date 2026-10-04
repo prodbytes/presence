@@ -2,16 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
 import 'auth_service.dart';
+import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
+import 'profile_client.dart';
 import 'roles_service.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
 /// icon otherwise. Opens [AccountSheet].
 class AccountButton extends StatelessWidget {
-  const AccountButton({super.key, required this.auth, this.sync});
+  const AccountButton({
+    super.key,
+    required this.auth,
+    this.sync,
+    this.roles,
+    this.profiles,
+  });
 
   final AuthService auth;
   final CloudSync? sync;
+
+  /// With [profiles], the sheet offers Linked accounts.
+  final RolesService? roles;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +40,12 @@ class AccountButton extends StatelessWidget {
           onPressed: () => showModalBottomSheet<void>(
             context: context,
             showDragHandle: true,
-            builder: (_) => AccountSheet(auth: auth, sync: sync),
+            builder: (_) => AccountSheet(
+              auth: auth,
+              sync: sync,
+              roles: roles,
+              profiles: profiles,
+            ),
           ),
         );
       },
@@ -63,12 +80,22 @@ class SignInAction extends StatelessWidget {
 
 /// Sign in with Google, or show who is signed in and offer sign-out.
 class AccountSheet extends StatelessWidget {
-  const AccountSheet({super.key, required this.auth, this.sync});
+  const AccountSheet({
+    super.key,
+    required this.auth,
+    this.sync,
+    this.roles,
+    this.profiles,
+  });
 
   final AuthService auth;
 
   /// Cloud uploads, when configured: their status shows under the email.
   final CloudSync? sync;
+
+  /// With both, a Linked accounts button (see [LinkedAccountsSheet]).
+  final RolesService? roles;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +151,18 @@ class AccountSheet extends StatelessWidget {
                     const SizedBox(height: 8),
                     CloudSyncStatus(sync: sync),
                   ],
+                  if ((roles, profiles) case (
+                    final roles?,
+                    final profiles?,
+                  )) ...[
+                    const SizedBox(height: 8),
+                    LinkedAccountsButton(
+                      auth: auth,
+                      roles: roles,
+                      profiles: profiles,
+                      sync: sync,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     key: const Key('sign-out'),
@@ -152,6 +191,43 @@ class AccountSheet extends StatelessWidget {
       },
     );
   }
+}
+
+/// Opens [LinkedAccountsSheet].
+class LinkedAccountsButton extends StatelessWidget {
+  const LinkedAccountsButton({
+    super.key,
+    required this.auth,
+    required this.roles,
+    required this.profiles,
+    this.sync,
+    this.label = 'Linked accounts',
+  });
+
+  final AuthService auth;
+  final RolesService roles;
+  final ProfileClient profiles;
+  final CloudSync? sync;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    key: const Key('linked-accounts'),
+    icon: const Icon(Icons.link),
+    label: Text(label),
+    onPressed: () => showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      // Room for the keyboard under the code field.
+      isScrollControlled: true,
+      builder: (_) => LinkedAccountsSheet(
+        auth: auth,
+        roles: roles,
+        profiles: profiles,
+        sync: sync,
+      ),
+    ),
+  );
 }
 
 /// The user's photo, or their initial when there's none (or it fails).
@@ -234,18 +310,20 @@ class CloudSyncStatus extends StatelessWidget {
 }
 
 /// Signed in without access: the sign-up icon. Its sheet lets the user ask
-/// for membership with a message, and check again.
+/// for membership with a message, redeem a voucher code, and check again.
 class SignUpButton extends StatelessWidget {
   const SignUpButton({
     super.key,
     required this.auth,
     required this.roles,
     required this.membership,
+    this.profiles,
   });
 
   final AuthService auth;
   final RolesService roles;
   final MembershipClient membership;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -257,8 +335,12 @@ class SignUpButton extends StatelessWidget {
       showDragHandle: true,
       // Room for the keyboard under the message field.
       isScrollControlled: true,
-      builder: (_) =>
-          SignUpSheet(auth: auth, roles: roles, membership: membership),
+      builder: (_) => SignUpSheet(
+        auth: auth,
+        roles: roles,
+        membership: membership,
+        profiles: profiles,
+      ),
     ),
   );
 }
@@ -269,11 +351,15 @@ class SignUpSheet extends StatefulWidget {
     required this.auth,
     required this.roles,
     required this.membership,
+    this.profiles,
   });
 
   final AuthService auth;
   final RolesService roles;
   final MembershipClient membership;
+
+  /// When given, a member's other account can link to it instead.
+  final ProfileClient? profiles;
 
   /// The auth API's limit.
   static const int maxMessage = 1000;
@@ -284,20 +370,56 @@ class SignUpSheet extends StatefulWidget {
 
 class _SignUpSheetState extends State<SignUpSheet> {
   final _message = TextEditingController();
+  final _code = TextEditingController();
   bool _sending = false;
   bool _sent = false;
   String? _error;
+  bool _redeeming = false;
+  String? _codeError;
 
   @override
   void initState() {
     super.initState();
     _message.addListener(() => setState(() {}));
+    _code.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _message.dispose();
+    _code.dispose();
     super.dispose();
+  }
+
+  /// Redeems the voucher code, then re-asks the roles: a valid code lets the
+  /// user in at once.
+  Future<void> _redeem() async {
+    final token = widget.auth.idToken;
+    final code = _code.text.trim();
+    if (token == null || code.isEmpty) return;
+    setState(() {
+      _redeeming = true;
+      _codeError = null;
+    });
+    try {
+      await widget.membership.redeem(token, code);
+      if (mounted) _code.clear();
+      await widget.roles.refresh();
+    } on RolesException catch (e) {
+      if (mounted) {
+        setState(
+          () => _codeError = switch (e.statusCode) {
+            404 => 'That code is invalid, expired or used up.',
+            429 => 'Too many tries right now. Try again in a minute.',
+            _ => 'Couldn\'t redeem the code ($e).',
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _codeError = 'Couldn\'t redeem the code.');
+    } finally {
+      if (mounted) setState(() => _redeeming = false);
+    }
   }
 
   Future<void> _send() async {
@@ -392,6 +514,57 @@ class _SignUpSheetState extends State<SignUpSheet> {
                         onPressed: _message.text.trim().isEmpty ? null : _send,
                       ),
               ],
+              const Divider(),
+              Text(
+                'Have a voucher code? Redeem it to get in right away.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('voucher-code'),
+                      controller: _code,
+                      enabled: !_redeeming,
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: 20,
+                      decoration: const InputDecoration(
+                        labelText: 'Voucher code',
+                        hintText: 'XXXX-XXXX-XXXX',
+                        border: OutlineInputBorder(),
+                        counterText: '',
+                      ),
+                      onSubmitted: (_) => _redeem(),
+                    ),
+                  ),
+                  _redeeming
+                      ? const SizedBox.square(
+                          dimension: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : FilledButton.tonal(
+                          key: const Key('redeem-voucher'),
+                          onPressed: _code.text.trim().isEmpty ? null : _redeem,
+                          child: const Text('Redeem'),
+                        ),
+                ],
+              ),
+              if (_codeError case final error?)
+                Text(
+                  error,
+                  key: const Key('voucher-error'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.error),
+                ),
+              if (widget.profiles case final profiles?)
+                LinkedAccountsButton(
+                  auth: widget.auth,
+                  roles: widget.roles,
+                  profiles: profiles,
+                  label: 'Have access with another Google account? Link it',
+                ),
               widget.roles.state == AccessState.checking
                   ? const CircularProgressIndicator()
                   : TextButton.icon(

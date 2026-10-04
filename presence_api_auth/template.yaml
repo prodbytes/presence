@@ -1,20 +1,21 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  presence_api_auth (stack presence-auth-api, and presence-rc-auth-api for the release
-  candidate): GET /api/auth returns the signed-in user's roles, POST
-  /api/auth/membership lets a user without them ask for access, and the
-  Admin screen's routes (presence_admin only) list and approve those
-  requests. API Gateway's HTTP API checks the Google ID token (JWT
-  authorizer) before the functions run; they read the verified claims.
-  GET /api/auth/anonymous, the only route without a token, returns the
-  execution mode (DEV without GoogleWebClientId, else RBAC), the
-  anonymous user's roles, and whether the OIDC client and cloud sync
-  (IdentityPoolId, UserDataBucket) are set.
-  Nobody has roles, except verified emails at one of AllowedDomains
-  (presence_user and presence_admin) and users listed in
-  the UserRoles table (email -> roles). Served under /api/* by the site's
-  CloudFront distribution (presence_infra/site.yaml).
+  presence_api_auth (stacks presence-auth-api and presence-rc-auth-api):
+  GET /api/auth returns the signed-in user's profile (found by the token's
+  subject, or made at the first sign-in) and roles; POST
+  /api/auth/membership asks for access, POST /api/auth/voucher redeems a
+  voucher code for its role, and the Admin routes (presence_admin) list and
+  approve requests and create, list and delete vouchers; POST
+  /api/auth/credentials and /api/auth/profile/* give a profile's cloud
+  credentials and link its accounts. The HTTP API checks the Google ID token
+  (JWT authorizer) before the functions run. GET /api/auth/anonymous, the
+  only route without a token, returns the execution mode (DEV without
+  GoogleWebClientId, else RBAC), the anonymous roles, and which settings are
+  set. Roles: verified emails at AllowedDomains get presence_user and
+  presence_admin, the UserRoles table adds more, and a linked account shares
+  its profile owner's. Served under /api/* by the site's CloudFront
+  distribution.
 
 Parameters:
   GoogleWebClientId:
@@ -51,6 +52,8 @@ Parameters:
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
+  HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
+  HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
 
 Globals:
   Function:
@@ -80,6 +83,57 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Profiles: whose data it is, outliving the ways its owner signs in.
+  # {"id": "<adjective>_<adjective>_<animal>", "createdAt", "lastSignInAt"
+  # (epoch ms), "ownerSubject", "ownerEmail", "identityId" (its Cognito
+  # identity: its folder in the user-data bucket)}.
+  ProfilesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Which profile each authenticated subject signs in to:
+  # {"subject": "<iss>#<sub>", "profileId", "email", "linkedAt"}, indexed by
+  # profile. Several subjects may share a profile (linked with a code).
+  # Holds emails: AWS only.
+  ProfileSubjectsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subject
+          AttributeType: S
+        - AttributeName: profileId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subject
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: profile
+          KeySchema:
+            - AttributeName: profileId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   # Membership requests, one per user: {"email", "name", "message",
   # "requestedAt" (epoch ms), "dismissed"?}. Like UserRoles, it holds people's emails: AWS only.
   MembershipTable:
@@ -99,6 +153,44 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Voucher codes: {"code": "XXXX-XXXX-XXXX", "role", "expiresAt" (epoch ms),
+  # "maxUses", "uses", "redeemedBy" (SS of emails), "createdBy", "createdAt"
+  # (epoch ms)}. Holds emails and live codes: AWS only.
+  VoucherTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # One-time link codes, by their SHA-256: {"code", "profileId",
+  # "createdBy", "expiresAt" (epoch s, the TTL)}.
+  LinkCodesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -107,10 +199,25 @@ Resources:
         "POST /api/auth/membership":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # Slows down guessing codes (60 random bits each).
+        "POST /api/auth/voucher":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        # Writes a profile at a first sign-in; the app asks it once per sign-in.
+        "GET /api/auth":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
         # Public (no token): the app asks it at every start.
         "GET /api/auth/anonymous":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
+        # Link codes: slow enough that guessing one (40 bits) is hopeless.
+        "POST /api/auth/profile/link-code":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        "POST /api/auth/profile/link":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -133,6 +240,8 @@ Resources:
       Environment:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           ALLOWED_DOMAINS: !Ref AllowedDomains
           # Verified AllowedDomains users get both roles. Fixed here rather
           # than a parameter: stacks keep a parameter's old value when a
@@ -146,6 +255,21 @@ Resources:
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
+        - Statement:
+            # Finds the subject's profile, or links it to a new one.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProfileSubjectsTable.Arn
+            # Creates profiles (with an unused ID), records each sign-in
+            # and reads the owner, whose roles a linked subject shares.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
       Events:
         Roles:
           Type: HttpApi
@@ -184,6 +308,35 @@ Resources:
             Path: /api/auth/membership
             Method: post
 
+  VoucherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.VoucherHandler::handleRequest
+      Environment:
+        Variables:
+          VOUCHER_TABLE: !Ref VoucherTable
+          USER_ROLES_TABLE: !Ref UserRolesTable
+      Policies:
+        - Statement:
+            # Counts a use (one conditional update), or gives it back if the grant fails.
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt VoucherTable.Arn
+            # Merges the voucher's role into the redeemer's roles.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt UserRolesTable.Arn
+      Events:
+        Redeem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/voucher
+            Method: post
+
   AdminFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -195,8 +348,17 @@ Resources:
           ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: presence_user,presence_admin
           MEMBERSHIP_TABLE: !Ref MembershipTable
+          VOUCHER_TABLE: !Ref VoucherTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
       Policies:
         - Statement:
+            # The caller's profile owner, whose roles a linked subject shares.
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource:
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !GetAtt ProfilesTable.Arn
             # Checks the caller's roles and grants presence_user.
             - Effect: Allow
               Action:
@@ -210,6 +372,13 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
               Resource: !GetAtt MembershipTable.Arn
+            # Creates (only new codes), lists and deletes vouchers.
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:Scan
+                - dynamodb:DeleteItem
+              Resource: !GetAtt VoucherTable.Arn
       Events:
         List:
           Type: HttpApi
@@ -229,6 +398,114 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/membership/dismiss
             Method: post
+        ListVouchers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers
+            Method: get
+        CreateVoucher:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers
+            Method: post
+        DeleteVoucher:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers/delete
+            Method: post
+
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.ProfileHandler::handleRequest
+      Environment:
+        Variables:
+          USER_ROLES_TABLE: !Ref UserRolesTable
+          ALLOWED_DOMAINS: !Ref AllowedDomains
+          DOMAIN_ROLES: presence_user,presence_admin
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          LINK_CODES_TABLE: !Ref LinkCodesTable
+          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
+          USER_DATA_BUCKET: !Ref UserDataBucket
+          # The identity pool's DeveloperProviderName (presence_infra/identity.yaml).
+          DEVELOPER_PROVIDER: login.presence.profiles
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserRolesTable
+        - Statement:
+            # Links, moves and unlinks subjects; lists a profile's.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !Sub "${ProfileSubjectsTable.Arn}/index/profile"
+            # Makes profiles, records sign-ins, sets the identity once.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt LinkCodesTable.Arn
+            # Finds an account's existing identity (GetId) and issues the
+            # profile's tokens. Only this pool ("none" when it isn't set).
+            - Effect: Allow
+              Action:
+                - cognito-identity:GetId
+                - cognito-identity:GetOpenIdTokenForDeveloperIdentity
+              Resource: !Sub
+                - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
+                - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
+            # Only to see whether an account's folder is empty before linking it.
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      Events:
+        Credentials:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/credentials
+            Method: post
+        Profile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile
+            Method: get
+        LinkCode:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/link-code
+            Method: post
+        Link:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/link
+            Method: post
+        Unlink:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/unlink
+            Method: post
 
 Outputs:
   ApiDomain:
@@ -237,6 +514,15 @@ Outputs:
   UserRolesTableName:
     Description: Where roles are declared per user (email -> roles)
     Value: !Ref UserRolesTable
+  ProfilesTableName:
+    Description: Profiles (id -> createdAt, lastSignInAt)
+    Value: !Ref ProfilesTable
+  ProfileSubjectsTableName:
+    Description: Which profile each subject signs in to (iss#sub -> profileId)
+    Value: !Ref ProfileSubjectsTable
   MembershipTableName:
     Description: Membership requests (email -> message, requestedAt)
     Value: !Ref MembershipTable
+  VoucherTableName:
+    Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
+    Value: !Ref VoucherTable

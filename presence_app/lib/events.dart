@@ -189,6 +189,13 @@ class EventLog extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Takes the events [ids] out of the log (deleted from storage).
+  void remove(Set<String> ids) {
+    final before = _events.length;
+    _events.removeWhere((e) => ids.contains(e.id));
+    if (_events.length != before) notifyListeners();
+  }
+
   /// Adds events restored from storage, keeping the timeline newest first.
   /// Events already in the log (published since launch) are kept.
   void addHistory(Iterable<AppEvent> history) {
@@ -250,6 +257,48 @@ class EventTimeline extends StatefulWidget {
   static bool isGrab(AppEvent event) =>
       event is ClipRequested || event is SubjectSuggestion;
 
+  /// [events] of [userId], the signed-in user (null signed out): theirs,
+  /// and those recorded signed out, which the next sign-in takes over
+  /// (`Persistence.claimAnonymous`). Events not saved yet have no owner;
+  /// they're the current user's.
+  static List<AppEvent> ofUser(List<AppEvent> events, String? userId) => [
+    for (final e in events)
+      if (e.userId == null ||
+          e.userId == AppEvent.anonymousUserId ||
+          e.userId == userId)
+        e,
+  ];
+
+  /// [events] of the devices shown: this device's while [thisDeviceOnly]
+  /// is on and [deviceId] is known. Events not saved yet have no device ID;
+  /// they're this device's.
+  static List<AppEvent> ofDevices(
+    List<AppEvent> events, {
+    required String? deviceId,
+    required bool thisDeviceOnly,
+  }) {
+    if (deviceId == null || !thisDeviceOnly) return events;
+    return [
+      for (final e in events)
+        if (e.deviceId == null || e.deviceId == deviceId) e,
+    ];
+  }
+
+  /// [events], only the grabs ([isGrab]) unless [showSystemEvents].
+  static List<AppEvent> ofKinds(
+    List<AppEvent> events, {
+    required bool showSystemEvents,
+  }) => showSystemEvents ? events : events.where(isGrab).toList();
+
+  /// [events], only those matching [query] ([eventMatches]); blank, all.
+  static List<AppEvent> matching(List<AppEvent> events, String query) {
+    if (query.trim().isEmpty) return events;
+    return [
+      for (final e in events)
+        if (eventMatches(e, query)) e,
+    ];
+  }
+
   /// The ID of an event to scroll to and outline (an event opened from
   /// elsewhere, such as a subject's map). Setting it again, even to the
   /// same ID, scrolls to it again.
@@ -275,37 +324,22 @@ class _EventTimelineState extends State<EventTimeline> {
 
   /// The events of the devices shown: this device's while [_filter] is on.
   /// Events not saved yet have no device ID; they're this device's.
-  List<AppEvent> get _ofDevices {
-    final events = widget.log.events;
-    final device = widget.deviceId;
-    if (device == null || !_filter.value) return events;
-    return [
-      for (final e in events)
-        if (e.deviceId == null || e.deviceId == device) e,
-    ];
-  }
+  List<AppEvent> get _ofDevices => EventTimeline.ofDevices(
+    widget.log.events,
+    deviceId: widget.deviceId,
+    thisDeviceOnly: _filter.value,
+  );
 
   ValueNotifier<String>? _ownSearch;
   ValueNotifier<String> get _search =>
       widget.search ?? (_ownSearch ??= ValueNotifier(''));
 
   /// [_ofDevices], only the grabs while [_system] is off.
-  List<AppEvent> get _ofKinds {
-    final events = _ofDevices;
-    if (_system.value) return events;
-    return events.where(EventTimeline.isGrab).toList();
-  }
+  List<AppEvent> get _ofKinds =>
+      EventTimeline.ofKinds(_ofDevices, showSystemEvents: _system.value);
 
   /// The events shown: [_ofKinds], only those matching [_search].
-  List<AppEvent> get _shown {
-    final events = _ofKinds;
-    final query = _search.value;
-    if (query.trim().isEmpty) return events;
-    return [
-      for (final e in events)
-        if (eventMatches(e, query)) e,
-    ];
-  }
+  List<AppEvent> get _shown => EventTimeline.matching(_ofKinds, _search.value);
 
   /// Each card's key, to find it once it's built.
   final _cards = <String, GlobalKey>{};
@@ -609,6 +643,77 @@ class _EventSearchState extends State<EventSearch> {
                 ),
         ),
       ),
+    ),
+  );
+}
+
+/// The event counts beside the [EventSearch] field, as "3 / 12": *all* is
+/// every event of [userId] on this device ([EventTimeline.ofUser]: recorded
+/// here, restored, or fetched from the cloud, so it grows as sync brings
+/// more), and *matching* those of them left after the search and the filter
+/// chips, with the same steps as the [EventTimeline].
+class EventCount extends StatelessWidget {
+  const EventCount({
+    super.key,
+    required this.log,
+    required this.userId,
+    required this.deviceId,
+    required this.thisDeviceOnly,
+    required this.showSystemEvents,
+    required this.search,
+  });
+
+  final EventLog log;
+
+  /// The signed-in user's ID; null signed out.
+  final String? userId;
+  final String? deviceId;
+  final ValueListenable<bool> thisDeviceOnly;
+  final ValueListenable<bool> showSystemEvents;
+  final ValueListenable<String> search;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([
+      log,
+      thisDeviceOnly,
+      showSystemEvents,
+      search,
+    ]),
+    // Recognition tags clips once they're recorded: count again when a
+    // clip's tags or object tags change.
+    builder: (context, _) => ListenableBuilder(
+      listenable: Listenable.merge([
+        for (final e in log.events)
+          if (e is ClipRequested) e.annotations,
+      ]),
+      builder: (context, _) {
+        final mine = EventTimeline.ofUser(log.events, userId);
+        final all = mine.length;
+        final shown = EventTimeline.matching(
+          EventTimeline.ofKinds(
+            EventTimeline.ofDevices(
+              mine,
+              deviceId: deviceId,
+              thisDeviceOnly: thisDeviceOnly.value,
+            ),
+            showSystemEvents: showSystemEvents.value,
+          ),
+          search.value,
+        ).length;
+        final theme = Theme.of(context);
+        return Tooltip(
+          message: '$shown of $all events shown',
+          child: Text(
+            '$shown / $all',
+            key: const Key('event-count'),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        );
+      },
     ),
   );
 }

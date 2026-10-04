@@ -462,6 +462,47 @@ void main() {
       expect(backend.downloads, contains('events/flat.json'));
     });
 
+    test('a shorter History setting shrinks the window to it', () async {
+      sync.dispose();
+      const prefix = 'us-east-1:identity';
+      final now = DateTime.utc(2026, 9, 27, 12);
+      void event(String id, DateTime time) {
+        final record = {
+          'id': id,
+          'type': 'generic',
+          'title': 'Door opened',
+          'time': time.millisecondsSinceEpoch,
+        };
+        backend.uploads['$prefix/${CloudSync.eventKey(record)}'] = (
+          bytes: json(record),
+          contentType: 'application/json',
+        );
+      }
+
+      // Kept 3 days: one from 2 days ago comes down; one from 5 days ago
+      // would be deleted as too old, so it isn't even downloaded.
+      event('recent', now.subtract(const Duration(days: 2)));
+      event('too-old', now.subtract(const Duration(days: 5)));
+
+      final remote = <RemoteRecords>[];
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        onRemote: (r) async => remote.add(r),
+        keep: () => const Duration(days: 3),
+        now: () => now,
+      );
+      await auth.signIn();
+      await sync.idle();
+
+      expect(remote.single.events.map((e) => e['id']), ['recent']);
+      expect(backend.downloads.where((k) => k.contains('too-old')), isEmpty);
+    });
+
     test('events already on the device aren\'t downloaded again', () async {
       await auth.signIn();
       await sync.idle();
