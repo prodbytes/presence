@@ -42,6 +42,9 @@ in the app bar**, which flip between full screens.
   - The **Clip** trigger is an extended floating action button (bottom
     right), shown only on the Camera tab and only when a camera is open.
     Material says to hide a FAB that can't act, rather than disable it.
+    With the **All** grid showing, it's **Capture all**: every device of
+    the profile takes a clip (see
+    [Camera screen](camera.md#capture-all)); otherwise only this camera.
   - **All** (a grid icon and the label "All") sits left of Flip, as a
     quiet secondary button, shown with access whether or not a camera is
     open. It toggles a grid: this device's camera in the top-left cell and

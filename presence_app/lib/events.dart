@@ -43,8 +43,29 @@ class AppEvent {
          userId: userId,
        );
 
+  /// The Clip button was pressed with the Camera tab's All grid showing:
+  /// every device of the profile takes a clip. It reaches the other devices
+  /// through cloud sync, and each answers with a clip of its own
+  /// (`CameraRig.answerCaptureAll`).
+  AppEvent.captureAll({
+    DateTime? time,
+    String? id,
+    String? deviceId,
+    String? userId,
+  }) : this(
+         icon: Icons.grid_view,
+         title: 'Capture all',
+         detail: 'Every device takes a clip',
+         type: captureAllType,
+         time: time,
+         id: id,
+         deviceId: deviceId,
+         userId: userId,
+       );
+
   static const String genericType = 'generic';
   static const String appStartedType = 'app_started';
+  static const String captureAllType = 'capture_all';
 
   /// The [userId] of events recorded while nobody was signed in. The next
   /// user to sign in on the device takes them over
@@ -101,6 +122,12 @@ class AppEvent {
     final userId = ownerOf(record);
     final event = switch (type) {
       appStartedType => AppEvent.appStarted(
+        time: time,
+        id: id,
+        deviceId: deviceId,
+        userId: userId,
+      ),
+      captureAllType => AppEvent.captureAll(
         time: time,
         id: id,
         deviceId: deviceId,
@@ -242,8 +269,9 @@ class EventTimeline extends StatefulWidget {
 
   /// Whether system events show (the [ShowSystemEvents] chip): on, every
   /// event, such as "Application started" and sign-ins; off, only grabs
-  /// ([isGrab]: clips, by hand, on motion, at start or on a schedule, and
-  /// the suggestions about them). Kept by the caller; defaults to an own one, on.
+  /// ([isGrab]: clips, by hand, on motion, at start, on a schedule or for
+  /// Capture all, the Capture all requests, and the suggestions about
+  /// clips). Kept by the caller; defaults to an own one, on.
   final ValueNotifier<bool>? showSystemEvents;
 
   /// The [EventSearch] text: only the events it matches ([eventMatches])
@@ -252,10 +280,12 @@ class EventTimeline extends StatefulWidget {
   final ValueNotifier<String>? search;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
-  /// clip, or a suggestion about one ("Is this Rex?"), which waits for an
-  /// answer.
+  /// clip, a Capture all request, or a suggestion about a clip ("Is this
+  /// Rex?"), which waits for an answer.
   static bool isGrab(AppEvent event) =>
-      event is ClipRequested || event is SubjectSuggestion;
+      event is ClipRequested ||
+      event is SubjectSuggestion ||
+      event.type == AppEvent.captureAllType;
 
   /// [events] of [userId], the signed-in user (null signed out): theirs,
   /// and those recorded signed out, which the next sign-in takes over

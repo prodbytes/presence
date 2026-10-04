@@ -30,7 +30,8 @@ emails, add accounts or switch providers without losing their data.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states,
   and the All grid: this camera top left, then every device in the
-  profile with its latest image.
+  profile with its latest image; Clip there is Capture all, a clip on
+  every device, asked through cloud sync.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
   subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus.
