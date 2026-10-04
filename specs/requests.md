@@ -1780,3 +1780,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       part is full).
     - Tests and the specs' example texts follow the new defaults. 270
       Flutter tests pass.
+209. **Show the event counts (matching / all) beside the search at the top
+    of the Events (Monitoring) tab.** (2026-10-02)
+    - New `EventCount` right after the search field: "shown / all", where
+      *shown* is what the timeline lists after the search and the chips,
+      and *all* is every event in the log. It has a tooltip ("2 of 12 events
+      shown").
+    - The timeline's filter steps are now static helpers
+      (`EventTimeline.ofDevices`, `ofKinds`, `matching`) used by both, so
+      the count and the list always agree.
+    - The field and the count share one row; on a 320 dp phone the field
+      gets narrower so the count stays beside it.
+    - Tests: the count follows the search, Show system events, new events,
+      late object tags and Only this device; where it sits at 1280 and
+      320 dp. 271 Flutter tests pass.
+210. **Event counts: *all* is every event of this user on this device,
+    updated as more load from S3; *matching* is after the search and the
+    chips.** (2026-10-02)
+    - `EventCount` now counts only the signed-in user's events
+      (`EventTimeline.ofUser`). Events recorded signed out still count, since
+      the next sign-in takes them over, and so do new ones not saved yet.
+      Other users' events left on the device don't. *Matching* applies the
+      search and both chips to those events.
+    - `MonitoringView` takes the signed-in `userId` and passes it to the
+      count. Events fetched by cloud sync join the log, so *all* grows as
+      they arrive.
+    - Test: another user's event is left out, a signed-out one counts, and
+      cloud events raise *all* (one from another device isn't *matching*
+      while Only this device is on). 272 Flutter tests pass.
