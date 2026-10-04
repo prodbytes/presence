@@ -1744,26 +1744,204 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       What a device uploaded under the old keys isn't uploaded again.
     - [Cloud sync](cloud-sync.md) and the bucket template's description
       updated. 271 Flutter tests pass (one new); web release builds.
+206. **Add the Raspberry Pi dependencies and instructions to the README.**
+    (2026-10-02)
+    - New README section "Run it on a Raspberry Pi": 64-bit Raspberry Pi
+      OS (Bookworm or newer) with the desktop, `sudo apt install -y curl
+      libgtk-3-0 libegl1 libgles2`, then
+      `curl -fsSL https://sh.presence.nu01.com | sh`; where it installs,
+      how to update, and the web fallback. Also in
+      [Install script](install-script.md#raspberry-pi).
+    - Also asked: drop the download's checksum check ("just run it"). Not
+      done in this change; the script still verifies when the release API
+      answers.
+207. **Make the events map centered on the latest event and zoomed out to
+    catch all events; add zoom controls as well.** (2026-10-02)
+    - The Monitoring tab's subjects map, and each subject's map, open
+      centered on the newest event, as close as they can be with every
+      dot in view (48 px padding, zoom 17 at most): each dot and its
+      mirror through the newest, in Web Mercator, are fitted
+      (`framedAround`). The whole world without located events, as before.
+    - Zoom in and out buttons in the bottom-right corner, one step around
+      the center, off at zoom 2 and 19. The Settings location map's zoom
+      buttons moved to `MapZoomButtons` in `lib/location/map_parts.dart`,
+      shared by both.
+    - Spec: new "The map's view" section in [Subjects](subjects.md).
+    - 274 Flutter tests pass (3 new in `subjects_test.dart`); the web
+      release builds.
+208. **Change the default clip times to 5 s before the trigger and 10 s
+    after.** (2026-10-02)
+    - `ClipConfig` defaults are now `before` 5 s and `after` 10 s
+      (`defaultBefore`, `defaultAfter`, replacing the single
+      `defaultLength` of 15 s), so a default clip is 15 s. The 5–60 s range
+      and 5 s steps are unchanged, and settings already saved on a device or
+      in the cloud keep their values.
+    - The startup clip comes 5 s after a camera opens (once its "before"
+      part is full).
+    - Tests and the specs' example texts follow the new defaults. 270
+      Flutter tests pass.
+209. **Show the event counts (matching / all) beside the search at the top
+    of the Events (Monitoring) tab.** (2026-10-02)
+    - New `EventCount` right after the search field: "shown / all", where
+      *shown* is what the timeline lists after the search and the chips,
+      and *all* is every event in the log. It has a tooltip ("2 of 12 events
+      shown").
+    - The timeline's filter steps are now static helpers
+      (`EventTimeline.ofDevices`, `ofKinds`, `matching`) used by both, so
+      the count and the list always agree.
+    - The field and the count share one row; on a 320 dp phone the field
+      gets narrower so the count stays beside it.
+    - Tests: the count follows the search, Show system events, new events,
+      late object tags and Only this device; where it sits at 1280 and
+      320 dp. 271 Flutter tests pass.
+210. **Event counts: *all* is every event of this user on this device,
+    updated as more load from S3; *matching* is after the search and the
+    chips.** (2026-10-02)
+    - `EventCount` now counts only the signed-in user's events
+      (`EventTimeline.ofUser`). Events recorded signed out still count, since
+      the next sign-in takes them over, and so do new ones not saved yet.
+      Other users' events left on the device don't. *Matching* applies the
+      search and both chips to those events.
+    - `MonitoringView` takes the signed-in `userId` and passes it to the
+      count. Events fetched by cloud sync join the log, so *all* grows as
+      they arrive.
+    - Test: another user's event is left out, a signed-out one counts, and
+      cloud events raise *all* (one from another device isn't *matching*
+      while Only this device is on). 272 Flutter tests pass.
+211. **When the app loads, and every 3 hours, delete all events older than
+    2 weeks (configurable in Settings from 1 day to three months).**
+    (2026-10-02)
+    - New `HistoryConfig` (`history: {keepMs}`): 14 days by default, 1–90
+      days in 1-day steps. Settings has a new **History** section with a
+      **Keep events for** slider.
+    - `EventRetention` runs `Persistence.deleteEventsBefore` once the
+      history is restored at load, then every 3 h. It deletes the events,
+      their clip records and recordings, and suggestions about deleted
+      clips, from storage and from the event log. A new setting applies on
+      the next run, so dragging the slider deletes nothing.
+    - Cloud sync's fetch window shrinks to the setting when it's shorter
+      than two weeks, so deleted events don't come back from S3. Nothing
+      is deleted from S3.
+    - New spec: [event-retention.md](event-retention.md).
+    - Tests that store fixed-date events now give the app a matching clock,
+      so they won't break once those dates are more than two weeks old.
+      278 Flutter tests pass; the web release builds.
+
+212. **Create the concept of a profile, mostly in the auth module: when a
+    user logs in, find the profile associated with that subject and load
+    it; if there is none, create one and associate them, so it's current
+    and found at the next login. This is so users can add collaborators,
+    change emails or authentication providers without losing their data,
+    which should be scoped to their profiles. Make it prominent in the
+    spec. Make the profile ID like the device ID, `adjective-adjective-animal`,
+    with word lists long enough to have no collisions.** (2026-10-02)
+    - New [Profiles](profiles.md) spec, stated at the top of the spec index:
+      data belongs to profiles, not logins.
+    - Auth API: `ProfilesTable` (`id`, `createdAt`, `lastSignInAt`) and
+      `ProfileSubjectsTable` (`<iss>#<sub>` → `profileId`, `email`,
+      `linkedAt`). `GET /api/auth` finds the subject's profile, or creates
+      one and links it (`Profiles`), and answers `"profile"` beside the
+      roles, for every signed-in user. Two racing first sign-ins share the
+      first link. The route is now throttled (20/s, burst 50).
+    - Profile IDs (`ProfileId`): two different adjectives and an animal,
+      hyphenated (`huge-wavy-darter`), from the device ID's 1053 adjectives
+      and 1031 new animals: about 1.14 billion. A conditional put means no
+      two profiles ever share an ID; a taken one is redrawn (10 tries).
+    - App: `RolesClient.fetch` returns `UserAccess` (roles and profile);
+      `RolesService.profile` holds it.
+    - Not done yet, and listed in the spec: events' `userId`, the cloud
+      sync folder and roles still use the Google account or email, and
+      there's no way to link another subject to a profile.
+    - 32 JUnit tests pass (9 new in `ProfilesTest`), 269 Flutter tests
+      (2 new); `sam validate --lint` passes. In local Floci, the deployed
+      `AuthFunction` created a profile and link, and returned the same
+      profile on the second call.
+213. **Always show the device ID and the profile ID on the Settings view.**
+    (2026-10-02)
+    - Under the version, two labelled lines, always there: **Device**
+      `automatic_paranoid_gadget` (*loading…* until known) and **Profile**
+      `huge_wavy_darter` (or why there's none: *none in DEV*,
+      *checking…*, *not signed in*, *unavailable*). The IDs stay
+      selectable (`device-id`, `profile-id` keys).
+    - `SettingsView` takes `profileId` and `noProfile`; the home screen
+      passes `RolesService.profile` and the reason.
+    - Stacked on #133 (profiles). 272 Flutter tests pass (3 new in
+      `add_device_test.dart`); the web release builds.
+214. **Make both the device ID and the profile ID separated by `_`.**
+    (2026-10-02)
+    - Profile IDs are now `adjective_adjective_animal`
+      (`huge_wavy_darter`), like device IDs; `ProfileId.PATTERN` and the
+      examples across the auth API, the app and the specs follow. Device
+      IDs already used underscores and are unchanged.
+    - The two can now be the same string (191 animals are also device
+      "things"); they're separate namespaces, and the spec says so.
+    - Made on #133 before it merged, so no hyphenated profile was ever
+      deployed. 32 JUnit tests and 269 Flutter tests pass.
 
 ## 2026-10-04
 
-206. **Create a voucher code system in the auth module and views: users
-     submit a voucher code on the Request access sheet and get the
-     voucher's role if it's valid; admins create codes (after the
-     membership requests on the Admin screen) that grant a given role, with
-     an expiration date and a usage count.**
-     - Auth API: new `VoucherTable` (keyed by code), `POST /api/auth/voucher`
-       (`VoucherHandler`, throttled like requests) to redeem, and
-       `GET`/`POST /api/auth/vouchers` and `POST /api/auth/vouchers/delete`
-       on `AdminHandler`. Codes are random `XXXX-XXXX-XXXX` (60 bits); a
-       redemption is one conditional write (exists, not expired, uses left,
-       not already used by this email), and any failure answers the same
-       404. An Admin voucher also grants `presence_user`.
-     - App: a **Voucher code** field and **Redeem** on the Request access
-       sheet (a valid code re-checks the roles, so the user gets in at
-       once); the Admin screen (now titled "Admin") gets a **Voucher codes**
-       section: a form (role, valid-through date, uses) and the codes with
-       their uses, expiry, redeemers, Copy and Delete.
-     - Floci's local routes added. [Membership](membership.md) and
-       [Auth API](auth-api.md) updated. 34 JUnit tests (11 new) and 273
-       Flutter tests (2 new) pass.
+215. **One person, several Google accounts: let a user reach the same
+    profile, objects and events from any of their identities, even two from
+    the same provider (e.g. `jfaerman@gmail.com` and `julio@nu01.com`).**
+    (2026-10-04)
+    - Asked which IAM policy variables could replace
+      `${cognito-identity.amazonaws.com:sub}`: none identifies a person
+      across logins, and a Cognito identity holds only one login per
+      provider. Chose developer-authenticated identities through the auth
+      API.
+    - New [Profiles](profiles.md):
+      - an accounts table maps each Google account (`sub`) to a profile and
+        its Cognito identity;
+      - `POST /api/auth/credentials` issues developer-identity tokens
+        (`presence_user` only), on the identity the account already had,
+        so no data moves;
+      - one-time link codes (10 minutes, hashed, throttled), unlinking,
+        and the **Linked accounts** sheet;
+      - a linked account shares the owner's roles.
+    - The identity pool got `DeveloperProviderName: login.presence.profiles`
+      and keeps Google. The bucket policy is unchanged.
+    - The app now gets credentials from the auth API
+      (`CognitoCredentials`), and `CloudSync.reconnect()` starts over after
+      a link.
+    - [Auth API](auth-api.md), [Cloud sync](cloud-sync.md) and
+      [Sign-in](sign-in.md) updated.
+    - Tests: 37 JUnit (14 new) and 277 Flutter (6 new) pass; both templates
+      lint clean; Floci deploys the new tables, function and routes. Not
+      deployed to AWS.
+    - Before release, reconciled with #133 (request 212): the profile is
+      #133's (`ProfilesTable`, `ProfileSubjectsTable` by `<iss>#<sub>`,
+      `huge_wavy_darter` IDs, made at the first sign-in). This change's
+      `AccountsTable` was dropped. The profile now also keeps
+      `ownerSubject`, `ownerEmail` and `identityId` (set once), and the
+      subjects table got a `profile` index.
+216. **Increment Y for the data scoping change; tag a new RC and GA; rebuild
+    and deploy it all; sync git (merge all pending PRs, reconciling #133
+    with #144).** (2026-10-04)
+    - Y is now 6 (`version.Y.txt`): versions are `0.6.Z`.
+    - Merged #141, #142, #137, #138 and #140, each after merging `main`
+      into it and passing the tests (request-log numbers now 206–211).
+    - Reconciled #133 (profiles) into #144 (profile folders and linking):
+      one design, in [Profiles](profiles.md). 47 JUnit and 295 Flutter
+      tests pass, and the template lints clean.
+    - The GitHub deploy roles (`github-deploy.yaml`) may now describe and
+      update DynamoDB TTL, which the link-codes table needs.
+217. **Create a voucher code system in the auth module and views: users
+    submit a voucher code on the Request access sheet and get the
+    voucher's role if it's valid; admins create codes (after the
+    membership requests on the Admin screen) that grant a given role, with
+    an expiration date and a usage count.** (2026-10-04)
+    - Auth API: new `VoucherTable` (keyed by code), `POST /api/auth/voucher`
+      (`VoucherHandler`, throttled like requests) to redeem, and
+      `GET`/`POST /api/auth/vouchers` and `POST /api/auth/vouchers/delete`
+      on `AdminHandler`. Codes are random `XXXX-XXXX-XXXX` (60 bits); a
+      redemption is one conditional write (exists, not expired, uses left,
+      not already used by this email), and any failure answers the same
+      404. An Admin voucher also grants `presence_user`.
+    - App: a **Voucher code** field and **Redeem** on the Request access
+      sheet (a valid code re-checks the roles, so the user gets in at
+      once); the Admin screen (now titled "Admin") gets a **Voucher codes**
+      section: a form (role, valid-through date, uses) and the codes with
+      their uses, expiry, redeemers, Copy and Delete.
+    - Floci's local routes added. [Membership](membership.md) and
+      [Auth API](auth-api.md) updated. 34 JUnit tests (11 new) and 273
+      Flutter tests (2 new) pass.

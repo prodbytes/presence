@@ -71,7 +71,12 @@ class FileMediaStore implements MediaStore {
     Iterable<String> deleteIds,
   ) async {
     await _store.putClip(clip);
-    for (final id in deleteIds) {
+    await delete(deleteIds);
+  }
+
+  @override
+  Future<void> delete(Iterable<String> ids) async {
+    for (final id in ids) {
       final file = await _file(id);
       if (await file.exists()) await file.delete();
     }

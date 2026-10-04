@@ -125,6 +125,9 @@ Resources:
                   - dynamodb:DescribeTable
                   - dynamodb:DescribeContinuousBackups
                   - dynamodb:UpdateContinuousBackups
+                  # The auth API's link codes expire by TTL.
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTimeToLive
                   - dynamodb:TagResource
                   - dynamodb:UntagResource
                   - dynamodb:ListTagsOfResource
@@ -280,6 +283,9 @@ Resources:
                   - dynamodb:DescribeTable
                   - dynamodb:DescribeContinuousBackups
                   - dynamodb:UpdateContinuousBackups
+                  # The auth API's link codes expire by TTL.
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTimeToLive
                   - dynamodb:TagResource
                   - dynamodb:UntagResource
                   - dynamodb:ListTagsOfResource

@@ -11,6 +11,15 @@ Presence is a surveillance app. It shows live camera feeds and a stream of
 events detected from them. The cameras are always recording, video and
 audio, so a clip can include the moments before someone pressed Clip.
 
+**Data belongs to profiles, not logins.** Every signed-in user has a
+[profile](profiles.md) (`automatic_paranoid_axolotl`), found by the
+subject they sign in with, or created and linked at their first sign-in.
+The profile owns the user's cloud folder and roles, and several Google
+accounts can be linked to it with a one-time code. So users can change
+emails, add accounts or switch providers without losing their data.
+(Events still carry the Google account ID; see
+[Profiles](profiles.md#known-limitations).)
+
 ## Features
 
 **App**
@@ -34,11 +43,17 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   240 minutes (30 min to a day, in Settings).
+- [Profiles](profiles.md): **the owner of a user's data.** Each sign-in
+  loads the profile linked to its subject (`<iss>#<sub>`), or creates one
+  and links it; IDs like `automatic_paranoid_axolotl`, never repeated.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (role,
   expiry, uses) on the Admin screen.
+- [Profiles](profiles.md): whose data it is (`huge_wavy_darter`), made at
+  the first sign-in; one cloud folder and the owner's roles for every
+  account linked to it with a one-time code (even two from Google).
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
@@ -52,14 +67,18 @@ audio, so a clip can include the moments before someone pressed Clip.
   cat, bicycle, bottle…) for search.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, and the location on every event.
-- [Settings screen](settings.md): the motion, camera, clip, schedule and
-  subject settings.
+- [Settings screen](settings.md): the motion, camera, clip, schedule,
+  subject, recognition and history settings.
 - [Add a device](add-device.md): a QR code, the link and a Share button,
   shown at the end of Settings, that open Presence on another device as a new device of the
   same user, after a sign-in checked against the link.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
+- [Event retention](event-retention.md): events older than the History
+  setting (two weeks; 1 day to 3 months) deleted from the device, with
+  their clips, at load and every 3 hours.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
-  S3 through a Cognito identity pool.
+  S3, with credentials for their profile (the auth API, then a Cognito
+  identity pool).
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
@@ -73,10 +92,11 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 **Backend**
 
-- [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
+- [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's
+  [profile](profiles.md) and roles
   (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
-  execution mode and which settings are set, no token), and the
-  membership and voucher routes (SAM,
+  execution mode and which settings are set, no token), the
+  membership and voucher routes and the [profile](profiles.md) routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.

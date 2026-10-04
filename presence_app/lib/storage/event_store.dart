@@ -100,6 +100,22 @@ class EventStore {
     await txn.completed;
   }
 
+  /// Deletes the events [eventIds] and the clip records [clipIds] in one
+  /// transaction. Their recordings are the `MediaStore`'s to delete.
+  Future<void> deleteEvents(
+    Iterable<String> eventIds,
+    Iterable<String> clipIds,
+  ) async {
+    final txn = _db.transactionList([events, clips], idbModeReadWrite);
+    for (final id in eventIds) {
+      await txn.objectStore(events).delete(id);
+    }
+    for (final id in clipIds) {
+      await txn.objectStore(clips).delete(id);
+    }
+    await txn.completed;
+  }
+
   /// All events, newest first.
   Future<List<Map<String, Object?>>> allEvents() async {
     final txn = _db.transaction(events, idbModeReadOnly);

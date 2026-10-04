@@ -16,7 +16,8 @@ the separate Events and Subjects tabs.
 
 - **At the top,** in one row that wraps on narrow phones: on the left the
   **Search events** field (220 dp; filters the events as you type, with
-  an x to clear it), then the **Only this device** filter chip (checked by
+  an x to clear it) with its **matching / all** event count beside it (see
+  [Events](events.md)), then the **Only this device** filter chip (checked by
   default; shown once the device ID is known), then the **Show system
   events** chip (checked by default in DEV only: off, only grabs show). On
   a 320 dp phone the chips go on the rows below the field. See
@@ -25,7 +26,9 @@ the separate Events and Subjects tabs.
   - **left:** the **map of every subject's events**, in a rounded,
     outlined frame: each subject in its own color, the newest dot solid
     and older ones fading, and **the subject's name beside their newest
-    dot**, in a pill edged in their color. Tapping a name opens the
+    dot**, in a pill edged in their color. It opens **centered on the
+    newest event, zoomed out to show all of them**, with **zoom buttons**
+    (see [Subjects](subjects.md#the-maps-view)). Tapping a name opens the
     subject's screen (their map and history of events; see
     [Subjects](subjects.md));
   - **right:** **all events**, newest first, as cards; a clip's card lists
@@ -70,7 +73,11 @@ the separate Events and Subjects tabs.
   suggestions) and object tags, ignoring case; a clip given object tags
   after the search was typed shows up; the x clears it and every event shows
   again; it combines with Show system events; at 320 dp it fits, the chips
-  below it. 259 Flutter tests pass.
+  below it; the matching / all count sits between the field and the chips
+  (on the field's row at 320 dp) and follows the search, the chips, new
+  events and late object tags; *all* leaves out other users' events and
+  grows as events arrive from the cloud. `events_filter_test.dart` also checks that
+  the device filter changes the shown count, not the total.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations

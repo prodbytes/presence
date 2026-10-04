@@ -5,8 +5,13 @@ Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
 site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)):
 
-- **`GET /api/auth`** (`AuthHandler`): the signed-in user's roles,
-  `{"email": "...", "roles": [...]}`;
+- **`GET /api/auth`** (`AuthHandler`): the signed-in user's **profile**
+  and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",
+  "roles": [...]}`. The profile is the one linked to the token's subject
+  (`iss` and `sub`), or a new one created and linked at the first
+  sign-in, for every signed-in user, with or without roles. **Data belongs
+  to the profile, not the login**: see [Profiles](profiles.md). Throttled
+  to 20 requests/s (burst 50), since a first sign-in writes;
 - **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a
   token**): the [execution mode](execution-mode.md), the anonymous
   user's roles (in DEV every role) and which expected settings the stack
@@ -30,7 +35,11 @@ site (`/api/*` in the CloudFront distribution; see
   /api/auth/vouchers`** (form-encoded `role`, `expiresAt` ISO-8601,
   `maxUses`; answers 201 with the new voucher) and **`POST
   …/vouchers/delete`** (`AdminHandler`, admins only) manage them. See
-  [Membership](membership.md#voucher-codes).
+  [Membership](membership.md#voucher-codes);
+- **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
+  (`ProfileHandler`): a Cognito developer-identity token for the user's
+  profile, and listing, linking and unlinking its Google accounts. See
+  [Profiles](profiles.md).
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
@@ -38,7 +47,8 @@ site (`/api/*` in the CloudFront distribution; see
   `GoogleWebClientId` may be empty only for local development: the
   audience is then `no-oidc-client`, which no token matches.
   Otherwise it answers 401 before a function runs. The functions only read
-  the verified claims (`email`, `email_verified`, and `name` for requests).
+  the verified claims (`iss` and `sub` for the profile, `email`,
+  `email_verified`, and `name` for requests).
 - **Roles:**
   - **`presence_user`** uses the app; **`presence_admin`** also approves
     membership requests; **`presence_anonymous`** is nobody signed in;
@@ -53,15 +63,24 @@ site (`/api/*` in the CloudFront distribution; see
     roles. The table starts empty; the Admin screen's grants fill it.
   - Unverified emails get nothing. `sub.nu01.com`, `evilnu01.com` and
     `nu01.com.example` don't count as the domain.
-- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`): on-demand,
-  encrypted, with point-in-time recovery, and kept if the stack is deleted.
-  Their contents (people's emails) live only in AWS.
-- **Least privilege:** the roles function may only read `UserRolesTable`;
-  the membership function may only put items in `MembershipTable`; the
-  voucher function may update items in `VoucherTable` and read and update
-  `UserRolesTable`; the admin function may read and update
-  `UserRolesTable`, scan, update and delete in `MembershipTable`, and put,
-  scan and delete in `VoucherTable`.
+  - **A linked subject** also gets the roles of its profile's owner (see
+    [Profiles](profiles.md#the-profiles-folder-and-roles)), in every route.
+- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`, and
+  [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
+  on-demand, encrypted, with point-in-time recovery, and kept if the stack
+  is deleted. Their contents (people's emails) live only in AWS.
+  `LinkCodesTable` holds short-lived link codes (hashed, with a TTL).
+- **Least privilege:**
+  - the roles function may only read `UserRolesTable`, get and put in
+    `ProfileSubjectsTable`, and get, put and update in `ProfilesTable`;
+  - the membership function may only put items in `MembershipTable`;
+  - the voucher function may update items in `VoucherTable`, and read and
+    update `UserRolesTable`;
+  - the admin function may read and update `UserRolesTable`, scan, update
+    and delete in `MembershipTable`, put, scan and delete in
+    `VoucherTable`, and get items from both profile tables;
+  - the profile function's permissions are listed in
+    [Profiles](profiles.md#where-its-kept).
 - **Responses** are `application/json` with `Cache-Control: no-store`, and
   CloudFront doesn't cache `/api/*` either.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
@@ -79,12 +98,15 @@ site (`/api/*` in the CloudFront distribution; see
   tables, deployed from this template at every start, behind an HTTP
   API with the same Google JWT authorizer. Nothing local reaches AWS.
 - **Tests** (JUnit, `mvn test`):
+  - profiles (`ProfilesTest`): found by subject, created and linked at a
+    first sign-in, never a repeated ID, races; see
+    [Profiles](profiles.md#verified);
   - the role rules: default none, the exact domains, verification, table
     roles, case and whitespace;
   - the execution mode: DEV only without a client; the anonymous route's
     answer in RBAC and DEV, with its settings (AWS needs both the pool and
     the bucket);
-  - the handler's JSON: roles, no roles, no claims, escaping;
+  - the handler's JSON: profile, roles, no roles, no claims, escaping;
   - membership requests: verified email, empty and long messages, base64
     bodies, the hourly cooldown;
   - the admin routes: 403 without both roles, listing, grant, dismiss
@@ -94,7 +116,9 @@ site (`/api/*` in the CloudFront distribution; see
     role, expiry and uses checks; newest first; deletion; redeeming once
     per email, running out, expiring, unknown codes, verified emails, an
     Admin voucher also granting `presence_user`, and a failed grant giving
-    the use back.
+    the use back;
+  - profiles, linking and the owner's roles (`ProfileTest`; see
+    [Profiles](profiles.md#verified)).
   - the whole flow: a nu01.com user gets both roles; another domain's
     user gets none, asks, is granted by an admin, and becomes a
     `presence_user` only.

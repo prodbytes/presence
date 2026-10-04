@@ -132,6 +132,45 @@ void main() {
     expect(tops, ['Application started', 'Door opened', 'Application started']);
   });
 
+  testWidgets('events older than the History setting are deleted at launch '
+      'and every 3 h', (tester) async {
+    await launch(tester);
+    final bus = AppEventBusScope.of(tester.element(find.byType(Scaffold)));
+    for (final (title, age) in [
+      ('Three weeks ago', const Duration(days: 21)),
+      ('Ten days ago', const Duration(days: 10)),
+    ]) {
+      bus.publish(
+        AppEvent(icon: Icons.circle, title: title, time: clock.subtract(age)),
+      );
+    }
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    // Kept two weeks by default: the three-week-old event goes at launch,
+    // from storage too.
+    await refresh(tester);
+    await showEvents(tester);
+    await revealSystemEvents(tester);
+    expect(inEvents(find.text('Three weeks ago')), findsNothing);
+    expect(inEvents(find.text('Ten days ago')), findsOneWidget);
+    final store = await run(tester, EventStore.open(storage));
+    final titles = [
+      for (final e in await run(tester, store.allEvents())) e['title'],
+    ];
+    expect(titles, isNot(contains('Three weeks ago')));
+    expect(titles, contains('Ten days ago'));
+    // Not closed: in memory, it's the app's own database.
+
+    // Five days on, the ten-day-old event is 15 days old: the next run, 3 h
+    // after launch, deletes it while the app runs.
+    clock = clock.add(const Duration(days: 5));
+    await tester.pump(const Duration(hours: 3));
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(inEvents(find.text('Ten days ago')), findsNothing);
+  });
+
   testWidgets('a finished clip survives a refresh, with its video', (
     tester,
   ) async {
@@ -148,7 +187,7 @@ void main() {
 
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Front door')), findsOneWidget);
-    expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
+    expect(inEvents(find.text('15 s clip ready')), findsOneWidget);
     expect(inEvents(find.byKey(const Key('clip-thumbnail'))), findsOneWidget);
 
     final clip = clipEvent(tester).clip;
@@ -576,7 +615,7 @@ void main() {
     expect(
       inEvents(
         find.text(
-          'Previous 15 s only: the app closed before the next 15 s '
+          'Previous 5 s only: the app closed before the next 10 s '
           'were recorded',
         ),
       ),
@@ -887,7 +926,7 @@ void main() {
     await scrollSettingsTo(tester, find.text('+1.0 EV'));
     expect(find.text('+1.0 EV'), findsOneWidget);
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
-    expect(find.textContaining('Clips play 75 s in total'), findsOneWidget);
+    expect(find.textContaining('Clips play 70 s in total'), findsOneWidget);
   });
 
   testWidgets('a suggestion survives a refresh, and can still be answered', (

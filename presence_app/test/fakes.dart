@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
 import 'package:presence_app/auth/membership_client.dart';
+import 'package:presence_app/auth/profile_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
@@ -249,6 +250,9 @@ class FakeCloudBackend implements CloudBackend {
   final listings = <String>[];
   int resets = 0;
 
+  /// The folder sessions use (the profile's identity); a link changes it.
+  String prefix = 'us-east-1:identity';
+
   /// Thrown by the next connect(), once.
   Object? failConnect;
 
@@ -275,7 +279,7 @@ class FakeCloudSession implements CloudSession {
   final FakeCloudBackend backend;
 
   @override
-  String get prefix => 'us-east-1:identity';
+  late final String prefix = backend.prefix;
 
   @override
   Future<void> put(String key, Uint8List bytes, String contentType) async {
@@ -313,6 +317,9 @@ class FakeRolesClient implements RolesClient {
   FakeRolesClient.none() : this(const []);
 
   List<String> roles;
+
+  /// The profile ID `GET /api/auth` answers with.
+  String? profile = 'automatic_paranoid_axolotl';
   Object? error;
   final tokens = <String>[];
 
@@ -327,10 +334,10 @@ class FakeRolesClient implements RolesClient {
   int anonymousCalls = 0;
 
   @override
-  Future<List<String>> fetch(String idToken) async {
+  Future<UserAccess> fetch(String idToken) async {
     tokens.add(idToken);
     if (error case final e?) throw e;
-    return roles;
+    return (roles: roles, profile: profile);
   }
 
   @override
@@ -436,6 +443,63 @@ class FakeMembershipClient implements MembershipClient {
   Future<void> deleteVoucher(String idToken, String code) async {
     if (error case final e?) throw e;
     codes.removeWhere((v) => v.code == code);
+  }
+}
+
+/// A profile kept in memory: [members] (the owner first), the [codes]
+/// that link to it, and what [link] and [unlink] were asked.
+class FakeProfileClient implements ProfileClient {
+  FakeProfileClient([List<ProfileAccount>? members])
+    : members =
+          members ??
+          [
+            const ProfileAccount(
+              email: 'ana@example.com',
+              owner: true,
+              current: true,
+            ),
+          ];
+
+  List<ProfileAccount> members;
+  final codes = <String>[];
+  final linked = <String>[];
+  final unlinked = <String>[];
+
+  /// The profile [link] joins.
+  List<ProfileAccount> joins = const [
+    ProfileAccount(email: 'ana@nu01.com', owner: true, current: false),
+    ProfileAccount(email: 'ana@example.com', owner: false, current: true),
+  ];
+  Object? error;
+
+  @override
+  Future<List<ProfileAccount>> accounts(String idToken) async {
+    if (error case final e?) throw e;
+    return members;
+  }
+
+  @override
+  Future<LinkCode> linkCode(String idToken) async {
+    if (error case final e?) throw e;
+    codes.add('ABCD-EFGH');
+    return LinkCode(code: 'ABCD-EFGH', expiresAt: DateTime.utc(2030));
+  }
+
+  @override
+  Future<List<ProfileAccount>> link(String idToken, String code) async {
+    if (error case final e?) throw e;
+    linked.add(code);
+    return members = joins;
+  }
+
+  @override
+  Future<List<ProfileAccount>> unlink(String idToken, String email) async {
+    if (error case final e?) throw e;
+    unlinked.add(email);
+    return members = [
+      for (final a in members)
+        if (a.email != email) a,
+    ];
   }
 }
 

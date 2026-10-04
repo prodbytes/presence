@@ -91,6 +91,13 @@ if [ -n "$CLIENT_ID" ]; then
   route "GET /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers/delete" AdminFunction "$authorizer"
+  # Profiles. Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the
+  # listing answers; the others say cloud sync isn't set up (503).
+  route "POST /api/auth/credentials" ProfileFunction "$authorizer"
+  route "GET /api/auth/profile" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/link-code" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/link" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
 fi
 aws apigatewayv2 create-stage --api-id "$api" --stage-name '$default' --auto-deploy >/dev/null
 

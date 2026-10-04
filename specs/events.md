@@ -25,6 +25,21 @@
   - The text stays while switching tabs, but not across restarts.
   - **Opening an event the search hides** from elsewhere clears it, so the
     event can show.
+  - **Counts.** Right after the field, on its row, the count of events
+    (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
+    tooltip "2 of 12 events shown".
+    - *All* is every event of the signed-in user on this device
+      (`EventTimeline.ofUser`): recorded here, restored from storage, or
+      fetched from the cloud (S3), so it grows as sync loads more. Events
+      recorded signed out count too, since the next sign-in takes them over,
+      and so do new events not saved yet. Other users' events left on the
+      device don't count.
+    - *Matching* is those events left after the search and both chips,
+      using the timeline's own filter steps (`EventTimeline.ofDevices`,
+      `ofKinds`, `matching`).
+    - Both numbers update with new events, sync, the chips, the search,
+      tags recognition adds later, and sign-in or sign-out. On a narrow phone
+      the field gets narrower so the count stays beside it.
   - What's searched is one function, `eventSearchFields` (used by
     `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
     a new searchable field is one more line there.

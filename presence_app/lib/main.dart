@@ -13,6 +13,7 @@ import 'auth/api_config.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'auth/membership_client.dart';
+import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
@@ -37,6 +38,7 @@ import 'tab_memory.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
+import 'storage/retention.dart';
 import 'theme.dart';
 
 void main() {
@@ -55,6 +57,7 @@ class PresenceApp extends StatefulWidget {
     this.cloud,
     this.rolesClient,
     this.membershipClient,
+    this.profileClient,
     this.consentGiven = false,
     this.locator,
     this.mapTiles,
@@ -82,6 +85,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides membership requests (used by tests); defaults to
   /// `/api/auth/membership`.
   final MembershipClient? membershipClient;
+
+  /// Overrides the profile routes (used by tests); defaults to
+  /// `/api/auth/profile`.
+  final ProfileClient? profileClient;
 
   /// Overrides the auth API (used by tests); defaults to `GET /api/auth`.
   final RolesClient? rolesClient;
@@ -120,6 +127,7 @@ class _PresenceAppState extends State<PresenceApp> {
   final _config = ConfigController();
   late final EventLog _log;
   late final Persistence _persistence;
+  late final EventRetention _retention;
   late final CameraRig _rig;
   late final LocationController _location;
   late final SubjectRecognizer _recognizer;
@@ -175,7 +183,7 @@ class _PresenceAppState extends State<PresenceApp> {
             ? AwsCloudBackend(
                 cognito: CognitoCredentials(
                   region: CloudConfig.region,
-                  identityPoolId: CloudConfig.identityPoolId,
+                  api: ApiConfig.baseUrl,
                 ),
                 bucket: S3Bucket(
                   bucket: CloudConfig.userDataBucket,
@@ -194,6 +202,8 @@ class _PresenceAppState extends State<PresenceApp> {
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,
+            // Not what the device deletes as too old.
+            keep: () => _config.config.history.keep,
             // And this device's settings, kept per device.
             settings: _persistence,
             // Clips and events fetched from the cloud after sign-in join the
@@ -211,6 +221,13 @@ class _PresenceAppState extends State<PresenceApp> {
       ..restore(_log).catchError((Object e) {
         debugPrint('Presence: could not restore saved data: $e');
       });
+    // Deletes events older than the History setting: now, once the history
+    // is restored, and every 3 h.
+    _retention = EventRetention(
+      delete: _persistence.deleteEventsBefore,
+      config: _config,
+      now: widget.now,
+    )..start();
     // A session restored before launch takes over what was recorded
     // signed out, as a sign-in does.
     if (_auth.user case final user?) _claim(user.id);
@@ -294,6 +311,8 @@ class _PresenceAppState extends State<PresenceApp> {
   late final RolesService _roles;
   late final MembershipClient _membership =
       widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
+  late final ProfileClient _profiles =
+      widget.profileClient ?? HttpProfileClient(ApiConfig.baseUrl);
   CloudSync? _sync;
   String? _signedInAs;
 
@@ -320,6 +339,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _roles.dispose();
     _location.dispose();
     _recognizer.dispose();
+    _retention.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -354,6 +374,7 @@ class _PresenceAppState extends State<PresenceApp> {
               auth: _auth,
               roles: _roles,
               membership: _membership,
+              profiles: _profiles,
               sync: _sync,
               deviceId: _deviceId,
               location: _location,
@@ -400,6 +421,7 @@ class HomeScreen extends StatefulWidget {
     required this.auth,
     required this.roles,
     required this.membership,
+    required this.profiles,
     this.sync,
     this.deviceId,
     required this.location,
@@ -440,6 +462,9 @@ class HomeScreen extends StatefulWidget {
   /// Membership requests: sent from the sign-up sheet, approved on the
   /// Admin screen.
   final MembershipClient membership;
+
+  /// The user's linked Google accounts (account and sign-up sheets).
+  final ProfileClient profiles;
 
   final EventLog log;
   final CameraRig rig;
@@ -537,6 +562,14 @@ class _HomeScreenState extends State<HomeScreen>
   /// No sign-in configured ([ExecutionMode.dev]): everything but what's
   /// about accounts (sign-in, the account, sign-up and Admin).
   bool get _dev => widget.roles.mode == ExecutionMode.dev;
+
+  /// Why Settings shows no profile ID: profiles come with a sign-in.
+  String get _noProfile => switch (widget.roles.state) {
+    _ when _dev => 'none in DEV',
+    AccessState.starting || AccessState.checking => 'checking…',
+    AccessState.signedOut => 'not signed in',
+    AccessState.granted || AccessState.denied => 'unavailable',
+  };
 
   /// Signed in as a `presence_user`, or [_dev]: the tabs, the camera's
   /// buttons and (signed in) cloud sync.
@@ -767,8 +800,13 @@ class _HomeScreenState extends State<HomeScreen>
                 auth: widget.auth,
                 roles: widget.roles,
                 membership: widget.membership,
+                profiles: widget.profiles,
               ),
-            AccountButton(auth: widget.auth),
+            AccountButton(
+              auth: widget.auth,
+              roles: widget.roles,
+              profiles: widget.profiles,
+            ),
             const SizedBox(width: 4),
           ] else ...[
             SizedBox(
@@ -806,7 +844,13 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
             // Account (who's signed in, sign out): an action, not a tab.
-            if (!_dev) AccountButton(auth: widget.auth, sync: widget.sync),
+            if (!_dev)
+              AccountButton(
+                auth: widget.auth,
+                sync: widget.sync,
+                roles: widget.roles,
+                profiles: widget.profiles,
+              ),
             const SizedBox(width: 4),
           ],
         ],
@@ -835,6 +879,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onOpenEvent: _openEvent,
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
+                  userId: widget.auth.user?.id,
                   thisDeviceOnly: _thisDeviceOnly,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,
@@ -846,6 +891,8 @@ class _HomeScreenState extends State<HomeScreen>
                   config: widget.config,
                   motionLevel: widget.rig.motionLevel,
                   deviceId: widget.deviceId,
+                  profileId: widget.roles.profile,
+                  noProfile: _noProfile,
                   health: SystemHealth(roles: widget.roles, sync: widget.sync),
                   addDevice: switch (widget.deviceId) {
                     final deviceId? => AddDeviceSection(

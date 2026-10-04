@@ -1,10 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  presence-identity: a Cognito identity pool that trusts Google sign-in. The
-  app exchanges the signed-in user's Google ID token for temporary AWS
-  credentials of the authenticated role, which may only read and write that
-  user's own prefix in the user-data bucket (presence-user-data stack).
-  Guests (unauthenticated identities) aren't allowed.
+  presence-identity: a Cognito identity pool for profiles. The auth API
+  (presence_api_auth, POST /api/auth/credentials) maps each Google account
+  to its profile, one person whichever of their accounts signs in, and
+  issues a developer-identity token for the profile's identity; the app
+  trades it for temporary AWS credentials of the authenticated role, which
+  may only read and write that identity's prefix in the user-data bucket
+  (presence-user-data stack). Guests (unauthenticated identities) aren't
+  allowed.
 
 Parameters:
   GoogleWebClientId:
@@ -29,13 +32,17 @@ Resources:
       IdentityPoolName: !Ref IdentityPoolName
       AllowUnauthenticatedIdentities: false
       AllowClassicFlow: false
+      # The auth API's profiles (ProfileHandler); can't be changed once set.
+      DeveloperProviderName: login.presence.profiles
+      # Google stays: the auth API's GetId finds the identity an account
+      # signed in to before profiles, so its data stays where it is.
       SupportedLoginProviders:
         accounts.google.com: !Ref GoogleWebClientId
 
   AuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Signed-in Presence users (Cognito identity pool, Google)
+      Description: Signed-in Presence users (Cognito identity pool, profiles)
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -54,7 +61,8 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Each user reaches only <bucket>/<their identity ID>/...
+              # Each profile reaches only <bucket>/<its identity ID>/..., whichever
+              # of its Google accounts signed in.
               - Effect: Allow
                 Action:
                   - s3:PutObject

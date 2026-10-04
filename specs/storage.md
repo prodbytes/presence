@@ -59,12 +59,16 @@ so. Clip settings are restored too.
 
 **Persistence and quota:** the app asks the browser for persistent storage
 (`navigator.storage.persist()`), so saved clips aren't evicted when disk space
-runs low. Browsers may grant or decline this silently. Everything is kept;
-there's no retention limit yet.
+runs low. Browsers may grant or decline this silently. Events older than
+the History setting (two weeks by default) are deleted with their clips
+and recordings, at load and every 3 hours: see
+[Event retention](event-retention.md).
 
 ## Known limitations
 
-- Nothing is deleted automatically: storage grows by roughly 10 MB per
-  camera per clip until a retention policy is added.
+- Storage still holds roughly 10 MB per camera per clip, for as long as
+  the History setting keeps it.
+- The `synced` store keeps the keys of uploaded events after retention
+  deletes them (a few dozen bytes each).
 - Persistence has been verified with unit and widget tests against an
   in-memory IndexedDB, but not yet in a real browser.

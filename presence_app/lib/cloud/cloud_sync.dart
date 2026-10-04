@@ -14,7 +14,7 @@ import 's3.dart';
 
 /// A signed-in user's connection to their cloud storage.
 abstract class CloudSession {
-  /// The user's folder in the bucket (their Cognito identity ID).
+  /// The user's folder in the bucket (their profile's Cognito identity ID).
   String get prefix;
 
   /// Uploads [bytes] to [key], relative to [prefix].
@@ -68,7 +68,8 @@ abstract class CloudBackend {
   void reset();
 }
 
-/// Cognito identity pool credentials + direct S3 uploads.
+/// Profile credentials (the auth API, then the Cognito identity pool) +
+/// direct S3 uploads.
 class AwsCloudBackend implements CloudBackend {
   AwsCloudBackend({required this._cognito, required this._bucket});
 
@@ -155,6 +156,7 @@ class CloudSync extends ChangeNotifier {
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(seconds: 15),
     this.restoreWindow = const Duration(days: 14),
+    this.keep,
     this.maxFetch = 1000,
     this.fullFetchEvery = const Duration(hours: 1),
     DateTime Function()? now,
@@ -182,6 +184,17 @@ class CloudSync extends ChangeNotifier {
   /// months of video. Older events stay in the cloud (until the bucket
   /// expires them) and on the devices that recorded them.
   final Duration restoreWindow;
+
+  /// How long the device keeps events (the History setting): a fetch
+  /// doesn't download what it deletes as too old, so with a shorter
+  /// setting the window shrinks to it.
+  final Duration Function()? keep;
+
+  /// [restoreWindow], or [keep] when that's shorter.
+  Duration get _window {
+    final keep = this.keep?.call();
+    return keep != null && keep < restoreWindow ? keep : restoreWindow;
+  }
 
   /// The most events one fetch downloads, the newest first; the rest come
   /// in later passes.
@@ -264,6 +277,15 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
+  /// Starts over with new credentials, as for a new user: after the
+  /// signed-in account joins or leaves a profile, its folder is another one.
+  void reconnect() {
+    if (_user == null) return;
+    backend.reset();
+    _lastFullFetch = null;
+    _schedule(immediately: true);
+  }
+
   void _schedule({bool immediately = false}) {
     if (_disposed || _syncUser == null) return;
     _timer?.cancel();
@@ -334,7 +356,7 @@ class CloudSync extends ChangeNotifier {
     required bool full,
   }) {
     if (first) return const ['events/'];
-    final days = full ? restoreWindow.inDays : 1;
+    final days = full ? _window.inDays : 1;
     return [
       for (var d = 0; d <= days; d++)
         _dayPrefix(now.subtract(Duration(days: d))),
@@ -353,7 +375,7 @@ class CloudSync extends ChangeNotifier {
     };
     final localEvents = {for (final e in await store.allEvents()) e['id']};
     final localClips = {for (final c in await store.allClips()) c['id']};
-    final since = _now().toUtc().subtract(restoreWindow);
+    final since = _now().toUtc().subtract(_window);
 
     // Each new event's media (recording, thumbnail, tagged frames), listed
     // only for it.

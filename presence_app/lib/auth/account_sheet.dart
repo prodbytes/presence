@@ -2,16 +2,28 @@ import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
 import 'auth_service.dart';
+import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
+import 'profile_client.dart';
 import 'roles_service.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
 /// icon otherwise. Opens [AccountSheet].
 class AccountButton extends StatelessWidget {
-  const AccountButton({super.key, required this.auth, this.sync});
+  const AccountButton({
+    super.key,
+    required this.auth,
+    this.sync,
+    this.roles,
+    this.profiles,
+  });
 
   final AuthService auth;
   final CloudSync? sync;
+
+  /// With [profiles], the sheet offers Linked accounts.
+  final RolesService? roles;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +40,12 @@ class AccountButton extends StatelessWidget {
           onPressed: () => showModalBottomSheet<void>(
             context: context,
             showDragHandle: true,
-            builder: (_) => AccountSheet(auth: auth, sync: sync),
+            builder: (_) => AccountSheet(
+              auth: auth,
+              sync: sync,
+              roles: roles,
+              profiles: profiles,
+            ),
           ),
         );
       },
@@ -63,12 +80,22 @@ class SignInAction extends StatelessWidget {
 
 /// Sign in with Google, or show who is signed in and offer sign-out.
 class AccountSheet extends StatelessWidget {
-  const AccountSheet({super.key, required this.auth, this.sync});
+  const AccountSheet({
+    super.key,
+    required this.auth,
+    this.sync,
+    this.roles,
+    this.profiles,
+  });
 
   final AuthService auth;
 
   /// Cloud uploads, when configured: their status shows under the email.
   final CloudSync? sync;
+
+  /// With both, a Linked accounts button (see [LinkedAccountsSheet]).
+  final RolesService? roles;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +151,18 @@ class AccountSheet extends StatelessWidget {
                     const SizedBox(height: 8),
                     CloudSyncStatus(sync: sync),
                   ],
+                  if ((roles, profiles) case (
+                    final roles?,
+                    final profiles?,
+                  )) ...[
+                    const SizedBox(height: 8),
+                    LinkedAccountsButton(
+                      auth: auth,
+                      roles: roles,
+                      profiles: profiles,
+                      sync: sync,
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   OutlinedButton.icon(
                     key: const Key('sign-out'),
@@ -152,6 +191,43 @@ class AccountSheet extends StatelessWidget {
       },
     );
   }
+}
+
+/// Opens [LinkedAccountsSheet].
+class LinkedAccountsButton extends StatelessWidget {
+  const LinkedAccountsButton({
+    super.key,
+    required this.auth,
+    required this.roles,
+    required this.profiles,
+    this.sync,
+    this.label = 'Linked accounts',
+  });
+
+  final AuthService auth;
+  final RolesService roles;
+  final ProfileClient profiles;
+  final CloudSync? sync;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+    key: const Key('linked-accounts'),
+    icon: const Icon(Icons.link),
+    label: Text(label),
+    onPressed: () => showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      // Room for the keyboard under the code field.
+      isScrollControlled: true,
+      builder: (_) => LinkedAccountsSheet(
+        auth: auth,
+        roles: roles,
+        profiles: profiles,
+        sync: sync,
+      ),
+    ),
+  );
 }
 
 /// The user's photo, or their initial when there's none (or it fails).
@@ -241,11 +317,13 @@ class SignUpButton extends StatelessWidget {
     required this.auth,
     required this.roles,
     required this.membership,
+    this.profiles,
   });
 
   final AuthService auth;
   final RolesService roles;
   final MembershipClient membership;
+  final ProfileClient? profiles;
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -257,8 +335,12 @@ class SignUpButton extends StatelessWidget {
       showDragHandle: true,
       // Room for the keyboard under the message field.
       isScrollControlled: true,
-      builder: (_) =>
-          SignUpSheet(auth: auth, roles: roles, membership: membership),
+      builder: (_) => SignUpSheet(
+        auth: auth,
+        roles: roles,
+        membership: membership,
+        profiles: profiles,
+      ),
     ),
   );
 }
@@ -269,11 +351,15 @@ class SignUpSheet extends StatefulWidget {
     required this.auth,
     required this.roles,
     required this.membership,
+    this.profiles,
   });
 
   final AuthService auth;
   final RolesService roles;
   final MembershipClient membership;
+
+  /// When given, a member's other account can link to it instead.
+  final ProfileClient? profiles;
 
   /// The auth API's limit.
   static const int maxMessage = 1000;
@@ -471,6 +557,13 @@ class _SignUpSheetState extends State<SignUpSheet> {
                   key: const Key('voucher-error'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: scheme.error),
+                ),
+              if (widget.profiles case final profiles?)
+                LinkedAccountsButton(
+                  auth: widget.auth,
+                  roles: widget.roles,
+                  profiles: profiles,
+                  label: 'Have access with another Google account? Link it',
                 ),
               widget.roles.state == AccessState.checking
                   ? const CircularProgressIndicator()

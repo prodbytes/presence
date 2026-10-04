@@ -14,6 +14,8 @@ class SettingsView extends StatefulWidget {
     required this.config,
     this.motionLevel,
     this.deviceId,
+    this.profileId,
+    this.noProfile = 'none',
     this.health,
     this.addDevice,
     this.location,
@@ -32,8 +34,16 @@ class SettingsView extends StatefulWidget {
   /// under a drag on it ([LocationSettings.onMapHeld]).
   final ValueChanged<bool>? onMapHeld;
 
-  /// This device's ID, shown under the version once it's loaded.
+  /// This device's ID, always shown under the version ("loading…" until
+  /// it's known).
   final String? deviceId;
+
+  /// The signed-in user's profile ID, always shown under the device ID;
+  /// [noProfile] says why when there's none.
+  final String? profileId;
+
+  /// Shown instead of [profileId] while there's none, e.g. "not signed in".
+  final String noProfile;
 
   /// A status line under the device ID (the API, AWS and OIDC).
   final Widget? health;
@@ -67,7 +77,6 @@ class _SettingsViewState extends State<SettingsView> {
     final theme = Theme.of(context);
     final config = widget.config;
     final motionLevel = widget.motionLevel;
-    final deviceId = widget.deviceId;
     final health = widget.health;
     final location = widget.location;
     return ListenableBuilder(
@@ -91,6 +100,8 @@ class _SettingsViewState extends State<SettingsView> {
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         final recognition = config.recognition;
+        void setHistory(HistoryConfig Function(HistoryConfig) f) =>
+            config.update((x) => x.copyWith(history: f(x.history)));
         void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
             config.update((x) => x.copyWith(recognition: f(x.recognition)));
         String percent(double v) => '${(v * 100).round()} %';
@@ -287,6 +298,30 @@ class _SettingsViewState extends State<SettingsView> {
                   ? (v) => setRecognition((r) => r.copyWith(ask: _toStep(v)))
                   : null,
             ),
+            const SizedBox(height: 16),
+            Text('History', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _LabeledSlider(
+              key: const Key('history-keep-slider'),
+              label: 'Keep events for',
+              valueLabel: formatKeep(config.history.keep),
+              value: config.history.keep.inDays.toDouble(),
+              min: HistoryConfig.minKeep.inDays.toDouble(),
+              max: HistoryConfig.maxKeep.inDays.toDouble(),
+              divisions:
+                  (HistoryConfig.maxKeep - HistoryConfig.minKeep).inDays ~/
+                  HistoryConfig.keepStep.inDays,
+              onChanged: (v) => setHistory(
+                (h) => h.copyWith(keep: Duration(days: v.round())),
+              ),
+            ),
+            Text(
+              'Older events and their clips are deleted from this device '
+              'when the app starts and every 3 hours.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),
@@ -299,22 +334,23 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ),
             ],
-            // Which device this is, as its events say (selectable, to copy).
-            if (deviceId case final deviceId?) ...[
-              SizedBox(height: AppVersion.version.isEmpty ? 32 : 4),
-              SelectableText(
-                deviceId,
-                key: const Key('device-id'),
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
+            // Which device and profile this is, as the events and the auth
+            // API say (selectable, to copy). Always shown.
+            SizedBox(height: AppVersion.version.isEmpty ? 32 : 4),
+            _IdLine(
+              label: 'Device',
+              id: widget.deviceId,
+              missing: 'loading…',
+              idKey: const Key('device-id'),
+            ),
+            _IdLine(
+              label: 'Profile',
+              id: widget.profileId,
+              missing: widget.noProfile,
+              idKey: const Key('profile-id'),
+            ),
             if (health case final health?) ...[
-              SizedBox(
-                height: AppVersion.version.isEmpty && deviceId == null ? 32 : 8,
-              ),
+              const SizedBox(height: 8),
               health,
             ],
             if (widget.addDevice case final addDevice?) ...[
@@ -334,6 +370,18 @@ String formatEvery(Duration every) {
   final minutes = every.inMinutes % 60;
   if (hours == 0) return '$minutes min';
   return minutes == 0 ? '$hours h' : '$hours h $minutes min';
+}
+
+/// How long events are kept, as "1 day", "10 days", "2 weeks" or
+/// "90 days": whole weeks read as weeks.
+String formatKeep(Duration keep) {
+  final days = keep.inDays;
+  if (days == 1) return '1 day';
+  if (days % 7 == 0 && days <= 8 * 7) {
+    final weeks = days ~/ 7;
+    return weeks == 1 ? '1 week' : '$weeks weeks';
+  }
+  return '$days days';
 }
 
 /// Whether subject recognition can run here (see `recognition/`).
@@ -526,6 +574,45 @@ class _DurationSlider extends StatelessWidget {
           label: '$seconds s',
           onChanged: (v) => onChanged(Duration(seconds: v.round())),
         ),
+      ],
+    );
+  }
+}
+
+/// "Device automatic_paranoid_gadget": a label and a selectable ID
+/// (keyed [idKey]), or [missing] in italics while there's no ID.
+class _IdLine extends StatelessWidget {
+  const _IdLine({
+    required this.label,
+    required this.id,
+    required this.missing,
+    required this.idKey,
+  });
+
+  final String label;
+  final String? id;
+  final String missing;
+  final Key idKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Text('$label ', style: style?.copyWith(fontWeight: FontWeight.w600)),
+        switch (id) {
+          final id? => SelectableText(id, key: idKey, style: style),
+          null => Text(
+            missing,
+            key: idKey,
+            style: style?.copyWith(fontStyle: FontStyle.italic),
+          ),
+        },
       ],
     );
   }
