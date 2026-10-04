@@ -84,8 +84,10 @@ emails, add accounts or switch providers without losing their data.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
-- [Log](log.md): the admins' Log tab (DEV's too) with the app's latest
-  500 log messages and errors, such as why the AWS sync failed.
+- [Log](log.md): the admins' Log tab (DEV's too): a health panel
+  (API, AWS, OIDC checked every 30 s, with a history of green and red
+  bricks), then the app's latest 500 log messages and errors, such as why
+  the AWS sync failed.
 - [App icon](app-icon.md): the icon masters and generated icons.
 
 **Platforms**
