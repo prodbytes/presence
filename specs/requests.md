@@ -2018,7 +2018,36 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `presence-rc-identity` failed and its rollback failed too
       (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
       text, with a comment saying why it stays.
-222. **Show a log panel with the latest log events at the end of Settings,
+222. **In the detection pipeline, when a tag is detected, also store the
+     frame where that was. When a user clicks the label, open the player
+     paused at that position, for both subject labels and tag labels.**
+     (2026-10-04)
+     - Recognition already stored the position: each object tag keeps the
+       `ms` of the first frame it was seen on, and each subject tag its
+       `frameId` and `frameMs` (with the frame's JPEG). Nothing changed in
+       what's stored; object tags still keep only the time.
+     - App: the clip card's subject names (`EventSubjects`) and object tag
+       chips (`ClipObjectTags`) are clickable (`OpenAtLabel`, with a "Show
+       at 0:02.5" tooltip) when the clip is playable. A click opens the
+       player (`showClipPlayer(at:)` → `ClipPlayerDialog.startAt` →
+       `ClipPlayerView.startAt`, web and native) loaded at that point and
+       paused, clamped to the clip window (`startPosition`). A subject
+       opens at its earliest tagged frame; a tag without a frame plays
+       from the start, as the card does.
+     - Specs: [Clips](clips.md), [Subjects](subjects.md), [Subject
+       recognition](recognition.md). 311 Flutter tests pass (2 new); web
+       release builds. Not tried in the running app: the main folder's
+       services are shared.
+223. **Empty both the RC and prod buckets (all events).** An operation, not
+     a code change. The RC user-data bucket was already empty. The prod
+     bucket had 14 objects, all under one identity: 7 events, 2 clips
+     (record, thumbnail and WebM, 62.6 MB in all) and 1 device settings
+     record. `aws s3 rm --recursive` deleted all 14, so both buckets now
+     list no objects. The bucket is versioned, so the deleted objects
+     stay as old versions behind delete markers until the
+     `expire-old-versions` rule removes them after 30 days. No feature
+     spec changed.
+224. **Show a log panel with the latest log events at the end of Settings,
     capturing all log messages: the AWS sync indicator said it failed, but
     not why. Then: make it its own view, only viewable by admins.**
     (2026-10-04)
@@ -2033,7 +2062,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Log](log.md), [Membership](membership.md), [Cloud
       sync](cloud-sync.md), the index. 312 Flutter tests (3 new) pass; the
       web build compiles.
-223. **Let DEV mode see the log screen; the log should be its own section
+225. **Let DEV mode see the log screen; the log should be its own section
     in the nav bar. In DEV mode the anonymous user should be equivalent to
     root.** (2026-10-04)
     - The Log is a fourth tab after Settings (`HomeTab.log`,
