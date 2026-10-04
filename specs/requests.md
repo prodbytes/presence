@@ -2146,3 +2146,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
       [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
       (4 new) pass.
+232. **Make AWS access work in prod: events synced through S3 with the
+    Cognito identity pool; verify the policy and how profile IDs are
+    handled.** (2026-10-05)
+    - Found: every `/api/auth/credentials` failed with `NotAuthorizedException:
+      Logins don't match`. The profile's identity came from Google sign-in
+      (`GetId`), and `GetOpenIdTokenForDeveloperIdentity` with only the
+      profile ID can't add a login to it. Reproduced on the RC pool with a
+      throwaway identity (deleted after).
+    - Fixed: the API retries with the caller's Google ID token beside the
+      profile ID, which links it once; a link code links it too.
+    - Checked in prod: the pool (authenticated only, Google client and
+      developer provider), the authenticated role (trust limited to the
+      pool and `authenticated`; Get, Put and List only under
+      `${cognito-identity.amazonaws.com:sub}/`), the bucket policy (TLS
+      only) and CORS (the prod origin). No change needed.
+    - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
+      auth API tests pass.
+

@@ -63,13 +63,20 @@ class ProfileTest {
         }
 
         @Override
-        public String openIdToken(String identityId, String profileId) {
+        public String openIdToken(String identityId, String profileId, String googleIdToken) {
             if (cognitoFails != null) {
                 throw cognitoFails;
             }
-            // As Cognito: a developer identifier belongs to one identity.
-            var was = linked.putIfAbsent(identityId, profileId);
-            assertTrue(was == null || was.equals(profileId), "identity " + identityId + " relinked");
+            // As Cognito: a developer identifier belongs to one identity, and
+            // linking it to one Google sign-in made needs that Google login.
+            var was = linked.get(identityId);
+            if (was == null) {
+                assertTrue(!googleIdentities.containsValue(identityId)
+                        || identityId.equals(googleIdentities.get(googleIdToken)),
+                        "linking " + identityId + " without its Google login");
+                linked.put(identityId, profileId);
+            }
+            assertEquals(profileId, linked.get(identityId), "identity " + identityId + " relinked");
             tokensIssued.add(identityId + "|" + profileId);
             return "token-for-" + identityId;
         }

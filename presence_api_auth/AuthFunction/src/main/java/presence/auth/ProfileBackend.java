@@ -4,6 +4,8 @@ import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.cognitoidentity.CognitoIdentityClient;
 import software.amazon.awssdk.services.cognitoidentity.model.GetIdRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityRequest;
+import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityResponse;
+import software.amazon.awssdk.services.cognitoidentity.model.NotAuthorizedException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
@@ -104,18 +106,34 @@ final class ProfileBackend implements ProfileHandler.Backend {
     }
 
     @Override
-    public String openIdToken(String identityId, String profileId) {
-        var result = cognito.getOpenIdTokenForDeveloperIdentity(GetOpenIdTokenForDeveloperIdentityRequest.builder()
-                .identityPoolId(identityPoolId)
-                .identityId(identityId)
-                .logins(Map.of(developerProvider, profileId))
-                .build());
+    public String openIdToken(String identityId, String profileId, String googleIdToken) {
+        GetOpenIdTokenForDeveloperIdentityResponse result;
+        try {
+            // Once linked, the profile ID alone is the proof.
+            result = openIdToken(identityId, Map.of(developerProvider, profileId));
+        } catch (NotAuthorizedException e) {
+            // Not linked yet: the identity was made by Google sign-in (GetId),
+            // and Cognito links another login to it only beside one it has
+            // ("Logins don't match").
+            if (googleIdToken == null || googleIdToken.isBlank()) {
+                throw e;
+            }
+            result = openIdToken(identityId, Map.of(developerProvider, profileId, GOOGLE, googleIdToken));
+        }
         if (!identityId.equals(result.identityId())) {
             // Never hand out another folder's credentials.
             throw new IllegalStateException("Cognito answered for identity " + result.identityId()
                     + ", not " + identityId);
         }
         return result.token();
+    }
+
+    private GetOpenIdTokenForDeveloperIdentityResponse openIdToken(String identityId, Map<String, String> logins) {
+        return cognito.getOpenIdTokenForDeveloperIdentity(GetOpenIdTokenForDeveloperIdentityRequest.builder()
+                .identityPoolId(identityPoolId)
+                .identityId(identityId)
+                .logins(logins)
+                .build());
     }
 
     @Override
