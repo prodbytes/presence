@@ -2164,3 +2164,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
       auth API tests pass.
 
+## 2026-10-05
+
+233. **Reloads ask to sign in again: check whether already signed in and
+     don't prompt if so.** On web, a reload restored the remembered session
+     but still ran Google's quiet check (`attemptLightweightAuthentication`),
+     which starts the FedCM prompt.
+    - Now, when a still-valid session is restored, the app skips that check
+      at launch and runs it only five minutes before the ID token expires
+      (`SavedSession.refreshIn`), to refresh the token. Every sign-in
+      schedules the next refresh; sign-out cancels it. Android and iOS are
+      unchanged.
+    - Specs: [Sign-in](sign-in.md). session_test (1 new) and all 329 app
+      tests pass.

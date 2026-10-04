@@ -16,8 +16,12 @@ there's no separate sign-in screen:
   - at launch, before Google's library loads, a remembered session whose
     token has more than a minute left is restored, so the user is signed in
     at once;
-  - the silent FedCM attempt still runs and refreshes the token when Google
-    allows. When it finds nothing, the restored session stays;
+  - a restored session is **not asked to sign in again**: the silent
+    FedCM attempt doesn't run at launch, only five minutes before the
+    token expires, to refresh it (`SavedSession.refreshIn`). Each sign-in
+    schedules the next refresh. When it finds nothing, the session stays
+    until the token expires. Without a restored session, the silent
+    attempt runs at launch as before;
   - an expired or malformed session is dropped;
   - **Sign out** forgets it.
 
@@ -83,8 +87,10 @@ there's no separate sign-in screen:
   web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
-- Known limitation: Google ID tokens last about an hour. A reload after
-  that, without FedCM auto sign-in, signs out.
+- Known limitation: Google ID tokens last about an hour. If the refresh
+  before expiry finds nothing (no FedCM auto sign-in), a reload after
+  that signs out. The refresh itself may briefly show Google's FedCM
+  prompt.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with
