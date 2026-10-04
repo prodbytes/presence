@@ -4,6 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -76,9 +77,11 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /**
          * An OpenID token for the profile's identity
          * ({@code GetOpenIdTokenForDeveloperIdentity}). The first call links
-         * the profile to the identity.
+         * the profile to the identity, which Cognito allows only with one of
+         * the identity's logins: the caller's Google ID token, when it signs
+         * in to that identity.
          */
-        String openIdToken(String identityId, String profileId);
+        String openIdToken(String identityId, String profileId, String googleIdToken);
 
         /** Whether the identity's folder in the bucket holds nothing. */
         boolean folderEmpty(String identityId);
@@ -131,10 +134,24 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 default -> response(404, "{\"error\":\"no such route\"}");
             };
         } catch (RuntimeException e) {
-            // Cognito or DynamoDB failed: say so without their details.
-            System.err.println("presence: " + route + " failed: " + e);
-            return response(502, "{\"error\":\"the profile service failed; try again\"}");
+            // Cognito or DynamoDB failed: say which and how (its error code),
+            // and the request ID that finds the full error in the log, but
+            // not AWS's message, which names ARNs.
+            var requestId = context == null ? null : context.getAwsRequestId();
+            System.err.println("presence: " + route + " failed (request " + requestId + "): " + e);
+            return response(502, "{\"error\":\"the profile service failed\",\"cause\":"
+                    + Json.string(cause(e))
+                    + (requestId == null ? "" : ",\"requestId\":" + Json.string(requestId)) + "}");
         }
+    }
+
+    /** What failed, for the caller: an AWS service and its error code, or the exception's type. */
+    static String cause(RuntimeException e) {
+        if (e instanceof AwsServiceException aws && aws.awsErrorDetails() != null) {
+            var details = aws.awsErrorDetails();
+            return details.serviceName() + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
+        }
+        return e.getClass().getSimpleName();
     }
 
     /** The signed-in subject: its issuer and Google ID, verified email (lowercase) and ID token. */
@@ -158,7 +175,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
-        var token = backend.openIdToken(profile.identityId(), profile.id());
+        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
         return response(200, "{\"identityId\":" + Json.string(profile.identityId())
                 + ",\"token\":" + Json.string(token) + "}");
     }
@@ -171,8 +188,10 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!isUser(caller, profile)) {
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
-        // The folder is settled before anyone joins it.
-        withIdentity(caller, profile);
+        // The folder is settled, and the profile linked to it, before anyone
+        // joins it: a member's Google token can't link it.
+        profile = withIdentity(caller, profile);
+        backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
         var code = newCode(random);
         var expiresAt = profiles.clock().instant().plus(CODE_TTL);
         backend.saveCode(hash(code), new LinkCode(profile.id(), caller.email(), expiresAt));

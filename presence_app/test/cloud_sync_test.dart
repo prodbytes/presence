@@ -185,6 +185,46 @@ void main() {
     expect(backend.uploads, isEmpty);
   });
 
+  test('a credentials failure stops syncing until sign-in or retry', () async {
+    backend.failConnect = CognitoException(
+      'HTTP 502 from /api/auth/credentials',
+      'the profile service failed',
+    );
+    await auth.signIn();
+    await sync.idle();
+    expect(sync.state, CloudSyncState.error);
+    expect(sync.stopped, isTrue);
+    expect(backend.tokens, hasLength(1));
+
+    // New events and unchanged auth don't try again.
+    changes.add(null);
+    auth.notify();
+    await sync.idle();
+    expect(backend.tokens, hasLength(1));
+    expect(backend.uploads, isEmpty);
+
+    // Retry does.
+    sync.retry();
+    await sync.idle();
+    expect(sync.stopped, isFalse);
+    expect(sync.state, CloudSyncState.synced);
+    expect(backend.tokens, hasLength(2));
+    expect(backend.uploads, isNotEmpty);
+  });
+
+  test('a new ID token resumes a stopped sync', () async {
+    backend.failConnect = CognitoException('HTTP 502', 'failed');
+    await auth.signIn();
+    await sync.idle();
+    expect(sync.stopped, isTrue);
+
+    auth.refreshToken();
+    await sync.idle();
+    expect(sync.stopped, isFalse);
+    expect(sync.state, CloudSyncState.synced);
+    expect(backend.tokens.last, 'id-token-1-r1');
+  });
+
   test('signing out stops uploads', () async {
     await auth.signIn();
     await sync.idle();

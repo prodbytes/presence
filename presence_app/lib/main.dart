@@ -849,6 +849,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               auth: widget.auth,
               roles: widget.roles,
               profiles: widget.profiles,
+              log: widget.log,
+              deviceId: widget.deviceId,
             ),
             const SizedBox(width: 4),
           ] else ...[
@@ -894,6 +896,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 sync: widget.sync,
                 roles: widget.roles,
                 profiles: widget.profiles,
+                log: widget.log,
+                deviceId: widget.deviceId,
               ),
             const SizedBox(width: 4),
           ],
@@ -956,7 +960,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                 ),
               ),
-              if (_showLog) SafeArea(child: LogView(log: AppLog.instance)),
+              if (_showLog)
+                SafeArea(
+                  child: LogView(
+                    log: AppLog.instance,
+                    health: HealthPanel(roles: widget.roles, sync: widget.sync),
+                  ),
+                ),
             ],
           ),
           // Bottom left, across from Flip and Clip: the battery, whether a

@@ -225,6 +225,14 @@ class RolesService extends ChangeNotifier {
   /// (null) until then, or if it didn't answer.
   ApiSettings get apiSettings => _apiSettings;
 
+  DateTime? _apiCheckedAt;
+
+  /// When the auth API was last asked ([checkApi], or the start check);
+  /// null until the start check is done.
+  DateTime? get apiCheckedAt => _apiCheckedAt;
+
+  Future<void>? _apiCheck;
+
   AccessState _state = AccessState.starting;
   List<String> _roles = const [];
   String? _profile;
@@ -256,6 +264,34 @@ class RolesService extends ChangeNotifier {
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() async {
     if (_mode == ExecutionMode.rbac) await _check();
+  }
+
+  /// Asks the auth API again (`GET /api/auth/anonymous`) whether it
+  /// answers and which settings it has: the Log tab's health panel, every
+  /// 30 s. Updates [apiError], [apiSettings] and [apiCheckedAt]; the
+  /// [mode] stays the one the start check decided. Does nothing until
+  /// then, and joins a check already running.
+  Future<void> checkApi() {
+    if (_mode == null || _disposed) return Future.value();
+    return _apiCheck ??= _checkApi().whenComplete(() => _apiCheck = null);
+  }
+
+  Future<void> _checkApi() async {
+    String? error;
+    ApiSettings? settings;
+    try {
+      settings = (await _client.anonymous().timeout(startTimeout)).settings;
+    } catch (e) {
+      error = '$e';
+    }
+    if (_disposed) return;
+    if (error != null && error != _apiError) {
+      debugPrint('Presence: auth API health check failed: $error');
+    }
+    _apiError = error;
+    if (settings != null) _apiSettings = settings;
+    _apiCheckedAt = DateTime.now();
+    notifyListeners();
   }
 
   /// Reads this device's profile, made the first time.
@@ -305,6 +341,7 @@ class RolesService extends ChangeNotifier {
             );
     }
     if (_disposed) return;
+    _apiCheckedAt = DateTime.now();
     _mode = access.mode;
     _anonymousRoles = access.roles;
     _apiSettings = access.settings;

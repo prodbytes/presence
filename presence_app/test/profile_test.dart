@@ -109,6 +109,55 @@ void main() {
         );
       },
     );
+
+    test('a failed auth API says what failed and where to look', () async {
+      final cognito = CognitoCredentials(
+        region: 'us-east-1',
+        api: api,
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'error': 'the profile service failed',
+              'cause': 'CognitoIdentity AccessDeniedException (HTTP 400)',
+              'requestId': 'req-1',
+            }),
+            502,
+          ),
+        ),
+      );
+      await expectLater(
+        cognito.session('t'),
+        throwsA(
+          isA<CognitoException>().having(
+            (e) => '$e',
+            'log line',
+            'Cognito HTTP 502 from /api/auth/credentials: the profile service '
+                'failed (cause: CognitoIdentity AccessDeniedException '
+                '(HTTP 400); request req-1)',
+          ),
+        ),
+      );
+    });
+
+    test('a body that is not JSON is quoted', () async {
+      final cognito = CognitoCredentials(
+        region: 'us-east-1',
+        api: api,
+        client: MockClient(
+          (_) async => http.Response('Internal Server Error', 502),
+        ),
+      );
+      await expectLater(
+        cognito.session('t'),
+        throwsA(
+          isA<CognitoException>().having(
+            (e) => e.detail,
+            'detail',
+            'body: Internal Server Error',
+          ),
+        ),
+      );
+    });
   });
 
   test('reconnect uploads to the new folder after a link', () async {
