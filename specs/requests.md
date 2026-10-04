@@ -2146,3 +2146,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
       [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
       (4 new) pass.
+231. **Allow production reads; allowlist frequent read-only commands
+    (`/fewer-permission-prompts`).** (2026-10-05)
+    - From the 50 latest transcripts: 24 read-only rules added to
+      [.claude/settings.json](../.claude/settings.json), including the AWS
+      reads (DynamoDB scan, Cognito Identity lookups, Lambda config,
+      CloudWatch logs) the Cognito debugging needed.
+    - Specs: [Dev environment](dev-environment.md).
