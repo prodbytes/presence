@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
+import 'events.dart';
 import 'theme.dart';
 
 /// One check's status: its emoji and what it means (the tooltip).
@@ -180,6 +181,9 @@ class HealthPanel extends StatefulWidget {
     super.key,
     required this.roles,
     this.sync,
+    this.events,
+    this.userId,
+    this.deviceId,
     bool? oidcClient,
     HealthHistory? history,
     this.interval = const Duration(seconds: 30),
@@ -190,6 +194,22 @@ class HealthPanel extends StatefulWidget {
   final CloudSync? sync;
   final bool oidcClient;
   final HealthHistory history;
+
+  /// The event history, whose distinct devices the panel counts; no count
+  /// without it.
+  final EventLog? events;
+
+  /// The signed-in user's ID (null signed out): only their events count,
+  /// as in the Events tab.
+  final String? userId;
+
+  /// This device's ID, for events not saved yet (they have none).
+  final String? deviceId;
+
+  /// How many devices recorded [events]: distinct device IDs, with events
+  /// not saved yet counted as [deviceId]'s.
+  static int devicesIn(Iterable<AppEvent> events, {String? deviceId}) =>
+      {for (final e in events) ?(e.deviceId ?? deviceId)}.length;
 
   /// How often the checks run.
   final Duration interval;
@@ -273,6 +293,25 @@ class _HealthPanelState extends State<HealthPanel> {
               sync: widget.sync,
               oidcClient: widget.oidcClient,
             ),
+            if (widget.events case final events?)
+              ListenableBuilder(
+                listenable: events,
+                builder: (context, _) {
+                  final n = HealthPanel.devicesIn(
+                    EventTimeline.ofUser(events.events, widget.userId),
+                    deviceId: widget.deviceId,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '📱 Devices $n',
+                      key: const Key('health-devices'),
+                      semanticsLabel:
+                          '$n ${n == 1 ? 'device' : 'devices'} in the events',
+                    ),
+                  );
+                },
+              ),
             ListenableBuilder(
               listenable: widget.history,
               builder: (context, _) => _bricks(theme, small),
