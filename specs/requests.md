@@ -2018,3 +2018,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `presence-rc-identity` failed and its rollback failed too
       (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
       text, with a comment saying why it stays.
+222. **In the detection pipeline, when a tag is detected, also store the
+     frame where that was. When a user clicks the label, open the player
+     paused at that position, for both subject labels and tag labels.**
+     (2026-10-04)
+     - Recognition already stored the position: each object tag keeps the
+       `ms` of the first frame it was seen on, and each subject tag its
+       `frameId` and `frameMs` (with the frame's JPEG). Nothing changed in
+       what's stored; object tags still keep only the time.
+     - App: the clip card's subject names (`EventSubjects`) and object tag
+       chips (`ClipObjectTags`) are clickable (`OpenAtLabel`, with a "Show
+       at 0:02.5" tooltip) when the clip is playable. A click opens the
+       player (`showClipPlayer(at:)` → `ClipPlayerDialog.startAt` →
+       `ClipPlayerView.startAt`, web and native) loaded at that point and
+       paused, clamped to the clip window (`startPosition`). A subject
+       opens at its earliest tagged frame; a tag without a frame plays
+       from the start, as the card does.
+     - Specs: [Clips](clips.md), [Subjects](subjects.md), [Subject
+       recognition](recognition.md). 311 Flutter tests pass (2 new); web
+       release builds. Not tried in the running app: the main folder's
+       services are shared.
