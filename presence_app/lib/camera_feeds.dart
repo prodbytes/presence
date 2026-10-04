@@ -409,6 +409,32 @@ class CameraRig extends ChangeNotifier {
     bus.publish(ClipRequested(clip, trigger: trigger, time: requestedAt));
   }
 
+  /// How old a Capture all request from another device may be and still be
+  /// answered: one fetched later (a device that was off or offline) is
+  /// past, and its clip wouldn't show the moment it asked for.
+  static const Duration captureAllWithin = Duration(minutes: 5);
+
+  /// Answers the Capture all requests ([AppEvent.captureAll]) among
+  /// [events], just fetched from the cloud: one clip on the open camera
+  /// however many arrived, if any is from another device than [deviceId]
+  /// and newer than [captureAllWithin]. Its event uploads with the next
+  /// pass, so the asking device's All grid gets this camera's picture.
+  void answerCaptureAll(
+    Iterable<AppEvent> events, {
+    required String? deviceId,
+  }) {
+    final target = bus;
+    if (target == null || deviceId == null) return;
+    final now = _now();
+    final asked = events.any(
+      (e) =>
+          e.type == AppEvent.captureAllType &&
+          e.deviceId != deviceId &&
+          now.difference(e.time) < captureAllWithin,
+    );
+    if (asked) requestClips(target, trigger: ClipTrigger.all).ignore();
+  }
+
   void _retryFailed() {
     if (_error == null || _busy) return;
     if (_devices.isEmpty) {

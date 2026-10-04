@@ -1,6 +1,8 @@
 # Camera screen
 
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
+  With the All grid showing, it asks every device for one
+  ([Capture all](#capture-all) below).
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
@@ -65,10 +67,46 @@ profile (`CameraFeedsView.showAll`,
 - Tests: `camera_all_test.dart` (which devices and images, the grid's
   places, the same preview across switches, the button).
 
+## Capture all
+
+**Clip with the All grid showing takes a clip on every device**, so the
+grid soon shows each one's current picture, not its last clip:
+
+- **On this device:** the press publishes a **Capture all** event
+  (`AppEvent.captureAll`, type `capture_all`, grid icon) and takes this
+  camera's clip with trigger `all` (title "Capture all"; the message pill
+  says "Capture all · saving the next 10 s").
+- **On the others:** the event uploads with the next [cloud
+  sync](cloud-sync.md) pass (0.5 s later). Each other device of the
+  profile fetches it with its next pass (within 15 s) and, if it came from
+  another device and is under **5 minutes** old
+  (`CameraRig.captureAllWithin`), takes a clip of its own on its open
+  camera, trigger `all` (`CameraRig.answerCaptureAll`). Several requests
+  in one fetch make one clip. A device without an open camera skips it.
+- That clip uploads with the device's next pass, and the asking device's
+  All grid shows its thumbnail once its own pass fetches it: about 30 s
+  in all.
+- **Without the grid** (the default), Clip only takes this camera's clip,
+  trigger `manual`, and nothing is asked of other devices.
+- Requests only travel through cloud sync, so they need a signed-in
+  `presence_user` on both ends; in DEV, or with sync off, Capture all only
+  clips this camera. Requests restored from storage, or fetched when
+  older than 5 minutes (a device that was off), aren't answered.
+- Tests: `capture_all_test.dart` (alone, only a manual clip; with All, the
+  request and an `all` clip upload; another device's fetched request takes
+  one clip here; not this device's own, an old one, or other events; the
+  request survives storage and counts as a grab).
+
 ## Known limitations
 
 - Only one camera records at a time. Clips come from the camera being
   shown.
 - **All** shows each other device's latest *clip* image, not a live
   picture: how old it is depends on its clips (scheduled ones every 240
-  minutes by default, motion, or Clip presses).
+  minutes by default, motion, Clip presses, or a [Capture
+  all](#capture-all)).
+- Capture all reaches devices only through cloud sync, so a device that's
+  closed, offline for over 5 minutes, or signed out never answers it, and
+  the asking device isn't told which devices did. Its 5-minute window
+  compares the device clocks, so a clock far off can make a device answer
+  late or not at all.

@@ -2140,3 +2140,78 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       current value).
     - Specs: [Settings](settings.md). 324 Flutter tests pass (the
       brightness test now checks the restart).
+
+230. **When the grab button is pressed in the All cameras mode, generate a
+    global capture event that makes all cameras take a grab, so the next
+    S3 sync shows the current state of all cameras; in the single camera
+    mode (default), only grab this camera.** (2026-10-04)
+    - Clip with the All grid showing publishes a `capture_all` event
+      (`AppEvent.captureAll`) and clips this camera with the new trigger
+      `all` ("Capture all"). The event syncs to S3; each other device of
+      the profile that fetches it from another device, under 5 minutes old,
+      takes one clip of its own (`CameraRig.answerCaptureAll`), which
+      syncs back to the asker's grid. Without the grid, Clip is unchanged.
+    - Capture all requests count as grabs in the Monitoring timeline.
+    - Specs: [Camera screen](camera.md#capture-all), [Navigation](navigation.md),
+      [Events](events.md), [Recording and data formats](data-formats.md).
+      New `capture_all_test.dart`; 330 Flutter tests pass.
+
+230. **Cognito failures repeat in the log: if it fails, stop trying, and
+    print a better error to debug it.** (2026-10-04)
+    - The app: a failure to get credentials (`/api/auth/credentials` or
+      Cognito) stops cloud sync. No pass runs, for new events or every
+      15 s, until the Google ID token changes, the account sheet's new
+      **Retry** button, or a profile link's reconnect. It's logged once,
+      as `Presence: cloud sync failed, stopped until sign-in or retry:
+      Cognito HTTP 502 from /api/auth/credentials: <error> (cause: …;
+      request …)`, instead of two lines a pass.
+    - The auth API: the 502 now carries `cause` (the AWS service, error
+      code and status, or the exception type) and `requestId` (the Lambda
+      request ID, also in its log line), still without AWS's message.
+    - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
+      [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
+      (4 new) pass.
+231. **On the top of the log view add a health check panel, with the same
+    checks as the settings view (API, AWS/S3, OIDC) and last update, run
+    every 30 s; also show a clickable history of health checks as small
+    bricks, red for any failed check, green when all pass.** (2026-10-05)
+    - The Log tab opens with a **Health** card
+      ([lib/system_health.dart](../presence_app/lib/system_health.dart),
+      `HealthPanel`): the Settings health line, "Last update HH:MM:SS",
+      and a row of bricks, one per check, oldest first: green when all
+      passed, red when any is ❌ or ⚠️. Tapping a brick shows that check's
+      time and the three statuses; tapping it again hides them.
+    - The checks run when the tab opens and every 30 s while it's open:
+      `RolesService.checkApi` asks `GET /api/auth/anonymous` again and
+      updates the API status and the settings it reports (the execution
+      mode stays the start check's). AWS shows the cloud sync's latest
+      pass. The history (`HealthHistory`, the latest 120 checks) is in
+      memory, so it outlasts closing the tab but not a restart.
+    - Specs: [Log](log.md), [Settings screen](settings.md). 329 Flutter
+      tests (1 new) pass.
+    - Follow-up: the panel wasn't showing because this PR was unmerged
+      and conflicted with `main`; rebased (only this log conflicted), 329
+      tests pass, and merged.
+232. **Make AWS access work in prod: events synced through S3 with the
+    Cognito identity pool; verify the policy and how profile IDs are
+    handled.** (2026-10-05)
+    - Found: every `/api/auth/credentials` failed with `NotAuthorizedException:
+      Logins don't match`. The profile's identity came from Google sign-in
+      (`GetId`), and `GetOpenIdTokenForDeveloperIdentity` with only the
+      profile ID can't add a login to it. Reproduced on the RC pool with a
+      throwaway identity (deleted after).
+    - Fixed: the API retries with the caller's Google ID token beside the
+      profile ID, which links it once; a link code links it too.
+    - Checked in prod: the pool (authenticated only, Google client and
+      developer provider), the authenticated role (trust limited to the
+      pool and `authenticated`; Get, Put and List only under
+      `${cognito-identity.amazonaws.com:sub}/`), the bucket policy (TLS
+      only) and CORS (the prod origin). No change needed.
+    - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
+      auth API tests pass.
+233. **Show the profile name and all the profile's device IDs, collected
+    from events, on the popup the user icon opens.** (2026-10-05)
+    - The account sheet shows the profile ID (the profile's only name)
+      and every device ID on the signed-in user's events, this device
+      first and labelled, the rest sorted; the list updates live.
+    - Specs: [Sign-in](sign-in.md). 332 Flutter tests (3 new) pass.

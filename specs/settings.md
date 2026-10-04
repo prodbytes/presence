@@ -88,6 +88,9 @@
     (sign-in is off), ⚠️ on one only;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
+  - Here it shows the start check's answer; the [Log](log.md) tab's
+    health panel shows the same line, checked again every 30 s, with a
+    history.
 - **Add a device**, the last thing, under the health line, shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same

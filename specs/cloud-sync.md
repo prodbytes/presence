@@ -54,7 +54,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   with a signed-in `presence_user` (a new sign-in, or a session restored
   at launch, e.g. a reload), whenever the user changes, **every 15 s**
   (`CloudSync.interval`), and 0.5 s after an event is saved or a clip's
-  recording completes (`Persistence.changes`).
+  recording completes (`Persistence.changes`). Passes stop after a
+  credentials failure (see **Errors**).
 - **Fetch:** the events in the user's folder that the device doesn't have
   are downloaded, with their clips (details, recording and thumbnail) and
   tagged frames:
@@ -125,7 +126,15 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - if the auth API rejects the Google token (401, for example once it
     has expired), or Cognito rejects its token (`NotAuthorizedException`),
     the account sheet says **"Sign in again to resume uploads"**;
-  - other failures show "Upload failed (HTTP …)".
+  - any failure to get credentials (the auth API or Cognito) **stops
+    syncing**: no more passes, not even for new events or every 15 s,
+    until the Google ID token changes (signing in again), the account
+    sheet's **Retry** button (shown beside the error while stopped,
+    `CloudSync.retry`), or `reconnect()` after a profile link. Other
+    errors than a rejected token show the auth API's message (for
+    example "the profile service failed");
+  - other failures (S3, the network) show "Upload failed (HTTP …)" and
+    the next pass tries again.
 - **Status:** the account sheet shows a line under the email: "Cloud backup
   is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
@@ -141,7 +150,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
   directly, and Android and iOS through `serverClientId`. So the auth API
   and the identity pool trust that one client ID.
 
-A failed pass is logged with its full error (the S3 or auth API response,
+A failed pass is logged once with its full error (the S3 or auth API response,
 not only the "Upload failed (HTTP 403)" in the health tooltip), and admins
 read it on the [Log](log.md) tab.
 

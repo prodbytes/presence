@@ -92,6 +92,15 @@
   with its Google token), so data uploaded before profiles stays where it
   is and nothing moves. After that the folder never changes (a conditional
   write).
+- **Linking the profile ID to the identity:** that identity was made by
+  Google sign-in, and Cognito adds another login to an identity only
+  beside one it already has; the profile ID alone answers
+  `NotAuthorizedException: Logins don't match`. So the API asks with the
+  profile ID alone and, when Cognito refuses, again with the caller's
+  Google ID token beside it (`accounts.google.com`), which links the
+  profile ID for good. After that the profile ID alone works, for every
+  account in the profile. A link code links it too, so accounts that join
+  (whose Google logins aren't on the identity) get credentials.
 - **Roles:** a subject has its own roles plus the **owner's**, the subject
   that made the profile. This applies in `GET /api/auth`, the Admin routes
   and the profile routes. The owner's email is kept on the profile and
@@ -150,7 +159,13 @@
 
 - `profile` is `null` only for a token without an issuer or subject.
 - The profile routes need a verified email. A Cognito or DynamoDB failure
-  answers 502 without its details. Without an identity pool and bucket
+  answers 502 `{"error": "the profile service failed", "cause",
+  "requestId"}`: `cause` is the AWS service, error code and HTTP status
+  (`CognitoIdentity AccessDeniedException (HTTP 400)`), or the exception's
+  type for other failures; `requestId` is the Lambda request ID, which
+  finds the full error in the function's log (`presence: <route> failed
+  (request <id>): <exception>`). AWS's message, which names ARNs, isn't
+  sent. Without an identity pool and bucket
   (locally, by default), every profile route but the listing answers 503.
 
 ## Where it's kept

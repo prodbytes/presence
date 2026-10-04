@@ -2,6 +2,8 @@ package presence.auth;
 
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.services.cognitoidentity.model.CognitoIdentityException;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -40,6 +42,8 @@ class ProfileTest {
     private final List<String> tokensIssued = new ArrayList<>();
     private Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private int ids;
+    /** When set, Cognito fails every token request with it. */
+    private RuntimeException cognitoFails;
 
     private final ProfileHandler.Backend backend = new ProfileHandler.Backend() {
         @Override
@@ -59,10 +63,20 @@ class ProfileTest {
         }
 
         @Override
-        public String openIdToken(String identityId, String profileId) {
-            // As Cognito: a developer identifier belongs to one identity.
-            var was = linked.putIfAbsent(identityId, profileId);
-            assertTrue(was == null || was.equals(profileId), "identity " + identityId + " relinked");
+        public String openIdToken(String identityId, String profileId, String googleIdToken) {
+            if (cognitoFails != null) {
+                throw cognitoFails;
+            }
+            // As Cognito: a developer identifier belongs to one identity, and
+            // linking it to one Google sign-in made needs that Google login.
+            var was = linked.get(identityId);
+            if (was == null) {
+                assertTrue(!googleIdentities.containsValue(identityId)
+                        || identityId.equals(googleIdentities.get(googleIdToken)),
+                        "linking " + identityId + " without its Google login");
+                linked.put(identityId, profileId);
+            }
+            assertEquals(profileId, linked.get(identityId), "identity " + identityId + " relinked");
             tokensIssued.add(identityId + "|" + profileId);
             return "token-for-" + identityId;
         }
@@ -288,6 +302,32 @@ class ProfileTest {
     }
 
     /** A request the JWT authorizer let through: Google account {@code sub}, its token {@code tok-<sub>}. */
+    @Test
+    void aCognitoFailureSaysWhichServiceAndErrorWithoutAwsDetails() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        cognitoFails = CognitoIdentityException.builder()
+                .statusCode(400)
+                .message("arn:aws:cognito-identity:us-east-1:123456789012:identitypool/x is not authorized")
+                .awsErrorDetails(AwsErrorDetails.builder()
+                        .serviceName("CognitoIdentity")
+                        .errorCode("AccessDeniedException")
+                        .errorMessage("arn:aws:cognito-identity:us-east-1:123456789012:identitypool/x")
+                        .build())
+                .build();
+
+        var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+
+        assertEquals(502, response.getStatusCode());
+        assertEquals("{\"error\":\"the profile service failed\","
+                + "\"cause\":\"CognitoIdentity AccessDeniedException (HTTP 400)\"}", response.getBody());
+        assertFalse(response.getBody().contains("123456789012"));
+    }
+
+    @Test
+    void anOtherFailureNamesItsType() {
+        assertEquals("IllegalStateException", ProfileHandler.cause(new IllegalStateException("x")));
+    }
+
     private static APIGatewayV2HTTPEvent call(String route, String sub, String email, String body) {
         var jwt = new APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT();
         jwt.setClaims(Map.of("iss", GOOGLE, "sub", sub, "email", email, "email_verified", "true"));
