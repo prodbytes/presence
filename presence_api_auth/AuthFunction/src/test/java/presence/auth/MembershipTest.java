@@ -60,7 +60,9 @@ class MembershipTest {
                         dismissed.add(email);
                     }
                 }
-            });
+            },
+            new VoucherTest.MemoryStore(),
+            Clock.fixed(NOW, ZoneOffset.UTC));
 
     @Test
     void aVerifiedUserSendsARequest() {

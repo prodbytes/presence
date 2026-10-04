@@ -48,8 +48,9 @@ emails, add accounts or switch providers without losing their data.
   and links it; IDs like `automatic_paranoid_axolotl`, never repeated.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
-- [Membership](membership.md): users without access ask for it; admins
-  grant it on the Admin screen.
+- [Membership](membership.md): users without access ask for it or redeem
+  a voucher code; admins grant requests and create voucher codes (role,
+  expiry, uses) on the Admin screen.
 - [Profiles](profiles.md): whose data it is (`huge_wavy_darter`), made at
   the first sign-in; one cloud folder and the owner's roles for every
   account linked to it with a one-time code (even two from Google).
@@ -95,7 +96,7 @@ emails, add accounts or switch providers without losing their data.
   [profile](profiles.md) and roles
   (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
   execution mode and which settings are set, no token), the
-  membership routes and the [profile](profiles.md) routes (SAM,
+  membership and voucher routes and the [profile](profiles.md) routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.

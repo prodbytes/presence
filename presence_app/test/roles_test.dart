@@ -264,6 +264,102 @@ void main() {
       expect(find.byKey(const Key('membership-sent')), findsNothing);
     });
 
+    testWidgets('a voucher code lets the user in at once', (tester) async {
+      final roles = FakeRolesClient.none();
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: 'ABCD-EFGH-JK23',
+            role: userRole,
+            expiresAt: DateTime.now().add(const Duration(days: 1)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.now(),
+          ),
+        )
+        ..onRedeem = (role) => roles.roles = [role];
+      await launch(tester, roles, membership);
+      await tester.tap(find.byKey(const Key('sign-up')));
+      await tester.pumpAndSettle();
+
+      // Redeeming needs a code; a wrong one says so.
+      final redeem = find.byKey(const Key('redeem-voucher'));
+      expect(tester.widget<FilledButton>(redeem).onPressed, isNull);
+      await tester.enterText(
+        find.byKey(const Key('voucher-code')),
+        'ZZZZ-ZZZZ-ZZZZ',
+      );
+      await tester.pump();
+      await tester.tap(redeem);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('voucher-error')), findsOneWidget);
+      expect(find.byType(TabBar), findsNothing);
+
+      // The right one grants its role, and the roles are checked again.
+      await tester.enterText(
+        find.byKey(const Key('voucher-code')),
+        ' abcd-efgh-jk23 ',
+      );
+      await tester.pump();
+      await tester.tap(redeem);
+      await tester.pumpAndSettle();
+      expect(membership.redeemed, ['ABCD-EFGH-JK23']);
+      expect(find.byKey(const Key('voucher-error')), findsNothing);
+      Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
+          .pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byKey(const Key('sign-up')), findsNothing);
+    });
+
+    testWidgets('a presence_admin creates and deletes voucher codes', (
+      tester,
+    ) async {
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: 'OLDC-ODEX-2222',
+            role: adminRole,
+            expiresAt: DateTime.now().subtract(const Duration(days: 1)),
+            maxUses: 3,
+            uses: 1,
+            redeemedBy: const ['bob@example.com'],
+            createdAt: DateTime.utc(2026, 9, 1),
+          ),
+        );
+      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
+      await tester.tap(find.byKey(const Key('admin')));
+      await tester.pumpAndSettle();
+      expect(find.text('No pending requests.'), findsOneWidget);
+      expect(find.text('Voucher codes'), findsOneWidget);
+      expect(find.text('Expired'), findsOneWidget);
+      expect(find.textContaining('Admin · 1 of 3 used'), findsOneWidget);
+      expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
+
+      // Uses must be 1 to 1000.
+      final create = find.byKey(const Key('create-voucher'));
+      await tester.enterText(find.byKey(const Key('voucher-max-uses')), '0');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('voucher-max-uses')), '5');
+      await tester.pump();
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      final voucher = membership.codes.first;
+      expect(voucher.role, userRole);
+      expect(voucher.maxUses, 5);
+      // Through the end of the day a week from now.
+      final week = DateTime.now().add(const Duration(days: 7));
+      expect(voucher.expiresAt, DateTime(week.year, week.month, week.day + 1));
+      expect(find.byKey(Key('voucher-${voucher.code}')), findsOneWidget);
+      expect(find.textContaining('Member · 0 of 5 used'), findsOneWidget);
+
+      await tester.tap(find.byKey(Key('delete-${voucher.code}')));
+      await tester.pumpAndSettle();
+      expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
+      expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+    });
+
     testWidgets('a presence_user: everything but Admin', (tester) async {
       await launch(tester, FakeRolesClient([userRole]));
       expect(find.byType(TabBar), findsOneWidget);

@@ -1925,3 +1925,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       tests pass, and the template lints clean.
     - The GitHub deploy roles (`github-deploy.yaml`) may now describe and
       update DynamoDB TTL, which the link-codes table needs.
+217. **Create a voucher code system in the auth module and views: users
+    submit a voucher code on the Request access sheet and get the
+    voucher's role if it's valid; admins create codes (after the
+    membership requests on the Admin screen) that grant a given role, with
+    an expiration date and a usage count.** (2026-10-04)
+    - Auth API: new `VoucherTable` (keyed by code), `POST /api/auth/voucher`
+      (`VoucherHandler`, throttled like requests) to redeem, and
+      `GET`/`POST /api/auth/vouchers` and `POST /api/auth/vouchers/delete`
+      on `AdminHandler`. Codes are random `XXXX-XXXX-XXXX` (60 bits); a
+      redemption is one conditional write (exists, not expired, uses left,
+      not already used by this email), and any failure answers the same
+      404. An Admin voucher also grants `presence_user`.
+    - App: a **Voucher code** field and **Redeem** on the Request access
+      sheet (a valid code re-checks the roles, so the user gets in at
+      once); the Admin screen (now titled "Admin") gets a **Voucher codes**
+      section: a form (role, valid-through date, uses) and the codes with
+      their uses, expiry, redeemers, Copy and Delete.
+    - Floci's local routes added. [Membership](membership.md) and
+      [Auth API](auth-api.md) updated. 34 JUnit tests (11 new) and 273
+      Flutter tests (2 new) pass.

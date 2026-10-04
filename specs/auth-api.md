@@ -1,6 +1,6 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: three Java 25
+[presence_api_auth/](../presence_api_auth) is a SAM application: four Java 25
 Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
 site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)):
@@ -27,7 +27,15 @@ site (`/api/*` in the CloudFront distribution; see
 - **`POST /api/auth/membership`** (`MembershipHandler`): a request for
   access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
   **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
-  Admin screen's. See [Membership](membership.md).
+  Admin screen's. See [Membership](membership.md);
+- **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
+  in the plain-text body for its role, `{"role": "...", "granted":
+  [...]}`, or 404 for any code that can't be redeemed; throttled to 1
+  request/s (burst 5). **`GET /api/auth/vouchers`**, **`POST
+  /api/auth/vouchers`** (form-encoded `role`, `expiresAt` ISO-8601,
+  `maxUses`; answers 201 with the new voucher) and **`POST
+  …/vouchers/delete`** (`AdminHandler`, admins only) manage them. See
+  [Membership](membership.md#voucher-codes);
 - **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
   (`ProfileHandler`): a Cognito developer-identity token for the user's
   profile, and listing, linking and unlinking its Google accounts. See
@@ -57,7 +65,7 @@ site (`/api/*` in the CloudFront distribution; see
     `nu01.com.example` don't count as the domain.
   - **A linked subject** also gets the roles of its profile's owner (see
     [Profiles](profiles.md#the-profiles-folder-and-roles)), in every route.
-- **The tables** (`UserRolesTable`, `MembershipTable`, and
+- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`, and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
@@ -66,9 +74,11 @@ site (`/api/*` in the CloudFront distribution; see
   - the roles function may only read `UserRolesTable`, get and put in
     `ProfileSubjectsTable`, and get, put and update in `ProfilesTable`;
   - the membership function may only put items in `MembershipTable`;
+  - the voucher function may update items in `VoucherTable`, and read and
+    update `UserRolesTable`;
   - the admin function may read and update `UserRolesTable`, scan, update
-    and delete in `MembershipTable`, and get items from both profile
-    tables;
+    and delete in `MembershipTable`, put, scan and delete in
+    `VoucherTable`, and get items from both profile tables;
   - the profile function's permissions are listed in
     [Profiles](profiles.md#where-its-kept).
 - **Responses** are `application/json` with `Cache-Control: no-store`, and
@@ -102,6 +112,11 @@ site (`/api/*` in the CloudFront distribution; see
   - the admin routes: 403 without both roles, listing, grant, dismiss
     (which keeps the cooldown), bad emails, unknown routes;
   - profile names are cleaned to one short line;
+  - vouchers: the code format and loose typing; admins only; creation's
+    role, expiry and uses checks; newest first; deletion; redeeming once
+    per email, running out, expiring, unknown codes, verified emails, an
+    Admin voucher also granting `presence_user`, and a failed grant giving
+    the use back;
   - profiles, linking and the owner's roles (`ProfileTest`; see
     [Profiles](profiles.md#verified)).
   - the whole flow: a nu01.com user gets both roles; another domain's
