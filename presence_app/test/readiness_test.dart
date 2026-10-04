@@ -282,9 +282,9 @@ void main() {
       await tester.tap(find.byTooltip('Clip'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Clip started · saving the next 15 s'), findsOneWidget);
+      expect(find.text('Clip started · saving the next 10 s'), findsOneWidget);
       expect(find.text('Ready'), findsOneWidget);
-      expect(find.text('15 s'), findsNothing, reason: 'no countdown');
+      expect(find.text('10 s'), findsNothing, reason: 'no countdown');
 
       await advance(tester, const Duration(seconds: 10));
       expect(find.text('Ready'), findsOneWidget);
@@ -292,9 +292,9 @@ void main() {
       // The message was brief (4 s).
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(seconds: 1));
-      expect(find.text('Clip started · saving the next 15 s'), findsNothing);
+      expect(find.text('Clip started · saving the next 10 s'), findsNothing);
 
-      // The press's clip (the startup clip came first, 15 s after the
+      // The press's clip (the startup clip came first, 5 s after the
       // camera opened).
       expect(camera.fullCompleters, hasLength(2));
       camera.fullCompleters.last.complete(media);
@@ -401,7 +401,7 @@ void main() {
       }
       await tester.pump(const Duration(milliseconds: 600));
       expect(
-        find.text('Motion detected · saving the next 15 s'),
+        find.text('Motion detected · saving the next 10 s'),
         findsOneWidget,
       );
       // The pill counts down the motion cooldown (5 minutes by default).

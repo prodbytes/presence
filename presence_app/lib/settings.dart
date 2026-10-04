@@ -91,6 +91,8 @@ class _SettingsViewState extends State<SettingsView> {
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         final recognition = config.recognition;
+        void setHistory(HistoryConfig Function(HistoryConfig) f) =>
+            config.update((x) => x.copyWith(history: f(x.history)));
         void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
             config.update((x) => x.copyWith(recognition: f(x.recognition)));
         String percent(double v) => '${(v * 100).round()} %';
@@ -287,6 +289,30 @@ class _SettingsViewState extends State<SettingsView> {
                   ? (v) => setRecognition((r) => r.copyWith(ask: _toStep(v)))
                   : null,
             ),
+            const SizedBox(height: 16),
+            Text('History', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _LabeledSlider(
+              key: const Key('history-keep-slider'),
+              label: 'Keep events for',
+              valueLabel: formatKeep(config.history.keep),
+              value: config.history.keep.inDays.toDouble(),
+              min: HistoryConfig.minKeep.inDays.toDouble(),
+              max: HistoryConfig.maxKeep.inDays.toDouble(),
+              divisions:
+                  (HistoryConfig.maxKeep - HistoryConfig.minKeep).inDays ~/
+                  HistoryConfig.keepStep.inDays,
+              onChanged: (v) => setHistory(
+                (h) => h.copyWith(keep: Duration(days: v.round())),
+              ),
+            ),
+            Text(
+              'Older events and their clips are deleted from this device '
+              'when the app starts and every 3 hours.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),
@@ -334,6 +360,18 @@ String formatEvery(Duration every) {
   final minutes = every.inMinutes % 60;
   if (hours == 0) return '$minutes min';
   return minutes == 0 ? '$hours h' : '$hours h $minutes min';
+}
+
+/// How long events are kept, as "1 day", "10 days", "2 weeks" or
+/// "90 days": whole weeks read as weeks.
+String formatKeep(Duration keep) {
+  final days = keep.inDays;
+  if (days == 1) return '1 day';
+  if (days % 7 == 0 && days <= 8 * 7) {
+    final weeks = days ~/ 7;
+    return weeks == 1 ? '1 week' : '$weeks weeks';
+  }
+  return '$days days';
 }
 
 /// Whether subject recognition can run here (see `recognition/`).

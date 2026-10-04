@@ -2,7 +2,7 @@
 
 - The **Settings** tab, **full width** (no 560 px readable width).
 - Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
-  Subjects, Recognition.
+  Subjects, Recognition, History.
 - **Location** section, first: a map with a center pin and, to its right,
   this device's position (labeled, with where it came from), so a drag
   beside the map scrolls the list; moving the map sets the location, with
@@ -22,9 +22,9 @@
     marker at the threshold, to help calibrate it.
   - **At most one automatic clip every** 1–60 minutes (default 5).
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
-  - **Before the press**, default 15 s. This also sets how much history the
+  - **Before the press**, default 5 s. This also sets how much history the
     cameras keep recording.
-  - **After the press**, default 15 s.
+  - **After the press**, default 10 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
 - **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):
@@ -49,6 +49,11 @@
     lowers it).
   - Both sliders are off while the subjects switch is. Stored as
     `recognition: {enabled, objects, autoTag, ask}`.
+- **History** section (see [Event retention](event-retention.md)): **Keep
+  events for**, 1–90 days in 1-day steps, default **2 weeks**, shown as
+  "1 day", "10 days", "2 weeks" or "90 days", with a note that older
+  events and their clips are deleted from this device when the app starts
+  and every 3 hours. Stored as `history: {keepMs}`.
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

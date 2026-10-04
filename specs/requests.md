@@ -1744,10 +1744,92 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       What a device uploaded under the old keys isn't uploaded again.
     - [Cloud sync](cloud-sync.md) and the bucket template's description
       updated. 271 Flutter tests pass (one new); web release builds.
+206. **Add the Raspberry Pi dependencies and instructions to the README.**
+    (2026-10-02)
+    - New README section "Run it on a Raspberry Pi": 64-bit Raspberry Pi
+      OS (Bookworm or newer) with the desktop, `sudo apt install -y curl
+      libgtk-3-0 libegl1 libgles2`, then
+      `curl -fsSL https://sh.presence.nu01.com | sh`; where it installs,
+      how to update, and the web fallback. Also in
+      [Install script](install-script.md#raspberry-pi).
+    - Also asked: drop the download's checksum check ("just run it"). Not
+      done in this change; the script still verifies when the release API
+      answers.
+207. **Make the events map centered on the latest event and zoomed out to
+    catch all events; add zoom controls as well.** (2026-10-02)
+    - The Monitoring tab's subjects map, and each subject's map, open
+      centered on the newest event, as close as they can be with every
+      dot in view (48 px padding, zoom 17 at most): each dot and its
+      mirror through the newest, in Web Mercator, are fitted
+      (`framedAround`). The whole world without located events, as before.
+    - Zoom in and out buttons in the bottom-right corner, one step around
+      the center, off at zoom 2 and 19. The Settings location map's zoom
+      buttons moved to `MapZoomButtons` in `lib/location/map_parts.dart`,
+      shared by both.
+    - Spec: new "The map's view" section in [Subjects](subjects.md).
+    - 274 Flutter tests pass (3 new in `subjects_test.dart`); the web
+      release builds.
+208. **Change the default clip times to 5 s before the trigger and 10 s
+    after.** (2026-10-02)
+    - `ClipConfig` defaults are now `before` 5 s and `after` 10 s
+      (`defaultBefore`, `defaultAfter`, replacing the single
+      `defaultLength` of 15 s), so a default clip is 15 s. The 5–60 s range
+      and 5 s steps are unchanged, and settings already saved on a device or
+      in the cloud keep their values.
+    - The startup clip comes 5 s after a camera opens (once its "before"
+      part is full).
+    - Tests and the specs' example texts follow the new defaults. 270
+      Flutter tests pass.
+209. **Show the event counts (matching / all) beside the search at the top
+    of the Events (Monitoring) tab.** (2026-10-02)
+    - New `EventCount` right after the search field: "shown / all", where
+      *shown* is what the timeline lists after the search and the chips,
+      and *all* is every event in the log. It has a tooltip ("2 of 12 events
+      shown").
+    - The timeline's filter steps are now static helpers
+      (`EventTimeline.ofDevices`, `ofKinds`, `matching`) used by both, so
+      the count and the list always agree.
+    - The field and the count share one row; on a 320 dp phone the field
+      gets narrower so the count stays beside it.
+    - Tests: the count follows the search, Show system events, new events,
+      late object tags and Only this device; where it sits at 1280 and
+      320 dp. 271 Flutter tests pass.
+210. **Event counts: *all* is every event of this user on this device,
+    updated as more load from S3; *matching* is after the search and the
+    chips.** (2026-10-02)
+    - `EventCount` now counts only the signed-in user's events
+      (`EventTimeline.ofUser`). Events recorded signed out still count, since
+      the next sign-in takes them over, and so do new ones not saved yet.
+      Other users' events left on the device don't. *Matching* applies the
+      search and both chips to those events.
+    - `MonitoringView` takes the signed-in `userId` and passes it to the
+      count. Events fetched by cloud sync join the log, so *all* grows as
+      they arrive.
+    - Test: another user's event is left out, a signed-out one counts, and
+      cloud events raise *all* (one from another device isn't *matching*
+      while Only this device is on). 272 Flutter tests pass.
+211. **When the app loads, and every 3 hours, delete all events older than
+    2 weeks (configurable in Settings from 1 day to three months).**
+    (2026-10-02)
+    - New `HistoryConfig` (`history: {keepMs}`): 14 days by default, 1–90
+      days in 1-day steps. Settings has a new **History** section with a
+      **Keep events for** slider.
+    - `EventRetention` runs `Persistence.deleteEventsBefore` once the
+      history is restored at load, then every 3 h. It deletes the events,
+      their clip records and recordings, and suggestions about deleted
+      clips, from storage and from the event log. A new setting applies on
+      the next run, so dragging the slider deletes nothing.
+    - Cloud sync's fetch window shrinks to the setting when it's shorter
+      than two weeks, so deleted events don't come back from S3. Nothing
+      is deleted from S3.
+    - New spec: [event-retention.md](event-retention.md).
+    - Tests that store fixed-date events now give the app a matching clock,
+      so they won't break once those dates are more than two weeks old.
+      278 Flutter tests pass; the web release builds.
 
 ## 2026-10-04
 
-206. **One person, several Google accounts: let a user reach the same
+212. **One person, several Google accounts: let a user reach the same
     profile, objects and events from any of their identities, even two from
     the same provider (e.g. `jfaerman@gmail.com` and `julio@nu01.com`).**
     (2026-10-04)

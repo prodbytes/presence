@@ -92,7 +92,7 @@ in the app bar**, which flip between full screens.
     short; its tooltip has it all. Signed out, it's the only pill (no
     battery or readiness), bottom left. The messages:
     - **a clip starts** (the Clip button, motion, the schedule or the
-      start), with the clip's icon: "Clip started · saving the next 15 s",
+      start), with the clip's icon: "Clip started · saving the next 10 s",
       "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".
       **Tapping it** opens Monitoring, where the clip's event is (with
       access). On the other tabs it doesn't show. For motion clips, the

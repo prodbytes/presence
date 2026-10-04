@@ -38,6 +38,7 @@ import 'tab_memory.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
 import 'storage/persistence.dart';
+import 'storage/retention.dart';
 import 'theme.dart';
 
 void main() {
@@ -126,6 +127,7 @@ class _PresenceAppState extends State<PresenceApp> {
   final _config = ConfigController();
   late final EventLog _log;
   late final Persistence _persistence;
+  late final EventRetention _retention;
   late final CameraRig _rig;
   late final LocationController _location;
   late final SubjectRecognizer _recognizer;
@@ -200,6 +202,8 @@ class _PresenceAppState extends State<PresenceApp> {
             store: _persistence.store,
             media: _persistence.media,
             changes: _persistence.changes,
+            // Not what the device deletes as too old.
+            keep: () => _config.config.history.keep,
             // And this device's settings, kept per device.
             settings: _persistence,
             // Clips and events fetched from the cloud after sign-in join the
@@ -217,6 +221,13 @@ class _PresenceAppState extends State<PresenceApp> {
       ..restore(_log).catchError((Object e) {
         debugPrint('Presence: could not restore saved data: $e');
       });
+    // Deletes events older than the History setting: now, once the history
+    // is restored, and every 3 h.
+    _retention = EventRetention(
+      delete: _persistence.deleteEventsBefore,
+      config: _config,
+      now: widget.now,
+    )..start();
     // A session restored before launch takes over what was recorded
     // signed out, as a sign-in does.
     if (_auth.user case final user?) _claim(user.id);
@@ -328,6 +339,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _roles.dispose();
     _location.dispose();
     _recognizer.dispose();
+    _retention.dispose();
     _persistence.dispose();
     _rig.dispose();
     _log.dispose();
@@ -859,6 +871,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onOpenEvent: _openEvent,
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
+                  userId: widget.auth.user?.id,
                   thisDeviceOnly: _thisDeviceOnly,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,

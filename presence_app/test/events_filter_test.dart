@@ -41,6 +41,8 @@ void main() {
         rolesClient: FakeRolesClient(),
         mapTiles: const SizedBox(),
         locator: NoLocation(),
+        // The day of the stored events, so none is too old to keep.
+        now: () => DateTime(2026, 10, 1, 12),
       ),
     );
     await tester.pumpAndSettle();
@@ -84,6 +86,13 @@ void main() {
 
   Finder checkbox() => find.byKey(const Key('this-device-only'));
 
+  /// The events count beside the search: (shown, all).
+  (int, int) counts(WidgetTester tester) {
+    final text = tester.widget<Text>(find.byKey(const Key('event-count')));
+    final [shown, all] = text.data!.split(' / ').map(int.parse).toList();
+    return (shown, all);
+  }
+
   bool checked(WidgetTester tester) =>
       tester.widget<FilterChip>(checkbox()).selected;
 
@@ -99,12 +108,16 @@ void main() {
     expect(find.text('Door opened there'), findsNothing);
     // Events published since launch are this device's too.
     expect(find.text('Application started'), findsWidgets);
+    // The count leaves the other device's event out of the shown, not all.
+    final (shown, all) = counts(tester);
+    expect(shown, all - 1);
 
     await tester.tap(checkbox());
     await tester.pumpAndSettle();
     expect(checked(tester), isFalse);
     expect(find.text('Door opened here'), findsOneWidget);
     expect(find.text('Door opened there'), findsOneWidget);
+    expect(counts(tester), (all, all));
 
     // The choice stays while switching tabs.
     await tester.tap(find.byTooltip('Settings'));
