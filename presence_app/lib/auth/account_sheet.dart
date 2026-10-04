@@ -234,7 +234,7 @@ class CloudSyncStatus extends StatelessWidget {
 }
 
 /// Signed in without access: the sign-up icon. Its sheet lets the user ask
-/// for membership with a message, and check again.
+/// for membership with a message, redeem a voucher code, and check again.
 class SignUpButton extends StatelessWidget {
   const SignUpButton({
     super.key,
@@ -284,20 +284,56 @@ class SignUpSheet extends StatefulWidget {
 
 class _SignUpSheetState extends State<SignUpSheet> {
   final _message = TextEditingController();
+  final _code = TextEditingController();
   bool _sending = false;
   bool _sent = false;
   String? _error;
+  bool _redeeming = false;
+  String? _codeError;
 
   @override
   void initState() {
     super.initState();
     _message.addListener(() => setState(() {}));
+    _code.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
     _message.dispose();
+    _code.dispose();
     super.dispose();
+  }
+
+  /// Redeems the voucher code, then re-asks the roles: a valid code lets the
+  /// user in at once.
+  Future<void> _redeem() async {
+    final token = widget.auth.idToken;
+    final code = _code.text.trim();
+    if (token == null || code.isEmpty) return;
+    setState(() {
+      _redeeming = true;
+      _codeError = null;
+    });
+    try {
+      await widget.membership.redeem(token, code);
+      if (mounted) _code.clear();
+      await widget.roles.refresh();
+    } on RolesException catch (e) {
+      if (mounted) {
+        setState(
+          () => _codeError = switch (e.statusCode) {
+            404 => 'That code is invalid, expired or used up.',
+            429 => 'Too many tries right now. Try again in a minute.',
+            _ => 'Couldn\'t redeem the code ($e).',
+          },
+        );
+      }
+    } catch (e) {
+      if (mounted) setState(() => _codeError = 'Couldn\'t redeem the code.');
+    } finally {
+      if (mounted) setState(() => _redeeming = false);
+    }
   }
 
   Future<void> _send() async {
@@ -392,6 +428,50 @@ class _SignUpSheetState extends State<SignUpSheet> {
                         onPressed: _message.text.trim().isEmpty ? null : _send,
                       ),
               ],
+              const Divider(),
+              Text(
+                'Have a voucher code? Redeem it to get in right away.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              Row(
+                spacing: 8,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('voucher-code'),
+                      controller: _code,
+                      enabled: !_redeeming,
+                      textCapitalization: TextCapitalization.characters,
+                      maxLength: 20,
+                      decoration: const InputDecoration(
+                        labelText: 'Voucher code',
+                        hintText: 'XXXX-XXXX-XXXX',
+                        border: OutlineInputBorder(),
+                        counterText: '',
+                      ),
+                      onSubmitted: (_) => _redeem(),
+                    ),
+                  ),
+                  _redeeming
+                      ? const SizedBox.square(
+                          dimension: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : FilledButton.tonal(
+                          key: const Key('redeem-voucher'),
+                          onPressed: _code.text.trim().isEmpty ? null : _redeem,
+                          child: const Text('Redeem'),
+                        ),
+                ],
+              ),
+              if (_codeError case final error?)
+                Text(
+                  error,
+                  key: const Key('voucher-error'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: scheme.error),
+                ),
               widget.roles.state == AccessState.checking
                   ? const CircularProgressIndicator()
                   : TextButton.icon(

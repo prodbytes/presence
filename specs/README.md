@@ -36,8 +36,9 @@ audio, so a clip can include the moments before someone pressed Clip.
   240 minutes (30 min to a day, in Settings).
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
-- [Membership](membership.md): users without access ask for it; admins
-  grant it on the Admin screen.
+- [Membership](membership.md): users without access ask for it or redeem
+  a voucher code; admins grant requests and create voucher codes (role,
+  expiry, uses) on the Admin screen.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
@@ -75,7 +76,7 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
   (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
   execution mode and which settings are set, no token), and the
-  membership routes (SAM,
+  membership and voucher routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.

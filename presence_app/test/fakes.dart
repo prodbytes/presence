@@ -378,6 +378,65 @@ class FakeMembershipClient implements MembershipClient {
     if (error case final e?) throw e;
     requests.removeWhere((r) => r.email == email);
   }
+
+  /// The vouchers, newest first; [redeemed] records the codes redeemed, and
+  /// [onRedeem] runs after a valid one (e.g. to grant the role).
+  final codes = <Voucher>[];
+  final redeemed = <String>[];
+  void Function(String role)? onRedeem;
+
+  @override
+  Future<String> redeem(String idToken, String code) async {
+    if (error case final e?) throw e;
+    final i = codes.indexWhere(
+      (v) =>
+          v.code == code.trim().toUpperCase() &&
+          !v.isUsedUp &&
+          !v.isExpired(DateTime.now()),
+    );
+    if (i < 0) throw RolesException(404);
+    final v = codes[i];
+    codes[i] = Voucher(
+      code: v.code,
+      role: v.role,
+      expiresAt: v.expiresAt,
+      maxUses: v.maxUses,
+      uses: v.uses + 1,
+      createdAt: v.createdAt,
+    );
+    redeemed.add(v.code);
+    onRedeem?.call(v.role);
+    return v.role;
+  }
+
+  @override
+  Future<List<Voucher>> vouchers(String idToken) async => List.of(codes);
+
+  @override
+  Future<Voucher> createVoucher(
+    String idToken, {
+    required String role,
+    required DateTime expiresAt,
+    required int maxUses,
+  }) async {
+    if (error case final e?) throw e;
+    final voucher = Voucher(
+      code: 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
+      role: role,
+      expiresAt: expiresAt,
+      maxUses: maxUses,
+      uses: 0,
+      createdAt: DateTime.now(),
+    );
+    codes.insert(0, voucher);
+    return voucher;
+  }
+
+  @override
+  Future<void> deleteVoucher(String idToken, String code) async {
+    if (error case final e?) throw e;
+    codes.removeWhere((v) => v.code == code);
+  }
 }
 
 /// A device without positioning: every reading fails at once, so nothing

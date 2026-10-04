@@ -3,9 +3,10 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   presence_api_auth (stack presence-auth-api, and presence-rc-auth-api for the release
   candidate): GET /api/auth returns the signed-in user's roles, POST
-  /api/auth/membership lets a user without them ask for access, and the
-  Admin screen's routes (presence_admin only) list and approve those
-  requests. API Gateway's HTTP API checks the Google ID token (JWT
+  /api/auth/membership lets a user without them ask for access, POST
+  /api/auth/voucher redeems a voucher code for its role, and the Admin
+  screen's routes (presence_admin only) list and approve those requests and
+  create, list and delete vouchers. API Gateway's HTTP API checks the Google ID token (JWT
   authorizer) before the functions run; they read the verified claims.
   GET /api/auth/anonymous, the only route without a token, returns the
   execution mode (DEV without GoogleWebClientId, else RBAC), the
@@ -99,12 +100,36 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Voucher codes: {"code": "XXXX-XXXX-XXXX", "role", "expiresAt" (epoch ms),
+  # "maxUses", "uses", "redeemedBy" (SS of emails), "createdBy", "createdAt"
+  # (epoch ms)}. Holds emails and live codes: AWS only.
+  VoucherTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       # Anyone with a Google account can post membership requests: keep it slow.
       RouteSettings:
         "POST /api/auth/membership":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        # Slows down guessing codes (60 random bits each).
+        "POST /api/auth/voucher":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
         # Public (no token): the app asks it at every start.
@@ -184,6 +209,35 @@ Resources:
             Path: /api/auth/membership
             Method: post
 
+  VoucherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.VoucherHandler::handleRequest
+      Environment:
+        Variables:
+          VOUCHER_TABLE: !Ref VoucherTable
+          USER_ROLES_TABLE: !Ref UserRolesTable
+      Policies:
+        - Statement:
+            # Counts a use (one conditional update), or gives it back if the grant fails.
+            - Effect: Allow
+              Action: dynamodb:UpdateItem
+              Resource: !GetAtt VoucherTable.Arn
+            # Merges the voucher's role into the redeemer's roles.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt UserRolesTable.Arn
+      Events:
+        Redeem:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/voucher
+            Method: post
+
   AdminFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -195,6 +249,7 @@ Resources:
           ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: presence_user,presence_admin
           MEMBERSHIP_TABLE: !Ref MembershipTable
+          VOUCHER_TABLE: !Ref VoucherTable
       Policies:
         - Statement:
             # Checks the caller's roles and grants presence_user.
@@ -210,6 +265,13 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
               Resource: !GetAtt MembershipTable.Arn
+            # Creates (only new codes), lists and deletes vouchers.
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:Scan
+                - dynamodb:DeleteItem
+              Resource: !GetAtt VoucherTable.Arn
       Events:
         List:
           Type: HttpApi
@@ -229,6 +291,24 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/membership/dismiss
             Method: post
+        ListVouchers:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers
+            Method: get
+        CreateVoucher:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers
+            Method: post
+        DeleteVoucher:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/vouchers/delete
+            Method: post
 
 Outputs:
   ApiDomain:
@@ -240,3 +320,6 @@ Outputs:
   MembershipTableName:
     Description: Membership requests (email -> message, requestedAt)
     Value: !Ref MembershipTable
+  VoucherTableName:
+    Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
+    Value: !Ref VoucherTable
