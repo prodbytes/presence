@@ -2038,3 +2038,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        recognition](recognition.md). 311 Flutter tests pass (2 new); web
        release builds. Not tried in the running app: the main folder's
        services are shared.
+223. **Empty both the RC and prod buckets (all events).** An operation, not
+     a code change. The RC user-data bucket was already empty. The prod
+     bucket had 14 objects, all under one identity: 7 events, 2 clips
+     (record, thumbnail and WebM, 62.6 MB in all) and 1 device settings
+     record. `aws s3 rm --recursive` deleted all 14, so both buckets now
+     list no objects. The bucket is versioned, so the deleted objects
+     stay as old versions behind delete markers until the
+     `expire-old-versions` rule removes them after 30 days. No feature
+     spec changed.
