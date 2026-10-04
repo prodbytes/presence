@@ -59,7 +59,7 @@ class VoucherTest {
             }
             var redeemedBy = new HashSet<>(v.redeemedBy());
             redeemedBy.add(email);
-            var claimed = new VoucherHandler.Voucher(v.code(), v.role(), v.expiresAt(), v.maxUses(),
+            var claimed = new VoucherHandler.Voucher(v.code(), v.role(), v.startsAt(), v.expiresAt(), v.maxUses(),
                     v.uses() + 1, redeemedBy, v.createdBy(), v.createdAt(), v.discount());
             vouchers.put(code, claimed);
             return claimed;
@@ -73,7 +73,7 @@ class VoucherTest {
             }
             var redeemedBy = new HashSet<>(v.redeemedBy());
             redeemedBy.remove(email);
-            vouchers.put(code, new VoucherHandler.Voucher(v.code(), v.role(), v.expiresAt(), v.maxUses(),
+            vouchers.put(code, new VoucherHandler.Voucher(v.code(), v.role(), v.startsAt(), v.expiresAt(), v.maxUses(),
                     v.uses() - 1, redeemedBy, v.createdBy(), v.createdAt(), v.discount()));
         }
     }
@@ -167,7 +167,7 @@ class VoucherTest {
         var created = create("role=presence_user&expiresAt=2026-10-11T12%3A00%3A00Z&maxUses=5");
         assertEquals(201, created.getStatusCode());
         var code = code(created.getBody());
-        assertEquals("{\"code\":\"" + code + "\",\"role\":\"presence_user\",\"expiresAt\":\"2026-10-11T12:00:00Z\","
+        assertEquals("{\"code\":\"" + code + "\",\"role\":\"presence_user\",\"startsAt\":\"2026-10-04T12:00:00Z\",\"expiresAt\":\"2026-10-11T12:00:00Z\","
                 + "\"maxUses\":5,\"uses\":0,\"redeemedBy\":[],\"createdBy\":\"boss@nu01.com\","
                 + "\"createdAt\":\"2026-10-04T12:00:00Z\",\"discount\":100}", created.getBody());
 
@@ -204,6 +204,11 @@ class VoucherTest {
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=half",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=no",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=otter%3Bdrop",
+                "role=presence_user&startsAt=autumn&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
+                "role=presence_user&startsAt=2026-10-05T00:00:00Z&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
+                "role=presence_user&startsAt=2026-11-01T00:00:00Z&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
+                "role=presence_user&startsAt=2025-10-02T00:00:00Z&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
+                "role=presence_user&startsAt=-1000000000-01-01T00:00:00Z&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
         }) {
             assertEquals(400, create(body).getStatusCode(), body);
         }
@@ -310,6 +315,24 @@ class VoucherTest {
         now = Instant.parse("2026-10-05T00:00:00Z");
         assertEquals(404, redeem.handleRequest(redeem("eve@example.com", later), null).getStatusCode());
         assertNull(granted.get("eve@example.com"));
+    }
+
+    @Test
+    void vouchersAreValidFromTheirStart() {
+        // The season so far: valid at once.
+        var season = create("role=presence_user&startsAt=2026-09-01T00%3A00%3A00Z"
+                + "&expiresAt=2026-12-01T00%3A00%3A00Z&maxUses=5");
+        assertEquals(201, season.getStatusCode());
+        assertTrue(season.getBody().contains("\"startsAt\":\"2026-09-01T00:00:00Z\""), season.getBody());
+        assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code(season.getBody())), null)
+                .getStatusCode());
+
+        // Next season: not yet, the same 404 as any other code.
+        var next = code(create("role=presence_user&startsAt=2026-12-01T00%3A00%3A00Z"
+                + "&expiresAt=2027-03-01T00%3A00%3A00Z&maxUses=5&discount=25").getBody());
+        assertEquals(404, redeem.handleRequest(redeem("bob@example.com", next), null).getStatusCode());
+        now = Instant.parse("2026-12-01T00:00:00Z");
+        assertEquals(402, redeem.handleRequest(redeem("bob@example.com", next), null).getStatusCode());
     }
 
     @Test

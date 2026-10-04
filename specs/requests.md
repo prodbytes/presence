@@ -2146,3 +2146,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
       [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
       (4 new) pass.
+231. **Make voucher have start and end validity dates and defaults to start
+    and end of season.** (2026-10-05)
+    - The auth API: vouchers have a `startsAt` beside `expiresAt`.
+      `POST /api/auth/vouchers` takes an optional `startsAt` (before
+      `expiresAt`, up to 366 days back; now when absent), stores and lists it, and
+      redeeming before it gets the usual 404 (also in the conditional
+      update). Vouchers stored without one start at their creation.
+    - The app: the Admin form has **Valid from** and **Valid through**
+      date pickers, defaulting to the current season's first and last days
+      (`seasonStart`, `seasonEnd`), instead of a week from today. Cards
+      show "valid from … · expires …" and "Not yet valid".
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md),
+      [README](README.md). 17 VoucherTest (1 new) and 329 Flutter tests
+      (1 new) pass.

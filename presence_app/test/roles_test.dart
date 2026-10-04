@@ -5,6 +5,7 @@ import 'package:http/testing.dart';
 import 'package:presence_app/app_log.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/auth/voucher_code.dart';
 import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/tab_memory.dart';
@@ -518,6 +519,17 @@ void main() {
             redeemedBy: const ['bob@example.com'],
             createdAt: DateTime.utc(2026, 9, 1),
           ),
+        )
+        ..codes.add(
+          Voucher(
+            code: 'NEXT-SEAS-3333',
+            role: userRole,
+            startsAt: DateTime.now().add(const Duration(days: 30)),
+            expiresAt: DateTime.now().add(const Duration(days: 60)),
+            maxUses: 3,
+            uses: 0,
+            createdAt: DateTime.utc(2026, 9, 1),
+          ),
         );
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
       await tester.tap(find.byKey(const Key('admin')));
@@ -525,6 +537,7 @@ void main() {
       expect(find.text('No pending requests.'), findsOneWidget);
       expect(find.text('Voucher codes'), findsOneWidget);
       expect(find.text('Expired'), findsOneWidget);
+      expect(find.text('Not yet valid'), findsOneWidget);
       expect(
         find.textContaining('Admin · 100% off · 1 of 3 used'),
         findsOneWidget,
@@ -553,9 +566,11 @@ void main() {
       expect(voucher.maxUses, 5);
       expect(voucher.code, suggested);
       expect(voucher.discount, 100);
-      // Through the end of the day a week from now.
-      final week = DateTime.now().add(const Duration(days: 7));
-      expect(voucher.expiresAt, DateTime(week.year, week.month, week.day + 1));
+      // The current season: from its first day through its last.
+      final now = DateTime.now();
+      final last = seasonEnd(now);
+      expect(voucher.startsAt, seasonStart(now));
+      expect(voucher.expiresAt, DateTime(last.year, last.month, last.day + 1));
       expect(find.byKey(Key('voucher-${voucher.code}')), findsOneWidget);
       expect(
         find.textContaining('Member · 100% off · 0 of 5 used'),
@@ -569,7 +584,10 @@ void main() {
 
       await tester.tap(find.byKey(Key('delete-${voucher.code}')));
       await tester.pumpAndSettle();
-      expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
+      expect(membership.codes.map((v) => v.code), [
+        'OLDC-ODEX-2222',
+        'NEXT-SEAS-3333',
+      ]);
       expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
     });
 

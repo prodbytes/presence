@@ -41,12 +41,14 @@ import static presence.auth.AuthHandler.response;
  *   <li>{@code POST /api/auth/membership/dismiss}: hides the email's request.
  *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
- *       {@code {"vouchers": [{code, role, expiresAt, maxUses, uses, redeemedBy,
+ *       {@code {"vouchers": [{code, role, startsAt, expiresAt, maxUses, uses, redeemedBy,
  *       createdBy, createdAt, discount}]}};</li>
  *   <li>{@code POST /api/auth/vouchers}: creates a voucher from the
  *       form-encoded body {@code role}, {@code expiresAt} (ISO-8601, in the
  *       future, within {@link #MAX_VALIDITY}), {@code maxUses} (1 to
- *       {@link VoucherHandler#MAX_USES}), and optionally {@code code} (see
+ *       {@link VoucherHandler#MAX_USES}), and optionally {@code startsAt}
+ *       (ISO-8601, before {@code expiresAt}, at most {@link #MAX_VALIDITY}
+ *       ago; now if absent), {@code code} (see
  *       {@link VoucherHandler#normalize}; random if absent or blank, 409 if
  *       taken) and {@code discount} (percent, 1 to 100; 100 if absent), and
  *       answers it. A {@code presence_admin} voucher needs a
@@ -176,6 +178,21 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
             return response(400, "{\"error\":\"expiresAt must be in the future, within "
                     + MAX_VALIDITY.toDays() + " days\"}");
         }
+        // Valid from now, unless the admin picked a start (in the past too:
+        // the start of the season).
+        var startsAt = now;
+        var start = form.getOrDefault("startsAt", "");
+        if (!start.isBlank()) {
+            try {
+                startsAt = Instant.parse(start).truncatedTo(ChronoUnit.MILLIS);
+            } catch (DateTimeParseException e) {
+                return response(400, "{\"error\":\"startsAt must be an ISO-8601 instant\"}");
+            }
+            if (!startsAt.isBefore(expiresAt) || startsAt.isBefore(now.minus(MAX_VALIDITY))) {
+                return response(400, "{\"error\":\"startsAt must be before expiresAt, within "
+                        + MAX_VALIDITY.toDays() + " days ago\"}");
+            }
+        }
         int maxUses;
         try {
             maxUses = Integer.parseInt(form.getOrDefault("maxUses", ""));
@@ -202,7 +219,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 return response(400, "{\"error\":\"code must be " + VoucherHandler.MIN_CODE + " to "
                         + VoucherHandler.MAX_CODE + " letters, digits and dashes\"}");
             }
-            var voucher = new VoucherHandler.Voucher(code, role, expiresAt, maxUses, 0,
+            var voucher = new VoucherHandler.Voucher(code, role, startsAt, expiresAt, maxUses, 0,
                     Set.of(), createdBy, now, discount);
             return vouchers.create(voucher)
                     ? response(201, voucher.toJson())
@@ -210,7 +227,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         }
         // 60 random bits rarely collide; try again if one does.
         for (var attempt = 0; attempt < 3; attempt++) {
-            var voucher = new VoucherHandler.Voucher(VoucherHandler.newCode(), role, expiresAt, maxUses, 0,
+            var voucher = new VoucherHandler.Voucher(VoucherHandler.newCode(), role, startsAt, expiresAt, maxUses, 0,
                     Set.of(), createdBy, now, discount);
             if (vouchers.create(voucher)) {
                 return response(201, voucher.toJson());
