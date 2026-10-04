@@ -26,10 +26,15 @@ app binaries with `make` and publishes them as a GitHub release.
   `1.0.202609261530-RC`) keeps its Z, and fails if its X.Y doesn't match the
   version files; any other run gets Z from the current time.
 - **Builds:** one job per target, all with Flutter 3.47.5 (cloned at its
-  tag): `web` and `android` (JDK 17) on `ubuntu-latest`, `linux` (GTK build
-  packages) twice, x64 on `ubuntu-latest` and arm64 on `ubuntu-24.04-arm`
-  (Flutter doesn't cross-compile Linux desktop), and `ios` on
-  `macos-latest`. Each runs `make <target>`.
+  tag): `web` and `android` (JDK 17) on `ubuntu-latest`, `ios` on
+  `macos-latest`, and `linux` (GTK build packages) twice, x64 on
+  `ubuntu-22.04` and arm64 on `ubuntu-22.04-arm` (Flutter doesn't
+  cross-compile Linux desktop). Each runs `make <target>`.
+  - Linux builds on 22.04 because the bundle needs at least the GLib and
+    glibc it was built against. A 24.04 build (GLib 2.80) fails on
+    Debian 12 / Raspberry Pi OS Bookworm (GLib 2.74) with
+    `undefined symbol: g_once_init_enter_pointer`; a 22.04 one runs on
+    Debian 12, Ubuntu 22.04 and anything newer.
 - **Release name:** `presence-<tag>`, e.g. `presence-1.0.0-RC2` for the
   tag `1.0.0-RC2` (tags stay `X.Y.Z-KK`).
 - **Release assets**, uploaded to a new release or replacing same-named

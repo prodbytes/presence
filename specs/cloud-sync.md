@@ -12,16 +12,22 @@ through a **Cognito identity pool**, and makes signed S3 uploads itself
 ## What's uploaded, and where
 
 Everything goes under the user's **Cognito identity ID**
-(`us-east-1:<uuid>`), in the user-data bucket:
+(`us-east-1:<uuid>`), in the user-data bucket, with JSON and media in
+separate trees so the JSON can be queried on S3. The formats, fields and
+an Athena table are in [Recording and data formats](data-formats.md).
 
 | Object | Content |
 |---|---|
-| `<identityId>/clips/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), with its MIME type |
-| `<identityId>/clips/<clipId>.jpg` | the thumbnail |
-| `<identityId>/clips/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
-| `<identityId>/clips/<clipId>.json` | the clip record: camera, window, lengths, state, media reference |
+| `<identityId>/media/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), with its MIME type |
+| `<identityId>/media/<clipId>.jpg` | the thumbnail |
+| `<identityId>/media/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
+| `<identityId>/clips/year=<YYYY>/day=<DDD>/<clipId>.json` | the clip record: camera, window, lengths, state, media reference; in its event's day partition (the event's `time`, which is the clip's `requestedAt`) |
 | `<identityId>/devices/<deviceId>/settings.json` | the device's settings: `{deviceId, updatedAt, config}` (see [Configuration](configuration.md)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images, and the object tags, `objectTags`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
+
+- What a device uploaded under the old layout (`clips/<clipId>.webm`,
+  `.jpg`, `.json` and `clips/<clipId>/frames/`, before 2026-10-02) counts
+  as uploaded: it isn't sent again under the new keys.
 
 ## When
 
@@ -55,8 +61,9 @@ Everything goes under the user's **Cognito identity ID**
     read, and in the window's first day each event's `time` decides;
   - at most **1000 events per pass** (`CloudSync.maxFetch`), the newest
     first; any rest come down in later passes;
-  - only the clips those events use, each found by listing just its own
-    keys (`clips/<clipId>`);
+  - only the clips those events use: each record read from its event's
+    day partition (`clips/year=…/day=…/<clipId>.json`, listed first), and
+    its media found by listing just its own keys (`media/<clipId>`);
   - they're marked as synced, so they aren't uploaded back, stored
     (`Persistence.importRemote`, with recordings through
     `MediaStore.saveBytes`) and added to the event log, so the

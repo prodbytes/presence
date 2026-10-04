@@ -4,8 +4,11 @@
 latest release on the machine it runs on:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/prodbytes/presence/main/scripts/install.sh | sh
+curl -fsSL https://sh.presence.nu01.com | sh
 ```
+
+https://sh.presence.nu01.com serves the script at every path (see
+[Install URL](install-url.md)); its raw GitHub URL on `main` works too.
 
 - **POSIX `sh`** (works with dash), needing only `curl`, `tar` and
   `sha256sum` (or `shasum`). The whole script is one `main` call at the end,
@@ -38,6 +41,20 @@ the GA x64 bundle downloads, extracts, starts and stays up (a second run
 reuses it); without EGL/GLES, or without a display, it falls back to the
 web app; on arm64, against a GA without an arm64 bundle, it falls back to
 the web app. The checksum lookup was checked against the GA's real digest.
+
+## Raspberry Pi
+
+Raspberry Pi OS **64-bit** (Bookworm or newer), from the desktop:
+
+```sh
+sudo apt install -y curl libgtk-3-0 libegl1 libgles2
+curl -fsSL https://sh.presence.nu01.com | sh
+```
+
+Verified on Debian 12 arm64 (Raspberry Pi OS Bookworm's base) with those
+packages and Xvfb: the live URL runs the `0.5.202610021114-GA` arm64
+bundle. The 32-bit OS (`armv7l`) has no native build and gets the web app.
+The README's "Run it on a Raspberry Pi" section has the same steps.
 
 ## Known limitations
 

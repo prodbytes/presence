@@ -59,6 +59,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3 through a Cognito identity pool.
+- [Recording and data formats](data-formats.md): the video codecs and
+  containers per platform, the JSON records, and the S3 layout (JSON and
+  media in separate trees, partitioned by day) for querying with Athena.
 - [App icon](app-icon.md): the icon masters and generated icons.
 
 **Platforms**
@@ -86,6 +89,9 @@ audio, so a clip can include the moments before someone pressed Clip.
 - [Install script](install-script.md): `curl … | sh` downloads, verifies
   and runs the latest release's native Linux bundle (x64 or arm64), or
   opens the web app when there isn't one or it can't run.
+- [Install URL](install-url.md): https://sh.presence.nu01.com serves the
+  install script (`presence_sh/`: certificate, bucket, CloudFront, DNS),
+  deployed on `*GA` tags.
 - [Release builds](release.md): the GitHub Actions workflow that builds the
   binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
 - [Production deploy](deploy.md): `*GA` tags deploy to

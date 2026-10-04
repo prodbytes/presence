@@ -355,13 +355,14 @@ class CloudSync extends ChangeNotifier {
     final localClips = {for (final c in await store.allClips()) c['id']};
     final since = _now().toUtc().subtract(restoreWindow);
 
-    // Each new event's clip files and tagged frames, listed only for it.
-    final clipKeyCache = <String, Set<String>>{};
-    Future<Set<String>> clipKeys(
+    // Each new event's media (recording, thumbnail, tagged frames), listed
+    // only for it.
+    final mediaKeyCache = <String, Set<String>>{};
+    Future<Set<String>> mediaKeys(
       String clipId,
-    ) async => clipKeyCache[clipId] ??= {
-      for (final k in await session.list('clips/$clipId'))
-        if (k.startsWith('clips/$clipId.') || k.startsWith('clips/$clipId/')) k,
+    ) async => mediaKeyCache[clipId] ??= {
+      for (final k in await session.list('media/$clipId'))
+        if (k.startsWith('media/$clipId.') || k.startsWith('media/$clipId/')) k,
     };
 
     Future<Map<String, Object?>> json(String key) async =>
@@ -400,9 +401,9 @@ class CloudSync extends ChangeNotifier {
       // The frames its tags were clicked on come back as images.
       final frames = <String, Uint8List>{};
       final clipId = event['clipId'];
-      final ofClip = clipId is String ? await clipKeys(clipId) : <String>{};
+      final ofClip = clipId is String ? await mediaKeys(clipId) : <String>{};
       for (final frameId in _frameIds(event)) {
-        final frameKey = 'clips/$clipId/frames/$frameId.jpg';
+        final frameKey = frameKeyOf('$clipId', frameId);
         if (!ofClip.contains(frameKey)) continue;
         frames[frameId] = await session.get(frameKey);
         await synced(frameKey, frameId);
@@ -414,32 +415,35 @@ class CloudSync extends ChangeNotifier {
     // Only the clips those events show.
     final clips = <Map<String, Object?>>[];
     final media = <String, Uint8List>{};
-    final clipIds = {
+    // Each clip's record is in its event's day partition (both are timed
+    // when the clip was requested).
+    final clipTimes = <String, int>{
       for (final e in events)
-        if (e['clipId'] case final String id) id,
+        if ((e['clipId'], e['time']) case (final String id, final int time))
+          id: time,
     };
-    for (final id in clipIds) {
-      final key = 'clips/$id.json';
+    for (final MapEntry(key: id, value: time) in clipTimes.entries) {
+      final key = clipRecordKey(id, time);
       if (localClips.contains(id) || _disposed) continue;
-      final ofClip = await clipKeys(id);
-      if (!ofClip.contains(key)) continue;
+      if (!(await session.list(key)).contains(key)) continue;
+      final ofClip = await mediaKeys(id);
       final clip = await json(key);
       await synced(key, _fingerprint(_json(clip)));
       final ref = clip['full'] ?? clip['past'];
       if (ref is Map) {
         final mediaId = ref['mediaId']! as String;
         final video = [
-          'clips/$id.webm',
-          'clips/$id.mp4',
+          'media/$id.webm',
+          'media/$id.mp4',
         ].where(ofClip.contains).firstOrNull;
         if (video != null) {
           media[mediaId] = await session.get(video);
           await synced(video, mediaId);
         }
       }
-      if (ofClip.contains('clips/$id.jpg')) {
-        clip['thumbnail'] = await session.get('clips/$id.jpg');
-        await synced('clips/$id.jpg', 'thumbnail');
+      if (ofClip.contains('media/$id.jpg')) {
+        clip['thumbnail'] = await session.get('media/$id.jpg');
+        await synced('media/$id.jpg', 'thumbnail');
       }
       clips.add(clip);
     }
@@ -506,10 +510,18 @@ class CloudSync extends ChangeNotifier {
       String key,
       String fingerprint,
       Future<Uint8List> Function() bytes,
-      String contentType,
-    ) async {
+      String contentType, {
+      String? was,
+    }) async {
       final objectKey = '${session.prefix}/$key';
       if (synced[objectKey] == fingerprint || _disposed) return;
+      // Uploaded before under the old layout ([was]): not again, so what
+      // was deleted from the bucket stays deleted.
+      if (was != null && synced['${session.prefix}/$was'] == fingerprint) {
+        await store.markSynced(objectKey, fingerprint);
+        synced[objectKey] = fingerprint;
+        return;
+      }
       await session.put(key, await bytes(), contentType);
       await store.markSynced(objectKey, fingerprint);
       synced[objectKey] = fingerprint;
@@ -535,6 +547,12 @@ class CloudSync extends ChangeNotifier {
         if (AppEvent.ownerOf(record) == _user) record,
     ];
     final eventIds = {for (final e in events) e['id']};
+    // A clip's record goes in its event's day partition, where a fetch
+    // looks for it.
+    final eventTimes = {
+      for (final e in events)
+        if (e['time'] case final int time) e['id']: time,
+    };
 
     // Clips first: recordings matter most.
     for (final clip in await store.allClips()) {
@@ -545,11 +563,13 @@ class CloudSync extends ChangeNotifier {
       if (ref is Map) {
         final mediaId = ref['mediaId']! as String;
         final mimeType = ref['mimeType'] as String? ?? 'video/webm';
+        final ext = mimeType.contains('mp4') ? 'mp4' : 'webm';
         await upload(
-          'clips/$id.${mimeType.contains('mp4') ? 'mp4' : 'webm'}',
+          'media/$id.$ext',
           mediaId,
           () => media.bytes(mediaId),
           mimeType,
+          was: 'clips/$id.$ext',
         );
       }
       final thumbnail = clip['thumbnail'];
@@ -558,21 +578,27 @@ class CloudSync extends ChangeNotifier {
             ? thumbnail
             : Uint8List.fromList(thumbnail.cast<int>());
         await upload(
-          'clips/$id.jpg',
+          'media/$id.jpg',
           'thumbnail',
           () async => bytes,
           'image/jpeg',
+          was: 'clips/$id.jpg',
         );
       }
       final details = _json({
         for (final MapEntry(:key, :value) in clip.entries)
           if (key != 'thumbnail') key: value,
       });
+      final requestedAt = clip['requestedAt'];
       await upload(
-        'clips/$id.json',
+        clipRecordKey(
+          id,
+          eventTimes[clip['eventId']] ?? (requestedAt is int ? requestedAt : 0),
+        ),
         _fingerprint(details),
         () async => details,
         'application/json',
+        was: 'clips/$id.json',
       );
     }
 
@@ -587,10 +613,11 @@ class CloudSync extends ChangeNotifier {
               : (value is List ? Uint8List.fromList(value.cast<int>()) : null);
           if (jpeg == null) continue;
           await upload(
-            'clips/${record['clipId']}/frames/$key.jpg',
+            frameKeyOf('${record['clipId']}', '$key'),
             '$key',
             () async => jpeg,
             'image/jpeg',
+            was: 'clips/${record['clipId']}/frames/$key.jpg',
           );
         }
       }
@@ -623,16 +650,27 @@ class CloudSync extends ChangeNotifier {
   /// by partition: `events/year=2026/day=269/<id>.json`.
   static String eventKey(Map<String, Object?> event) {
     final time = event['time'];
-    final at = DateTime.fromMillisecondsSinceEpoch(
-      time is int ? time : 0,
-      isUtc: true,
-    );
-    return '${_dayPrefix(at)}${event['id']}.json';
+    return '${_dayPrefix(_utc(time is int ? time : 0))}${event['id']}.json';
   }
 
-  /// The partition holding events of [at]'s UTC day:
+  /// Where a clip's record goes: partitioned like its event, by the UTC
+  /// day it was requested ([requestedAt], ms since the epoch), so `clips/`
+  /// holds only JSON: `clips/year=2026/day=269/<clipId>.json`.
+  static String clipRecordKey(String clipId, int requestedAt) =>
+      '${_dayPrefix(_utc(requestedAt), 'clips')}$clipId.json';
+
+  /// Where the frame [frameId], tagged on clip [clipId], goes:
+  /// `media/<clipId>/frames/<frameId>.jpg`, beside its recording
+  /// (`media/<clipId>.webm` or `.mp4`) and thumbnail (`media/<clipId>.jpg`).
+  static String frameKeyOf(String clipId, String frameId) =>
+      'media/$clipId/frames/$frameId.jpg';
+
+  static DateTime _utc(int ms) =>
+      DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+
+  /// The partition of [root] (`events` or `clips`) holding [at]'s UTC day:
   /// `events/year=2026/day=269/`.
-  static String _dayPrefix(DateTime at) {
+  static String _dayPrefix(DateTime at, [String root = 'events']) {
     final utc = at.toUtc();
     final day =
         DateTime.utc(
@@ -641,7 +679,7 @@ class CloudSync extends ChangeNotifier {
           utc.day,
         ).difference(DateTime.utc(utc.year)).inDays +
         1;
-    return 'events/year=${utc.year}/day=${day.toString().padLeft(3, '0')}/';
+    return '$root/year=${utc.year}/day=${day.toString().padLeft(3, '0')}/';
   }
 
   static Uint8List _json(Map<String, Object?> record) =>
