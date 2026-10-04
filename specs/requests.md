@@ -2011,3 +2011,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        index, which listed Profiles twice. 64 JUnit tests (2 new) and 309
        Flutter tests (3 new, 2 rewritten) pass. Not run in Floci: the
        main folder's services are shared.
+221. **Empty both the RC and prod buckets (all events).** An operation, not
+     a code change. The RC user-data bucket was already empty. The prod
+     bucket had 14 objects, all under one identity: 7 events, 2 clips
+     (record, thumbnail and WebM, 62.6 MB in all) and 1 device settings
+     record. `aws s3 rm --recursive` deleted all 14, so both buckets now
+     list no objects. The bucket is versioned, so the deleted objects
+     stay as old versions behind delete markers until the
+     `expire-old-versions` rule removes them after 30 days. No feature
+     spec changed.
