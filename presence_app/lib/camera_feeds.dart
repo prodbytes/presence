@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -410,48 +411,332 @@ class CameraRig extends ChangeNotifier {
   }
 }
 
-/// The open camera, full screen and without overlays.
-class CameraFeedsView extends StatelessWidget {
-  const CameraFeedsView({super.key, required this.rig});
+/// The open camera, full screen and without overlays; or, with [showAll],
+/// in the top-left cell of a grid whose other cells hold the latest image
+/// of each of the profile's other devices ([latestByDevice]).
+class CameraFeedsView extends StatefulWidget {
+  const CameraFeedsView({
+    super.key,
+    required this.rig,
+    this.log,
+    this.deviceId,
+    this.userId,
+    this.showAll = false,
+  });
 
   final CameraRig rig;
 
+  /// The events the other devices' images come from (for [showAll]).
+  final EventLog? log;
+
+  /// This device's ID: its own events aren't another device's.
+  final String? deviceId;
+
+  /// Only this user's events count, when set (signed in).
+  final String? userId;
+
+  /// The grid of every device instead of the camera alone.
+  final bool showAll;
+
+  /// Room kept clear under the grid for the status pills, Flip and Clip.
+  static const double bottomInset = 88;
+
+  @override
+  State<CameraFeedsView> createState() => _CameraFeedsViewState();
+}
+
+class _CameraFeedsViewState extends State<CameraFeedsView> {
+  /// Refreshes the images' ages while the grid shows.
+  Timer? _ticker;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+  }
+
+  @override
+  void didUpdateWidget(CameraFeedsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _tick();
+  }
+
+  void _tick() {
+    if (widget.showAll) {
+      _ticker ??= Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => setState(() {}),
+      );
+    } else {
+      _ticker?.cancel();
+      _ticker = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final rig = widget.rig;
+    final log = widget.log;
     return ColoredBox(
       color: Gruvbox.bg0Hard,
       child: ListenableBuilder(
-        listenable: rig,
+        listenable: Listenable.merge([rig, ?log]),
         builder: (context, _) {
-          final active = rig.active;
-          if (active != null) {
-            return SizedBox.expand(
-              key: ObjectKey(active),
-              child: active.buildPreview(context),
-            );
-          }
-          final error = rig.error;
-          if (error != null) {
-            return FeedMessage(
-              icon: Icons.error_outline,
-              message:
-                  'Could not open the camera\n${describeCameraError(error)}',
-              action: TextButton(
-                onPressed: rig.retry,
-                child: const Text('Retry'),
-              ),
-            );
-          }
-          if (rig.busy) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          return FeedMessage(
-            icon: Icons.videocam_off_outlined,
-            message: 'No camera found',
-            action: TextButton(onPressed: rig.load, child: const Text('Retry')),
+          final all = widget.showAll;
+          final others = all
+              ? latestByDevice(
+                  log?.events ?? const [],
+                  thisDevice: widget.deviceId,
+                  userId: widget.userId,
+                )
+              : const <DeviceLatest>[];
+          final padding = MediaQuery.paddingOf(context);
+          // The same tree with or without the grid, so switching doesn't
+          // rebuild the camera's preview.
+          return Padding(
+            // The grid stays clear of the app bar above and the buttons
+            // below; the camera alone fills the screen.
+            padding: all
+                ? EdgeInsets.only(
+                    top: padding.top + kToolbarHeight,
+                    bottom: padding.bottom + CameraFeedsView.bottomInset,
+                  )
+                : EdgeInsets.zero,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final size = constraints.biggest;
+                final columns = gridColumns(others.length + 1, size);
+                final rows = ((others.length + 1) / columns).ceil();
+                final cell = Size(size.width / columns, size.height / rows);
+                Rect rectOf(int i) =>
+                    Offset(
+                      (i % columns) * cell.width,
+                      (i ~/ columns) * cell.height,
+                    ) &
+                    cell;
+                final now = DateTime.now();
+                return Stack(
+                  children: [
+                    // This device, live: top left in the grid.
+                    Positioned.fromRect(
+                      rect: all ? rectOf(0).deflate(1) : Offset.zero & size,
+                      child: _Cell(
+                        label: all
+                            ? '${widget.deviceId ?? 'This device'} · live'
+                            : null,
+                        child: _camera(context),
+                      ),
+                    ),
+                    for (final (i, latest) in others.indexed)
+                      Positioned.fromRect(
+                        key: ValueKey(latest.deviceId),
+                        rect: rectOf(i + 1).deflate(1),
+                        child: _Cell(
+                          label:
+                              '${latest.deviceId} · '
+                              '${describeAge(now.difference(latest.time))}',
+                          onTap: switch (latest.clip) {
+                            final clip? when clip.clip.playable =>
+                              () => showClipPlayer(context, clip),
+                            _ => null,
+                          },
+                          child: _DeviceImage(latest: latest),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
           );
         },
       ),
+    );
+  }
+
+  /// The open camera's preview, or why there isn't one.
+  Widget _camera(BuildContext context) {
+    final rig = widget.rig;
+    final active = rig.active;
+    if (active != null) {
+      return SizedBox.expand(
+        key: ObjectKey(active),
+        child: active.buildPreview(context),
+      );
+    }
+    final error = rig.error;
+    if (error != null) {
+      return FeedMessage(
+        icon: Icons.error_outline,
+        message: 'Could not open the camera\n${describeCameraError(error)}',
+        action: TextButton(onPressed: rig.retry, child: const Text('Retry')),
+      );
+    }
+    if (rig.busy) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return FeedMessage(
+      icon: Icons.videocam_off_outlined,
+      message: 'No camera found',
+      action: TextButton(onPressed: rig.load, child: const Text('Retry')),
+    );
+  }
+}
+
+/// Another device's latest event, and its latest image, for the grid.
+class DeviceLatest {
+  const DeviceLatest({required this.deviceId, required this.time, this.clip});
+
+  final String deviceId;
+
+  /// When the device's image was taken, or (without one) its latest event.
+  final DateTime time;
+
+  /// The device's newest clip with a thumbnail, if it has one.
+  final ClipRequested? clip;
+
+  Uint8List? get image => clip?.clip.thumbnail;
+}
+
+/// Each other device in [events] (newest first, as in [EventLog]) with its
+/// newest clip thumbnail, sorted by device ID so cells don't move. Events of
+/// [thisDevice], without a device, or (when [userId] is set) of another user
+/// are left out: the rest are the profile's devices, synced from its cloud
+/// folder.
+List<DeviceLatest> latestByDevice(
+  Iterable<AppEvent> events, {
+  String? thisDevice,
+  String? userId,
+}) {
+  final latest = <String, DeviceLatest>{};
+  for (final event in events) {
+    final device = event.deviceId;
+    if (device == null || device == thisDevice) continue;
+    if (userId != null && event.userId != userId) continue;
+    final known = latest[device];
+    if (known?.clip != null) continue;
+    final clip = event is ClipRequested && event.clip.thumbnail != null
+        ? event
+        : null;
+    if (known == null || clip != null) {
+      latest[device] = DeviceLatest(
+        deviceId: device,
+        time: clip != null ? event.time : known?.time ?? event.time,
+        clip: clip,
+      );
+    }
+  }
+  return latest.values.toList()
+    ..sort((a, b) => a.deviceId.compareTo(b.deviceId));
+}
+
+/// How many columns fit [count] cells in [size] with the biggest 16:9
+/// pictures.
+int gridColumns(int count, Size size) {
+  var best = 1;
+  var bestScale = 0.0;
+  for (var columns = 1; columns <= count; columns++) {
+    final rows = (count / columns).ceil();
+    final scale = min(size.width / columns / 16, size.height / rows / 9);
+    if (scale > bestScale) {
+      best = columns;
+      bestScale = scale;
+    }
+  }
+  return best;
+}
+
+/// "just now", "5 min ago", "3 h ago", "2 d ago".
+String describeAge(Duration age) {
+  if (age.inMinutes < 1) return 'just now';
+  if (age.inHours < 1) return '${age.inMinutes} min ago';
+  if (age.inDays < 1) return '${age.inHours} h ago';
+  return '${age.inDays} d ago';
+}
+
+/// A grid cell: its picture, with a label at the bottom left.
+class _Cell extends StatelessWidget {
+  const _Cell({required this.label, required this.child, this.onTap});
+
+  /// Null: no label (the camera alone, full screen).
+  final String? label;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          child,
+          if (onTap != null)
+            Material(
+              type: MaterialType.transparency,
+              child: InkWell(onTap: onTap),
+            ),
+          if (label case final label?)
+            Positioned(
+              left: 6,
+              right: 6,
+              bottom: 6,
+              child: Align(
+                alignment: Alignment.bottomLeft,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHigh.withValues(
+                        alpha: 0.85,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Another device's latest image, whole, or an icon when it has none.
+class _DeviceImage extends StatelessWidget {
+  const _DeviceImage({required this.latest});
+
+  final DeviceLatest latest;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = latest.image;
+    if (image == null) {
+      return Icon(
+        Icons.videocam_off_outlined,
+        size: 32,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      );
+    }
+    return Image.memory(
+      image,
+      key: Key('device-image-${latest.deviceId}'),
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
     );
   }
 }

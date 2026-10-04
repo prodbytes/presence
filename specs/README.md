@@ -25,9 +25,11 @@ emails, add accounts or switch providers without losing their data.
 **App**
 
 - [Navigation](navigation.md): app bar, tabs, and the full-screen Camera tab
-  with its Clip, Flip and readiness controls.
+  with its All, Clip, Flip and readiness controls.
 - [Theme](theme.md): the Gruvbox dark palette.
-- [Camera screen](camera.md): opening cameras, audio capture and states.
+- [Camera screen](camera.md): opening cameras, audio capture and states,
+  and the All grid: this camera top left, then every device in the
+  profile with its latest image.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
   subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus.

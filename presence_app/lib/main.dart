@@ -533,6 +533,10 @@ class _HomeScreenState extends State<HomeScreen>
   /// The event the Monitoring tab's timeline scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
 
+  /// The Camera tab's All button: this device's camera in a grid with
+  /// every other device's latest image.
+  bool _showAll = false;
+
   /// The Monitoring tab's "Only this device" checkbox: on at launch, and kept
   /// while switching tabs.
   final _thisDeviceOnly = ValueNotifier(true);
@@ -869,6 +873,10 @@ class _HomeScreenState extends State<HomeScreen>
                 child: CameraFeedsView(
                   key: const Key('camera-page'),
                   rig: widget.rig,
+                  log: widget.log,
+                  deviceId: widget.deviceId,
+                  userId: _dev ? null : widget.auth.user?.id,
+                  showAll: _showAll && _hasAccess,
                 ),
               ),
               SafeArea(
@@ -957,6 +965,23 @@ class _HomeScreenState extends State<HomeScreen>
                 mainAxisSize: MainAxisSize.min,
                 spacing: 12,
                 children: [
+                  // A toggle: highlighted while the grid shows.
+                  FloatingActionButton.extended(
+                    key: const Key('show-all'),
+                    heroTag: 'show-all',
+                    tooltip: _showAll
+                        ? 'Show only this camera'
+                        : 'Show all devices',
+                    backgroundColor: _showAll
+                        ? scheme.secondaryContainer
+                        : scheme.surfaceContainerHigh,
+                    foregroundColor: _showAll
+                        ? scheme.onSecondaryContainer
+                        : scheme.onSurface,
+                    icon: Icon(_showAll ? Icons.crop_square : Icons.grid_view),
+                    label: const Text('All'),
+                    onPressed: () => setState(() => _showAll = !_showAll),
+                  ),
                   if (widget.rig.devices.length > 1)
                     FloatingActionButton(
                       heroTag: 'flip-camera',
@@ -1131,8 +1156,9 @@ class _CameraStatus extends StatelessWidget {
   /// The pill saying a clip just started, if one did.
   final Widget? message;
 
-  /// Room kept on the right for Flip and Clip when the pills are in a row.
-  static const double buttonsRoom = 16 + 56 + 12 + 120;
+  /// Room kept on the right for All, Flip and Clip when the pills are in a
+  /// row.
+  static const double buttonsRoom = 16 + 100 + 12 + 56 + 12 + 120;
 
   /// Narrower than this, the pills stack.
   static const double stackBelow = 600;

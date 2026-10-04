@@ -1945,3 +1945,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Floci's local routes added. [Membership](membership.md) and
       [Auth API](auth-api.md) updated. 34 JUnit tests (11 new) and 273
       Flutter tests (2 new) pass.
+218. **Add a button "All" to the camera view that shows this device's
+    camera in the top left and a grid with the latest available image of
+    every device in the profile.** (2026-10-04)
+    - An **All** button (grid icon) left of Flip and Clip toggles the grid:
+      this device's live camera in the top-left cell, then each other
+      device of the signed-in user (the profile, whose events come from
+      its cloud folder) with its newest clip thumbnail, its ID and age;
+      tapping a cell plays that clip. Devices without an image show an
+      icon. The camera isn't reopened when switching.
+    - The pills keep room for the wider button row. [Navigation](navigation.md)
+      and [Camera screen](camera.md) updated (the camera screen's leftover
+      multi-camera grid statements replaced). 279 Flutter tests pass (8
+      new, `camera_all_test.dart`); web release builds.

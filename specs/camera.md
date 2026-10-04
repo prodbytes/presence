@@ -4,16 +4,16 @@
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
-- The grid has ceil(√n) columns, and the tiles fill the panel.
-- Each tile shows the camera's label at the bottom left, or "Camera" if the
-  browser hides device labels.
+- One camera shows at a time, full screen (see [Navigation](navigation.md)).
+  **All** puts it in the top-left cell of a grid with every other device's
+  latest image ([All devices](#all-devices) below).
 - **Audio is captured.** Cameras rarely have their own microphone, so every
   camera records the default microphone, each with its own copy of the
   track. If microphone access is denied, recording continues video-only.
 - Live previews are muted, so the microphone doesn't feed back.
 - States:
   - **Loading:** a spinner while cameras are discovered or opened.
-  - **No cameras:** "No camera feeds", with a Retry button.
+  - **No cameras:** "No camera found", with a Retry button.
   - **Access error:** "Could not open the camera", a sentence saying why,
     and a Retry button. Backends throw `CameraUnavailable` with that
     sentence (`describeCameraError`, [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)).
@@ -35,7 +35,40 @@
   - **Per-tile error:** if one camera fails to open (for example, it's in use),
     only that tile shows the error.
 
+## All devices
+
+The **All** button on the Camera tab (see [Navigation](navigation.md))
+switches between the camera alone and a grid of every device in the
+profile (`CameraFeedsView.showAll`,
+[camera_feeds.dart](../presence_app/lib/camera_feeds.dart)):
+
+- **Top left:** this device's camera, live, labeled "<device ID> · live".
+  Its loading, error and no-camera states show in that cell.
+- **Then one cell per other device**, sorted by device ID so cells don't
+  move (`latestByDevice`): the thumbnail of its newest clip, shown whole,
+  labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
+  events but no clip image shows a camera-off icon and the age of its
+  latest event. Tapping a cell with a playable clip opens it in the clip
+  player.
+- **Which devices:** those in the event log with a device ID other than
+  this one's, from the signed-in user's events only (in DEV, every
+  event's). Other devices' events reach this one through
+  [cloud sync](cloud-sync.md), from the user's folder, so the grid is the
+  profile's devices with whatever they last uploaded (new events within
+  15 s, the last two weeks on a new device). Nothing new is uploaded or
+  fetched for it.
+- **Layout:** the columns that give the biggest 16:9 cells
+  (`gridColumns`); the cells fill the screen below the app bar and above
+  the buttons (88 px kept clear), 1 px apart.
+- The grid and the camera alone are the same widget tree, so switching
+  never rebuilds or reopens the camera's preview, and recording goes on.
+- Tests: `camera_all_test.dart` (which devices and images, the grid's
+  places, the same preview across switches, the button).
+
 ## Known limitations
 
 - Only one camera records at a time. Clips come from the camera being
   shown.
+- **All** shows each other device's latest *clip* image, not a live
+  picture: how old it is depends on its clips (scheduled ones every 240
+  minutes by default, motion, or Clip presses).
