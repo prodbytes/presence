@@ -2164,6 +2164,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       memory, so it outlasts closing the tab but not a restart.
     - Specs: [Log](log.md), [Settings screen](settings.md). 329 Flutter
       tests (1 new) pass.
+    - Follow-up: the panel wasn't showing because this PR was unmerged
+      and conflicted with `main`; rebased (only this log conflicted), 329
+      tests pass, and merged.
 232. **Make AWS access work in prod: events synced through S3 with the
     Cognito identity pool; verify the policy and how profile IDs are
     handled.** (2026-10-05)
