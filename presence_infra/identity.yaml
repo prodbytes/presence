@@ -42,7 +42,9 @@ Resources:
   AuthenticatedRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: Signed-in Presence users (Cognito identity pool, profiles)
+      # Kept as first deployed: changing it needs iam:UpdateRoleDescription,
+      # which the deploy roles don't have (it failed the 0.6 RC deploy).
+      Description: Signed-in Presence users (Cognito identity pool, Google)
       MaxSessionDuration: 3600
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
