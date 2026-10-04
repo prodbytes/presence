@@ -32,12 +32,19 @@ in the app bar**, which flip between full screens.
   screen**, edge to edge and under the app bar, which is transparent over
   the camera, with a dark gradient scrim to keep the title and tabs
   readable. There are **no overlays** on the video: no camera name, and no
-  list of other cameras.
+  list of other cameras (except in the **All** grid, below).
   - It opens the **default camera**: the first back camera, or else the
     first camera (on web, the one the browser picks by default).
   - The **Clip** trigger is an extended floating action button (bottom
     right), shown only on the Camera tab and only when a camera is open.
     Material says to hide a FAB that can't act, rather than disable it.
+  - **All** (a grid icon and the label "All") sits left of Flip, as a
+    quiet secondary button, shown with access whether or not a camera is
+    open. It toggles a grid: this device's camera in the top-left cell and
+    every other device of the profile with its latest image (see
+    [Camera screen](camera.md#all-devices)). While the grid shows, the
+    button is highlighted and its tooltip reads "Show only this camera".
+    It's off at launch.
   - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
     quieter secondary button. It's shown only when the device has more than
     one camera. It switches back ↔ front where the camera's facing is known
