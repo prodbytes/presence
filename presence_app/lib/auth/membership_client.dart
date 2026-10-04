@@ -81,6 +81,15 @@ class Voucher {
   bool get isUsedUp => uses >= maxUses;
 }
 
+/// A valid voucher whose [discount] is under 100%: it grants its role once
+/// the user pays the rest, which isn't built yet (HTTP 402).
+class PaymentRequiredException extends RolesException {
+  PaymentRequiredException(this.discount) : super(402);
+
+  /// The voucher's discount, in percent.
+  final int discount;
+}
+
 DateTime _instant(Object? value) =>
     DateTime.tryParse('$value') ??
     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -91,7 +100,8 @@ DateTime _instant(Object? value) =>
 /// requests, and create, list and delete vouchers. Failures throw
 /// [RolesException] with the HTTP status (409: a request was already sent
 /// this hour; 404 from [redeem]: the code is invalid, expired or used up;
-/// 429: throttled).
+/// [PaymentRequiredException] (402) from [redeem]: the code is valid but
+/// its discount isn't full; 429: throttled).
 abstract class MembershipClient {
   /// Sends [message] as the signed-in user's request for access.
   Future<void> request(String idToken, String message);
@@ -106,6 +116,8 @@ abstract class MembershipClient {
   Future<void> dismiss(String idToken, String email);
 
   /// Redeems [code] for the signed-in user; returns the voucher's role.
+  /// A code with a discount under 100% grants nothing yet: it throws
+  /// [PaymentRequiredException].
   Future<String> redeem(String idToken, String code);
 
   /// Every voucher, newest first (admins only).
@@ -149,6 +161,13 @@ class HttpMembershipClient implements MembershipClient {
       },
       body: utf8.encode(body),
     );
+    if (response.statusCode == 402) {
+      // Only redeeming answers 402: a valid code with the rest to pay.
+      final body = jsonDecode(response.body);
+      throw PaymentRequiredException(
+        body is Map ? (body['discount'] as num?)?.toInt() ?? 0 : 0,
+      );
+    }
     if (response.statusCode ~/ 100 != 2) {
       throw RolesException(response.statusCode);
     }

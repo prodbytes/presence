@@ -42,6 +42,11 @@ class VoucherTest {
         }
 
         @Override
+        public VoucherHandler.Voucher find(String code) {
+            return vouchers.get(code);
+        }
+
+        @Override
         public void delete(String code) {
             vouchers.remove(code);
         }
@@ -49,8 +54,7 @@ class VoucherTest {
         @Override
         public VoucherHandler.Voucher claim(String code, String email, Instant now) {
             var v = vouchers.get(code);
-            if (v == null || !v.expiresAt().isAfter(now) || v.uses() >= v.maxUses()
-                    || v.redeemedBy().contains(email)) {
+            if (v == null || !v.redeemableBy(email, now) || v.discount() < VoucherHandler.FULL_DISCOUNT) {
                 return null;
             }
             var redeemedBy = new HashSet<>(v.redeemedBy());
@@ -218,15 +222,29 @@ class VoucherTest {
                 + "&code=Autumn-Otter-4821").getStatusCode());
         assertEquals(25, store.vouchers.get("AUTUMN-OTTER-4821").discount());
 
-        var response = redeem.handleRequest(redeem("ana@example.com", "autumn otter 4821"), null);
-        assertEquals(200, response.getStatusCode());
-        assertEquals("{\"role\":\"presence_user\",\"granted\":[\"presence_user\"],\"discount\":25}",
-                response.getBody());
 
         // A blank code is a random one.
         var random = create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=+");
         assertEquals(201, random.getStatusCode());
         assertTrue(code(random.getBody()).matches("[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}"));
+    }
+
+    @Test
+    void aPartialDiscountGrantsNothingUntilPaid() {
+        create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=autumn-otter-4821&discount=25");
+        var response = redeem.handleRequest(redeem("ana@example.com", "autumn otter 4821"), null);
+        assertEquals(402, response.getStatusCode());
+        assertEquals("{\"error\":\"the rest must be paid\",\"discount\":25}", response.getBody());
+        // No role, and no use counted.
+        assertNull(granted.get("ana@example.com"));
+        assertEquals(0, store.vouchers.get("AUTUMN-OTTER-4821").uses());
+        assertEquals(402, redeem.handleRequest(redeem("bob@example.com", "AUTUMN-OTTER-4821"), null)
+                .getStatusCode());
+
+        // Expired: the same 404 as any other code.
+        now = Instant.parse("2026-10-05T00:00:00Z");
+        assertEquals(404, redeem.handleRequest(redeem("ana@example.com", "AUTUMN-OTTER-4821"), null)
+                .getStatusCode());
     }
 
     @Test

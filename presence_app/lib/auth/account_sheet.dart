@@ -409,6 +409,9 @@ class _SignUpSheetState extends State<SignUpSheet> {
       if (mounted) {
         setState(
           () => _codeError = switch (e.statusCode) {
+            402 when e is PaymentRequiredException =>
+              'That code gives ${e.discount}% off. Paying the rest isn\'t '
+                  'available yet, so it can\'t let you in.',
             404 => 'That code is invalid, expired or used up.',
             429 => 'Too many tries right now. Try again in a minute.',
             _ => 'Couldn\'t redeem the code ($e).',

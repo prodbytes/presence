@@ -325,9 +325,12 @@ Resources:
           USER_ROLES_TABLE: !Ref UserRolesTable
       Policies:
         - Statement:
-            # Counts a use (one conditional update), or gives it back if the grant fails.
+            # Counts a use (one conditional update), or gives it back if the
+            # grant fails; reads a refused code to tell a partial discount (402).
             - Effect: Allow
-              Action: dynamodb:UpdateItem
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
               Resource: !GetAtt VoucherTable.Arn
             # Merges the voucher's role into the redeemer's roles.
             - Effect: Allow

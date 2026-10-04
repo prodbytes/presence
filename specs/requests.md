@@ -2036,3 +2036,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Membership](membership.md), [Auth API](auth-api.md). 15
       VoucherTest (2 new) and 313 Flutter tests (4 new) pass. Not run in
       Floci: the main folder's services are shared.
+223. **When a user redeems a voucher, only grant the role if the voucher
+    is 100%; otherwise they should pay the remaining value, to be done
+    later.** (2026-10-04)
+    - Auth API: redeeming's conditional update also requires a full
+      discount (or none stored). When it fails, the code is read
+      (`Store.find`, a `GetItem`, now allowed to the voucher function),
+      and one this email could otherwise redeem with a partial discount
+      gets 402 `{"error", "discount"}`: no role, no use counted. Every
+      other refusal is the same 404.
+    - App: `PaymentRequiredException` (402, with the discount); the
+      Request access sheet says "That code gives N% off. Paying the rest
+      isn't available yet, so it can't let you in." Payment itself is
+      left for later.
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md). 16
+      VoucherTest (1 new) and 314 Flutter tests (1 new) pass. Stacked on
+      #152.
