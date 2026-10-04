@@ -93,7 +93,10 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   subject tags. No `objectTags` means not searched yet; `[]` means
   searched, nothing seen. Malformed entries are skipped on restore.
 - The clip's card shows them as small outlined chips under its subjects
-  ("human", "bicycle"), in order of first sighting.
+  ("human", "bicycle"), in order of first sighting. Each keeps where it was
+  first seen (`ms`, in the recording's time, like a tag's `frameMs`), and
+  clicking it opens the player paused on that frame (see
+  [Clips](clips.md)). Only the time is kept, not the frame's image.
 - The Events **search** matches them: "bicycle" finds the clips with a
   bicycle (see [Events](events.md)).
 - They're labels, not subjects: no names, colors, maps, references or
@@ -199,6 +202,9 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   once searched; they keep going after every subject is found (subjects
   only embedded until then); off in Settings, none stored; their record
   round-trip (absent, empty, malformed); the clip's card shows them; the
+  card's object tags and subject names open the player paused at their
+  first frame (the subject's earliest; from the start without a frame),
+  kept inside the clip window; the
   player's Auto tags a sure match and the objects, and says so; Auto
   disabled where recognition can't run, and fitting a 320 dp phone's
   dialog.
@@ -229,7 +235,7 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   - the recognizer, all real: Grace Hopper tagged on her photo, then a new
     3 s clip where she appears at 1 s gets a recognized "Grace" tag (100 %)
     on the 1.0 s frame, on her, and stops there (0.9 s in all).
-- 262 Flutter tests pass, plus the 3 in Chrome (rerun with object tags)
+- 311 Flutter tests pass, plus the 3 in Chrome (rerun with object tags)
   and the 3 on Android (updated, not rerun with object tags). Web
   release, Android debug and release builds compile (the release APK
   carries LiteRT's libraries for arm64, armv7 and x86_64).
@@ -261,5 +267,9 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
 - References are rebuilt after each launch (the first clip searched after a
   launch takes longer).
 - iOS doesn't recognize yet.
+- A tag made on the **preview** (before the full clip was recorded) keeps
+  the preview file's time; once the full clip replaces it, clicking that
+  label may open a little off, since the two files start at different
+  points.
 - LiteRT adds about 7 MB per ABI to the Android app (its GPU library comes
   along, unused), and the models 14 MB.

@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/annotations.dart';
 import 'package:presence_app/cameras/camera_source.dart';
+import 'package:presence_app/cameras/clip_player_controller.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
@@ -946,6 +947,64 @@ void main() {
     expect(find.byKey(const Key('clip-object-human')), findsOneWidget);
     expect(find.byKey(const Key('clip-object-bicycle')), findsOneWidget);
     expect(find.text('bicycle'), findsOneWidget);
+  });
+
+  testWidgets("a card's labels open the player paused where they were seen", (
+    tester,
+  ) async {
+    final event = ClipRequested(clip(), id: 'c');
+    final a = event.annotations;
+    a.add('Rex', 0.5, 0.5, frame: a.newFrame(onePixelPng, 4000));
+    a.add('rex', 0.2, 0.2, frame: a.newFrame(onePixelPng, 1500));
+    a.add('Ana', 0.1, 0.1);
+    a.setObjects(const [ObjectTag(label: 'bicycle', ms: 2500, score: 0.7)]);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ClipEventCard(event: event)),
+      ),
+    );
+    Future<Duration?> openedAt(String key) async {
+      await tester.tap(find.byKey(Key(key)));
+      await tester.pumpAndSettle();
+      final player = tester.widget<ClipPlayerDialog>(
+        find.byType(ClipPlayerDialog),
+      );
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      return player.startAt;
+    }
+
+    // An object tag: where it was first seen.
+    expect(
+      await openedAt('clip-object-bicycle'),
+      const Duration(seconds: 2, milliseconds: 500),
+    );
+    // A subject: their earliest tagged frame.
+    expect(
+      await openedAt('event-subject-rex'),
+      const Duration(milliseconds: 1500),
+    );
+    // A tag without a frame: from the start, playing.
+    expect(await openedAt('event-subject-ana'), isNull);
+    expect(find.byTooltip('Show at 0:02.5'), findsOneWidget);
+  });
+
+  test('the player opens inside the clip window', () {
+    final media = ClipMedia(
+      url: 'blob:x',
+      start: const Duration(seconds: 2),
+      end: const Duration(seconds: 10),
+    );
+    expect(startPosition(media, null), const Duration(seconds: 2));
+    expect(startPosition(media, Duration.zero), const Duration(seconds: 2));
+    expect(
+      startPosition(media, const Duration(seconds: 5)),
+      const Duration(seconds: 5),
+    );
+    expect(
+      startPosition(media, const Duration(seconds: 30)),
+      const Duration(seconds: 10),
+    );
   });
 
   testWidgets('Auto is off where recognition cannot run', (tester) async {

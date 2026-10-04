@@ -35,7 +35,9 @@ and pets"), each with where the device was when they were seen
   short with an ellipsis). Tapping it opens the subject's screen.
 - **On each clip's card** (`EventSubjects`): every subject tagged on it,
   once, as written there, each after a **square in the subject's color**,
-  to match them with their dots on the map.
+  to match them with their dots on the map. Clicking a name opens the
+  player paused at the earliest frame that subject is tagged on (see
+  [Clips](clips.md)).
 
 ## The map's view
 
