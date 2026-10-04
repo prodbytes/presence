@@ -107,8 +107,7 @@ class GoogleAuthService extends AuthService {
               e.code == GoogleSignInExceptionCode.canceled) {
             return;
           }
-          _error = _describe(e);
-          notifyListeners();
+          _fail('Google sign-in failed', e);
         },
       );
       // Refresh the session quietly, if Google allows it. On web this starts
@@ -116,6 +115,7 @@ class GoogleAuthService extends AuthService {
       // event. Finding nothing leaves a restored session as it is.
       await google.attemptLightweightAuthentication();
     } catch (e) {
+      debugPrint('Presence: Google sign-in is unavailable: ${_details(e)}');
       _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
     }
     _checking = false;
@@ -150,12 +150,10 @@ class GoogleAuthService extends AuthService {
       await GoogleSignIn.instance.authenticate();
     } on GoogleSignInException catch (e) {
       if (e.code != GoogleSignInExceptionCode.canceled) {
-        _error = _describe(e);
-        notifyListeners();
+        _fail('Google sign-in failed', e);
       }
     } catch (e) {
-      _error = _describe(e);
-      notifyListeners();
+      _fail('Google sign-in failed', e);
     }
   }
 
@@ -188,6 +186,29 @@ class GoogleAuthService extends AuthService {
   Widget? buildSignInButton() => GoogleSignIn.instance.supportsAuthenticate()
       ? null
       : googleSignInButton();
+
+  /// Shows [e] as the sign-in error, and logs all of it ([_details]): the
+  /// message is short, the log is what explains it.
+  void _fail(String what, Object e) {
+    debugPrint('Presence: $what: ${_details(e)}');
+    _error = _describe(e);
+    notifyListeners();
+  }
+
+  /// Everything a sign-in error says, for the log: its code, description
+  /// and the platform's details (on Android, Credential Manager's error
+  /// type and message).
+  @visibleForTesting
+  static String details(Object e) => _details(e);
+
+  static String _details(Object e) => switch (e) {
+    GoogleSignInException(:final code, :final description, :final details) => [
+      code.name,
+      ?description,
+      if (details != null) 'details: $details',
+    ].join('; '),
+    _ => e.toString(),
+  };
 
   static String _describe(Object e) => switch (e) {
     GoogleSignInException(:final description?) => description,

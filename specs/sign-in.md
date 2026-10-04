@@ -37,7 +37,11 @@ there's no separate sign-in screen:
   or the Google SDK. While the launch check runs, the button is hidden. If
   no client ID is configured, a person icon opens a sheet saying sign-in
   isn't set up. Sign-in errors show as a message pill over the camera
-  ("Sign-in failed: <reason>"; see [Navigation](navigation.md)).
+  ("Sign-in failed: <reason>"; see [Navigation](navigation.md)), and are
+  logged in full: `Presence: Google sign-in failed: <code>; <description>;
+  details: <details>` (on Android, the details are Credential Manager's
+  error, e.g. its Play services code), and `Presence: Google sign-in is
+  unavailable: …` when the library can't start. See [Log](log.md).
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
   with the Google ID token) for the user's roles and their

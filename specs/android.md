@@ -91,7 +91,18 @@ Android uses the standard dashcam technique instead
   other run scripts. It stops with what to do when no phone is attached,
   several are, or the phone hasn't allowed this computer. Native builds
   default to the production API (`API_BASE_URL` overrides it), so the
-  phone runs in OIDC mode, with Google sign-in.
+  phone runs in OIDC mode, with Google sign-in. The phone lookup is
+  [scripts/android-device.sh](../scripts/android-device.sh), shared with
+  the log script.
+- **Read the app's log:** `devbox run android-log`, or
+  [scripts/android-log.sh](../scripts/android-log.sh), raises the phone's
+  log buffer to 16 MB (Android's 256 KB default holds only minutes of a
+  busy phone's log), shows what the buffer holds and follows it, keeping
+  only the app's lines (tag `flutter`: its `Presence: …` messages) and the
+  system lines that explain them: Google sign-in (`Auth.Api.*`,
+  `CredentialManager*`, `GoogleSignIn*`), crashes (`AndroidRuntime`,
+  `FATAL`) and the app's process starting or being killed. `--clear`
+  starts from now; `--all` shows every line of the app's process instead.
 - **On-device test:** `integration_test/recognition_android_test.dart`
   (fixtures pushed with `integration_test/push_fixtures.sh`, which needs
   `ffmpeg` and `adb`); see [Subject recognition](recognition.md#verified).
