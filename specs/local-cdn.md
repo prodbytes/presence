@@ -140,8 +140,10 @@ roles, membership requests and the Admin screen work locally without AWS:
   template's. `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
-- **Roles** follow the template: verified `@nu01.com` accounts get
-  `presence_user` and `presence_admin`, and everyone else starts with none.
+- **Roles** follow the template: the root allowlist (`@nu01.com`, plus
+  `PRESENCE_ROOT_DOMAINS` and `PRESENCE_ROOT_EMAILS` from `.env`, which
+  `process-compose.yaml` passes to Floci) gets `presence_root`,
+  `presence_admin` and `presence_user`, and everyone else starts with none.
   Storage is `memory`, so every start begins with empty tables: grants and
   requests don't survive a restart.
 - The hook runs past Floci's default 30 s, so compose sets

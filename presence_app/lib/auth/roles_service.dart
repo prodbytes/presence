@@ -10,8 +10,13 @@ import 'google_config.dart';
 /// Uses the app: the camera's buttons, the tabs and cloud sync.
 const userRole = 'presence_user';
 
-/// Also approves other users' membership requests (the Admin screen).
+/// Also approves other users' membership requests and creates Member
+/// vouchers (the Admin screen).
 const adminRole = 'presence_admin';
+
+/// On the auth API's root allowlist: also creates Admin vouchers, so only
+/// roots make admins. Comes with [adminRole] and [userRole].
+const rootRole = 'presence_root';
 
 /// Nobody signed in: may only sign in (or, in [ExecutionMode.dev], has
 /// every role).
@@ -207,6 +212,9 @@ class RolesService extends ChangeNotifier {
   /// Has access and may approve membership requests.
   bool get isAdmin => hasAccess && _roles.contains(adminRole);
 
+  /// An admin who may also create Admin vouchers.
+  bool get isRoot => isAdmin && _roles.contains(rootRole);
+
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() async {
     if (_mode == ExecutionMode.rbac) await _check();
@@ -228,7 +236,7 @@ class RolesService extends ChangeNotifier {
             )
           : (
               mode: ExecutionMode.dev,
-              roles: const [anonymousRole, userRole, adminRole],
+              roles: const [anonymousRole, userRole, adminRole, rootRole],
               settings: unknown,
             );
     }

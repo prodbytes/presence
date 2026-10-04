@@ -1958,3 +1958,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       and [Camera screen](camera.md) updated (the camera screen's leftover
       multi-camera grid statements replaced). 279 Flutter tests pass (8
       new, `camera_all_test.dart`); web release builds.
+219. **Let there be three roles: `presence_root` for the members of the
+     admin allowlist (the `nu01.com` domain), and also explicit emails, both
+     as environment variables prefixed with `PRESENCE_`; then
+     `presence_admin`, then `presence_user`. Roots can create
+     `presence_admin` vouchers, admins can't, and nobody can create
+     `presence_root` vouchers, so only roots make admins and admins only
+     make users. Allowlist members (domain or email) have all three
+     roles.** (2026-10-04)
+     - Also asked first: merge all pending PRs. #146 (vouchers) and #145
+       (camera All) were brought up to date with `main` and merged.
+     - Auth API: `ALLOWED_DOMAINS`/`DOMAIN_ROLES` became
+       `PRESENCE_ROOT_DOMAINS` and `PRESENCE_ROOT_EMAILS` (template
+       parameters `RootDomains`, default `nu01.com`, and `RootEmails`,
+       default none). Their verified users get `presence_root`,
+       `presence_admin` and `presence_user`; the roles table can't give
+       `presence_root`. DEV's anonymous user gets it too.
+     - `POST /api/auth/vouchers` answers 403 for an Admin voucher unless the
+       caller is a root; a root voucher stays a 400.
+     - `scripts/deploy.sh` passes both on every deploy (environment or
+       `.env`; the workflows take repository variables), logging only the
+       number of emails; local Floci reads them from `.env`.
+     - App: `rootRole` and `RolesService.isRoot`; the Admin screen offers
+       Admin codes to roots only.
+     - Specs: [Membership](membership.md), [Auth API](auth-api.md),
+       [Execution mode](execution-mode.md), [Profiles](profiles.md),
+       [Sign-in](sign-in.md), [Local CDN](local-cdn.md),
+       [Production deploy](deploy.md). 62 JUnit tests (6 new) and 307
+       Flutter tests (2 new) pass; the template lints clean. Not run in
+       Floci: your main folder's services were running.

@@ -7,7 +7,7 @@ separate setting, so a system with sign-in can't be opened by mistake.
 | Mode | When | The anonymous user | Signed-in users |
 |---|---|---|---|
 | **RBAC** | An OIDC client is configured (always in AWS) | Role `presence_anonymous` only: may only sign in | Their roles, as before (see [Sign-in](sign-in.md)) |
-| **DEV** | No OIDC client (local development) | Every role: `presence_anonymous`, `presence_user`, `presence_admin` | Nobody can sign in |
+| **DEV** | No OIDC client (local development) | Every role: `presence_anonymous`, `presence_user`, `presence_admin`, `presence_root` | Nobody can sign in |
 
 ## The start check
 

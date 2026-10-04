@@ -103,7 +103,7 @@ class VoucherTest {
     }, clock);
 
     private final AdminHandler admin = new AdminHandler(
-            new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN), e -> granted.getOrDefault(e, Set.of())),
+            new Roles(Set.of("nu01.com"), Set.of(), e -> granted.getOrDefault(e, Set.of())),
             new AdminHandler.Backend() {
                 @Override
                 public List<MembershipHandler.Request> requests() {
@@ -189,6 +189,28 @@ class VoucherTest {
     }
 
     @Test
+    void onlyRootsCreateAdminVouchers() {
+        // An admin (not root) makes member vouchers only.
+        granted.put("lead@example.com", Set.of(Roles.ADMIN, Roles.USER));
+        var admin = event("POST /api/auth/vouchers", "lead@example.com",
+                "role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1");
+        assertEquals(403, this.admin.handleRequest(admin, null).getStatusCode());
+        assertEquals(Map.of(), store.vouchers);
+        var user = event("POST /api/auth/vouchers", "lead@example.com",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1");
+        assertEquals(201, this.admin.handleRequest(user, null).getStatusCode());
+
+        // A root (boss@nu01.com) makes admin vouchers.
+        assertEquals(201, create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getStatusCode());
+    }
+
+    @Test
+    void nobodyCreatesRootVouchers() {
+        assertEquals(400, create("role=presence_root&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getStatusCode());
+        assertEquals(Map.of(), store.vouchers);
+    }
+
+    @Test
     void aUserRedeemsAVoucherForItsRole() {
         var code = code(create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=2").getBody());
         var response = redeem.handleRequest(redeem("Ana@Example.com", " " + code.toLowerCase().replace("-", " ") + " "),
@@ -206,9 +228,11 @@ class VoucherTest {
         var code = code(create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getBody());
         assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code), null).getStatusCode());
         assertEquals(Set.of(Roles.ADMIN, Roles.USER), granted.get("ana@example.com"));
-        // Now an admin herself.
+        // Now an admin herself, who can't pass the role on.
         assertEquals(200, admin.handleRequest(event("GET /api/auth/vouchers", "ana@example.com", null), null)
                 .getStatusCode());
+        assertEquals(403, admin.handleRequest(event("POST /api/auth/vouchers", "ana@example.com",
+                "role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1"), null).getStatusCode());
     }
 
     @Test

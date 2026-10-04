@@ -128,7 +128,10 @@ void main() {
       await settle();
       expect(roles.mode, ExecutionMode.dev);
       expect(roles.state, AccessState.granted);
-      expect(roles.roles, containsAll([anonymousRole, userRole, adminRole]));
+      expect(
+        roles.roles,
+        containsAll([anonymousRole, userRole, adminRole, rootRole]),
+      );
       // Sign-in doesn't matter in dev mode.
       await auth.signIn();
       await roles.refresh();
@@ -358,6 +361,49 @@ void main() {
       await tester.pumpAndSettle();
       expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
       expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+    });
+
+    Finder adminItem() =>
+        find.widgetWithText(DropdownMenuItem<String>, 'Admin');
+    Future<void> openVoucherRoles(
+      WidgetTester tester,
+      List<String> granted,
+      FakeMembershipClient membership,
+    ) async {
+      await launch(tester, FakeRolesClient(granted), membership);
+      await tester.tap(find.byKey(const Key('admin')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('voucher-role')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a presence_admin creates Member vouchers only', (
+      tester,
+    ) async {
+      await openVoucherRoles(tester, [
+        userRole,
+        adminRole,
+      ], FakeMembershipClient());
+      expect(adminItem(), findsNothing);
+      expect(
+        find.textContaining('Only roots create Admin codes'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a presence_root creates Admin vouchers', (tester) async {
+      final membership = FakeMembershipClient();
+      await openVoucherRoles(tester, [
+        userRole,
+        adminRole,
+        rootRole,
+      ], membership);
+      expect(adminItem(), findsWidgets);
+      await tester.tap(adminItem().last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('create-voucher')));
+      await tester.pumpAndSettle();
+      expect(membership.codes.single.role, adminRole);
     });
 
     testWidgets('a presence_user: everything but Admin', (tester) async {

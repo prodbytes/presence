@@ -51,16 +51,25 @@ site (`/api/*` in the CloudFront distribution; see
   `email_verified`, and `name` for requests).
 - **Roles:**
   - **`presence_user`** uses the app; **`presence_admin`** also approves
-    membership requests; **`presence_anonymous`** is nobody signed in;
+    membership requests and creates Member vouchers; **`presence_root`**
+    also creates Admin vouchers; **`presence_anonymous`** is nobody signed
+    in;
   - nobody has roles by default;
-  - a verified email whose domain is exactly one of `AllowedDomains`
-    (comma-separated; `nu01.com` for now) gets both roles
-    (set in the template, not a parameter: a stack keeps an old
-    parameter's value when a deploy doesn't pass it);
+  - the **root allowlist** gets all three of `presence_root`,
+    `presence_admin` and `presence_user`: a verified email whose domain is
+    exactly one of `PRESENCE_ROOT_DOMAINS`, or that is one of
+    `PRESENCE_ROOT_EMAILS` (both comma-separated, case-insensitive). They're
+    the functions' environment, from the template parameters `RootDomains`
+    (default `nu01.com`) and `RootEmails` (default none), which
+    `scripts/deploy.sh` passes on every deploy from the same-named
+    environment variables or `.env` (in GitHub Actions, repository
+    variables), so a stack never keeps an old value. Only the number of
+    root emails is logged;
   - the **`UserRolesTable`** DynamoDB table declares roles per user, keyed by
     lowercase `email`, with `roles` as a string set (a list or a string
-    is read too; a grant rewrites them as a set). They're added to any domain
-    roles. The table starts empty; the Admin screen's grants fill it.
+    is read too; a grant rewrites them as a set). They're added to any
+    allowlist roles, except `presence_root`, which the table can't give.
+    The table starts empty; the Admin screen's grants fill it.
   - Unverified emails get nothing. `sub.nu01.com`, `evilnu01.com` and
     `nu01.com.example` don't count as the domain.
   - **A linked subject** also gets the roles of its profile's owner (see
@@ -115,10 +124,12 @@ site (`/api/*` in the CloudFront distribution; see
   - vouchers: the code format and loose typing; admins only; creation's
     role, expiry and uses checks; newest first; deletion; redeeming once
     per email, running out, expiring, unknown codes, verified emails, an
-    Admin voucher also granting `presence_user`, and a failed grant giving
-    the use back;
+    Admin voucher also granting `presence_user`, a failed grant giving the
+    use back, only roots creating Admin vouchers, and no root vouchers;
+  - the root allowlist: domains and whole emails, verified only, and the
+    table never giving `presence_root`;
   - profiles, linking and the owner's roles (`ProfileTest`; see
     [Profiles](profiles.md#verified)).
-  - the whole flow: a nu01.com user gets both roles; another domain's
+  - the whole flow: a nu01.com user gets all three roles; another domain's
     user gets none, asks, is granted by an admin, and becomes a
     `presence_user` only.

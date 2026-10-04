@@ -347,7 +347,7 @@ class FakeRolesClient implements RolesClient {
     return (
       mode: mode,
       roles: mode == ExecutionMode.dev
-          ? const [anonymousRole, userRole, adminRole]
+          ? const [anonymousRole, userRole, adminRole, rootRole]
           : const [anonymousRole],
       settings: settings,
     );

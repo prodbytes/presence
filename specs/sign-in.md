@@ -46,7 +46,9 @@ there's no separate sign-in screen:
   - **With `presence_user`,** the user gets everything below. Other roles
     alone don't count.
   - **With `presence_admin` too,** an **Admin** icon also shows, left of
-    the account button (see [Membership](membership.md)).
+    the account button (see [Membership](membership.md)). With
+    `presence_root` as well (`RolesService.isRoot`), its voucher form also
+    offers Admin codes.
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
     icon. The icon opens "Request access", where the user writes a message

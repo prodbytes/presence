@@ -7,37 +7,53 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Decides a user's roles: none by default; the domain roles for a verified
- * email at one of the allowed domains; plus whatever the roles table
- * declares for the email. Returned sorted.
+ * Decides a user's roles: none by default; every role ({@link #ROOT},
+ * {@link #ADMIN} and {@link #USER}) for a verified email on the root
+ * allowlist (one of its domains, or one of its emails); plus whatever the
+ * roles table declares for the email, except {@link #ROOT}, which only the
+ * allowlist gives. Returned sorted.
  */
 public final class Roles {
 
     /** Uses the app. */
     public static final String USER = "presence_user";
 
-    /** Also grants other users access. */
+    /** Also grants other users access, and creates vouchers for {@link #USER}. */
     public static final String ADMIN = "presence_admin";
+
+    /**
+     * On the root allowlist ({@code PRESENCE_ROOT_DOMAINS},
+     * {@code PRESENCE_ROOT_EMAILS}): also creates vouchers for {@link #ADMIN},
+     * so only roots make admins. Nothing grants it but the allowlist.
+     */
+    public static final String ROOT = "presence_root";
+
+    /** What a root allowlist member gets. */
+    static final Set<String> ROOT_ROLES = Set.of(ROOT, ADMIN, USER);
 
     /** Nobody signed in: may only sign in (or, in {@link ExecutionMode#DEV}, everything). */
     public static final String ANONYMOUS = "presence_anonymous";
 
-    private final Set<String> allowedDomains;
-    private final Set<String> domainRoles;
+    private final Set<String> rootDomains;
+    private final Set<String> rootEmails;
     private final Function<String, Set<String>> declared;
 
     /**
-     * @param allowedDomains e.g. {@code nu01.com}; each matched exactly after the {@code @}
-     * @param domainRoles    roles for verified emails at those domains
-     * @param declared       roles declared for a (lowercase) email, empty if none
+     * @param rootDomains e.g. {@code nu01.com}; each matched exactly after the {@code @}
+     * @param rootEmails  single addresses, matched whole
+     * @param declared    roles declared for a (lowercase) email, empty if none
      */
-    public Roles(Set<String> allowedDomains, Set<String> domainRoles, Function<String, Set<String>> declared) {
-        this.allowedDomains = allowedDomains.stream()
+    public Roles(Set<String> rootDomains, Set<String> rootEmails, Function<String, Set<String>> declared) {
+        this.rootDomains = normalized(rootDomains);
+        this.rootEmails = normalized(rootEmails);
+        this.declared = declared;
+    }
+
+    private static Set<String> normalized(Set<String> values) {
+        return values.stream()
                 .map(d -> d.trim().toLowerCase(Locale.ROOT))
                 .filter(d -> !d.isEmpty())
                 .collect(Collectors.toUnmodifiableSet());
-        this.domainRoles = Set.copyOf(domainRoles);
-        this.declared = declared;
     }
 
     /** The roles for {@code email}; {@code emailVerified} is the token's {@code email_verified} claim. */
@@ -48,10 +64,10 @@ public final class Roles {
         }
         var normalized = email.trim().toLowerCase(Locale.ROOT);
         var at = normalized.lastIndexOf('@');
-        if (at > 0 && allowedDomains.contains(normalized.substring(at + 1))) {
-            roles.addAll(domainRoles);
+        if (rootEmails.contains(normalized) || at > 0 && rootDomains.contains(normalized.substring(at + 1))) {
+            roles.addAll(ROOT_ROLES);
         }
-        roles.addAll(declared.apply(normalized));
+        declared.apply(normalized).stream().filter(r -> !ROOT.equals(r)).forEach(roles::add);
         return roles;
     }
 
@@ -74,8 +90,7 @@ public final class Roles {
         var roles = new TreeSet<String>();
         roles.add(ANONYMOUS);
         if (mode == ExecutionMode.DEV) {
-            roles.add(USER);
-            roles.add(ADMIN);
+            roles.addAll(ROOT_ROLES);
         }
         return roles;
     }

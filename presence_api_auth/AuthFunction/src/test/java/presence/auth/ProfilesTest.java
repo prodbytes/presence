@@ -128,9 +128,9 @@ class ProfilesTest {
 
     @Test
     void theHandlerAnswersWithTheProfile() {
-        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(Roles.USER), e -> Set.of()), profiles);
+        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()), profiles);
         var claims = Map.of("iss", GOOGLE, "sub", "111", "email", "ana@nu01.com", "email_verified", "true");
-        var body = "{\"email\":\"ana@nu01.com\",\"profile\":\"profile-1\",\"roles\":[\"presence_user\"]}";
+        var body = "{\"email\":\"ana@nu01.com\",\"profile\":\"profile-1\",\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}";
         assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
         assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
         // Users without roles have a profile too.

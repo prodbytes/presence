@@ -33,14 +33,17 @@ Admins are users with both `presence_user` and `presence_admin`.
   profiles share one. See [specs/profiles.md](../specs/profiles.md).
 - **Roles** ([Roles.java](AuthFunction/src/main/java/presence/auth/Roles.java)):
   - `presence_user` uses the app; `presence_admin` also approves
-    membership requests;
+    membership requests and creates Member vouchers; `presence_root` also
+    creates Admin vouchers (nothing creates root ones);
   - nobody has roles by default;
-  - a **verified** email at one of `AllowedDomains` (comma-separated,
-    default `nu01.com`, each matched exactly after the `@`) gets
-    both `presence_user` and `presence_admin` (fixed in the template, not
-    a parameter, so an old stack value can't linger);
+  - the **root allowlist** gets all three: a **verified** email at one of
+    `PRESENCE_ROOT_DOMAINS` (parameter `RootDomains`, default `nu01.com`,
+    each matched exactly after the `@`) or listed in `PRESENCE_ROOT_EMAILS`
+    (parameter `RootEmails`, default none). Both are comma-separated;
+    `scripts/deploy.sh` passes them on every deploy, from the environment
+    or `.env`;
   - anyone listed in the **`UserRolesTable`** DynamoDB table gets the roles
-    declared there, added to any domain roles. The table is keyed by
+    declared there, added to any allowlist roles, except `presence_root`. The table is keyed by
     lowercase `email`, with `roles` as a string set (a list of strings, or
     one string, is read too).
 - **Membership requests**

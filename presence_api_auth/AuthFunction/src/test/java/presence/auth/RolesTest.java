@@ -13,8 +13,9 @@ class RolesTest {
 
     private final Map<String, Set<String>> table = Map.of(
             "ana@example.com", Set.of("viewer"),
-            "julia@nu01.com", Set.of("owner"));
-    private final Roles roles = new Roles(Set.of("nu01.com", " Example.ORG "), Set.of(Roles.USER, Roles.ADMIN),
+            "julia@nu01.com", Set.of("owner"),
+            "eve@example.com", Set.of(Roles.ROOT, Roles.USER));
+    private final Roles roles = new Roles(Set.of("nu01.com", " Example.ORG "), Set.of(" Root@Gmail.com "),
             email -> table.getOrDefault(email, Set.of()));
 
     @Test
@@ -23,9 +24,24 @@ class RolesTest {
     }
 
     @Test
-    void verifiedAllowedDomainsGetBothRoles() {
-        assertEquals(Set.of("presence_admin", "presence_user"), roles.of("Bob@NU01.com", true));
-        assertEquals(Set.of("presence_admin", "presence_user"), roles.of("carol@example.org", true));
+    void verifiedRootDomainsGetEveryRole() {
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("Bob@NU01.com", true));
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("carol@example.org", true));
+    }
+
+    @Test
+    void verifiedRootEmailsGetEveryRole() {
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of(" root@GMAIL.com", true));
+        assertEquals(Set.of(), roles.of("root@gmail.com", false));
+        // The whole address: not the domain, nor a longer one.
+        assertEquals(Set.of(), roles.of("other@gmail.com", true));
+        assertEquals(Set.of(), roles.of("xroot@gmail.com", true));
+    }
+
+    @Test
+    void onlyTheAllowlistGivesRoot() {
+        // The roles table can't make a root.
+        assertEquals(Set.of(Roles.USER), roles.of("eve@example.com", true));
     }
 
     @Test
@@ -45,7 +61,7 @@ class RolesTest {
     @Test
     void theTableDeclaresRolesByEmail() {
         assertEquals(Set.of("viewer"), roles.of(" ANA@example.com ", true));
-        assertEquals(Set.of("owner", "presence_admin", "presence_user"), roles.of("julia@nu01.com", true));
+        assertEquals(Set.of("owner", "presence_admin", "presence_root", "presence_user"), roles.of("julia@nu01.com", true));
     }
 
     @Test
@@ -63,7 +79,7 @@ class RolesTest {
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
-        assertEquals("{\"email\":\"julia@nu01.com\",\"profile\":null,\"roles\":[\"owner\",\"presence_admin\",\"presence_user\"]}", response.getBody());
+        assertEquals("{\"email\":\"julia@nu01.com\",\"profile\":null,\"roles\":[\"owner\",\"presence_admin\",\"presence_root\",\"presence_user\"]}", response.getBody());
 
         var none = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
         assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", none.getBody());
@@ -92,7 +108,7 @@ class RolesTest {
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
         var handler = new AuthHandler(roles, profiles(), ExecutionMode.DEV);
-        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_user\"],"
+        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_root\",\"presence_user\"],"
                 + "\"settings\":{\"oidc\":false,\"aws\":false}}",
                 handler.handleRequest(anonymous(), null).getBody());
     }

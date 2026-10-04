@@ -37,7 +37,7 @@ class MembershipTest {
             Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final AdminHandler admin = new AdminHandler(
-            new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN), e -> granted.getOrDefault(e, Set.of())),
+            new Roles(Set.of("nu01.com"), Set.of(), e -> granted.getOrDefault(e, Set.of())),
             new AdminHandler.Backend() {
                 @Override
                 public List<MembershipHandler.Request> requests() {
@@ -165,11 +165,11 @@ class MembershipTest {
     }
 
     @Test
-    void nu01UsersGetBothRolesAndOthersGetInOnlyOnceGranted() {
-        var auth = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN),
+    void nu01UsersGetEveryRoleAndOthersGetInOnlyOnceGranted() {
+        var auth = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(),
                 e -> granted.getOrDefault(e, Set.of())), RolesTest.profiles());
         var get = "GET /api/auth";
-        assertEquals("{\"email\":\"boss@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\",\"presence_user\"]}",
+        assertEquals("{\"email\":\"boss@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}",
                 auth.handleRequest(route(get, "boss@nu01.com", null), null).getBody());
         assertEquals("{\"email\":\"ana@example.com\",\"profile\":null,\"roles\":[]}",
                 auth.handleRequest(route(get, "ana@example.com", null), null).getBody());
