@@ -2184,3 +2184,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       only) and CORS (the prod origin). No change needed.
     - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
       auth API tests pass.
+233. **Show the profile name and all the profile's device IDs, collected
+    from events, on the popup the user icon opens.** (2026-10-05)
+    - The account sheet shows the profile ID (the profile's only name)
+      and every device ID on the signed-in user's events, this device
+      first and labelled, the rest sorted; the list updates live.
+    - Specs: [Sign-in](sign-in.md). 332 Flutter tests (3 new) pass.
