@@ -403,6 +403,7 @@ class FakeMembershipClient implements MembershipClient {
       (v) =>
           v.code == code.trim().toUpperCase() &&
           !v.isUsedUp &&
+          !v.isNotYetValid(DateTime.now()) &&
           !v.isExpired(DateTime.now()),
     );
     if (i < 0) throw RolesException(404);
@@ -411,6 +412,7 @@ class FakeMembershipClient implements MembershipClient {
     codes[i] = Voucher(
       code: v.code,
       role: v.role,
+      startsAt: v.startsAt,
       expiresAt: v.expiresAt,
       maxUses: v.maxUses,
       uses: v.uses + 1,
@@ -429,6 +431,7 @@ class FakeMembershipClient implements MembershipClient {
   Future<Voucher> createVoucher(
     String idToken, {
     required String role,
+    DateTime? startsAt,
     required DateTime expiresAt,
     required int maxUses,
     String? code,
@@ -442,6 +445,7 @@ class FakeMembershipClient implements MembershipClient {
           ? chosen
           : 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
       role: role,
+      startsAt: startsAt,
       expiresAt: expiresAt,
       maxUses: maxUses,
       uses: 0,

@@ -38,8 +38,9 @@ site (`/api/*` in the CloudFront distribution; see
   can't be redeemed;
   throttled to 1 request/s (burst 5). **`GET /api/auth/vouchers`**,
   **`POST /api/auth/vouchers`** (form-encoded `role`, `expiresAt`
-  ISO-8601, `maxUses`, and optionally `code`, random when absent or
-  blank, 409 when taken, and `discount`, a percentage, 100 when absent;
+  ISO-8601, `maxUses`, and optionally `startsAt` ISO-8601, before
+  `expiresAt` and at most 366 days ago, now when absent; `code`, random when absent or
+  blank, 409 when taken; and `discount`, a percentage, 100 when absent;
   answers 201 with the new voucher) and **`POST
   …/vouchers/delete`** (`AdminHandler`, admins only) manage them. See
   [Membership](membership.md#voucher-codes);
@@ -129,10 +130,10 @@ site (`/api/*` in the CloudFront distribution; see
     (which keeps the cooldown), bad emails, unknown routes;
   - profile names are cleaned to one short line;
   - vouchers: the code format and loose typing, chosen codes; admins
-    only; creation's role, expiry, uses, code and discount checks; a
+    only; creation's role, start, expiry, uses, code and discount checks; a
     taken code (409); the discount stored and answered; a partial
     discount answered 402, granting nothing and counting no use; newest first; deletion; redeeming once
-    per email, running out, expiring, unknown codes, verified emails, an
+    per email, running out, not yet started, expiring, unknown codes, verified emails, an
     Admin voucher also granting `presence_user`, a failed grant giving the
     use back, only roots creating Admin vouchers, and no root vouchers;
   - the root allowlist: domains and whole emails, verified only, and the

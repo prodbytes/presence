@@ -111,6 +111,7 @@ class _AdminScreenState extends State<AdminScreen> {
   /// Creates a voucher; true if it was.
   Future<bool> _create(
     String role,
+    DateTime startsAt,
     DateTime expiresAt,
     int maxUses,
     String code,
@@ -123,6 +124,7 @@ class _AdminScreenState extends State<AdminScreen> {
       final voucher = await widget.membership.createVoucher(
         token,
         role: role,
+        startsAt: startsAt,
         expiresAt: expiresAt,
         maxUses: maxUses,
         code: code,
@@ -352,14 +354,16 @@ String _roleLabel(String role) => switch (role) {
 };
 
 /// A new voucher: its code (a suggestion of the season, an animal and a
-/// number, or the admin's own; blank for a random one), role, expiry date
-/// (the end of that day, local time), how many people may redeem it and
-/// its discount.
+/// number, or the admin's own; blank for a random one), role, first and
+/// last valid days (from the start of the first, through the end of the
+/// last, local time; the current season's by default), how many people may
+/// redeem it and its discount.
 class _VoucherForm extends StatefulWidget {
   const _VoucherForm({required this.onCreate, required this.roles});
 
   final Future<bool> Function(
     String role,
+    DateTime startsAt,
     DateTime expiresAt,
     int maxUses,
     String code,
@@ -380,7 +384,9 @@ class _VoucherForm extends StatefulWidget {
 
 class _VoucherFormState extends State<_VoucherForm> {
   String _role = userRole;
-  late DateTime _expires = _today().add(const Duration(days: 7));
+  // The current season, by default.
+  late DateTime _starts = seasonStart(_today());
+  late DateTime _expires = seasonEnd(_today());
   final _uses = TextEditingController(text: '1');
   final _code = TextEditingController(text: suggestVoucherCode());
   final _discount = TextEditingController(text: '100');
@@ -423,27 +429,58 @@ class _VoucherFormState extends State<_VoucherForm> {
     super.dispose();
   }
 
-  Future<void> _pickDate() async {
+  /// The last day a voucher made today may be valid through.
+  DateTime _lastDay() =>
+      _today().add(const Duration(days: _VoucherForm.maxDays - 1));
+
+  Future<void> _pickStart() async {
     final today = _today();
+    final last = _lastDay();
+    // Back to the season's start, or a year, for codes valid already.
+    final first = today.subtract(const Duration(days: _VoucherForm.maxDays));
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expires,
-      firstDate: today,
-      lastDate: today.add(const Duration(days: _VoucherForm.maxDays - 1)),
+      initialDate: _clamp(_starts, first, last),
+      firstDate: first,
+      lastDate: last,
+      helpText: 'Valid from',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _starts = picked;
+      // The last day can't come before the first.
+      if (_expires.isBefore(picked)) _expires = picked;
+    });
+  }
+
+  Future<void> _pickEnd() async {
+    final today = _today();
+    final first = _starts.isAfter(today) ? _starts : today;
+    final last = _lastDay();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _clamp(_expires, first, last),
+      firstDate: first,
+      lastDate: last,
       helpText: 'Valid through',
     );
     if (picked != null && mounted) setState(() => _expires = picked);
   }
+
+  static DateTime _clamp(DateTime date, DateTime first, DateTime last) =>
+      date.isBefore(first) ? first : (date.isAfter(last) ? last : date);
 
   Future<void> _create() async {
     final uses = _maxUses;
     final discount = _discountValue;
     if (uses == null || discount == null || !_codeOk) return;
     setState(() => _creating = true);
-    // Valid through the whole chosen day.
+    // Valid from the start of the first day through the whole last day.
+    final start = DateTime(_starts.year, _starts.month, _starts.day);
     final end = DateTime(_expires.year, _expires.month, _expires.day + 1);
     final created = await widget.onCreate(
       _role,
+      start,
       end,
       uses,
       _code.text.trim(),
@@ -460,7 +497,9 @@ class _VoucherFormState extends State<_VoucherForm> {
 
   @override
   Widget build(BuildContext context) {
-    final date = MaterialLocalizations.of(context).formatShortDate(_expires);
+    final localizations = MaterialLocalizations.of(context);
+    final from = localizations.formatShortDate(_starts);
+    final through = localizations.formatShortDate(_expires);
     return Card(
       key: const Key('voucher-form'),
       child: Padding(
@@ -520,10 +559,16 @@ class _VoucherFormState extends State<_VoucherForm> {
               ),
             ),
             OutlinedButton.icon(
+              key: const Key('voucher-starts'),
+              icon: const Icon(Icons.event_available),
+              label: Text('Valid from $from'),
+              onPressed: _creating ? null : _pickStart,
+            ),
+            OutlinedButton.icon(
               key: const Key('voucher-expires'),
-              icon: const Icon(Icons.event),
-              label: Text('Valid through $date'),
-              onPressed: _creating ? null : _pickDate,
+              icon: const Icon(Icons.event_busy),
+              label: Text('Valid through $through'),
+              onPressed: _creating ? null : _pickEnd,
             ),
             SizedBox(
               width: 120,
@@ -594,11 +639,17 @@ class _VoucherCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final localizations = MaterialLocalizations.of(context);
+    final starts = voucher.startsAt.toLocal();
     final expires = voucher.expiresAt.toLocal();
+    String at(DateTime t) =>
+        '${localizations.formatShortDate(t)} '
+        '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(t))}';
     final state = voucher.isExpired(now)
         ? 'Expired'
         : voucher.isUsedUp
         ? 'Used up'
+        : voucher.isNotYetValid(now)
+        ? 'Not yet valid'
         : null;
     return Card(
       key: Key('voucher-${voucher.code}'),
@@ -632,8 +683,8 @@ class _VoucherCard extends StatelessWidget {
                     '${_roleLabel(voucher.role)} · '
                     '${voucher.discount}% off · '
                     '${voucher.uses} of ${voucher.maxUses} used · '
-                    'expires ${localizations.formatShortDate(expires)} '
-                    '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(expires))}',
+                    'valid from ${at(starts)} · '
+                    'expires ${at(expires)}',
                     style: TextStyle(color: scheme.onSurfaceVariant),
                   ),
                   if (voucher.redeemedBy.isNotEmpty)

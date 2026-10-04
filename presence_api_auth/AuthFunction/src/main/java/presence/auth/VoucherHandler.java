@@ -35,14 +35,14 @@ import static presence.auth.AuthHandler.response;
 
 /**
  * {@code POST /api/auth/voucher}: a signed-in user redeems a voucher code
- * (the plain-text body). A valid code (it exists, hasn't expired, has uses
- * left, and this email hasn't used it) with a full (100%) discount counts a
+ * (the plain-text body). A valid code (it exists, its validity has started
+ * and hasn't ended, it has uses left, and this email hasn't used it) with a full (100%) discount counts a
  * use and grants its role. A valid code with a smaller discount gets 402
  * with its discount, and grants nothing and counts no use: the user would
  * pay the rest, which isn't built yet. Every other code gets the same 404,
  * so an answer tells nothing about which codes exist. Admins create vouchers on the Admin screen (see
- * {@link AdminHandler}), with a random code or one they choose, and a
- * discount (a percentage, 100 by default).
+ * {@link AdminHandler}), with a random code or one they choose, a start and
+ * an end of validity, and a discount (a percentage, 100 by default).
  */
 public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -65,12 +65,13 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /** A voucher, as stored and listed. */
-    record Voucher(String code, String role, Instant expiresAt, int maxUses, int uses,
+    record Voucher(String code, String role, Instant startsAt, Instant expiresAt, int maxUses, int uses,
                    Set<String> redeemedBy, String createdBy, Instant createdAt, int discount) {
 
         String toJson() {
             return "{\"code\":" + Json.string(code)
                     + ",\"role\":" + Json.string(role)
+                    + ",\"startsAt\":" + Json.string(startsAt.toString())
                     + ",\"expiresAt\":" + Json.string(expiresAt.toString())
                     + ",\"maxUses\":" + maxUses
                     + ",\"uses\":" + uses
@@ -83,7 +84,7 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
         /** Whether {@code email} may redeem it at {@code now}, payment aside. */
         boolean redeemableBy(String email, Instant now) {
-            return expiresAt.isAfter(now) && uses < maxUses && !redeemedBy.contains(email);
+            return !startsAt.isAfter(now) && expiresAt.isAfter(now) && uses < maxUses && !redeemedBy.contains(email);
         }
     }
 
@@ -102,8 +103,8 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         Voucher find(String code);
 
         /**
-         * Counts a use of {@code code} by {@code email}, if it exists, expires
-         * after {@code now}, has uses left, {@code email} hasn't used it, and
+         * Counts a use of {@code code} by {@code email}, if it exists, starts
+         * by and expires after {@code now}, has uses left, {@code email} hasn't used it, and
          * its discount is full (nothing left to pay).
          *
          * @return the voucher, as claimed, or null if it can't be used
@@ -238,9 +239,10 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     /**
-     * One item per code: {@code {"code", "role", "expiresAt" (epoch ms),
+     * One item per code: {@code {"code", "role", "startsAt" and "expiresAt" (epoch ms),
      * "maxUses", "uses", "redeemedBy" (SS), "createdBy", "createdAt" (epoch ms),
-     * "discount" (percent; 100 if missing)}}.
+     * "discount" (percent; 100 if missing)}}. Vouchers from before start
+     * dates have no {@code startsAt}: they're valid from their creation.
      */
     static Store dynamoStore(String table) {
         var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
@@ -253,6 +255,7 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                             .item(Map.of(
                                     "code", AttributeValue.fromS(voucher.code()),
                                     "role", AttributeValue.fromS(voucher.role()),
+                                    "startsAt", millis(voucher.startsAt()),
                                     "expiresAt", millis(voucher.expiresAt()),
                                     "maxUses", AttributeValue.fromN(Integer.toString(voucher.maxUses())),
                                     "uses", AttributeValue.fromN("0"),
@@ -305,7 +308,10 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                             // One conditional write: concurrent redemptions can't overspend it.
                             .updateExpression("SET uses = uses + :one ADD redeemedBy :who")
                             // Vouchers from before discounts have none: they're full.
-                            .conditionExpression("attribute_exists(code) AND expiresAt > :now"
+                            // Vouchers from before start dates have none: they started when made.
+                            .conditionExpression("attribute_exists(code)"
+                                    + " AND (attribute_not_exists(startsAt) OR startsAt <= :now)"
+                                    + " AND expiresAt > :now"
                                     + " AND uses < maxUses AND NOT contains(redeemedBy, :email)"
                                     + " AND (attribute_not_exists(discount) OR discount >= :full)")
                             .expressionAttributeValues(Map.of(
@@ -345,12 +351,16 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     private static Voucher voucher(Map<String, AttributeValue> item) {
         var redeemedBy = item.get("redeemedBy");
         var discount = item.get("discount");
+        var createdAt = instant(item.get("createdAt"));
+        var startsAt = item.get("startsAt");
         return new Voucher(
                 text(item, "code"), text(item, "role"),
+                // Vouchers from before start dates were valid from their creation.
+                startsAt == null ? createdAt : instant(startsAt),
                 instant(item.get("expiresAt")), number(item.get("maxUses")),
                 number(item.get("uses")),
                 redeemedBy == null || !redeemedBy.hasSs() ? Set.of() : Set.copyOf(redeemedBy.ss()),
-                text(item, "createdBy"), instant(item.get("createdAt")),
+                text(item, "createdBy"), createdAt,
                 // Vouchers from before discounts were full ones.
                 discount == null ? FULL_DISCOUNT : number(discount));
     }
