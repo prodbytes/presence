@@ -56,10 +56,15 @@
   `flutter-run.sh`) pass it too, with Z the time they started. A bare
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
-- **The device ID**, under the version, as small and quiet, and
-  selectable to copy, e.g. `automatic_paranoid_gadget` (see [Devices,
-  users and places](devices-users-places.md)).
-- **Health line**, under the device ID, as small
+- **The device and profile IDs, always**, under the version, as small and
+  quiet, one labelled line each, the IDs selectable to copy:
+  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
+    places](devices-users-places.md)), or *loading…* until it's known;
+  - **Profile** `huge_wavy_darter`, the signed-in user's
+    [profile](profiles.md), or, in italics, why there's none: *none in
+    DEV*, *checking…*, *not signed in*, or *unavailable* (the auth API
+    didn't give one).
+- **Health line**, under the IDs, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
   `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip. For AWS and
   OIDC, the [auth API](auth-api.md)'s start check says whether its

@@ -83,6 +83,9 @@ AWS):
   ([lib/auth/roles_service.dart](../presence_app/lib/auth/roles_service.dart)),
   set with the roles at each check and cleared while signed out, checking,
   in DEV, or after a failed check.
+- **Settings always shows it**, as **Profile** `huge_wavy_darter` under
+  the device ID, or why there's none (*none in DEV*, *checking…*, *not
+  signed in*, *unavailable*); see [Settings screen](settings.md).
 
 ## Not scoped to the profile yet
 
@@ -98,8 +101,7 @@ moved onto it yet. These still use the login, and are the next steps:
 - **Roles** are still declared per email in `UserRolesTable`, and
   membership requests are per email (see [Membership](membership.md)).
 - There's no way yet to **link another subject** to a profile (a second
-  provider, a new email, a collaborator), nor to see the profile ID in
-  the app.
+  provider, a new email, a collaborator).
 
 ## Verified
 
@@ -115,6 +117,9 @@ moved onto it yet. These still use the login, and are the next steps:
 - `roles_test.dart`: `HttpRolesClient` reads `profile` (absent or null is
   null), and `RolesService.profile` follows sign-in, failures and
   sign-out.
+- `add_device_test.dart`: Settings shows the device ID, then the profile
+  ID; *unavailable* without one, *none in DEV* in DEV, and *loading…*
+  before the device ID is known.
 - Locally, against Floci's DynamoDB: the deployed `AuthFunction`, called
   with a signed-in event, creates a profile and link, and returns the same
   profile on the next call.
