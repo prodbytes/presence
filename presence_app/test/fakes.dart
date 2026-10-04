@@ -317,6 +317,9 @@ class FakeRolesClient implements RolesClient {
   FakeRolesClient.none() : this(const []);
 
   List<String> roles;
+
+  /// The profile ID `GET /api/auth` answers with.
+  String? profile = 'automatic_paranoid_axolotl';
   Object? error;
   final tokens = <String>[];
 
@@ -331,10 +334,10 @@ class FakeRolesClient implements RolesClient {
   int anonymousCalls = 0;
 
   @override
-  Future<List<String>> fetch(String idToken) async {
+  Future<UserAccess> fetch(String idToken) async {
     tokens.add(idToken);
     if (error case final e?) throw e;
-    return roles;
+    return (roles: roles, profile: profile);
   }
 
   @override

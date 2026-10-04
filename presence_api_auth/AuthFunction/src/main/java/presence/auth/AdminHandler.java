@@ -59,15 +59,15 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
-        this(AuthHandler.fromEnvironment(), AuthHandler.ownersFromEnvironment(),
+        this(AuthHandler.fromEnvironment(), AuthHandler.owners(AuthHandler.profilesFromEnvironment()),
                 dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), System.getenv("USER_ROLES_TABLE")));
     }
 
     AdminHandler(Roles roles, Backend backend) {
-        this(roles, sub -> null, backend);
+        this(roles, subject -> null, backend);
     }
 
-    /** @param owners as in {@link AuthHandler}: an account shares its profile owner's roles */
+    /** @param owners for a subject, its profile owner's email ({@link AuthHandler#owners}): a linked subject shares the owner's roles */
     AdminHandler(Roles roles, Function<String, String> owners, Backend backend) {
         this.roles = roles;
         this.owners = owners;

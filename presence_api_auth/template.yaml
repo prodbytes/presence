@@ -1,22 +1,19 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  presence_api_auth (stack presence-auth-api, and presence-rc-auth-api for the release
-  candidate): GET /api/auth returns the signed-in user's roles, POST
-  /api/auth/membership lets a user without them ask for access, and the
-  Admin screen's routes (presence_admin only) list and approve those
-  requests. API Gateway's HTTP API checks the Google ID token (JWT
-  authorizer) before the functions run; they read the verified claims.
-  GET /api/auth/anonymous, the only route without a token, returns the
-  execution mode (DEV without GoogleWebClientId, else RBAC), the
-  anonymous user's roles, and whether the OIDC client and cloud sync
-  (IdentityPoolId, UserDataBucket) are set.
-  Nobody has roles, except verified emails at one of AllowedDomains
-  (presence_user and presence_admin) and users listed in
-  the UserRoles table (email -> roles). POST /api/auth/credentials and
-  /api/auth/profile/*: profiles, one cloud folder for all of a person's
-  linked Google accounts. Served under /api/* by the
-  site's CloudFront distribution.
+  presence_api_auth (stacks presence-auth-api and presence-rc-auth-api):
+  GET /api/auth returns the signed-in user's profile (found by the token's
+  subject, or made at the first sign-in) and roles; POST
+  /api/auth/membership asks for access, and the Admin routes
+  (presence_admin) list and approve requests; POST /api/auth/credentials and
+  /api/auth/profile/* give a profile's cloud credentials and link its
+  accounts. The HTTP API checks the Google ID token (JWT authorizer) before
+  the functions run. GET /api/auth/anonymous, the only route without a
+  token, returns the execution mode (DEV without GoogleWebClientId, else
+  RBAC), the anonymous roles, and which settings are set. Roles: verified
+  emails at AllowedDomains get presence_user and presence_admin, the
+  UserRoles table adds more, and a linked account shares its profile
+  owner's. Served under /api/* by the site's CloudFront distribution.
 
 Parameters:
   GoogleWebClientId:
@@ -84,6 +81,57 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Profiles: whose data it is, outliving the ways its owner signs in.
+  # {"id": "<adjective>_<adjective>_<animal>", "createdAt", "lastSignInAt"
+  # (epoch ms), "ownerSubject", "ownerEmail", "identityId" (its Cognito
+  # identity: its folder in the user-data bucket)}.
+  ProfilesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Which profile each authenticated subject signs in to:
+  # {"subject": "<iss>#<sub>", "profileId", "email", "linkedAt"}, indexed by
+  # profile. Several subjects may share a profile (linked with a code).
+  # Holds emails: AWS only.
+  ProfileSubjectsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subject
+          AttributeType: S
+        - AttributeName: profileId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subject
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: profile
+          KeySchema:
+            - AttributeName: profileId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   # Membership requests, one per user: {"email", "name", "message",
   # "requestedAt" (epoch ms), "dismissed"?}. Like UserRoles, it holds people's emails: AWS only.
   MembershipTable:
@@ -103,37 +151,8 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Profiles: one item per Google account, {"sub" (the account ID), "email",
-  # "profileId", "identityId" (the profile's Cognito identity, its folder),
-  # "ownerEmail", "owner", "linkedAt" (epoch ms)}, indexed by profile.
-  AccountsTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: sub
-          AttributeType: S
-        - AttributeName: profileId
-          AttributeType: S
-      KeySchema:
-        - AttributeName: sub
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: profile
-          KeySchema:
-            - AttributeName: profileId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-      SSESpecification:
-        SSEEnabled: true
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-
   # One-time link codes, by their SHA-256: {"code", "profileId",
-  # "identityId", "ownerEmail", "createdBy", "expiresAt" (epoch s, the TTL)}.
+  # "createdBy", "expiresAt" (epoch s, the TTL)}.
   LinkCodesTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -158,6 +177,10 @@ Resources:
         "POST /api/auth/membership":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # Writes a profile at a first sign-in; the app asks it once per sign-in.
+        "GET /api/auth":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
         # Public (no token): the app asks it at every start.
         "GET /api/auth/anonymous":
           ThrottlingBurstLimit: 50
@@ -191,6 +214,8 @@ Resources:
       Environment:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           ALLOWED_DOMAINS: !Ref AllowedDomains
           # Verified AllowedDomains users get both roles. Fixed here rather
           # than a parameter: stacks keep a parameter's old value when a
@@ -201,15 +226,24 @@ Resources:
           # GET /api/auth/anonymous says whether these are set (Settings).
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
-          # A linked account shares its profile owner's roles.
-          ACCOUNTS_TABLE: !Ref AccountsTable
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
         - Statement:
+            # Finds the subject's profile, or links it to a new one.
             - Effect: Allow
-              Action: dynamodb:GetItem
-              Resource: !GetAtt AccountsTable.Arn
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProfileSubjectsTable.Arn
+            # Creates profiles (with an unused ID), records each sign-in
+            # and reads the owner, whose roles a linked subject shares.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
       Events:
         Roles:
           Type: HttpApi
@@ -259,13 +293,16 @@ Resources:
           ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: presence_user,presence_admin
           MEMBERSHIP_TABLE: !Ref MembershipTable
-          ACCOUNTS_TABLE: !Ref AccountsTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
       Policies:
         - Statement:
-            # The caller's profile owner, whose roles a linked account shares.
+            # The caller's profile owner, whose roles a linked subject shares.
             - Effect: Allow
               Action: dynamodb:GetItem
-              Resource: !GetAtt AccountsTable.Arn
+              Resource:
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !GetAtt ProfilesTable.Arn
             # Checks the caller's roles and grants presence_user.
             - Effect: Allow
               Action:
@@ -309,7 +346,8 @@ Resources:
           USER_ROLES_TABLE: !Ref UserRolesTable
           ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: presence_user,presence_admin
-          ACCOUNTS_TABLE: !Ref AccountsTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
@@ -319,6 +357,7 @@ Resources:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
         - Statement:
+            # Links, moves and unlinks subjects; lists a profile's.
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
@@ -326,8 +365,15 @@ Resources:
                 - dynamodb:DeleteItem
                 - dynamodb:Query
               Resource:
-                - !GetAtt AccountsTable.Arn
-                - !Sub "${AccountsTable.Arn}/index/profile"
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !Sub "${ProfileSubjectsTable.Arn}/index/profile"
+            # Makes profiles, records sign-ins, sets the identity once.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
@@ -387,9 +433,12 @@ Outputs:
   UserRolesTableName:
     Description: Where roles are declared per user (email -> roles)
     Value: !Ref UserRolesTable
+  ProfilesTableName:
+    Description: Profiles (id -> createdAt, lastSignInAt)
+    Value: !Ref ProfilesTable
+  ProfileSubjectsTableName:
+    Description: Which profile each subject signs in to (iss#sub -> profileId)
+    Value: !Ref ProfileSubjectsTable
   MembershipTableName:
     Description: Membership requests (email -> message, requestedAt)
     Value: !Ref MembershipTable
-  AccountsTableName:
-    Description: Profiles' Google accounts (sub -> profileId, identityId, ownerEmail)
-    Value: !Ref AccountsTable

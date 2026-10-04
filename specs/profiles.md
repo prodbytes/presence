@@ -1,163 +1,253 @@
 # Profiles
 
-A **profile** is one person: one folder in the user-data bucket and every
-Google account that signs in to it. Someone with two Google accounts, such
-as `julio@gmail.com` and `julio@nu01.com`, links them and reaches the same
-clips, events and settings, with the same roles, from either one. The
-accounts can be from the same provider (two Google accounts), which a
-Cognito identity pool can't link on its own: an identity holds one login
-per provider.
+> **Data belongs to a profile, not to a login.** A profile is the stable
+> owner of a user's data: one folder in the user-data bucket, and roles.
+> The ways its owner signs in are **subjects linked to the profile**. That
+> can be one Google account or several, even two from Google (for example
+> `julio@gmail.com` and `julio@nu01.com`), and other providers later.
+> People can change their email, add accounts or switch providers
+> **without losing their data**, because none of it is keyed by the email
+> or the provider's account.
 
-## How it works
+## The rule
 
-- The [auth API](auth-api.md) keeps the mapping: the **accounts table**
-  has one item per Google account, keyed by its Google `sub` (which never
-  changes, unlike the email), with its profile ID, the profile's Cognito
-  identity ID, the owner's email and whether it's the owner.
+- **Every sign-in loads a profile.** When an authenticated user calls
+  `GET /api/auth`, the [auth API](auth-api.md) looks up the profile linked
+  to the token's **subject** and answers with it.
+- **A first sign-in creates one,** owned by that subject. The subject is
+  linked to it, so **the next sign-in finds the same one**.
+- **A subject is the issuer and the `sub`**, `<iss>#<sub>`, e.g.
+  `https://accounts.google.com#1234567890`. That's the provider's stable
+  account ID, never the email. The same account with a new email keeps its
+  profile; another account with the old email gets its own. The same `sub`
+  from another issuer is another subject.
+- **Many subjects, one profile.** The links table maps each subject to one
+  profile, and any number of subjects may point at the same profile. A
+  subject joins another profile with a **link code** (below). A Cognito
+  identity pool can't link accounts itself, since an identity holds only
+  one login per provider, which is why the auth API keeps the links.
+- **Everyone signed in has a profile,** whatever their roles. A user
+  without `presence_user` (see [Membership](membership.md)) has one too.
+- **Nobody signed in has none:** the anonymous route
+  (`GET /api/auth/anonymous`) and [DEV mode](execution-mode.md) don't
+  create or return profiles.
+
+## Profile IDs
+
+- Like [device IDs](devices-users-places.md#devices), a profile ID is two
+  different adjectives and an **animal**, lowercase, joined by
+  **underscores**: `automatic_paranoid_axolotl` (`ProfileId`), the same
+  shape as a device ID (`automatic_paranoid_gadget`).
+  - The two are separate namespaces: 191 animals are also device
+    "things", so a profile and a device can have the same ID string.
+  - Where both show, as in Settings, a label says which is which.
+- The words:
+  - the device ID's **1053 adjectives** and **1031 animals**
+    (`presence_api_auth/AuthFunction/src/main/resources/presence/auth/`
+    `adjectives.txt`, `animals.txt`), a-z only, each unique;
+  - words that read as insults are left out;
+  - that's about **1.14 billion** IDs, picked with a secure random
+    generator.
+- **No two profiles ever share an ID.**
+  - A long list makes a repeat unlikely: about 1% odds among 5,000
+    profiles.
+  - The profiles table makes it impossible: a new profile is written only
+    if its ID isn't taken (a conditional put).
+  - A taken ID is replaced by a fresh one, up to 10 tries, before the
+    sign-in fails.
+- The profile ID is also the user identifier Cognito knows the profile by
+  (its developer identity).
+
+## The profile's folder and roles
+
 - **Credentials** (`POST /api/auth/credentials`, `presence_user` only):
-  the API looks up the account's profile and calls Cognito's
-  `GetOpenIdTokenForDeveloperIdentity` for it (developer provider
-  `login.presence.profiles`, the profile ID as the user identifier). The
-  app trades that token for AWS credentials
-  (`GetCredentialsForIdentity`). Every linked account gets the same
-  identity, so the same folder. The bucket policy is unchanged:
-  `<bucket>/${cognito-identity.amazonaws.com:sub}/*`. See
-  [Cloud sync](cloud-sync.md#how).
-- **A new account** gets a profile of its own the first time it asks for
-  credentials or a link code. That profile uses the identity the account's
-  Google sign-in already had (`GetId` with its Google token). So data
-  uploaded before profiles stays where it is, and nothing moves.
-- **Roles:** a linked account has its own roles plus the owner's (the
-  account that made the profile). This applies in `GET /api/auth`, the
-  Admin routes and the profile routes. A `julio@gmail.com` linked to a
-  `julio@nu01.com` profile is a `presence_user` and `presence_admin`, like
-  the owner.
+  - the API calls Cognito's `GetOpenIdTokenForDeveloperIdentity` for the
+    profile's identity (developer provider `login.presence.profiles`, the
+    profile ID as the user identifier);
+  - the app trades that token for AWS credentials
+    (`GetCredentialsForIdentity`; see [Cloud sync](cloud-sync.md#how));
+  - every subject of the profile gets the same identity, so the same
+    folder;
+  - the bucket policy is unchanged:
+    `<bucket>/${cognito-identity.amazonaws.com:sub}/*`.
+- **The identity is set once**, at the profile's first credentials or link
+  code. It's the identity the caller's Google sign-in already had (`GetId`
+  with its Google token), so data uploaded before profiles stays where it
+  is and nothing moves. After that the folder never changes (a conditional
+  write).
+- **Roles:** a subject has its own roles plus the **owner's**, the subject
+  that made the profile. This applies in `GET /api/auth`, the Admin routes
+  and the profile routes. The owner's email is kept on the profile and
+  updated when the owner signs in with a new one. A `julio@gmail.com`
+  linked to a `julio@nu01.com` profile is a `presence_user` and
+  `presence_admin`, like the owner.
 
 ## Linking
 
 1. Signed in with an account that has access, open the account sheet's
    **Linked accounts** and tap **Link another account**. A code such as
    `K7QF-M2XD` shows. It works once, for **10 minutes**.
-2. Sign out, sign in with the other Google account, and open **Linked
-   accounts** (from the account sheet, or from the sign-up sheet's "Have
-   access with another Google account? Link it" if that account has no
-   access yet). Enter the code and tap **Link this account**.
-3. That account joins the profile: the sheet lists both accounts, the
-   roles are checked again, and cloud sync starts over on the profile's
-   folder. Events stored on the device upload there.
+2. Sign out, sign in with the other account, and open **Linked accounts**.
+   It's in the account sheet, or, for an account without access yet, in
+   the sign-up sheet ("Have access with another Google account? Link it").
+   Enter the code and tap **Link this account**.
+3. That subject joins the profile:
+   - the sheet lists both accounts;
+   - the roles are checked again, and Settings shows the new profile ID;
+   - cloud sync starts over on the profile's folder.
 
-- **Codes:** 8 characters from 32 that don't look alike (no I, O, 0 or 1),
-  so 40 bits. Typed in any case, with or without the dash. They're stored
-  only as their SHA-256, deleted when used, and expire by DynamoDB TTL
-  (and are checked on use, since TTL deletion lags). Both code routes are
-  throttled to 1 request a second (burst 5).
-- **Refused (409):**
-  - the account has cloud data of its own: its own profile's folder (or,
-    before it has a profile, its Google identity's folder) isn't empty.
-    Linking it would strand that data;
-  - the account owns a profile that other accounts are linked to.
-  An account already linked to another profile (not its owner) can move.
-- A wrong, used or expired code answers 404, and the sheet says so.
+- **Codes:**
+  - 8 characters from 32 that don't look alike (no I, O, 0 or 1), so 40
+    bits; typed in any case, with or without the dash;
+  - stored only as their SHA-256, deleted when used;
+  - they expire by DynamoDB TTL, and are checked on use, since TTL
+    deletion lags;
+  - both code routes are throttled to 1 request a second (burst 5).
+- **Refused (409)** when the joining subject owns its profile and:
+  - that profile has cloud data: its folder (or, before it has one, its
+    Google identity's folder) isn't empty. Linking would strand the data;
+  - other subjects are linked to it.
+
+  A subject linked to another profile (not its owner) can move. A wrong,
+  used or expired code answers 404, before anything is made for the
+  caller.
 
 ## Unlinking
 
-- The **Linked accounts** sheet lists the profile's accounts (the owner
-  first, marked **Owner**, and **This account**). Every account but the
-  owner has an **Unlink** button, available to any member.
-- An unlinked account loses the owner's roles. Its next sign-in gives it a
-  profile of its own again, on its own Google identity.
+- **Linked accounts** lists the profile's subjects: the owner first,
+  marked **Owner**, then **This account**. Every account but the owner has
+  an **Unlink** button, available to any member.
+- An unlinked subject loses the owner's roles. Its next sign-in gives it a
+  new profile of its own, whose folder is its own Google identity's.
 
 ## Routes
 
 | Route | Who | Answer |
 |---|---|---|
+| `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (makes the profile at the first sign-in) |
 | `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token"}` |
-| `GET /api/auth/profile` | any verified account | `{"accounts": [{email, owner, current}]}` (just the caller before it has a profile) |
+| `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
-| `POST /api/auth/profile/link` | any verified account (body: the code) | the accounts, or 404 / 409 |
-| `POST /api/auth/profile/unlink` | a member (body: the email) | the accounts, or 404, or 409 for the owner |
+| `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |
+| `POST /api/auth/profile/unlink` | a member (body: the email) | the listing, or 404, or 409 for the owner |
 
-- Every route needs a verified email. A Cognito or DynamoDB failure
+- `profile` is `null` only for a token without an issuer or subject.
+- The profile routes need a verified email. A Cognito or DynamoDB failure
   answers 502 without its details. Without an identity pool and bucket
-  (locally, by default) every route but the listing answers 503.
+  (locally, by default), every profile route but the listing answers 503.
 
-## Infrastructure
+## Where it's kept
 
+DynamoDB tables in the auth API's stack. They're on-demand and encrypted,
+the first two have point-in-time recovery and are kept if the stack is
+deleted, and the contents live only in AWS.
+
+| Table | Key | Attributes |
+|---|---|---|
+| `ProfilesTable` | `id` (the profile ID) | `createdAt`, `lastSignInAt` (epoch ms), `ownerSubject`, `ownerEmail`, `identityId` |
+| `ProfileSubjectsTable` | `subject` (`<iss>#<sub>`); index `profile` by `profileId` | `profileId`, `email` (lowercase), `linkedAt` (epoch ms) |
+| `LinkCodesTable` | `code` (its SHA-256) | `profileId`, `createdBy`, `expiresAt` (epoch s, TTL) |
+
+- **Finding:** a consistent read of the subject's link. A found profile's
+  `lastSignInAt` is updated, which also returns the profile, and the
+  profile row is recreated if a link names one that's missing.
+- **Creating:** the new profile is put first, only if its ID is free.
+  Then comes the link, only if the subject has none. If two first sign-ins
+  of the same subject race, the first link wins and the other sign-in
+  reads it, so both get the same profile. The loser's new profile is left
+  unused.
+- **Least privilege:**
+  - the roles function (`AuthFunction`) may get and put links, and get,
+    put and update profiles;
+  - the admin function may only get both, to find the owner's roles;
+  - the profile function (`ProfileFunction`) may get, put, delete and
+    query links, get, put and update profiles, and put and delete link
+    codes;
+  - it may also call `GetId` and `GetOpenIdTokenForDeveloperIdentity` on
+    this pool only, and `s3:ListBucket` on the user-data bucket, only to
+    see whether a folder is empty.
 - **Identity pool** ([presence_infra/identity.yaml](../presence_infra/identity.yaml)):
   `DeveloperProviderName: login.presence.profiles`, which can't be changed
-  once set. Google stays as a login provider, because the API's `GetId`
-  needs it to find an account's identity from before profiles.
-- **Auth API** ([presence_api_auth/template.yaml](../presence_api_auth/template.yaml)):
-  - `AccountsTable` (key `sub`, index `profile` by `profileId`; on-demand,
-    encrypted, point-in-time recovery, kept if the stack is deleted);
-  - `LinkCodesTable` (key: the code's hash, TTL `expiresAt`);
-  - `ProfileFunction` (`ProfileHandler`), which may:
-    - get, put, delete and query the accounts table;
-    - put and delete link codes;
-    - call `GetId` and `GetOpenIdTokenForDeveloperIdentity` on this pool
-      only;
-    - call `s3:ListBucket` on the user-data bucket, only to see whether a
-      folder is empty.
-  - The roles and admin functions may also read the accounts table, for
-    the owner's roles.
+  once set. Adding it to an existing pool keeps the pool and its identity
+  IDs ("update requires: no interruption"). Google stays as a login
+  provider, because the API's `GetId` needs it to find an account's
+  pre-profile identity.
 - Locally, Floci gets the same routes
   ([05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh)).
 
 ## In the app
 
+- `RolesService.profile`
+  ([lib/auth/roles_service.dart](../presence_app/lib/auth/roles_service.dart))
+  holds the profile from `GET /api/auth`. It's set with the roles at each
+  check, and cleared while signed out, checking, in DEV, or after a failed
+  check.
+- **Settings always shows it**, as **Profile** `huge_wavy_darter` under
+  the device ID, or why there's none (*none in DEV*, *checking…*, *not
+  signed in*, *unavailable*); see [Settings screen](settings.md).
 - `CognitoCredentials` ([lib/cloud/cognito.dart](../presence_app/lib/cloud/cognito.dart))
-  asks `POST /api/auth/credentials` (`ApiConfig.baseUrl`), then
-  `GetCredentialsForIdentity` with
-  `Logins: {"cognito-identity.amazonaws.com": <token>}`. A 401 from the
-  API is shown as "Sign in again to resume uploads", like an expired
-  Google token.
+  asks `POST /api/auth/credentials`, then `GetCredentialsForIdentity`.
+  A 401 from the API shows as "Sign in again to resume uploads".
 - `ProfileClient` ([lib/auth/profile_client.dart](../presence_app/lib/auth/profile_client.dart))
-  and `LinkedAccountsSheet` ([lib/auth/linked_accounts_sheet.dart](../presence_app/lib/auth/linked_accounts_sheet.dart)).
-  After a link or unlink, `RolesService.refresh()` checks the roles again
-  and `CloudSync.reconnect()` drops the credentials and starts over, as for
-  a new user.
+  and `LinkedAccountsSheet` ([lib/auth/linked_accounts_sheet.dart](../presence_app/lib/auth/linked_accounts_sheet.dart))
+  handle linking. After a link or unlink, `RolesService.refresh()` checks
+  again, and `CloudSync.reconnect()` drops the credentials and starts over,
+  as for a new user.
 
 ## Verified
 
-- JUnit (`ProfileTest`, 14 tests):
+- `ProfilesTest` (JUnit, 9 tests):
+  - a first sign-in creates a profile and the next finds it;
+  - the subject, not the email, finds it, and a linked subject shares it;
+  - a race keeps the first link;
+  - a link whose profile is missing gets it back;
+  - taken IDs are skipped, and the sign-in fails after 10;
+  - the ID format and word lists;
+  - no subject, no profile;
+  - the handler answers with the profile, and the anonymous route makes
+    none.
+- `ProfileTest` (JUnit, 15 tests):
   - an existing user keeps the identity Google sign-in gave them;
   - credentials need `presence_user`;
-  - a linked account gets the same identity and the owner's roles (also
-    in `GET /api/auth`);
+  - a linked subject gets the same identity and the owner's roles, also
+    in `GET /api/auth` and the Admin lookup, which never makes a profile;
+  - the owner's new email carries its roles;
   - codes are single-use, expire, are well-formed, and are stored only as
     hashes;
   - only members make codes;
-  - an account with its own data isn't linked;
-  - a profile with linked accounts can't join another, but a linked
-    account can move;
-  - unlinking: never the owner, and unknown emails get 404;
-  - the listing before a profile exists;
-  - 503 without cloud sync, and unverified emails are refused.
-- Flutter (`profile_test.dart`):
-  - the credentials exchange (the API, then Cognito, with the developer
-    token), reused while valid, and 401 versus 403;
-  - `reconnect` uploads under the new folder and lists all events again;
-  - an account without access links with a code and gains access;
-  - a member makes a code and unlinks an account;
-  - a refused link says why.
-- Floci: the stack deploys with both tables and the function's five
-  routes.
-- Not yet run against AWS: the identity pool update and the Cognito calls.
+  - a subject with its own data isn't linked;
+  - a profile with linked subjects can't join another, but a linked
+    subject can move;
+  - unlinking never removes the owner, and an unlinked subject gets a new
+    profile;
+  - the listing, 503 without cloud sync, and unverified emails.
+- Flutter:
+  - `roles_test.dart` and `add_device_test.dart`: the profile in
+    `RolesService` and in Settings;
+  - `profile_test.dart`:
+    - the credentials exchange, reused while valid, and 401 versus 403;
+    - `reconnect` switches folders;
+    - linking with a code, making a code, unlinking, and a refused link.
+- Floci: the stack deploys with the tables, the function and its routes.
 
 ## Known limitations
 
-- **No merge:** an account with cloud data of its own can't be linked.
-  Its data expires with the bucket's 90 days, or it can stay unlinked.
-- The owner's email is copied onto each linked account when it links. If
-  the owner's Google email changes, linked accounts keep the old one for
-  roles until they link again.
-- Cloud sync still uploads only events whose `userId` is the signed-in
-  account's Google ID (see [Devices, users and
-  places](devices-users-places.md)). Events another linked account
-  recorded on the same device don't go up from this account, though they
-  usually already have from theirs.
-- Google stays a login provider of the pool, so an account can still get
-  credentials straight from Cognito for its own Google identity's folder,
-  without the roles check, as before profiles. Removing it would also
-  remove `GetId`, which finds pre-profile data. Remove it once every
-  existing account has a profile.
+- **No merge:** a subject whose own profile has cloud data can't be
+  linked. Its data expires with the bucket's 90 days, or it can stay
+  unlinked.
+- **Events** still carry the Google account ID as `userId` (see [Devices,
+  users and places](devices-users-places.md#users)), not the profile ID.
+  Cloud sync uploads only the signed-in account's events, so events
+  another linked account recorded on the same device don't go up from
+  this one, though they usually already have from theirs.
+- Roles are still declared per email in `UserRolesTable`, and membership
+  requests are per email. Linked subjects share the owner's roles.
+- Google stays a login provider of the pool. An account can therefore
+  still get credentials straight from Cognito for its own Google
+  identity's folder, without the roles check, as before profiles. Remove
+  it once every account has a profile with an identity.
+- Any Google account can create a profile by signing in (one per subject;
+  `GET /api/auth` is throttled to 20 requests/s, burst 50). A lost race
+  leaves one unused profile row. Profiles are never deleted.
+- A linked subject's email in the links table is the one it had when it
+  linked.

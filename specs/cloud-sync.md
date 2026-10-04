@@ -13,8 +13,8 @@ uploads itself ([lib/cloud/](../presence_app/lib/cloud)).
 ## What's uploaded, and where
 
 Everything goes under the user's profile's **Cognito identity ID**
-(`us-east-1:<uuid>`), the same for every Google account linked to it
-(see [Profiles](profiles.md)), in the user-data bucket, with JSON and media in
+(`us-east-1:<uuid>`), the same for every account linked to the
+[profile](profiles.md), in the user-data bucket, with JSON and media in
 separate trees so the JSON can be queried on S3. The formats, fields and
 an Athena table are in [Recording and data formats](data-formats.md).
 

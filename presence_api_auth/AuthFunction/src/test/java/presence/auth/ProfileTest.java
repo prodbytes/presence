@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,9 +27,11 @@ class ProfileTest {
 
     private static final Instant NOW = Instant.parse("2026-10-04T12:00:00Z");
 
-    /** The accounts table, link codes, and what Cognito and S3 hold. */
-    private final Map<String, Profiles.Account> accounts = new HashMap<>();
-    private final Map<String, Profiles.LinkCode> codes = new HashMap<>();
+    private static final String GOOGLE = "https://accounts.google.com";
+
+    /** The profiles and subjects tables, link codes, and what Cognito and S3 hold. */
+    private final MemoryProfiles store = new MemoryProfiles();
+    private final Map<String, ProfileHandler.LinkCode> codes = new HashMap<>();
     /** Google ID token -> the identity it signs in to directly (GetId). */
     private final Map<String, String> googleIdentities = new HashMap<>();
     /** Identity -> the developer identifier (profile) linked to it. */
@@ -36,40 +39,16 @@ class ProfileTest {
     private final Set<String> foldersWithData = new HashSet<>();
     private final List<String> tokensIssued = new ArrayList<>();
     private Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+    private int ids;
 
-    private final Profiles.Backend backend = new Profiles.Backend() {
+    private final ProfileHandler.Backend backend = new ProfileHandler.Backend() {
         @Override
-        public Optional<Profiles.Account> account(String sub) {
-            return Optional.ofNullable(accounts.get(sub));
-        }
-
-        @Override
-        public boolean create(Profiles.Account account) {
-            return accounts.putIfAbsent(account.sub(), account) == null;
-        }
-
-        @Override
-        public void put(Profiles.Account account) {
-            accounts.put(account.sub(), account);
-        }
-
-        @Override
-        public void delete(String sub) {
-            accounts.remove(sub);
-        }
-
-        @Override
-        public List<Profiles.Account> members(String profileId) {
-            return accounts.values().stream().filter(a -> a.profileId().equals(profileId)).toList();
-        }
-
-        @Override
-        public void saveCode(String hash, Profiles.LinkCode code) {
+        public void saveCode(String hash, ProfileHandler.LinkCode code) {
             codes.put(hash, code);
         }
 
         @Override
-        public Optional<Profiles.LinkCode> takeCode(String hash, Instant now) {
+        public Optional<ProfileHandler.LinkCode> takeCode(String hash, Instant now) {
             var code = codes.remove(hash);
             return code == null || !code.expiresAt().isAfter(now) ? Optional.empty() : Optional.of(code);
         }
@@ -98,7 +77,14 @@ class ProfileTest {
     private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN), e -> Set.of());
 
     private ProfileHandler handler(boolean configured) {
-        return new ProfileHandler(roles, backend, configured, clock, new SecureRandom());
+        var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
+        return new ProfileHandler(roles, profiles, backend, configured, new SecureRandom());
+    }
+
+    /** The profile {@code sub}'s subject is linked to. */
+    private Profiles.Profile profileOf(String sub) {
+        var id = store.links.get(GOOGLE + "#" + sub);
+        return id == null ? null : store.profile(id);
     }
 
     private final ProfileHandler profiles = handler(true);
@@ -112,23 +98,24 @@ class ProfileTest {
 
         assertEquals(200, response.getStatusCode());
         assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\"}", response.getBody());
-        var account = accounts.get("work");
-        assertTrue(account.owner());
-        assertEquals("julio@nu01.com", account.ownerEmail());
-        assertEquals(account.profileId(), linked.get("us-east-1:work"));
-        // The next call reuses the profile.
+        var profile = profileOf("work");
+        assertEquals("profile_1", profile.id());
+        assertEquals(GOOGLE + "#work", profile.ownerSubject());
+        assertEquals("julio@nu01.com", profile.ownerEmail());
+        assertEquals("us-east-1:work", profile.identityId());
+        assertEquals("profile_1", linked.get("us-east-1:work"));
+        // The next call reuses the profile and its identity.
         profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
-        assertEquals(1, accounts.size());
-        assertEquals(List.of("us-east-1:work|" + account.profileId(), "us-east-1:work|" + account.profileId()),
-                tokensIssued);
+        assertEquals(1, store.profiles.size());
+        assertEquals(List.of("us-east-1:work|profile_1", "us-east-1:work|profile_1"), tokensIssued);
     }
 
     @Test
     void credentialsNeedPresenceUser() {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(403, response.getStatusCode());
-        assertTrue(accounts.isEmpty());
         assertTrue(tokensIssued.isEmpty());
+        assertFalse(profileOf("home").hasIdentity());
     }
 
     @Test
@@ -140,17 +127,30 @@ class ProfileTest {
         var linkedResponse = profiles.handleRequest(
                 call("POST /api/auth/profile/link", "home", "julio@gmail.com", " " + code.toLowerCase() + " "), null);
         assertEquals(200, linkedResponse.getStatusCode());
-        assertEquals("{\"accounts\":[{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
+        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+                + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
-        // The gmail account now has nu01.com's roles, here and in GET /api/auth.
+        // The gmail account now has nu01.com's roles and folder, here and in GET /api/auth.
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
-        var auth = new AuthHandler(roles, sub -> accounts.containsKey(sub) ? accounts.get(sub).ownerEmail() : null,
-                ExecutionMode.RBAC, new Settings(true, true));
-        assertEquals("{\"email\":\"julio@gmail.com\",\"roles\":[\"presence_admin\",\"presence_user\"]}",
+        var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
+        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\","
+                        + "\"roles\":[\"presence_admin\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
+        // And the Admin routes, which never make a profile.
+        assertEquals("julio@nu01.com", AuthHandler.ownerOf(AuthHandler.owners(new Profiles(store)),
+                Map.of("iss", GOOGLE, "sub", "home")));
+        assertNull(AuthHandler.ownerOf(AuthHandler.owners(new Profiles(store)), Map.of("iss", GOOGLE, "sub", "nobody")));
+        assertNull(store.links.get(GOOGLE + "#nobody"));
+    }
+
+    @Test
+    void theOwnersNewEmailCarriesItsRoles() {
+        profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@nu01.com", null), null);
+        profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@new.example", null), null);
+        assertEquals("julio@new.example", profileOf("work").ownerEmail());
     }
 
     @Test
@@ -165,7 +165,8 @@ class ProfileTest {
         clock = Clock.fixed(NOW.plus(ProfileHandler.CODE_TTL).plusSeconds(1), ZoneOffset.UTC);
         assertEquals(404, handler(true).handleRequest(
                 call("POST /api/auth/profile/link", "other", "ana@example.com", late), null).getStatusCode());
-        assertFalse(accounts.containsKey("other"));
+        // Refused before anything is made for the caller.
+        assertNull(profileOf("other"));
         assertEquals(400, link("other", "ana@example.com", "not a code").getStatusCode());
     }
 
@@ -190,7 +191,7 @@ class ProfileTest {
         var code = linkCode("work", "julio@nu01.com");
         var response = link("home", "julio@gmail.com", code);
         assertEquals(409, response.getStatusCode());
-        assertFalse(accounts.containsKey("home"));
+        assertNotEquals(profileOf("work").id(), profileOf("home").id());
     }
 
     @Test
@@ -201,11 +202,11 @@ class ProfileTest {
         assertEquals(409, link("work", "julio@nu01.com", other).getStatusCode());
         // A linked (not owning) account may move.
         assertEquals(200, link("home", "julio@gmail.com", linkCode("ana", "ana@nu01.com")).getStatusCode());
-        assertEquals(accounts.get("ana").profileId(), accounts.get("home").profileId());
+        assertEquals(profileOf("ana").id(), profileOf("home").id());
     }
 
     @Test
-    void unlinkingGivesTheAccountBackItsOwnFolder() {
+    void unlinkingGivesTheAccountBackAProfileOfItsOwn() {
         googleIdentities.put("tok-work", "us-east-1:work");
         googleIdentities.put("tok-home", "us-east-1:home");
         assertEquals(200, link("home", "julio@gmail.com", linkCode("work", "julio@nu01.com")).getStatusCode());
@@ -215,20 +216,23 @@ class ProfileTest {
         var response = profiles.handleRequest(
                 call("POST /api/auth/profile/unlink", "work", "julio@nu01.com", "JULIO@gmail.com"), null);
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"accounts\":[{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":true}]}",
-                response.getBody());
-        assertFalse(accounts.containsKey("home"));
+        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+                + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":true}]}", response.getBody());
+        assertNull(store.links.get(GOOGLE + "#home"));
         assertEquals(404, profiles.handleRequest(
                 call("POST /api/auth/profile/unlink", "work", "julio@nu01.com", "nobody@nu01.com"), null).getStatusCode());
+        // Its next sign-in: a new profile it owns, on its own Google identity.
+        var again = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
+        assertEquals(403, again.getStatusCode(), "no roles of its own any more");
+        assertEquals(GOOGLE + "#home", profileOf("home").ownerSubject());
     }
 
     @Test
-    void theListingBeforeAProfileIsJustTheCaller() {
+    void theListingOfANewAccountIsJustItself() {
         var response = profiles.handleRequest(call("GET /api/auth/profile", "home", "Julio@Gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"accounts\":[{\"email\":\"julio@gmail.com\",\"owner\":true,\"current\":true}]}",
-                response.getBody());
-        assertTrue(accounts.isEmpty());
+        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+                + "{\"email\":\"julio@gmail.com\",\"owner\":true,\"current\":true}]}", response.getBody());
     }
 
     @Test
@@ -246,8 +250,9 @@ class ProfileTest {
     void anUnverifiedEmailIsRefused() {
         var event = call("POST /api/auth/credentials", "work", "julio@nu01.com", null);
         event.getRequestContext().getAuthorizer().getJwt().setClaims(
-                Map.of("sub", "work", "email", "julio@nu01.com", "email_verified", "false"));
+                Map.of("iss", GOOGLE, "sub", "work", "email", "julio@nu01.com", "email_verified", "false"));
         assertEquals(403, profiles.handleRequest(event, null).getStatusCode());
+        assertTrue(store.links.isEmpty());
     }
 
     @Test
@@ -285,7 +290,7 @@ class ProfileTest {
     /** A request the JWT authorizer let through: Google account {@code sub}, its token {@code tok-<sub>}. */
     private static APIGatewayV2HTTPEvent call(String route, String sub, String email, String body) {
         var jwt = new APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT();
-        jwt.setClaims(Map.of("sub", sub, "email", email, "email_verified", "true"));
+        jwt.setClaims(Map.of("iss", GOOGLE, "sub", sub, "email", email, "email_verified", "true"));
         var authorizer = new APIGatewayV2HTTPEvent.RequestContext.Authorizer();
         authorizer.setJwt(jwt);
         var context = new APIGatewayV2HTTPEvent.RequestContext();

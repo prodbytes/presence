@@ -57,19 +57,19 @@ class RolesTest {
 
     @Test
     void theHandlerReturnsTheRolesAsJson() {
-        var handler = new AuthHandler(roles);
+        var handler = new AuthHandler(roles, profiles());
         var response = handler.handleRequest(event(Map.of(
                 "email", "julia@nu01.com", "email_verified", "true")), null);
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
-        assertEquals("{\"email\":\"julia@nu01.com\",\"roles\":[\"owner\",\"presence_admin\",\"presence_user\"]}", response.getBody());
+        assertEquals("{\"email\":\"julia@nu01.com\",\"profile\":null,\"roles\":[\"owner\",\"presence_admin\",\"presence_user\"]}", response.getBody());
 
         var none = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"x@example.com\",\"roles\":[]}", none.getBody());
+        assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", none.getBody());
 
         var noClaims = handler.handleRequest(new APIGatewayV2HTTPEvent(), null);
-        assertEquals("{\"email\":null,\"roles\":[]}", noClaims.getBody());
+        assertEquals("{\"email\":null,\"profile\":null,\"roles\":[]}", noClaims.getBody());
     }
 
     @Test
@@ -81,7 +81,7 @@ class RolesTest {
 
     @Test
     void theAnonymousUserMayOnlySignInUnderRbac() {
-        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC);
         var response = handler.handleRequest(anonymous(), null);
         assertEquals(200, response.getStatusCode());
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
@@ -91,7 +91,7 @@ class RolesTest {
 
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
-        var handler = new AuthHandler(roles, ExecutionMode.DEV);
+        var handler = new AuthHandler(roles, profiles(), ExecutionMode.DEV);
         assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_user\"],"
                 + "\"settings\":{\"oidc\":false,\"aws\":false}}",
                 handler.handleRequest(anonymous(), null).getBody());
@@ -99,7 +99,7 @@ class RolesTest {
 
     @Test
     void theAnonymousRouteSaysWhichSettingsAreSet() {
-        var handler = new AuthHandler(roles, ExecutionMode.RBAC,
+        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC,
                 Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket"));
         assertTrue(handler.handleRequest(anonymous(), null).getBody()
                 .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true}}"));
@@ -111,9 +111,9 @@ class RolesTest {
 
     @Test
     void signedInUsersStillGetTheirOwnRolesInRbac() {
-        var handler = new AuthHandler(roles, ExecutionMode.RBAC);
+        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC);
         var response = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"x@example.com\",\"roles\":[]}", response.getBody());
+        assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
     }
 
     private static APIGatewayV2HTTPEvent anonymous() {
@@ -124,9 +124,14 @@ class RolesTest {
 
     @Test
     void emailsAreEscapedInTheResponse() {
-        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()));
+        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()), profiles());
         var response = handler.handleRequest(event(Map.of("email", "a\"b@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"a\\\"b@example.com\",\"roles\":[]}", response.getBody());
+        assertEquals("{\"email\":\"a\\\"b@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
+    }
+
+    /** Profiles for tokens without a subject: none. */
+    static Profiles profiles() {
+        return new Profiles(new MemoryProfiles());
     }
 
     static APIGatewayV2HTTPEvent event(Map<String, String> claims) {
