@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/system_health.dart';
+import 'package:presence_app/theme.dart';
 
 import 'fakes.dart';
 
@@ -92,6 +93,83 @@ void main() {
         tooltip(tester, 'oidc'),
         'OIDC: not set in this build; sign-in is off',
       );
+    });
+  });
+
+  group('the Log tab\'s health panel', () {
+    testWidgets('checks the auth API at open and every 30 s', (tester) async {
+      final client = FakeRolesClient()..settings = (oidc: true, aws: false);
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: client,
+        oidcClient: true,
+      );
+      addTearDown(roles.dispose);
+      final history = HealthHistory();
+      await tester.pump();
+      expect(client.anonymousCalls, 1);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HealthPanel(roles: roles, oidcClient: true, history: history),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(client.anonymousCalls, 2);
+      expect(find.textContaining('Last update '), findsOneWidget);
+      expect(find.text('🔌 API ✅'), findsOneWidget);
+      expect(find.text('🔑 OIDC ✅'), findsOneWidget);
+
+      // The API goes away: the next check says so.
+      client.anonymousError = Exception('offline');
+      await tester.pump(const Duration(seconds: 29));
+      expect(client.anonymousCalls, 2);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(client.anonymousCalls, 3);
+      expect(find.text('🔌 API ❌'), findsOneWidget);
+
+      // And back, with a setting changed.
+      client
+        ..anonymousError = null
+        ..settings = (oidc: false, aws: false);
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pump();
+      expect(client.anonymousCalls, 4);
+      expect(find.text('🔌 API ✅'), findsOneWidget);
+      expect(find.text('🔑 OIDC ⚠️'), findsOneWidget);
+
+      // A brick per check: green, red, then green again.
+      expect(history.checks.map((c) => c.failed), [false, true, true]);
+      Color brick(int i) =>
+          (tester
+                      .widget<Container>(
+                        find.descendant(
+                          of: find.byKey(Key('health-brick-$i')),
+                          matching: find.byType(Container),
+                        ),
+                      )
+                      .decoration!
+                  as BoxDecoration)
+              .color!;
+      expect(brick(0), Gruvbox.green);
+      expect(brick(1), isNot(Gruvbox.green));
+
+      // Tapping one shows its details; tapping it again hides them.
+      await tester.tap(find.byKey(const Key('health-brick-1')));
+      await tester.pump();
+      expect(find.textContaining('failed'), findsOneWidget);
+      expect(find.textContaining('Auth API: unreachable'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('health-brick-1')));
+      await tester.pump();
+      expect(find.byKey(const Key('health-detail')), findsNothing);
+
+      // Closed: no more checks, but the history stays.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 60));
+      expect(client.anonymousCalls, 4);
+      expect(history.checks, hasLength(3));
     });
   });
 }

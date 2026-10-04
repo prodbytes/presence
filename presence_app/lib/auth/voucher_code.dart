@@ -9,6 +9,22 @@ String seasonOf(DateTime date) => switch (date.month) {
   _ => 'AUTUMN',
 };
 
+/// The first day of [date]'s season (local midnight): 1 December,
+/// 1 March, 1 June or 1 September.
+DateTime seasonStart(DateTime date) {
+  // Months since the season began: 0, 1 or 2.
+  final into = date.month % 3;
+  return DateTime(date.year, date.month - into);
+}
+
+/// The last day of [date]'s season (local midnight): the end of February,
+/// May, August or November.
+DateTime seasonEnd(DateTime date) {
+  final start = seasonStart(date);
+  // Day 0 of the next season's first month is the season's last day.
+  return DateTime(start.year, start.month + 3, 0);
+}
+
 /// The animals a suggested code picks from.
 const voucherAnimals = [
   'ALPACA',

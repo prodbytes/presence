@@ -213,13 +213,16 @@ class _PresenceAppState extends State<PresenceApp> {
             settings: _persistence,
             // Clips and events fetched from the cloud after sign-in join the
             // local history, like a restore from IndexedDB.
-            onRemote: (remote) async => _log.addHistory(
-              await _persistence.importRemote(
+            // A Capture all request from another device takes a clip here.
+            onRemote: (remote) async {
+              final events = await _persistence.importRemote(
                 events: remote.events,
                 clips: remote.clips,
                 media: remote.media,
-              ),
-            ),
+              );
+              _log.addHistory(events);
+              _rig.answerCaptureAll(events, deviceId: _deviceId);
+            },
           );
     _persistence
       ..attachRig(_rig)
@@ -738,6 +741,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ClipTrigger.scheduled => 'Scheduled clip',
       ClipTrigger.startup => 'Startup clip',
       ClipTrigger.manual => 'Clip started',
+      ClipTrigger.all => 'Capture all',
     };
     // For motion clips, the readiness pill carries the cooldown after it.
     _showMessage(
@@ -761,7 +765,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
   }
 
-  Future<void> _clip() => widget.rig.requestClips(AppEventBusScope.of(context));
+  /// The Clip button: this camera's clip; with the All grid showing, a
+  /// Capture all request too, which cloud sync takes to the profile's other
+  /// devices so each takes a clip ([CameraRig.answerCaptureAll]).
+  Future<void> _clip() {
+    final bus = AppEventBusScope.of(context);
+    if (!(_showAll && _hasAccess)) return widget.rig.requestClips(bus);
+    bus.publish(AppEvent.captureAll());
+    return widget.rig.requestClips(bus, trigger: ClipTrigger.all);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -837,6 +849,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               auth: widget.auth,
               roles: widget.roles,
               profiles: widget.profiles,
+              log: widget.log,
+              deviceId: widget.deviceId,
             ),
             const SizedBox(width: 4),
           ] else ...[
@@ -882,6 +896,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 sync: widget.sync,
                 roles: widget.roles,
                 profiles: widget.profiles,
+                log: widget.log,
+                deviceId: widget.deviceId,
               ),
             const SizedBox(width: 4),
           ],
@@ -944,7 +960,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                 ),
               ),
-              if (_showLog) SafeArea(child: LogView(log: AppLog.instance)),
+              if (_showLog)
+                SafeArea(
+                  child: LogView(
+                    log: AppLog.instance,
+                    health: HealthPanel(roles: widget.roles, sync: widget.sync),
+                  ),
+                ),
             ],
           ),
           // Bottom left, across from Flip and Clip: the battery, whether a

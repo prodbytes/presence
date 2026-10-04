@@ -147,6 +147,10 @@ enum ClipTrigger {
 
   /// The app started (automatic, with scheduled clips on).
   startup,
+
+  /// Capture all: the Clip button pressed with the All grid showing, on
+  /// this device or another of the profile ([AppEvent.captureAll]).
+  all,
 }
 
 /// Published when a clip starts: from the Clip button, or automatically on
@@ -167,12 +171,14 @@ class ClipRequested extends AppEvent {
            ClipTrigger.scheduled => Icons.schedule,
            ClipTrigger.startup => Icons.power_settings_new,
            ClipTrigger.manual => Icons.videocam,
+           ClipTrigger.all => Icons.grid_view,
          },
          title: switch (trigger) {
            ClipTrigger.motion => 'Motion detected',
            ClipTrigger.scheduled => 'Scheduled clip',
            ClipTrigger.startup => 'Startup clip',
            ClipTrigger.manual => 'Clip requested',
+           ClipTrigger.all => 'Capture all',
          },
          detail: clip.cameraLabel,
          type: clipRequestedType,

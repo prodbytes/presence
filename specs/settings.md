@@ -10,8 +10,11 @@
   [Device location and battery](device-location.md).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its
-  recordings, as auto-exposure compensation. Cameras opened later, after a
-  flip or restart, get the current value. On Android it's clamped to what
+  recordings, as auto-exposure compensation; then, once the slider has
+  stayed put for 0.8 s, the camera view restarts (closes and reopens) with
+  the new value, so one drag restarts it once. The restart drops the
+  camera's rolling "before" history, as a flip does. Cameras opened later,
+  after a flip or restart, get the current value. On Android it's clamped to what
   the camera supports (the S40: −2 to +2 EV). On web it uses the browser's
   `exposureCompensation` constraint, where the camera supports it, and does
   nothing elsewhere.
@@ -85,6 +88,9 @@
     (sign-in is off), ⚠️ on one only;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
+  - Here it shows the start check's answer; the [Log](log.md) tab's
+    health panel shows the same line, checked again every 30 s, with a
+    history.
 - **Add a device**, the last thing, under the health line, shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
