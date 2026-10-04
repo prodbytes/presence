@@ -2011,3 +2011,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        index, which listed Profiles twice. 64 JUnit tests (2 new) and 309
        Flutter tests (3 new, 2 rewritten) pass. Not run in Floci: the
        main folder's services are shared.
+221. **(Fix found releasing 0.6: the RC deploy failed in the identity
+    stack.)** (2026-10-04)
+    - #144 had changed the authenticated role's description, which needs
+      `iam:UpdateRoleDescription`. The RC deploy role lacks it, so
+      `presence-rc-identity` failed and its rollback failed too
+      (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
+      text, with a comment saying why it stays.
