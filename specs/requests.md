@@ -2261,3 +2261,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       and every device ID on the signed-in user's events, this device
       first and labelled, the rest sorted; the list updates live.
     - Specs: [Sign-in](sign-in.md). 332 Flutter tests (3 new) pass.
+
+235. **Cognito still not working; the logs are still insufficient.**
+     (2026-10-05) The log showed `Cognito HTTP 502 from
+     /api/auth/credentials: the profile service failed (cause:
+     CognitoIdentity UnknownOperationException (HTTP 400); request …)`.
+    - Found: the requests ran on the local stack. The auth API's Lambda
+      runs inside Floci, which received `cognito-identity GetId` and
+      doesn't implement Cognito Identity. Production's profile function
+      logged no failures in that hour.
+    - Logs: the API's `cause` now names the operation that failed
+      (`CognitoIdentity GetId: UnknownOperationException (HTTP 400)`), and
+      an `UnknownOperationException` adds that the endpoint doesn't
+      implement it (a local AWS emulator?). The function's log line
+      carries the same cause.
+    - Not fixed: cloud sync on the local stack needs Cognito Identity,
+      which Floci lacks; recorded under [Profiles](profiles.md#known-limitations).
+    - Specs: [Profiles](profiles.md), [Log](log.md). 73 auth API tests
+      (1 new) pass.
+

@@ -324,6 +324,27 @@ class ProfileTest {
     }
 
     @Test
+    void aFailureNamesTheOperationAndAnEmulatorThatLacksIt() {
+        var e = CognitoIdentityException.builder()
+                .statusCode(400)
+                .awsErrorDetails(AwsErrorDetails.builder()
+                        .serviceName("CognitoIdentity")
+                        .errorCode("UnknownOperationException")
+                        .build())
+                .build();
+        e.setStackTrace(new StackTraceElement[] {
+                new StackTraceElement("software.amazon.awssdk.core.internal.handler.BaseSyncClientHandler",
+                        "execute", null, 1),
+                new StackTraceElement("software.amazon.awssdk.services.cognitoidentity.DefaultCognitoIdentityClient",
+                        "getId", null, 1),
+                new StackTraceElement("presence.auth.ProfileBackend", "googleIdentity", null, 1),
+        });
+
+        assertEquals("CognitoIdentity GetId: UnknownOperationException (HTTP 400); "
+                + "the endpoint doesn't implement it (a local AWS emulator?)", ProfileHandler.cause(e));
+    }
+
+    @Test
     void anOtherFailureNamesItsType() {
         assertEquals("IllegalStateException", ProfileHandler.cause(new IllegalStateException("x")));
     }
