@@ -75,6 +75,12 @@ at the top of the Log tab:
   asked; "Checking…" before the start check is done).
 - The same health line as [Settings](settings.md): `🔌 API · ☁️ AWS ·
   🔑 OIDC`, with the same statuses and tooltips.
+- **📱 Devices N**: how many distinct devices recorded the events the
+  user has (`HealthPanel.devicesIn`): the device IDs of the signed-in
+  user's events and those recorded signed out, as the Events tab counts
+  them (`EventTimeline.ofUser`), local and synced from the cloud; events
+  not saved yet count as this device. It updates as events arrive or are
+  deleted.
 - **Every 30 s**, and when the tab opens, it checks again:
   `RolesService.checkApi` asks `GET /api/auth/anonymous` (5 s timeout)
   whether the API answers and which settings it has, and updates the

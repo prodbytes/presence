@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/events.dart';
 import 'package:presence_app/system_health.dart';
 import 'package:presence_app/theme.dart';
 
@@ -170,6 +173,72 @@ void main() {
       await tester.pump(const Duration(seconds: 60));
       expect(client.anonymousCalls, 4);
       expect(history.checks, hasLength(3));
+    });
+  });
+
+  group('the health panel\'s device count', () {
+    AppEvent event(String? device, {String? user}) => AppEvent(
+      icon: Icons.circle,
+      title: 'e',
+      deviceId: device,
+      userId: user,
+    );
+
+    test('counts distinct devices; unsaved events are this device\'s', () {
+      expect(HealthPanel.devicesIn([]), 0);
+      expect(
+        HealthPanel.devicesIn([
+          event('a'),
+          event('b'),
+          event('a'),
+          event(null),
+        ], deviceId: 'c'),
+        3,
+      );
+      expect(HealthPanel.devicesIn([event('a'), event(null)]), 1);
+    });
+
+    testWidgets('shows the count of the user\'s devices, kept up to date', (
+      tester,
+    ) async {
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: FakeRolesClient(),
+        oidcClient: true,
+      );
+      addTearDown(roles.dispose);
+      final bus = StreamController<AppEvent>();
+      final log = EventLog(bus.stream);
+      addTearDown(() {
+        log.dispose();
+        bus.close();
+      });
+      log.addHistory([
+        event('a', user: 'ana'),
+        event('b', user: 'ana'),
+        event('z', user: 'bob'),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HealthPanel(
+              roles: roles,
+              oidcClient: true,
+              history: HealthHistory(),
+              events: log,
+              userId: 'ana',
+              deviceId: 'a',
+              interval: const Duration(hours: 1),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('📱 Devices 2'), findsOneWidget);
+
+      log.addHistory([event('c', user: 'ana')]);
+      await tester.pump();
+      expect(find.text('📱 Devices 3'), findsOneWidget);
     });
   });
 }

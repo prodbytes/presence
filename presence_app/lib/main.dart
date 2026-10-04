@@ -948,7 +948,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 SafeArea(
                   child: LogView(
                     log: AppLog.instance,
-                    health: HealthPanel(roles: widget.roles, sync: widget.sync),
+                    health: HealthPanel(
+                      roles: widget.roles,
+                      sync: widget.sync,
+                      events: widget.log,
+                      userId: widget.auth.user?.id,
+                      deviceId: widget.deviceId,
+                    ),
                   ),
                 ),
             ],

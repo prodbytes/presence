@@ -2184,3 +2184,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       only) and CORS (the prod origin). No change needed.
     - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
       auth API tests pass.
+
+234. **In the health check panel on the Log tab, also add the count of
+     distinct devices from events.** (2026-10-05)
+    - The panel shows **📱 Devices N** under the health line: the distinct
+      device IDs of the user's events (`HealthPanel.devicesIn`, over
+      `EventTimeline.ofUser`), local and synced, with events not saved yet
+      counted as this device. Updates live.
+    - Specs: [Log](log.md). 331 Flutter tests (2 new) pass.
