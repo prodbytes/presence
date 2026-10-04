@@ -27,10 +27,14 @@ at every launch and isn't uploaded.
 So a failed sync says why (see [Cloud sync](cloud-sync.md)):
 
 - `Presence: cloud sync failed: …`, with the error (`S3 HTTP 403: <S3's
-  XML error>`, `Cognito <type>: <message>`, a network error) and, except
-  for Cognito errors, the stack trace;
-- `Presence: /api/auth/credentials answered HTTP <status>: <body>` (its
-  first 300 characters), when the auth API refuses AWS credentials;
+  XML error>`, a network error) and its stack trace;
+- `Presence: cloud sync failed, stopped until sign-in or retry: Cognito
+  <type>: <message> (<detail>)`, once, when credentials can't be had. For
+  the auth API, `<type>` is `HTTP <status> from /api/auth/credentials`
+  (or `NotAuthorizedException` for a 401), and `<detail>` is its `cause`
+  and `requestId` (`cause: CognitoIdentity AccessDeniedException (HTTP
+  400); request <id>`), or the first 300 characters of a body that isn't
+  JSON;
 - `Presence: cloud credentials rejected, renewing: …`, when credentials
   expire during a pass and the app gets new ones.
 

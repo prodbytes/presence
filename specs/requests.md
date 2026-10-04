@@ -2131,3 +2131,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       emulator and a wireless device, several, unauthorized,
       `ANDROID_SERIAL`). Not run on a phone: none was attached (macOS saw
       no phone on USB).
+230. **Cognito failures repeat in the log: if it fails, stop trying, and
+    print a better error to debug it.** (2026-10-04)
+    - The app: a failure to get credentials (`/api/auth/credentials` or
+      Cognito) stops cloud sync. No pass runs, for new events or every
+      15 s, until the Google ID token changes, the account sheet's new
+      **Retry** button, or a profile link's reconnect. It's logged once,
+      as `Presence: cloud sync failed, stopped until sign-in or retry:
+      Cognito HTTP 502 from /api/auth/credentials: <error> (cause: …;
+      request …)`, instead of two lines a pass.
+    - The auth API: the 502 now carries `cause` (the AWS service, error
+      code and status, or the exception type) and `requestId` (the Lambda
+      request ID, also in its log line), still without AWS's message.
+    - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
+      [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
+      (4 new) pass.

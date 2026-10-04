@@ -150,7 +150,13 @@
 
 - `profile` is `null` only for a token without an issuer or subject.
 - The profile routes need a verified email. A Cognito or DynamoDB failure
-  answers 502 without its details. Without an identity pool and bucket
+  answers 502 `{"error": "the profile service failed", "cause",
+  "requestId"}`: `cause` is the AWS service, error code and HTTP status
+  (`CognitoIdentity AccessDeniedException (HTTP 400)`), or the exception's
+  type for other failures; `requestId` is the Lambda request ID, which
+  finds the full error in the function's log (`presence: <route> failed
+  (request <id>): <exception>`). AWS's message, which names ARNs, isn't
+  sent. Without an identity pool and bucket
   (locally, by default), every profile route but the listing answers 503.
 
 ## Where it's kept
