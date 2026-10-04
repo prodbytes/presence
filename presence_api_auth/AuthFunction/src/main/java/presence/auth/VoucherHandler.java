@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
@@ -35,9 +36,11 @@ import static presence.auth.AuthHandler.response;
 /**
  * {@code POST /api/auth/voucher}: a signed-in user redeems a voucher code
  * (the plain-text body). A valid code (it exists, hasn't expired, has uses
- * left, and this email hasn't used it) counts a use and grants its role.
- * Every other code gets the same 404, so an answer tells nothing about
- * which codes exist. Admins create vouchers on the Admin screen (see
+ * left, and this email hasn't used it) with a full (100%) discount counts a
+ * use and grants its role. A valid code with a smaller discount gets 402
+ * with its discount, and grants nothing and counts no use: the user would
+ * pay the rest, which isn't built yet. Every other code gets the same 404,
+ * so an answer tells nothing about which codes exist. Admins create vouchers on the Admin screen (see
  * {@link AdminHandler}), with a random code or one they choose, and a
  * discount (a percentage, 100 by default).
  */
@@ -77,6 +80,11 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                     + ",\"createdAt\":" + Json.string(createdAt.toString())
                     + ",\"discount\":" + discount + "}";
         }
+
+        /** Whether {@code email} may redeem it at {@code now}, payment aside. */
+        boolean redeemableBy(String email, Instant now) {
+            return expiresAt.isAfter(now) && uses < maxUses && !redeemedBy.contains(email);
+        }
     }
 
     /** Where vouchers are kept. */
@@ -90,9 +98,13 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /** Deletes the voucher, if there is one. */
         void delete(String code);
 
+        /** The voucher, or null if there's none. */
+        Voucher find(String code);
+
         /**
          * Counts a use of {@code code} by {@code email}, if it exists, expires
-         * after {@code now}, has uses left and {@code email} hasn't used it.
+         * after {@code now}, has uses left, {@code email} hasn't used it, and
+         * its discount is full (nothing left to pay).
          *
          * @return the voucher, as claimed, or null if it can't be used
          */
@@ -134,8 +146,15 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(400, "{\"error\":\"the body must be a voucher code\"}");
         }
         var code = normalize(body);
-        var voucher = code == null ? null : store.claim(code, email, clock.instant());
+        var now = clock.instant();
+        var voucher = code == null ? null : store.claim(code, email, now);
         if (voucher == null) {
+            var partial = code == null ? null : store.find(code);
+            if (partial != null && partial.discount() < FULL_DISCOUNT && partial.redeemableBy(email, now)) {
+                // Paying the rest isn't built yet: nothing is granted or counted.
+                return response(402, "{\"error\":\"the rest must be paid\",\"discount\":"
+                        + partial.discount() + "}");
+            }
             return response(404, "{\"error\":\"the code is invalid, expired or used up\"}");
         }
         var role = voucher.role();
@@ -260,6 +279,16 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             }
 
             @Override
+            public Voucher find(String code) {
+                var item = dynamo.getItem(GetItemRequest.builder()
+                        .tableName(table)
+                        .key(Map.of("code", AttributeValue.fromS(code)))
+                        .consistentRead(true)
+                        .build()).item();
+                return item == null || item.isEmpty() ? null : voucher(item);
+            }
+
+            @Override
             public void delete(String code) {
                 dynamo.deleteItem(DeleteItemRequest.builder()
                         .tableName(table)
@@ -275,10 +304,13 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                             .key(Map.of("code", AttributeValue.fromS(code)))
                             // One conditional write: concurrent redemptions can't overspend it.
                             .updateExpression("SET uses = uses + :one ADD redeemedBy :who")
+                            // Vouchers from before discounts have none: they're full.
                             .conditionExpression("attribute_exists(code) AND expiresAt > :now"
-                                    + " AND uses < maxUses AND NOT contains(redeemedBy, :email)")
+                                    + " AND uses < maxUses AND NOT contains(redeemedBy, :email)"
+                                    + " AND (attribute_not_exists(discount) OR discount >= :full)")
                             .expressionAttributeValues(Map.of(
                                     ":one", AttributeValue.fromN("1"),
+                                    ":full", AttributeValue.fromN(Integer.toString(FULL_DISCOUNT)),
                                     ":who", AttributeValue.fromSs(List.of(email)),
                                     ":email", AttributeValue.fromS(email),
                                     ":now", millis(now)))

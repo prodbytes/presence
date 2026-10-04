@@ -35,8 +35,11 @@ opens "Request access":
   Redeem it to get in right away."): disabled while the field is blank;
   Enter redeems too. It posts the code as plain text to
   `POST /api/auth/voucher`. A valid code clears the field and re-asks
-  `GET /api/auth`, so the user gets in at once. An invalid, expired or
-  used-up code (404) says "That code is invalid, expired or used up.";
+  `GET /api/auth`, so the user gets in at once. A valid code with a
+  discount under 100% (402) says "That code gives 25% off. Paying the rest
+  isn't available yet, so it can't let you in." and keeps the code. An
+  invalid, expired or used-up code (404) says "That code is invalid,
+  expired or used up.";
   throttling (429) says to try again in a minute;
 - **Check again** re-asks `GET /api/auth`, so a granted user gets in
   without signing out.
@@ -60,9 +63,10 @@ A voucher grants a role to whoever redeems it:
   case and separators (spaces, dashes, underscores); twelve characters of
   that alphabet, typed whole or as three groups of four, take the random
   form.
-- **Discount:** a percentage, 1 to 100, 100 by default. It's stored,
-  listed and returned on redemption; nothing charges for Presence yet, so
-  it doesn't change what the voucher grants.
+- **Discount:** a percentage, 1 to 100, 100 by default. Only a 100%
+  voucher grants its role. A valid voucher with less is answered 402 with
+  its discount: no role is granted and no use is counted, because the
+  user would pay the rest, and payment isn't built yet.
 - **Role:** `presence_user` (Member) or `presence_admin` (Admin). An Admin
   voucher also grants `presence_user`, since the Admin screen needs both.
   Only a `presence_root` may create an Admin voucher (403 for other
@@ -81,6 +85,10 @@ exists, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
 is then merged into the user's roles in `UserRolesTable`; if that fails, the
 use is given back. Every refused code gets the same 404, so answers don't
 tell which codes exist, and the route is throttled (1 a second, burst 5).
+The update's condition also requires a full discount (or none stored, for
+vouchers from before discounts); when it fails, the code is read back,
+and one this email could otherwise redeem with a partial discount gets
+402 instead of 404.
 
 ## The Admin screen
 
@@ -144,7 +152,9 @@ is the app's client (a fake in tests).
   them all, so keep few uses and short expiries on them, or clear the
   field for a random code. Codes an admin types can be weaker still.
 - The suggested season is the northern hemisphere's.
-- The discount is only recorded: nothing uses it yet.
+- Vouchers under 100% can't be used yet: paying the rest isn't built.
+  The 402 tells a valid partial code from an invalid one, but only for
+  codes that work.
 - Vouchers are listed with a table scan: fine for the few an
   administrator creates, not for thousands.
 - There is no way to revoke access from the app; remove the role in the

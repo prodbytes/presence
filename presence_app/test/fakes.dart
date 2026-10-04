@@ -407,6 +407,7 @@ class FakeMembershipClient implements MembershipClient {
     );
     if (i < 0) throw RolesException(404);
     final v = codes[i];
+    if (v.discount < 100) throw PaymentRequiredException(v.discount);
     codes[i] = Voucher(
       code: v.code,
       role: v.role,

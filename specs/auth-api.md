@@ -32,7 +32,10 @@ site (`/api/*` in the CloudFront distribution; see
   Admin screen's. See [Membership](membership.md);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
-  [...], "discount": 100}`, or 404 for any code that can't be redeemed;
+  [...], "discount": 100}` when its discount is 100%; 402 `{"error",
+  "discount"}` for a valid code with less (nothing granted or counted:
+  the rest would be paid, which isn't built); or 404 for any code that
+  can't be redeemed;
   throttled to 1 request/s (burst 5). **`GET /api/auth/vouchers`**,
   **`POST /api/auth/vouchers`** (form-encoded `role`, `expiresAt`
   ISO-8601, `maxUses`, and optionally `code`, random when absent or
@@ -87,7 +90,7 @@ site (`/api/*` in the CloudFront distribution; see
   - the roles function may only read `UserRolesTable`, get and put in
     `ProfileSubjectsTable`, and get, put and update in `ProfilesTable`;
   - the membership function may only put items in `MembershipTable`;
-  - the voucher function may update items in `VoucherTable`, and read and
+  - the voucher function may get and update items in `VoucherTable`, and read and
     update `UserRolesTable`;
   - the admin function may read and update `UserRolesTable`, scan, update
     and delete in `MembershipTable`, put, scan and delete in
@@ -127,7 +130,8 @@ site (`/api/*` in the CloudFront distribution; see
   - profile names are cleaned to one short line;
   - vouchers: the code format and loose typing, chosen codes; admins
     only; creation's role, expiry, uses, code and discount checks; a
-    taken code (409); the discount stored and answered; newest first; deletion; redeeming once
+    taken code (409); the discount stored and answered; a partial
+    discount answered 402, granting nothing and counting no use; newest first; deletion; redeeming once
     per email, running out, expiring, unknown codes, verified emails, an
     Admin voucher also granting `presence_user`, a failed grant giving the
     use back, only roots creating Admin vouchers, and no root vouchers;

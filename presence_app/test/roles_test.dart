@@ -344,6 +344,39 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
+    testWidgets('a partly discounted voucher lets nobody in yet', (
+      tester,
+    ) async {
+      final roles = FakeRolesClient.none();
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: 'AUTUMN-OTTER-4821',
+            role: userRole,
+            expiresAt: DateTime.now().add(const Duration(days: 1)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.now(),
+            discount: 25,
+          ),
+        )
+        ..onRedeem = (role) => roles.roles = [role];
+      await launch(tester, roles, membership);
+      await tester.tap(find.byKey(const Key('sign-up')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('voucher-code')),
+        'autumn-otter-4821',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('redeem-voucher')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('That code gives 25% off'), findsOneWidget);
+      expect(membership.redeemed, isEmpty);
+      expect(membership.codes.single.uses, 0);
+      expect(roles.roles, isEmpty);
+    });
+
     testWidgets('a presence_admin creates and deletes voucher codes', (
       tester,
     ) async {
