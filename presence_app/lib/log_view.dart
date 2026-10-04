@@ -6,10 +6,12 @@ import 'app_log.dart';
 /// The **Log** tab, for admins (and everyone in DEV): the app's latest log
 /// messages ([AppLog]), newest first, with the time of each; errors in the
 /// error color. Copy puts the whole log on the clipboard; Clear empties it.
+/// [health], the health panel, shows above it.
 class LogView extends StatelessWidget {
-  const LogView({super.key, required this.log});
+  const LogView({super.key, required this.log, this.health});
 
   final AppLog log;
+  final Widget? health;
 
   static String _time(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');
@@ -24,6 +26,7 @@ class LogView extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final mono = theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
+    final health = this.health;
     return ListenableBuilder(
       listenable: log,
       builder: (context, _) {
@@ -32,6 +35,7 @@ class LogView extends StatelessWidget {
           key: const Key('log-view'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            ?health,
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
               child: Row(

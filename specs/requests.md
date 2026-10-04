@@ -2146,6 +2146,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
       [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
       (4 new) pass.
+231. **On the top of the log view add a health check panel, with the same
+    checks as the settings view (API, AWS/S3, OIDC) and last update, run
+    every 30 s; also show a clickable history of health checks as small
+    bricks, red for any failed check, green when all pass.** (2026-10-05)
+    - The Log tab opens with a **Health** card
+      ([lib/system_health.dart](../presence_app/lib/system_health.dart),
+      `HealthPanel`): the Settings health line, "Last update HH:MM:SS",
+      and a row of bricks, one per check, oldest first: green when all
+      passed, red when any is ❌ or ⚠️. Tapping a brick shows that check's
+      time and the three statuses; tapping it again hides them.
+    - The checks run when the tab opens and every 30 s while it's open:
+      `RolesService.checkApi` asks `GET /api/auth/anonymous` again and
+      updates the API status and the settings it reports (the execution
+      mode stays the start check's). AWS shows the cloud sync's latest
+      pass. The history (`HealthHistory`, the latest 120 checks) is in
+      memory, so it outlasts closing the tab but not a restart.
+    - Specs: [Log](log.md), [Settings screen](settings.md). 329 Flutter
+      tests (1 new) pass.
 232. **Make AWS access work in prod: events synced through S3 with the
     Cognito identity pool; verify the policy and how profile IDs are
     handled.** (2026-10-05)
@@ -2163,4 +2181,3 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       only) and CORS (the prod origin). No change needed.
     - Specs: [Profiles](profiles.md). ProfileBackendTest (2 new) and 71
       auth API tests pass.
-
