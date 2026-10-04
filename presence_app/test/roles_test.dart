@@ -7,6 +7,7 @@ import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/tab_memory.dart';
 
 import 'fakes.dart';
 
@@ -379,26 +380,128 @@ void main() {
       expect(roles.roles, isEmpty);
     });
 
-    testWidgets('the Log tab: admins and DEV only', (tester) async {
-      AppLog.instance.add('Presence: cloud sync failed: S3 HTTP 403: denied');
+    group('the Log tab', () {
       final logTab = find.byIcon(Icons.receipt_long);
+      const message = 'Presence: cloud sync failed: S3 HTTP 403: denied';
 
-      await launch(tester, FakeRolesClient([userRole]));
-      expect(logTab, findsNothing, reason: 'a member has no Log tab');
-      await tester.pumpWidget(const SizedBox());
+      Future<void> open(
+        WidgetTester tester,
+        FakeRolesClient roles, {
+        FakeAuthService? auth,
+        TabMemory? tabMemory,
+      }) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          PresenceApp(
+            consentGiven: true,
+            cameras: openFakes([FakeCameraSource('Main')]),
+            auth: auth ?? FakeAuthService.signedIn(),
+            rolesClient: roles,
+            membershipClient: FakeMembershipClient(),
+            mapTiles: const SizedBox(),
+            locator: NoLocation(),
+            tabMemory: tabMemory,
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
 
-      await launch(tester, FakeRolesClient()..mode = ExecutionMode.dev);
-      expect(logTab, findsOneWidget, reason: "DEV's anonymous user is root");
-      await tester.pumpWidget(const SizedBox());
+      testWidgets('OIDC: an admin sees it, with the log', (tester) async {
+        AppLog.instance.add(message);
+        await open(tester, FakeRolesClient([userRole, adminRole]));
+        await tester.tap(logTab);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('log-view')), findsOneWidget);
+        expect(find.text(message), findsOneWidget);
+      });
 
-      await launch(tester, FakeRolesClient([userRole, adminRole]));
-      await tester.tap(logTab);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('log-view')), findsOneWidget);
-      expect(
-        find.text('Presence: cloud sync failed: S3 HTTP 403: denied'),
-        findsOneWidget,
-      );
+      testWidgets('OIDC: a root sees it', (tester) async {
+        await open(tester, FakeRolesClient([userRole, adminRole, rootRole]));
+        expect(logTab, findsOneWidget);
+      });
+
+      testWidgets('OIDC: nobody else sees it', (tester) async {
+        final cases = <String, (FakeRolesClient, FakeAuthService)>{
+          'signed out': (
+            FakeRolesClient([userRole, adminRole]),
+            FakeAuthService(),
+          ),
+          'signed in, no role': (
+            FakeRolesClient.none(),
+            FakeAuthService.signedIn(),
+          ),
+          'a member': (FakeRolesClient([userRole]), FakeAuthService.signedIn()),
+          'an admin without presence_user': (
+            FakeRolesClient([adminRole]),
+            FakeAuthService.signedIn(),
+          ),
+          'a failed roles check': (
+            FakeRolesClient([userRole, adminRole])
+              ..error = Exception('Auth API HTTP 503'),
+            FakeAuthService.signedIn(),
+          ),
+        };
+        for (final MapEntry(key: who, value: (roles, auth)) in cases.entries) {
+          await open(tester, roles, auth: auth);
+          expect(logTab, findsNothing, reason: who);
+          expect(find.byKey(const Key('log-view')), findsNothing, reason: who);
+          await tester.pumpWidget(const SizedBox());
+        }
+      });
+
+      testWidgets('OIDC: a member never comes back to it after a refresh', (
+        tester,
+      ) async {
+        final memory = InMemoryTabMemory('log');
+        await open(tester, FakeRolesClient([userRole]), tabMemory: memory);
+        expect(logTab, findsNothing);
+        expect(find.byKey(const Key('log-view')), findsNothing);
+      });
+
+      testWidgets('OIDC: it goes when the admin role does, or on sign-out', (
+        tester,
+      ) async {
+        final roles = FakeRolesClient([userRole, adminRole]);
+        final auth = FakeAuthService.signedIn();
+        await open(tester, roles, auth: auth);
+        await tester.tap(logTab);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('log-view')), findsOneWidget);
+
+        // Demoted: the next roles check (here, signing in again) drops it.
+        roles.roles = [userRole];
+        await auth.signOut();
+        await auth.signIn();
+        await tester.pumpAndSettle();
+        expect(logTab, findsNothing);
+        expect(find.byKey(const Key('log-view')), findsNothing);
+
+        roles.roles = [userRole, adminRole];
+        await auth.signOut();
+        await auth.signIn();
+        await tester.pumpAndSettle();
+        expect(logTab, findsOneWidget);
+        await tester.tap(logTab);
+        await tester.pumpAndSettle();
+
+        await auth.signOut();
+        await tester.pumpAndSettle();
+        expect(logTab, findsNothing);
+        expect(find.byKey(const Key('log-view')), findsNothing);
+      });
+
+      testWidgets("DEV: the anonymous user is root, so sees it", (
+        tester,
+      ) async {
+        await open(
+          tester,
+          FakeRolesClient()..mode = ExecutionMode.dev,
+          auth: FakeAuthService(),
+        );
+        expect(logTab, findsOneWidget);
+      });
     });
 
     testWidgets('a presence_admin creates and deletes voucher codes', (

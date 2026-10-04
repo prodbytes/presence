@@ -48,11 +48,21 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
 - **Copy** puts the whole log on the clipboard, oldest first, with ISO
   times. **Clear** empties it.
 - "Nothing logged yet." when empty.
+- **Admins only in OIDC (RBAC) mode**: the tab needs a granted roles
+  check with `presence_user` and `presence_admin` (`RolesService.isAdmin`).
+  Signed out, signed in without a role, a member, an admin without
+  `presence_user` and a failed roles check get no Log tab, and a refresh
+  remembered on the Log tab doesn't reopen it for them. Losing the role
+  removes the tab at the next roles check (sign-in, Check again, a
+  reload), and signing out removes it at once.
 - Tests: `app_log_test.dart` (capacity, the tab's order and Clear) and
-  `roles_test.dart` (no Log tab for a member; one in DEV; an admin opens
-  it and sees a message; DEV's anonymous user `isRoot`).
+  `roles_test.dart` ("the Log tab": an admin and a root see it with the
+  log; nobody else does; no return to it after a refresh; it goes with the
+  admin role or on sign-out; DEV's anonymous root sees it).
 
 ## Known limitations
 
+- The log is kept on every device, whoever signs in; only showing it is
+  limited to admins.
 - Messages logged before `capture` runs, or by native code (Kotlin,
   Swift, the browser), aren't included.

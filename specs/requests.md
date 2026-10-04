@@ -2111,3 +2111,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Membership](membership.md), [Auth API](auth-api.md). 16
       VoucherTest (1 new) and 314 Flutter tests (1 new) pass. Stacked on
       #152.
+228. **Make sure the log view is only viewable by admin users in OIDC
+    mode.** (2026-10-04)
+    - It already was (`RolesService.isAdmin`); now tested for every case:
+      admin and root see it; signed out, no role, member, admin without
+      `presence_user` and a failed roles check don't; a member's refresh
+      remembered on the Log tab doesn't reopen it; losing the admin role
+      (at the next roles check) or signing out removes it. Roles aren't
+      re-checked on token renewal, as for the Admin screen.
+    - Specs: [Log](log.md). 324 Flutter tests pass.
