@@ -19,6 +19,7 @@ class PresenceConfig {
     this.schedule = const ScheduleConfig(),
     this.subjects = const SubjectsConfig(),
     this.recognition = const RecognitionConfig(),
+    this.history = const HistoryConfig(),
   });
 
   static const int version = 1;
@@ -29,6 +30,7 @@ class PresenceConfig {
   final ScheduleConfig schedule;
   final SubjectsConfig subjects;
   final RecognitionConfig recognition;
+  final HistoryConfig history;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -37,6 +39,7 @@ class PresenceConfig {
     ScheduleConfig? schedule,
     SubjectsConfig? subjects,
     RecognitionConfig? recognition,
+    HistoryConfig? history,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
@@ -44,6 +47,7 @@ class PresenceConfig {
     schedule: schedule ?? this.schedule,
     subjects: subjects ?? this.subjects,
     recognition: recognition ?? this.recognition,
+    history: history ?? this.history,
   );
 
   Map<String, Object?> toJson() => {
@@ -54,6 +58,7 @@ class PresenceConfig {
     'schedule': schedule.toJson(),
     'subjects': subjects.toJson(),
     'recognition': recognition.toJson(),
+    'history': history.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -66,6 +71,7 @@ class PresenceConfig {
     schedule: ScheduleConfig.fromJson(_map(json['schedule'])),
     subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
     recognition: RecognitionConfig.fromJson(_map(json['recognition'])),
+    history: HistoryConfig.fromJson(_map(json['history'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -89,11 +95,19 @@ class PresenceConfig {
       other.motion == motion &&
       other.schedule == schedule &&
       other.subjects == subjects &&
-      other.recognition == recognition;
+      other.recognition == recognition &&
+      other.history == history;
 
   @override
-  int get hashCode =>
-      Object.hash(clip, camera, motion, schedule, subjects, recognition);
+  int get hashCode => Object.hash(
+    clip,
+    camera,
+    motion,
+    schedule,
+    subjects,
+    recognition,
+    history,
+  );
 }
 
 /// How long clips are around the moment they're requested.
@@ -278,6 +292,36 @@ class ScheduleConfig {
   int get hashCode => Object.hash(enabled, every);
 }
 
+/// How long this device keeps events (see `EventRetention`).
+@immutable
+class HistoryConfig {
+  const HistoryConfig({this.keep = defaultKeep});
+
+  static const Duration minKeep = Duration(days: 1);
+  static const Duration maxKeep = Duration(days: 90);
+  static const Duration keepStep = Duration(days: 1);
+  static const Duration defaultKeep = Duration(days: 14);
+
+  /// Events older than this are deleted from the device, with their clips:
+  /// a day to three months.
+  final Duration keep;
+
+  HistoryConfig copyWith({Duration? keep}) =>
+      HistoryConfig(keep: _clampDuration(keep ?? this.keep, minKeep, maxKeep));
+
+  Map<String, Object?> toJson() => {'keepMs': keep.inMilliseconds};
+
+  factory HistoryConfig.fromJson(Map<String, Object?> json) =>
+      const HistoryConfig().copyWith(keep: _ms(json['keepMs']));
+
+  @override
+  bool operator ==(Object other) =>
+      other is HistoryConfig && other.keep == keep;
+
+  @override
+  int get hashCode => keep.hashCode;
+}
+
 /// The Subjects screens.
 @immutable
 class SubjectsConfig {
@@ -413,6 +457,7 @@ class ConfigController extends ChangeNotifier {
   ScheduleConfig get schedule => _config.schedule;
   SubjectsConfig get subjects => _config.subjects;
   RecognitionConfig get recognition => _config.recognition;
+  HistoryConfig get history => _config.history;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

@@ -26,6 +26,9 @@ abstract class MediaStore {
     Map<String, Object?> clip,
     Iterable<String> deleteIds,
   );
+
+  /// Deletes the recordings [ids]; missing ones are skipped.
+  Future<void> delete(Iterable<String> ids);
 }
 
 /// Moves recordings between playable URLs and stored bytes. Replaceable in
@@ -77,4 +80,11 @@ class IdbMediaStore implements MediaStore {
     Map<String, Object?> clip,
     Iterable<String> deleteIds,
   ) => _store.putClipAndDeleteMedia(clip, deleteIds);
+
+  @override
+  Future<void> delete(Iterable<String> ids) async {
+    for (final id in ids) {
+      await _store.deleteMedia(id);
+    }
+  }
 }

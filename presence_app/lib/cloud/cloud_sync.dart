@@ -155,6 +155,7 @@ class CloudSync extends ChangeNotifier {
     this.debounce = const Duration(milliseconds: 500),
     this.interval = const Duration(seconds: 15),
     this.restoreWindow = const Duration(days: 14),
+    this.keep,
     this.maxFetch = 1000,
     this.fullFetchEvery = const Duration(hours: 1),
     DateTime Function()? now,
@@ -182,6 +183,17 @@ class CloudSync extends ChangeNotifier {
   /// months of video. Older events stay in the cloud (until the bucket
   /// expires them) and on the devices that recorded them.
   final Duration restoreWindow;
+
+  /// How long the device keeps events (the History setting): a fetch
+  /// doesn't download what it deletes as too old, so with a shorter
+  /// setting the window shrinks to it.
+  final Duration Function()? keep;
+
+  /// [restoreWindow], or [keep] when that's shorter.
+  Duration get _window {
+    final keep = this.keep?.call();
+    return keep != null && keep < restoreWindow ? keep : restoreWindow;
+  }
 
   /// The most events one fetch downloads, the newest first; the rest come
   /// in later passes.
@@ -334,7 +346,7 @@ class CloudSync extends ChangeNotifier {
     required bool full,
   }) {
     if (first) return const ['events/'];
-    final days = full ? restoreWindow.inDays : 1;
+    final days = full ? _window.inDays : 1;
     return [
       for (var d = 0; d <= days; d++)
         _dayPrefix(now.subtract(Duration(days: d))),
@@ -353,7 +365,7 @@ class CloudSync extends ChangeNotifier {
     };
     final localEvents = {for (final e in await store.allEvents()) e['id']};
     final localClips = {for (final c in await store.allClips()) c['id']};
-    final since = _now().toUtc().subtract(restoreWindow);
+    final since = _now().toUtc().subtract(_window);
 
     // Each new event's media (recording, thumbnail, tagged frames), listed
     // only for it.

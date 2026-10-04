@@ -538,6 +538,8 @@ void main() {
         consentGiven: true,
         locator: _NoLocation(),
         mapTiles: const SizedBox(),
+        // The day of the test events, so none is too old to keep.
+        now: () => DateTime(2026, 10, 1, 12),
       ),
     );
     await tester.pumpAndSettle();
@@ -574,6 +576,8 @@ void main() {
         consentGiven: true,
         locator: _NoLocation(),
         mapTiles: const SizedBox(),
+        // The day of the test events, so none is too old to keep.
+        now: () => DateTime(2026, 10, 1, 12),
       ),
     );
     await tester.pumpAndSettle();

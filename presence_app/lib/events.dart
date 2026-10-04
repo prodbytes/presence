@@ -189,6 +189,13 @@ class EventLog extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Takes the events [ids] out of the log (deleted from storage).
+  void remove(Set<String> ids) {
+    final before = _events.length;
+    _events.removeWhere((e) => ids.contains(e.id));
+    if (_events.length != before) notifyListeners();
+  }
+
   /// Adds events restored from storage, keeping the timeline newest first.
   /// Events already in the log (published since launch) are kept.
   void addHistory(Iterable<AppEvent> history) {

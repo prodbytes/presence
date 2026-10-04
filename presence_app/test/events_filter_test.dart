@@ -41,6 +41,8 @@ void main() {
         rolesClient: FakeRolesClient(),
         mapTiles: const SizedBox(),
         locator: NoLocation(),
+        // The day of the stored events, so none is too old to keep.
+        now: () => DateTime(2026, 10, 1, 12),
       ),
     );
     await tester.pumpAndSettle();

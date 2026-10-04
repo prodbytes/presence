@@ -51,12 +51,15 @@ audio, so a clip can include the moments before someone pressed Clip.
   cat, bicycle, bottle…) for search.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, and the location on every event.
-- [Settings screen](settings.md): the motion, camera, clip, schedule and
-  subject settings.
+- [Settings screen](settings.md): the motion, camera, clip, schedule,
+  subject, recognition and history settings.
 - [Add a device](add-device.md): a QR code, the link and a Share button,
   shown at the end of Settings, that open Presence on another device as a new device of the
   same user, after a sign-in checked against the link.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
+- [Event retention](event-retention.md): events older than the History
+  setting (two weeks; 1 day to 3 months) deleted from the device, with
+  their clips, at load and every 3 hours.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3 through a Cognito identity pool.
 - [Recording and data formats](data-formats.md): the video codecs and
