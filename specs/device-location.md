@@ -37,7 +37,9 @@ the camera. (There used to be a Device tab for both; it's gone.)
   to scroll the list.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
-- **Zoom in (+) and Zoom out (−)**, then a small **My location** button,
+- **Zoom in (+) and Zoom out (−)** (`MapZoomButtons`, the same control as
+  on the [subjects maps](subjects.md#the-maps-view)), then a small **My
+  location** button,
   in the map's bottom-right corner. Each zoom button steps the zoom by one
   level around the center, between 2 (the world) and 19, and turns off at
   its limit; zooming keeps the center, so it doesn't set the location. My

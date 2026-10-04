@@ -25,15 +25,37 @@ and pets"), each with where the device was when they were seen
   events: for each subject, a dot per event among their latest
   `mapEvents` that has a location, in **the subject's color**, the newest
   solid and older ones fading, as on a subject's own map. A clip tagged
-  with several subjects gets a dot for each. It opens on all the dots (the
-  whole world without any), has the tiles' credit, and tapping a dot opens
-  its event in the Monitoring tab's events list.
+  with several subjects gets a dot for each. It **opens centered on the
+  newest event** (of any subject) and **zoomed out just enough to show
+  every dot** (the whole world without any; see [the map's
+  view](#the-maps-view)), has the tiles' credit and **zoom buttons**, and
+  tapping a dot opens its event in the Monitoring tab's events list.
 - **Names on the map:** beside each subject's newest located dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut
   short with an ellipsis). Tapping it opens the subject's screen.
 - **On each clip's card** (`EventSubjects`): every subject tagged on it,
   once, as written there, each after a **square in the subject's color**,
   to match them with their dots on the map.
+
+## The map's view
+
+Both maps, the subjects map and a subject's own, open and zoom the same
+way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
+
+- **Centered on the newest event:** the newest dot shown, by event time,
+  is in the middle of the map, not the middle of all the dots.
+- **Zoomed out to catch them all:** as close as it can be with every dot
+  in view, 48 px from the edges, at most zoom 17. Each dot's mirror image
+  through the newest one, in the map's Web Mercator projection, is fitted
+  along with the dots (`framedAround`), so the fit is centered exactly on
+  the newest. The farthest dot from it sets the zoom.
+- **Without a located event:** the whole world, at zoom 2.
+- **Zoom in (+) over zoom out (−)** in the bottom-right corner
+  (`MapZoomButtons`, shared with the Settings [location
+  map](device-location.md); keys `sightings-zoom-in`, `sightings-zoom-out`).
+  Each steps the zoom by one around the map's center, between zoom 2 and
+  19; a button turns off at its limit. Pinch, wheel and drag still work.
+- The view is set when the map opens; new events don't move it.
 
 ## A subject's screen
 
@@ -54,8 +76,8 @@ and pets"), each with where the device was when they were seen
     screen closes, the Monitoring tab shows, and its events list scrolls to the
     event and outlines it for 4 s (see [Events](events.md)). A dot's
     tooltip and screen-reader label give its time and camera.
-  - It opens fitted on all the dots (48 px padding, at most zoom 17), or
-    on the whole world (zoom 2) when none has a location.
+  - It opens centered on the subject's newest event, zoomed out to show
+    all the dots, with zoom buttons: see [the map's view](#the-maps-view).
 - **The list** (below the map): "Latest 20 of 26 events" (or "26 events"
   when all are shown), then each event, newest first: its frame, time and
   camera, the coordinates (5 decimals) or "No location", and the same
@@ -85,12 +107,22 @@ and pets"), each with where the device was when they were seen
   subjects map (left of the events) has every subject's located dots (one
   per subject on a shared clip) in each subject's color, faded per
   subject, a name beside each subject's newest dot, the cards' squares
-  match those colors, and a tapped dot opens its event.
+  match those colors, and a tapped dot opens its event; the map opens with
+  the newest dot in its middle (not the middle of the three) and all dots
+  in view, the farthest near the edge, and the zoom buttons double and
+  halve the spacing of the dots; without located events, zoom out is off;
+  `framedAround` centers the fit on the newest, and stops mirrors at the
+  date line.
   `widget_test.dart`: the four tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations
+
+- Near the date line, a mirror image is cut back to it, so the map may
+  not be exactly centered on the newest event there.
+- The view is set when a map opens: events added while it's open don't
+  recenter it.
 
 - Subjects are matched by name only: two people tagged with the same name
   are one subject, and one person tagged with two spellings is two.

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 import 'package:presence_app/auth/roles_service.dart';
@@ -93,17 +94,21 @@ void main() {
 
       expect(backend.tokens, ['id-token-1']);
       expect(backend.uploads.keys, {
-        'us-east-1:identity/clips/c1.webm',
-        'us-east-1:identity/clips/c1.jpg',
-        'us-east-1:identity/clips/c1.json',
+        'us-east-1:identity/media/c1.webm',
+        'us-east-1:identity/media/c1.jpg',
+        'us-east-1:identity/clips/year=1970/day=001/c1.json',
         'us-east-1:identity/events/year=1970/day=001/e1.json',
         'us-east-1:identity/events/year=1970/day=001/e2.json',
       });
-      final video = backend.uploads['us-east-1:identity/clips/c1.webm']!;
+      final video = backend.uploads['us-east-1:identity/media/c1.webm']!;
       expect(video.bytes, [1, 2, 3]);
       expect(video.contentType, 'video/webm;codecs=vp8,opus');
       final details = jsonDecode(
-        utf8.decode(backend.uploads['us-east-1:identity/clips/c1.json']!.bytes),
+        utf8.decode(
+          backend
+              .uploads['us-east-1:identity/clips/year=1970/day=001/c1.json']!
+              .bytes,
+        ),
       );
       expect(details['id'], 'c1');
       expect(details.containsKey('thumbnail'), isFalse);
@@ -234,11 +239,39 @@ void main() {
     await auth.signIn();
     await sync.idle();
     expect(backend.uploads.keys, {
-      'us-east-1:identity/clips/c1.webm',
-      'us-east-1:identity/clips/c1.jpg',
-      'us-east-1:identity/clips/c1.json',
+      'us-east-1:identity/media/c1.webm',
+      'us-east-1:identity/media/c1.jpg',
+      'us-east-1:identity/clips/year=1970/day=001/c1.json',
       'us-east-1:identity/events/year=1970/day=001/e1.json',
       'us-east-1:identity/events/year=1970/day=001/e2.json',
+    });
+  });
+
+  test('what went up under the old layout isn\'t uploaded again', () async {
+    // Marked as uploaded to the old keys (clips/<id>.webm, .jpg, .json),
+    // as a device that synced before the layout changed remembers.
+    const prefix = 'us-east-1:identity';
+    final clip = (await store.allClips()).firstWhere((c) => c['id'] == 'c1');
+    final details = Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({
+          for (final MapEntry(:key, :value) in clip.entries)
+            if (key != 'thumbnail') key: value,
+        }),
+      ),
+    );
+    await store.markSynced('$prefix/clips/c1.webm', 'c1-full');
+    await store.markSynced('$prefix/clips/c1.jpg', 'thumbnail');
+    await store.markSynced(
+      '$prefix/clips/c1.json',
+      sha256.convert(details).toString(),
+    );
+    await auth.signIn();
+    await sync.idle();
+    // Only the events: their keys didn't change.
+    expect(backend.uploads.keys, {
+      '$prefix/events/year=1970/day=001/e1.json',
+      '$prefix/events/year=1970/day=001/e2.json',
     });
   });
 
@@ -252,7 +285,7 @@ void main() {
         sync.dispose();
         const prefix = 'us-east-1:identity';
         // Another device's clip and event, already in the cloud.
-        backend.uploads['$prefix/clips/r1.json'] = (
+        backend.uploads['$prefix/clips/year=1970/day=001/r1.json'] = (
           bytes: json({
             'id': 'r1',
             'eventId': 're1',
@@ -267,11 +300,11 @@ void main() {
           }),
           contentType: 'application/json',
         );
-        backend.uploads['$prefix/clips/r1.mp4'] = (
+        backend.uploads['$prefix/media/r1.mp4'] = (
           bytes: Uint8List.fromList([7, 7, 7]),
           contentType: 'video/mp4',
         );
-        backend.uploads['$prefix/clips/r1.jpg'] = (
+        backend.uploads['$prefix/media/r1.jpg'] = (
           bytes: Uint8List.fromList([5]),
           contentType: 'image/jpeg',
         );
@@ -322,9 +355,9 @@ void main() {
         expect(
           backend.downloads,
           containsAll([
-            'clips/r1.json',
-            'clips/r1.mp4',
-            'clips/r1.jpg',
+            'clips/year=1970/day=001/r1.json',
+            'media/r1.mp4',
+            'media/r1.jpg',
             'events/re1.json',
             'events/year=2026/day=269/re2.json',
           ]),
@@ -335,7 +368,7 @@ void main() {
         expect(
           uploaded,
           containsAll([
-            '$prefix/clips/c1.webm',
+            '$prefix/media/c1.webm',
             '$prefix/events/year=1970/day=001/e1.json',
           ]),
         );
@@ -362,8 +395,8 @@ void main() {
             }),
             contentType: 'application/json',
           );
-      void clip(String id) {
-        backend.uploads['$prefix/clips/$id.json'] = (
+      void clip(String id, DateTime time) {
+        backend.uploads['$prefix/${CloudSync.clipRecordKey(id, ms(time))}'] = (
           bytes: json({
             'id': id,
             'state': 'complete',
@@ -371,7 +404,7 @@ void main() {
           }),
           contentType: 'application/json',
         );
-        backend.uploads['$prefix/clips/$id.webm'] = (
+        backend.uploads['$prefix/media/$id.webm'] = (
           bytes: Uint8List.fromList([1]),
           contentType: 'video/webm',
         );
@@ -387,7 +420,7 @@ void main() {
         now.subtract(const Duration(days: 13)),
         'c-new',
       );
-      clip('c-new');
+      clip('c-new', now.subtract(const Duration(days: 13)));
       // Earlier on the first day of the window (day 256): its partition is
       // read, but the event is 8 h too old.
       final edge = now.subtract(const Duration(days: 14, hours: 8));
@@ -400,7 +433,7 @@ void main() {
         old,
         'c-old',
       );
-      clip('c-old');
+      clip('c-old', old);
       // From before partitioning: read to learn its time, then skipped.
       event('events/flat.json', 'flat', old);
 
@@ -644,7 +677,7 @@ void main() {
       await sync.idle();
 
       const prefix = 'us-east-1:identity';
-      final frame = backend.uploads['$prefix/clips/c1/frames/f1.jpg'];
+      final frame = backend.uploads['$prefix/media/c1/frames/f1.jpg'];
       expect(frame?.bytes, [9, 8, 7]);
       expect(frame?.contentType, 'image/jpeg');
       final eventKey = backend.uploads.keys.singleWhere(

@@ -22,9 +22,9 @@
     marker at the threshold, to help calibrate it.
   - **At most one automatic clip every** 1–60 minutes (default 5).
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
-  - **Before the press**, default 15 s. This also sets how much history the
+  - **Before the press**, default 5 s. This also sets how much history the
     cameras keep recording.
-  - **After the press**, default 15 s.
+  - **After the press**, default 10 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
 - **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):

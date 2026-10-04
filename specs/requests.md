@@ -1687,7 +1687,100 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       access opens on the camera, and signing in later goes back to it;
       the `sessionStorage` itself in Chrome. 256 Flutter tests pass; web
       release builds.
-201. **Show the event counts (matching / all) beside the search at the top
+200. **Create a presence-sh component with the template for a bucket,
+    distribution, records and ACM certificate to serve the curl bang URL;
+    test it until it works on a Raspberry Pi. Every GA release updates it.**
+    (2026-10-02)
+    - Added [presence_sh/](../presence_sh) (stack `presence-sh`): an ACM
+      certificate for `sh.presence.nu01.com`, a private bucket, a
+      CloudFront distribution that serves `install.sh` at every path
+      (HTTPS only) and A/AAAA records. See [Install URL](install-url.md).
+    - [scripts/deploy-sh.sh](../scripts/deploy-sh.sh) deploys it, uploads
+      the script, invalidates and smoke-tests it; the Deploy workflow runs
+      it on every `*GA` tag after the site.
+    - Deployed by hand: `/` and `/install.sh` serve the script, http
+      gets 403. The README and the script now show
+      `curl -fsSL https://sh.presence.nu01.com | sh`.
+    - Merged #129 and released `0.5.202610021047-GA`, the first GA with a
+      `linux-arm64` bundle, for the Pi.
+201. **(Fix found testing `curl -fsSL https://sh.presence.nu01.com | sh` for
+    the Raspberry Pi.)** (2026-10-02)
+    - The `0.5.202610021047-GA` arm64 bundle failed on Debian 12 (the base
+      of Raspberry Pi OS Bookworm): `undefined symbol:
+      g_once_init_enter_pointer`, because the Ubuntu 24.04 build needs
+      GLib 2.80 and Debian 12 has 2.74.
+    - The Linux release jobs now run on `ubuntu-22.04` and
+      `ubuntu-22.04-arm`. Their PR bundles run (still up after 30 s under
+      Xvfb) on Debian 12 arm64 and x64, and on Ubuntu 24.04 x64.
+202. **(The sync of #197, finished)** (2026-10-02)
+    - After #132, merged #127 (a browser refresh keeps the open tab) after
+      merging `main` into it twice, as `main` moved meanwhile (request-log
+      numbers only; 270 Flutter tests passed); #129 and #131 were merged by
+      their own sessions. The main folder was fast-forwarded to `main`.
+203. **What is the current average size of a clip on our bucket? And how big
+    is the metadata JSON for a clip?** (2026-10-02)
+    - Answered, nothing changed: on the production bucket 92 clips (all
+      WebM), 12.7 MB on average (6.8–14.9 MB); a clip record about 394 B,
+      a clip event about 301 B (500 B with tags), a thumbnail about 20 KB.
+      Now in [Recording and data formats](data-formats.md).
+204. **Empty all buckets.** (2026-10-02)
+    - Asked first which ones: emptied only the two user-data buckets (prod
+      and RC), every version and delete marker included (716 in all, about
+      1.3 GB); the web, install-script and SAM buckets were left alone.
+      Devices still hold their own copies.
+205. **Add a section to the spec explaining how videos and metadata are
+    recorded (file formats and encoding) and how they're represented on
+    S3; make sure the metadata can be queried on S3 in the future, with
+    friendly formats.** (2026-10-02)
+    - New [Recording and data formats](data-formats.md): the containers,
+      codecs, sizes, frame and bit rates per platform; the JSON rules (one
+      compact UTF-8 object per file, no binary, epoch-ms UTC times, `…Ms`
+      durations); each record's fields; the S3 layout; and an Athena table
+      (partition projection) with an example query.
+    - The S3 layout changed so the JSON can be queried without meeting
+      media: clip records moved from `clips/<clipId>.json` to
+      `clips/year=YYYY/day=DDD/<clipId>.json` (their event's day), and the
+      recordings, thumbnails and tagged frames from `clips/` to `media/`.
+      What a device uploaded under the old keys isn't uploaded again.
+    - [Cloud sync](cloud-sync.md) and the bucket template's description
+      updated. 271 Flutter tests pass (one new); web release builds.
+206. **Add the Raspberry Pi dependencies and instructions to the README.**
+    (2026-10-02)
+    - New README section "Run it on a Raspberry Pi": 64-bit Raspberry Pi
+      OS (Bookworm or newer) with the desktop, `sudo apt install -y curl
+      libgtk-3-0 libegl1 libgles2`, then
+      `curl -fsSL https://sh.presence.nu01.com | sh`; where it installs,
+      how to update, and the web fallback. Also in
+      [Install script](install-script.md#raspberry-pi).
+    - Also asked: drop the download's checksum check ("just run it"). Not
+      done in this change; the script still verifies when the release API
+      answers.
+207. **Make the events map centered on the latest event and zoomed out to
+    catch all events; add zoom controls as well.** (2026-10-02)
+    - The Monitoring tab's subjects map, and each subject's map, open
+      centered on the newest event, as close as they can be with every
+      dot in view (48 px padding, zoom 17 at most): each dot and its
+      mirror through the newest, in Web Mercator, are fitted
+      (`framedAround`). The whole world without located events, as before.
+    - Zoom in and out buttons in the bottom-right corner, one step around
+      the center, off at zoom 2 and 19. The Settings location map's zoom
+      buttons moved to `MapZoomButtons` in `lib/location/map_parts.dart`,
+      shared by both.
+    - Spec: new "The map's view" section in [Subjects](subjects.md).
+    - 274 Flutter tests pass (3 new in `subjects_test.dart`); the web
+      release builds.
+208. **Change the default clip times to 5 s before the trigger and 10 s
+    after.** (2026-10-02)
+    - `ClipConfig` defaults are now `before` 5 s and `after` 10 s
+      (`defaultBefore`, `defaultAfter`, replacing the single
+      `defaultLength` of 15 s), so a default clip is 15 s. The 5–60 s range
+      and 5 s steps are unchanged, and settings already saved on a device or
+      in the cloud keep their values.
+    - The startup clip comes 5 s after a camera opens (once its "before"
+      part is full).
+    - Tests and the specs' example texts follow the new defaults. 270
+      Flutter tests pass.
+209. **Show the event counts (matching / all) beside the search at the top
     of the Events (Monitoring) tab.** (2026-10-02)
     - New `EventCount` right after the search field: "shown / all", where
       *shown* is what the timeline lists after the search and the chips,
@@ -1701,7 +1794,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Tests: the count follows the search, Show system events, new events,
       late object tags and Only this device; where it sits at 1280 and
       320 dp. 271 Flutter tests pass.
-202. **Event counts: *all* is every event of this user on this device,
+210. **Event counts: *all* is every event of this user on this device,
     updated as more load from S3; *matching* is after the search and the
     chips.** (2026-10-02)
     - `EventCount` now counts only the signed-in user's events
