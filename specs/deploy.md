@@ -95,7 +95,7 @@ with an optional `tag` input, deploys that version to
 - The role trusts only `repo:prodbytes/presence:ref:refs/tags/*GA`, so the
   job has no `environment:`, which would change that subject. Its
   permissions are limited to the Presence stacks: CloudFormation, S3,
-  `presence-*` IAM roles, Lambda functions, HTTP APIs, DynamoDB tables,
+  `presence-*` IAM roles, Lambda functions, HTTP APIs, DynamoDB tables (TTL included),
   Cognito identity pools,
   CloudFront, ACM and the `nu01.com` zone. The RC role gets the same,
   limited to `presence-rc-*`.
