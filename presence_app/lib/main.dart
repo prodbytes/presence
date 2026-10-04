@@ -30,6 +30,7 @@ import 'identity/add_device.dart';
 import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
+import 'log_view.dart';
 import 'monitoring.dart';
 import 'recognition/recognizer.dart';
 import 'settings.dart';
@@ -43,7 +44,7 @@ import 'storage/retention.dart';
 import 'theme.dart';
 
 void main() {
-  // Everything the app logs also goes to the admins' Log screen.
+  // Everything the app logs also goes to the admins' Log tab.
   AppLog.capture(() => runApp(const PresenceApp()));
 }
 
@@ -399,7 +400,11 @@ class _PresenceAppState extends State<PresenceApp> {
 enum HomeTab {
   camera('Camera', Icons.videocam),
   monitoring('Monitoring', Icons.monitor_heart),
-  settings('Settings', Icons.settings);
+  settings('Settings', Icons.settings),
+
+  /// Admins only (so DEV's anonymous root too); last, so the others keep
+  /// their index.
+  log('Log', Icons.receipt_long);
 
   const HomeTab(this.label, this.icon);
 
@@ -409,9 +414,9 @@ enum HomeTab {
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), monitoring (the subjects'
-/// map, the subjects and the event stream) and the settings (with the
-/// device's location map). Swiping sideways flips too, except on
-/// Monitoring (its map) and while a finger is on the Settings map.
+/// map, the subjects and the event stream), the settings (with the device's
+/// location map) and, for admins, the log. Swiping sideways flips too,
+/// except on Monitoring (its map) and while a finger is on the Settings map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
 /// app bar has only the title and a sign-in button, and the screen stays on
@@ -494,12 +499,38 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(
-    length: HomeTab.values.length,
-    vsync: this,
-  )..addListener(_onTabChanged);
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  late TabController _tabs = _newTabs(0);
+
+  /// The Log tab shows for admins, so in DEV too (the anonymous user is a
+  /// root there).
+  bool get _showLog => widget.roles.isAdmin;
+
+  /// The tabs shown: [HomeTab.log] last, so each tab's index is its
+  /// [HomeTab.index].
+  List<HomeTab> get _shownTabs => [
+    for (final tab in HomeTab.values)
+      if (tab != HomeTab.log || _showLog) tab,
+  ];
+
+  TabController _newTabs(int index) {
+    final length = _shownTabs.length;
+    return TabController(
+      length: length,
+      initialIndex: index.clamp(0, length - 1),
+      vsync: this,
+    )..addListener(_onTabChanged);
+  }
+
+  /// Adds or removes the Log tab when the roles change, staying on the
+  /// same tab (or the last one, if the Log tab goes).
+  void _syncTabs() {
+    if (_tabs.length == _shownTabs.length) return;
+    final old = _tabs..removeListener(_onTabChanged);
+    _tabs = _newTabs(old.index);
+    // The tab bar lets go of it in this frame's build.
+    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+  }
 
   late final TabMemory _tabMemory = widget.tabMemory ?? TabMemory();
 
@@ -519,7 +550,7 @@ class _HomeScreenState extends State<HomeScreen>
     final tab = _restoreTab;
     if (tab == null || !_hasAccess) return;
     _restoreTab = null;
-    _tabs.index = tab.index;
+    if (tab.index < _tabs.length) _tabs.index = tab.index;
   }
 
   bool get _onCamera => _tabs.index == HomeTab.camera.index;
@@ -586,6 +617,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
+    _syncTabs();
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
     _restore();
     if (mounted) setState(() {});
@@ -725,8 +757,7 @@ class _HomeScreenState extends State<HomeScreen>
         (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
     const titleRoom = 12 + 16;
     final fit =
-        (MediaQuery.sizeOf(context).width - titleRoom - buttons) /
-        HomeTab.values.length;
+        (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
     return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
   }
 
@@ -810,14 +841,14 @@ class _HomeScreenState extends State<HomeScreen>
             const SizedBox(width: 4),
           ] else ...[
             SizedBox(
-              width: _tabWidth(context) * HomeTab.values.length,
+              width: _tabWidth(context) * _tabs.length,
               child: TabBar(
                 controller: _tabs,
                 dividerHeight: 0,
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelPadding: EdgeInsets.zero,
                 tabs: [
-                  for (final tab in HomeTab.values)
+                  for (final tab in _shownTabs)
                     Tooltip(
                       message: tab.label,
                       child: Tab(
@@ -913,6 +944,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                 ),
               ),
+              if (_showLog) SafeArea(child: LogView(log: AppLog.instance)),
             ],
           ),
           // Bottom left, across from Flip and Clip: the battery, whether a

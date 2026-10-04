@@ -162,6 +162,7 @@ void main() {
         roles.roles,
         containsAll([anonymousRole, userRole, adminRole, rootRole]),
       );
+      expect(roles.isRoot, isTrue, reason: 'DEV is root');
       // Sign-in doesn't matter in dev mode.
       await auth.signIn();
       await roles.refresh();
@@ -345,20 +346,22 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
-    testWidgets('a presence_admin opens the Log from the Admin screen', (
-      tester,
-    ) async {
+    testWidgets('the Log tab: admins and DEV only', (tester) async {
       AppLog.instance.add('Presence: cloud sync failed: S3 HTTP 403: denied');
-      await launch(
-        tester,
-        FakeRolesClient([userRole, adminRole]),
-        FakeMembershipClient(),
-      );
-      await tester.tap(find.byKey(const Key('admin')));
+      final logTab = find.byIcon(Icons.receipt_long);
+
+      await launch(tester, FakeRolesClient([userRole]));
+      expect(logTab, findsNothing, reason: 'a member has no Log tab');
+      await tester.pumpWidget(const SizedBox());
+
+      await launch(tester, FakeRolesClient()..mode = ExecutionMode.dev);
+      expect(logTab, findsOneWidget, reason: "DEV's anonymous user is root");
+      await tester.pumpWidget(const SizedBox());
+
+      await launch(tester, FakeRolesClient([userRole, adminRole]));
+      await tester.tap(logTab);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('admin-log')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('log-screen')), findsOneWidget);
+      expect(find.byKey(const Key('log-view')), findsOneWidget);
       expect(
         find.text('Presence: cloud sync failed: S3 HTTP 403: denied'),
         findsOneWidget,

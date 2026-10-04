@@ -2033,3 +2033,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Log](log.md), [Membership](membership.md), [Cloud
       sync](cloud-sync.md), the index. 312 Flutter tests (3 new) pass; the
       web build compiles.
+223. **Let DEV mode see the log screen; the log should be its own section
+    in the nav bar. In DEV mode the anonymous user should be equivalent to
+    root.** (2026-10-04)
+    - The Log is a fourth tab after Settings (`HomeTab.log`,
+      [lib/log_view.dart](../presence_app/lib/log_view.dart)), shown when
+      the user is an admin; the Admin screen's Log button is gone. The tab
+      controller is rebuilt when the roles add or remove it.
+    - DEV's anonymous user already had every role up to `presence_root`
+      (the auth API's `Roles.anonymous` and the app's fallback), so DEV
+      gets the Log tab through the role check; a test now asserts
+      `isRoot` in DEV. The Admin screen stays hidden in DEV: it needs a
+      signed-in token.
+    - Specs: [Log](log.md), [Navigation](navigation.md), [Execution
+      mode](execution-mode.md), [Membership](membership.md), the index.
+      312 Flutter tests pass; the web build compiles.

@@ -1,7 +1,8 @@
 # Log
 
-The app's latest log messages, on their own **Log** screen that only
-admins can open. Use it to see why something failed, such as the AWS sync
+The app's latest log messages, in their own **Log** tab in the nav bar,
+which only admins see (and everyone in DEV, where the anonymous user is a
+root). Use it to see why something failed, such as the AWS sync
 the Settings health line marks ❌, without a browser console or `adb`.
 
 ## What's captured
@@ -33,23 +34,25 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
 - `Presence: cloud credentials rejected, renewing: …`, when credentials
   expire during a pass and the app gets new ones.
 
-## The Log screen
+## The Log tab
 
-[lib/auth/log_screen.dart](../presence_app/lib/auth/log_screen.dart):
+[lib/log_view.dart](../presence_app/lib/log_view.dart):
 
-- Opened by the **Log** button (receipt icon) in the
-  [Admin screen](membership.md)'s app bar, so only `presence_admin` users
-  reach it, and not in DEV mode, which has no Admin screen.
-- Newest first, each entry with its time (`HH:MM:SS`), in monospace; errors
+- The fourth tab (receipt icon), after Settings, shown when
+  `RolesService.isAdmin`: `presence_admin` users, and DEV, whose anonymous
+  user has every role up to `presence_root` (see [Execution
+  mode](execution-mode.md)). See [Navigation](navigation.md).
+- A header, "Log · N latest", with **Copy** and **Clear**, then the
+  entries, newest first, each entry with its time (`HH:MM:SS`), in monospace; errors
   in the error color. Updates live while open. Text is selectable.
 - **Copy** puts the whole log on the clipboard, oldest first, with ISO
   times. **Clear** empties it.
 - "Nothing logged yet." when empty.
-- Tests: `app_log_test.dart` (capacity, the screen's order and Clear) and
-  `roles_test.dart` (an admin opens it from the Admin screen).
+- Tests: `app_log_test.dart` (capacity, the tab's order and Clear) and
+  `roles_test.dart` (no Log tab for a member; one in DEV; an admin opens
+  it and sees a message; DEV's anonymous user `isRoot`).
 
 ## Known limitations
 
-- Not available in DEV mode, where there's no Admin screen.
 - Messages logged before `capture` runs, or by native code (Kotlin,
   Swift, the browser), aren't included.
