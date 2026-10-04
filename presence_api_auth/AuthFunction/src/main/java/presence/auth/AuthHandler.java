@@ -115,10 +115,9 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
 
     static Roles fromEnvironment() {
         var table = System.getenv("USER_ROLES_TABLE");
-        var domains = list(System.getenv("ALLOWED_DOMAINS"));
-        var domainRoles = list(System.getenv("DOMAIN_ROLES"));
         var dynamo = dynamo();
-        return new Roles(domains, domainRoles, email -> declaredRoles(dynamo, table, email));
+        return new Roles(list(System.getenv("PRESENCE_ROOT_DOMAINS")), list(System.getenv("PRESENCE_ROOT_EMAILS")),
+                email -> declaredRoles(dynamo, table, email));
     }
 
     static Profiles profilesFromEnvironment() {

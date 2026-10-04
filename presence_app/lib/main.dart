@@ -843,6 +843,7 @@ class _HomeScreenState extends State<HomeScreen>
                     builder: (_) => AdminScreen(
                       auth: widget.auth,
                       membership: widget.membership,
+                      canCreateAdmins: widget.roles.isRoot,
                     ),
                   ),
                 ),

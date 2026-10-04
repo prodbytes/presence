@@ -44,10 +44,12 @@ esac
 aws s3 mb s3://presence-local-sam >/dev/null
 aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
+# The root allowlist, from .env: domains default to the template's (nu01.com).
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file /tmp/presence-auth-api.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$CLIENT_ID" "Architecture=$ARCH" \
-    "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" >/dev/null
+    "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" \
+    "RootDomains=${PRESENCE_ROOT_DOMAINS:-nu01.com}" "RootEmails=${PRESENCE_ROOT_EMAILS:-}" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \

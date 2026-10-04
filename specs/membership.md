@@ -8,11 +8,15 @@ in without asking. Roles come from the
 |---|---|---|
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
 | Member | `presence_user` | every feature: tabs, camera buttons, cloud sync |
-| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** icon |
+| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** icon; creates Member vouchers |
+| Root | `presence_user`, `presence_admin`, `presence_root` | as Admin, and also creates Admin vouchers |
 
-Verified emails at `nu01.com` (the `AllowedDomains` of the auth API) get
-both roles. Everyone else starts unknown, and gets roles from an
-administrator's grant or a voucher code.
+Roots are the auth API's **root allowlist**: verified emails at one of
+`PRESENCE_ROOT_DOMAINS` (`nu01.com`) or listed in `PRESENCE_ROOT_EMAILS`
+(none by default). They get all three roles, and nothing else gives
+`presence_root`. Everyone else starts unknown, and gets roles from an
+administrator's grant or a voucher code. So admins are made only by roots
+(or by hand in `UserRolesTable`), and admins can only add members.
 
 ## Asking for access
 
@@ -51,6 +55,8 @@ A voucher grants a role to whoever redeems it:
   and dashes.
 - **Role:** `presence_user` (Member) or `presence_admin` (Admin). An Admin
   voucher also grants `presence_user`, since the Admin screen needs both.
+  Only a `presence_root` may create an Admin voucher (403 for other
+  admins), and no voucher grants `presence_root` (400).
 - **Expiry:** an instant, in the future and at most 366 days away. The app
   picks a date and makes the code valid through the end of that day (local
   time).
@@ -85,7 +91,8 @@ titled "Admin", one scrolling page with two sections.
 
 **Voucher codes**, after the requests:
 
-- a form: **Grants** (Member or Admin; Member by default), **Valid
+- a form: **Grants** (Member by default; Admin is offered to roots only,
+  and other admins are told "Only roots create Admin codes."), **Valid
   through** (a date picker, a week from today by default, up to 365 days),
   **Uses** (1 by default; digits only, 1 to 1000, else **Create code** is
   disabled) and **Create code**. The new code goes to the top of the list
@@ -107,8 +114,9 @@ is the app's client (a fake in tests).
 - Administrators aren't told about new requests; they have to open the
   Admin screen.
 - A request's **Grant access** gives `presence_user` only.
-  `presence_admin` comes from the domain, an Admin voucher, or editing
-  `UserRolesTable` by hand.
+  `presence_admin` comes from the root allowlist, a root's Admin voucher,
+  or editing `UserRolesTable` by hand.
+- Changing the root allowlist takes a deploy (it's a stack parameter).
 - Deleting a voucher, or its expiry, doesn't take back the roles it
   granted.
 - Vouchers are listed with a table scan: fine for the few an

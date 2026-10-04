@@ -28,6 +28,11 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
+#   PRESENCE_ROOT_DOMAINS the root allowlist's email domains, comma-separated
+#                (default nu01.com)
+#   PRESENCE_ROOT_EMAILS  the root allowlist's single emails, comma-separated
+#                (default none). Both also come from .env; their verified
+#                users get presence_root, presence_admin and presence_user.
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -86,6 +91,22 @@ for name in GOOGLE_WEB_CLIENT_ID HOSTED_ZONE_ID; do
   fi
 done
 
+# The root allowlist: optional, from the environment, else .env. Passed on
+# every deploy, so a stack never keeps an old value.
+for name in PRESENCE_ROOT_DOMAINS PRESENCE_ROOT_EMAILS; do
+  if [[ -z "${!name:-}" && -f .env ]]; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+  if [[ ! "${!name:-}" =~ ^[A-Za-z0-9._%+@,-]*$ ]]; then
+    echo "error: $name must be comma-separated domains or emails" >&2
+    exit 1
+  fi
+done
+PRESENCE_ROOT_DOMAINS="${PRESENCE_ROOT_DOMAINS:-nu01.com}"
+# Emails are people's: logged only as a count.
+root_emails=0; [[ -n "${PRESENCE_ROOT_EMAILS:-}" ]] && root_emails=$(tr ',' '\n' <<<"$PRESENCE_ROOT_EMAILS" | grep -c .)
+echo "    root allowlist: domains $PRESENCE_ROOT_DOMAINS, $root_emails email(s)"
+
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
 aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
@@ -123,6 +144,7 @@ echo "==> deploying $AUTH_STACK"
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
+      "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"

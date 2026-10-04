@@ -96,7 +96,9 @@ emails, add accounts or switch providers without losing their data.
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's
   [profile](profiles.md) and roles
-  (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
+  (`presence_user`, `presence_admin`, and `presence_root` for the root
+  allowlist: `PRESENCE_ROOT_DOMAINS`, `PRESENCE_ROOT_EMAILS`),
+  `GET /api/auth/anonymous` (the
   execution mode and which settings are set, no token), the
   membership and voucher routes and the [profile](profiles.md) routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).

@@ -41,7 +41,7 @@ import static presence.auth.AuthHandler.response;
  */
 public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
-    /** The roles a voucher may grant. */
+    /** The roles a voucher may grant; never {@link Roles#ROOT}, which only the allowlist gives. */
     static final Set<String> ROLES = Set.of(Roles.USER, Roles.ADMIN);
 
     /** The most uses one voucher may have. */

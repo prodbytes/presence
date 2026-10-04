@@ -10,10 +10,19 @@ import 'roles_service.dart';
 /// and **Dismiss**; then the voucher codes, which grant a role to whoever
 /// redeems them, with a form to create one.
 class AdminScreen extends StatefulWidget {
-  const AdminScreen({super.key, required this.auth, required this.membership});
+  const AdminScreen({
+    super.key,
+    required this.auth,
+    required this.membership,
+    this.canCreateAdmins = false,
+  });
 
   final AuthService auth;
   final MembershipClient membership;
+
+  /// Whether the user is a `presence_root`, who may also create Admin
+  /// vouchers; admins create Member ones only.
+  final bool canCreateAdmins;
 
   @override
   State<AdminScreen> createState() => _AdminScreenState();
@@ -209,12 +218,22 @@ class _AdminScreenState extends State<AdminScreen> {
                 Text('Voucher codes', style: theme.textTheme.titleLarge),
                 const SizedBox(height: 4),
                 Text(
-                  'Whoever redeems a code on the Request access sheet gets '
-                  'its role at once. Admin codes also grant Member.',
+                  widget.canCreateAdmins
+                      ? 'Whoever redeems a code on the Request access sheet '
+                            'gets its role at once. Admin codes also grant '
+                            'Member.'
+                      : 'Whoever redeems a code on the Request access sheet '
+                            'becomes a Member at once. Only roots create '
+                            'Admin codes.',
                   style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 8),
-                _VoucherForm(onCreate: _create),
+                _VoucherForm(
+                  onCreate: _create,
+                  roles: widget.canCreateAdmins
+                      ? const [userRole, adminRole]
+                      : const [userRole],
+                ),
                 const SizedBox(height: 8),
                 ...switch ((vouchers, _vouchersError)) {
                   (_, final error?) => [status(error, error: true)],
@@ -320,10 +339,13 @@ String _roleLabel(String role) => switch (role) {
 /// A new voucher: its role, expiry date (the end of that day, local time)
 /// and how many people may redeem it.
 class _VoucherForm extends StatefulWidget {
-  const _VoucherForm({required this.onCreate});
+  const _VoucherForm({required this.onCreate, required this.roles});
 
   final Future<bool> Function(String role, DateTime expiresAt, int maxUses)
   onCreate;
+
+  /// The roles this user may create codes for.
+  final List<String> roles;
 
   /// The auth API's limits.
   static const int maxUses = 1000;
@@ -407,7 +429,7 @@ class _VoucherFormState extends State<_VoucherForm> {
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final role in const [userRole, adminRole])
+                  for (final role in widget.roles)
                     DropdownMenuItem(
                       value: role,
                       child: Text(_roleLabel(role)),

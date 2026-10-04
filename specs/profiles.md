@@ -79,8 +79,8 @@
   that made the profile. This applies in `GET /api/auth`, the Admin routes
   and the profile routes. The owner's email is kept on the profile and
   updated when the owner signs in with a new one. A `julio@gmail.com`
-  linked to a `julio@nu01.com` profile is a `presence_user` and
-  `presence_admin`, like the owner.
+  linked to a `julio@nu01.com` profile is a `presence_user`,
+  `presence_admin` and `presence_root`, like the owner.
 
 ## Linking
 

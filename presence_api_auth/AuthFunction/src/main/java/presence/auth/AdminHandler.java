@@ -46,7 +46,8 @@ import static presence.auth.AuthHandler.response;
  *   <li>{@code POST /api/auth/vouchers}: creates a voucher with a random code
  *       from the form-encoded body {@code role}, {@code expiresAt} (ISO-8601,
  *       in the future, within {@link #MAX_VALIDITY}) and {@code maxUses} (1 to
- *       {@link VoucherHandler#MAX_USES}), and answers it;</li>
+ *       {@link VoucherHandler#MAX_USES}), and answers it. A {@code presence_admin}
+ *       voucher needs a {@code presence_root} caller (403 otherwise);</li>
  *   <li>{@code POST /api/auth/vouchers/delete}: deletes the voucher whose code
  *       is the body.</li>
  * </ul>
@@ -135,7 +136,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                     .map(VoucherHandler.Voucher::toJson)
                     .collect(Collectors.joining(","))
                     + "]}");
-            case "POST /api/auth/vouchers" -> createVoucher(event, claims.get("email"));
+            case "POST /api/auth/vouchers" -> createVoucher(event, claims.get("email"), callerRoles);
             case "POST /api/auth/vouchers/delete" -> {
                 var body = MembershipHandler.bodyText(event, 64);
                 var code = body == null ? null : VoucherHandler.normalize(body);
@@ -149,12 +150,16 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         };
     }
 
-    private APIGatewayV2HTTPResponse createVoucher(APIGatewayV2HTTPEvent event, String admin) {
+    private APIGatewayV2HTTPResponse createVoucher(APIGatewayV2HTTPEvent event, String admin, Set<String> callerRoles) {
         var body = MembershipHandler.bodyText(event, 1000);
         var form = VoucherHandler.form(body == null ? "" : body);
         var role = form.getOrDefault("role", "");
         if (!VoucherHandler.ROLES.contains(role)) {
             return response(400, "{\"error\":\"role must be one of " + String.join(", ", new TreeSet<>(VoucherHandler.ROLES)) + "\"}");
+        }
+        // Only roots make admins: an admin can't pass the role on.
+        if (Roles.ADMIN.equals(role) && !callerRoles.contains(Roles.ROOT)) {
+            return response(403, "{\"error\":\"only presence_root creates presence_admin vouchers\"}");
         }
         // Milliseconds, as stored.
         var now = clock.instant().truncatedTo(ChronoUnit.MILLIS);

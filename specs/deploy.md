@@ -108,7 +108,9 @@ with an optional `tag` input, deploys that version to
   `repo:prodbytes/presence:ref:…`. Both roles trust both forms
   (`GitHubImmutableRepository` and `GitHubRepository`).
 - The Google web client ID comes from the repository variable
-  `GOOGLE_WEB_CLIENT_ID`.
+  `GOOGLE_WEB_CLIENT_ID`, and the auth API's root allowlist from
+  `PRESENCE_ROOT_DOMAINS` (unset: `nu01.com`) and `PRESENCE_ROOT_EMAILS`
+  (unset: none); see [Auth API](auth-api.md).
 
 ## Verified
 

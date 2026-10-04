@@ -4,18 +4,17 @@ Description: >
   presence_api_auth (stacks presence-auth-api and presence-rc-auth-api):
   GET /api/auth returns the signed-in user's profile (found by the token's
   subject, or made at the first sign-in) and roles; POST
-  /api/auth/membership asks for access, POST /api/auth/voucher redeems a
-  voucher code for its role, and the Admin routes (presence_admin) list and
-  approve requests and create, list and delete vouchers; POST
-  /api/auth/credentials and /api/auth/profile/* give a profile's cloud
-  credentials and link its accounts. The HTTP API checks the Google ID token
-  (JWT authorizer) before the functions run. GET /api/auth/anonymous, the
-  only route without a token, returns the execution mode (DEV without
-  GoogleWebClientId, else RBAC), the anonymous roles, and which settings are
-  set. Roles: verified emails at AllowedDomains get presence_user and
-  presence_admin, the UserRoles table adds more, and a linked account shares
-  its profile owner's. Served under /api/* by the site's CloudFront
-  distribution.
+  /api/auth/membership asks for access and POST /api/auth/voucher redeems a
+  voucher code; the Admin routes (presence_admin) approve requests and
+  manage vouchers; /api/auth/credentials and /api/auth/profile/* give a
+  profile's cloud credentials and link its accounts. A JWT authorizer
+  checks the Google ID token first. GET /api/auth/anonymous (no token)
+  returns the execution mode (DEV without GoogleWebClientId, else RBAC),
+  the anonymous roles and which settings are set. Roles: the root
+  allowlist (RootDomains, RootEmails) gets presence_root, presence_admin
+  and presence_user; the UserRoles table adds more (never presence_root);
+  a linked account shares its profile owner's. Served under /api/* by the
+  site's CloudFront distribution.
 
 Parameters:
   GoogleWebClientId:
@@ -45,10 +44,19 @@ Parameters:
     Description: >
       The Lambdas' CPU. arm64 in AWS; the local Floci deploy passes the
       host's, so they run without emulation (x86_64 on GitHub Codespaces).
-  AllowedDomains:
+  RootDomains:
     Type: String
     Default: nu01.com
-    Description: Comma-separated email domains whose verified users get presence_user and presence_admin
+    Description: >
+      PRESENCE_ROOT_DOMAINS: comma-separated email domains whose verified
+      users get presence_root, presence_admin and presence_user.
+  RootEmails:
+    Type: String
+    Default: ''
+    Description: >
+      PRESENCE_ROOT_EMAILS: comma-separated verified emails that get
+      presence_root, presence_admin and presence_user. Empty by default; set
+      it at deploy (scripts/deploy.sh), never in the repository.
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
@@ -242,11 +250,9 @@ Resources:
           USER_ROLES_TABLE: !Ref UserRolesTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
-          ALLOWED_DOMAINS: !Ref AllowedDomains
-          # Verified AllowedDomains users get both roles. Fixed here rather
-          # than a parameter: stacks keep a parameter's old value when a
-          # deploy doesn't pass it, which once left "admin" in place.
-          DOMAIN_ROLES: presence_user,presence_admin
+          # The root allowlist: its verified users get every role (Roles).
+          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
+          PRESENCE_ROOT_EMAILS: !Ref RootEmails
           # Decides the ExecutionMode: DEV when empty, else RBAC.
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
           # GET /api/auth/anonymous says whether these are set (Settings).
@@ -345,8 +351,8 @@ Resources:
       Environment:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
-          ALLOWED_DOMAINS: !Ref AllowedDomains
-          DOMAIN_ROLES: presence_user,presence_admin
+          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
+          PRESENCE_ROOT_EMAILS: !Ref RootEmails
           MEMBERSHIP_TABLE: !Ref MembershipTable
           VOUCHER_TABLE: !Ref VoucherTable
           PROFILES_TABLE: !Ref ProfilesTable
@@ -425,8 +431,8 @@ Resources:
       Environment:
         Variables:
           USER_ROLES_TABLE: !Ref UserRolesTable
-          ALLOWED_DOMAINS: !Ref AllowedDomains
-          DOMAIN_ROLES: presence_user,presence_admin
+          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
+          PRESENCE_ROOT_EMAILS: !Ref RootEmails
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable

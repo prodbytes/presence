@@ -74,7 +74,7 @@ class ProfileTest {
     };
 
     /** nu01.com gets both roles; julio@gmail.com and others none. */
-    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(Roles.USER, Roles.ADMIN), e -> Set.of());
+    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of());
 
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
@@ -137,7 +137,7 @@ class ProfileTest {
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
         assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\","
-                        + "\"roles\":[\"presence_admin\",\"presence_user\"]}",
+                        + "\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
         // And the Admin routes, which never make a profile.
         assertEquals("julio@nu01.com", AuthHandler.ownerOf(AuthHandler.owners(new Profiles(store)),
@@ -258,7 +258,7 @@ class ProfileTest {
     @Test
     void anOwnerLinkedAccountSharesTheOwnersRoles() {
         assertEquals(Set.of(), roles.of("julio@gmail.com", true));
-        assertEquals(Set.of(Roles.ADMIN, Roles.USER), roles.of("julio@gmail.com", true, "julio@nu01.com"));
+        assertEquals(Set.of(Roles.ROOT, Roles.ADMIN, Roles.USER), roles.of("julio@gmail.com", true, "julio@nu01.com"));
         assertEquals(Set.of(), roles.of("julio@gmail.com", false, "julio@nu01.com"));
         assertEquals(Set.of(), roles.of("julio@gmail.com", true, null));
     }
