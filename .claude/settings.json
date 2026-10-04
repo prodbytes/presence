@@ -6,7 +6,31 @@
       "Bash(mint broken-links *)",
       "mcp__mintlify-docs__search_mintlify",
       "Bash(gh pr merge:*)",
-      "Bash(*)"
+      "Bash(*)",
+      "Bash(flutter test *)",
+      "Bash(flutter analyze)",
+      "Bash(flutter analyze *)",
+      "Bash(git fetch *)",
+      "Bash(aws cloudformation describe-stacks *)",
+      "Bash(sam validate *)",
+      "Bash(npm view *)",
+      "mcp__claude_ai_Notion__notion-fetch",
+      "Bash(aws sts get-caller-identity *)",
+      "Bash(aws cloudformation describe-stack-resource *)",
+      "Bash(aws cloudformation validate-template *)",
+      "Bash(aws cloudformation describe-change-set *)",
+      "Bash(aws s3api list-objects-v2 *)",
+      "Bash(aws dynamodb list-tables *)",
+      "Bash(aws lambda get-function-configuration *)",
+      "Bash(aws s3api list-object-versions *)",
+      "Bash(aws lambda list-functions *)",
+      "Bash(aws dynamodb scan *)",
+      "Bash(aws dynamodb get-item *)",
+      "Bash(aws logs filter-log-events *)",
+      "Bash(aws cognito-identity lookup-developer-identity *)",
+      "Bash(aws cognito-identity describe-identity *)",
+      "Bash(adb devices *)",
+      "mcp__claude_ai_Notion__notion-search"
     ]
   }
 }
