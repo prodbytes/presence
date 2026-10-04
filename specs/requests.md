@@ -2120,3 +2120,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       (at the next roles check) or signing out removes it. Roles aren't
       re-checked on token renewal, as for the Admin screen.
     - Specs: [Log](log.md). 324 Flutter tests pass.
+229. **Run the app on the attached Android USB device (create a script to
+    do this).** (2026-10-04)
+    - New [scripts/flutter-android.sh](../scripts/flutter-android.sh) and
+      `devbox run android`: finds `adb`, picks the USB phone
+      (`ANDROID_SERIAL` for several), and runs `scripts/flutter-run.sh -d
+      <serial>`; clear errors for no phone, several, or an unauthorized
+      one. Documented in the README and [Android](android.md).
+    - Tested with a fake `adb` and `flutter` (one phone, one beside an
+      emulator and a wireless device, several, unauthorized,
+      `ANDROID_SERIAL`). Not run on a phone: none was attached (macOS saw
+      no phone on USB).

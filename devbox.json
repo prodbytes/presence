@@ -20,7 +20,8 @@
   },
   "shell": {
     "scripts": {
-      "web": "bash scripts/flutter-web.sh"
+      "web": "bash scripts/flutter-web.sh",
+      "android": "bash scripts/flutter-android.sh"
     }
   }
 }

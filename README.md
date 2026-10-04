@@ -255,6 +255,14 @@ settings are set. Without `.env` it looks like this:
 Stop everything with `devbox services stop`. To run only the app, use
 `devbox run web` (set `FLUTTER_WEB_PORT` to change the port).
 
+To run it on an Android phone attached by USB, turn on USB debugging on
+the phone (Settings > Developer options), allow this computer when asked,
+and run `devbox run android` (or `bash scripts/flutter-android.sh`). Extra
+arguments go to `flutter run`, e.g. `--release`. With several phones
+attached, pick one with `ANDROID_SERIAL=<serial>` from `adb devices`. The
+phone uses the production API, so sign in with Google; add
+`--dart-define=API_BASE_URL=<url>` to point it elsewhere.
+
 ### Building the binaries
 
 The [Makefile](Makefile) builds release binaries through
