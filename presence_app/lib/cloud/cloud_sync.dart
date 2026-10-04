@@ -131,6 +131,9 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   up with the same events as the bucket.
 /// - A pass runs at start (sign-in, or a session restored at launch), every
 ///   [interval] (15 s), and soon after each new event or completed clip.
+/// - When credentials can't be had (the auth API or Cognito fails), syncing
+///   stops: no pass runs until the Google ID token changes (signing in
+///   again), [retry] or [reconnect].
 /// - What a pass lists is kept small, since listing is billed per request:
 ///   the first pass for a user lists all of `events/` (old unpartitioned
 ///   keys included), one every [fullFetchEvery] lists each day of the
@@ -228,6 +231,13 @@ class CloudSync extends ChangeNotifier {
   bool _again = false;
   bool _disposed = false;
 
+  /// The ID token credentials failed for: syncing has stopped until it
+  /// changes, or until [retry].
+  String? _stoppedFor;
+
+  /// Whether syncing has stopped after credentials failed (see [retry]).
+  bool get stopped => _stoppedFor != null;
+
   CloudSyncState get state => _state;
 
   /// Why the last sync failed, when [state] is [CloudSyncState.error].
@@ -263,8 +273,13 @@ class CloudSync extends ChangeNotifier {
 
   void _onAuthChanged() {
     final user = _syncUser;
-    if (user == _user) return;
+    if (user == _user) {
+      // Signed in again (a new ID token): try again after a stop.
+      if (user != null && stopped && auth.idToken != _stoppedFor) retry();
+      return;
+    }
     _user = user;
+    _stoppedFor = null;
     backend.reset();
     _periodic?.cancel();
     _lastFullFetch = null;
@@ -272,9 +287,14 @@ class CloudSync extends ChangeNotifier {
       _timer?.cancel();
       _set(CloudSyncState.off);
     } else {
-      _periodic = Timer.periodic(interval, (_) => _schedule(immediately: true));
+      _startPeriodic();
       _schedule(immediately: true);
     }
+  }
+
+  void _startPeriodic() {
+    _periodic?.cancel();
+    _periodic = Timer.periodic(interval, (_) => _schedule(immediately: true));
   }
 
   /// Starts over with new credentials, as for a new user: after the
@@ -283,16 +303,27 @@ class CloudSync extends ChangeNotifier {
     if (_user == null) return;
     backend.reset();
     _lastFullFetch = null;
+    retry();
+  }
+
+  /// Syncs again after credentials failed and syncing [stopped].
+  void retry() {
+    if (_user == null || _disposed) return;
+    if (stopped) {
+      _stoppedFor = null;
+      _startPeriodic();
+    }
     _schedule(immediately: true);
   }
 
   void _schedule({bool immediately = false}) {
-    if (_disposed || _syncUser == null) return;
+    if (_disposed || _syncUser == null || stopped) return;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
 
   void _startNow() {
+    if (stopped) return;
     if (_running != null) {
       _again = true;
       return;
@@ -338,7 +369,15 @@ class CloudSync extends ChangeNotifier {
       }
       _set(CloudSyncState.synced);
     } on CognitoException catch (e) {
-      debugPrint('Presence: cloud sync failed: $e');
+      // Trying again each pass fails the same way: stop until the user
+      // signs in again or retries.
+      _stoppedFor = idToken;
+      _periodic?.cancel();
+      _timer?.cancel();
+      _again = false;
+      debugPrint(
+        'Presence: cloud sync failed, stopped until sign-in or retry: $e',
+      );
       _set(
         CloudSyncState.error,
         e.needsSignIn ? 'Sign in again to resume uploads' : e.message,

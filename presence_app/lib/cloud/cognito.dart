@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'sigv4.dart';
@@ -17,16 +16,22 @@ class CognitoSession {
 /// Why Cognito, or the auth API on its behalf, refused (for example, an
 /// expired Google ID token).
 class CognitoException implements Exception {
-  CognitoException(this.type, this.message);
+  CognitoException(this.type, this.message, {this.detail});
 
   final String type;
   final String message;
+
+  /// What else the answer said, for the log: the auth API's `cause` (the
+  /// AWS service and error code that failed) and `requestId` (which finds
+  /// the full error in its log), or the start of a body that isn't JSON.
+  final String? detail;
 
   /// The Google token was rejected: signing in again gets a fresh one.
   bool get needsSignIn => type.endsWith('NotAuthorizedException');
 
   @override
-  String toString() => 'Cognito $type: $message';
+  String toString() =>
+      'Cognito $type: $message${detail == null ? '' : ' ($detail)'}';
 }
 
 /// Temporary AWS credentials for the signed-in user's profile: the auth API
@@ -110,15 +115,18 @@ class CognitoCredentials {
       body = const {};
     }
     if (response.statusCode != 200) {
-      debugPrint(
-        'Presence: /api/auth/credentials answered HTTP '
-        '${response.statusCode}: ${_head(response.body)}',
-      );
+      final detail = [
+        if (body['cause'] case final String cause) 'cause: $cause',
+        if (body['requestId'] case final String id) 'request $id',
+        if (body.isEmpty && response.body.isNotEmpty)
+          'body: ${_head(response.body)}',
+      ];
       throw CognitoException(
         response.statusCode == 401
             ? 'NotAuthorizedException'
-            : 'HTTP ${response.statusCode}',
+            : 'HTTP ${response.statusCode} from /api/auth/credentials',
         '${body['error'] ?? 'the auth API refused credentials'}',
+        detail: detail.isEmpty ? null : detail.join('; '),
       );
     }
     return (

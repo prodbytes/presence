@@ -4,6 +4,7 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -131,10 +132,24 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 default -> response(404, "{\"error\":\"no such route\"}");
             };
         } catch (RuntimeException e) {
-            // Cognito or DynamoDB failed: say so without their details.
-            System.err.println("presence: " + route + " failed: " + e);
-            return response(502, "{\"error\":\"the profile service failed; try again\"}");
+            // Cognito or DynamoDB failed: say which and how (its error code),
+            // and the request ID that finds the full error in the log, but
+            // not AWS's message, which names ARNs.
+            var requestId = context == null ? null : context.getAwsRequestId();
+            System.err.println("presence: " + route + " failed (request " + requestId + "): " + e);
+            return response(502, "{\"error\":\"the profile service failed\",\"cause\":"
+                    + Json.string(cause(e))
+                    + (requestId == null ? "" : ",\"requestId\":" + Json.string(requestId)) + "}");
         }
+    }
+
+    /** What failed, for the caller: an AWS service and its error code, or the exception's type. */
+    static String cause(RuntimeException e) {
+        if (e instanceof AwsServiceException aws && aws.awsErrorDetails() != null) {
+            var details = aws.awsErrorDetails();
+            return details.serviceName() + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
+        }
+        return e.getClass().getSimpleName();
     }
 
     /** The signed-in subject: its issuer and Google ID, verified email (lowercase) and ID token. */

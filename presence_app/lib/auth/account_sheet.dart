@@ -253,7 +253,8 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
-/// One line about cloud uploads: syncing, synced (and how many), or why not.
+/// One line about cloud uploads: syncing, synced (and how many), or why not
+/// (with a Retry button once syncing has stopped).
 class CloudSyncStatus extends StatelessWidget {
   const CloudSyncStatus({super.key, required this.sync});
 
@@ -302,6 +303,12 @@ class CloudSyncStatus extends StatelessWidget {
             Flexible(
               child: Text(text, style: TextStyle(color: color)),
             ),
+            if (sync.stopped)
+              TextButton(
+                key: const Key('cloud-sync-retry'),
+                onPressed: sync.retry,
+                child: const Text('Retry'),
+              ),
           ],
         );
       },
