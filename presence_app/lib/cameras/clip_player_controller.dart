@@ -1,6 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import 'camera_source.dart';
+
+/// Where a player opens [media]: at [at] (a point of the recording, as tags'
+/// `frameMs` are), kept inside the clip's window, or at its start.
+Duration startPosition(ClipMedia media, Duration? at) {
+  if (at == null || at < media.start) return media.start;
+  return at > media.end ? media.end : at;
+}
+
 /// A frame grabbed from a playing clip: a JPEG (at most
 /// [ClipPlayerController.maxFrameWidth] wide) and where it is in the
 /// recording.

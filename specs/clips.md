@@ -32,6 +32,12 @@ file of *before* + *after* once the *after* seconds have passed.
    playing or had ended, paused if it was paused. From then on only the full
    clip plays, **before + after = 15 s** by default. Seeking is kept inside
    the clip window, and replaying after the end starts from the beginning.
+   Clicking one of the card's **labels** instead (a subject's name or an
+   object tag) opens the player **paused at the frame it was seen on**
+   (`showClipPlayer(at:)`, `ClipPlayerView.startAt`, kept inside the clip
+   window by `startPosition`); the tooltip says where ("Show at 0:02.5").
+   A subject opens at the earliest frame they're tagged on; a tag without
+   a frame (older records) plays from the start, like the card.
 4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap
    on play starts it with audio.
@@ -141,8 +147,10 @@ spot clicked
   clip and the event JSON with the tags. Restores, including from the
   cloud, bring the frames and names back; malformed entries are skipped.
 - A clip's card lists everyone tagged on it, each after a square in their
-  color, then its object tags as small chips, and the **Monitoring** tab's map shows the events they're on, with
-  their names (see [Subjects](subjects.md)).
+  color, then its object tags as small chips; clicking either opens the
+  player paused where it was seen (item 3 above). The **Monitoring** tab's
+  map shows the events they're on, with their names (see
+  [Subjects](subjects.md)).
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
   JSON round-trip that skips bad entries), and at app level a frame grabbed
   and clicked twice, restored after a refresh with its image, positions and

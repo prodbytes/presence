@@ -187,12 +187,21 @@ class _NativeCameraSource implements CameraSource {
 /// replaces the preview at the same moment of the clip. Mirrors the web
 /// player, on `video_player` (ExoPlayer).
 class ClipPlayerView extends StatefulWidget {
-  const ClipPlayerView({super.key, required this.clip, this.controller});
+  const ClipPlayerView({
+    super.key,
+    required this.clip,
+    this.controller,
+    this.startAt,
+  });
 
   final VideoClip clip;
 
   /// Serves frame grabs (for tagging) while this player is mounted.
   final ClipPlayerController? controller;
+
+  /// Opens paused at this point of the recording (as tags' `frameMs` are)
+  /// instead of playing from the start.
+  final Duration? startAt;
 
   @override
   State<ClipPlayerView> createState() => _ClipPlayerViewState();
@@ -237,10 +246,11 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   void _start() {
     final full = _clip.full;
     final past = _clip.past;
+    final at = widget.startAt;
     if (full != null) {
-      _load(full, full.start, onFull: true);
+      _load(full, startPosition(full, at), onFull: true, play: at == null);
     } else if (past != null) {
-      _load(past, past.start, onFull: false);
+      _load(past, startPosition(past, at), onFull: false, play: at == null);
     } else {
       setState(() => _waiting = true);
     }
