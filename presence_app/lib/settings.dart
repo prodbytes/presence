@@ -15,7 +15,6 @@ class SettingsView extends StatefulWidget {
     this.motionLevel,
     this.deviceId,
     this.profileId,
-    this.noProfile = 'none',
     this.health,
     this.addDevice,
     this.location,
@@ -38,12 +37,9 @@ class SettingsView extends StatefulWidget {
   /// it's known).
   final String? deviceId;
 
-  /// The signed-in user's profile ID, always shown under the device ID;
-  /// [noProfile] says why when there's none.
+  /// This device's profile ID, always shown under the device ID
+  /// ("loading…" until it's known).
   final String? profileId;
-
-  /// Shown instead of [profileId] while there's none, e.g. "not signed in".
-  final String noProfile;
 
   /// A status line under the device ID (the API, AWS and OIDC).
   final Widget? health;
@@ -346,7 +342,7 @@ class _SettingsViewState extends State<SettingsView> {
             _IdLine(
               label: 'Profile',
               id: widget.profileId,
-              missing: widget.noProfile,
+              missing: 'loading…',
               idKey: const Key('profile-id'),
             ),
             if (health case final health?) ...[

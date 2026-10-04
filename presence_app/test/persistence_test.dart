@@ -12,6 +12,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
+import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -23,6 +24,19 @@ void main() {
   late IdbFactory storage;
 
   setUp(() => storage = newIdbFactoryMemory());
+
+  test('the profile is made once, and a sign-in\'s replaces it', () async {
+    Future<EventStore> open() => EventStore.open(storage);
+    final first = await (await open()).profileId(ProfileId.generate);
+    expect(first, matches(ProfileId.pattern));
+    // The next start finds the same one.
+    expect(await (await open()).profileId(() => 'never_made_this'), first);
+    await (await open()).setProfileId('automatic_paranoid_axolotl');
+    expect(
+      await (await open()).profileId(() => 'never_made_this'),
+      'automatic_paranoid_axolotl',
+    );
+  });
 
   // The clock the app sees; tests may move it.
   late DateTime clock;

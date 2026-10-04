@@ -11,9 +11,10 @@ Presence is a surveillance app. It shows live camera feeds and a stream of
 events detected from them. The cameras are always recording, video and
 audio, so a clip can include the moments before someone pressed Clip.
 
-**Data belongs to profiles, not logins.** Every signed-in user has a
-[profile](profiles.md) (`automatic_paranoid_axolotl`), found by the
-subject they sign in with, or created and linked at their first sign-in.
+**Data belongs to profiles, not logins.** There's always a
+[profile](profiles.md) (`automatic_paranoid_axolotl`): the app makes one
+at its first start, owned by nobody, and the first sign-in claims it.
+Later sign-ins load the profile linked to the subject they sign in with.
 The profile owns the user's cloud folder and roles, and several Google
 accounts can be linked to it with a one-time code. So users can change
 emails, add accounts or switch providers without losing their data.
@@ -45,17 +46,15 @@ emails, add accounts or switch providers without losing their data.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   240 minutes (30 min to a day, in Settings).
-- [Profiles](profiles.md): **the owner of a user's data.** Each sign-in
-  loads the profile linked to its subject (`<iss>#<sub>`), or creates one
-  and links it; IDs like `automatic_paranoid_axolotl`, never repeated.
+- [Profiles](profiles.md): **the owner of a user's data.** Made by the
+  app at its first start, owned by nobody, and claimed by the first
+  sign-in; later sign-ins load the profile linked to their subject
+  (`<iss>#<sub>`); IDs like `automatic_paranoid_axolotl`, never repeated.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (role,
   expiry, uses) on the Admin screen.
-- [Profiles](profiles.md): whose data it is (`huge_wavy_darter`), made at
-  the first sign-in; one cloud folder and the owner's roles for every
-  account linked to it with a one-time code (even two from Google).
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.

@@ -20,7 +20,9 @@ import java.util.stream.Collectors;
  * {@code GET /api/auth}: the signed-in user's {@link Profiles profile} and
  * roles, as {@code {"email": "...", "profile": "<id>", "roles": [...]}}. The
  * profile is found by the token's subject ({@code iss} and {@code sub}), or
- * created and linked to it at the first sign-in. The HTTP API's JWT
+ * created and linked to it at the first sign-in, with the app's own profile
+ * ID ({@code ?profile=<id>}) when that's free: the first sign-in claims the
+ * profile the app made at its start. The HTTP API's JWT
  * authorizer has already verified the Google ID token, so the claims can be
  * trusted.
  *
@@ -70,7 +72,7 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var claims = claims(event);
         var email = claims.get("email");
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        var profile = profiles.profile(claims.get("iss"), claims.get("sub"), email);
+        var profile = profiles.profile(claims.get("iss"), claims.get("sub"), email, query(event, "profile"));
         // A linked subject shares its profile owner's roles.
         var granted = roles.of(email, verified, profile == null ? null : profile.ownerEmail());
         var body = "{\"email\":" + (email == null ? "null" : Json.string(email))
@@ -95,6 +97,12 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var jwt = authorizer == null ? null : authorizer.getJwt();
         var claims = jwt == null ? null : jwt.getClaims();
         return claims == null ? Map.of() : claims;
+    }
+
+    /** The query parameter {@code name}, or null. */
+    static String query(APIGatewayV2HTTPEvent event, String name) {
+        var parameters = event == null ? null : event.getQueryStringParameters();
+        return parameters == null ? null : parameters.get(name);
     }
 
     /** The email of the signed-in subject's profile owner, without making a profile; null if none. */

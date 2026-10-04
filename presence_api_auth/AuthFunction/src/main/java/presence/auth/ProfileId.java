@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -25,6 +26,9 @@ public final class ProfileId {
 
     /** What an ID looks like: {@code adjective_adjective_animal}, lowercase. */
     static final Pattern PATTERN = Pattern.compile("[a-z]+_[a-z]+_[a-z]+");
+
+    private static final Set<String> ADJECTIVE_SET = Set.copyOf(ADJECTIVES);
+    private static final Set<String> ANIMAL_SET = Set.copyOf(ANIMALS);
 
     private static final Random SECURE = new SecureRandom();
 
@@ -50,6 +54,20 @@ public final class ProfileId {
         }
         return ADJECTIVES.get(first) + "_" + ADJECTIVES.get(second) + "_"
                 + ANIMALS.get(random.nextInt(ANIMALS.size()));
+    }
+
+    /**
+     * Whether {@code id} is one {@link #generate} could make: two different
+     * adjectives and an animal from the lists. The app makes its own, so
+     * anything else it sends is refused.
+     */
+    public static boolean valid(String id) {
+        if (id == null || id.length() > 100 || !PATTERN.matcher(id).matches()) {
+            return false;
+        }
+        var parts = id.split("_");
+        return !parts[0].equals(parts[1]) && ADJECTIVE_SET.contains(parts[0])
+                && ADJECTIVE_SET.contains(parts[1]) && ANIMAL_SET.contains(parts[2]);
     }
 
     private static List<String> words(String resource) {

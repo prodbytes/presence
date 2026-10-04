@@ -39,6 +39,34 @@ class ProfilesTest {
     }
 
     @Test
+    void aFirstSignInClaimsTheAppsProfile() {
+        var app = "automatic_paranoid_axolotl";
+        assertEquals(app, profiles.of(GOOGLE, "111", "ana@example.com", app));
+        assertEquals(Map.of(GOOGLE + "#111", app), store.links);
+        assertEquals(GOOGLE + "#111", store.profile(app).ownerSubject());
+        assertEquals(0, next.get());
+        // Once linked, the subject keeps its profile, whatever the app sends.
+        assertEquals(app, profiles.of(GOOGLE, "111", "ana@example.com", "brave_calm_otter"));
+        assertNull(store.profile("brave_calm_otter"));
+    }
+
+    @Test
+    void aTakenOrMalformedAppProfileIsNotClaimed() {
+        var app = "automatic_paranoid_axolotl";
+        profiles.of(GOOGLE, "111", "ana@example.com", app);
+        // Another subject can't take a profile someone owns: it gets its own.
+        assertEquals("profile-1", profiles.of(GOOGLE, "222", "bob@example.com", app));
+        assertEquals(GOOGLE + "#111", store.profile(app).ownerSubject());
+        // Only IDs the app could make: two different adjectives and an animal.
+        for (var bad : List.of("profile-x", "automatic_automatic_axolotl", "automatic_paranoid_gadgetx",
+                "Automatic_paranoid_axolotl", "a_b_c", "")) {
+            assertNotEquals(bad, profiles.of(GOOGLE, "bad" + bad, null, bad), bad);
+            assertNull(store.profile(bad), bad);
+        }
+        assertTrue(ProfileId.valid(ProfileId.generate()));
+    }
+
+    @Test
     void theSubjectNotTheEmailFindsTheProfile() {
         var first = profiles.of(GOOGLE, "111", "ana@example.com");
         // The same account with a new email: the same profile.
@@ -137,10 +165,16 @@ class ProfilesTest {
         assertEquals("{\"email\":\"bob@example.com\",\"profile\":\"profile-2\",\"roles\":[]}",
                 handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "222",
                         "email", "bob@example.com", "email_verified", "true")), null).getBody());
+        // The app's own profile, claimed at a first sign-in.
+        var event = RolesTest.event(Map.of("iss", GOOGLE, "sub", "333",
+                "email", "cy@example.com", "email_verified", "true"));
+        event.setQueryStringParameters(Map.of("profile", "automatic_paranoid_axolotl"));
+        assertEquals("{\"email\":\"cy@example.com\",\"profile\":\"automatic_paranoid_axolotl\",\"roles\":[]}",
+                handler.handleRequest(event, null).getBody());
         // The anonymous route makes none.
         var anonymous = new com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent();
         anonymous.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
         handler.handleRequest(anonymous, null);
-        assertEquals(2, store.links.size());
+        assertEquals(3, store.links.size());
     }
 }
