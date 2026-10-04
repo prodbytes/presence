@@ -41,6 +41,7 @@ class Voucher {
     this.redeemedBy = const [],
     this.createdBy = '',
     required this.createdAt,
+    this.discount = 100,
   });
 
   factory Voucher.fromJson(Map<String, Object?> json) => Voucher(
@@ -54,9 +55,12 @@ class Voucher {
     ],
     createdBy: '${json['createdBy'] ?? ''}',
     createdAt: _instant(json['createdAt']),
+    // Vouchers from before discounts were full ones.
+    discount: (json['discount'] as num?)?.toInt() ?? 100,
   );
 
-  /// `XXXX-XXXX-XXXX`.
+  /// `XXXX-XXXX-XXXX` when random, or the admin's choice
+  /// (`AUTUMN-OTTER-4821`).
   final String code;
 
   /// [userRole] or [adminRole] (which also grants [userRole]).
@@ -70,8 +74,20 @@ class Voucher {
   final String createdBy;
   final DateTime createdAt;
 
+  /// The discount it gives, in percent (1 to 100).
+  final int discount;
+
   bool isExpired(DateTime now) => !expiresAt.isAfter(now);
   bool get isUsedUp => uses >= maxUses;
+}
+
+/// A valid voucher whose [discount] is under 100%: it grants its role once
+/// the user pays the rest, which isn't built yet (HTTP 402).
+class PaymentRequiredException extends RolesException {
+  PaymentRequiredException(this.discount) : super(402);
+
+  /// The voucher's discount, in percent.
+  final int discount;
 }
 
 DateTime _instant(Object? value) =>
@@ -84,7 +100,8 @@ DateTime _instant(Object? value) =>
 /// requests, and create, list and delete vouchers. Failures throw
 /// [RolesException] with the HTTP status (409: a request was already sent
 /// this hour; 404 from [redeem]: the code is invalid, expired or used up;
-/// 429: throttled).
+/// [PaymentRequiredException] (402) from [redeem]: the code is valid but
+/// its discount isn't full; 429: throttled).
 abstract class MembershipClient {
   /// Sends [message] as the signed-in user's request for access.
   Future<void> request(String idToken, String message);
@@ -99,17 +116,23 @@ abstract class MembershipClient {
   Future<void> dismiss(String idToken, String email);
 
   /// Redeems [code] for the signed-in user; returns the voucher's role.
+  /// A code with a discount under 100% grants nothing yet: it throws
+  /// [PaymentRequiredException].
   Future<String> redeem(String idToken, String code);
 
   /// Every voucher, newest first (admins only).
   Future<List<Voucher>> vouchers(String idToken);
 
-  /// Creates a voucher with a random code (admins only).
+  /// Creates a voucher (admins only) with [code], or a random code when
+  /// it's null or blank, and a [discount] in percent. Throws
+  /// [RolesException] 409 when [code] is taken.
   Future<Voucher> createVoucher(
     String idToken, {
     required String role,
     required DateTime expiresAt,
     required int maxUses,
+    String? code,
+    int discount = 100,
   });
 
   /// Deletes the voucher [code] (admins only).
@@ -138,6 +161,13 @@ class HttpMembershipClient implements MembershipClient {
       },
       body: utf8.encode(body),
     );
+    if (response.statusCode == 402) {
+      // Only redeeming answers 402: a valid code with the rest to pay.
+      final body = jsonDecode(response.body);
+      throw PaymentRequiredException(
+        body is Map ? (body['discount'] as num?)?.toInt() ?? 0 : 0,
+      );
+    }
     if (response.statusCode ~/ 100 != 2) {
       throw RolesException(response.statusCode);
     }
@@ -198,6 +228,8 @@ class HttpMembershipClient implements MembershipClient {
     required String role,
     required DateTime expiresAt,
     required int maxUses,
+    String? code,
+    int discount = 100,
   }) async {
     final response = await _post(
       '/api/auth/vouchers',
@@ -207,6 +239,8 @@ class HttpMembershipClient implements MembershipClient {
           'role': role,
           'expiresAt': expiresAt.toUtc().toIso8601String(),
           'maxUses': '$maxUses',
+          'discount': '$discount',
+          if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
         },
       ).query,
       contentType: 'application/x-www-form-urlencoded',

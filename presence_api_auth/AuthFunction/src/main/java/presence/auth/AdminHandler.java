@@ -42,12 +42,15 @@ import static presence.auth.AuthHandler.response;
  *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
  *       {@code {"vouchers": [{code, role, expiresAt, maxUses, uses, redeemedBy,
- *       createdBy, createdAt}]}};</li>
- *   <li>{@code POST /api/auth/vouchers}: creates a voucher with a random code
- *       from the form-encoded body {@code role}, {@code expiresAt} (ISO-8601,
- *       in the future, within {@link #MAX_VALIDITY}) and {@code maxUses} (1 to
- *       {@link VoucherHandler#MAX_USES}), and answers it. A {@code presence_admin}
- *       voucher needs a {@code presence_root} caller (403 otherwise);</li>
+ *       createdBy, createdAt, discount}]}};</li>
+ *   <li>{@code POST /api/auth/vouchers}: creates a voucher from the
+ *       form-encoded body {@code role}, {@code expiresAt} (ISO-8601, in the
+ *       future, within {@link #MAX_VALIDITY}), {@code maxUses} (1 to
+ *       {@link VoucherHandler#MAX_USES}), and optionally {@code code} (see
+ *       {@link VoucherHandler#normalize}; random if absent or blank, 409 if
+ *       taken) and {@code discount} (percent, 1 to 100; 100 if absent), and
+ *       answers it. A {@code presence_admin} voucher needs a
+ *       {@code presence_root} caller (403 otherwise);</li>
  *   <li>{@code POST /api/auth/vouchers/delete}: deletes the voucher whose code
  *       is the body.</li>
  * </ul>
@@ -182,10 +185,33 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         if (maxUses < 1 || maxUses > VoucherHandler.MAX_USES) {
             return response(400, "{\"error\":\"maxUses must be 1 to " + VoucherHandler.MAX_USES + "\"}");
         }
+        int discount;
+        try {
+            discount = Integer.parseInt(form.getOrDefault("discount", "" + VoucherHandler.FULL_DISCOUNT));
+        } catch (NumberFormatException e) {
+            discount = 0;
+        }
+        if (discount < 1 || discount > VoucherHandler.FULL_DISCOUNT) {
+            return response(400, "{\"error\":\"discount must be 1 to 100 (percent)\"}");
+        }
+        var createdBy = admin.strip().toLowerCase(Locale.ROOT);
+        var chosen = form.getOrDefault("code", "");
+        if (!chosen.isBlank()) {
+            var code = VoucherHandler.normalize(chosen);
+            if (code == null) {
+                return response(400, "{\"error\":\"code must be " + VoucherHandler.MIN_CODE + " to "
+                        + VoucherHandler.MAX_CODE + " letters, digits and dashes\"}");
+            }
+            var voucher = new VoucherHandler.Voucher(code, role, expiresAt, maxUses, 0,
+                    Set.of(), createdBy, now, discount);
+            return vouchers.create(voucher)
+                    ? response(201, voucher.toJson())
+                    : response(409, "{\"error\":\"that code is taken\"}");
+        }
         // 60 random bits rarely collide; try again if one does.
         for (var attempt = 0; attempt < 3; attempt++) {
             var voucher = new VoucherHandler.Voucher(VoucherHandler.newCode(), role, expiresAt, maxUses, 0,
-                    Set.of(), admin.strip().toLowerCase(Locale.ROOT), now);
+                    Set.of(), createdBy, now, discount);
             if (vouchers.create(voucher)) {
                 return response(201, voucher.toJson());
             }

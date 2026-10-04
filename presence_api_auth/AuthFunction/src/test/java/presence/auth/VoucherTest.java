@@ -42,22 +42,27 @@ class VoucherTest {
         }
 
         @Override
+        public VoucherHandler.Voucher find(String code) {
+            return vouchers.get(code);
+        }
+
+        @Override
         public void delete(String code) {
             vouchers.remove(code);
         }
 
         @Override
-        public String claim(String code, String email, Instant now) {
+        public VoucherHandler.Voucher claim(String code, String email, Instant now) {
             var v = vouchers.get(code);
-            if (v == null || !v.expiresAt().isAfter(now) || v.uses() >= v.maxUses()
-                    || v.redeemedBy().contains(email)) {
+            if (v == null || !v.redeemableBy(email, now) || v.discount() < VoucherHandler.FULL_DISCOUNT) {
                 return null;
             }
             var redeemedBy = new HashSet<>(v.redeemedBy());
             redeemedBy.add(email);
-            vouchers.put(code, new VoucherHandler.Voucher(v.code(), v.role(), v.expiresAt(), v.maxUses(),
-                    v.uses() + 1, redeemedBy, v.createdBy(), v.createdAt()));
-            return v.role();
+            var claimed = new VoucherHandler.Voucher(v.code(), v.role(), v.expiresAt(), v.maxUses(),
+                    v.uses() + 1, redeemedBy, v.createdBy(), v.createdAt(), v.discount());
+            vouchers.put(code, claimed);
+            return claimed;
         }
 
         @Override
@@ -69,7 +74,7 @@ class VoucherTest {
             var redeemedBy = new HashSet<>(v.redeemedBy());
             redeemedBy.remove(email);
             vouchers.put(code, new VoucherHandler.Voucher(v.code(), v.role(), v.expiresAt(), v.maxUses(),
-                    v.uses() - 1, redeemedBy, v.createdBy(), v.createdAt()));
+                    v.uses() - 1, redeemedBy, v.createdBy(), v.createdAt(), v.discount()));
         }
     }
 
@@ -129,10 +134,22 @@ class VoucherTest {
         var code = VoucherHandler.newCode();
         assertTrue(code.matches("[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}"), code);
         assertEquals("ABCD-EFGH-JK23", VoucherHandler.normalize(" abcd efgh-jk23 "));
-        assertNull(VoucherHandler.normalize("ABCD-EFGH-JK2"));
-        // 0, O, 1 and I aren't used, so they can't be in a code.
-        assertNull(VoucherHandler.normalize("ABCD-EFGH-JK20"));
-        assertNull(VoucherHandler.normalize("ABCD-EFGH-JKIO"));
+        assertEquals("ABCD-EFGH-JK23", VoucherHandler.normalize("abcdefghjk23"));
+        // Not a random code's shape: kept as typed (a chosen code).
+        assertEquals("ABCD-EFGH-JK2", VoucherHandler.normalize("ABCD-EFGH-JK2"));
+        assertEquals("ABCDEF-GHJK23", VoucherHandler.normalize("abcdef ghjk23"));
+    }
+
+    @Test
+    void chosenCodesAreWordsAndDigits() {
+        assertEquals("AUTUMN-OTTER-4821", VoucherHandler.normalize("  autumn otter_4821 "));
+        assertEquals("AUTUMN-OTTER-4821", VoucherHandler.normalize("Autumn--Otter - 4821"));
+        assertEquals("ABCD-EFGH-JK20", VoucherHandler.normalize("abcd-efgh-jk20"));
+        assertNull(VoucherHandler.normalize("ABCDE"));
+        assertNull(VoucherHandler.normalize("A".repeat(41)));
+        assertNull(VoucherHandler.normalize("CAFÉ-OTTER-12"));
+        assertNull(VoucherHandler.normalize("OTTER;DROP"));
+        assertNull(VoucherHandler.normalize(" - - "));
     }
 
     @Test
@@ -152,7 +169,7 @@ class VoucherTest {
         var code = code(created.getBody());
         assertEquals("{\"code\":\"" + code + "\",\"role\":\"presence_user\",\"expiresAt\":\"2026-10-11T12:00:00Z\","
                 + "\"maxUses\":5,\"uses\":0,\"redeemedBy\":[],\"createdBy\":\"boss@nu01.com\","
-                + "\"createdAt\":\"2026-10-04T12:00:00Z\"}", created.getBody());
+                + "\"createdAt\":\"2026-10-04T12:00:00Z\",\"discount\":100}", created.getBody());
 
         now = NOW.plusSeconds(60);
         var second = code(create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getBody());
@@ -182,10 +199,52 @@ class VoucherTest {
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1001",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=lots",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=0",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=101",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=half",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=no",
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=otter%3Bdrop",
         }) {
             assertEquals(400, create(body).getStatusCode(), body);
         }
         assertEquals(Map.of(), store.vouchers);
+    }
+
+    @Test
+    void anAdminChoosesTheCodeAndDiscount() {
+        var created = create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=3"
+                + "&code=autumn+otter+4821&discount=25");
+        assertEquals(201, created.getStatusCode());
+        assertEquals("AUTUMN-OTTER-4821", code(created.getBody()));
+        assertTrue(created.getBody().endsWith(",\"discount\":25}"), created.getBody());
+        // Taken.
+        assertEquals(409, create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1"
+                + "&code=Autumn-Otter-4821").getStatusCode());
+        assertEquals(25, store.vouchers.get("AUTUMN-OTTER-4821").discount());
+
+
+        // A blank code is a random one.
+        var random = create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=+");
+        assertEquals(201, random.getStatusCode());
+        assertTrue(code(random.getBody()).matches("[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}"));
+    }
+
+    @Test
+    void aPartialDiscountGrantsNothingUntilPaid() {
+        create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=autumn-otter-4821&discount=25");
+        var response = redeem.handleRequest(redeem("ana@example.com", "autumn otter 4821"), null);
+        assertEquals(402, response.getStatusCode());
+        assertEquals("{\"error\":\"the rest must be paid\",\"discount\":25}", response.getBody());
+        // No role, and no use counted.
+        assertNull(granted.get("ana@example.com"));
+        assertEquals(0, store.vouchers.get("AUTUMN-OTTER-4821").uses());
+        assertEquals(402, redeem.handleRequest(redeem("bob@example.com", "AUTUMN-OTTER-4821"), null)
+                .getStatusCode());
+
+        // Expired: the same 404 as any other code.
+        now = Instant.parse("2026-10-05T00:00:00Z");
+        assertEquals(404, redeem.handleRequest(redeem("ana@example.com", "AUTUMN-OTTER-4821"), null)
+                .getStatusCode());
     }
 
     @Test
@@ -216,7 +275,8 @@ class VoucherTest {
         var response = redeem.handleRequest(redeem("Ana@Example.com", " " + code.toLowerCase().replace("-", " ") + " "),
                 null);
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"role\":\"presence_user\",\"granted\":[\"presence_user\"]}", response.getBody());
+        assertEquals("{\"role\":\"presence_user\",\"granted\":[\"presence_user\"],\"discount\":100}",
+                response.getBody());
         assertEquals(Set.of(Roles.USER), granted.get("ana@example.com"));
         var voucher = store.vouchers.get(code);
         assertEquals(1, voucher.uses());

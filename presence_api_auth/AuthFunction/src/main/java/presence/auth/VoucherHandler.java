@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
@@ -20,6 +21,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -34,10 +36,13 @@ import static presence.auth.AuthHandler.response;
 /**
  * {@code POST /api/auth/voucher}: a signed-in user redeems a voucher code
  * (the plain-text body). A valid code (it exists, hasn't expired, has uses
- * left, and this email hasn't used it) counts a use and grants its role.
- * Every other code gets the same 404, so an answer tells nothing about
- * which codes exist. Admins create vouchers on the Admin screen (see
- * {@link AdminHandler}).
+ * left, and this email hasn't used it) with a full (100%) discount counts a
+ * use and grants its role. A valid code with a smaller discount gets 402
+ * with its discount, and grants nothing and counts no use: the user would
+ * pay the rest, which isn't built yet. Every other code gets the same 404,
+ * so an answer tells nothing about which codes exist. Admins create vouchers on the Admin screen (see
+ * {@link AdminHandler}), with a random code or one they choose, and a
+ * discount (a percentage, 100 by default).
  */
 public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -47,14 +52,21 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** The most uses one voucher may have. */
     static final int MAX_USES = 1000;
 
-    /** Codes are three groups of four, from 32 characters without 0/O or 1/I: 60 random bits. */
+    /** Random codes are three groups of four, from 32 characters without 0/O or 1/I: 60 random bits. */
     static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+    /** The length of a chosen code, dashes included. */
+    static final int MIN_CODE = 6;
+    static final int MAX_CODE = 40;
+
+    /** A voucher's discount, in percent, when none is given. */
+    static final int FULL_DISCOUNT = 100;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
     /** A voucher, as stored and listed. */
     record Voucher(String code, String role, Instant expiresAt, int maxUses, int uses,
-                   Set<String> redeemedBy, String createdBy, Instant createdAt) {
+                   Set<String> redeemedBy, String createdBy, Instant createdAt, int discount) {
 
         String toJson() {
             return "{\"code\":" + Json.string(code)
@@ -65,7 +77,13 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                     + ",\"redeemedBy\":[" + redeemedBy.stream().sorted().map(Json::string)
                     .collect(Collectors.joining(",")) + "]"
                     + ",\"createdBy\":" + Json.string(createdBy)
-                    + ",\"createdAt\":" + Json.string(createdAt.toString()) + "}";
+                    + ",\"createdAt\":" + Json.string(createdAt.toString())
+                    + ",\"discount\":" + discount + "}";
+        }
+
+        /** Whether {@code email} may redeem it at {@code now}, payment aside. */
+        boolean redeemableBy(String email, Instant now) {
+            return expiresAt.isAfter(now) && uses < maxUses && !redeemedBy.contains(email);
         }
     }
 
@@ -80,13 +98,17 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /** Deletes the voucher, if there is one. */
         void delete(String code);
 
+        /** The voucher, or null if there's none. */
+        Voucher find(String code);
+
         /**
          * Counts a use of {@code code} by {@code email}, if it exists, expires
-         * after {@code now}, has uses left and {@code email} hasn't used it.
+         * after {@code now}, has uses left, {@code email} hasn't used it, and
+         * its discount is full (nothing left to pay).
          *
-         * @return the voucher's role, or null if it can't be used
+         * @return the voucher, as claimed, or null if it can't be used
          */
-        String claim(String code, String email, Instant now);
+        Voucher claim(String code, String email, Instant now);
 
         /** Undoes {@link #claim} (when the grant failed). */
         void release(String code, String email);
@@ -124,10 +146,18 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(400, "{\"error\":\"the body must be a voucher code\"}");
         }
         var code = normalize(body);
-        var role = code == null ? null : store.claim(code, email, clock.instant());
-        if (role == null) {
+        var now = clock.instant();
+        var voucher = code == null ? null : store.claim(code, email, now);
+        if (voucher == null) {
+            var partial = code == null ? null : store.find(code);
+            if (partial != null && partial.discount() < FULL_DISCOUNT && partial.redeemableBy(email, now)) {
+                // Paying the rest isn't built yet: nothing is granted or counted.
+                return response(402, "{\"error\":\"the rest must be paid\",\"discount\":"
+                        + partial.discount() + "}");
+            }
             return response(404, "{\"error\":\"the code is invalid, expired or used up\"}");
         }
+        var role = voucher.role();
         var roles = rolesFor(role);
         try {
             grant.accept(email, roles);
@@ -136,7 +166,8 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             throw e;
         }
         return response(200, "{\"role\":" + Json.string(role) + ",\"granted\":["
-                + roles.stream().map(Json::string).collect(Collectors.joining(",")) + "]}");
+                + roles.stream().map(Json::string).collect(Collectors.joining(","))
+                + "],\"discount\":" + voucher.discount() + "}");
     }
 
     /**
@@ -162,15 +193,29 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     /**
-     * A typed code in its stored form, {@code XXXX-XXXX-XXXX}: case, spaces
-     * and dashes don't matter. Null if it can't be a code.
+     * A typed code in its stored form: upper case, its words (letters and
+     * digits) joined by single dashes, {@code AUTUMN-OTTER-4821}. Case and
+     * the separators (spaces, dashes, underscores) don't matter. Twelve
+     * characters of {@link #ALPHABET}, typed whole or as three fours, take
+     * the random codes' form, {@code XXXX-XXXX-XXXX}. Null if it can't be a
+     * code: other characters, or not {@link #MIN_CODE} to {@link #MAX_CODE}
+     * long.
      */
     static String normalize(String typed) {
-        var raw = typed.toUpperCase(Locale.ROOT).replaceAll("[\\s-]", "");
-        if (raw.length() != 12 || raw.chars().anyMatch(c -> ALPHABET.indexOf(c) < 0)) {
+        var words = Arrays.stream(typed.toUpperCase(Locale.ROOT).split("[\\s_-]+"))
+                .filter(w -> !w.isEmpty())
+                .toList();
+        var raw = String.join("", words);
+        var lengths = words.stream().map(String::length).toList();
+        if (raw.length() == 12 && raw.chars().allMatch(c -> ALPHABET.indexOf(c) >= 0)
+                && (lengths.equals(List.of(12)) || lengths.equals(List.of(4, 4, 4)))) {
+            return raw.substring(0, 4) + "-" + raw.substring(4, 8) + "-" + raw.substring(8);
+        }
+        var code = String.join("-", words);
+        if (code.length() < MIN_CODE || code.length() > MAX_CODE || !code.matches("[A-Z0-9-]+")) {
             return null;
         }
-        return raw.substring(0, 4) + "-" + raw.substring(4, 8) + "-" + raw.substring(8);
+        return code;
     }
 
     /** An {@code application/x-www-form-urlencoded} body's fields (the last of repeated ones). */
@@ -194,7 +239,8 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     /**
      * One item per code: {@code {"code", "role", "expiresAt" (epoch ms),
-     * "maxUses", "uses", "redeemedBy" (SS), "createdBy", "createdAt" (epoch ms)}}.
+     * "maxUses", "uses", "redeemedBy" (SS), "createdBy", "createdAt" (epoch ms),
+     * "discount" (percent; 100 if missing)}}.
      */
     static Store dynamoStore(String table) {
         var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
@@ -211,7 +257,8 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                                     "maxUses", AttributeValue.fromN(Integer.toString(voucher.maxUses())),
                                     "uses", AttributeValue.fromN("0"),
                                     "createdBy", AttributeValue.fromS(voucher.createdBy()),
-                                    "createdAt", millis(voucher.createdAt())))
+                                    "createdAt", millis(voucher.createdAt()),
+                                    "discount", AttributeValue.fromN(Integer.toString(voucher.discount()))))
                             .conditionExpression("attribute_not_exists(code)")
                             .build());
                     return true;
@@ -225,16 +272,20 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 var result = new ArrayList<Voucher>();
                 for (var page : dynamo.scanPaginator(ScanRequest.builder().tableName(table).build())) {
                     for (var item : page.items()) {
-                        var redeemedBy = item.get("redeemedBy");
-                        result.add(new Voucher(
-                                text(item, "code"), text(item, "role"),
-                                instant(item.get("expiresAt")), number(item.get("maxUses")),
-                                number(item.get("uses")),
-                                redeemedBy == null || !redeemedBy.hasSs() ? Set.of() : Set.copyOf(redeemedBy.ss()),
-                                text(item, "createdBy"), instant(item.get("createdAt"))));
+                        result.add(voucher(item));
                     }
                 }
                 return result;
+            }
+
+            @Override
+            public Voucher find(String code) {
+                var item = dynamo.getItem(GetItemRequest.builder()
+                        .tableName(table)
+                        .key(Map.of("code", AttributeValue.fromS(code)))
+                        .consistentRead(true)
+                        .build()).item();
+                return item == null || item.isEmpty() ? null : voucher(item);
             }
 
             @Override
@@ -246,24 +297,26 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             }
 
             @Override
-            public String claim(String code, String email, Instant now) {
+            public Voucher claim(String code, String email, Instant now) {
                 try {
                     var updated = dynamo.updateItem(UpdateItemRequest.builder()
                             .tableName(table)
                             .key(Map.of("code", AttributeValue.fromS(code)))
                             // One conditional write: concurrent redemptions can't overspend it.
                             .updateExpression("SET uses = uses + :one ADD redeemedBy :who")
+                            // Vouchers from before discounts have none: they're full.
                             .conditionExpression("attribute_exists(code) AND expiresAt > :now"
-                                    + " AND uses < maxUses AND NOT contains(redeemedBy, :email)")
+                                    + " AND uses < maxUses AND NOT contains(redeemedBy, :email)"
+                                    + " AND (attribute_not_exists(discount) OR discount >= :full)")
                             .expressionAttributeValues(Map.of(
                                     ":one", AttributeValue.fromN("1"),
+                                    ":full", AttributeValue.fromN(Integer.toString(FULL_DISCOUNT)),
                                     ":who", AttributeValue.fromSs(List.of(email)),
                                     ":email", AttributeValue.fromS(email),
                                     ":now", millis(now)))
                             .returnValues(ReturnValue.ALL_NEW)
                             .build());
-                    var role = updated.attributes().get("role");
-                    return role == null ? null : role.s();
+                    return voucher(updated.attributes());
                 } catch (ConditionalCheckFailedException e) {
                     return null;
                 }
@@ -287,6 +340,19 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 }
             }
         };
+    }
+
+    private static Voucher voucher(Map<String, AttributeValue> item) {
+        var redeemedBy = item.get("redeemedBy");
+        var discount = item.get("discount");
+        return new Voucher(
+                text(item, "code"), text(item, "role"),
+                instant(item.get("expiresAt")), number(item.get("maxUses")),
+                number(item.get("uses")),
+                redeemedBy == null || !redeemedBy.hasSs() ? Set.of() : Set.copyOf(redeemedBy.ss()),
+                text(item, "createdBy"), instant(item.get("createdAt")),
+                // Vouchers from before discounts were full ones.
+                discount == null ? FULL_DISCOUNT : number(discount));
     }
 
     private static AttributeValue millis(Instant instant) {

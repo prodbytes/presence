@@ -53,8 +53,9 @@ emails, add accounts or switch providers without losing their data.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it or redeem
-  a voucher code; admins grant requests and create voucher codes (role,
-  expiry, uses) on the Admin screen.
+  a voucher code; admins grant requests and create voucher codes (their
+  own or a suggested `AUTUMN-OTTER-4821`, role, expiry, uses, discount)
+  on the Admin screen.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.

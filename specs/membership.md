@@ -35,8 +35,11 @@ opens "Request access":
   Redeem it to get in right away."): disabled while the field is blank;
   Enter redeems too. It posts the code as plain text to
   `POST /api/auth/voucher`. A valid code clears the field and re-asks
-  `GET /api/auth`, so the user gets in at once. An invalid, expired or
-  used-up code (404) says "That code is invalid, expired or used up.";
+  `GET /api/auth`, so the user gets in at once. A valid code with a
+  discount under 100% (402) says "That code gives 25% off. Paying the rest
+  isn't available yet, so it can't let you in." and keeps the code. An
+  invalid, expired or used-up code (404) says "That code is invalid,
+  expired or used up.";
   throttling (429) says to try again in a minute;
 - **Check again** re-asks `GET /api/auth`, so a granted user gets in
   without signing out.
@@ -50,9 +53,20 @@ requests when they open the Admin screen.
 
 A voucher grants a role to whoever redeems it:
 
-- **Code:** `XXXX-XXXX-XXXX`, random (`SecureRandom`) from 32 characters
-  without `0`, `O`, `1` or `I`: 60 bits. Typed codes ignore case, spaces
-  and dashes.
+- **Code:** the admin's choice, or random when left blank. The app
+  suggests the current season, an animal and a number
+  (`AUTUMN-OTTER-4821`). A chosen code is 6 to 40 letters (A to Z),
+  digits and dashes; it's stored upper case, its words joined by single
+  dashes, so `autumn otter_4821` is `AUTUMN-OTTER-4821`. A taken code is
+  refused (409). A random code is `XXXX-XXXX-XXXX` (`SecureRandom`) from
+  32 characters without `0`, `O`, `1` or `I`: 60 bits. Typed codes ignore
+  case and separators (spaces, dashes, underscores); twelve characters of
+  that alphabet, typed whole or as three groups of four, take the random
+  form.
+- **Discount:** a percentage, 1 to 100, 100 by default. Only a 100%
+  voucher grants its role. A valid voucher with less is answered 402 with
+  its discount: no role is granted and no use is counted, because the
+  user would pay the rest, and payment isn't built yet.
 - **Role:** `presence_user` (Member) or `presence_admin` (Admin). An Admin
   voucher also grants `presence_user`, since the Admin screen needs both.
   Only a `presence_root` may create an Admin voucher (403 for other
@@ -64,12 +78,17 @@ A voucher grants a role to whoever redeems it:
 
 `VoucherTable` keeps one item per code: `code`, `role`, `expiresAt` and
 `createdAt` (epoch ms), `maxUses`, `uses`, `redeemedBy` (a string set of
-emails) and `createdBy`. Redeeming is one conditional update (the code
+emails), `createdBy` and `discount` (vouchers from before discounts, which
+have none, are read as 100). Redeeming is one conditional update (the code
 exists, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
 `redeemedBy`), so concurrent redemptions can't overspend a code. The role
 is then merged into the user's roles in `UserRolesTable`; if that fails, the
 use is given back. Every refused code gets the same 404, so answers don't
 tell which codes exist, and the route is throttled (1 a second, burst 5).
+The update's condition also requires a full discount (or none stored, for
+vouchers from before discounts); when it fails, the code is read back,
+and one this email could otherwise redeem with a partial discount gets
+402 instead of 404.
 
 ## The Admin screen
 
@@ -91,15 +110,23 @@ titled "Admin", one scrolling page with two sections.
 
 **Voucher codes**, after the requests:
 
-- a form: **Grants** (Member by default; Admin is offered to roots only,
-  and other admins are told "Only roots create Admin codes."), **Valid
-  through** (a date picker, a week from today by default, up to 365 days),
-  **Uses** (1 by default; digits only, 1 to 1000, else **Create code** is
-  disabled) and **Create code**. The new code goes to the top of the list
-  and a message names it;
+- a form: **Code** (a suggestion of the current season, an animal and a
+  number, `AUTUMN-OTTER-4821`; the dice button suggests another, and the
+  admin may type their own, or clear it for a random code), **Grants**
+  (Member by default; Admin is offered to roots only, and other admins
+  are told "Only roots create Admin codes."), **Valid through** (a date
+  picker, a week from today by default, up to 365 days), **Uses** (1 by
+  default; digits only, 1 to 1000), **Discount** (100 % by default; 1 to
+  100) and **Create code**, disabled while a field is invalid. The new
+  code goes to the top of the list and a message names it, and the form
+  suggests a new code. A taken code says "That code is taken; pick
+  another.";
+- the season is the northern hemisphere's meteorological one: winter is
+  December to February, spring March to May, summer June to August,
+  autumn September to November ([lib/auth/voucher_code.dart](../presence_app/lib/auth/voucher_code.dart));
 - every voucher, newest first, as cards: the code (selectable, monospace;
   struck through with "Expired" or "Used up" when it can't be redeemed),
-  its role, "N of M used", its expiry, who redeemed it, and **Copy code**
+  its role, its discount ("25% off"), "N of M used", its expiry, who redeemed it, and **Copy code**
   and **Delete** buttons. "No vouchers." when there are none.
 
 **Reload** (and pull to refresh) fetches both lists again; each section
@@ -119,6 +146,15 @@ is the app's client (a fake in tests).
 - Changing the root allowlist takes a deploy (it's a stack parameter).
 - Deleting a voucher, or its expiry, doesn't take back the roles it
   granted.
+- Suggested codes are far easier to guess than random ones: with the
+  season known, about 620,000 (63 animals, numbers 100 to 9999), against
+  2^60. At the redeem throttle (1 a second) that's about a week to try
+  them all, so keep few uses and short expiries on them, or clear the
+  field for a random code. Codes an admin types can be weaker still.
+- The suggested season is the northern hemisphere's.
+- Vouchers under 100% can't be used yet: paying the rest isn't built.
+  The 402 tells a valid partial code from an invalid one, but only for
+  codes that work.
 - Vouchers are listed with a table scan: fine for the few an
   administrator creates, not for thousands.
 - There is no way to revoke access from the app; remove the role in the

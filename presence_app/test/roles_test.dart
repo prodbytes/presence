@@ -346,6 +346,39 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
+    testWidgets('a partly discounted voucher lets nobody in yet', (
+      tester,
+    ) async {
+      final roles = FakeRolesClient.none();
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: 'AUTUMN-OTTER-4821',
+            role: userRole,
+            expiresAt: DateTime.now().add(const Duration(days: 1)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.now(),
+            discount: 25,
+          ),
+        )
+        ..onRedeem = (role) => roles.roles = [role];
+      await launch(tester, roles, membership);
+      await tester.tap(find.byKey(const Key('sign-up')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('voucher-code')),
+        'autumn-otter-4821',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('redeem-voucher')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('That code gives 25% off'), findsOneWidget);
+      expect(membership.redeemed, isEmpty);
+      expect(membership.codes.single.uses, 0);
+      expect(roles.roles, isEmpty);
+    });
+
     testWidgets('the Log tab: admins and DEV only', (tester) async {
       AppLog.instance.add('Presence: cloud sync failed: S3 HTTP 403: denied');
       final logTab = find.byIcon(Icons.receipt_long);
@@ -389,8 +422,19 @@ void main() {
       expect(find.text('No pending requests.'), findsOneWidget);
       expect(find.text('Voucher codes'), findsOneWidget);
       expect(find.text('Expired'), findsOneWidget);
-      expect(find.textContaining('Admin · 1 of 3 used'), findsOneWidget);
+      expect(
+        find.textContaining('Admin · 100% off · 1 of 3 used'),
+        findsOneWidget,
+      );
       expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
+
+      // A code is suggested: the season, an animal and a number.
+      final codeField = find.byKey(const Key('voucher-new-code'));
+      final suggested = tester.widget<TextField>(codeField).controller!.text;
+      expect(
+        suggested,
+        matches(RegExp(r'^(WINTER|SPRING|SUMMER|AUTUMN)-[A-Z]+-\d{3,4}$')),
+      );
 
       // Uses must be 1 to 1000.
       final create = find.byKey(const Key('create-voucher'));
@@ -404,16 +448,72 @@ void main() {
       final voucher = membership.codes.first;
       expect(voucher.role, userRole);
       expect(voucher.maxUses, 5);
+      expect(voucher.code, suggested);
+      expect(voucher.discount, 100);
       // Through the end of the day a week from now.
       final week = DateTime.now().add(const Duration(days: 7));
       expect(voucher.expiresAt, DateTime(week.year, week.month, week.day + 1));
       expect(find.byKey(Key('voucher-${voucher.code}')), findsOneWidget);
-      expect(find.textContaining('Member · 0 of 5 used'), findsOneWidget);
+      expect(
+        find.textContaining('Member · 100% off · 0 of 5 used'),
+        findsOneWidget,
+      );
+      // A new suggestion for the next one.
+      expect(
+        tester.widget<TextField>(codeField).controller!.text,
+        isNot(suggested),
+      );
 
       await tester.tap(find.byKey(Key('delete-${voucher.code}')));
       await tester.pumpAndSettle();
       expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
       expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+    });
+
+    testWidgets('an admin types the code and a discount', (tester) async {
+      final membership = FakeMembershipClient();
+      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
+      await tester.tap(find.byKey(const Key('admin')));
+      await tester.pumpAndSettle();
+      final create = find.byKey(const Key('create-voucher'));
+      final code = find.byKey(const Key('voucher-new-code'));
+      final discount = find.byKey(const Key('voucher-discount'));
+
+      await tester.enterText(code, 'no');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      await tester.enterText(code, 'friends-2026');
+      await tester.enterText(discount, '0');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      await tester.enterText(discount, '101');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      await tester.enterText(discount, '25');
+      await tester.pump();
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(membership.codes.single.code, 'FRIENDS-2026');
+      expect(membership.codes.single.discount, 25);
+      expect(find.textContaining('Member · 25% off'), findsOneWidget);
+
+      // Taken.
+      ScaffoldMessenger.of(
+        tester.element(find.byKey(const Key('admin-screen'))),
+      ).removeCurrentSnackBar();
+      await tester.enterText(code, 'FRIENDS-2026');
+      await tester.pump();
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(find.text('That code is taken; pick another.'), findsOneWidget);
+      expect(membership.codes, hasLength(1));
+
+      // Blank: a random code.
+      await tester.enterText(code, '');
+      await tester.pump();
+      await tester.tap(create);
+      await tester.pumpAndSettle();
+      expect(membership.codes.first.code, startsWith('TEST-CODE-'));
     });
 
     Finder adminItem() =>

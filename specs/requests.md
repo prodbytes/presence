@@ -2077,3 +2077,37 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Log](log.md), [Navigation](navigation.md), [Execution
       mode](execution-mode.md), [Membership](membership.md), the index.
       312 Flutter tests pass; the web build compiles.
+226. **On the create code screen, let me write the code that I want.
+    Suggest a code containing the current season, an animal and a
+    number. Also let vouchers have a discount value, default to 100%.**
+    (2026-10-04)
+    - App: the Admin screen's voucher form has a **Code** field,
+      prefilled with a suggestion (`suggestVoucherCode`:
+      `AUTUMN-OTTER-4821`, the northern meteorological season, one of 63
+      animals, 100 to 9999), a dice button for another, and blank for a
+      random code; and a **Discount** field (1 to 100 %, 100 by
+      default). Cards show "N% off"; a taken code says so.
+    - Auth API: `POST /api/auth/vouchers` takes optional `code` (6 to 40
+      letters, digits and dashes, normalized to upper case with single
+      dashes; 409 when taken) and `discount` (1 to 100, default 100).
+      `discount` is stored, listed and returned on redemption; old items
+      read as 100. Random codes and loose typing still work.
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md). 15
+      VoucherTest (2 new) and 313 Flutter tests (4 new) pass. Not run in
+      Floci: the main folder's services are shared.
+227. **When a user redeems a voucher, only grant the role if the voucher
+    is 100%; otherwise they should pay the remaining value, to be done
+    later.** (2026-10-04)
+    - Auth API: redeeming's conditional update also requires a full
+      discount (or none stored). When it fails, the code is read
+      (`Store.find`, a `GetItem`, now allowed to the voucher function),
+      and one this email could otherwise redeem with a partial discount
+      gets 402 `{"error", "discount"}`: no role, no use counted. Every
+      other refusal is the same 404.
+    - App: `PaymentRequiredException` (402, with the discount); the
+      Request access sheet says "That code gives N% off. Paying the rest
+      isn't available yet, so it can't let you in." Payment itself is
+      left for later.
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md). 16
+      VoucherTest (1 new) and 314 Flutter tests (1 new) pass. Stacked on
+      #152.

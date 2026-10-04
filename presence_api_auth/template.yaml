@@ -161,9 +161,9 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Voucher codes: {"code": "XXXX-XXXX-XXXX", "role", "expiresAt" (epoch ms),
-  # "maxUses", "uses", "redeemedBy" (SS of emails), "createdBy", "createdAt"
-  # (epoch ms)}. Holds emails and live codes: AWS only.
+  # Voucher codes: {"code": "XXXX-XXXX-XXXX" or chosen ("AUTUMN-OTTER-4821"),
+  # "role", "expiresAt" (epoch ms), "maxUses", "uses", "redeemedBy" (SS of
+  # emails), "createdBy", "createdAt" (epoch ms), "discount" (percent)}. Holds emails and live codes: AWS only.
   VoucherTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -325,9 +325,12 @@ Resources:
           USER_ROLES_TABLE: !Ref UserRolesTable
       Policies:
         - Statement:
-            # Counts a use (one conditional update), or gives it back if the grant fails.
+            # Counts a use (one conditional update), or gives it back if the
+            # grant fails; reads a refused code to tell a partial discount (402).
             - Effect: Allow
-              Action: dynamodb:UpdateItem
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
               Resource: !GetAtt VoucherTable.Arn
             # Merges the voucher's role into the redeemer's roles.
             - Effect: Allow
