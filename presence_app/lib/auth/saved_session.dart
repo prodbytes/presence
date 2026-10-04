@@ -48,6 +48,19 @@ class SavedSession {
     }
   }
 
+  /// How long until [token] should be refreshed: [lead] before it expires,
+  /// or now if that's past. Null if its expiry can't be read.
+  static Duration? refreshIn(
+    String token, {
+    required DateTime now,
+    Duration lead = const Duration(minutes: 5),
+  }) {
+    final expiry = tokenExpiry(token);
+    if (expiry == null) return null;
+    final left = expiry.subtract(lead).difference(now);
+    return left.isNegative ? Duration.zero : left;
+  }
+
   /// When a JWT expires (its `exp` claim), or null if it can't be read. Only
   /// used to decide whether a saved session is still worth restoring: the
   /// auth API and Cognito verify the token itself.

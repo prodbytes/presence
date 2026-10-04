@@ -58,6 +58,24 @@ void main() {
       }
     });
 
+    test('a token is refreshed five minutes before it expires', () {
+      expect(
+        SavedSession.refreshIn(
+          token(now.add(const Duration(minutes: 30))),
+          now: now,
+        ),
+        const Duration(minutes: 25),
+      );
+      expect(
+        SavedSession.refreshIn(
+          token(now.add(const Duration(minutes: 2))),
+          now: now,
+        ),
+        Duration.zero,
+      );
+      expect(SavedSession.refreshIn('x.y', now: now), isNull);
+    });
+
     test('malformed sessions are ignored', () {
       for (final bad in [
         null,
