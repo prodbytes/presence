@@ -231,6 +231,10 @@ class ClipEventCard extends StatelessWidget {
     return ListenableBuilder(
       listenable: clip,
       builder: (context, _) {
+        // A label opens the player paused where it was seen.
+        final openAt = clip.playable
+            ? (Duration? at) => showClipPlayer(context, event, at: at)
+            : null;
         final thumbnail = AspectRatio(
           key: const Key('clip-card-thumbnail'),
           aspectRatio: 16 / 9,
@@ -282,8 +286,8 @@ class ClipEventCard extends StatelessWidget {
                 key: const Key('clip-status'),
                 style: theme.textTheme.bodySmall,
               ),
-              EventSubjects(event: event),
-              ClipObjectTags(annotations: event.annotations),
+              EventSubjects(event: event, onOpenAt: openAt),
+              ClipObjectTags(annotations: event.annotations, onOpenAt: openAt),
             ],
           ),
         );
@@ -338,14 +342,20 @@ class _Thumbnail extends StatelessWidget {
   }
 }
 
-Future<void> showClipPlayer(BuildContext context, ClipRequested event) {
+/// Opens [event]'s clip in the player: playing from the start, or paused
+/// [at] a point of the recording (a tag's frame).
+Future<void> showClipPlayer(
+  BuildContext context,
+  ClipRequested event, {
+  Duration? at,
+}) {
   return showDialog<void>(
     context: context,
     builder: (context) => Dialog(
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
-        child: ClipPlayerDialog(event: event),
+        child: ClipPlayerDialog(event: event, startAt: at),
       ),
     ),
   );
@@ -356,9 +366,12 @@ Future<void> showClipPlayer(BuildContext context, ClipRequested event) {
 /// person or pet at that spot (as many as needed). Each tag keeps its
 /// frame, the clicked position and the name, stored with the event.
 class ClipPlayerDialog extends StatefulWidget {
-  const ClipPlayerDialog({super.key, required this.event});
+  const ClipPlayerDialog({super.key, required this.event, this.startAt});
 
   final ClipRequested event;
+
+  /// Opens paused here (a point of the recording), not playing.
+  final Duration? startAt;
 
   @override
   State<ClipPlayerDialog> createState() => _ClipPlayerDialogState();
@@ -497,6 +510,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                       child: ClipPlayerView(
                         clip: _event.clip,
                         controller: _player,
+                        startAt: widget.startAt,
                       ),
                     ),
                     if (frame != null)
@@ -720,10 +734,12 @@ String autoTagMessage(RecognitionResult result) {
 
 /// A clip's object tags (`human`, `cat`, `bicycle`…), as small chips, by
 /// first sighting; nothing until it's been searched, or if nothing was seen.
+/// A click on one calls [onOpenAt] with where it was first seen.
 class ClipObjectTags extends StatelessWidget {
-  const ClipObjectTags({super.key, required this.annotations});
+  const ClipObjectTags({super.key, required this.annotations, this.onOpenAt});
 
   final ClipAnnotations annotations;
+  final void Function(Duration? at)? onOpenAt;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -741,17 +757,25 @@ class ClipObjectTags extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final o in objects)
-              Container(
+              OpenAtLabel(
                 key: Key('clip-object-${o.label}'),
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  border: Border.all(color: scheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  o.label,
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                ms: o.ms,
+                onOpenAt: onOpenAt,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: scheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    o.label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
@@ -760,6 +784,41 @@ class ClipObjectTags extends StatelessWidget {
       );
     },
   );
+}
+
+/// A label on a clip's card that, clicked, opens the player paused [ms] into
+/// the recording (or, without [ms], playing from the start); just the label
+/// when the clip can't be played ([onOpenAt] null).
+class OpenAtLabel extends StatelessWidget {
+  const OpenAtLabel({
+    super.key,
+    required this.ms,
+    required this.onOpenAt,
+    required this.child,
+    this.borderRadius,
+  });
+
+  final int? ms;
+  final void Function(Duration? at)? onOpenAt;
+  final Widget child;
+  final BorderRadius? borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = onOpenAt;
+    if (open == null) return child;
+    final at = ms == null ? null : Duration(milliseconds: ms!);
+    return Tooltip(
+      message: at == null
+          ? 'Play the clip'
+          : 'Show at ${formatClipTime(at.inMilliseconds)}',
+      child: InkWell(
+        borderRadius: borderRadius,
+        onTap: () => open(at),
+        child: child,
+      ),
+    );
+  }
 }
 
 /// A grabbed frame, with markers for its tags; a click anywhere on it

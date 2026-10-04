@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'sigv4.dart';
@@ -109,6 +110,10 @@ class CognitoCredentials {
       body = const {};
     }
     if (response.statusCode != 200) {
+      debugPrint(
+        'Presence: /api/auth/credentials answered HTTP '
+        '${response.statusCode}: ${_head(response.body)}',
+      );
       throw CognitoException(
         response.statusCode == 401
             ? 'NotAuthorizedException'
@@ -152,3 +157,7 @@ class CognitoCredentials {
     return decoded;
   }
 }
+
+/// The start of a response [body], for the log.
+String _head(String body) =>
+    body.length > 300 ? '${body.substring(0, 300)}…' : body;

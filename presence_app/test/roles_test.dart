@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:presence_app/app_log.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/identity/profile_id.dart';
@@ -161,6 +162,7 @@ void main() {
         roles.roles,
         containsAll([anonymousRole, userRole, adminRole, rootRole]),
       );
+      expect(roles.isRoot, isTrue, reason: 'DEV is root');
       // Sign-in doesn't matter in dev mode.
       await auth.signIn();
       await roles.refresh();
@@ -375,6 +377,28 @@ void main() {
       expect(membership.redeemed, isEmpty);
       expect(membership.codes.single.uses, 0);
       expect(roles.roles, isEmpty);
+    });
+
+    testWidgets('the Log tab: admins and DEV only', (tester) async {
+      AppLog.instance.add('Presence: cloud sync failed: S3 HTTP 403: denied');
+      final logTab = find.byIcon(Icons.receipt_long);
+
+      await launch(tester, FakeRolesClient([userRole]));
+      expect(logTab, findsNothing, reason: 'a member has no Log tab');
+      await tester.pumpWidget(const SizedBox());
+
+      await launch(tester, FakeRolesClient()..mode = ExecutionMode.dev);
+      expect(logTab, findsOneWidget, reason: "DEV's anonymous user is root");
+      await tester.pumpWidget(const SizedBox());
+
+      await launch(tester, FakeRolesClient([userRole, adminRole]));
+      await tester.tap(logTab);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('log-view')), findsOneWidget);
+      expect(
+        find.text('Presence: cloud sync failed: S3 HTTP 403: denied'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a presence_admin creates and deletes voucher codes', (

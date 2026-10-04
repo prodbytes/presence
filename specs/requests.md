@@ -2018,7 +2018,66 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `presence-rc-identity` failed and its rollback failed too
       (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
       text, with a comment saying why it stays.
-222. **On the create code screen, let me write the code that I want.
+222. **In the detection pipeline, when a tag is detected, also store the
+     frame where that was. When a user clicks the label, open the player
+     paused at that position, for both subject labels and tag labels.**
+     (2026-10-04)
+     - Recognition already stored the position: each object tag keeps the
+       `ms` of the first frame it was seen on, and each subject tag its
+       `frameId` and `frameMs` (with the frame's JPEG). Nothing changed in
+       what's stored; object tags still keep only the time.
+     - App: the clip card's subject names (`EventSubjects`) and object tag
+       chips (`ClipObjectTags`) are clickable (`OpenAtLabel`, with a "Show
+       at 0:02.5" tooltip) when the clip is playable. A click opens the
+       player (`showClipPlayer(at:)` → `ClipPlayerDialog.startAt` →
+       `ClipPlayerView.startAt`, web and native) loaded at that point and
+       paused, clamped to the clip window (`startPosition`). A subject
+       opens at its earliest tagged frame; a tag without a frame plays
+       from the start, as the card does.
+     - Specs: [Clips](clips.md), [Subjects](subjects.md), [Subject
+       recognition](recognition.md). 311 Flutter tests pass (2 new); web
+       release builds. Not tried in the running app: the main folder's
+       services are shared.
+223. **Empty both the RC and prod buckets (all events).** An operation, not
+     a code change. The RC user-data bucket was already empty. The prod
+     bucket had 14 objects, all under one identity: 7 events, 2 clips
+     (record, thumbnail and WebM, 62.6 MB in all) and 1 device settings
+     record. `aws s3 rm --recursive` deleted all 14, so both buckets now
+     list no objects. The bucket is versioned, so the deleted objects
+     stay as old versions behind delete markers until the
+     `expire-old-versions` rule removes them after 30 days. No feature
+     spec changed.
+224. **Show a log panel with the latest log events at the end of Settings,
+    capturing all log messages: the AWS sync indicator said it failed, but
+    not why. Then: make it its own view, only viewable by admins.**
+    (2026-10-04)
+    - New [Log](log.md) screen, opened from a **Log** button on the Admin
+      screen (so `presence_admin` only); it isn't in Settings.
+    - `AppLog.capture` in `main()` keeps the latest 500 entries: every
+      `debugPrint` and `print`, Flutter errors and uncaught errors, each
+      still printed as before.
+    - Cloud sync now logs Cognito failures too (they weren't logged), the
+      stack trace of other failures, the auth API's response when it
+      refuses credentials, and renewed credentials.
+    - Specs: [Log](log.md), [Membership](membership.md), [Cloud
+      sync](cloud-sync.md), the index. 312 Flutter tests (3 new) pass; the
+      web build compiles.
+225. **Let DEV mode see the log screen; the log should be its own section
+    in the nav bar. In DEV mode the anonymous user should be equivalent to
+    root.** (2026-10-04)
+    - The Log is a fourth tab after Settings (`HomeTab.log`,
+      [lib/log_view.dart](../presence_app/lib/log_view.dart)), shown when
+      the user is an admin; the Admin screen's Log button is gone. The tab
+      controller is rebuilt when the roles add or remove it.
+    - DEV's anonymous user already had every role up to `presence_root`
+      (the auth API's `Roles.anonymous` and the app's fallback), so DEV
+      gets the Log tab through the role check; a test now asserts
+      `isRoot` in DEV. The Admin screen stays hidden in DEV: it needs a
+      signed-in token.
+    - Specs: [Log](log.md), [Navigation](navigation.md), [Execution
+      mode](execution-mode.md), [Membership](membership.md), the index.
+      312 Flutter tests pass; the web build compiles.
+226. **On the create code screen, let me write the code that I want.
     Suggest a code containing the current season, an animal and a
     number. Also let vouchers have a discount value, default to 100%.**
     (2026-10-04)
@@ -2036,7 +2095,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Membership](membership.md), [Auth API](auth-api.md). 15
       VoucherTest (2 new) and 313 Flutter tests (4 new) pass. Not run in
       Floci: the main folder's services are shared.
-223. **When a user redeems a voucher, only grant the role if the voucher
+227. **When a user redeems a voucher, only grant the role if the voucher
     is 100%; otherwise they should pay the remaining value, to be done
     later.** (2026-10-04)
     - Auth API: redeeming's conditional update also requires a full

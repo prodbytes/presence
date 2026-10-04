@@ -184,9 +184,13 @@ class SubjectsMap extends StatelessWidget {
 /// The subjects tagged on [event], once each, in tag order: a square of
 /// each one's color and their name (on the event's card).
 class EventSubjects extends StatelessWidget {
-  const EventSubjects({super.key, required this.event});
+  const EventSubjects({super.key, required this.event, this.onOpenAt});
 
   final ClipRequested event;
+
+  /// Called when a name is clicked, with the earliest frame that subject is
+  /// tagged on (null for tags without a frame).
+  final void Function(Duration? at)? onOpenAt;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -194,6 +198,13 @@ class EventSubjects extends StatelessWidget {
     builder: (context, _) {
       final theme = Theme.of(context);
       final seen = <String>{};
+      // Each subject's earliest tagged frame.
+      final firstMs = <String, int>{};
+      for (final tag in event.annotations.tags) {
+        final id = Subject.idOf(tag.name);
+        final ms = tag.frameMs;
+        if (ms != null && ms < (firstMs[id] ?? ms + 1)) firstMs[id] = ms;
+      }
       final tags = [
         for (final tag in event.annotations.tags)
           if (Subject.idOf(tag.name) case final id
@@ -202,6 +213,7 @@ class EventSubjects extends StatelessWidget {
               id: id,
               name: tag.name.trim(),
               detected: tag.source == TagSource.detected,
+              ms: firstMs[id],
             ),
       ];
       if (tags.isEmpty) return const SizedBox.shrink();
@@ -213,29 +225,34 @@ class EventSubjects extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final t in tags)
-              Row(
+              OpenAtLabel(
                 key: Key('event-subject-${t.id}'),
-                mainAxisSize: MainAxisSize.min,
-                spacing: 6,
-                children: [
-                  SubjectSwatch(
-                    key: Key('event-subject-color-${t.id}'),
-                    color: Subject.colorOf(t.id),
-                    size: 12,
-                  ),
-                  Text(t.name, style: theme.textTheme.labelMedium),
-                  // Found by recognition, not tagged by someone.
-                  if (t.detected)
-                    Tooltip(
-                      message: 'Recognized automatically',
-                      child: Icon(
-                        Icons.auto_awesome,
-                        key: Key('event-subject-detected-${t.id}'),
-                        size: 14,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                ms: t.ms,
+                onOpenAt: onOpenAt,
+                borderRadius: BorderRadius.circular(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: 6,
+                  children: [
+                    SubjectSwatch(
+                      key: Key('event-subject-color-${t.id}'),
+                      color: Subject.colorOf(t.id),
+                      size: 12,
                     ),
-                ],
+                    Text(t.name, style: theme.textTheme.labelMedium),
+                    // Found by recognition, not tagged by someone.
+                    if (t.detected)
+                      Tooltip(
+                        message: 'Recognized automatically',
+                        child: Icon(
+                          Icons.auto_awesome,
+                          key: Key('event-subject-detected-${t.id}'),
+                          size: 14,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                  ],
+                ),
               ),
           ],
         ),
