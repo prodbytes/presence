@@ -64,7 +64,9 @@
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
-    requested, Motion detected, Scheduled clip, Startup clip), and the
+    requested, Motion detected, Scheduled clip, Startup clip, Capture
+    all), the [Capture all](camera.md#capture-all) requests
+    (`capture_all`), and the
     [recognition](recognition.md) suggestions about them ("Is this Rex?",
     `SubjectSuggestion`), which wait for an answer.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once

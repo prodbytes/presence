@@ -2131,6 +2131,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       emulator and a wireless device, several, unauthorized,
       `ANDROID_SERIAL`). Not run on a phone: none was attached (macOS saw
       no phone on USB).
+230. **When the grab button is pressed in the All cameras mode, generate a
+    global capture event that makes all cameras take a grab, so the next
+    S3 sync shows the current state of all cameras; in the single camera
+    mode (default), only grab this camera.** (2026-10-04)
+    - Clip with the All grid showing publishes a `capture_all` event
+      (`AppEvent.captureAll`) and clips this camera with the new trigger
+      `all` ("Capture all"). The event syncs to S3; each other device of
+      the profile that fetches it from another device, under 5 minutes old,
+      takes one clip of its own (`CameraRig.answerCaptureAll`), which
+      syncs back to the asker's grid. Without the grid, Clip is unchanged.
+    - Capture all requests count as grabs in the Monitoring timeline.
+    - Specs: [Camera screen](camera.md#capture-all), [Navigation](navigation.md),
+      [Events](events.md), [Recording and data formats](data-formats.md).
+      New `capture_all_test.dart`; 330 Flutter tests pass.
+
 230. **Cognito failures repeat in the log: if it fails, stop trying, and
     print a better error to debug it.** (2026-10-04)
     - The app: a failure to get credentials (`/api/auth/credentials` or
