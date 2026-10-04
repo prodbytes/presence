@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'app_log.dart';
 import 'app_version.dart';
 import 'auth/account_sheet.dart';
 import 'battery.dart';
@@ -42,7 +43,8 @@ import 'storage/retention.dart';
 import 'theme.dart';
 
 void main() {
-  runApp(const PresenceApp());
+  // Everything the app logs also goes to the admins' Log screen.
+  AppLog.capture(() => runApp(const PresenceApp()));
 }
 
 class PresenceApp extends StatefulWidget {

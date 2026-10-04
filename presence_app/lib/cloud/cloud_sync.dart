@@ -332,17 +332,19 @@ class CloudSync extends ChangeNotifier {
       } on S3Exception catch (e) {
         if (!e.credentialsRejected) rethrow;
         // Credentials expired mid-sync: get new ones and go on.
+        debugPrint('Presence: cloud credentials rejected, renewing: $e');
         backend.reset();
         await pass(await backend.connect(idToken));
       }
       _set(CloudSyncState.synced);
     } on CognitoException catch (e) {
+      debugPrint('Presence: cloud sync failed: $e');
       _set(
         CloudSyncState.error,
         e.needsSignIn ? 'Sign in again to resume uploads' : e.message,
       );
-    } catch (e) {
-      debugPrint('Presence: cloud sync failed: $e');
+    } catch (e, stack) {
+      debugPrint('Presence: cloud sync failed: $e\n$stack');
       _set(CloudSyncState.error, _describe(e));
     }
   }

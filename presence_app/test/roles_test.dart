@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:presence_app/app_log.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/identity/profile_id.dart';
@@ -342,6 +343,26 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TabBar), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
+    });
+
+    testWidgets('a presence_admin opens the Log from the Admin screen', (
+      tester,
+    ) async {
+      AppLog.instance.add('Presence: cloud sync failed: S3 HTTP 403: denied');
+      await launch(
+        tester,
+        FakeRolesClient([userRole, adminRole]),
+        FakeMembershipClient(),
+      );
+      await tester.tap(find.byKey(const Key('admin')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('admin-log')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('log-screen')), findsOneWidget);
+      expect(
+        find.text('Presence: cloud sync failed: S3 HTTP 403: denied'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a presence_admin creates and deletes voucher codes', (

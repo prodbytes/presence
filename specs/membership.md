@@ -46,6 +46,9 @@ profile name cleaned to one line of 100 characters, message, time in epoch
 milliseconds). No notification is sent: administrators see pending
 requests when they open the Admin screen.
 
+The Admin screen's app bar also has a **Log** button, which opens the
+app's latest log messages (see [Log](log.md)).
+
 ## Voucher codes
 
 A voucher grants a role to whoever redeems it:

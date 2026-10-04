@@ -141,6 +141,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
   directly, and Android and iOS through `serverClientId`. So the auth API
   and the identity pool trust that one client ID.
 
+A failed pass is logged with its full error (the S3 or auth API response,
+not only the "Upload failed (HTTP 403)" in the health tooltip), and admins
+read it on the [Log](log.md) screen.
+
 ## Infrastructure
 
 In [presence_infra/](../presence_infra):

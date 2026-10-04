@@ -1,21 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../app_log.dart';
 import 'auth_service.dart';
+import 'log_screen.dart';
 import 'membership_client.dart';
 import 'roles_service.dart';
 
 /// Admins only (`presence_user` + `presence_admin`): the pending membership
 /// requests, each with **Grant access** (gives it the `presence_user` role)
 /// and **Dismiss**; then the voucher codes, which grant a role to whoever
-/// redeems them, with a form to create one.
+/// redeems them, with a form to create one. Its **Log** button opens the
+/// app's latest log messages ([LogScreen]).
 class AdminScreen extends StatefulWidget {
   const AdminScreen({
     super.key,
     required this.auth,
     required this.membership,
     this.canCreateAdmins = false,
+    this.log,
   });
+
+  /// What the Log button shows; defaults to [AppLog.instance].
+  final AppLog? log;
 
   final AuthService auth;
   final MembershipClient membership;
@@ -178,6 +185,16 @@ class _AdminScreenState extends State<AdminScreen> {
       appBar: AppBar(
         title: const Text('Admin'),
         actions: [
+          IconButton(
+            key: const Key('admin-log'),
+            tooltip: 'Log',
+            icon: const Icon(Icons.receipt_long),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => LogScreen(log: widget.log ?? AppLog.instance),
+              ),
+            ),
+          ),
           IconButton(
             tooltip: 'Reload',
             icon: const Icon(Icons.refresh),

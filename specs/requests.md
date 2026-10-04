@@ -2018,3 +2018,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `presence-rc-identity` failed and its rollback failed too
       (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
       text, with a comment saying why it stays.
+222. **Show a log panel with the latest log events at the end of Settings,
+    capturing all log messages: the AWS sync indicator said it failed, but
+    not why. Then: make it its own view, only viewable by admins.**
+    (2026-10-04)
+    - New [Log](log.md) screen, opened from a **Log** button on the Admin
+      screen (so `presence_admin` only); it isn't in Settings.
+    - `AppLog.capture` in `main()` keeps the latest 500 entries: every
+      `debugPrint` and `print`, Flutter errors and uncaught errors, each
+      still printed as before.
+    - Cloud sync now logs Cognito failures too (they weren't logged), the
+      stack trace of other failures, the auth API's response when it
+      refuses credentials, and renewed credentials.
+    - Specs: [Log](log.md), [Membership](membership.md), [Cloud
+      sync](cloud-sync.md), the index. 312 Flutter tests (3 new) pass; the
+      web build compiles.
