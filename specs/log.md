@@ -46,7 +46,8 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
   `RolesService.isAdmin`: `presence_admin` users, and DEV, whose anonymous
   user has every role up to `presence_root` (see [Execution
   mode](execution-mode.md)). See [Navigation](navigation.md).
-- A header, "Log · N latest", with **Copy** and **Clear**, then the
+- At the top, the **health panel** (see below), then a header, "Log · N
+  latest", with **Copy** and **Clear**, then the
   entries, newest first, each entry with its time (`HH:MM:SS`), in monospace; errors
   in the error color. Updates live while open. Text is selectable.
 - **Copy** puts the whole log on the clipboard, oldest first, with ISO
@@ -59,14 +60,42 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
   remembered on the Log tab doesn't reopen it for them. Losing the role
   removes the tab at the next roles check (sign-in, Check again, a
   reload), and signing out removes it at once.
-- Tests: `app_log_test.dart` (capacity, the tab's order and Clear) and
+- Tests: `system_health_test.dart` (the health panel), `app_log_test.dart` (capacity, the tab's order and Clear) and
   `roles_test.dart` ("the Log tab": an admin and a root see it with the
   log; nobody else does; no return to it after a refresh; it goes with the
   admin role or on sign-out; DEV's anonymous root sees it).
+
+## Health panel
+
+`HealthPanel` in
+[lib/system_health.dart](../presence_app/lib/system_health.dart), a card
+at the top of the Log tab:
+
+- **Health**, with "Last update HH:MM:SS" (when the auth API was last
+  asked; "Checking…" before the start check is done).
+- The same health line as [Settings](settings.md): `🔌 API · ☁️ AWS ·
+  🔑 OIDC`, with the same statuses and tooltips.
+- **Every 30 s**, and when the tab opens, it checks again:
+  `RolesService.checkApi` asks `GET /api/auth/anonymous` (5 s timeout)
+  whether the API answers and which settings it has, and updates the
+  API status and those settings; the execution mode stays the one the
+  start check decided. A failure is logged once, when its error changes.
+  AWS shows the cloud sync's latest pass, which runs on its own every
+  15 s ([Cloud sync](cloud-sync.md)). The checks stop while the tab is
+  closed.
+- **History**: after each check, a small brick, oldest first, wrapping
+  into rows: green when every check passed, red (the error color) when
+  any is ❌ or ⚠️ (⚪ not set, ⏳ and 🔄 count as passed). Tap a brick to
+  show that check's time, result and the three statuses with what they
+  mean (selectable); tap it again to hide them. `HealthHistory.instance`
+  keeps the latest 120 (an hour) in memory: they outlast closing the
+  tab, not a restart.
 
 ## Known limitations
 
 - The log is kept on every device, whoever signs in; only showing it is
   limited to admins.
+- The health history only grows while the Log tab is open, and starts
+  empty at every launch.
 - Messages logged before `capture` runs, or by native code (Kotlin,
   Swift, the browser), aren't included.

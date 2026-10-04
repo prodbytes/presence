@@ -66,8 +66,22 @@ there's no separate sign-in screen:
   readiness, the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email, the
-  [cloud sync](cloud-sync.md) status and **Sign out**. Signing out closes the sheet, returns to the camera and
+  [cloud sync](cloud-sync.md) status, the **profile** and its **devices**,
+  and **Sign out**. Signing out closes the sheet, returns to the camera and
   hides the navigation again. The camera keeps running.
+  - **Profile:** the [profile](profiles.md) ID
+    (`automatic_paranoid_axolotl`), the profile's only name, selectable to
+    copy.
+  - **Devices** ("3 devices"): every [device ID](devices-users-places.md#devices)
+    found on the signed-in user's events (`profileDevices`), the events
+    synced from the profile's cloud folder included. This device comes
+    first, labelled "this device", even before it has an event; the rest
+    are sorted. The list updates while the sheet is open, and scrolls when
+    long. Each ID is selectable. A device shows only once one of its
+    events has synced here, and drops off when its events age out of
+    [event retention](event-retention.md).
+  - The account sheet for a signed-in user without access shows the same
+    profile and devices.
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Signing in also turns on [cloud sync](cloud-sync.md): the user's Google

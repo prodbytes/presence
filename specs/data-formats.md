@@ -57,7 +57,7 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | Field | Type | |
 |---|---|---|
 | `id` | string | the event's ID |
-| `type` | string | `app_started`, `clip_requested`, `subject_suggestion`, `generic`… |
+| `type` | string | `app_started`, `capture_all`, `clip_requested`, `subject_suggestion`, `generic`… |
 | `title`, `detail` | string | as shown; `detail` may be null |
 | `time` | integer (ms, UTC) | when it happened; also its partition |
 | `cameraId`, `deviceId`, `userId` | string | see [Devices, users and places](devices-users-places.md) |
@@ -69,7 +69,7 @@ Clip events (`clip_requested`) add:
 |---|---|---|
 | `clipId` | string | the clip record's ID |
 | `clipState` | string | `partial` (only the before part) or `complete` |
-| `trigger` | string | `manual`, `motion`, `scheduled` or `startup` |
+| `trigger` | string | `manual`, `motion`, `scheduled`, `startup` or `all` ([Capture all](camera.md#capture-all)) |
 | `annotations` | array of objects | the people and pets tagged: `{id, name, x, y, frameId, frameMs, source, confidence}`; `source` is `detected`, `suggested` or `confirmed` (left out: tagged by someone); see [Clips](clips.md) |
 | `objectTags` | array of objects | what recognition saw: `{label, ms, score}`, once per label; left out until searched (see [Subject recognition](recognition.md)) |
 
