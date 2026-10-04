@@ -837,6 +837,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               auth: widget.auth,
               roles: widget.roles,
               profiles: widget.profiles,
+              log: widget.log,
+              deviceId: widget.deviceId,
             ),
             const SizedBox(width: 4),
           ] else ...[
@@ -882,6 +884,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 sync: widget.sync,
                 roles: widget.roles,
                 profiles: widget.profiles,
+                log: widget.log,
+                deviceId: widget.deviceId,
               ),
             const SizedBox(width: 4),
           ],

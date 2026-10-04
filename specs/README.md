@@ -50,7 +50,8 @@ emails, add accounts or switch providers without losing their data.
   app at its first start, owned by nobody, and claimed by the first
   sign-in; later sign-ins load the profile linked to their subject
   (`<iss>#<sub>`); IDs like `automatic_paranoid_axolotl`, never repeated.
-- [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
+- [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
+  sheet (the profile ID and its devices, from events) and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (their
