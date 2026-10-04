@@ -41,6 +41,7 @@ class Voucher {
     this.redeemedBy = const [],
     this.createdBy = '',
     required this.createdAt,
+    this.discount = 100,
   });
 
   factory Voucher.fromJson(Map<String, Object?> json) => Voucher(
@@ -54,9 +55,12 @@ class Voucher {
     ],
     createdBy: '${json['createdBy'] ?? ''}',
     createdAt: _instant(json['createdAt']),
+    // Vouchers from before discounts were full ones.
+    discount: (json['discount'] as num?)?.toInt() ?? 100,
   );
 
-  /// `XXXX-XXXX-XXXX`.
+  /// `XXXX-XXXX-XXXX` when random, or the admin's choice
+  /// (`AUTUMN-OTTER-4821`).
   final String code;
 
   /// [userRole] or [adminRole] (which also grants [userRole]).
@@ -69,6 +73,9 @@ class Voucher {
   final List<String> redeemedBy;
   final String createdBy;
   final DateTime createdAt;
+
+  /// The discount it gives, in percent (1 to 100).
+  final int discount;
 
   bool isExpired(DateTime now) => !expiresAt.isAfter(now);
   bool get isUsedUp => uses >= maxUses;
@@ -104,12 +111,16 @@ abstract class MembershipClient {
   /// Every voucher, newest first (admins only).
   Future<List<Voucher>> vouchers(String idToken);
 
-  /// Creates a voucher with a random code (admins only).
+  /// Creates a voucher (admins only) with [code], or a random code when
+  /// it's null or blank, and a [discount] in percent. Throws
+  /// [RolesException] 409 when [code] is taken.
   Future<Voucher> createVoucher(
     String idToken, {
     required String role,
     required DateTime expiresAt,
     required int maxUses,
+    String? code,
+    int discount = 100,
   });
 
   /// Deletes the voucher [code] (admins only).
@@ -198,6 +209,8 @@ class HttpMembershipClient implements MembershipClient {
     required String role,
     required DateTime expiresAt,
     required int maxUses,
+    String? code,
+    int discount = 100,
   }) async {
     final response = await _post(
       '/api/auth/vouchers',
@@ -207,6 +220,8 @@ class HttpMembershipClient implements MembershipClient {
           'role': role,
           'expiresAt': expiresAt.toUtc().toIso8601String(),
           'maxUses': '$maxUses',
+          'discount': '$discount',
+          if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
         },
       ).query,
       contentType: 'application/x-www-form-urlencoded',

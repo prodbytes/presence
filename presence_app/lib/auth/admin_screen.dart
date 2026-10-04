@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'auth_service.dart';
 import 'membership_client.dart';
 import 'roles_service.dart';
+import 'voucher_code.dart';
 
 /// Admins only (`presence_user` + `presence_admin`): the pending membership
 /// requests, each with **Grant access** (gives it the `presence_user` role)
@@ -108,7 +109,13 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   /// Creates a voucher; true if it was.
-  Future<bool> _create(String role, DateTime expiresAt, int maxUses) async {
+  Future<bool> _create(
+    String role,
+    DateTime expiresAt,
+    int maxUses,
+    String code,
+    int discount,
+  ) async {
     final token = widget.auth.idToken;
     if (token == null) return false;
     final messenger = ScaffoldMessenger.of(context);
@@ -118,6 +125,8 @@ class _AdminScreenState extends State<AdminScreen> {
         role: role,
         expiresAt: expiresAt,
         maxUses: maxUses,
+        code: code,
+        discount: discount,
       );
       if (!mounted) return true;
       setState(() => _vouchers = [voucher, ...?_vouchers]);
@@ -127,7 +136,13 @@ class _AdminScreenState extends State<AdminScreen> {
       return true;
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t create the voucher ($e)')),
+        SnackBar(
+          content: Text(
+            e is RolesException && e.statusCode == 409
+                ? 'That code is taken; pick another.'
+                : 'Couldn\'t create the voucher ($e)',
+          ),
+        ),
       );
       return false;
     }
@@ -336,12 +351,20 @@ String _roleLabel(String role) => switch (role) {
   _ => role,
 };
 
-/// A new voucher: its role, expiry date (the end of that day, local time)
-/// and how many people may redeem it.
+/// A new voucher: its code (a suggestion of the season, an animal and a
+/// number, or the admin's own; blank for a random one), role, expiry date
+/// (the end of that day, local time), how many people may redeem it and
+/// its discount.
 class _VoucherForm extends StatefulWidget {
   const _VoucherForm({required this.onCreate, required this.roles});
 
-  final Future<bool> Function(String role, DateTime expiresAt, int maxUses)
+  final Future<bool> Function(
+    String role,
+    DateTime expiresAt,
+    int maxUses,
+    String code,
+    int discount,
+  )
   onCreate;
 
   /// The roles this user may create codes for.
@@ -359,6 +382,8 @@ class _VoucherFormState extends State<_VoucherForm> {
   String _role = userRole;
   late DateTime _expires = _today().add(const Duration(days: 7));
   final _uses = TextEditingController(text: '1');
+  final _code = TextEditingController(text: suggestVoucherCode());
+  final _discount = TextEditingController(text: '100');
   bool _creating = false;
 
   static DateTime _today() {
@@ -371,15 +396,30 @@ class _VoucherFormState extends State<_VoucherForm> {
     return n != null && n >= 1 && n <= _VoucherForm.maxUses ? n : null;
   }
 
+  int? get _discountValue {
+    final n = int.tryParse(_discount.text.trim());
+    return n != null && n >= 1 && n <= 100 ? n : null;
+  }
+
+  /// Blank (a random code) or one the auth API takes.
+  bool get _codeOk =>
+      _code.text.trim().isEmpty || isValidVoucherCode(_code.text);
+
+  bool get _valid => _maxUses != null && _discountValue != null && _codeOk;
+
   @override
   void initState() {
     super.initState();
-    _uses.addListener(() => setState(() {}));
+    for (final c in [_uses, _code, _discount]) {
+      c.addListener(() => setState(() {}));
+    }
   }
 
   @override
   void dispose() {
     _uses.dispose();
+    _code.dispose();
+    _discount.dispose();
     super.dispose();
   }
 
@@ -397,14 +437,25 @@ class _VoucherFormState extends State<_VoucherForm> {
 
   Future<void> _create() async {
     final uses = _maxUses;
-    if (uses == null) return;
+    final discount = _discountValue;
+    if (uses == null || discount == null || !_codeOk) return;
     setState(() => _creating = true);
     // Valid through the whole chosen day.
     final end = DateTime(_expires.year, _expires.month, _expires.day + 1);
-    final created = await widget.onCreate(_role, end, uses);
+    final created = await widget.onCreate(
+      _role,
+      end,
+      uses,
+      _code.text.trim(),
+      discount,
+    );
     if (!mounted) return;
     setState(() => _creating = false);
-    if (created) _uses.text = '1';
+    if (created) {
+      _uses.text = '1';
+      _discount.text = '100';
+      _code.text = suggestVoucherCode();
+    }
   }
 
   @override
@@ -419,6 +470,34 @@ class _VoucherFormState extends State<_VoucherForm> {
           runSpacing: 12,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            SizedBox(
+              width: 300,
+              child: TextField(
+                key: const Key('voucher-new-code'),
+                controller: _code,
+                enabled: !_creating,
+                textCapitalization: TextCapitalization.characters,
+                maxLength: maxVoucherCode,
+                decoration: InputDecoration(
+                  labelText: 'Code',
+                  border: const OutlineInputBorder(),
+                  counterText: '',
+                  helperText: 'Blank for a random code',
+                  errorText: _codeOk
+                      ? null
+                      : '$minVoucherCode to $maxVoucherCode letters, digits '
+                            'and dashes',
+                  suffixIcon: IconButton(
+                    key: const Key('suggest-code'),
+                    tooltip: 'Suggest another',
+                    icon: const Icon(Icons.casino_outlined),
+                    onPressed: _creating
+                        ? null
+                        : () => _code.text = suggestVoucherCode(),
+                  ),
+                ),
+              ),
+            ),
             SizedBox(
               width: 160,
               child: DropdownButtonFormField<String>(
@@ -463,6 +542,22 @@ class _VoucherFormState extends State<_VoucherForm> {
                 ),
               ),
             ),
+            SizedBox(
+              width: 120,
+              child: TextField(
+                key: const Key('voucher-discount'),
+                controller: _discount,
+                enabled: !_creating,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: 'Discount',
+                  suffixText: '%',
+                  border: const OutlineInputBorder(),
+                  errorText: _discountValue == null ? '1 to 100' : null,
+                ),
+              ),
+            ),
             _creating
                 ? const SizedBox.square(
                     dimension: 24,
@@ -472,7 +567,7 @@ class _VoucherFormState extends State<_VoucherForm> {
                     key: const Key('create-voucher'),
                     icon: const Icon(Icons.add),
                     label: const Text('Create code'),
-                    onPressed: _maxUses == null ? null : _create,
+                    onPressed: _valid ? _create : null,
                   ),
           ],
         ),
@@ -535,6 +630,7 @@ class _VoucherCard extends StatelessWidget {
                   ),
                   Text(
                     '${_roleLabel(voucher.role)} · '
+                    '${voucher.discount}% off · '
                     '${voucher.uses} of ${voucher.maxUses} used · '
                     'expires ${localizations.formatShortDate(expires)} '
                     '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(expires))}',

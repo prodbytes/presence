@@ -414,6 +414,7 @@ class FakeMembershipClient implements MembershipClient {
       maxUses: v.maxUses,
       uses: v.uses + 1,
       createdAt: v.createdAt,
+      discount: v.discount,
     );
     redeemed.add(v.code);
     onRedeem?.call(v.role);
@@ -429,15 +430,22 @@ class FakeMembershipClient implements MembershipClient {
     required String role,
     required DateTime expiresAt,
     required int maxUses,
+    String? code,
+    int discount = 100,
   }) async {
     if (error case final e?) throw e;
+    final chosen = code?.trim().toUpperCase() ?? '';
+    if (codes.any((v) => v.code == chosen)) throw RolesException(409);
     final voucher = Voucher(
-      code: 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
+      code: chosen.isNotEmpty
+          ? chosen
+          : 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
       role: role,
       expiresAt: expiresAt,
       maxUses: maxUses,
       uses: 0,
       createdAt: DateTime.now(),
+      discount: discount,
     );
     codes.insert(0, voucher);
     return voucher;

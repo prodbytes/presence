@@ -32,10 +32,12 @@ site (`/api/*` in the CloudFront distribution; see
   Admin screen's. See [Membership](membership.md);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
-  [...]}`, or 404 for any code that can't be redeemed; throttled to 1
-  request/s (burst 5). **`GET /api/auth/vouchers`**, **`POST
-  /api/auth/vouchers`** (form-encoded `role`, `expiresAt` ISO-8601,
-  `maxUses`; answers 201 with the new voucher) and **`POST
+  [...], "discount": 100}`, or 404 for any code that can't be redeemed;
+  throttled to 1 request/s (burst 5). **`GET /api/auth/vouchers`**,
+  **`POST /api/auth/vouchers`** (form-encoded `role`, `expiresAt`
+  ISO-8601, `maxUses`, and optionally `code`, random when absent or
+  blank, 409 when taken, and `discount`, a percentage, 100 when absent;
+  answers 201 with the new voucher) and **`POST
   …/vouchers/delete`** (`AdminHandler`, admins only) manage them. See
   [Membership](membership.md#voucher-codes);
 - **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
@@ -123,8 +125,9 @@ site (`/api/*` in the CloudFront distribution; see
   - the admin routes: 403 without both roles, listing, grant, dismiss
     (which keeps the cooldown), bad emails, unknown routes;
   - profile names are cleaned to one short line;
-  - vouchers: the code format and loose typing; admins only; creation's
-    role, expiry and uses checks; newest first; deletion; redeeming once
+  - vouchers: the code format and loose typing, chosen codes; admins
+    only; creation's role, expiry, uses, code and discount checks; a
+    taken code (409); the discount stored and answered; newest first; deletion; redeeming once
     per email, running out, expiring, unknown codes, verified emails, an
     Admin voucher also granting `presence_user`, a failed grant giving the
     use back, only roots creating Admin vouchers, and no root vouchers;

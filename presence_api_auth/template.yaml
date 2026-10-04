@@ -161,9 +161,9 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Voucher codes: {"code": "XXXX-XXXX-XXXX", "role", "expiresAt" (epoch ms),
-  # "maxUses", "uses", "redeemedBy" (SS of emails), "createdBy", "createdAt"
-  # (epoch ms)}. Holds emails and live codes: AWS only.
+  # Voucher codes: {"code": "XXXX-XXXX-XXXX" or chosen ("AUTUMN-OTTER-4821"),
+  # "role", "expiresAt" (epoch ms), "maxUses", "uses", "redeemedBy" (SS of
+  # emails), "createdBy", "createdAt" (epoch ms), "discount" (percent)}. Holds emails and live codes: AWS only.
   VoucherTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain

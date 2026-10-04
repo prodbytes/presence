@@ -2018,3 +2018,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `presence-rc-identity` failed and its rollback failed too
       (`UPDATE_ROLLBACK_FAILED`). The description is back to the deployed
       text, with a comment saying why it stays.
+222. **On the create code screen, let me write the code that I want.
+    Suggest a code containing the current season, an animal and a
+    number. Also let vouchers have a discount value, default to 100%.**
+    (2026-10-04)
+    - App: the Admin screen's voucher form has a **Code** field,
+      prefilled with a suggestion (`suggestVoucherCode`:
+      `AUTUMN-OTTER-4821`, the northern meteorological season, one of 63
+      animals, 100 to 9999), a dice button for another, and blank for a
+      random code; and a **Discount** field (1 to 100 %, 100 by
+      default). Cards show "N% off"; a taken code says so.
+    - Auth API: `POST /api/auth/vouchers` takes optional `code` (6 to 40
+      letters, digits and dashes, normalized to upper case with single
+      dashes; 409 when taken) and `discount` (1 to 100, default 100).
+      `discount` is stored, listed and returned on redemption; old items
+      read as 100. Random codes and loose typing still work.
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md). 15
+      VoucherTest (2 new) and 313 Flutter tests (4 new) pass. Not run in
+      Floci: the main folder's services are shared.
