@@ -8,7 +8,7 @@ on its own: **one when it starts, then one every 240 minutes** by default
 ## When
 
 - **At start:** a **startup clip**, as soon as the camera is open and has
-  recorded a full "before" part (the Clips setting, 15 s by default), so
+  recorded a full "before" part (the Clips setting, 5 s by default), so
   the clip is complete. It comes after the [recording
   consent](consent.md), like everything the camera does.
 - **Then on a timer:** a **scheduled clip** every `ScheduleConfig.every`,
@@ -32,7 +32,7 @@ on its own: **one when it starts, then one every 240 minutes** by default
   with people and pets, and shows on the [Subjects](subjects.md) maps.
 - Their event reads **"Startup clip"** (power icon) or **"Scheduled
   clip"** (clock icon), and the clip message pops as for other clips
-  ("Scheduled clip · saving the next 15 s").
+  ("Scheduled clip · saving the next 10 s").
 
 ## Settings
 

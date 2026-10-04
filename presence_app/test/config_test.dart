@@ -18,8 +18,8 @@ void main() {
 
   test('defaults', () {
     const c = PresenceConfig();
-    expect(c.clip.before, const Duration(seconds: 15));
-    expect(c.clip.after, const Duration(seconds: 15));
+    expect(c.clip.before, const Duration(seconds: 5));
+    expect(c.clip.after, const Duration(seconds: 10));
     expect(c.camera.brightness, 1);
     expect(c.motion.enabled, isTrue);
     expect(c.motion.threshold, 10);
