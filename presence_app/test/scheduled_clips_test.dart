@@ -65,8 +65,7 @@ void main() {
       tester,
     ) async {
       await start(tester);
-      await advance(tester, const Duration(seconds: 10));
-      expect(clips, isEmpty, reason: 'only 10 s of the 15 s before part');
+      expect(clips, isEmpty, reason: 'the 5 s before part is still empty');
 
       await advance(tester, const Duration(seconds: 5));
       expect(clips.map((c) => c.trigger), [ClipTrigger.startup]);
@@ -79,7 +78,7 @@ void main() {
 
     testWidgets('then one every 240 minutes by default', (tester) async {
       await start(tester);
-      await advance(tester, const Duration(seconds: 15));
+      await advance(tester, const Duration(seconds: 5));
       final startup = now;
       expect(rig.nextScheduledClip, startup.add(const Duration(minutes: 240)));
 

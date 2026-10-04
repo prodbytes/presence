@@ -5,7 +5,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 
 | Group | Values (default, range) |
 |---|---|
-| `clip` (`ClipConfig`) | `before` (15 s, 5–60 s, 5 s steps), `after` (15 s, 5–60 s) |
+| `clip` (`ClipConfig`) | `before` (5 s, 5–60 s, 5 s steps), `after` (10 s, 5–60 s) |
 | `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps) |
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (10 %, 1–50 %), `cooldown` (5 min, 1–60 min) |
 | `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (240 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |

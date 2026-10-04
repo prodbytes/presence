@@ -56,12 +56,12 @@ void main() {
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Front door')), findsOneWidget);
     expect(inEvents(find.byKey(const Key('clip-thumbnail'))), findsOneWidget);
-    expect(inEvents(find.text('Saving previous 15 s…')), findsOneWidget);
+    expect(inEvents(find.text('Saving previous 5 s…')), findsOneWidget);
 
-    // Default window: 15 s before and 15 s after the press.
+    // Default window: 5 s before and 10 s after the press.
     expect(front.requests, hasLength(1));
-    expect(front.requests.single.before, const Duration(seconds: 15));
-    expect(front.requests.single.after, const Duration(seconds: 15));
+    expect(front.requests.single.before, const Duration(seconds: 5));
+    expect(front.requests.single.after, const Duration(seconds: 10));
   });
 
   testWidgets('before-part is playable at once, full clip once recorded', (
@@ -76,14 +76,14 @@ void main() {
     camera.pastCompleters.single.complete(media);
     await tester.pumpAndSettle();
     expect(
-      inEvents(find.text('Previous 15 s ready · recording next 15 s…')),
+      inEvents(find.text('Previous 5 s ready · recording next 10 s…')),
       findsOneWidget,
     );
     expect(inEvents(find.byKey(const Key('clip-play'))), findsOneWidget);
 
     camera.fullCompleters.single.complete(media);
     await tester.pumpAndSettle();
-    expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
+    expect(inEvents(find.text('15 s clip ready')), findsOneWidget);
 
     // Tapping a playable card opens the player.
     await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
@@ -113,7 +113,7 @@ void main() {
     await showEvents(tester);
     expect(inEvents(find.byKey(const Key('clip-play'))), findsOneWidget);
     expect(
-      inEvents(find.text('Previous 15 s ready · recording next 15 s…')),
+      inEvents(find.text('Previous 5 s ready · recording next 10 s…')),
       findsOneWidget,
     );
     await settleStorage(tester);
@@ -139,7 +139,7 @@ void main() {
       same(event),
     );
     expect(event.clipState, 'complete');
-    expect(inEvents(find.text('30 s clip ready')), findsOneWidget);
+    expect(inEvents(find.text('15 s clip ready')), findsOneWidget);
   });
 
   testWidgets('a slow before part still publishes after the wait cap', (
@@ -156,7 +156,7 @@ void main() {
     // After the wait cap, the event appears anyway…
     await tester.pump(CameraRig.pastWait);
     await tester.pumpAndSettle();
-    expect(inEvents(find.text('Saving previous 15 s…')), findsOneWidget);
+    expect(inEvents(find.text('Saving previous 5 s…')), findsOneWidget);
 
     // …and becomes playable once its before part arrives.
     camera.pastCompleters.single.complete(media);
@@ -188,7 +188,7 @@ void main() {
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
     expect(find.text('Before the press'), findsOneWidget);
     expect(find.text('After the press'), findsOneWidget);
-    expect(find.textContaining('Clips play 30 s in total'), findsOneWidget);
+    expect(find.textContaining('Clips play 15 s in total'), findsOneWidget);
     // Tests have no build version, so there's no version label.
     expect(
       find.byKey(const Key('app-version'), skipOffstage: false),

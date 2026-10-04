@@ -113,12 +113,13 @@ class PresenceConfig {
 /// How long clips are around the moment they're requested.
 @immutable
 class ClipConfig {
-  const ClipConfig({this.before = defaultLength, this.after = defaultLength});
+  const ClipConfig({this.before = defaultBefore, this.after = defaultAfter});
 
   static const Duration min = Duration(seconds: 5);
   static const Duration max = Duration(seconds: 60);
   static const Duration step = Duration(seconds: 5);
-  static const Duration defaultLength = Duration(seconds: 15);
+  static const Duration defaultBefore = Duration(seconds: 5);
+  static const Duration defaultAfter = Duration(seconds: 10);
 
   /// Video from before the press. Also how much history cameras keep.
   final Duration before;

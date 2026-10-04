@@ -19,7 +19,7 @@ void main() {
       }),
     );
     await bucket.put(
-      'us-east-1:id/clips/c.webm',
+      'us-east-1:id/media/c.webm',
       Uint8List.fromList([1, 2, 3]),
       contentType: 'video/webm',
       credentials: const AwsCredentials(

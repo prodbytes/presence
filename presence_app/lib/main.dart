@@ -847,6 +847,7 @@ class _HomeScreenState extends State<HomeScreen>
                   onOpenEvent: _openEvent,
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
+                  userId: widget.auth.user?.id,
                   thisDeviceOnly: _thisDeviceOnly,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,

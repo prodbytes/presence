@@ -35,3 +35,49 @@ class MapAttribution extends StatelessWidget {
     );
   }
 }
+
+/// Zoom in (+) over zoom out (−), as one small control, for the app's
+/// maps. A null callback disables its button.
+class MapZoomButtons extends StatelessWidget {
+  const MapZoomButtons({
+    super.key,
+    required this.onZoomIn,
+    required this.onZoomOut,
+    this.keyPrefix = '',
+  });
+
+  /// Before the buttons' keys (`zoom-in`, `zoom-out`), to tell maps apart.
+  final String keyPrefix;
+
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      elevation: 3,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: Key('${keyPrefix}zoom-in'),
+            tooltip: 'Zoom in',
+            icon: const Icon(Icons.add),
+            onPressed: onZoomIn,
+          ),
+          const SizedBox(width: 32, child: Divider(height: 1)),
+          IconButton(
+            key: Key('${keyPrefix}zoom-out'),
+            tooltip: 'Zoom out',
+            icon: const Icon(Icons.remove),
+            onPressed: onZoomOut,
+          ),
+        ],
+      ),
+    );
+  }
+}

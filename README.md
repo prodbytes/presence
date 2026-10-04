@@ -21,7 +21,8 @@ can be viewed from another device.
 
   On Linux x64 or arm64 it downloads and runs the native app (it needs
   `libgtk-3-0 libegl1 libgles2`); anywhere else, or if the native app
-  can't run, it opens the web app. See [specs/install-script.md](specs/install-script.md);
+  can't run, it opens the web app. See [Run it on a Raspberry Pi](#run-it-on-a-raspberry-pi)
+  and [specs/install-script.md](specs/install-script.md);
   [presence_sh/](presence_sh) serves it.
 
 > [!IMPORTANT]
@@ -34,6 +35,37 @@ can be viewed from another device.
 > monitor, and tell the people who may be recorded when the law requires it.
 > You are responsible for how you use it. The software comes with no
 > warranty ([LICENSE](LICENSE)).
+
+## Run it on a Raspberry Pi
+
+You need a Raspberry Pi 3, 4 or 5 running **Raspberry Pi OS (64-bit)**,
+Bookworm or newer, with the desktop. The 32-bit OS has no native build,
+so the script opens the web app there instead.
+
+1. Open a terminal on the Pi's desktop. The app needs a display, so over
+   SSH, run it from the desktop session instead.
+2. Install the libraries the app needs (the desktop image usually has most
+   of them already):
+
+   ```sh
+   sudo apt update
+   sudo apt install -y curl libgtk-3-0 libegl1 libgles2
+   ```
+
+3. Download and run the latest release:
+
+   ```sh
+   curl -fsSL https://sh.presence.nu01.com | sh
+   ```
+
+   The first run downloads the release to
+   `~/.local/share/presence/<release>/`; later runs of the same release
+   start straight away. Run the same command again to start Presence, and to
+   update it when a new release is out.
+
+If the app can't start, the script says why (a missing library, or no
+display), then opens https://presence.nu01.com in the browser instead. The
+Linux app has no camera support yet.
 
 ## Technology
 

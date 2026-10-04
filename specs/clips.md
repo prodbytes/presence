@@ -7,30 +7,30 @@ before the trigger, shown at once, and the **full clip**, recorded as one
 file of *before* + *after* once the *after* seconds have passed.
 
 1. For each camera, the app publishes a **`ClipRequested`** event on the bus
-   once that camera's **previous 15 s** (the "before" part) are recorded,
-   normally within milliseconds. So the event is **playable the moment it
-   appears**. Its card shows the camera's current frame as a thumbnail, the
-   camera name, the time, and a status line: "Previous 15 s ready ·
-   recording next 15 s…". On a narrow list the thumbnail is on top, 16:9
+   once that camera's **previous 5 s** (the "before" part, by default) are
+   recorded, normally within milliseconds. So the event is **playable the
+   moment it appears**. Its card shows the camera's current frame as a thumbnail, the
+   camera name, the time, and a status line: "Previous 5 s ready ·
+   recording next 10 s…". On a narrow list the thumbnail is on top, 16:9
    at the card's width; from 600 dp on it sits beside the details, 16:9
    and 320 dp wide (`ClipEventCard.sideBySideWidth`).
    - Cameras publish independently: a slow camera doesn't hold up the
      others.
    - If a camera's before part takes longer than 2 s (`CameraRig.pastWait`),
-     its event is published anyway ("Saving previous 15 s…") and becomes
+     its event is published anyway ("Saving previous 5 s…") and becomes
      playable when the before part arrives.
-2. Once the **next 15 s** (the "after" part) have been recorded, **the same
-   event is updated with the full clip**, one continuous 30 s recording. No
-   new event is added. The card updates in place ("30 s clip ready"), and the
+2. Once the **next 10 s** (the "after" part) have been recorded, **the same
+   event is updated with the full clip**, one continuous 15 s recording. No
+   new event is added. The card updates in place ("15 s clip ready"), and the
    stored event record changes from `clipState: partial` to
    `clipState: complete`.
 3. Tapping a playable card opens the player. It always plays the **full
    clip** when it exists. Until then it plays the **preview** on its own,
    marked "Preview" in the top-left corner, and stops at its end ("Recording
-   the next 15 s…"). As soon as the full clip is recorded it **replaces the
+   the next 10 s…"). As soon as the full clip is recorded it **replaces the
    preview** at the same moment of the clip: playing on if the preview was
    playing or had ended, paused if it was paused. From then on only the full
-   clip plays, **before + after = 30 s** by default. Seeking is kept inside
+   clip plays, **before + after = 15 s** by default. Seeking is kept inside
    the clip window, and replaying after the end starts from the beginning.
 4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap

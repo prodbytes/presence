@@ -461,9 +461,36 @@ class SubjectScreen extends StatelessWidget {
   );
 }
 
-/// A map of [dots], opening on all of them (on the whole world without
-/// any). Tapping a dot opens its event.
-class _SightingsMap extends StatelessWidget {
+/// The points that frame [points] around [center]: each one and its mirror
+/// image through [center], in the map's (Web Mercator) projection. Fitting
+/// the camera to them puts [center] in the middle, zoomed out just enough
+/// to show every point. Mirrors past the date line are cut back to it.
+List<LatLng> framedAround(LatLng center, List<LatLng> points) {
+  const projection = Epsg3857();
+  final (cx, cy) = projection.projection.projectXY(center);
+  return [
+    center,
+    for (final p in points) ...[
+      p,
+      () {
+        final (x, y) = projection.projection.projectXY(p);
+        final mirror = projection.projection.unprojectXY(
+          2 * cx - x,
+          2 * cy - y,
+        );
+        return LatLng(
+          mirror.latitude.clamp(-90, 90),
+          mirror.longitude.clamp(-180, 180),
+        );
+      }(),
+    ],
+  ];
+}
+
+/// A map of [dots], opening centered on the newest one and zoomed out to
+/// show them all (on the whole world without any), with zoom buttons.
+/// Tapping a dot opens its event.
+class _SightingsMap extends StatefulWidget {
   const _SightingsMap({
     super.key,
     required this.dots,
@@ -485,64 +512,130 @@ class _SightingsMap extends StatelessWidget {
   /// The widest a name gets before it's cut short.
   static const double labelWidth = 160;
 
+  static const double minZoom = 2;
+  static const double maxZoom = 19;
+
   static LatLng _at(Sighting s) =>
       LatLng(s.event.location!.latitude, s.event.location!.longitude);
 
   @override
+  State<_SightingsMap> createState() => _SightingsMapState();
+}
+
+class _SightingsMapState extends State<_SightingsMap> {
+  final _map = MapController();
+  bool _ready = false;
+
+  @override
+  void dispose() {
+    _map.dispose();
+    super.dispose();
+  }
+
+  /// One step in ([by] 1) or out (-1), around the map's center.
+  void _zoom(double by) {
+    if (!_ready) return;
+    final camera = _map.camera;
+    _map.move(
+      camera.center,
+      (camera.zoom + by).clamp(_SightingsMap.minZoom, _SightingsMap.maxZoom),
+    );
+    setState(() {});
+  }
+
+  double get _zoomLevel => _ready ? _map.camera.zoom : _SightingsMap.minZoom;
+
+  @override
   Widget build(BuildContext context) {
-    final points = [for (final d in dots) _at(d.sighting)];
+    final dots = widget.dots;
+    final points = [for (final d in dots) _SightingsMap._at(d.sighting)];
     // Faintest first, so newer dots are drawn on top.
     final order = [for (var i = 0; i < dots.length; i++) i]
       ..sort((a, b) => dots[a].opacity.compareTo(dots[b].opacity));
-    return FlutterMap(
-      options: MapOptions(
-        // Opens on all the dots; on the whole world without any.
-        initialCameraFit: points.isEmpty
-            ? null
-            : CameraFit.coordinates(
-                coordinates: points,
-                padding: const EdgeInsets.all(48),
-                maxZoom: 17,
-              ),
-        initialCenter: const LatLng(20, 0),
-        initialZoom: 2,
-        minZoom: 2,
-        maxZoom: 19,
-        backgroundColor: Gruvbox.bg0,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
-        ),
-      ),
+    // The newest event of all, whoever it's of.
+    final newest = dots.isEmpty
+        ? null
+        : [for (var i = 0; i < dots.length; i++) i].reduce(
+            (a, b) =>
+                dots[b].sighting.event.time.isAfter(dots[a].sighting.event.time)
+                ? b
+                : a,
+          );
+    return Stack(
       children: [
-        tiles ?? openStreetMapTiles(),
-        MarkerLayer(
-          markers: [
-            for (final i in order)
-              Marker(
-                key: Key(dots[i].key),
-                point: points[i],
-                width: 18,
-                height: 18,
-                child: _MapDot(
-                  sighting: dots[i].sighting,
-                  color: dots[i].color,
-                  opacity: dots[i].opacity,
-                  onTap: onOpen,
-                ),
-              ),
-            // To the right of the point, clear of the dot.
-            for (final l in labels)
-              Marker(
-                key: Key('subjects-label-${l.subject.id}'),
-                point: _at(l.sighting),
-                width: labelWidth,
-                height: 24,
-                alignment: Alignment.centerRight,
-                child: _MapName(subject: l.subject, onTap: l.onTap),
-              ),
+        FlutterMap(
+          mapController: _map,
+          options: MapOptions(
+            // Centered on the newest dot, out far enough for all of them;
+            // the whole world without any.
+            initialCameraFit: newest == null
+                ? null
+                : CameraFit.coordinates(
+                    coordinates: framedAround(points[newest], points),
+                    padding: const EdgeInsets.all(48),
+                    maxZoom: 17,
+                  ),
+            initialCenter: const LatLng(20, 0),
+            initialZoom: 2,
+            minZoom: _SightingsMap.minZoom,
+            maxZoom: _SightingsMap.maxZoom,
+            backgroundColor: Gruvbox.bg0,
+            interactionOptions: const InteractionOptions(
+              flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+            ),
+            onMapReady: () => setState(() => _ready = true),
+            // Pinches and wheels change the zoom too: keep the buttons'
+            // limits current.
+            onPositionChanged: (_, hasGesture) {
+              if (hasGesture) setState(() {});
+            },
+          ),
+          children: [
+            widget.tiles ?? openStreetMapTiles(),
+            MarkerLayer(
+              markers: [
+                for (final i in order)
+                  Marker(
+                    key: Key(dots[i].key),
+                    point: points[i],
+                    width: 18,
+                    height: 18,
+                    child: _MapDot(
+                      sighting: dots[i].sighting,
+                      color: dots[i].color,
+                      opacity: dots[i].opacity,
+                      onTap: widget.onOpen,
+                    ),
+                  ),
+                // To the right of the point, clear of the dot.
+                for (final l in widget.labels)
+                  Marker(
+                    key: Key('subjects-label-${l.subject.id}'),
+                    point: _SightingsMap._at(l.sighting),
+                    width: _SightingsMap.labelWidth,
+                    height: 24,
+                    alignment: Alignment.centerRight,
+                    child: _MapName(subject: l.subject, onTap: l.onTap),
+                  ),
+              ],
+            ),
+            const MapAttribution(),
           ],
         ),
-        const MapAttribution(),
+        // For those without pinch or a wheel.
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: MapZoomButtons(
+            keyPrefix: 'sightings-',
+            onZoomIn: _ready && _zoomLevel < _SightingsMap.maxZoom
+                ? () => _zoom(1)
+                : null,
+            onZoomOut: _ready && _zoomLevel > _SightingsMap.minZoom
+                ? () => _zoom(-1)
+                : null,
+          ),
+        ),
       ],
     );
   }
