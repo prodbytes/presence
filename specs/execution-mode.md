@@ -25,8 +25,9 @@ separate setting, so a system with sign-in can't be opened by mistake.
 
 ## DEV in the app
 
-- Every feature shows: the Camera, Events and Settings tabs, and the
-  camera's Clip, Flip and readiness controls.
+- The anonymous user is a **root** (every role, as the table says), so
+  every feature shows: the Camera, Monitoring, Settings and Log tabs, and
+  the camera's Clip, Flip and readiness controls.
 - What only makes sense with accounts is hidden: **Sign in with Google**,
   the account button and sheet, the sign-up icon and the **Admin** screen.
 - An outlined **"dev"** label sits next to the "Presence" title, in 14 sp

@@ -6,13 +6,17 @@ in the app bar**, which flip between full screens.
 
 - **App bar:** the title **Presence** (accent color, plain text) on the left.
   In the top right are three icon tabs, in order **Camera**,
-  **Monitoring** and **Settings**, then a **Login** icon button. (The
+  **Monitoring** and **Settings**, and for admins (`presence_admin`, so
+  everyone in DEV, where the anonymous user is a root) a fourth, **Log**;
+  then a **Login** icon button. The Log tab comes and goes as the roles
+  change (the tab controller is rebuilt, staying on the open tab, or on
+  Settings if it was the Log). (The
   Device tab is gone: its map is a section of Settings, and the battery
   shows over the camera.)
   On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its extra button, on
-    a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
+    Where that doesn't fit (an admin's app bar, with its Log tab and Admin
+    button, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
     overflows.
     An indicator marks the selected tab.
   - **Account** (the last icon; your Google avatar when signed in) is an
@@ -21,8 +25,8 @@ in the app bar**, which flip between full screens.
   (`TabBar` + `TabBarView`). While a finger is on the Settings location
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
-- **A browser refresh stays on the open tab** (Camera, Monitoring or
-  Settings): each switch is remembered in the browser tab's
+- **A browser refresh stays on the open tab** (Camera, Monitoring,
+  Settings or Log; the Log only if the user still has it): each switch is remembered in the browser tab's
   `sessionStorage` (`presence.tab`, `lib/tab_memory.dart`), and the app
   opens on it again once the tabs can show (access is known only after the
   roles load; signed out, it stays on the camera and keeps the memory for
@@ -113,6 +117,7 @@ in the app bar**, which flip between full screens.
 - **Settings:** the settings as a normal screen (no longer a drawer),
   **full width**, with this device's location map as a section (see
   [Settings screen](settings.md)).
+- **Log** (admins only): the app's latest log messages (see [Log](log.md)).
 - The title no longer links to presence.nu01.com. On a full-screen camera,
   an accidental tap would open a browser. `url_launcher` was removed.
 - The Flutter demo UI was removed entirely.

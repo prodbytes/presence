@@ -25,7 +25,7 @@ emails, add accounts or switch providers without losing their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar, tabs, and the full-screen Camera tab
+- [Navigation](navigation.md): app bar, tabs (Log for admins), and the full-screen Camera tab
   with its All, Clip, Flip and readiness controls.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states,
@@ -83,6 +83,8 @@ emails, add accounts or switch providers without losing their data.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
+- [Log](log.md): the admins' Log tab (DEV's too) with the app's latest
+  500 log messages and errors, such as why the AWS sync failed.
 - [App icon](app-icon.md): the icon masters and generated icons.
 
 **Platforms**
