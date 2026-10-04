@@ -1826,3 +1826,102 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Tests that store fixed-date events now give the app a matching clock,
       so they won't break once those dates are more than two weeks old.
       278 Flutter tests pass; the web release builds.
+
+212. **Create the concept of a profile, mostly in the auth module: when a
+    user logs in, find the profile associated with that subject and load
+    it; if there is none, create one and associate them, so it's current
+    and found at the next login. This is so users can add collaborators,
+    change emails or authentication providers without losing their data,
+    which should be scoped to their profiles. Make it prominent in the
+    spec. Make the profile ID like the device ID, `adjective-adjective-animal`,
+    with word lists long enough to have no collisions.** (2026-10-02)
+    - New [Profiles](profiles.md) spec, stated at the top of the spec index:
+      data belongs to profiles, not logins.
+    - Auth API: `ProfilesTable` (`id`, `createdAt`, `lastSignInAt`) and
+      `ProfileSubjectsTable` (`<iss>#<sub>` → `profileId`, `email`,
+      `linkedAt`). `GET /api/auth` finds the subject's profile, or creates
+      one and links it (`Profiles`), and answers `"profile"` beside the
+      roles, for every signed-in user. Two racing first sign-ins share the
+      first link. The route is now throttled (20/s, burst 50).
+    - Profile IDs (`ProfileId`): two different adjectives and an animal,
+      hyphenated (`huge-wavy-darter`), from the device ID's 1053 adjectives
+      and 1031 new animals: about 1.14 billion. A conditional put means no
+      two profiles ever share an ID; a taken one is redrawn (10 tries).
+    - App: `RolesClient.fetch` returns `UserAccess` (roles and profile);
+      `RolesService.profile` holds it.
+    - Not done yet, and listed in the spec: events' `userId`, the cloud
+      sync folder and roles still use the Google account or email, and
+      there's no way to link another subject to a profile.
+    - 32 JUnit tests pass (9 new in `ProfilesTest`), 269 Flutter tests
+      (2 new); `sam validate --lint` passes. In local Floci, the deployed
+      `AuthFunction` created a profile and link, and returned the same
+      profile on the second call.
+213. **Always show the device ID and the profile ID on the Settings view.**
+    (2026-10-02)
+    - Under the version, two labelled lines, always there: **Device**
+      `automatic_paranoid_gadget` (*loading…* until known) and **Profile**
+      `huge_wavy_darter` (or why there's none: *none in DEV*,
+      *checking…*, *not signed in*, *unavailable*). The IDs stay
+      selectable (`device-id`, `profile-id` keys).
+    - `SettingsView` takes `profileId` and `noProfile`; the home screen
+      passes `RolesService.profile` and the reason.
+    - Stacked on #133 (profiles). 272 Flutter tests pass (3 new in
+      `add_device_test.dart`); the web release builds.
+214. **Make both the device ID and the profile ID separated by `_`.**
+    (2026-10-02)
+    - Profile IDs are now `adjective_adjective_animal`
+      (`huge_wavy_darter`), like device IDs; `ProfileId.PATTERN` and the
+      examples across the auth API, the app and the specs follow. Device
+      IDs already used underscores and are unchanged.
+    - The two can now be the same string (191 animals are also device
+      "things"); they're separate namespaces, and the spec says so.
+    - Made on #133 before it merged, so no hyphenated profile was ever
+      deployed. 32 JUnit tests and 269 Flutter tests pass.
+
+## 2026-10-04
+
+215. **One person, several Google accounts: let a user reach the same
+    profile, objects and events from any of their identities, even two from
+    the same provider (e.g. `jfaerman@gmail.com` and `julio@nu01.com`).**
+    (2026-10-04)
+    - Asked which IAM policy variables could replace
+      `${cognito-identity.amazonaws.com:sub}`: none identifies a person
+      across logins, and a Cognito identity holds only one login per
+      provider. Chose developer-authenticated identities through the auth
+      API.
+    - New [Profiles](profiles.md):
+      - an accounts table maps each Google account (`sub`) to a profile and
+        its Cognito identity;
+      - `POST /api/auth/credentials` issues developer-identity tokens
+        (`presence_user` only), on the identity the account already had,
+        so no data moves;
+      - one-time link codes (10 minutes, hashed, throttled), unlinking,
+        and the **Linked accounts** sheet;
+      - a linked account shares the owner's roles.
+    - The identity pool got `DeveloperProviderName: login.presence.profiles`
+      and keeps Google. The bucket policy is unchanged.
+    - The app now gets credentials from the auth API
+      (`CognitoCredentials`), and `CloudSync.reconnect()` starts over after
+      a link.
+    - [Auth API](auth-api.md), [Cloud sync](cloud-sync.md) and
+      [Sign-in](sign-in.md) updated.
+    - Tests: 37 JUnit (14 new) and 277 Flutter (6 new) pass; both templates
+      lint clean; Floci deploys the new tables, function and routes. Not
+      deployed to AWS.
+    - Before release, reconciled with #133 (request 212): the profile is
+      #133's (`ProfilesTable`, `ProfileSubjectsTable` by `<iss>#<sub>`,
+      `huge_wavy_darter` IDs, made at the first sign-in). This change's
+      `AccountsTable` was dropped. The profile now also keeps
+      `ownerSubject`, `ownerEmail` and `identityId` (set once), and the
+      subjects table got a `profile` index.
+216. **Increment Y for the data scoping change; tag a new RC and GA; rebuild
+    and deploy it all; sync git (merge all pending PRs, reconciling #133
+    with #144).** (2026-10-04)
+    - Y is now 6 (`version.Y.txt`): versions are `0.6.Z`.
+    - Merged #141, #142, #137, #138 and #140, each after merging `main`
+      into it and passing the tests (request-log numbers now 206–211).
+    - Reconciled #133 (profiles) into #144 (profile folders and linking):
+      one design, in [Profiles](profiles.md). 47 JUnit and 295 Flutter
+      tests pass, and the template lints clean.
+    - The GitHub deploy roles (`github-deploy.yaml`) may now describe and
+      update DynamoDB TTL, which the link-codes table needs.

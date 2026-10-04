@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static presence.auth.AuthHandler.response;
@@ -53,16 +54,23 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     }
 
     private final Roles roles;
+    private final Function<String, String> owners;
     private final Backend backend;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
-        this(AuthHandler.fromEnvironment(),
+        this(AuthHandler.fromEnvironment(), AuthHandler.owners(AuthHandler.profilesFromEnvironment()),
                 dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), System.getenv("USER_ROLES_TABLE")));
     }
 
     AdminHandler(Roles roles, Backend backend) {
+        this(roles, subject -> null, backend);
+    }
+
+    /** @param owners for a subject, its profile owner's email ({@link AuthHandler#owners}): a linked subject shares the owner's roles */
+    AdminHandler(Roles roles, Function<String, String> owners, Backend backend) {
         this.roles = roles;
+        this.owners = owners;
         this.backend = backend;
     }
 
@@ -70,7 +78,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
         var claims = AuthHandler.claims(event);
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        var callerRoles = roles.of(claims.get("email"), verified);
+        var callerRoles = roles.of(claims.get("email"), verified, AuthHandler.ownerOf(owners, claims));
         if (!callerRoles.contains(Roles.USER) || !callerRoles.contains(Roles.ADMIN)) {
             return response(403, "{\"error\":\"administrators only\"}");
         }

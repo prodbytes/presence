@@ -7,7 +7,7 @@ distribution.
 
 | Route | Who | Does |
 |-------|-----|------|
-| `GET /api/auth` | anyone signed in | the caller's roles: `{"email": "…", "roles": […]}` |
+| `GET /api/auth` | anyone signed in | the caller's profile (found, or created at the first sign-in) and roles: `{"email": "…", "profile": "automatic_paranoid_axolotl", "roles": […]}` |
 | `POST /api/auth/membership` | anyone signed in | asks for access; the body is a plain-text message (up to 1000 characters) |
 | `GET /api/auth/membership` | admins | the pending requests, oldest first: `{"requests": [{email, name, message, requestedAt}]}` |
 | `POST /api/auth/membership/grant` | admins | the body is an email: adds `presence_user` to its roles and drops its request |
@@ -19,7 +19,18 @@ Admins are users with both `presence_user` and `presence_admin`.
   token first: signature, expiry, issuer `https://accounts.google.com`, and
   audience the web client ID (`GoogleWebClientId`). A missing, expired,
   forged or foreign token gets **401** and never reaches a function. The
-  functions read the verified `email`, `email_verified` and `name` claims.
+  functions read the verified `iss`, `sub`, `email`, `email_verified` and
+  `name` claims.
+- **Profiles** ([Profiles.java](AuthFunction/src/main/java/presence/auth/Profiles.java)):
+  data belongs to a **profile**, not to a login, so users can change
+  emails, providers or add collaborators without losing it. Each subject
+  (`<iss>#<sub>`) is linked to one profile in **`ProfileSubjectsTable`**;
+  a first sign-in creates a profile in **`ProfilesTable`** and links the
+  subject, so the next sign-in finds it. Profile IDs
+  ([ProfileId.java](AuthFunction/src/main/java/presence/auth/ProfileId.java))
+  are two different adjectives and an animal, `automatic_paranoid_axolotl`,
+  from about 1.14 billion, and a conditional put guarantees no two
+  profiles share one. See [specs/profiles.md](../specs/profiles.md).
 - **Roles** ([Roles.java](AuthFunction/src/main/java/presence/auth/Roles.java)):
   - `presence_user` uses the app; `presence_admin` also approves
     membership requests;
@@ -62,7 +73,7 @@ Admins are users with both `presence_user` and `presence_admin`.
 | Path | Holds |
 |------|-------|
 | [template.yaml](template.yaml) | The tables, the HTTP API with its Google JWT authorizer, and the functions |
-| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `MembershipHandler`, `AdminHandler`, `Roles`) with its tests |
+| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `MembershipHandler`, `AdminHandler`, `Roles`, `Profiles`, `ProfileId` and its word lists) with its tests |
 | [samconfig.toml](samconfig.toml) | Default `sam build` / `deploy` settings (stack `presence-auth-api`) |
 
 ## Commands

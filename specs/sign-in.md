@@ -40,7 +40,9 @@ there's no separate sign-in screen:
   ("Sign-in failed: <reason>"; see [Navigation](navigation.md)).
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
-  with the Google ID token) for the user's roles:
+  with the Google ID token) for the user's roles and their
+  [profile](profiles.md), which the API finds by the account, or creates
+  at the first sign-in (`RolesService.profile`):
   - **With `presence_user`,** the user gets everything below. Other roles
     alone don't count.
   - **With `presence_admin` too,** an **Admin** icon also shows, left of
@@ -67,8 +69,14 @@ there's no separate sign-in screen:
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Signing in also turns on [cloud sync](cloud-sync.md): the user's Google
-  ID token (`AuthService.idToken`) is exchanged with Cognito for temporary
-  AWS credentials, and clips and events upload to S3. On iOS the app now
+  ID token (`AuthService.idToken`) is exchanged, through the auth API and
+  Cognito, for temporary AWS credentials for their
+  [profile](profiles.md), and clips and events upload to S3.
+- **Linked accounts:** the account sheet (and the sign-up sheet, for an
+  account without access) opens **Linked accounts**, where a member makes
+  a one-time code and another of their Google accounts enters it. That
+  account then shares the profile's folder and roles. See
+  [Profiles](profiles.md). On iOS the app now
   also passes the web client as `serverClientId`, so, as on Android and
   web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in

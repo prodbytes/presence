@@ -13,7 +13,8 @@ class CognitoSession {
   final AwsCredentials credentials;
 }
 
-/// Why Cognito refused (for example, an expired Google ID token).
+/// Why Cognito, or the auth API on its behalf, refused (for example, an
+/// expired Google ID token).
 class CognitoException implements Exception {
   CognitoException(this.type, this.message);
 
@@ -27,23 +28,28 @@ class CognitoException implements Exception {
   String toString() => 'Cognito $type: $message';
 }
 
-/// Exchanges a Google ID token for temporary AWS credentials through a
-/// Cognito identity pool (the enhanced flow: GetId, then
-/// GetCredentialsForIdentity). Neither call is signed; the Google token is
-/// the proof.
+/// Temporary AWS credentials for the signed-in user's profile: the auth API
+/// (`POST /api/auth/credentials`, with the Google ID token) answers with the
+/// profile's Cognito identity and a developer-identity token for it, which
+/// `GetCredentialsForIdentity` (unsigned: the token is the proof) trades for
+/// credentials. Every Google account linked to the profile gets the same
+/// identity, so the same folder.
 class CognitoCredentials {
   CognitoCredentials({
     required this.region,
-    required this.identityPoolId,
+    required this.api,
     http.Client? client,
     DateTime Function()? now,
   }) : _client = client ?? http.Client(),
        _now = now ?? DateTime.now;
 
-  static const String googleProvider = 'accounts.google.com';
+  /// The `Logins` key for tokens Cognito issued itself (developer identities).
+  static const String cognitoProvider = 'cognito-identity.amazonaws.com';
 
   final String region;
-  final String identityPoolId;
+
+  /// The site the auth API is under (`ApiConfig.baseUrl`).
+  final Uri api;
   final http.Client _client;
   final DateTime Function() _now;
 
@@ -59,18 +65,11 @@ class CognitoCredentials {
         !current.credentials.expiresSoon(_now())) {
       return current;
     }
-    final logins = {googleProvider: idToken};
-    // The identity ID is stable per user and pool, so keep it across tokens.
-    final identityId = current != null && _sessionToken != null
-        ? current.identityId
-        : (await _call('GetId', {
-                'IdentityPoolId': identityPoolId,
-                'Logins': logins,
-              }))['IdentityId']
-              as String;
+    final profile = await _profileToken(idToken);
+    final identityId = profile.identityId;
     final result = await _call('GetCredentialsForIdentity', {
       'IdentityId': identityId,
-      'Logins': logins,
+      'Logins': {cognitoProvider: profile.token},
     });
     final c = (result['Credentials'] as Map).cast<String, Object?>();
     final expiration = c['Expiration'];
@@ -91,6 +90,36 @@ class CognitoCredentials {
     _session = session;
     _sessionToken = idToken;
     return session;
+  }
+
+  /// The profile's identity and a token for it, from the auth API. A
+  /// rejected Google token (401) needs a new sign-in, as Cognito's own
+  /// `NotAuthorizedException` would.
+  Future<({String identityId, String token})> _profileToken(
+    String idToken,
+  ) async {
+    final response = await _client.post(
+      api.resolve('/api/auth/credentials'),
+      headers: {'authorization': 'Bearer $idToken'},
+    );
+    Map<String, Object?> body;
+    try {
+      body = (jsonDecode(response.body) as Map).cast<String, Object?>();
+    } catch (_) {
+      body = const {};
+    }
+    if (response.statusCode != 200) {
+      throw CognitoException(
+        response.statusCode == 401
+            ? 'NotAuthorizedException'
+            : 'HTTP ${response.statusCode}',
+        '${body['error'] ?? 'the auth API refused credentials'}',
+      );
+    }
+    return (
+      identityId: body['identityId']! as String,
+      token: body['token']! as String,
+    );
   }
 
   /// Forgets the session (on sign-out).
