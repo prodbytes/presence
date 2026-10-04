@@ -81,6 +81,17 @@ Android uses the standard dashcam technique instead
 - **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
   Kotlin on the toolchain default (21), which Kotlin rejects; the root
   `build.gradle.kts` pins that plugin's Kotlin to JVM 11.
+- **Run on a USB phone:** `devbox run android`, or
+  [scripts/flutter-android.sh](../scripts/flutter-android.sh), finds `adb`
+  (on the `PATH`, `ANDROID_HOME`, Flutter's configured SDK or Homebrew's
+  `android-commandlinetools`), picks the one phone attached by USB
+  (ignoring emulators and wireless devices; `ANDROID_SERIAL` picks among
+  several), and runs `scripts/flutter-run.sh -d <serial>` with any extra
+  arguments, so the `.env` settings and the version are passed as for the
+  other run scripts. It stops with what to do when no phone is attached,
+  several are, or the phone hasn't allowed this computer. Native builds
+  default to the production API (`API_BASE_URL` overrides it), so the
+  phone runs in OIDC mode, with Google sign-in.
 - **On-device test:** `integration_test/recognition_android_test.dart`
   (fixtures pushed with `integration_test/push_fixtures.sh`, which needs
   `ffmpeg` and `adb`); see [Subject recognition](recognition.md#verified).
