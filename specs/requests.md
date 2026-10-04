@@ -2131,6 +2131,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       emulator and a wireless device, several, unauthorized,
       `ANDROID_SERIAL`). Not run on a phone: none was attached (macOS saw
       no phone on USB).
+230. **When the brightness setting changes, restart the camera view with
+    the new setting.** (2026-10-05)
+    - `CameraRig` still applies a new brightness live, then closes and
+      reopens the open camera 0.8 s after the last change
+      (`brightnessRestartDelay`), so dragging the slider restarts it once.
+      Skipped while a camera is opening or switching (it opens with the
+      current value).
+    - Specs: [Settings](settings.md). 324 Flutter tests pass (the
+      brightness test now checks the restart).
+
+230. **When the grab button is pressed in the All cameras mode, generate a
+    global capture event that makes all cameras take a grab, so the next
+    S3 sync shows the current state of all cameras; in the single camera
+    mode (default), only grab this camera.** (2026-10-04)
+    - Clip with the All grid showing publishes a `capture_all` event
+      (`AppEvent.captureAll`) and clips this camera with the new trigger
+      `all` ("Capture all"). The event syncs to S3; each other device of
+      the profile that fetches it from another device, under 5 minutes old,
+      takes one clip of its own (`CameraRig.answerCaptureAll`), which
+      syncs back to the asker's grid. Without the grid, Clip is unchanged.
+    - Capture all requests count as grabs in the Monitoring timeline.
+    - Specs: [Camera screen](camera.md#capture-all), [Navigation](navigation.md),
+      [Events](events.md), [Recording and data formats](data-formats.md).
+      New `capture_all_test.dart`; 330 Flutter tests pass.
+
 230. **Cognito failures repeat in the log: if it fails, stop trying, and
     print a better error to debug it.** (2026-10-04)
     - The app: a failure to get credentials (`/api/auth/credentials` or
@@ -2146,6 +2171,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Cloud sync](cloud-sync.md), [Log](log.md),
       [Profiles](profiles.md). ProfileTest (2 new) and 328 Flutter tests
       (4 new) pass.
+231. **Make voucher have start and end validity dates and defaults to start
+    and end of season.** (2026-10-05)
+    - The auth API: vouchers have a `startsAt` beside `expiresAt`.
+      `POST /api/auth/vouchers` takes an optional `startsAt` (before
+      `expiresAt`, up to 366 days back; now when absent), stores and lists it, and
+      redeeming before it gets the usual 404 (also in the conditional
+      update). Vouchers stored without one start at their creation.
+    - The app: the Admin form has **Valid from** and **Valid through**
+      date pickers, defaulting to the current season's first and last days
+      (`seasonStart`, `seasonEnd`), instead of a week from today. Cards
+      show "valid from … · expires …" and "Not yet valid".
+    - Specs: [Membership](membership.md), [Auth API](auth-api.md),
+      [README](README.md). 17 VoucherTest (1 new) and 329 Flutter tests
+      (1 new) pass.
+
+231. **Allow production reads; allowlist frequent read-only commands
+    (`/fewer-permission-prompts`).** (2026-10-05)
+    - From the 50 latest transcripts: 24 read-only rules added to
+      [.claude/settings.json](../.claude/settings.json), including the AWS
+      reads (DynamoDB scan, Cognito Identity lookups, Lambda config,
+      CloudWatch logs) the Cognito debugging needed.
+    - Specs: [Dev environment](dev-environment.md).
+
 231. **On the top of the log view add a health check panel, with the same
     checks as the settings view (API, AWS/S3, OIDC) and last update, run
     every 30 s; also show a clickable history of health checks as small
@@ -2192,3 +2240,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       `EventTimeline.ofUser`), local and synced, with events not saved yet
       counted as this device. Updates live.
     - Specs: [Log](log.md). 331 Flutter tests (2 new) pass.
+
+## 2026-10-05
+
+233. **Reloads ask to sign in again: check whether already signed in and
+     don't prompt if so.** On web, a reload restored the remembered session
+     but still ran Google's quiet check (`attemptLightweightAuthentication`),
+     which starts the FedCM prompt.
+    - Now, when a still-valid session is restored, the app skips that check
+      at launch and runs it only five minutes before the ID token expires
+      (`SavedSession.refreshIn`), to refresh the token. Every sign-in
+      schedules the next refresh; sign-out cancels it. Android and iOS are
+      unchanged.
+    - Specs: [Sign-in](sign-in.md). session_test (1 new) and all 329 app
+      tests pass.
+
+233. **Show the profile name and all the profile's device IDs, collected
+    from events, on the popup the user icon opens.** (2026-10-05)
+    - The account sheet shows the profile ID (the profile's only name)
+      and every device ID on the signed-in user's events, this device
+      first and labelled, the rest sorted; the list updates live.
+    - Specs: [Sign-in](sign-in.md). 332 Flutter tests (3 new) pass.

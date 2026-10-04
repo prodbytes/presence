@@ -35,6 +35,7 @@ class Voucher {
   const Voucher({
     required this.code,
     required this.role,
+    DateTime? startsAt,
     required this.expiresAt,
     required this.maxUses,
     required this.uses,
@@ -42,11 +43,13 @@ class Voucher {
     this.createdBy = '',
     required this.createdAt,
     this.discount = 100,
-  });
+  }) : startsAt = startsAt ?? createdAt;
 
   factory Voucher.fromJson(Map<String, Object?> json) => Voucher(
     code: '${json['code'] ?? ''}',
     role: '${json['role'] ?? ''}',
+    // Vouchers from before start dates were valid from their creation.
+    startsAt: json['startsAt'] == null ? null : _instant(json['startsAt']),
     expiresAt: _instant(json['expiresAt']),
     maxUses: (json['maxUses'] as num?)?.toInt() ?? 0,
     uses: (json['uses'] as num?)?.toInt() ?? 0,
@@ -65,6 +68,9 @@ class Voucher {
 
   /// [userRole] or [adminRole] (which also grants [userRole]).
   final String role;
+
+  /// When it can first be redeemed, and when it no longer can.
+  final DateTime startsAt;
   final DateTime expiresAt;
   final int maxUses;
   final int uses;
@@ -78,6 +84,7 @@ class Voucher {
   final int discount;
 
   bool isExpired(DateTime now) => !expiresAt.isAfter(now);
+  bool isNotYetValid(DateTime now) => startsAt.isAfter(now);
   bool get isUsedUp => uses >= maxUses;
 }
 
@@ -124,11 +131,13 @@ abstract class MembershipClient {
   Future<List<Voucher>> vouchers(String idToken);
 
   /// Creates a voucher (admins only) with [code], or a random code when
-  /// it's null or blank, and a [discount] in percent. Throws
+  /// it's null or blank, valid from [startsAt] (now when null) until
+  /// [expiresAt], and a [discount] in percent. Throws
   /// [RolesException] 409 when [code] is taken.
   Future<Voucher> createVoucher(
     String idToken, {
     required String role,
+    DateTime? startsAt,
     required DateTime expiresAt,
     required int maxUses,
     String? code,
@@ -226,6 +235,7 @@ class HttpMembershipClient implements MembershipClient {
   Future<Voucher> createVoucher(
     String idToken, {
     required String role,
+    DateTime? startsAt,
     required DateTime expiresAt,
     required int maxUses,
     String? code,
@@ -237,6 +247,7 @@ class HttpMembershipClient implements MembershipClient {
       Uri(
         queryParameters: {
           'role': role,
+          if (startsAt != null) 'startsAt': startsAt.toUtc().toIso8601String(),
           'expiresAt': expiresAt.toUtc().toIso8601String(),
           'maxUses': '$maxUses',
           'discount': '$discount',

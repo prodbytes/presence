@@ -38,8 +38,8 @@ opens "Request access":
   `GET /api/auth`, so the user gets in at once. A valid code with a
   discount under 100% (402) says "That code gives 25% off. Paying the rest
   isn't available yet, so it can't let you in." and keeps the code. An
-  invalid, expired or used-up code (404) says "That code is invalid,
-  expired or used up.";
+  invalid, not yet valid, expired or used-up code (404) says "That code
+  is invalid, expired or used up.";
   throttling (429) says to try again in a minute;
 - **Check again** re-asks `GET /api/auth`, so a granted user gets in
   without signing out.
@@ -71,16 +71,23 @@ A voucher grants a role to whoever redeems it:
   voucher also grants `presence_user`, since the Admin screen needs both.
   Only a `presence_root` may create an Admin voucher (403 for other
   admins), and no voucher grants `presence_root` (400).
-- **Expiry:** an instant, in the future and at most 366 days away. The app
-  picks a date and makes the code valid through the end of that day (local
-  time).
+- **Validity:** a start (`startsAt`) and an end (`expiresAt`) instant.
+  The end is in the future and at most 366 days away; the start is before
+  the end, and may be up to 366 days in the past (the start of the
+  season); without one,
+  the voucher is valid from its creation. A code is redeemable from its
+  start until its end. The app picks two days, and makes the code valid
+  from the start of the first through the end of the last (local time):
+  the current season's first and last days by default.
 - **Uses:** 1 to 1000. Each email may redeem a voucher once.
 
-`VoucherTable` keeps one item per code: `code`, `role`, `expiresAt` and
-`createdAt` (epoch ms), `maxUses`, `uses`, `redeemedBy` (a string set of
-emails), `createdBy` and `discount` (vouchers from before discounts, which
-have none, are read as 100). Redeeming is one conditional update (the code
-exists, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
+`VoucherTable` keeps one item per code: `code`, `role`, `startsAt`,
+`expiresAt` and `createdAt` (epoch ms), `maxUses`, `uses`, `redeemedBy` (a
+string set of emails), `createdBy` and `discount` (vouchers from before
+discounts, which have none, are read as 100; vouchers from before start
+dates, which have no `startsAt`, start at `createdAt`). Redeeming is one
+conditional update (the code exists, `startsAt` is missing or not after
+now, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
 `redeemedBy`), so concurrent redemptions can't overspend a code. The role
 is then merged into the user's roles in `UserRolesTable`; if that fails, the
 use is given back. Every refused code gets the same 404, so answers don't
@@ -114,19 +121,24 @@ titled "Admin", one scrolling page with two sections.
   number, `AUTUMN-OTTER-4821`; the dice button suggests another, and the
   admin may type their own, or clear it for a random code), **Grants**
   (Member by default; Admin is offered to roots only, and other admins
-  are told "Only roots create Admin codes."), **Valid through** (a date
-  picker, a week from today by default, up to 365 days), **Uses** (1 by
+  are told "Only roots create Admin codes."), **Valid from** and **Valid
+  through** (date pickers, the current season's first and last days by
+  default; the first may be up to a year back, the last from today, or
+  the first day when that's later, up to 365 days ahead; picking a first
+  day after the last moves the last to it), **Uses** (1 by
   default; digits only, 1 to 1000), **Discount** (100 % by default; 1 to
   100) and **Create code**, disabled while a field is invalid. The new
   code goes to the top of the list and a message names it, and the form
-  suggests a new code. A taken code says "That code is taken; pick
+  suggests a new code (the dates stay). A taken code says "That code is taken; pick
   another.";
 - the season is the northern hemisphere's meteorological one: winter is
   December to February, spring March to May, summer June to August,
-  autumn September to November ([lib/auth/voucher_code.dart](../presence_app/lib/auth/voucher_code.dart));
+  autumn September to November ([lib/auth/voucher_code.dart](../presence_app/lib/auth/voucher_code.dart)),
+  so autumn runs from 1 September through 30 November;
 - every voucher, newest first, as cards: the code (selectable, monospace;
-  struck through with "Expired" or "Used up" when it can't be redeemed),
-  its role, its discount ("25% off"), "N of M used", its expiry, who redeemed it, and **Copy code**
+  struck through with "Expired", "Used up" or "Not yet valid" when it
+  can't be redeemed), its role, its discount ("25% off"), "N of M used",
+  "valid from" its start and "expires" its end, who redeemed it, and **Copy code**
   and **Delete** buttons. "No vouchers." when there are none.
 
 **Reload** (and pull to refresh) fetches both lists again; each section
@@ -151,7 +163,11 @@ is the app's client (a fake in tests).
   2^60. At the redeem throttle (1 a second) that's about a week to try
   them all, so keep few uses and short expiries on them, or clear the
   field for a random code. Codes an admin types can be weaker still.
-- The suggested season is the northern hemisphere's.
+- The suggested season, and the default validity, are the northern
+  hemisphere's.
+- The app picks whole days in the admin's time zone; the API takes any
+  instants. A code redeemed before its start gets the same 404 as an
+  invalid one, so users aren't told it will work later.
 - Vouchers under 100% can't be used yet: paying the rest isn't built.
   The 402 tells a valid partial code from an invalid one, but only for
   codes that work.
