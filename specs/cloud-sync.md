@@ -4,15 +4,17 @@ Signed-in users' **clips (videos), events and each device's settings
 sync with S3**, straight from
 the device, both ways: at start and **every 15 s**, events only on the
 device go up and events only in the user's folder come down, so every
-device of a user shows the same events as the bucket. There's no backend in between:
-the app trades the user's Google ID token for temporary AWS credentials
-through a **Cognito identity pool**, and makes signed S3 uploads itself
-([lib/cloud/](../presence_app/lib/cloud)).
+device of a user shows the same events as the bucket. The auth API only
+hands out credentials: the app trades the user's Google ID token for a
+token for their [profile](profiles.md), and that for temporary AWS
+credentials through a **Cognito identity pool**. It then makes signed S3
+uploads itself ([lib/cloud/](../presence_app/lib/cloud)).
 
 ## What's uploaded, and where
 
-Everything goes under the user's **Cognito identity ID**
-(`us-east-1:<uuid>`), in the user-data bucket, with JSON and media in
+Everything goes under the user's profile's **Cognito identity ID**
+(`us-east-1:<uuid>`), the same for every Google account linked to it
+(see [Profiles](profiles.md)), in the user-data bucket, with JSON and media in
 separate trees so the JSON can be queried on S3. The formats, fields and
 an Athena table are in [Recording and data formats](data-formats.md).
 
@@ -82,8 +84,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
     listing the whole window every 15 s.
 - A new device (or one whose storage was cleared) therefore starts with
   two weeks of history, rather than everything in the bucket. Events from
-  other devices on the same Google account (hence the same Cognito
-  identity) come down within 15 s. Older data stays in the bucket until it
+  other devices of the same profile (any of its linked Google accounts,
+  hence the same Cognito identity) come down within 15 s. Older data stays in the bucket until it
   expires, and on the devices that recorded it.
 - **Upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
@@ -100,11 +102,16 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## How
 
-- **Credentials** (`CognitoCredentials`): `GetId`, then
-  `GetCredentialsForIdentity`, with `Logins: {"accounts.google.com": <ID
-  token>}` (the enhanced flow). These calls are unsigned; the Google token
-  is the proof. Credentials are reused until five minutes before they
-  expire.
+- **Credentials** (`CognitoCredentials`):
+  - `POST /api/auth/credentials` on the auth API, with the Google ID token,
+    answers the profile's identity ID and a developer-identity token
+    (`presence_user` only; see [Profiles](profiles.md));
+  - then `GetCredentialsForIdentity` with
+    `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
+    unsigned: the token is the proof;
+  - credentials are reused until five minutes before they expire;
+  - after a link or unlink, `CloudSync.reconnect()` drops them and starts
+    over, as for a new user (the folder changed).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to
   `https://<bucket>.s3.us-east-1.amazonaws.com/<key>`, signed with AWS
   Signature Version 4 in pure Dart (`crypto`, `http`). The signer is tested
@@ -112,23 +119,24 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Errors:**
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
-  - if Cognito rejects the Google token (`NotAuthorizedException`, for
-    example once it has expired), the account sheet says **"Sign in again
-    to resume uploads"**;
+  - if the auth API rejects the Google token (401, for example once it
+    has expired), or Cognito rejects its token (`NotAuthorizedException`),
+    the account sheet says **"Sign in again to resume uploads"**;
   - other failures show "Upload failed (HTTP …)".
 - **Status:** the account sheet shows a line under the email: "Cloud backup
   is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
   IDs): `AWS_REGION` (default `us-east-1`), `COGNITO_IDENTITY_POOL_ID` and
-  `USER_DATA_BUCKET`. Sync is off when either ID is empty: no cloud
+  `USER_DATA_BUCKET`. The app doesn't call the pool by ID any more (the
+  auth API does), but sync is still off when either ID is empty: no cloud
   backend is created, so Cognito and S3 are never called and everything
   stays on the device. It's also off in DEV ([execution
   mode](execution-mode.md)). In production,
   `scripts/deploy.sh` sets them from the stack outputs; locally they come
   from `.env`.
 - The Google ID token is issued for the web client on every platform: web
-  directly, and Android and iOS through `serverClientId`. So the identity
-  pool trusts that one client ID.
+  directly, and Android and iOS through `serverClientId`. So the auth API
+  and the identity pool trust that one client ID.
 
 ## Infrastructure
 
@@ -165,12 +173,15 @@ In [presence_infra/](../presence_infra):
 - **`identity.yaml`**, stack `presence-identity`: the identity pool (the
   stack output `IdentityPoolId`, `COGNITO_IDENTITY_POOL_ID` in the private
   `.env`).
-  - Google only (`accounts.google.com` = the web client ID), no guests, no
+  - The auth API's developer provider (`login.presence.profiles`) for
+    profiles, plus Google (`accounts.google.com` = the web client ID), which
+    the API's `GetId` uses to find pre-profile identities. No guests, no
     classic flow.
   - Its authenticated role may only `PutObject` and `GetObject` (upload and
     fetch) in
     `<bucket>/${cognito-identity.amazonaws.com:sub}/*`, and `ListBucket` on
-    that prefix. No deletes.
+    that prefix. No deletes. That `sub` is the profile's identity, the same
+    for all its linked accounts.
 
 ## Verified
 

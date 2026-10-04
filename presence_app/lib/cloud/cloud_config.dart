@@ -11,6 +11,8 @@ abstract final class CloudConfig {
     defaultValue: 'us-east-1',
   );
 
+  /// Whether there's a pool at all: the app doesn't call it by ID, since the
+  /// auth API hands it the profile's identity (`POST /api/auth/credentials`).
   static const String identityPoolId = String.fromEnvironment(
     'COGNITO_IDENTITY_POOL_ID',
   );

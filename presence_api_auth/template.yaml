@@ -13,8 +13,10 @@ Description: >
   (IdentityPoolId, UserDataBucket) are set.
   Nobody has roles, except verified emails at one of AllowedDomains
   (presence_user and presence_admin) and users listed in
-  the UserRoles table (email -> roles). Served under /api/* by the site's
-  CloudFront distribution (presence_infra/site.yaml).
+  the UserRoles table (email -> roles). POST /api/auth/credentials and
+  /api/auth/profile/*: profiles, one cloud folder for all of a person's
+  linked Google accounts. Served under /api/* by the
+  site's CloudFront distribution.
 
 Parameters:
   GoogleWebClientId:
@@ -51,6 +53,8 @@ Parameters:
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
+  HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
+  HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
 
 Globals:
   Function:
@@ -99,6 +103,53 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Profiles: one item per Google account, {"sub" (the account ID), "email",
+  # "profileId", "identityId" (the profile's Cognito identity, its folder),
+  # "ownerEmail", "owner", "linkedAt" (epoch ms)}, indexed by profile.
+  AccountsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+        - AttributeName: profileId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: profile
+          KeySchema:
+            - AttributeName: profileId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # One-time link codes, by their SHA-256: {"code", "profileId",
+  # "identityId", "ownerEmail", "createdBy", "expiresAt" (epoch s, the TTL)}.
+  LinkCodesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: code
+          AttributeType: S
+      KeySchema:
+        - AttributeName: code
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -111,6 +162,13 @@ Resources:
         "GET /api/auth/anonymous":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
+        # Link codes: slow enough that guessing one (40 bits) is hopeless.
+        "POST /api/auth/profile/link-code":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        "POST /api/auth/profile/link":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -143,9 +201,15 @@ Resources:
           # GET /api/auth/anonymous says whether these are set (Settings).
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
+          # A linked account shares its profile owner's roles.
+          ACCOUNTS_TABLE: !Ref AccountsTable
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt AccountsTable.Arn
       Events:
         Roles:
           Type: HttpApi
@@ -195,8 +259,13 @@ Resources:
           ALLOWED_DOMAINS: !Ref AllowedDomains
           DOMAIN_ROLES: presence_user,presence_admin
           MEMBERSHIP_TABLE: !Ref MembershipTable
+          ACCOUNTS_TABLE: !Ref AccountsTable
       Policies:
         - Statement:
+            # The caller's profile owner, whose roles a linked account shares.
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt AccountsTable.Arn
             # Checks the caller's roles and grants presence_user.
             - Effect: Allow
               Action:
@@ -230,6 +299,87 @@ Resources:
             Path: /api/auth/membership/dismiss
             Method: post
 
+  ProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.ProfileHandler::handleRequest
+      Environment:
+        Variables:
+          USER_ROLES_TABLE: !Ref UserRolesTable
+          ALLOWED_DOMAINS: !Ref AllowedDomains
+          DOMAIN_ROLES: presence_user,presence_admin
+          ACCOUNTS_TABLE: !Ref AccountsTable
+          LINK_CODES_TABLE: !Ref LinkCodesTable
+          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
+          USER_DATA_BUCKET: !Ref UserDataBucket
+          # The identity pool's DeveloperProviderName (presence_infra/identity.yaml).
+          DEVELOPER_PROVIDER: login.presence.profiles
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref UserRolesTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt AccountsTable.Arn
+                - !Sub "${AccountsTable.Arn}/index/profile"
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt LinkCodesTable.Arn
+            # Finds an account's existing identity (GetId) and issues the
+            # profile's tokens. Only this pool ("none" when it isn't set).
+            - Effect: Allow
+              Action:
+                - cognito-identity:GetId
+                - cognito-identity:GetOpenIdTokenForDeveloperIdentity
+              Resource: !Sub
+                - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
+                - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
+            # Only to see whether an account's folder is empty before linking it.
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      Events:
+        Credentials:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/credentials
+            Method: post
+        Profile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile
+            Method: get
+        LinkCode:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/link-code
+            Method: post
+        Link:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/link
+            Method: post
+        Unlink:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/unlink
+            Method: post
+
 Outputs:
   ApiDomain:
     Description: The HTTP API's host name (the site distribution's /api/* origin)
@@ -240,3 +390,6 @@ Outputs:
   MembershipTableName:
     Description: Membership requests (email -> message, requestedAt)
     Value: !Ref MembershipTable
+  AccountsTableName:
+    Description: Profiles' Google accounts (sub -> profileId, identityId, ownerEmail)
+    Value: !Ref AccountsTable

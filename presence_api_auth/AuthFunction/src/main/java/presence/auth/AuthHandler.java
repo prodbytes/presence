@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -31,12 +32,13 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
     static final String ANONYMOUS_ROUTE = "GET /api/auth/anonymous";
 
     private final Roles roles;
+    private final Function<String, String> owners;
     private final ExecutionMode mode;
     private final Settings settings;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AuthHandler() {
-        this(fromEnvironment(), ExecutionMode.fromEnvironment(), Settings.fromEnvironment());
+        this(fromEnvironment(), ownersFromEnvironment(), ExecutionMode.fromEnvironment(), Settings.fromEnvironment());
     }
 
     AuthHandler(Roles roles) {
@@ -48,7 +50,16 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
     }
 
     AuthHandler(Roles roles, ExecutionMode mode, Settings settings) {
+        this(roles, sub -> null, mode, settings);
+    }
+
+    /**
+     * @param owners for a Google account ID, the email of its profile's owner
+     *               (whose roles it shares), or null; see {@link Profiles}
+     */
+    AuthHandler(Roles roles, Function<String, String> owners, ExecutionMode mode, Settings settings) {
         this.roles = roles;
+        this.owners = owners;
         this.mode = mode;
         this.settings = settings;
     }
@@ -63,7 +74,7 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var claims = claims(event);
         var email = claims.get("email");
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        var granted = roles.of(email, verified);
+        var granted = roles.of(email, verified, ownerOf(owners, claims));
         var body = "{\"email\":" + (email == null ? "null" : Json.string(email))
                 + ",\"roles\":[" + granted.stream().map(Json::string).collect(Collectors.joining(","))
                 + "]}";
@@ -85,6 +96,30 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         var jwt = authorizer == null ? null : authorizer.getJwt();
         var claims = jwt == null ? null : jwt.getClaims();
         return claims == null ? Map.of() : claims;
+    }
+
+    /** The signed-in account's profile owner's email, or null (none yet, or no {@code sub}). */
+    static String ownerOf(Function<String, String> owners, Map<String, String> claims) {
+        var sub = claims.get("sub");
+        return sub == null || sub.isBlank() ? null : owners.apply(sub);
+    }
+
+    /** Owner emails from the accounts table ({@code ACCOUNTS_TABLE}); none when it isn't set. */
+    static Function<String, String> ownersFromEnvironment() {
+        var table = System.getenv("ACCOUNTS_TABLE");
+        if (table == null || table.isBlank()) {
+            return sub -> null;
+        }
+        var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
+        return sub -> {
+            var item = dynamo.getItem(GetItemRequest.builder()
+                    .tableName(table)
+                    .key(Map.of("sub", AttributeValue.fromS(sub)))
+                    .projectionExpression("ownerEmail")
+                    .build()).item();
+            var owner = item == null ? null : item.get("ownerEmail");
+            return owner == null ? null : owner.s();
+        };
     }
 
     static Roles fromEnvironment() {

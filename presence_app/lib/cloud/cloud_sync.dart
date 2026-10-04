@@ -14,7 +14,7 @@ import 's3.dart';
 
 /// A signed-in user's connection to their cloud storage.
 abstract class CloudSession {
-  /// The user's folder in the bucket (their Cognito identity ID).
+  /// The user's folder in the bucket (their profile's Cognito identity ID).
   String get prefix;
 
   /// Uploads [bytes] to [key], relative to [prefix].
@@ -68,7 +68,8 @@ abstract class CloudBackend {
   void reset();
 }
 
-/// Cognito identity pool credentials + direct S3 uploads.
+/// Profile credentials (the auth API, then the Cognito identity pool) +
+/// direct S3 uploads.
 class AwsCloudBackend implements CloudBackend {
   AwsCloudBackend({required this._cognito, required this._bucket});
 
@@ -262,6 +263,15 @@ class CloudSync extends ChangeNotifier {
       _periodic = Timer.periodic(interval, (_) => _schedule(immediately: true));
       _schedule(immediately: true);
     }
+  }
+
+  /// Starts over with new credentials, as for a new user: after the
+  /// signed-in account joins or leaves a profile, its folder is another one.
+  void reconnect() {
+    if (_user == null) return;
+    backend.reset();
+    _lastFullFetch = null;
+    _schedule(immediately: true);
   }
 
   void _schedule({bool immediately = false}) {

@@ -38,6 +38,9 @@ audio, so a clip can include the moments before someone pressed Clip.
   clients.
 - [Membership](membership.md): users without access ask for it; admins
   grant it on the Admin screen.
+- [Profiles](profiles.md): one person's cloud folder and roles, whichever
+  of their linked Google accounts signs in (even two from Google), linked
+  with a one-time code.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
@@ -58,7 +61,8 @@ audio, so a clip can include the moments before someone pressed Clip.
   same user, after a sign-in checked against the link.
 - [Storage](storage.md): IndexedDB stores and how clips are saved.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
-  S3 through a Cognito identity pool.
+  S3, with credentials for their profile (the auth API, then a Cognito
+  identity pool).
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
@@ -74,8 +78,8 @@ audio, so a clip can include the moments before someone pressed Clip.
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's roles
   (`presence_user`, `presence_admin`), `GET /api/auth/anonymous` (the
-  execution mode and which settings are set, no token), and the
-  membership routes (SAM,
+  execution mode and which settings are set, no token), the
+  membership routes and the [profile](profiles.md) routes (SAM,
   Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.

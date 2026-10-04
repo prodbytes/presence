@@ -1744,3 +1744,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       What a device uploaded under the old keys isn't uploaded again.
     - [Cloud sync](cloud-sync.md) and the bucket template's description
       updated. 271 Flutter tests pass (one new); web release builds.
+
+## 2026-10-04
+
+206. **One person, several Google accounts: let a user reach the same
+    profile, objects and events from any of their identities, even two from
+    the same provider (e.g. `jfaerman@gmail.com` and `julio@nu01.com`).**
+    (2026-10-04)
+    - Asked which IAM policy variables could replace
+      `${cognito-identity.amazonaws.com:sub}`: none identifies a person
+      across logins, and a Cognito identity holds only one login per
+      provider. Chose developer-authenticated identities through the auth
+      API.
+    - New [Profiles](profiles.md):
+      - an accounts table maps each Google account (`sub`) to a profile and
+        its Cognito identity;
+      - `POST /api/auth/credentials` issues developer-identity tokens
+        (`presence_user` only), on the identity the account already had,
+        so no data moves;
+      - one-time link codes (10 minutes, hashed, throttled), unlinking,
+        and the **Linked accounts** sheet;
+      - a linked account shares the owner's roles.
+    - The identity pool got `DeveloperProviderName: login.presence.profiles`
+      and keeps Google. The bucket policy is unchanged.
+    - The app now gets credentials from the auth API
+      (`CognitoCredentials`), and `CloudSync.reconnect()` starts over after
+      a link.
+    - [Auth API](auth-api.md), [Cloud sync](cloud-sync.md) and
+      [Sign-in](sign-in.md) updated.
+    - Tests: 37 JUnit (14 new) and 277 Flutter (6 new) pass; both templates
+      lint clean; Floci deploys the new tables, function and routes. Not
+      deployed to AWS.
