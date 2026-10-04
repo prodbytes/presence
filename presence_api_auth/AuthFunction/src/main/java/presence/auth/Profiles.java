@@ -22,9 +22,12 @@ import java.util.function.Supplier;
 /**
  * A profile is whose data it is: a stable ID that outlives the ways its
  * owner signs in, with one folder in the user-data bucket (its Cognito
- * identity). Each authenticated subject (a token's issuer and {@code sub})
- * is linked to one profile; signing in finds it, or creates a profile the
- * subject owns and links it, so the next sign-in finds the same one. Data
+ * identity). The app makes a profile ID at its first start, owned by
+ * nobody; the first sign-in with it claims that ID for the subject. Each
+ * authenticated subject (a token's issuer and {@code sub}) is linked to one
+ * profile; signing in finds it, or creates a profile the subject owns (with
+ * the app's ID when it's free) and links it, so the next sign-in finds the
+ * same one. Data
  * belongs to the profile, not the subject or the email, so more subjects
  * (another Google account, another provider, a new email) can be linked to
  * it with a link code ({@link ProfileHandler}) without losing anything.
@@ -116,16 +119,28 @@ public final class Profiles {
 
     /** The ID of {@link #profile}'s profile, or null. */
     public String of(String issuer, String sub, String email) {
-        var profile = profile(issuer, sub, email);
+        return of(issuer, sub, email, null);
+    }
+
+    /** The ID of {@link #profile}'s profile, or null. */
+    public String of(String issuer, String sub, String email, String requested) {
+        var profile = profile(issuer, sub, email, requested);
         return profile == null ? null : profile.id();
+    }
+
+    /** {@link #profile(String, String, String, String)}, without an ID from the app. */
+    public Profile profile(String issuer, String sub, String email) {
+        return profile(issuer, sub, email, null);
     }
 
     /**
      * The profile of the subject {@code sub} from {@code issuer}: the one it's
-     * linked to, or a new one it owns and is linked to from now on. Null
-     * without both.
+     * linked to, or a new one it owns and is linked to from now on. The new
+     * one gets the ID {@code requested}, the app's own profile ID, if it's a
+     * {@link ProfileId#valid valid} one no profile has; otherwise a fresh
+     * one. Null without both.
      */
-    public Profile profile(String issuer, String sub, String email) {
+    public Profile profile(String issuer, String sub, String email, String requested) {
         if (issuer == null || issuer.isBlank() || sub == null || sub.isBlank()) {
             return null;
         }
@@ -143,7 +158,7 @@ public final class Profiles {
             }
             return profile;
         }
-        var created = create(subject, normalized, now);
+        var created = create(subject, normalized, requested, now);
         // Two first sign-ins at once: the first link wins, the other reads it
         // (leaving its new profile unused).
         if (store.link(subject, created, normalized, now)) {
@@ -158,8 +173,14 @@ public final class Profiles {
         return linked == null ? null : store.profile(linked);
     }
 
-    /** A new profile, with an ID no other profile has. */
-    private String create(String subject, String email, Instant now) {
+    /**
+     * A new profile, with an ID no other profile has: {@code requested} if
+     * it's valid and free, so the app's profile becomes the subject's.
+     */
+    private String create(String subject, String email, String requested, Instant now) {
+        if (ProfileId.valid(requested) && store.create(requested, subject, email, now)) {
+            return requested;
+        }
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             var id = ids.get();
             if (store.create(id, subject, email, now)) {

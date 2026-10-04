@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../identity/profile_id.dart';
 import 'auth_service.dart';
 import 'google_config.dart';
 
@@ -70,10 +71,35 @@ enum AccessState {
   denied,
 }
 
+/// Where this device's profile ID is kept. There's always one: made at the
+/// first start ([ProfileId.generate]), owned by nobody, until a sign-in
+/// claims it or answers with the account's own.
+abstract class ProfileStore {
+  /// This device's profile ID, made and kept the first time it's asked.
+  Future<String> get profileId;
+
+  /// Keeps [id] as this device's profile from now on.
+  Future<void> keepProfileId(String id);
+}
+
+/// A [ProfileStore] in memory, for a run without storage.
+class MemoryProfileStore implements ProfileStore {
+  MemoryProfileStore([String? id]) : _id = id ?? ProfileId.generate();
+
+  String _id;
+
+  @override
+  Future<String> get profileId async => _id;
+
+  @override
+  Future<void> keepProfileId(String id) async => _id = id;
+}
+
 /// Asks the auth API (`GET /api/auth`) for a user's roles and profile.
 abstract class RolesClient {
   /// The roles and profile of the user whose Google ID token is [idToken].
-  Future<UserAccess> fetch(String idToken);
+  /// [profile] is this device's profile, which a first sign-in claims.
+  Future<UserAccess> fetch(String idToken, {String? profile});
 
   /// The execution mode and the anonymous user's roles, without a token.
   Future<AnonymousAccess> anonymous();
@@ -100,18 +126,22 @@ class HttpRolesClient implements RolesClient {
   final http.Client _client;
 
   @override
-  Future<UserAccess> fetch(String idToken) async {
+  Future<UserAccess> fetch(String idToken, {String? profile}) async {
     final response = await _client.get(
-      base.resolve('/api/auth'),
+      base
+          .resolve('/api/auth')
+          .replace(
+            queryParameters: profile == null ? null : {'profile': profile},
+          ),
       headers: {'authorization': 'Bearer $idToken'},
     );
     if (response.statusCode != 200) throw RolesException(response.statusCode);
     final body = (jsonDecode(response.body) as Map).cast<String, Object?>();
     final roles = body['roles'];
-    final profile = body['profile'];
+    final answered = body['profile'];
     return (
       roles: roles is List ? [for (final r in roles) '$r'] : const <String>[],
-      profile: profile is String && profile.isNotEmpty ? profile : null,
+      profile: answered is String && answered.isNotEmpty ? answered : null,
     );
   }
 
@@ -151,18 +181,26 @@ bool get hasOidcClient =>
 /// anonymous user's roles. In [ExecutionMode.dev] access is granted to the
 /// anonymous user, and sign-in is ignored. If the API can't answer, the
 /// mode follows [oidcClient]: [ExecutionMode.dev] only without one.
+///
+/// There's always a [profile]: this device's, from [profiles], made at the
+/// first start. A sign-in sends it to the auth API, which links it to the
+/// account if the account has none yet; the profile the API answers with
+/// is kept as this device's from then on.
 class RolesService extends ChangeNotifier {
   RolesService({
     required this.auth,
     required this._client,
+    ProfileStore? profiles,
     bool? oidcClient,
     this.startTimeout = const Duration(seconds: 5),
-  }) : oidcClient = oidcClient ?? hasOidcClient {
+  }) : _profiles = profiles ?? MemoryProfileStore(),
+       oidcClient = oidcClient ?? hasOidcClient {
     _start();
   }
 
   final AuthService auth;
   final RolesClient _client;
+  final ProfileStore _profiles;
 
   /// Whether this build can sign in; decides the mode when the API can't.
   final bool oidcClient;
@@ -199,9 +237,9 @@ class RolesService extends ChangeNotifier {
   AccessState get state => _state;
   List<String> get roles => _roles;
 
-  /// The signed-in user's profile ID, from the auth API: whose data it is.
-  /// Null while signed out, checking, in [ExecutionMode.dev], or if the
-  /// check failed.
+  /// This device's profile ID: whose data it is. The one made at the first
+  /// start until a sign-in answers with the account's, which is kept from
+  /// then on. Null only until storage has it, just after the start.
   String? get profile => _profile;
 
   /// Why the last check failed, if it did.
@@ -220,7 +258,33 @@ class RolesService extends ChangeNotifier {
     if (_mode == ExecutionMode.rbac) await _check();
   }
 
+  /// Reads this device's profile, made the first time.
+  Future<void> _loadProfile() async {
+    try {
+      final id = await _profiles.profileId;
+      // A sign-in's answer, which came first, wins.
+      if (!_disposed && _profile == null) {
+        _profile = id;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Presence: no profile ID: $e');
+    }
+  }
+
+  /// Keeps the profile a sign-in answered with as this device's.
+  void _keepProfile(String id) {
+    if (id == _profile) return;
+    _profile = id;
+    _profiles
+        .keepProfileId(id)
+        .catchError(
+          (Object e) => debugPrint('Presence: could not keep the profile: $e'),
+        );
+  }
+
   Future<void> _start() async {
+    _loadProfile().ignore();
     AnonymousAccess access;
     try {
       access = await _client.anonymous().timeout(startTimeout);
@@ -282,15 +346,18 @@ class RolesService extends ChangeNotifier {
     }
     _set(AccessState.checking, const []);
     try {
-      final access = await _client.fetch(token);
+      // A first sign-in claims this device's profile. It's loaded long
+      // before: a session restored at launch isn't a first start, and the
+      // account is linked by then anyway.
+      final access = await _client.fetch(token, profile: _profile);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
+      if (access.profile case final id?) _keepProfile(id);
       _set(
         access.roles.contains(userRole)
             ? AccessState.granted
             : AccessState.denied,
         access.roles,
-        profile: access.profile,
       );
     } catch (e) {
       if (generation != _generation) return;
@@ -299,16 +366,10 @@ class RolesService extends ChangeNotifier {
     }
   }
 
-  void _set(
-    AccessState state,
-    List<String> roles, {
-    String? error,
-    String? profile,
-  }) {
+  void _set(AccessState state, List<String> roles, {String? error}) {
     if (_disposed) return;
     _state = state;
     _roles = List.unmodifiable(roles);
-    _profile = profile;
     _error = error;
     notifyListeners();
   }

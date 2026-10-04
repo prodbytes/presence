@@ -65,10 +65,10 @@
   quiet, one labelled line each, the IDs selectable to copy:
   - **Device** `automatic_paranoid_gadget` (see [Devices, users and
     places](devices-users-places.md)), or *loading…* until it's known;
-  - **Profile** `huge_wavy_darter`, the signed-in user's
-    [profile](profiles.md), or, in italics, why there's none: *none in
-    DEV*, *checking…*, *not signed in*, or *unavailable* (the auth API
-    didn't give one).
+  - **Profile** `huge_wavy_darter`, this device's
+    [profile](profiles.md): made at the first start, claimed by the first
+    sign-in, or the account's once it signs in. There's always one,
+    signed out and in DEV too; *loading…* shows only until it's read.
 - **Health line**, under the IDs, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
   `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip. For AWS and

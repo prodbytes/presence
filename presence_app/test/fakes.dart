@@ -323,6 +323,9 @@ class FakeRolesClient implements RolesClient {
   Object? error;
   final tokens = <String>[];
 
+  /// The device profiles sent with each token.
+  final sentProfiles = <String?>[];
+
   /// What `GET /api/auth/anonymous` says; RBAC by default.
   ExecutionMode mode = ExecutionMode.rbac;
 
@@ -334,10 +337,11 @@ class FakeRolesClient implements RolesClient {
   int anonymousCalls = 0;
 
   @override
-  Future<UserAccess> fetch(String idToken) async {
+  Future<UserAccess> fetch(String idToken, {String? profile}) async {
     tokens.add(idToken);
+    sentProfiles.add(profile);
     if (error case final e?) throw e;
-    return (roles: roles, profile: profile);
+    return (roles: roles, profile: this.profile);
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/main.dart';
 
 import 'fakes.dart';
@@ -38,27 +39,54 @@ void main() {
       expect(roles.hasAccess, isFalse);
     });
 
-    test('the profile comes with the roles, whatever they are', () async {
-      final auth = FakeAuthService();
-      final client = FakeRolesClient.none();
-      final roles = RolesService(auth: auth, client: client);
+    test(
+      'there is always a profile, and a sign-in keeps the account\'s',
+      () async {
+        final auth = FakeAuthService();
+        final client = FakeRolesClient.none()..profile = null;
+        final store = MemoryProfileStore('brave_calm_otter');
+        final roles = RolesService(auth: auth, client: client, profiles: store);
+        await settle();
+        expect(roles.profile, 'brave_calm_otter', reason: 'signed out');
+
+        // A first sign-in sends the device's profile, and the API claims it
+        // (an API that doesn't say leaves it as it was).
+        await auth.signIn();
+        await settle();
+        expect(roles.state, AccessState.denied);
+        expect(client.sentProfiles, ['brave_calm_otter']);
+        expect(roles.profile, 'brave_calm_otter');
+
+        // The account already had a profile: the device keeps that one.
+        client.profile = 'automatic_paranoid_axolotl';
+        await roles.refresh();
+        expect(roles.profile, 'automatic_paranoid_axolotl');
+        expect(await store.profileId, 'automatic_paranoid_axolotl');
+
+        client.error = Exception('down');
+        await roles.refresh();
+        expect(roles.profile, 'automatic_paranoid_axolotl', reason: 'failed');
+        await auth.signOut();
+        expect(
+          roles.profile,
+          'automatic_paranoid_axolotl',
+          reason: 'signed out',
+        );
+      },
+    );
+
+    test('a new device makes a profile at its first start', () async {
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: FakeRolesClient()..mode = ExecutionMode.dev,
+      );
       await settle();
-      expect(roles.profile, isNull, reason: 'signed out');
-
-      await auth.signIn();
-      await settle();
-      expect(roles.state, AccessState.denied);
-      expect(roles.profile, 'automatic_paranoid_axolotl');
-
-      client.error = Exception('down');
-      await roles.refresh();
-      expect(roles.profile, isNull, reason: 'a failed check');
-
-      client.error = null;
-      await roles.refresh();
-      expect(roles.profile, 'automatic_paranoid_axolotl');
-      await auth.signOut();
-      expect(roles.profile, isNull);
+      expect(roles.profile, matches(ProfileId.pattern));
+      final words = roles.profile!.split('_');
+      expect(words[0], isNot(words[1]));
+      expect(ProfileId.animals, contains(words[2]));
+      expect(ProfileId.animals.length, 1031);
+      expect(ProfileId.animals.toSet().length, ProfileId.animals.length);
     });
 
     test('HttpRolesClient reads the profile', () async {
@@ -67,9 +95,10 @@ void main() {
         client: MockClient((request) async {
           expect(request.url.path, '/api/auth');
           expect(request.headers['authorization'], 'Bearer t');
+          expect(request.url.queryParameters, {'profile': 'brave_calm_otter'});
           return http.Response(body, 200);
         }),
-      ).fetch('t');
+      ).fetch('t', profile: 'brave_calm_otter');
 
       final ana = await answer(
         '{"email":"ana@example.com","profile":"automatic_paranoid_axolotl",'

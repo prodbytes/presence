@@ -176,6 +176,8 @@ class _PresenceAppState extends State<PresenceApp> {
     _roles = RolesService(
       auth: _auth,
       client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
+      // This device's profile, made at the first start; a sign-in claims it.
+      profiles: _persistence,
     );
     final cloud =
         widget.cloud ??
@@ -567,14 +569,6 @@ class _HomeScreenState extends State<HomeScreen>
   /// about accounts (sign-in, the account, sign-up and Admin).
   bool get _dev => widget.roles.mode == ExecutionMode.dev;
 
-  /// Why Settings shows no profile ID: profiles come with a sign-in.
-  String get _noProfile => switch (widget.roles.state) {
-    _ when _dev => 'none in DEV',
-    AccessState.starting || AccessState.checking => 'checking…',
-    AccessState.signedOut => 'not signed in',
-    AccessState.granted || AccessState.denied => 'unavailable',
-  };
-
   /// Signed in as a `presence_user`, or [_dev]: the tabs, the camera's
   /// buttons and (signed in) cloud sync.
   bool get _hasAccess => _dev || (_signedIn && widget.roles.hasAccess);
@@ -901,7 +895,6 @@ class _HomeScreenState extends State<HomeScreen>
                   motionLevel: widget.rig.motionLevel,
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
-                  noProfile: _noProfile,
                   health: SystemHealth(roles: widget.roles, sync: widget.sync),
                   addDevice: switch (widget.deviceId) {
                     final deviceId? => AddDeviceSection(

@@ -1,0 +1,119 @@
+// The animals profile IDs end with (see profile_id.dart): 1031 words,
+// lowercase a-z, space separated. The same list as the auth API's
+// (presence_api_auth/AuthFunction/src/main/resources/presence/auth/animals.txt),
+// which only lets a sign-in claim IDs made of these words.
+
+const String animalWords = '''
+aardvark aardwolf abalone accentor addax adder admiral agama agouti
+akiapolaau akita albacore albatross alcid alewife alligator alpaca amberjack
+ammonite amoeba anaconda anchoveta anchovy anemone angelfish angelshark
+angora angwantibo anhinga anole ant anteater antelope antlion antpitta
+antshrike antwren ape aphid appaloosa arapaima archerfish argali armadillo
+arowana asity asp auk auklet avadavat avocet axolotl babbler babirusa baboon
+badger bandfish bandicoot barbel barbet barnacle barnowl barracuda
+barramundi basenji basilisk bass basset bat bateleur batfish beagle bear
+beaver bee beetle bellbird beluga betta bichon bigeye bilby binturong bison
+bitterling bittern blackbird blackbuck blackcap blackfish blenny blesbok
+bloodhound bluebird bluefin bluegill bluejay bluethroat boa boar bobac
+bobcat bobolink bobwhite bongo bonito bonobo bontebok borzoi bowerbird boxer
+brambling brant bream brill brocket brolga brushtail budgerigar budgie
+buffalo bulbul bulldog bullfinch bullfrog bullhead bullsnake bumblebee
+bunting burbot bushbaby bushbuck bushshrike bushtit bustard butterfly
+buzzard cabezon caecilian cahow caiman camel canary canvasback capelin
+capercaillie capuchin capybara caracal caracara cardinal cardinalfish
+caribou carp cassowary cat caterpillar catfish cattle cavy centipede
+chachalaca chaffinch chamaeleon chameleon chamois char cheetah chickadee
+chicken chiffchaff chihuahua chimpanzee chinchilla chipmunk chital chiton
+chough chowchow chub chuckwalla chukar cicada cichlid cisticola civet clam
+clownfish coati cobia cobra cockatiel cockatoo cockle cockroach cod
+coelacanth collie colobus colugo comber conch condor conure coot copepod
+copperhead coquette coral corgi cormorant coucal cougar courser cowbird
+cowfish cowrie coyote coypu crab crake crane crappie crayfish cricket
+croaker crocodile crombec crossbill crow cuckoo curassow curlew cuscus cusk
+cutlassfish cuttlefish dabchick dace dachshund daddylonglegs dalmatian
+damselfish damselfly darter dartfish dassie deer degu desman dhole dibbler
+dickcissel dikdik dikkop dingo dipper discus doberman dodo dog dogfish
+dolphin donkey dormouse dory dotterel dottyback dove dowitcher dragonet
+dragonfly drake drill dromedary drongo duck dugong duiker dunlin dunnart
+dunnock eagle earthworm earwig echidna eel eelpout egret eider eland
+elephant elk emu ermine escolar eulachon fairywren falcon falconet fantail
+fennec ferret fieldfare figbird filefish finch firecrest firefly firetail
+fisher fishercat flamingo flatfish flathead flea flicker flounder
+flowerpecker fluke fly flycatcher flyingfish fossa fox foxhound francolin
+frigatebird frog frogfish frogmouth fulmar gadwall galago galah gallinule
+gannet gar garfish gaur gazelle gecko gelada gemsbok gerbil gerenuk gerygone
+gharial gibbon giraffe gnat gnatcatcher gnu goanna goat goatfish goby godwit
+goldcrest goldeneye goldfinch goldfish goose gopher goral gorgonian gorilla
+goshawk gourami grackle grasshopper grayling grebe greenfinch greenshank
+greyhound grison grosbeak grouper grouse grunion guan guanaco gudgeon guenon
+guillemot guineafowl gull guppy gurnard gyrfalcon haddock hagfish hake
+halfbeak halibut hammerhead hamster hardhead hare harrier hartebeest
+harvestman hatchetfish hawfinch hawk hawkfish hedgehog hellbender hermitcrab
+heron herring hippo hippopotamus hoatzin hog honeybee honeyeater hoopoe
+hornbill hornero hornet horntail horse houbara hound houndfish hoverfly
+huemul huia hummingbird husky hutia hyena hyrax ibex ibis ichneumon icterine
+iguana impala inchworm indri iora isopod jabiru jacana jackal jackdaw
+jackrabbit jaeger jaguar jaguarundi jay jellyfish jerboa jewelfish jird
+jollytail junco kaka kakapo kakariki kalij kangaroo karakul katipo katydid
+kea keelback kelpie kestrel kiang killdeer killifish kingbird kingfish
+kingfisher kinglet kinkajou kite kittiwake kiwi klipspringer knifefish koala
+koel koi kookaburra korora kowari krill kudu kultarr labrador lacewing
+ladybird ladybug lamprey lancelet langur lanner lapwing lark leaffish
+leafhopper leatherback leghorn lemming lemur leopard liger limpet limpkin
+ling lingcod linnet lion lionfish lionhead lizard llama loach lobster
+lobsterette locust longspur loon lorikeet loris lory lovebird lumpfish
+lumpsucker lungfish lynx lyrebird lyretail macaque macaw mackerel magpie
+mahseer malamute mallard mallee mamba mammoth manakin manatee mandrill
+mangabey manta mantis manx mara margay markhor marlin marmoset marmot marten
+martin mastiff mayfly meadowhawk meadowlark meerkat megalodon megapode
+menhaden merganser merino merlin mesite midge milkfish milksnake millipede
+minivet mink minnow miro mistlethrush mite moa mockingbird mojarra mole
+molly monal mongoose monkfish moonfish moonrat moorhen moose moray mosquito
+moth motmot mouflon mouse mousebird mudpuppy mudskipper mule mulga mullet
+munia muntjac murre murrelet muskox muskrat mussel mustang mynah nandu
+narwhal nautilus needlefish nene newt nightcrawler nighthawk nightingale
+nightjar nilgai noddy nudibranch numbat nutcracker nuthatch nutria nyala
+oarfish ocelot octopus oilbird okapi olingo olm onager opah opossum
+orangutan orca oribi oriole oropendola oryx osprey ostrich otter ouzel
+ovenbird owl owlet oxeye oxpecker oyster oystercatcher paca pacu paddlefish
+pademelon panda pangolin panther paradoxure parakeet pardalote parrot
+parrotfish partridge parula pauraque peacock peafowl peccary pekingese
+pelican penguin perch peregrine petrel pewee phalarope pheasant phoebe
+piculet pig pigeon pigfish pika pike pikeperch pilchard pilotfish pinktail
+pintail piopio pipefish pipit piranha pitta plaice planarian platy platypus
+plecostomus plover pochard polecat pollack pollock pomeranian pompano pony
+poodle porcupine porgy porpoise possum potoroo potto prairiedog pratincole
+prawn prion pronghorn ptarmigan puffer pufferfish puffin pug puku puma
+pupfish python quagga quahog quail quelea quetzal quillback quokka quoll
+rabbit rabbitfish raccoon ragdoll rail ram rasbora rat ratfish rattlesnake
+raven ray razorbill razorfish redfish redpoll redshank redstart redwing
+reedbuck reindeer remora rhea rhino rhinoceros ribbonfish ringtail roach
+roadrunner robin rockfish rockhopper rook rooster rorqual rosefinch rosella
+rottweiler rudd ruff sablefish saiga sailfish saki salamander salmon sambar
+sanderling sandgrouse sandpiper sapsucker sardine sawfish sawshark scallop
+scaup schnauzer scimitarbill scorpion scoter scrubbird sculpin scup seabream
+seadragon seahorse seal sealion seriema serval shad shama shark shearwater
+sheep shelduck shiba shiner shoebill shrew shrike shrimp siamang sicklebill
+sidewinder sifaka silkie silkworm silverfish siskin sitatunga skate skimmer
+skink skipper skua skunk skylark sloth slowworm slug smelt snail snake
+snakefish snapper snipe snook snowcock sole solenodon songbird sora
+spadefoot spaniel sparrow sparrowhawk spider spinetail spoonbill spoonworm
+sprat springbok springhare springtail squid squirrel starfish starling
+steenbok stilt stingray stint stoat stonechat stonefish stork sturgeon
+sugarglider sunbird sunbittern sunfish surgeonfish suricate swallow swan
+swift swiftlet swordfish tadpole tahr tailorbird takahe takin tamandua
+tamarin tanager tanuki tapir tarantula tarpan tarpon tarsier tautog tayra
+teal tegu tench termite tern terrier tetra thornbill thrasher thrush
+thylacine tiger tilapia tinamou tinkerbird titi titmouse toad tody topi
+topminnow toucan towhee tragopan treecreeper treefrog treeshrew trevally
+triggerfish trogon tropicbird trout tuatara tui tuna turaco turbot turkey
+turnstone turtle twite uakari umbrellabird umbrette unicornfish urchin urial
+verdin vervet vicuna viper vireo vizsla vole vulture wagtail wahoo wallaby
+wallaroo walleye walrus wapiti warbler warthog wasp waterbuck waterhen
+waxwing weasel weaver weevil weimaraner weka wetapunga whale wheatear
+whimbrel whinchat whipbird whippet whipsnake whitefish whiting whydah wigeon
+wildcat wildebeest willet wobbegong wolf wolfhound wolverine wombat
+woodchuck woodcock woodlouse woodpecker woodswallow worm wrasse wren wryneck
+xerus yabby yaffle yak yapok yellowhammer yellowjacket yellowlegs yellowtail
+zander zebra zebrafish zebu zokor zorilla
+''';

@@ -8,11 +8,13 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
+import '../auth/roles_service.dart' show ProfileStore;
 import '../cloud/cloud_sync.dart' show DeviceSettings;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
+import '../identity/profile_id.dart';
 import '../location/device_location.dart';
 import '../recognition/suggestion.dart';
 import 'event_store.dart';
@@ -34,7 +36,7 @@ import 'media_store.dart';
 /// Every event it saves gets this device's ID ([deviceId]), its owner (the
 /// [currentUser] when it's published, or [AppEvent.anonymousUserId]) and
 /// the [currentLocation] when it's published.
-class Persistence implements DeviceSettings {
+class Persistence implements DeviceSettings, ProfileStore {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
@@ -165,6 +167,16 @@ class Persistence implements DeviceSettings {
   /// This device's ID, generated on its first launch and kept from then on.
   @override
   Future<String> get deviceId => _deviceId;
+
+  /// This device's profile: made at its first start, owned by nobody until a
+  /// sign-in claims it, then the one the sign-in answered with.
+  @override
+  Future<String> get profileId =>
+      _store.then((store) => store.profileId(ProfileId.generate));
+
+  @override
+  Future<void> keepProfileId(String id) =>
+      _store.then((store) => store.setProfileId(id));
 
   /// Settings-store key of this device's recording consent.
   static const String _consentKey = 'consent';

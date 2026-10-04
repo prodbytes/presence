@@ -11,11 +11,23 @@
 
 ## The rule
 
-- **Every sign-in loads a profile.** When an authenticated user calls
-  `GET /api/auth`, the [auth API](auth-api.md) looks up the profile linked
-  to the token's **subject** and answers with it.
-- **A first sign-in creates one,** owned by that subject. The subject is
-  linked to it, so **the next sign-in finds the same one**.
+- **There's always a profile.** Like the [device
+  ID](devices-users-places.md#devices), the app makes one at its **first
+  start** and keeps it in storage, before anyone signs in. It's owned by
+  nobody yet.
+- **The first sign-in claims it.** The app sends it with
+  `GET /api/auth?profile=<id>`. If the token's **subject** isn't linked to
+  a profile yet, the [auth API](auth-api.md) creates the profile with that
+  ID, owned by the subject, and links it, so **the next sign-in finds the
+  same one**.
+- **Every later sign-in loads the subject's profile.** A subject already
+  linked keeps its profile, whatever the app sends, and the app keeps the
+  answer as **its** profile from then on (a second device of the same
+  account switches to the account's profile).
+- **A profile isn't claimed when** the ID is taken (it belongs to another
+  subject) or isn't one the app could make (two different adjectives and
+  an animal from the lists). The subject then gets a fresh ID, and the app
+  keeps that one.
 - **A subject is the issuer and the `sub`**, `<iss>#<sub>`, e.g.
   `https://accounts.google.com#1234567890`. That's the provider's stable
   account ID, never the email. The same account with a new email keeps its
@@ -28,9 +40,10 @@
   one login per provider, which is why the auth API keeps the links.
 - **Everyone signed in has a profile,** whatever their roles. A user
   without `presence_user` (see [Membership](membership.md)) has one too.
-- **Nobody signed in has none:** the anonymous route
-  (`GET /api/auth/anonymous`) and [DEV mode](execution-mode.md) don't
-  create or return profiles.
+- **Signed out and in [DEV mode](execution-mode.md)** the app shows its
+  own profile. The server doesn't know it until a sign-in claims it: the
+  anonymous route (`GET /api/auth/anonymous`) never creates or returns
+  profiles, so nobody can make profile rows without signing in.
 
 ## Profile IDs
 
@@ -53,8 +66,12 @@
     profiles.
   - The profiles table makes it impossible: a new profile is written only
     if its ID isn't taken (a conditional put).
-  - A taken ID is replaced by a fresh one, up to 10 tries, before the
-    sign-in fails.
+  - The app's own ID is tried first, then a taken ID is replaced by a
+    fresh one, up to 10 tries, before the sign-in fails.
+- The app makes its ID with the same words (`ProfileId`,
+  [lib/identity/profile_id.dart](../presence_app/lib/identity/profile_id.dart),
+  the animals in `animal_words.dart`) and a secure random generator. The
+  API claims only IDs made of those words (`ProfileId.valid`).
 - The profile ID is also the user identifier Cognito knows the profile by
   (its developer identity).
 
@@ -124,7 +141,7 @@
 
 | Route | Who | Answer |
 |---|---|---|
-| `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (makes the profile at the first sign-in) |
+| `GET /api/auth[?profile=<id>]` | any signed-in user | `{"email", "profile", "roles"}` (makes the profile at the first sign-in, with the app's ID when it's free) |
 | `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token"}` |
 | `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
@@ -151,7 +168,8 @@ deleted, and the contents live only in AWS.
 - **Finding:** a consistent read of the subject's link. A found profile's
   `lastSignInAt` is updated, which also returns the profile, and the
   profile row is recreated if a link names one that's missing.
-- **Creating:** the new profile is put first, only if its ID is free.
+- **Creating:** the new profile is put first, only if its ID is free (the
+  app's, then fresh ones).
   Then comes the link, only if the subject has none. If two first sign-ins
   of the same subject race, the first link wins and the other sign-in
   reads it, so both get the same profile. The loser's new profile is left
@@ -177,14 +195,22 @@ deleted, and the contents live only in AWS.
 
 ## In the app
 
+- **This device's profile** is the `profile` settings record in
+  IndexedDB (`EventStore.profileId`), made at the first start like the
+  `device` record, read and written in one transaction.
 - `RolesService.profile`
   ([lib/auth/roles_service.dart](../presence_app/lib/auth/roles_service.dart))
-  holds the profile from `GET /api/auth`. It's set with the roles at each
-  check, and cleared while signed out, checking, in DEV, or after a failed
-  check.
+  holds it, through a `ProfileStore` (`Persistence`; in memory without
+  storage). Each roles check sends it, and a profile in the answer
+  replaces it, in memory and in storage. Signing out, a failed check and
+  DEV keep it. It's null only until storage has read it, just after the
+  start.
+  - The check doesn't wait for storage: a session restored at launch isn't
+    a first start, so the profile is loaded by then, and the account is
+    already linked.
 - **Settings always shows it**, as **Profile** `huge_wavy_darter` under
-  the device ID, or why there's none (*none in DEV*, *checking…*, *not
-  signed in*, *unavailable*); see [Settings screen](settings.md).
+  the device ID (*loading…* only until it's read); see
+  [Settings screen](settings.md).
 - `CognitoCredentials` ([lib/cloud/cognito.dart](../presence_app/lib/cloud/cognito.dart))
   asks `POST /api/auth/credentials`, then `GetCredentialsForIdentity`.
   A 401 from the API shows as "Sign in again to resume uploads".
@@ -196,16 +222,18 @@ deleted, and the contents live only in AWS.
 
 ## Verified
 
-- `ProfilesTest` (JUnit, 9 tests):
+- `ProfilesTest` (JUnit, 11 tests):
   - a first sign-in creates a profile and the next finds it;
   - the subject, not the email, finds it, and a linked subject shares it;
   - a race keeps the first link;
   - a link whose profile is missing gets it back;
   - taken IDs are skipped, and the sign-in fails after 10;
+  - a first sign-in claims the app's profile; a linked subject keeps its
+    own whatever the app sends; a taken or malformed ID isn't claimed;
   - the ID format and word lists;
   - no subject, no profile;
-  - the handler answers with the profile, and the anonymous route makes
-    none.
+  - the handler answers with the profile, claims the app's
+    (`?profile=`), and the anonymous route makes none.
 - `ProfileTest` (JUnit, 15 tests):
   - an existing user keeps the identity Google sign-in gave them;
   - credentials need `presence_user`;
@@ -222,8 +250,11 @@ deleted, and the contents live only in AWS.
     profile;
   - the listing, 503 without cloud sync, and unverified emails.
 - Flutter:
-  - `roles_test.dart` and `add_device_test.dart`: the profile in
-    `RolesService` and in Settings;
+  - `roles_test.dart` and `add_device_test.dart`: a profile at the first
+    start, sent at sign-in, replaced by the account's, kept signed out, in
+    DEV and after a failed check, and shown in Settings;
+  - `persistence_test.dart`: the profile record is made once and
+    replaced by a sign-in's;
   - `profile_test.dart`:
     - the credentials exchange, reused while valid, and 401 versus 403;
     - `reconnect` switches folders;
@@ -246,6 +277,11 @@ deleted, and the contents live only in AWS.
   still get credentials straight from Cognito for its own Google
   identity's folder, without the roles check, as before profiles. Remove
   it once every account has a profile with an identity.
+- A profile made on a device that never signs in stays on that device;
+  the server never hears of it.
+- Signing out keeps the last account's profile as the device's. Another
+  account that signs in next can't claim it (it's taken), so it gets its
+  own.
 - Any Google account can create a profile by signing in (one per subject;
   `GET /api/auth` is throttled to 20 requests/s, burst 50). A lost race
   leaves one unused profile row. Profiles are never deleted.

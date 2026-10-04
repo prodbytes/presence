@@ -1987,3 +1987,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Production deploy](deploy.md). 62 JUnit tests (6 new) and 307
        Flutter tests (2 new) pass; the template lints clean. Not run in
        Floci: your main folder's services were running.
+220. **Settings showed profile "none", a bug: there should always be a
+     profile. Like the device ID, create one when the app starts if there
+     isn't one, owned by no identity; the first sign-in makes that
+     identity own it.**
+     - App: `ProfileId` (the device ID's adjectives and the API's 1031
+       animals) makes a profile at the first start, kept as the `profile`
+       settings record (`EventStore.profileId`, `setProfileId`).
+       `RolesService.profile` is always this device's profile; each roles
+       check sends it (`GET /api/auth?profile=<id>`) and keeps the profile
+       the API answers with. Signing out, a failed check and DEV keep it.
+       Settings no longer shows *none in DEV*, *checking…*, *not signed
+       in* or *unavailable*.
+     - Auth API: a subject's first sign-in creates its profile with the
+       app's ID when it's valid (`ProfileId.valid`: two different
+       adjectives and an animal from the lists) and free, so the subject
+       owns it; otherwise a fresh ID as before. A linked subject keeps its
+       profile. Unsigned-in profiles stay on the device: nothing creates
+       server rows without a sign-in.
+     - Specs: [Profiles](profiles.md), [Settings screen](settings.md),
+       [Auth API](auth-api.md), [Devices, users and
+       places](devices-users-places.md), [Sign-in](sign-in.md), and the
+       index, which listed Profiles twice. 64 JUnit tests (2 new) and 309
+       Flutter tests (3 new, 2 rewritten) pass. Not run in Floci: the
+       main folder's services are shared.

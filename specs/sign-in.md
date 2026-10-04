@@ -41,8 +41,8 @@ there's no separate sign-in screen:
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
   with the Google ID token) for the user's roles and their
-  [profile](profiles.md), which the API finds by the account, or creates
-  at the first sign-in (`RolesService.profile`):
+  [profile](profiles.md), which the API finds by the account, or, at the
+  first sign-in, takes over from the device (`RolesService.profile`):
   - **With `presence_user`,** the user gets everything below. Other roles
     alone don't count.
   - **With `presence_admin` too,** an **Admin** icon also shows, left of

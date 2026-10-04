@@ -41,8 +41,10 @@ not built yet.
 
 - A **user** is a signed-in Google account. Its ID is the account's stable
   Google ID (`AuthUser.id`, the token's `sub`), not the email.
-- **Every user has a [profile](profiles.md)**, loaded at sign-in
-  (`RolesService.profile`, e.g. `automatic_paranoid_axolotl`): the owner
+- **Every device has a [profile](profiles.md)**, made at its first start
+  like the device ID, which the first sign-in claims; after a sign-in it's
+  the account's (`RolesService.profile`, e.g.
+  `automatic_paranoid_axolotl`): the owner
   their data should be scoped to, so it survives a new email, another
   provider or added collaborators. Events still record the Google ID as
   `userId`; moving them to the profile is a next step.
