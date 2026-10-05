@@ -46,7 +46,15 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location asks the device for its position again; it spins while
   waiting, and the map moves to the answer (zoom 17, or closer if already
   zoomed in).
-- With no location yet, the map opens on the whole world (zoom 2).
+- **The detected place is the starting view, not a lock.** With no
+  location yet, the map opens on the whole world (zoom 2). Until the user
+  moves the map, it follows the location in force: the saved one once it
+  loads, then the device's reading (zoom 17, or closer if already zoomed
+  in). A location that arrives before the map is ready is applied once
+  it's ready. **Once the user drags the map, it stays where they put it**:
+  a reading answering after that doesn't move it. Only **My location**
+  makes the map follow the device again. The zoom buttons don't count as
+  moving it.
 - **A drag on the map moves the map**: while a finger (or the mouse) is
   down on it, the Settings list doesn't scroll and the tabs don't swipe
   (`onMapHeld`). Elsewhere in Settings, both work as usual.
@@ -156,6 +164,10 @@ the camera. (There used to be a Device tab for both; it's gone.)
     choice survives a restart, and My location asks again;
   - without permission the section asks for a move and events have no
     location;
+  - the map opens on the world, then moves to the device's reading, or to
+    a saved location once it loads; a reading that answers after the user
+    dragged the map leaves the map (and the location) where they put it,
+    until My location;
   - the battery pill shows over the camera only, follows a charging change
     at once and a level drop within a minute, warns below 15 %, says
     "full", and is hidden without a reading; the temperature pill shows
