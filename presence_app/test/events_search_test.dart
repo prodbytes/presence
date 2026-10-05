@@ -284,11 +284,11 @@ void main() {
       stored('cloud-there', 'me', device: 'other_device'),
     ]);
     await tester.pumpAndSettle();
-    // Only this device is checked: the other device's event isn't matching.
-    expect(count(tester), '6 / 7');
+    // Every device shows by default: both match.
+    expect(count(tester), '7 / 7');
 
     await type(tester, 'door');
-    expect(count(tester), '4 / 7');
+    expect(count(tester), '5 / 7');
   });
 
   testWidgets('fits a 320 dp phone, the chips wrapping below', (tester) async {

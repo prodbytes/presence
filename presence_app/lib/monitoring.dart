@@ -78,7 +78,7 @@ class MonitoringView extends StatefulWidget {
 class _MonitoringViewState extends State<MonitoringView> {
   ValueNotifier<bool>? _ownFilter;
   ValueNotifier<bool> get _filter =>
-      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(true));
+      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(false));
 
   ValueNotifier<bool>? _ownSystem;
   ValueNotifier<bool> get _system =>
@@ -103,6 +103,8 @@ class _MonitoringViewState extends State<MonitoringView> {
       config: widget.config,
       tiles: widget.tiles,
       onOpenEvent: widget.onOpenEvent,
+      deviceId: widget.deviceId,
+      thisDeviceOnly: _filter,
     );
     Widget events(EdgeInsets padding) => KeyedSubtree(
       key: const Key('events-page'),

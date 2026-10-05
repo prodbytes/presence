@@ -202,6 +202,61 @@ void main() {
       }
     });
 
+    test('an unanswered start check is retried until the API answers, '
+        'and each check is logged', () async {
+      final printed = <String>[];
+      final print = debugPrint;
+      debugPrint = (message, {wrapWidth}) => printed.add('$message');
+      addTearDown(() => debugPrint = print);
+      final client = FakeRolesClient()..anonymousError = RolesException(502);
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: client,
+        oidcClient: true,
+        retryDelays: const [
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 20),
+        ],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(roles.apiError, 'Auth API HTTP 502');
+      expect(
+        printed.last,
+        matches(
+          r'^Presence: could not ask the execution mode \(after \d+ ms; '
+          r'checking again\): Auth API HTTP 502$',
+        ),
+      );
+
+      // Still failing: checked again, sooner then less often.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(client.anonymousCalls, greaterThanOrEqualTo(3));
+      expect(
+        printed.last,
+        matches(
+          r'^Presence: auth API health check failed after \d+ ms: '
+          r'Auth API HTTP 502$',
+        ),
+      );
+
+      // Answering: the error clears, it's logged, and the retries stop.
+      client.anonymousError = null;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(roles.apiError, isNull);
+      expect(
+        printed.last,
+        matches(
+          r'^Presence: auth API health check answered in \d+ ms, after '
+          r'failing: Auth API HTTP 502$',
+        ),
+      );
+      final calls = client.anonymousCalls;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(client.anonymousCalls, calls);
+      expect(roles.mode, ExecutionMode.rbac);
+    });
+
     test('roles decide the navigation: none, member, admin', () async {
       for (final (granted, access, admin) in [
         (<String>[], false, false),

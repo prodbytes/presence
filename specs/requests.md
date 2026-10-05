@@ -2327,7 +2327,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       [Settings screen](settings.md), [Auth API](auth-api.md),
       [Sign-in](sign-in.md), [Camera screen](camera.md), [Log](log.md),
       [README](README.md). 346 Flutter tests (5 new) pass.
-238. **Make the Settings map open on the detected place, only as a default
+238. **On the events page, show every device's events by default; let
+     users check Only this device otherwise, and re-filter the map and the
+     events when it changes.**
+    - Was: **Only this device** was checked at launch, and it filtered only
+      the events list; the subjects map always showed every device.
+    - Changed: the chip starts unchecked (`ValueNotifier(false)` in the
+      app, `MonitoringView` and `EventTimeline`). `SubjectsMap` takes the
+      device ID and the chip and keeps only this device's events while
+      it's checked (`EventTimeline.ofDevices`); toggling it redraws the
+      dots and fits the map to them again (`_SightingsMap.fitKey`).
+    - Specs: [Events](events.md), [Monitoring](monitoring.md),
+      [Subjects](subjects.md), [Navigation](navigation.md). 348 Flutter
+      tests (1 new) pass.
+239. **On Android the API health check still shows ❌: check why in the
+    app logs, and make health checks print somewhere findable.**
+    (2026-10-05)
+    - Found: the start check timed out (5 s) on the phone's debug build,
+      and the request reached the API 4 s later; nothing checked again
+      unless the Log tab was open, so ❌ stayed.
+    - Now an unanswered start check is retried (5 s, 15 s, 30 s, then
+      every minute) until the API answers; later checks wait 15 s. Every
+      check is logged with its duration (`Presence: auth API …`), in the
+      Log tab and in logcat (`devbox run android-log`).
+    - Specs: [Execution mode](execution-mode.md), [Log](log.md). 344
+      Flutter tests pass (1 new).
+240. **Make the Settings map open on the detected place, only as a default
      when nothing is set; users can move it elsewhere.** The map used to
      follow only device readings that came after it was ready, so a saved
      location that loaded late, or a reading that came before the map was

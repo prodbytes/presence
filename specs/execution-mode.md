@@ -19,6 +19,12 @@ separate setting, so a system with sign-in can't be opened by mistake.
   `/api/*`), the app decides by its own build: **DEV without a Google
   client ID, else RBAC**. A production build always has one, so it can't
   fall back to DEV.
+- An unanswered start check is **checked again** (`RolesService.checkApi`,
+  15 s timeout) after 5 s, 15 s, 30 s and then every minute, until the
+  API answers, so the health line's ❌ clears on its own. The mode stays
+  the one the start check decided. A phone's first HTTPS request can take
+  ~10 s while the app starts (seen on Android with a debug build: the
+  request reached the API 4 s after the 5 s start check gave up).
 - `RolesService` (`lib/auth/roles_service.dart`) holds the result:
   `ExecutionMode` (`dev`, `rbac`), `AccessState.starting` until it's
   known, and `apiError` when the API didn't answer.

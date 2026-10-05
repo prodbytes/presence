@@ -396,6 +396,54 @@ void main() {
       expect(out.onPressed, isNull, reason: 'already as far out as it goes');
     });
 
+    testWidgets('the map shows every device until Only this device is '
+        'checked, with the events', (tester) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
+        clipWith(['Ana'], minutesAgo: 2, lat: 48.2)..deviceId = 'there',
+      ]);
+      tester.view.physicalSize = const Size(1280, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MonitoringView(
+              log: log,
+              config: config,
+              tiles: const SizedBox(),
+              deviceId: 'here',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final chip = find.byKey(const Key('this-device-only'));
+      final rex = find.byKey(const Key('subjects-dot-rex-event-1'));
+      final ana = find.byKey(const Key('subjects-dot-ana-event-2'));
+      final events = find.byKey(const Key('events-page'));
+      Finder card(String name) =>
+          find.descendant(of: events, matching: find.text(name));
+
+      expect(tester.widget<FilterChip>(chip).selected, isFalse);
+      expect(rex, findsOneWidget);
+      expect(ana, findsOneWidget);
+      expect(card('Ana'), findsOneWidget);
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(rex, findsOneWidget);
+      expect(ana, findsNothing);
+      expect(find.byKey(const Key('subjects-label-ana')), findsNothing);
+      expect(card('Rex'), findsOneWidget);
+      expect(card('Ana'), findsNothing);
+
+      await tester.tap(chip);
+      await tester.pumpAndSettle();
+      expect(ana, findsOneWidget);
+      expect(card('Ana'), findsOneWidget);
+    });
+
     testWidgets('on top, a map of every subject, each in its color, and a '
         'matching square on each row', (tester) async {
       log.addHistory([
