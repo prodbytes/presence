@@ -121,8 +121,25 @@ void main() {
       await tester.pump();
       expect(client.anonymousCalls, 2);
       expect(find.textContaining('Last update '), findsOneWidget);
-      expect(find.text('🔌 API ✅'), findsOneWidget);
-      expect(find.text('🔑 OIDC ✅'), findsOneWidget);
+      // A card per check, its status in a pill.
+      String status(String key) => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(Key('health-$key-status')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data!;
+      expect(status('api'), 'OK');
+      expect(status('aws'), 'Off');
+      expect(status('oidc'), 'OK');
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('health-api')),
+          matching: find.textContaining('Answered (rbac mode)'),
+        ),
+        findsOneWidget,
+      );
 
       // The API goes away: the next check says so.
       client.anonymousError = Exception('offline');
@@ -131,7 +148,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump();
       expect(client.anonymousCalls, 3);
-      expect(find.text('🔌 API ❌'), findsOneWidget);
+      expect(status('api'), 'Failed');
 
       // And back, with a setting changed.
       client
@@ -140,24 +157,31 @@ void main() {
       await tester.pump(const Duration(seconds: 30));
       await tester.pump();
       expect(client.anonymousCalls, 4);
-      expect(find.text('🔌 API ✅'), findsOneWidget);
-      expect(find.text('🔑 OIDC ⚠️'), findsOneWidget);
+      expect(status('api'), 'OK');
+      expect(status('oidc'), 'Mismatch');
 
-      // A brick per check: green, red, then green again.
+      // The timeline: a column per run, a cell per check, colored by its
+      // status; the time under the first run.
       expect(history.checks.map((c) => c.failed), [false, true, true]);
-      Color brick(int i) =>
+      Color cell(int i, String key) =>
           (tester
-                      .widget<Container>(
-                        find.descendant(
-                          of: find.byKey(Key('health-brick-$i')),
-                          matching: find.byType(Container),
-                        ),
-                      )
+                      .widget<Container>(find.byKey(Key('health-cell-$i-$key')))
                       .decoration!
                   as BoxDecoration)
               .color!;
-      expect(brick(0), Gruvbox.green);
-      expect(brick(1), isNot(Gruvbox.green));
+      expect(cell(0, 'api'), Gruvbox.green);
+      expect(cell(1, 'api'), isNot(Gruvbox.green));
+      expect(cell(2, 'api'), Gruvbox.green);
+      expect(cell(2, 'oidc'), Gruvbox.yellow);
+      expect(cell(0, 'aws'), Gruvbox.gray);
+      expect(find.text('3 checks · every 30 s'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('health-brick-0')),
+          matching: find.textContaining(RegExp(r'^\d\d:\d\d$')),
+        ),
+        findsOneWidget,
+      );
 
       // Tapping one shows its details; tapping it again hides them.
       await tester.tap(find.byKey(const Key('health-brick-1')));
@@ -234,11 +258,147 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('📱 Devices 2'), findsOneWidget);
+      String count() => tester
+          .widget<Text>(
+            find.descendant(
+              of: find.byKey(const Key('health-devices-count')),
+              matching: find.byType(Text),
+            ),
+          )
+          .data!;
+      expect(count(), '2');
 
       log.addHistory([event('c', user: 'ana')]);
       await tester.pump();
-      expect(find.text('📱 Devices 3'), findsOneWidget);
+      expect(count(), '3');
+    });
+  });
+
+  group('the health panel\'s layout', () {
+    Future<HealthHistory> show(WidgetTester tester, double width) async {
+      tester.view.physicalSize = Size(width, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: FakeRolesClient()..settings = (oidc: true, aws: true),
+        oidcClient: true,
+      );
+      addTearDown(roles.dispose);
+      final bus = StreamController<AppEvent>();
+      final log = EventLog(bus.stream);
+      addTearDown(() {
+        log.dispose();
+        bus.close();
+      });
+      // An hour of runs, every 30 s; the panel adds its own when it opens.
+      final history = HealthHistory();
+      final start = DateTime(2026, 10, 5, 7);
+      final ok = SystemHealth.statusOf(roles, null, oidcClient: true);
+      for (var i = 0; i < 119; i++) {
+        history.add(
+          HealthCheck(start.add(Duration(seconds: 30 * i)), (
+            api: i == 100 ? ('❌', 'Auth API: unreachable (x)') : ok.api,
+            aws: ok.aws,
+            oidc: ok.oidc,
+          )),
+        );
+      }
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HealthPanel(
+              roles: roles,
+              oidcClient: true,
+              history: history,
+              events: log,
+              interval: const Duration(hours: 1),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return history;
+    }
+
+    Rect rect(WidgetTester tester, String key) =>
+        tester.getRect(find.byKey(Key(key)));
+
+    testWidgets('wide: the four cards in one row, aligned and as tall', (
+      tester,
+    ) async {
+      await show(tester, 1280);
+      final cards = [
+        for (final k in ['api', 'aws', 'oidc', 'devices'])
+          rect(tester, 'health-$k'),
+      ];
+      expect(cards.map((r) => r.top).toSet(), hasLength(1));
+      expect(cards.map((r) => r.height).toSet(), hasLength(1));
+      expect(cards.map((r) => r.width.round()).toSet(), hasLength(1));
+      for (var i = 1; i < cards.length; i++) {
+        expect(cards[i].left, greaterThan(cards[i - 1].right));
+      }
+    });
+
+    testWidgets('a 320 dp phone: two by two, nothing overflowing', (
+      tester,
+    ) async {
+      await show(tester, 320);
+      expect(tester.takeException(), isNull);
+      final api = rect(tester, 'health-api');
+      final aws = rect(tester, 'health-aws');
+      final oidc = rect(tester, 'health-oidc');
+      final devices = rect(tester, 'health-devices');
+      expect(aws.top, api.top);
+      expect(aws.height, api.height);
+      expect(oidc.top, greaterThan(api.bottom));
+      expect(oidc.left, api.left);
+      expect(devices.top, oidc.top);
+      expect(devices.right, lessThanOrEqualTo(320));
+    });
+
+    testWidgets('the timeline starts at the newest run and scrolls back', (
+      tester,
+    ) async {
+      final history = await show(tester, 1280);
+      final timeline = rect(tester, 'health-history');
+      // The newest run is on screen, at the right; the oldest isn't built.
+      expect(rect(tester, 'health-brick-119').right, lessThan(timeline.right));
+      expect(
+        rect(tester, 'health-brick-119').right,
+        greaterThan(timeline.right - 40),
+      );
+      expect(find.byKey(const Key('health-brick-0')), findsNothing);
+      // Times every 2 minutes: 07:58 under the run that started it.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('health-brick-116')),
+          matching: find.text('07:58'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('health-brick-117')),
+          matching: find.byType(Text),
+        ),
+        findsNothing,
+      );
+
+      await tester.drag(
+        find.byKey(const Key('health-history')),
+        const Offset(5000, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('health-brick-0')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('health-brick-0')),
+          matching: find.text('07:00'),
+        ),
+        findsOneWidget,
+      );
+      expect(history.checks, hasLength(120));
     });
   });
 }
