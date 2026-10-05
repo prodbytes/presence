@@ -2643,4 +2643,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Health check](health-check.md) (new),
        [Production deploy](deploy.md), [Auth API](auth-api.md),
        [README](README.md). 77 Java tests pass (4 new).
-
+260. **Go ahead with the performance plan, starting with running a release
+     build on the phone; do a barrel roll when done.** (2026-10-05)
+     - Measured on the S40: the debug build that `flutter run` installs
+       took 384 MB (PSS) against 173 MB for the release build of the same
+       code; at rest with the screen off, the release app used ~42% of one
+       core, mostly the camera pipeline (motion reader 9%, codecs 9%, audio
+       7%), with Dart nearly idle (~0.5%).
+     - Found: after `flutter run` installed a release build, the app
+       didn't start: Google's account chooser was still on top of the
+       app's task, so Android brought that back instead of starting the
+       app.
+     - Added: `devbox run android-release` (`scripts/android-install.sh`):
+       builds a release APK, installs it, starts it in a fresh task and
+       checks it runs; the barrel roll redeploys the phone with it. The
+       watchdog also opens the app in a fresh task, and the app opens
+       after an update (`MY_PACKAGE_REPLACED`) when it wasn't stopped.
+     - Specs: [Android](android.md). The recognition, sync and camera
+       pipeline changes of the same plan are their own requests.

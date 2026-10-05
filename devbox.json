@@ -22,6 +22,7 @@
     "scripts": {
       "web": "bash scripts/flutter-web.sh",
       "android": "bash scripts/flutter-android.sh",
+      "android-release": "bash scripts/android-install.sh",
       "android-log": "bash scripts/android-log.sh",
       "android-pull": "bash scripts/android-log.sh --pull"
     }
