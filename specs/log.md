@@ -39,6 +39,11 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
 - `Presence: cloud credentials rejected, renewing: …`, when credentials
   expire during a pass and the app gets new ones.
 
+Google sign-in failures are logged too (`Presence: Google sign-in failed:
+<code>; <description>; details: <details>`; see [Sign-in](sign-in.md)).
+On Android, `devbox run android-log` reads these from the phone (see
+[Android](android.md)).
+
 ## The Log tab
 
 [lib/log_view.dart](../presence_app/lib/log_view.dart):

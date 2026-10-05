@@ -261,7 +261,9 @@ and run `devbox run android` (or `bash scripts/flutter-android.sh`). Extra
 arguments go to `flutter run`, e.g. `--release`. With several phones
 attached, pick one with `ANDROID_SERIAL=<serial>` from `adb devices`. The
 phone uses the production API, so sign in with Google; add
-`--dart-define=API_BASE_URL=<url>` to point it elsewhere.
+`--dart-define=API_BASE_URL=<url>` to point it elsewhere. To read the
+app's log on the phone (its messages, Google sign-in errors and crashes,
+without the rest of Android's log), run `devbox run android-log`.
 
 ### Building the binaries
 

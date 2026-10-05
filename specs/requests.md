@@ -2279,4 +2279,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       which Floci lacks; recorded under [Profiles](profiles.md#known-limitations).
     - Specs: [Profiles](profiles.md), [Log](log.md). 73 auth API tests
       (1 new) pass.
+236. **Sign-in failed on Android: check the reason, make sure application
+    logs are readable and check for Android errors.** (2026-10-05)
+    - Found: Play services' sign-in flow failed with code 28473, after the
+      account was picked. The app's signing key matches the Android
+      client's registered debug-key SHA-1. The app's own error was lost:
+      sign-in errors were shown but never logged, and the phone's 256 KB
+      log buffer held only minutes.
+    - Sign-in errors are now logged in full (code, description, details).
+      New `devbox run android-log`
+      ([scripts/android-log.sh](../scripts/android-log.sh)): a 16 MB
+      buffer, and only the app's lines plus Google sign-in and crash
+      lines. Phone lookup shared in `scripts/android-device.sh`.
+    - With the new log: `[28473] Caller could not be verified`, both times
+      from an account sheet answered long after it opened (17 min, then
+      3 h 45 min; Play services' caller-verification token had expired).
+      A fresh sheet works. That failure also made the app call sign-in
+      "unavailable" (hiding the button) until a restart; now only a
+      library that can't start does.
+    - Also seen: the debug build starts slowly enough that the launch
+      check of the auth API timed out (5 s) again.
+    - Specs: [Android](android.md), [Sign-in](sign-in.md), [Log](log.md).
+      330 Flutter tests pass (1 new).
 

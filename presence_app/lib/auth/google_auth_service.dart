@@ -108,22 +108,38 @@ class GoogleAuthService extends AuthService {
               e.code == GoogleSignInExceptionCode.canceled) {
             return;
           }
-          _error = _describe(e);
-          notifyListeners();
+          _fail('Google sign-in failed', e);
         },
       );
+    } catch (e) {
+      // Only a library that can't start makes sign-in unavailable.
+      debugPrint('Presence: Google sign-in is unavailable: ${_details(e)}');
+      _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
+      _checking = false;
+      notifyListeners();
+      return;
+    }
+    try {
       // Already signed in (a session restored after a reload): don't start
       // Google's prompt now, only shortly before the token expires.
       // Otherwise check quietly for a session, if Google allows it. On web
       // this starts the FedCM prompt and returns at once; a sign-in then
-      // arrives as an event.
+      // arrives as an event. A failure (e.g. Android's "[28473] Caller
+      // could not be verified", when the prompt is answered long after it
+      // opened) is a failed sign-in, not an unavailable one: the sign-in
+      // button stays.
       if (_idToken case final token?) {
         _scheduleRefresh(token);
       } else {
-        await google.attemptLightweightAuthentication();
+        await GoogleSignIn.instance.attemptLightweightAuthentication();
+      }
+    } on GoogleSignInException catch (e) {
+      // Usually also reported as an authentication event: logged once.
+      if (e.code != GoogleSignInExceptionCode.canceled && _error == null) {
+        _fail('Google sign-in failed', e);
       }
     } catch (e) {
-      _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
+      if (_error == null) _fail('Google sign-in failed', e);
     }
     _checking = false;
     notifyListeners();
@@ -159,12 +175,10 @@ class GoogleAuthService extends AuthService {
       await GoogleSignIn.instance.authenticate();
     } on GoogleSignInException catch (e) {
       if (e.code != GoogleSignInExceptionCode.canceled) {
-        _error = _describe(e);
-        notifyListeners();
+        _fail('Google sign-in failed', e);
       }
     } catch (e) {
-      _error = _describe(e);
-      notifyListeners();
+      _fail('Google sign-in failed', e);
     }
   }
 
@@ -211,6 +225,29 @@ class GoogleAuthService extends AuthService {
   Widget? buildSignInButton() => GoogleSignIn.instance.supportsAuthenticate()
       ? null
       : googleSignInButton();
+
+  /// Shows [e] as the sign-in error, and logs all of it ([_details]): the
+  /// message is short, the log is what explains it.
+  void _fail(String what, Object e) {
+    debugPrint('Presence: $what: ${_details(e)}');
+    _error = _describe(e);
+    notifyListeners();
+  }
+
+  /// Everything a sign-in error says, for the log: its code, description
+  /// and the platform's details (on Android, Credential Manager's error
+  /// type and message).
+  @visibleForTesting
+  static String details(Object e) => _details(e);
+
+  static String _details(Object e) => switch (e) {
+    GoogleSignInException(:final code, :final description, :final details) => [
+      code.name,
+      ?description,
+      if (details != null) 'details: $details',
+    ].join('; '),
+    _ => e.toString(),
+  };
 
   static String _describe(Object e) => switch (e) {
     GoogleSignInException(:final description?) => description,
