@@ -2400,3 +2400,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
+243. **On the timeline of health checks, make it a single block per check:
+     red if any fails, green if all pass.** (2026-10-05)
+     - Was: a column per run with a colored cell per check (API, AWS, OIDC)
+       and their names on the left.
+     - Changed: each run is one block (`health-block-<i>`), red (the error
+       color) when any check failed (❌ or ⚠️, `HealthCheck.failed`) and
+       green otherwise; the names column is gone. Tapping a run still shows
+       the three statuses.
+     - Specs: [Log](log.md). 359 Flutter tests pass.
