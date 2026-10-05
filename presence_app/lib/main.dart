@@ -585,9 +585,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// every other device's latest image.
   bool _showAll = false;
 
-  /// The Monitoring tab's "Only this device" checkbox: on at launch, and kept
-  /// while switching tabs.
-  final _thisDeviceOnly = ValueNotifier(true);
+  /// The Monitoring tab's "Only this device" checkbox: off at launch, so
+  /// every device's events show, and kept while switching tabs.
+  final _thisDeviceOnly = ValueNotifier(false);
 
   /// The Monitoring tab's "Show system events" chip: on in DEV, off
   /// otherwise (only grabs), and kept while switching tabs. Made on first

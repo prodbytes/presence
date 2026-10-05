@@ -279,13 +279,14 @@ class EventTimeline extends StatefulWidget {
   /// Around the cards, inside the scrolling list.
   final EdgeInsets padding;
 
-  /// This device's ID. Once it's known, the timeline shows only this
-  /// device's events unless [thisDeviceOnly] is unchecked.
+  /// This device's ID. Once it's known, checking [thisDeviceOnly] shows
+  /// only this device's events.
   final String? deviceId;
 
   /// Whether only this device's events show (the [ThisDeviceOnly] checkbox
   /// at the top of the Monitoring tab). Kept by the caller, so it survives
-  /// the tab being rebuilt; defaults to an own one, on.
+  /// the tab being rebuilt; defaults to an own one, off: every device's
+  /// events show.
   final ValueNotifier<bool>? thisDeviceOnly;
 
   /// Whether system events show (the [ShowSystemEvents] chip): on, every
@@ -364,7 +365,7 @@ class _EventTimelineState extends State<EventTimeline> {
 
   ValueNotifier<bool>? _ownFilter;
   ValueNotifier<bool> get _filter =>
-      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(true));
+      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(false));
 
   ValueNotifier<bool>? _ownSystem;
   ValueNotifier<bool> get _system =>

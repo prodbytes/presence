@@ -30,6 +30,11 @@ and pets"), each with where the device was when they were seen
   every dot** (the whole world without any; see [the map's
   view](#the-maps-view)), has the tiles' credit and **zoom buttons**, and
   tapping a dot opens its event in the Monitoring tab's events list.
+- **Only this device:** the map shows every device's events unless the
+  Monitoring tab's **Only this device** chip is checked; then only this
+  device's (as the events list, `EventTimeline.ofDevices`). Checking or
+  clearing it redraws the dots and fits the view to them again. A
+  subject's own screen always shows every device.
 - **Names on the map:** beside each subject's newest located dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut
   short with an ellipsis). Tapping it opens the subject's screen.
@@ -57,7 +62,9 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
   map](device-location.md); keys `sightings-zoom-in`, `sightings-zoom-out`).
   Each steps the zoom by one around the map's center, between zoom 2 and
   19; a button turns off at its limit. Pinch, wheel and drag still work.
-- The view is set when the map opens; new events don't move it.
+- The view is set when the map opens; new events don't move it. On the
+  subjects map, the **Only this device** chip changing fits it again
+  (`fitKey`).
 
 ## A subject's screen
 

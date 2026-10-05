@@ -47,14 +47,16 @@
   - While searching, the list also matches again whenever a clip's tags
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.
-- **Only this device, by default.** An **Only this device** filter chip
-  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
-  launch: the timeline shows only
-  events whose `deviceId` is this device's (events not saved yet, which
-  have no device ID, count as this device's). Clearing it shows every
-  device's events, such as those fetched from the cloud. The choice stays
-  while switching tabs, but not across restarts. The chip appears once
-  the device ID is known; before that, every event shows.
+- **Every device, by default.** An **Only this device** filter chip
+  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, unchecked at
+  launch: the timeline and the [subjects map](subjects.md) show every
+  device's events, such as those fetched from the cloud. Checking it
+  shows only events whose `deviceId` is this device's (events not saved
+  yet, which have no device ID, count as this device's), on both the
+  timeline and the map; checking or clearing it filters both again at
+  once. The choice stays while switching tabs, but not across restarts.
+  The chip appears once the device ID is known; before that, every event
+  shows.
   - Filtered with nothing left, the timeline says "No events on this
     device".
   - **Opening an event of another device** from elsewhere (see below)
