@@ -103,7 +103,12 @@ Android uses the standard dashcam technique instead
     - when Android restarts the **capture service** after killing the
       process (`START_STICKY`), the service reopens the app;
     - after the phone **boots** (`BootReceiver`, `RECEIVE_BOOT_COMPLETED`),
-      the app opens.
+      or the app is **updated** (`MY_PACKAGE_REPLACED`; not after `flutter
+      run` or `android-install.sh`, which force-stop it first, and a
+      stopped app gets no broadcasts), the app opens.
+    - The watchdog opens it in a fresh task (`NEW_TASK | CLEAR_TASK`), so
+      a screen left on top of the app's old task can't keep it from
+      starting.
     - Only a force stop (Settings > Apps) keeps it closed: it cancels the
       alarms until the app is opened again. Android 10 and later may refuse
       to open an app from the background (the S40 runs Android 9); the
@@ -154,7 +159,18 @@ Android uses the standard dashcam technique instead
 - **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
   Kotlin on the toolchain default (21), which Kotlin rejects; the root
   `build.gradle.kts` pins that plugin's Kotlin to JVM 11.
-- **Run on a USB phone:** `devbox run android`, or
+- **Install on the unattended phone:** `devbox run android-release`, or
+  [scripts/android-install.sh](../scripts/android-install.sh), builds a
+  release APK with the `.env` settings and the version, installs it over
+  the app (keeping its data; the version code stays the pubspec's, as
+  `flutter run` builds it), starts it in a fresh task (`NEW_TASK |
+  CLEAR_TASK`), and checks it runs. Release, because on the S40 it took
+  173 MB against the debug build's 384 MB, and Dart runs compiled. A
+  fresh task, because a screen left on top of the app's task (Google's
+  account chooser) kept Android from starting the app at all: `flutter
+  run`'s own start, after its install, only brought that screen back.
+- **Run on a USB phone while developing:** `devbox run android` (debug,
+  with hot reload), or
   [scripts/flutter-android.sh](../scripts/flutter-android.sh), finds `adb`
   (on the `PATH`, `ANDROID_HOME`, Flutter's configured SDK or Homebrew's
   `android-commandlinetools`), picks the one phone attached by USB
