@@ -2436,3 +2436,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        runs kept now span 30 min in DEV and 2 h in RBAC.
      - Specs: [Log](log.md), [Settings screen](settings.md),
        [README](README.md). 361 Flutter tests pass (2 new).
+246. **If the health check fails, show an icon warning pill on the camera
+     screen as well.**
+    - Was: a failed health check showed only in Settings' health line and
+      the Log tab's health panel.
+    - Changed: over the camera, first among the status pills, a pill with
+      only a warning icon (error color) while any check fails (❌, or ⚠️);
+      its tooltip names the failed checks, and tapping it opens the Log
+      tab's health panel (admins) or Settings. `StatusPill`'s label is
+      now optional.
+    - Specs: [Navigation](navigation.md), [Settings screen](settings.md).
+      361 Flutter tests (2 new) pass.
