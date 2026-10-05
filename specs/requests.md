@@ -2400,3 +2400,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
+243. **Make the health check period 15 s in DEV mode and 60 s in standard
+     (RBAC) mode.** (2026-10-05)
+     - Was: the Log tab's health panel checked every 30 s in both modes.
+     - Changed: `HealthPanel.intervalFor` picks 15 s in DEV and 60 s in
+       RBAC from `RolesService.mode` (the build's mode before the start
+       check), read again before each run, so the period follows the mode.
+       The timeline's header says "every 15 s" or "every 1 min". The 120
+       runs kept now span 30 min in DEV and 2 h in RBAC.
+     - Specs: [Log](log.md), [Settings screen](settings.md),
+       [README](README.md). 361 Flutter tests pass (2 new).
