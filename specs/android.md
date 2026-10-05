@@ -6,7 +6,8 @@ Android uses the standard dashcam technique instead
 
 - **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
   and a hardware **H.264** encoder, up to 1280×720, with a keyframe every
-  second.
+  second, at 1.5 Mbps (1 Mbps below 1280 wide), variable bitrate where the
+  encoder offers it (a still scene then costs fewer bits).
   - **Frame rate is variable, up to 30 fps** (for example 5–30 on the S40).
     A fixed 30 fps caps exposure at 1/30 s, which made the S40's picture
     almost black indoors (average luma 17). With 5–30 fps and +1 EV it
@@ -14,10 +15,23 @@ Android uses the standard dashcam technique instead
     expose longer, so motion blurs and the frame rate drops. In good light
     it stays at 30 fps. Keyframes may then be further apart, so clip files
     can start a little earlier before their window (the window offsets
-    still cut them exactly). The default microphone (`AudioRecord`) feeds an **AAC**
-  encoder. Audio and video share the camera's clock.
+    still cut them exactly).
+  - The default microphone (`AudioRecord`, read 100 ms at a time) feeds an
+    **AAC** encoder at **16 kHz mono, 32 kbps** (under half the encoding
+    work of 44.1 kHz); if the phone refuses 16 kHz, it falls back to
+    44.1 kHz at 64 kbps. Audio and video share the camera's clock.
+  - The **motion stream** (a small YUV `ImageReader`) is handled on the
+    camera's own thread: every frame (~30/s) is released at once, and only
+    about 5 a second are acquired as the latest and sampled to 64×48 luma.
+  - The encoder threads wait up to 100 ms for output (it's handed over as
+    soon as it's ready; the long timeout only means fewer idle wake-ups).
+  - **Closing** returns at once: the camera, microphone and codecs are
+    closed on the camera thread (after the encoder threads stop), and the
+    returned future completes once the camera device has closed (or 3 s
+    pass), so the main thread never blocks on it.
 - **`SampleRing`:** the encoded samples are kept in an in-memory ring buffer,
-  holding *before* + 1 s of history, pruned a whole GOP at a time.
+  holding *before* + 1 s of history (up to 1 s more between keyframes),
+  pruned a whole GOP at a time, when a video keyframe arrives.
 - **On Clip:** the before part is muxed from the ring into an MP4 at once
   (`MediaMuxer`). The full clip is muxed once the after period has been
   buffered. Files start at the keyframe at or before the window, and the
@@ -37,7 +51,9 @@ Android uses the standard dashcam technique instead
     because of a double rotation.
 - **Thumbnail:** the latest frame, taken from the ring with
   `MediaMetadataRetriever` (just before the last frame, falling back to the
-  latest keyframe), turned upright and saved as JPEG.
+  latest keyframe), decoded straight to thumbnail size where Android allows
+  (8.1+, `getScaledFrameAtTime`), scaled to 480 px wide before it's turned
+  upright, and saved as JPEG; the bitmaps are recycled at once.
 - **Playback:** `video_player` (ExoPlayer), with the same before-then-full
   continuation and exact window end as web. Tap to pause and play.
 - **One camera at a time:** Flip closes the open camera (waiting for
@@ -217,7 +233,9 @@ Android uses the standard dashcam technique instead
 - **Verified on a DOOGEE S40 (Android 9, MT6739):**
   - The camera opens, and the hardware H.264 encoder runs at ~30 fps.
   - Clips are written as a before part (15.7 s) and a full clip (30.1 s),
-    each 1280×720 H.264 with AAC audio at 44.1 kHz, with real sound.
+    each 1280×720 H.264 with AAC audio, with real sound (verified at
+    44.1 kHz and 2.5 Mbps; the 16 kHz audio and 1.5 Mbps VBR video of
+    2026-10-05 are not yet verified on the phone).
   - The full clip is saved, the before-only file is deleted, the thumbnail
     is an upright 480×853 JPEG, and clips and events survive relaunches.
   - Playback starts with audio.

@@ -54,9 +54,13 @@ class SampleRing {
         val data = ByteArray(info.size)
         buffer.position(info.offset)
         buffer.get(data, 0, info.size)
+        val sample = Sample(track, data, info.presentationTimeUs, info.flags)
         synchronized(lock) {
-            samples.addLast(Sample(track, data, info.presentationTimeUs, info.flags))
-            prune(info.presentationTimeUs)
+            samples.addLast(sample)
+            // Pruning drops whole GOPs, so it can only get further when a
+            // new GOP starts: try it then (about once a second), not on
+            // every sample.
+            if (track == VIDEO && sample.isKeyframe) prune(info.presentationTimeUs)
             lock.notifyAll()
         }
     }
@@ -137,14 +141,15 @@ class SampleRing {
      * video keyframe to the next), and never anything a clip has pinned.
      */
     private fun prune(nowUs: Long) {
-        val keepFrom = minOf(nowUs - retainUs - 1_000_000, pins.values.minOrNull() ?: Long.MAX_VALUE)
+        var keepFrom = nowUs - retainUs - 1_000_000
+        for (pin in pins.values) if (pin < keepFrom) keepFrom = pin
         while (true) {
             // The first keyframe after the oldest sample: everything before
             // it can go if that keyframe is itself old enough.
-            val next = samples.asSequence().drop(1)
-                .firstOrNull { it.track == VIDEO && it.isKeyframe } ?: return
-            if (next.ptsUs > keepFrom) return
-            while (samples.first() !== next) samples.removeFirst()
+            var next = 1
+            while (next < samples.size && !(samples[next].track == VIDEO && samples[next].isKeyframe)) next++
+            if (next >= samples.size || samples[next].ptsUs > keepFrom) return
+            repeat(next) { samples.removeFirst() }
         }
     }
 
