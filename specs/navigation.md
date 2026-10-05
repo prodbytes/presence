@@ -49,13 +49,19 @@ in the app bar**, which flip between full screens.
     With the **All** grid showing, it's **Capture all**: every device of
     the profile takes a clip (see
     [Camera screen](camera.md#capture-all)); otherwise only this camera.
-  - **All** (a grid icon and the label "All") sits left of Flip, as a
-    quiet secondary button, shown with access whether or not a camera is
-    open. It toggles a grid: this device's camera in the top-left cell and
-    every other device of the profile with its latest image (see
-    [Camera screen](camera.md#all-devices)). While the grid shows, the
-    button is highlighted and its tooltip reads "Show only this camera".
-    It's off at launch.
+  - **The view button** sits left of Flip, shown with access whether or
+    not a camera is open. Its label and icon say what the tab shows, and a
+    tap moves on, One → All → None → One:
+    - **One** (a square; quiet): this camera, full screen. Tooltip "Show
+      all devices". It's the state at launch, unless the camera was left
+      off.
+    - **All** (a grid; highlighted): this device's camera in the top-left
+      cell and every other device of the profile with its latest image
+      (see [Camera screen](camera.md#all-devices)). Tooltip "Turn the
+      camera off".
+    - **None** (a crossed-out camera; in the error colors): the camera
+      off, nothing recorded (see [Camera screen](camera.md)). Tooltip
+      "Turn the camera on".
   - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
     quieter secondary button. It's shown only when the device has more than
     one camera. It switches back ↔ front where the camera's facing is known

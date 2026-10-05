@@ -74,7 +74,7 @@ void main() {
       expect(CameraConfig.fromJson({'brightnessEv': 0.5}).paused, isFalse);
     });
 
-    testWidgets('the button pauses and resumes the camera', (tester) async {
+    testWidgets('the view button cycles One, All, None', (tester) async {
       final camera = FakeCameraSource('Main');
       final backend = openFakes([camera]);
       await pumpGate(
@@ -88,20 +88,35 @@ void main() {
           locator: NoLocation(),
         ),
       );
-      // Signed out: no button on the camera.
-      expect(find.byKey(const Key('camera-pause')), findsNothing);
       await tester.tap(find.byKey(const Key('google-sign-in')));
       await tester.pumpAndSettle();
+      final button = find.byKey(const Key('show-all'));
+      String label() => tester
+          .widget<Text>(
+            find.descendant(of: button, matching: find.byType(Text)),
+          )
+          .data!;
 
-      await tester.tap(find.byTooltip('Pause the camera'));
+      expect(label(), 'One');
+      await tester.tap(button);
       await tester.pumpAndSettle();
+      expect(label(), 'All');
+      expect(find.textContaining('· live'), findsOneWidget);
+
+      // None: the camera off, the single view, no Clip.
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(label(), 'None');
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
+      expect(find.textContaining('· live'), findsNothing);
       expect(find.byTooltip('Clip'), findsNothing);
-      expect(find.text('Paused'), findsOneWidget);
+      expect(find.text('Off'), findsOneWidget);
 
-      await tester.tap(find.byTooltip('Resume the camera'));
+      // Back to One: the camera reopens.
+      await tester.tap(button);
       await tester.pumpAndSettle();
+      expect(label(), 'One');
       expect(find.byKey(const Key('camera-paused')), findsNothing);
       expect(find.byTooltip('Clip'), findsOneWidget);
       expect(backend.opened, hasLength(2));

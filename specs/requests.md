@@ -2532,15 +2532,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       listing those steps in order, with the commands for each. No app
       change; no feature spec changes.
 253. **Add a pause/play button to the camera view, to let users shut off
-     the camera if needed.** (2026-10-05)
-     - Added: a Pause / Play button at the camera's top right (under the
-       app bar; on this device's cell in the All grid), for users with
-       access. Pause closes the camera, so nothing is recorded and no
-       clips are taken; the view says "Camera paused" with Resume, the
-       readiness pill says Paused, and Flip and Clip hide. Play reopens it.
-       The state is the `camera.paused` setting, saved with the device's
-       settings, so a restart (or the Android watchdog) keeps it paused.
-     - First tried in the bottom button row, which overflowed a 320 dp
-       phone by 63 px; hence the corner.
-     - Specs: [Camera screen](camera.md), [Configuration](configuration.md),
-       [README](README.md). 387 Flutter tests pass (4 new).
+     the camera if needed; then: fold it into the All button, with three
+     states, One (this camera), All and None.** (2026-10-05)
+     - Added: the All button is now the view button, showing what the
+       Camera tab shows and cycling One → All → None → One. None switches
+       the camera off: it's closed, nothing is recorded and no clips are
+       taken; the view says "Camera off" with Turn on, the readiness pill
+       says Off, and Flip and Clip hide. None is the `camera.paused`
+       setting, saved with the device's settings, so a restart (or the
+       Android watchdog) keeps the camera off.
+     - First built as a separate Pause / Play button (in the bottom row it
+       overflowed a 320 dp phone by 63 px, so it went to the camera's top
+       right), then replaced by the third state, as asked.
+     - Specs: [Camera screen](camera.md), [Navigation](navigation.md),
+       [Configuration](configuration.md), [README](README.md). 387 Flutter
+       tests pass (4 new).

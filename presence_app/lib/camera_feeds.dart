@@ -18,7 +18,7 @@ enum ClipReadinessState {
   /// No open camera.
   unavailable,
 
-  /// The user paused the camera: nothing is recorded.
+  /// The user switched the camera off (None): nothing is recorded.
   paused,
 
   /// Motion can take a clip (and the Clip button always can).
@@ -222,8 +222,9 @@ class CameraRig extends ChangeNotifier {
 
   bool get canFlip => _devices.length > 1 && !_busy && !paused;
 
-  /// The user switched the camera off ([CameraConfig.paused]): it's closed
-  /// and records nothing (no motion or scheduled clips) until resumed.
+  /// The user switched the camera off (the view button's None,
+  /// [CameraConfig.paused]): it's closed and records nothing (no motion or
+  /// scheduled clips) until switched on.
   bool get paused => config.camera.paused;
 
   /// Pauses (closes) or resumes (reopens) the camera; kept in the settings,
@@ -552,14 +553,9 @@ class CameraFeedsView extends StatefulWidget {
     this.deviceId,
     this.profileId,
     this.showAll = false,
-    this.controls = false,
   });
 
   final CameraRig rig;
-
-  /// Shows the Pause / Play button on this device's camera (top right,
-  /// under the app bar), which switches the camera off and on.
-  final bool controls;
 
   /// The events the other devices' images come from (for [showAll]).
   final EventLog? log;
@@ -668,16 +664,6 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                         child: _camera(context),
                       ),
                     ),
-                    if (widget.controls && rig.devices.isNotEmpty)
-                      Positioned(
-                        // Under the app bar when the camera fills the
-                        // screen; in its cell's corner in the grid.
-                        top: all ? 8 : padding.top + kToolbarHeight + 8,
-                        right: all
-                            ? size.width - rectOf(0).right + 8
-                            : padding.right + 8,
-                        child: _PauseButton(rig: rig),
-                      ),
                     for (final (i, latest) in others.indexed)
                       Positioned.fromRect(
                         key: ValueKey(latest.deviceId),
@@ -711,10 +697,10 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
       return FeedMessage(
         key: const Key('camera-paused'),
         icon: Icons.videocam_off_outlined,
-        message: 'Camera paused\nNothing is recorded until you resume it.',
+        message: 'Camera off\nNothing is recorded until you turn it on.',
         action: TextButton(
           onPressed: () => rig.setPaused(false),
-          child: const Text('Resume'),
+          child: const Text('Turn on'),
         ),
       );
     }
@@ -740,33 +726,6 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
       icon: Icons.videocam_off_outlined,
       message: 'No camera found',
       action: TextButton(onPressed: rig.load, child: const Text('Retry')),
-    );
-  }
-}
-
-/// Switches the camera off (Pause: closed, nothing recorded) and back on.
-class _PauseButton extends StatelessWidget {
-  const _PauseButton({required this.rig});
-
-  final CameraRig rig;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final paused = rig.paused;
-    return IconButton.filledTonal(
-      key: const Key('camera-pause'),
-      tooltip: paused ? 'Resume the camera' : 'Pause the camera',
-      style: IconButton.styleFrom(
-        backgroundColor: paused
-            ? scheme.secondaryContainer
-            : scheme.surfaceContainerHigh.withValues(alpha: 0.85),
-        foregroundColor: paused
-            ? scheme.onSecondaryContainer
-            : scheme.onSurface,
-      ),
-      onPressed: () => rig.setPaused(!paused),
-      icon: Icon(paused ? Icons.play_arrow : Icons.pause),
     );
   }
 }
