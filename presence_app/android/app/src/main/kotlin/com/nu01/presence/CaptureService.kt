@@ -14,7 +14,6 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
-import android.util.Log
 
 /**
  * Keeps the app capturing while nobody touches the phone: a foreground
@@ -33,6 +32,8 @@ class CaptureService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // No intent: Android restarted it after the process was killed.
+        FileLog.init(this, if (intent == null) "capture service restarted by Android" else "capture service")
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(NOTIFICATION_ID, notification(), types())
@@ -42,7 +43,7 @@ class CaptureService : Service() {
         } catch (e: Exception) {
             // Not allowed now (e.g. started from the background): capture
             // goes on while the app is shown, as before.
-            Log.w(TAG, "Presence: could not keep capturing in the background: $e")
+            FileLog.w("could not keep capturing in the background", e)
             stopSelf()
             return START_NOT_STICKY
         }
@@ -57,12 +58,15 @@ class CaptureService : Service() {
                 .createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "presence:sync")
                 .apply { setReferenceCounted(false); acquire() }
         }
-        Log.i(TAG, "Presence: capturing in the foreground service")
-        // Without the app (its camera lives there), a restart is no use.
-        return START_NOT_STICKY
+        // Restarted by Android after the process was killed (no intent): the
+        // camera lives in the app's screen, so open it.
+        if (intent == null) KeepAlive.open(this, "capture service restarted by Android")
+        FileLog.i("capturing in the foreground service")
+        return START_STICKY
     }
 
     override fun onDestroy() {
+        FileLog.i("capture service stopped")
         wakeLock?.takeIf { it.isHeld }?.release()
         wakeLock = null
         wifiLock?.takeIf { it.isHeld }?.release()
@@ -110,7 +114,6 @@ class CaptureService : Service() {
     }
 
     companion object {
-        private const val TAG = "PresenceCapture"
         private const val CHANNEL_ID = "capture"
         private const val NOTIFICATION_ID = 1
 
@@ -125,7 +128,7 @@ class CaptureService : Service() {
             try {
                 context.startService(Intent(context, CaptureService::class.java))
             } catch (e: Exception) {
-                Log.w(TAG, "Presence: could not start the capture service: $e")
+                FileLog.w("could not start the capture service", e)
             }
         }
 

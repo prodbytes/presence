@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 /// One line of the [AppLog].
 class LogEntry {
@@ -33,8 +34,14 @@ class AppLog extends ChangeNotifier {
   /// Oldest first.
   List<LogEntry> get entries => List.unmodifiable(_entries);
 
+  /// Also called with every entry, to keep it beyond the app's memory (on
+  /// Android, the log files on the phone: [persistToDevice]).
+  void Function(LogEntry entry)? persist;
+
   void add(String message, {bool error = false}) {
-    _entries.addLast(LogEntry(_now(), message, error: error));
+    final entry = LogEntry(_now(), message, error: error);
+    _entries.addLast(entry);
+    persist?.call(entry);
     while (_entries.length > capacity) {
       _entries.removeFirst();
     }
@@ -49,6 +56,20 @@ class AppLog extends ChangeNotifier {
   }
 
   bool _scheduled = false;
+
+  /// On Android, also writes every entry, from now and already logged, to
+  /// the app's log files on the phone (`presence/device` `log`), which
+  /// outlast restarts and crashes; `scripts/android-log.sh --pull` fetches
+  /// them. Elsewhere, nothing changes. Needs the Flutter binding.
+  void persistToDevice() {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    const channel = MethodChannel('presence/device');
+    void send(LogEntry e) => channel
+        .invokeMethod<void>('log', {'message': e.message, 'error': e.error})
+        .catchError((Object _) {});
+    _entries.forEach(send);
+    persist = send;
+  }
 
   void clear() {
     _entries.clear();

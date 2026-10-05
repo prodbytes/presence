@@ -1,11 +1,11 @@
 {
-    "name": "presence_app",
-    "short_name": "presence_app",
+    "name": "Presence",
+    "short_name": "Presence",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#32302F",
     "theme_color": "#32302F",
-    "description": "A new Flutter project.",
+    "description": "Presence watches this device's cameras and records clips of what happens.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

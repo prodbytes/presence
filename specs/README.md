@@ -95,7 +95,8 @@ their data.
   devices in the events, and a scrolling timeline of the runs with their
   times), then the app's latest 500 log messages and errors, such as why
   the AWS sync failed.
-- [App icon](app-icon.md): the icon masters and generated icons.
+- [App icon](app-icon.md): the icon masters and generated icons, and the
+  app's name, Presence, wherever it's shown.
 
 **Platforms**
 

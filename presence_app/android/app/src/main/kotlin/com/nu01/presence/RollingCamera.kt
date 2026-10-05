@@ -149,9 +149,18 @@ class RollingCamera(
     private fun fail(ready: CompletableFuture<Unit>, reason: String) {
         if (!ready.isDone) {
             ready.completeExceptionally(IllegalStateException(reason))
-        } else if (running) {
-            onLost?.invoke(reason)
+        } else {
+            reportLost(reason)
         }
+    }
+
+    @Volatile private var lostReported = false
+
+    /** Tells [onLost], once, that this running camera is gone (or stuck). */
+    fun reportLost(reason: String) {
+        if (!running || lostReported) return
+        lostReported = true
+        onLost?.invoke(reason)
     }
 
     /** Called when the running camera is taken away (disconnected or failed). */
@@ -208,7 +217,11 @@ class RollingCamera(
 
     private var motionReader: ImageReader? = null
     private val motionThread = HandlerThread("motion-$id").apply { start() }
-    private var lastMotionFrameMs = 0L
+    @Volatile private var lastMotionFrameMs = 0L
+
+    /** How long since the latest motion frame (ms); null before the first. */
+    fun frameAgeMs(): Long? =
+        lastMotionFrameMs.takeIf { it > 0 }?.let { SystemClock.elapsedRealtime() - it }
 
     private fun startMotionReader(): ImageReader? {
         val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)

@@ -46,7 +46,12 @@ import 'theme.dart';
 
 void main() {
   // Everything the app logs also goes to the admins' Log tab.
-  AppLog.capture(() => runApp(const PresenceApp()));
+  AppLog.capture(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    // On Android, to files on the phone too, for debugging after the fact.
+    AppLog.instance.persistToDevice();
+    runApp(const PresenceApp());
+  });
 }
 
 class PresenceApp extends StatefulWidget {
@@ -624,9 +629,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// The Monitoring tab's "Only this device" checkbox: off at launch, so
-  /// every device's events show, and kept while switching tabs.
-  final _thisDeviceOnly = ValueNotifier(false);
+  /// The devices unchecked in the Monitoring tab's devices dropdown: none
+  /// at launch, so every device's events show, and kept while switching
+  /// tabs.
+  final _hiddenDevices = ValueNotifier<Set<String>>(const {});
 
   /// The Monitoring tab's "Show system events" chip: on in DEV, off
   /// otherwise (only grabs), and kept while switching tabs. Made on first
@@ -763,7 +769,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _clipEvents?.cancel();
     _messageTimer?.cancel();
     _focusedEvent.dispose();
-    _thisDeviceOnly.dispose();
+    _hiddenDevices.dispose();
     _showSystemEvents.dispose();
     _eventSearch.dispose();
     _battery.dispose();
@@ -991,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
-                  thisDeviceOnly: _thisDeviceOnly,
+                  hiddenDevices: _hiddenDevices,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,
                 ),

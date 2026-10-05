@@ -10,7 +10,6 @@ import android.os.BatteryManager
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
-import android.util.Log
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,6 +20,12 @@ class MainActivity : FlutterActivity() {
     private var cameras: PresenceCamerasPlugin? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // First, so everything after is logged, crashes included.
+        FileLog.init(this, "app opened")
+        KeepAlive.installCrashHandler(this)
+        alive = true
+        FileLog.i("app screen created")
+        KeepAlive.schedule(this)
         super.onCreate(savedInstanceState)
         // A surveillance screen shouldn't go to sleep.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -29,6 +34,7 @@ class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
+        FileLog.i("app shown")
         cameras?.setPreviewVisible(true)
         // Before the camera opens: covered (e.g. by Google's sign-in
         // chooser) or with the screen off, Android only lets an app with a
@@ -42,6 +48,7 @@ class MainActivity : FlutterActivity() {
     override fun onStop() {
         // The screen went off or the app was left: keep recording, without
         // the preview nobody sees.
+        FileLog.i("app hidden (screen off or another app in front); capture goes on")
         cameras?.setPreviewVisible(false)
         super.onStop()
     }
@@ -63,7 +70,7 @@ class MainActivity : FlutterActivity() {
                     .setData(Uri.parse("package:$packageName")),
             )
         } catch (e: Exception) {
-            Log.w("Presence", "Presence: could not ask to skip battery optimization: $e")
+            FileLog.w("could not ask to skip battery optimization", e)
         }
     }
 
@@ -79,6 +86,14 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "batteryTemperature" -> result.success(batteryTemperature())
+                    "log" -> {
+                        FileLog.fromDart(
+                            call.argument<String>("message") ?: "",
+                            call.argument<Boolean>("error") == true,
+                        )
+                        result.success(null)
+                    }
+                    "logDirectory" -> result.success(FileLog.directory?.path)
                     else -> result.notImplemented()
                 }
             }
@@ -98,6 +113,9 @@ class MainActivity : FlutterActivity() {
         /// Device readings beyond the cameras (the battery's temperature).
         const val DEVICE_CHANNEL = "presence/device"
 
+        /** Whether the app's screen exists (the watchdog opens it if not). */
+        @Volatile var alive = false
+
         private const val ASKED_BATTERY = "askedBatteryOptimization"
     }
 
@@ -111,6 +129,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        FileLog.i("app screen destroyed (finishing: $isFinishing); the watchdog reopens it")
+        alive = false
         cameras?.dispose()
         cameras = null
         super.onDestroy()

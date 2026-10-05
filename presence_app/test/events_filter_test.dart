@@ -84,7 +84,14 @@ void main() {
     await revealSystemEvents(tester);
   }
 
-  Finder checkbox() => find.byKey(const Key('this-device-only'));
+  Finder dropdown() => find.byKey(const Key('device-filter'));
+
+  /// A line of the open dropdown (its key is on an inner button too).
+  Finder item(String key) => find.byWidgetPredicate(
+    (w) => w is CheckboxMenuButton && w.key == Key(key),
+  );
+  Finder line(String device) => item('device-filter-$device');
+  Finder allLine() => item('device-filter-all');
 
   /// The events count beside the search: (shown, all).
   (int, int) counts(WidgetTester tester) {
@@ -93,25 +100,53 @@ void main() {
     return (shown, all);
   }
 
-  bool checked(WidgetTester tester) =>
-      tester.widget<FilterChip>(checkbox()).selected;
+  bool? checked(WidgetTester tester, Finder item) =>
+      tester.widget<CheckboxMenuButton>(item).value;
 
-  testWidgets('shows every device until the checkbox is checked', (
-    tester,
-  ) async {
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  /// The id of the device that's not [there] among the dropdown's lines.
+  String here(WidgetTester tester) {
+    final key =
+        tester
+                .widgetList<CheckboxMenuButton>(find.byType(CheckboxMenuButton))
+                .first
+                .key!
+            as ValueKey<String>;
+    return key.value.substring('device-filter-'.length);
+  }
+
+  testWidgets('a dropdown checks every device, this device first in bold, '
+      'until unchecked', (tester) async {
     await launch(tester);
 
-    expect(checkbox(), findsOneWidget);
-    expect(checked(tester), isFalse);
-    expect(find.text('Only this device'), findsOneWidget);
-    expect(find.text('Door opened here'), findsOneWidget);
-    expect(find.text('Door opened there'), findsOneWidget);
+    expect(find.text('Only this device'), findsNothing);
+    expect(find.text('All devices'), findsOneWidget);
     final (shown, all) = counts(tester);
     expect(shown, all);
 
-    await tester.tap(checkbox());
-    await tester.pumpAndSettle();
-    expect(checked(tester), isTrue);
+    await tap(tester, dropdown());
+    final mine = here(tester);
+    expect(mine, isNot(there));
+    final bold = tester.widget<Text>(
+      find.descendant(of: line(mine), matching: find.text('This device')),
+    );
+    expect(bold.style?.fontWeight, FontWeight.bold);
+    expect(
+      find.descendant(of: line(there), matching: find.text(there)),
+      findsOneWidget,
+    );
+    expect(checked(tester, line(mine)), isTrue);
+    expect(checked(tester, line(there)), isTrue);
+    expect(checked(tester, allLine()), isTrue);
+
+    // Unchecking the other device hides its events; the menu stays open.
+    await tap(tester, line(there));
+    expect(checked(tester, line(there)), isFalse);
+    expect(checked(tester, allLine()), isNull);
     expect(find.text('Door opened here'), findsOneWidget);
     expect(find.text('Door opened there'), findsNothing);
     // Events published since launch are this device's too.
@@ -119,25 +154,39 @@ void main() {
     // The count leaves the other device's event out of the shown, not all.
     expect(counts(tester), (all - 1, all));
 
-    // The choice stays while switching tabs.
-    await tester.tap(find.byTooltip('Settings'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Monitoring'));
-    await tester.pumpAndSettle();
-    expect(checked(tester), isTrue);
-    expect(find.text('Door opened there'), findsNothing);
+    // Unchecking this device too hides every event.
+    await tap(tester, line(mine));
+    expect(checked(tester, allLine()), isFalse);
+    expect(find.text('Door opened here'), findsNothing);
+    expect(counts(tester), (0, all));
 
-    await tester.tap(checkbox());
-    await tester.pumpAndSettle();
+    // All devices checks them all again, and again unchecks them all.
+    await tap(tester, allLine());
+    expect(checked(tester, line(mine)), isTrue);
+    expect(checked(tester, line(there)), isTrue);
     expect(find.text('Door opened there'), findsOneWidget);
+    await tap(tester, allLine());
+    expect(checked(tester, line(mine)), isFalse);
+    expect(checked(tester, line(there)), isFalse);
+    await tap(tester, line(mine));
+
+    // The choice stays while switching tabs.
+    await tester.tapAt(const Offset(5, 795));
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 2 devices'), findsOneWidget);
+    await tap(tester, find.byTooltip('Settings'));
+    await tap(tester, find.byTooltip('Monitoring'));
+    expect(find.text('1 of 2 devices'), findsOneWidget);
+    expect(find.text('Door opened here'), findsOneWidget);
+    expect(find.text('Door opened there'), findsNothing);
   });
 
   testWidgets("a new event shows while filtered, before it's saved", (
     tester,
   ) async {
     await launch(tester);
-    await tester.tap(checkbox());
-    await tester.pumpAndSettle();
+    await tap(tester, dropdown());
+    await tap(tester, line(there));
     AppEventBusScope.of(tester.element(find.byType(Scaffold).first))
         .publish(AppEvent(icon: Icons.circle, title: 'Just now'));
     // The bus delivers in a microtask; the next frame shows it.

@@ -35,6 +35,29 @@ class PresenceCamerasPlugin(
     private val open = mutableMapOf<String, Pair<RollingCamera, TextureRegistry.SurfaceTextureEntry>>()
     private var permissionResult: MethodChannel.Result? = null
 
+    /**
+     * Every [STALL_CHECK_MS], a camera whose motion frames stopped for
+     * [STALL_MS] is reported lost, so Dart reopens it: a stuck camera
+     * records nothing either.
+     */
+    private val stallCheck = object : Runnable {
+        override fun run() {
+            for ((cam, _) in open.values) {
+                if (!cam.hasMotion) continue
+                val age = cam.frameAgeMs() ?: continue
+                if (age > STALL_MS) {
+                    FileLog.w("camera ${cam.id}: no frames for ${age / 1000} s; reopening it")
+                    cam.reportLost("No camera frames for ${age / 1000} s")
+                }
+            }
+            main.postDelayed(this, STALL_CHECK_MS)
+        }
+    }
+
+    init {
+        main.postDelayed(stallCheck, STALL_CHECK_MS)
+    }
+
     /** Whether the app is shown, so cameras feed their previews. */
     private var previewVisible = true
 
@@ -186,6 +209,7 @@ class PresenceCamerasPlugin(
     }
 
     fun dispose() {
+        main.removeCallbacks(stallCheck)
         CaptureService.stop(activity)
         for ((cam, texture) in open.values) {
             cam.close()
@@ -255,6 +279,7 @@ class PresenceCamerasPlugin(
             main.post {
                 if (error != null) {
                     texture.release()
+                    FileLog.w("camera $id failed to open: ${describe(error)}")
                     result.error("camera", describe(error), null)
                 } else {
                     cam.onMotionFrame = { luma ->
@@ -262,8 +287,10 @@ class PresenceCamerasPlugin(
                     }
                     // Taken away while running: Dart closes and reopens it.
                     cam.onLost = { reason ->
+                        FileLog.w("camera $id lost: $reason")
                         main.post { motionSink?.success(mapOf("id" to id, "lost" to reason)) }
                     }
+                    FileLog.i("camera $id open, ${cam.size.width}x${cam.size.height}, motion ${cam.hasMotion}")
                     cam.setPreview(previewVisible)
                     open[id] = cam to texture
                     // Keep capturing untouched and with the screen off (the
@@ -339,5 +366,7 @@ class PresenceCamerasPlugin(
         const val CHANNEL = "presence/cameras"
         const val MOTION_CHANNEL = "presence/motion"
         private const val PERMISSION_REQUEST = 4201
+        private const val STALL_CHECK_MS = 30_000L
+        private const val STALL_MS = 60_000L
     }
 }

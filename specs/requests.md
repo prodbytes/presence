@@ -2531,7 +2531,61 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
       listing those steps in order, with the commands for each. No app
       change; no feature spec changes.
-253. **Add a pause/play button to the camera view, to let users shut off
+253. **Make the HTML page's title Presence, and every reference to the app
+     too, not presence_app (seen when the URL was dragged).** (2026-10-05)
+     - Was: the web page's title, `apple-mobile-web-app-title` and the
+       manifest's `name` and `short_name` were `presence_app`, and the
+       description was Flutter's "A new Flutter project."; the Linux window
+       and iOS `CFBundleName` said `presence_app` too.
+     - Changed: all of them say Presence, and the web description says what
+       the app does. The Dart package, the Linux binary and its application
+       ID keep `presence_app` (the install script runs that binary).
+     - Specs: [App icon](app-icon.md) (a new Name section),
+       [README](README.md). Verified in a `flutter build web` output.
+254. **In the events monitoring view, replace the "Only this device"
+     checkmark with a dropdown with a checkbox per line: the first line
+     always this device, in bold; all checked by default; let users check
+     or uncheck all or each one; always refresh the map and events list
+     accordingly.**
+    - Was: an **Only this device** filter chip (`ThisDeviceOnly`).
+    - Now: a **devices dropdown** (`DeviceFilter`): a chip ("All devices",
+      or "1 of 2 devices") opening a menu with a checkbox per device with
+      events, **This device** first in bold, then the others by ID, and an
+      **All devices** line that checks them all, or unchecks them all when
+      all are checked. The filter keeps the unchecked devices
+      (`hiddenDevices`), so every device, including ones whose events
+      arrive later, is checked by default. The map, the events list and the
+      count refilter on every change; opening an event of an unchecked
+      device checks them all again.
+    - Specs: [Events](events.md), [Monitoring](monitoring.md),
+      [Subjects](subjects.md), [Navigation](navigation.md).
+255. **The Android app on the USB phone seems to have crashed: no events
+     from it all day. Keep the app alive even when the phone is
+     unattended, log messages so they can be retrieved for debugging, check
+     why the last run failed, and restart it.** (2026-10-05)
+     - Found: nothing brought the app back once its process died (a
+       crash, a kill, Back, a reboot), and a camera that stopped sending
+       frames without an error went unnoticed. The app's messages lived
+       only in memory and in logcat, which the phone overwrites within
+       hours, so the last run left nothing to read.
+     - Changed: `KeepAlive` reopens the app (a watchdog alarm every 15 min,
+       10 s after a crash, when Android restarts the sticky capture
+       service, and at boot); a camera without frames for 60 s is reopened;
+       `FileLog` writes every Dart and native message to daily files on the
+       phone, and saves the app's logcat at each start;
+       `devbox run android-pull` fetches them with the phone's status and
+       crash records.
+     - Why the last run failed: at 09:22 its process died while it ran as a
+       foreground service, right after recognition on a clip (30 frames,
+       50 s, the main thread skipping frames), with no crash or native crash
+       on record, while the 3 GB phone was killing idle apps for memory:
+       most likely the low-memory killer. Nothing reopened it, and nobody
+       answered Google's account chooser it opened under, so it ran signed
+       out (no sync) before that too.
+     - Verified on the S40: a forced crash was logged with its stack and the
+       app came back by itself within 18 s, camera open.
+     - Specs: [Android](android.md). 385 Flutter tests pass (2 new).
+256. **Add a pause/play button to the camera view, to let users shut off
      the camera if needed; then: fold it into the All button, with three
      states, One (this camera), All and None.** (2026-10-05)
      - Added: the All button is now the view button, showing what the
