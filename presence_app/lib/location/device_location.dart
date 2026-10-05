@@ -222,6 +222,20 @@ class LocationController extends ChangeNotifier {
     );
   }
 
+  /// Takes on the location set on the map in this device's settings from
+  /// the cloud ([onMap]), already saved; or, with none set there, asks the
+  /// device where it is instead of keeping one set here.
+  void applyRemote(DeviceLocation? onMap) {
+    if (_disposed) return;
+    if (onMap != null) {
+      _mapEdits++;
+      _location = onMap;
+      notifyListeners();
+    } else if (_location?.source == LocationSource.map) {
+      locate().ignore();
+    }
+  }
+
   /// Counts [setOnMap] calls, so a slow [locate] doesn't undo one.
   int _mapEdits = 0;
 

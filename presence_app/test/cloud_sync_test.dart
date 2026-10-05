@@ -919,6 +919,43 @@ void main() {
       expect(settings.applied, isEmpty);
     });
 
+    void putRemote(Map<String, Object?> record) => backend.uploads[key] = (
+      bytes: Uint8List.fromList(utf8.encode(jsonEncode(record))),
+      contentType: 'application/json',
+    );
+
+    test("a sign-in restores the profile's record over another profile's "
+        'newer settings', () async {
+      settings.record = {
+        ...settings.record,
+        'profileId': 'other',
+        'updatedAt': 9,
+      };
+      putRemote({'deviceId': 'dev-1', 'profileId': '1', 'updatedAt': 5});
+      await auth.signIn();
+      await withSettings.idle();
+      expect(settings.applied.single['updatedAt'], 5);
+      expect(settings.claimed, ['1']);
+    });
+
+    test("the profile's own newer settings stay, and are claimed with no "
+        'record', () async {
+      settings.record = {...settings.record, 'profileId': '1', 'updatedAt': 9};
+      putRemote({'deviceId': 'dev-1', 'profileId': '1', 'updatedAt': 5});
+      await auth.signIn();
+      await withSettings.idle();
+      expect(settings.applied, isEmpty);
+      expect(settings.claimed, ['1']);
+
+      backend.uploads.remove(key);
+      settings.record = {...settings.record, 'profileId': 'other'};
+      await auth.signOut();
+      await auth.signIn();
+      await withSettings.idle();
+      expect(settings.applied, isEmpty);
+      expect(settings.claimed, ['1', '1']);
+    });
+
     test("another device's record, or a damaged one, is ignored", () async {
       backend.uploads[key] = (
         bytes: Uint8List.fromList(
@@ -956,5 +993,13 @@ class FakeDeviceSettings implements DeviceSettings {
   Future<void> applySettings(Map<String, Object?> remote) async {
     applied.add(remote);
     record = remote;
+  }
+
+  final claimed = <String>[];
+
+  @override
+  Future<void> claimSettings(String profileId) async {
+    claimed.add(profileId);
+    record = {...record, 'profileId': profileId};
   }
 }

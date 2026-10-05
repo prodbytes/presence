@@ -92,8 +92,12 @@ One per clip, about 400 bytes, in the same day partition as its event:
 
 ### Device settings — `devices/<deviceId>/settings.json`
 
-`{deviceId, updatedAt, config}`, with `config` as in
-[Configuration](configuration.md).
+`{deviceId, profileId, updatedAt, config, location}`, in the profile's
+folder: `config` as in [Configuration](configuration.md), `profileId` the
+profile they were synced with, and `location` the location set on the map
+(`{lat, lng, source: "map", time}`, as in [Device
+location](device-location.md)) or null. Older records have no
+`profileId` or `location`.
 
 ## On S3
 

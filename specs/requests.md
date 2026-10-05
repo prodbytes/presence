@@ -2340,3 +2340,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Events](events.md), [Monitoring](monitoring.md),
       [Subjects](subjects.md), [Navigation](navigation.md). 348 Flutter
       tests (1 new) pass.
+239. **When a user logs in, restore all of the device's settings. Save
+     them all on S3, per profile per device.**
+    - Was: the settings record (`devices/<deviceId>/settings.json` in the
+      profile's folder) held the Settings values only, not the location
+      set on the map, and the newer `updatedAt` always won: signing in to
+      profile B on a device last used, and changed later, by profile A kept
+      A's settings and wrote them over B's record.
+    - Changed: the record is `{deviceId, profileId, updatedAt, config,
+      location}`. Setting the location on the map (or going back to My
+      location) is a settings change; device readings aren't. At the
+      first pass for a profile (start or sign-in), the profile's record
+      for this device wins when it's newer **or when the local settings
+      are another profile's**; then they're claimed for the profile
+      (`DeviceSettings.claimSettings`) and uploaded if different. Its map
+      location is restored (`LocationController.applyRemote`). A
+      reinstall or cleared storage still makes a new device ID, whose
+      record starts from the defaults.
+    - Specs: [Configuration](configuration.md), [Cloud
+      sync](cloud-sync.md), [Recording and data formats](data-formats.md),
+      [Device location and battery](device-location.md),
+      [Storage](storage.md). 352 Flutter tests (4 new) pass.

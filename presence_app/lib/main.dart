@@ -172,6 +172,8 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _location.init().ignore();
+    // Settings restored from the cloud include the location set on the map.
+    _persistence.onRemoteLocation = _location.applyRemote;
     // Finds the subjects on each new clip once it's recorded.
     _recognizer = SubjectRecognizer(bus: _bus, log: _log, config: _config);
     _bus.publish(AppEvent.appStarted());

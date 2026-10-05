@@ -23,29 +23,52 @@ All user configuration is one immutable object, **`PresenceConfig`**
   time. Two changes before the next rebuild (for example, quick successive
   drags) both stick.
 - **Stored** as one versioned JSON record (`settings` store, key
-  `config`: `{version, clip, camera, motion, schedule, subjects, updatedAt}`), where
-  `updatedAt` is when the user last changed a setting (ms since the
-  epoch; 0, or absent in older records, for the defaults). `fromJson` tolerates
+  `config`: `{version, clip, camera, motion, schedule, subjects,
+  recognition, history, updatedAt, profileId}`), where `updatedAt` is when
+  the user last changed a setting (ms since the epoch; 0, or absent in
+  older records, for the defaults), setting this device's location on the
+  map (or going back to **My location** from there) included, and
+  `profileId` is the [profile](profiles.md) the settings were last synced
+  with (absent until the first sync). `fromJson` tolerates
   missing or invalid fields (defaults) and out-of-range values (clamped).
   On upgrade, the flat `clip` settings record written by earlier versions is
   read once, through `PresenceConfig.fromLegacy`.
-- **Per device, in S3 too, when it's available**
+- **Per profile and device, in S3 too, when it's available**
   ([Cloud sync](cloud-sync.md)): `Persistence` is the cloud's
-  `DeviceSettings`, and the record goes to
-  `<identityId>/devices/<deviceId>/settings.json` as
-  `{deviceId, updatedAt, config}`.
+  `DeviceSettings`, and the record goes to the profile's folder,
+  `<identityId>/devices/<deviceId>/settings.json`, as
+  `{deviceId, profileId, updatedAt, config, location}`: every setting on
+  the Settings screen, and `location`, the location set on the map
+  ([Device location](device-location.md)) or null when the device's own
+  position is used. A reading of the device's position isn't a setting:
+  it's read again at each launch, and doesn't change the record.
   - At start, the local record loads first (or the defaults). Once the
-    device ID is known and sync can run, the first pass fetches the
-    device's record. **The newer `updatedAt` wins**: a newer cloud record
-    replaces the local settings (and is saved locally, keeping its
-    `updatedAt`, which isn't a change by the user); an older one is
-    overwritten by the local settings. A setting changed before that pass
-    is newer, so it isn't undone.
+    device ID is known and sync can run, the first pass for a profile (at
+    start, or at each sign-in) fetches the device's record from that
+    profile's folder. **A sign-in restores what the profile last had on
+    this device**: the cloud record replaces the local settings when it's
+    newer, or when the local settings are **another profile's** (synced
+    with it last), however recent. Otherwise (the same profile, or
+    settings never synced) the newer `updatedAt` wins, so a setting
+    changed signed out, or before that pass, isn't undone.
+  - Taking on the cloud's record saves it locally, keeping its
+    `updatedAt` (it isn't a change by the user); its location, set on the
+    map, shows at once ("Set on the map"); with none set there, a location
+    set on the map here gives way to **My location**. A record from before
+    the location synced (no `location` field) leaves this device's alone.
+  - Then the settings are the profile's (`profileId`), and the record is
+    uploaded over the cloud's if it differs. So signing in to profile A,
+    then B, then A on one device brings back A's settings, then B's, then
+    A's; a profile with no record for this device takes on the settings
+    in use.
   - Every change is uploaded within a second (the save signals sync), and
     the record is uploaded only when it differs from what the cloud
     holds.
   - A device with no record anywhere starts with the defaults and uploads
     them (`updatedAt` 0).
+  - The record is keyed by the device ID, which lives in the device's
+    storage: a reinstall, or clearing the browser's site data, makes a new
+    device with the defaults, and the old device's record isn't read.
   - Without S3 (signed out, no access, DEV mode, or no cloud settings in
     the build) only the local database is used.
   - A record for another device ID, or a damaged one, is ignored and
