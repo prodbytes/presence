@@ -173,6 +173,46 @@ Resources:
               - Effect: Allow
                 Action: cloudformation:ListExports
                 Resource: '*'
+              # The site's health check (site.yaml): its Fn::ForEach transform,
+              # the Route 53 health check, its alarm and the email topic.
+              # Health checks have no names to scope by, so any in the account.
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
+              - Effect: Allow
+                Action: route53:CreateHealthCheck
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - route53:GetHealthCheck
+                  - route53:UpdateHealthCheck
+                  - route53:DeleteHealthCheck
+                  - route53:ChangeTagsForResource
+                  - route53:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:route53:::healthcheck/*
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:presence-*
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:GetSubscriptionAttributes
+                  - sns:ListSubscriptionsByTopic
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-*
               # The site: CloudFront, its certificate and DNS records
               - Effect: Allow
                 Action: cloudfront:*
@@ -331,6 +371,46 @@ Resources:
               - Effect: Allow
                 Action: cloudformation:ListExports
                 Resource: '*'
+              # The site's health check (site.yaml): its Fn::ForEach transform,
+              # the Route 53 health check, its alarm and the email topic.
+              # Health checks have no names to scope by, so any in the account.
+              - Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
+              - Effect: Allow
+                Action: route53:CreateHealthCheck
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - route53:GetHealthCheck
+                  - route53:UpdateHealthCheck
+                  - route53:DeleteHealthCheck
+                  - route53:ChangeTagsForResource
+                  - route53:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:route53:::healthcheck/*
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:presence-rc-*
+              - Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:GetSubscriptionAttributes
+                  - sns:ListSubscriptionsByTopic
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-rc-*
               # The site: CloudFront, its certificate and DNS records
               - Effect: Allow
                 Action: cloudfront:*

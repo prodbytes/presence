@@ -2620,3 +2620,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        in this log (39, 230, 231, 233, 234) and four links in old entries
        to paths that no longer exist. Every feature spec is indexed and
        its claims spot-checked against the code match.
+259. **Make sure the infra code has a Route 53 health check for the top
+     level domain and a specific path /health that checks the required
+     services and dependencies, with an argument of emails for
+     notifications, default julio+health@nu01.com.** (2026-10-05)
+     - Added: `GET /health` (`HealthFunction`, `presence.auth.HealthHandler`,
+       public). It checks the settings, the six tables, the user-data
+       bucket, the identity pool and Google's signing keys, in parallel
+       within 1.5 s. It answers 200 `"status":"ok"` or 503 with each
+       check's ok/fail, and reuses a result for 20 s. CloudFront routes
+       `/health` to the API, uncached.
+     - Added to `site.yaml`: an `HTTPS_STR_MATCH` Route 53 health check of
+       `https://<domain>/health` (30 s, three regions), an alarm on
+       `HealthCheckStatus`, and an SNS topic with one email subscription
+       per address in the new `HealthNotificationEmails` parameter
+       (default julio+health@nu01.com, via `Fn::ForEach`).
+       `scripts/deploy.sh` passes it from `PRESENCE_HEALTH_EMAILS`
+       (environment, `.env` or the workflows' repository variable),
+       deploys with `CAPABILITY_AUTO_EXPAND`, and smoke-tests `/health`.
+       Both GitHub deploy roles got the needed permissions; that stack
+       must be redeployed by hand before the next tag deploy.
+     - Specs: [Health check](health-check.md) (new),
+       [Production deploy](deploy.md), [Auth API](auth-api.md),
+       [README](README.md). 77 Java tests pass (4 new).
+

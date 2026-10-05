@@ -1,10 +1,15 @@
 AWSTemplateFormatVersion: '2010-09-09'
+# Fn::ForEach: one email subscription per HealthNotificationEmails entry
+# (deploy with CAPABILITY_AUTO_EXPAND).
+Transform: AWS::LanguageExtensions
 Description: >
   presence-web: the site at https://presence.nu01.com (and, as
   presence-rc-web, https://rc.presence.nu01.com). One CloudFront
   distribution in front of the index page (/) and the Flutter web app
-  (/app/), both from a private S3 bucket, and the auth API (/api/*, the
-  presence_api_auth SAM stack's HTTP API).
+  (/app/), both from a private S3 bucket, and the auth API (/api/* and
+  /health, the presence_api_auth SAM stack's HTTP API). A Route 53 health
+  check polls https://DomainName/health; when it fails, an alarm emails
+  HealthNotificationEmails.
   Deploy in us-east-1 (CloudFront certificates must live there).
 
 Parameters:
@@ -17,6 +22,12 @@ Parameters:
   ApiDomainName:
     Type: String
     Description: The auth API's execute-api host name (the presence_api_auth stack's ApiDomain output)
+  HealthNotificationEmails:
+    Type: CommaDelimitedList
+    Default: julio+health@nu01.com
+    Description: >
+      Who is emailed when the health check fails and recovers, comma-separated.
+      Each address must confirm AWS's subscription email first.
 
 Resources:
   Certificate:
@@ -160,6 +171,14 @@ Resources:
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt AppIndexFunction.FunctionMetadata.FunctionARN
+          # The health check (presence.auth.HealthHandler): never cached.
+          - PathPattern: /health
+            TargetOriginId: api
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
           # The auth API: nothing cached; every viewer header but Host is
           # forwarded, Authorization (the Google ID token) included.
           - PathPattern: /api/*
@@ -193,6 +212,66 @@ Resources:
         HostedZoneId: Z2FDTNDATAQYW2
         EvaluateTargetHealth: false
 
+  # Polls https://DomainName/health through CloudFront: the edge, the API,
+  # its tables, the user-data bucket, the identity pool and Google's keys.
+  # Healthy only on a 2xx/3xx whose body says "status":"ok".
+  HealthCheck:
+    Type: AWS::Route53::HealthCheck
+    Properties:
+      HealthCheckConfig:
+        Type: HTTPS_STR_MATCH
+        FullyQualifiedDomainName: !Ref DomainName
+        Port: 443
+        ResourcePath: /health
+        SearchString: '"status":"ok"'
+        EnableSNI: true
+        RequestInterval: 30
+        FailureThreshold: 3
+        # Three regions (the fewest allowed) keep the checkers' calls down.
+        Regions: [us-east-1, us-west-2, eu-west-1]
+      HealthCheckTags:
+        - Key: Name
+          Value: !Sub ${DomainName}/health
+
+  HealthTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-health
+      DisplayName: Presence health
+
+  # The default topic policy lets this account's CloudWatch alarms publish.
+  Fn::ForEach::HealthEmails:
+    - Email
+    - !Ref HealthNotificationEmails
+    - HealthEmail&{Email}:
+        Type: AWS::SNS::Subscription
+        Properties:
+          TopicArn: !Ref HealthTopic
+          Protocol: email
+          Endpoint: !Ref Email
+
+  # Route 53 publishes health check metrics in us-east-1, where this stack
+  # lives. Missing data (the check gone) counts as failing.
+  HealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-health
+      AlarmDescription: !Sub https://${DomainName}/health is failing (Route 53 health check)
+      Namespace: AWS/Route53
+      MetricName: HealthCheckStatus
+      Dimensions:
+        - Name: HealthCheckId
+          Value: !GetAtt HealthCheck.HealthCheckId
+      Statistic: Minimum
+      Period: 60
+      EvaluationPeriods: 2
+      DatapointsToAlarm: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref HealthTopic]
+      OKActions: [!Ref HealthTopic]
+
 Outputs:
   SiteUrl:
     Value: !Sub https://${DomainName}/
@@ -203,3 +282,9 @@ Outputs:
     Value: !Ref Distribution
   DistributionDomainName:
     Value: !GetAtt Distribution.DomainName
+  HealthCheckId:
+    Description: The Route 53 health check of https://DomainName/health
+    Value: !GetAtt HealthCheck.HealthCheckId
+  HealthTopicArn:
+    Description: Where health alarms go (HealthNotificationEmails subscribe to it)
+    Value: !Ref HealthTopic
