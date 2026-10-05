@@ -265,6 +265,7 @@ void main() {
       BatteryReader? battery,
       Size size = const Size(400, 800),
       List<FakeCameraSource> cameras = const [],
+      FakeRolesClient? rolesClient,
     }) async {
       tester.view.physicalSize = size;
       tester.view.devicePixelRatio = 1;
@@ -276,7 +277,7 @@ void main() {
           cameras: cameras.isEmpty ? noCameras : openFakes(cameras),
           storage: storage,
           auth: FakeAuthService.signedIn(),
-          rolesClient: FakeRolesClient(),
+          rolesClient: rolesClient ?? FakeRolesClient(),
           locator: locator,
           battery: battery ?? FakeBattery(null),
           // No network in tests.
@@ -583,6 +584,53 @@ void main() {
         expect(tester.takeException(), isNull);
       });
     }
+
+    testWidgets('a failed health check: a warning icon pill, which opens '
+        'the details', (tester) async {
+      final client = FakeRolesClient()
+        ..anonymousError = Exception('unreachable');
+      await launch(tester, FakeLocator(), rolesClient: client);
+      final pill = find.byKey(const Key('health-warning'));
+      expect(pill, findsOneWidget);
+      // Only the icon: no label.
+      expect(
+        find.descendant(of: pill, matching: find.byType(Text)),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: pill,
+          matching: find.byIcon(Icons.warning_amber_rounded),
+        ),
+        findsOneWidget,
+      );
+      final tooltip = tester
+          .widget<Tooltip>(
+            find.descendant(of: pill, matching: find.byType(Tooltip)),
+          )
+          .message!;
+      expect(tooltip, contains('Auth API: unreachable'));
+
+      // For an admin, tapping it opens the Log tab's health panel.
+      await tester.tap(pill);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('health-panel')), findsOneWidget);
+      expect(pill, findsNothing, reason: 'over the camera only');
+
+      // Answering again: no warning.
+      client.anonymousError = null;
+      await tester.tap(find.byTooltip('Camera'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(minutes: 5));
+      await tester.pumpAndSettle();
+      expect(pill, findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('every health check passing: no warning pill', (tester) async {
+      await launch(tester, FakeLocator());
+      expect(find.byKey(const Key('health-warning')), findsNothing);
+    });
 
     testWidgets('without permission, the map asks to be moved', (tester) async {
       await launch(

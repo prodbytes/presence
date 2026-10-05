@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
 import 'events.dart';
+import 'status_pill.dart';
 import 'theme.dart';
 
 /// One check's status: its emoji and what it means (the tooltip).
@@ -126,6 +127,56 @@ class SystemHealth extends StatelessWidget {
     ),
     (false, true) => ('⚠️', '$name: set in this build but not in the auth API'),
   };
+}
+
+/// Over the camera, while a health check fails: a [StatusPill] with only
+/// a warning icon, in the error color. Its tooltip and screen-reader label
+/// name the [failed] checks; tapping it calls [onTap].
+class HealthWarningPill extends StatelessWidget {
+  const HealthWarningPill({super.key, required this.failed, this.onTap});
+
+  /// The failed checks' explanations ([failedChecks]).
+  final List<String> failed;
+
+  /// Where tapping it goes: the checks' details.
+  final VoidCallback? onTap;
+
+  /// The explanations of the checks that fail now ([healthPartFailed]);
+  /// empty while every check passes or is still running.
+  static List<String> failedChecks(
+    RolesService roles,
+    CloudSync? sync, {
+    bool? oidcClient,
+  }) {
+    final status = SystemHealth.statusOf(
+      roles,
+      sync,
+      oidcClient: oidcClient ?? hasOidcClient,
+    );
+    return [
+      for (final part in [status.api, status.aws, status.oidc])
+        if (healthPartFailed(part)) part.$2,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = StatusPill(
+      key: const Key('health-warning'),
+      leading: Icon(
+        Icons.warning_amber_rounded,
+        size: 18,
+        color: Theme.of(context).colorScheme.error,
+      ),
+      semantics: [
+        'Health check failed',
+        ...failed,
+        if (onTap != null) 'Tap for details.',
+      ].join('\n'),
+    );
+    if (onTap == null) return pill;
+    return GestureDetector(onTap: onTap, child: pill);
+  }
 }
 
 /// One run of the health panel's checks.
