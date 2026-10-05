@@ -2482,3 +2482,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Verified on the S40: the camera kept recording with the screen asleep
        for over a minute. Specs: [Android](android.md). 361 Flutter tests
        pass (2 new).
+250. **When events are synced, update them on screen, so a tag removed on
+     one device stops showing on the others at the next sync. Check
+     whether it already works that way, or make it so.**
+    - Checked: it didn't. The fetch only downloaded events the device
+      didn't have and never overwrote local ones, so another device's
+      change to an event (a tag added, renamed or removed) never reached
+      a device that already had it. Also, the sync runs every 15 s, not
+      every 5 minutes; events older than yesterday are only listed in
+      the hourly full pass.
+    - Changed: the listing now reads each event's ETag (the MD5 of its
+      bytes for this bucket, `S3Bucket.listETags`), and the `synced`
+      store keeps the ETag of each event as this device last uploaded or
+      downloaded it (`etag:<key>`). An event whose ETag differs comes down
+      again (`RemoteRecords.updated`), unless the device has its own
+      change not uploaded yet, which then goes up over it. The app
+      replaces that clip's tags, suggestions, object tags and frames in
+      the event on screen (`Persistence.updateFromRemote`,
+      `ClipAnnotations.replaceWith`) and saves it, so the card, the
+      subjects map, a subject's screen and the Events search and count
+      update at once. Then that version counts as synced, so it isn't
+      uploaded back.
+    - Specs: [Cloud sync](cloud-sync.md), [Subjects](subjects.md),
+      [Storage](storage.md). 365 Flutter tests (6 new) pass.

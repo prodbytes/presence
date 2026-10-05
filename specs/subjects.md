@@ -19,6 +19,10 @@ and pets"), each with where the device was when they were seen
   label's **x** on a clip's card) updates every screen at once: the cards,
   the subjects map and its names, a subject's screen, and the Events
   search and count.
+- **Changes on another device** of the profile (a tag added, renamed or
+  removed) reach this one at the next [cloud sync](cloud-sync.md) pass
+  (within 15 s for today's and yesterday's events, within the hour for
+  older ones) and update its screens the same way.
 
 ## On the Monitoring tab
 

@@ -3,8 +3,10 @@
 Signed-in users' **clips (videos), events and each device's settings
 sync with S3**, straight from
 the device, both ways: at start and **every 15 s**, events only on the
-device go up and events only in the user's folder come down, so every
-device of a user shows the same events as the bucket. The auth API only
+device go up, events only in the user's folder come down, and events
+another device changed (such as a tag removed) come down again and
+replace what's on screen, so every device of a user shows the same
+events as the bucket. The auth API only
 hands out credentials: the app trades the user's Google ID token for a
 token for their [profile](profiles.md), and that for temporary AWS
 credentials through a **Cognito identity pool**. It then makes signed S3
@@ -78,6 +80,34 @@ an Athena table are in [Recording and data formats](data-formats.md).
     (`Persistence.importRemote`, with recordings through
     `MediaStore.saveBytes`) and added to the event log, so the
     **Monitoring** tab shows them at once.
+- **Changes from other devices:** an event the device has that another
+  device changed since (a tag added, renamed or removed, a suggestion
+  confirmed, object tags) comes down again in the same pass, within the
+  same 1000:
+  - **Spotted from the listing, not by downloading:** the listing gives
+    each key's **ETag**, which for this bucket (single `PUT`s, SSE-S3) is
+    the MD5 of the object's bytes (`CloudSync.etagOf`). The `synced`
+    store keeps, as `etag:<object key>`, the ETag of each event as this
+    device last uploaded or downloaded it. A listed event whose ETag
+    differs, at the key this device uploads it to, has changed elsewhere.
+  - **A change here not uploaded yet wins:** if the device's own copy
+    changed since its last sync, it isn't downloaded, and the upload that
+    follows writes it over the other device's version.
+  - Downloaded with the tagged frames the device lacks, and handed over as
+    `RemoteRecords.updated`. The app (`Persistence.updateFromRemote`)
+    replaces the clip's **tags, suggestions, object tags and the frames
+    they use** in the event on screen (`ClipAnnotations.replaceWith`),
+    so its card, the subjects map, a subject's screen and the Events
+    search and count update at once, and saves it. The rest of the local
+    event (its clip, location…) stays as it is here.
+  - Then that version counts as synced: it isn't uploaded back, nor
+    downloaded again until it changes once more.
+  - **How soon:** within 15 s for events of today and yesterday (UTC),
+    the partitions every pass lists; within an hour for older ones in
+    the window, at the hourly full listing (see below).
+  - Events synced before ETags were kept: one this device uploaded is
+    recognized by its bytes; one it downloaded (stored with its profile
+    ID, so different bytes) is downloaded once more, to learn its ETag.
 - **What a pass lists** (`ListObjectsV2`, billed per request, so kept
   small):
   - the first pass for a user (at start, sign-in or a user change) lists
@@ -93,18 +123,28 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - A new device (or one whose storage was cleared) therefore starts with
   two weeks of history, rather than everything in the bucket. Events from
   other devices of the same profile (any of its linked Google accounts,
-  hence the same Cognito identity) come down within 15 s. Older data stays in the bucket until it
+  hence the same Cognito identity) come down within 15 s, and so do
+  their changes to today's and yesterday's events. Older data stays in the bucket until it
   expires, and on the devices that recorded it.
 - **Upload:** everything stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
 - Tests: `cloud_sync_test.dart` ("a new device gets only the last two
   weeks"; another device's event on the next pass, listing only today and
   yesterday; the hourly full listing; at most `maxFetch` per pass, newest
-  first) and `persistence_test.dart` (a session restored at launch; "every
-  15 s, events from another device join the timeline").
+  first; another device's change comes down once, as `updated`, and
+  doesn't go back up, then again when it changes once more; a change here
+  not uploaded yet wins; events synced before ETags were kept are fetched
+  at most once more), `s3_test.dart` (keys listed with their ETags, across
+  pages) and `persistence_test.dart` (a session restored at launch; "every
+  15 s, events from another device join the timeline"; "a tag removed on
+  another device goes at the next sync": the name and the object tag
+  leave the card and the map, the frame another tag uses stays, the
+  other device's version isn't overwritten, and it's still gone after a
+  restart).
 - **Nothing twice:** the `synced` store keeps each uploaded object key with
-  a fingerprint of its content (the SHA-256 of the JSON, or the media ID).
-  An unchanged object is skipped. A changed one, such as a clip's event
+  a fingerprint of its content (the SHA-256 of the JSON, or the media ID),
+  and for events their ETag too (`etag:<object key>`, see **Changes from
+  other devices**). An unchanged object is skipped. A changed one, such as a clip's event
   that's updated when the clip completes, is uploaded again.
 - One pass runs at a time. A change during a pass queues one more pass.
 
@@ -259,7 +299,15 @@ In [presence_infra/](../presence_infra):
   own prefix.
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
-- The fetch adds what's missing and never overwrites local records. A clip
-  deleted on one device isn't deleted elsewhere (nothing is deleted yet),
-  and a change to an event another device already has (such as a tag
-  added later) doesn't reach it.
+- A clip deleted on one device isn't deleted elsewhere (nothing is
+  deleted yet).
+- Of a changed event, only its tags, suggestions and object tags are taken
+  on: other fields another device changes (such as `clipState`) aren't.
+- Two devices changing the same event between passes: the last upload
+  wins, whole. A device holding an unsynced change uploads it over the
+  other's, so the other's edit to that event is lost.
+- Changes to events older than yesterday arrive within the hour, not the
+  15 s.
+- ETags as MD5s need single `PUT`s and SSE-S3 (or no) encryption. With
+  SSE-KMS or multipart uploads they wouldn't match, and each such event
+  would be downloaded once more after every upload.

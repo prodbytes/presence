@@ -30,7 +30,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
 | `settings` | name (`config`, `device`, `location`, `consent`) | `config`: the whole `PresenceConfig` as versioned JSON, with when it last changed (`updatedAt`) and the profile it was last synced with (`profileId`); also kept in S3 per profile and device, with the location set on the map, see [Configuration](configuration.md) (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)); `location`: where it is ([Device location](device-location.md)); `consent`: its recording consent, with a verification hash ([Recording consent](consent.md)) |
-| `synced` | S3 object key | a fingerprint of what was uploaded there ([cloud sync](cloud-sync.md)) |
+| `synced` | S3 object key | a fingerprint of what was uploaded there, and under `etag:<key>` an event's ETag as last uploaded or downloaded ([cloud sync](cloud-sync.md)) |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The

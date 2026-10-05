@@ -306,6 +306,22 @@ class ClipAnnotations extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Takes on [other]'s entries, the frames they use and its object tags:
+  /// the same clip, as changed on another device.
+  void replaceWith(ClipAnnotations other) {
+    _items
+      ..clear()
+      ..addAll(other._items);
+    _frames
+      ..clear()
+      ..addAll({
+        for (final id in {for (final a in _items) ?a.frameId})
+          id: ?other._frames[id],
+      });
+    _objects = other._objects == null ? null : List.of(other._objects!);
+    notifyListeners();
+  }
+
   /// Removes every tag named [name] (ignoring case and surrounding spaces),
   /// and the frames no entry uses any more: the subject is off the clip.
   /// Suggestions stay, for their own Yes / No.

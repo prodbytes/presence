@@ -226,6 +226,9 @@ class _PresenceAppState extends State<PresenceApp> {
                 media: remote.media,
               );
               _log.addHistory(events);
+              // Events changed on another device: their tags as they are
+              // there now, on screen too.
+              await _persistence.updateFromRemote(remote.updated, _log.events);
               _rig.answerCaptureAll(events, deviceId: _deviceId);
             },
           );
