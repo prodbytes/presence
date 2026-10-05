@@ -46,5 +46,8 @@ cycle, in this order, stopping to report if any step fails:
    run, or the version still live).
 6. **Deploy locally**: start the dev servers (`devbox services up`) and
    check they come up healthy.
-7. **Redeploy and restart on the Android phone** connected by USB
-   (`devbox run android`).
+7. **Redeploy and restart on the Android phone** connected by USB, as a
+   release build (`bash scripts/android-install.sh`, or
+   `devbox run android-release`): it builds, installs over the app and
+   starts it, then checks it runs. The unattended phone runs release,
+   which takes half the memory of a debug build.
