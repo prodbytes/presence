@@ -2464,3 +2464,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Changed: About's prodbytes link opens `https://prodbytes.substack.com`
       (was `https://github.com/prodbytes`).
     - Specs: [About](about.md).
+249. **Ensure that on Android the device keeps capturing even if untouched
+     for a long time: prevent the camera and device from sleeping to the
+     point the app stops working; turning only the screen off to save
+     battery is fine.** (2026-10-05)
+     - Found on the S40: under Google's sign-in chooser at launch, Android
+       refused the camera ("can't use the camera from an idle UID"), as it
+       does with the screen off; a running camera taken away was closed
+       without telling Dart, so capture stopped silently; and with the
+       screen off, the undrawn preview could stall the recording.
+     - Changed: a `CaptureService` foreground service (camera, microphone)
+       with a partial wake lock and a Wi-Fi lock, started when the app is
+       shown; the preview leaves the capture request while the app isn't
+       shown; a lost camera is reported (`CameraSource.lost`) and reopened
+       every 10 s until it opens; the app asks once to skip battery
+       optimization.
+     - Verified on the S40: the camera kept recording with the screen asleep
+       for over a minute. Specs: [Android](android.md). 361 Flutter tests
+       pass (2 new).

@@ -76,6 +76,11 @@ class _NativeCameraSource implements CameraSource {
       _hasMotion = opened['motion'] == true,
       _mirror = opened['mirror'] == true,
       _lastPreRoll = _preRoll() {
+    _lostEvents = _motion
+        .where((e) => e['id'] == id && e['lost'] != null)
+        .listen((e) {
+          if (!_lost.isCompleted) _lost.complete(e['lost']! as String);
+        });
     // Keep the ring buffer's history in step with the settings.
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       final preRoll = _preRoll();
@@ -103,8 +108,16 @@ class _NativeCameraSource implements CameraSource {
 
   @override
   Stream<Uint8List>? get motionFrames => _hasMotion
-      ? _motion.where((e) => e['id'] == id).map((e) => e['luma']! as Uint8List)
+      ? _motion
+            .where((e) => e['id'] == id && e['luma'] != null)
+            .map((e) => e['luma']! as Uint8List)
       : null;
+
+  final _lost = Completer<String>();
+  late final StreamSubscription<Object?> _lostEvents;
+
+  @override
+  Future<String> get lost => _lost.future;
   final Duration Function() _preRoll;
   Duration _lastPreRoll;
   late final Timer _ticker;
@@ -177,6 +190,7 @@ class _NativeCameraSource implements CameraSource {
   @override
   Future<void> dispose() async {
     _ticker.cancel();
+    _lostEvents.cancel();
     // Replies once the camera is fully closed, so the next can open.
     await _invoke<void>('close');
   }

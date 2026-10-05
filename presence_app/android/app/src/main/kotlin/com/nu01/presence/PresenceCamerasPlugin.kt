@@ -35,6 +35,18 @@ class PresenceCamerasPlugin(
     private val open = mutableMapOf<String, Pair<RollingCamera, TextureRegistry.SurfaceTextureEntry>>()
     private var permissionResult: MethodChannel.Result? = null
 
+    /** Whether the app is shown, so cameras feed their previews. */
+    private var previewVisible = true
+
+    /**
+     * The app is shown or not: cameras feed their previews only while it is
+     * (nothing draws them otherwise), and keep recording either way.
+     */
+    fun setPreviewVisible(visible: Boolean) {
+        previewVisible = visible
+        for ((cam, _) in open.values) cam.setPreview(visible)
+    }
+
     /** The `presence/motion` event stream: `{id, luma}` frames. */
     private var motionSink: EventChannel.EventSink? = null
 
@@ -167,12 +179,14 @@ class PresenceCamerasPlugin(
 
     fun onRequestPermissionsResult(requestCode: Int, grants: IntArray): Boolean {
         if (requestCode != PERMISSION_REQUEST) return false
+        if (granted(Manifest.permission.CAMERA)) CaptureService.start(activity)
         permissionResult?.success(permissionState())
         permissionResult = null
         return true
     }
 
     fun dispose() {
+        CaptureService.stop(activity)
         for ((cam, texture) in open.values) {
             cam.close()
             texture.release()
@@ -246,7 +260,15 @@ class PresenceCamerasPlugin(
                     cam.onMotionFrame = { luma ->
                         main.post { motionSink?.success(mapOf("id" to id, "luma" to luma)) }
                     }
+                    // Taken away while running: Dart closes and reopens it.
+                    cam.onLost = { reason ->
+                        main.post { motionSink?.success(mapOf("id" to id, "lost" to reason)) }
+                    }
+                    cam.setPreview(previewVisible)
                     open[id] = cam to texture
+                    // Keep capturing untouched and with the screen off (the
+                    // activity starts it too, but not before the first grant).
+                    CaptureService.start(activity)
                     result.success(
                         mapOf(
                             "textureId" to texture.id(),

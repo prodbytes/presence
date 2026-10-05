@@ -44,9 +44,40 @@ Android uses the standard dashcam technique instead
   Camera2's closed callback, with a 3 s timeout) before opening the next.
   This works on phones without concurrent-camera support, and was verified
   on the S40 (back camera 0 ↔ front camera 1).
-- **Screen off / background:** Android refuses to open cameras while the
-  screen is off or the app is in the background. A camera that failed to
-  open is reopened automatically when the app returns to the foreground.
+- **Keeps capturing untouched, with the screen off:** the screen stays on
+  while the app is shown (`FLAG_KEEP_SCREEN_ON`), but it may go off (the
+  power button, a covering app); recording, motion clips and sync go on:
+  - **`CaptureService`**, a foreground service (types `camera` and
+    `microphone`, the latter only with the microphone allowed), with an
+    ongoing low-importance notification, "Presence is capturing". Android
+    lets only such an app use the camera with the screen off or covered
+    (on the S40: "can't use the camera from an idle UID", e.g. under
+    Google's sign-in chooser at launch). It may only start while the app is
+    shown, so `MainActivity.onStart` starts it once the camera is allowed
+    (and the permission grant and every camera opening start it too), with
+    a plain `startService`: `startForegroundService` kills the app when the
+    service isn't foreground within 10 s, which a debug build's busy launch
+    missed. It stops when the activity is destroyed.
+  - It holds a **partial wake lock** (`presence:capture`; the CPU keeps
+    running) and a **Wi-Fi lock** (events keep syncing).
+  - **The preview pauses while the app isn't shown** (`onStop`;
+    `RollingCamera.setPreview` takes the preview out of the repeating
+    request, and `onStart` puts it back): nothing draws it then, and its
+    full buffers would stall the camera's other outputs, the recording too.
+  - **Battery optimization:** at the first launch, the app asks once (per
+    install) to be left out of it (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`),
+    so Doze doesn't cut its network or wake lock on battery. Plugged in,
+    Doze doesn't apply.
+  - **A camera taken away is reopened:** when a running camera is
+    disconnected or fails, the `presence/motion` stream sends
+    `{id, lost: reason}`; the source's `lost` completes, and `CameraRig`
+    closes it and tries to reopen it every 10 s
+    (`CameraRig.lostRetryDelay`) until it opens. A camera that failed to
+    open is also reopened when the app returns to the foreground.
+  - Verified on the S40 (plugged in): with the screen asleep for over a
+    minute, the encoder and motion streams kept running (972 frames each,
+    no disconnect) while the preview stream stopped, and the preview came
+    back when the screen woke.
 - **Audio timestamps** come from the sample count, anchored to the camera
   clock, and are strictly increasing: MP4 rejects audio that goes back in
   time even by a few ms. The muxer also skips any non-increasing sample
@@ -55,7 +86,10 @@ Android uses the standard dashcam technique instead
   the main thread, and thumbnails have their own thread so they never delay
   a clip's before part.
 - **Permissions:** camera and microphone are requested at launch. Without
-  the microphone, recording is video-only. The screen is kept on.
+  the microphone, recording is video-only. The screen is kept on while the
+  app is shown. The manifest also has `FOREGROUND_SERVICE` (and its
+  `_CAMERA` and `_MICROPHONE` types), `WAKE_LOCK` and
+  `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, for capturing untouched.
 - **Storage:** metadata goes in a persistent sembast database (via
   `idb_shim`) in the app's private storage. Recordings are MP4 files in the
   app's private `clips/` folder, not database rows, because sembast keeps
@@ -111,6 +145,15 @@ Android uses the standard dashcam technique instead
   create avd` and `emulator -avd <name> -no-window`.
 
 ## Known limitations
+
+- Capturing untouched was verified for minutes, plugged in, on Android 9;
+  not yet for hours, on battery (Doze), or on Android 13+, where the
+  capture notification needs `POST_NOTIFICATIONS`, which the app doesn't
+  ask for: without it the service still runs, with its notification only
+  in the task manager.
+- If Android kills the app (low memory, the user swipes it away), capture
+  stops until it's opened again: the service doesn't restart without the
+  app, whose camera lives in it.
 
 - The Android app is locked to portrait (`screenOrientation="portrait"`):
   the preview, the recording's rotation flag and thumbnails all assume a

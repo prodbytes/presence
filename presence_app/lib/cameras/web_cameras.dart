@@ -343,6 +343,11 @@ class WebCameraSource implements CameraSource {
   }
 
   @override
+  // Browsers end tracks rather than report a lost camera.
+  @override
+  Future<String> get lost => Completer<String>().future;
+
+  @override
   Future<void> dispose() async {
     _motionTimer?.cancel();
     _motion.close();
