@@ -148,7 +148,7 @@ class HealthHistory extends ChangeNotifier {
   /// The app's history, which the Log tab's panel writes to.
   static final HealthHistory instance = HealthHistory();
 
-  /// How many checks are kept (an hour, at one every 30 s).
+  /// How many checks are kept (30 min in DEV, 2 h in RBAC).
   final int capacity;
 
   final _checks = ListQueue<HealthCheck>();
@@ -204,7 +204,7 @@ _checks = [
 /// on the right, with the time
 /// every 2 minutes, scrolling sideways; tap a run for its details. It asks
 /// the auth API again ([RolesService.checkApi]) when it opens and every
-/// [interval] while it's shown, then records the checks; AWS shows the
+/// [intervalFor] the execution mode while it's shown, then records the checks; AWS shows the
 /// cloud sync's latest pass, which runs on its own.
 class HealthPanel extends StatefulWidget {
   HealthPanel({
@@ -216,7 +216,7 @@ class HealthPanel extends StatefulWidget {
     this.deviceId,
     bool? oidcClient,
     HealthHistory? history,
-    this.interval = const Duration(seconds: 30),
+    this.interval,
   }) : oidcClient = oidcClient ?? hasOidcClient,
        history = history ?? HealthHistory.instance;
 
@@ -241,8 +241,23 @@ class HealthPanel extends StatefulWidget {
   static int devicesIn(Iterable<AppEvent> events, {String? deviceId}) =>
       {for (final e in events) ?(e.deviceId ?? deviceId)}.length;
 
-  /// How often the checks run.
-  final Duration interval;
+  /// How often the checks run; by default [intervalFor] the mode.
+  final Duration? interval;
+
+  /// How often the checks run in [mode]: 15 s in DEV, 60 s in RBAC (and
+  /// before the start check, when [oidcClient] says which it will be).
+  static Duration intervalFor(
+    ExecutionMode? mode, {
+    required bool oidcClient,
+  }) =>
+      (mode ?? (oidcClient ? ExecutionMode.rbac : ExecutionMode.dev)) ==
+          ExecutionMode.dev
+      ? const Duration(seconds: 15)
+      : const Duration(seconds: 60);
+
+  /// How often the checks run with [roles]' mode.
+  Duration intervalOf(RolesService roles) =>
+      interval ?? intervalFor(roles.mode, oidcClient: oidcClient);
 
   /// Room each run takes on the timeline, and its block's size.
   static const double runWidth = 14;
@@ -263,13 +278,16 @@ class _HealthPanelState extends State<HealthPanel> {
   void initState() {
     super.initState();
     _check();
-    _timer = Timer.periodic(widget.interval, (_) => _check());
   }
 
+  /// Checks, records the run, and checks again after the mode's interval
+  /// (read each time, as the start check may change the mode).
   Future<void> _check() async {
     await widget.roles.checkApi();
+    if (_disposed) return;
+    _timer = Timer(widget.intervalOf(widget.roles), _check);
     // Before the start check, there's nothing to record yet.
-    if (_disposed || widget.roles.mode == null) return;
+    if (widget.roles.mode == null) return;
     widget.history.add(
       HealthCheck(
         widget.roles.apiCheckedAt ?? DateTime.now(),
@@ -439,7 +457,7 @@ class _HealthPanelState extends State<HealthPanel> {
     final selected = checks.contains(_selected) ? _selected : null;
     const labelHeight = 18.0;
     final blockHeight = HealthPanel.blockSize.height;
-    final every = widget.interval.inSeconds;
+    final every = widget.intervalOf(widget.roles).inSeconds;
     return Card(
       key: const Key('health-timeline'),
       margin: EdgeInsets.zero,
