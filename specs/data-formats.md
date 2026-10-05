@@ -28,7 +28,8 @@ record) says which part of the file the clip is; players start there. See
   average (6.8–14.9 MB), about 3.4 Mbit/s for a 30 s clip.
 - **Images** are JPEG: the clip's **thumbnail** (the camera's frame when
   the clip was asked for, about 20 KB) and each **tagged frame** (the frame
-  someone tagged on, at most 960 px wide, about 50 KB).
+  someone tagged on, at most 960 px wide, about 50 KB; at most 640 px for
+  frames recognition tagged).
 
 ## Metadata
 

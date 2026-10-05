@@ -2687,3 +2687,37 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        output size); a 5 fps motion stream via a repeating burst (riskier
        on LEGACY HALs).
      - Specs: [Android](android.md).
+262. **Make recognition much cheaper on a slow Android phone (DOOGEE S40:
+     a 15 s clip took ~64 s, the app stuttered and was killed for memory
+     right after) without changing what it recognizes: models in one
+     worker isolate, cheaper frames, a memory gate with backpressure, and
+     less work per frame.** (2026-10-05)
+     - Worker: on Android one long-lived isolate (`vision_worker.dart`,
+       `WorkerVision`) owns the four models, loads them (mapped from files
+       in `files/models/`, since `tflite_flutter` never frees a model
+       loaded from bytes), builds the anchors, preprocesses, runs and
+       decodes; outputs are read in place, not copied (EfficientDet's
+       7 MB of scores per frame). Frames go in as transferable RGBA, only
+       the analysis comes back. 2 interpreter threads (was 4). Freed after
+       60 s idle. `Vision` moved to `vision.dart`, with `release()`; web
+       keeps `VisionModels` on its own thread.
+     - Frames: new `keyframesAt` (`presence/cameras`) returns the keyframe
+       nearest each time, each once, decoded alone and scaled while
+       decoding (`getScaledFrameAtTime`), turned after, as raw RGBA; JPEGs
+       only on demand (`encodeJpeg`). `framesAt` is gone from the channel.
+       Sampling every 1 s (was 0.5 s) at 640 px (was 960), 3 per call
+       (was 8).
+     - Memory: `memoryStatus` on `presence/device`; while it's tight
+       (low, or under threshold + 64 MB) a new clip waits 30 s at a time
+       (up to 10), Auto says the phone is low on memory (new outcome
+       `deferred`), and the models are freed. Only the latest 3 new clips
+       wait; older ones are skipped.
+     - Less work: only detections of sorts some reference is (people /
+       pets) are embedded, the best 3 per frame.
+     - Tests: frame times in `recognition_test.dart` follow the 1 s
+       spacing; new tests for the detection cap, kinds, queue cap, memory
+       gate, the worker isolate and the Android sampler. The Android
+       integration test and its fixtures (`-g 30`) follow keyframes, not
+       rerun. 401 Flutter tests pass.
+     - Specs: [Subject recognition](recognition.md), [Android](android.md),
+       [Platforms](platforms.md), [Data formats](data-formats.md).

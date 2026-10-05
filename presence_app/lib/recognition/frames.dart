@@ -22,16 +22,27 @@ class SampledFrame {
 /// Reads frames out of clips, for recognition.
 abstract class ClipFrameSampler {
   /// This platform's sampler: a hidden `<video>` on web, the platform's
-  /// video decoder on Android (`framesAt` on `presence/cameras`).
+  /// video decoder on Android (`keyframesAt` on `presence/cameras`).
   factory ClipFrameSampler() = platform.PlatformFrameSampler;
+
+  /// How wide frames are at most, unless asked otherwise: twice the
+  /// detector's input, enough for faces.
+  static const int defaultMaxWidth = 640;
 
   bool get supported;
 
   /// A frame of [media] [every] so long, from its start to its end, at most
-  /// [maxWidth] wide. Frames that can't be read are skipped.
+  /// [maxWidth] wide. Frames that can't be read are skipped. On Android
+  /// each is the keyframe nearest to its time (and at its own time).
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
-    int maxWidth = 960,
+    int maxWidth = defaultMaxWidth,
   });
 }
+
+/// The times (ms) to sample [media] at: from its start, [every] so long,
+/// before its end.
+List<int> sampleTimes(ClipMedia media, Duration every) => [
+  for (var at = media.start; at < media.end; at += every) at.inMilliseconds,
+];
