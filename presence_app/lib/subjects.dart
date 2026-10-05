@@ -207,7 +207,8 @@ class SubjectsMap extends StatelessWidget {
 }
 
 /// The subjects tagged on [event], once each, in tag order: a square of
-/// each one's color and their name (on the event's card).
+/// each one's color and their name (on the event's card), and an x that
+/// removes the subject's tags from the clip.
 class EventSubjects extends StatelessWidget {
   const EventSubjects({super.key, required this.event, this.onOpenAt});
 
@@ -250,34 +251,44 @@ class EventSubjects extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final t in tags)
-              OpenAtLabel(
-                key: Key('event-subject-${t.id}'),
-                ms: t.ms,
-                onOpenAt: onOpenAt,
-                borderRadius: BorderRadius.circular(4),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  spacing: 6,
-                  children: [
-                    SubjectSwatch(
-                      key: Key('event-subject-color-${t.id}'),
-                      color: Subject.colorOf(t.id),
-                      size: 12,
-                    ),
-                    Text(t.name, style: theme.textTheme.labelMedium),
-                    // Found by recognition, not tagged by someone.
-                    if (t.detected)
-                      Tooltip(
-                        message: 'Recognized automatically',
-                        child: Icon(
-                          Icons.auto_awesome,
-                          key: Key('event-subject-detected-${t.id}'),
-                          size: 14,
-                          color: theme.colorScheme.onSurfaceVariant,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OpenAtLabel(
+                    key: Key('event-subject-${t.id}'),
+                    ms: t.ms,
+                    onOpenAt: onOpenAt,
+                    borderRadius: BorderRadius.circular(4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      spacing: 6,
+                      children: [
+                        SubjectSwatch(
+                          key: Key('event-subject-color-${t.id}'),
+                          color: Subject.colorOf(t.id),
+                          size: 12,
                         ),
-                      ),
-                  ],
-                ),
+                        Text(t.name, style: theme.textTheme.labelMedium),
+                        // Found by recognition, not tagged by someone.
+                        if (t.detected)
+                          Tooltip(
+                            message: 'Recognized automatically',
+                            child: Icon(
+                              Icons.auto_awesome,
+                              key: Key('event-subject-detected-${t.id}'),
+                              size: 14,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  RemoveLabelButton(
+                    key: Key('event-subject-remove-${t.id}'),
+                    label: t.name,
+                    onRemove: () => event.annotations.removeName(t.name),
+                  ),
+                ],
               ),
           ],
         ),

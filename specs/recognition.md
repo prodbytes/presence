@@ -97,6 +97,13 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   first seen (`ms`, in the recording's time, like a tag's `frameMs`), and
   clicking it opens the player paused on that frame (see
   [Clips](clips.md)). Only the time is kept, not the frame's image.
+- **Removing one:** the **x** inside each chip (key
+  `clip-object-remove-<label>`, tooltip "Remove bicycle from this event")
+  removes that label from the clip (`ClipAnnotations.removeObject`), at
+  once and without asking. The search and the Events count update, and
+  the record is saved and synced; with none left it keeps `[]` (searched),
+  so the clip isn't searched for objects again on its own. The player's
+  **Auto** can find it again.
 - The Events **search** matches them: "bicycle" finds the clips with a
   bicycle (see [Events](events.md)).
 - They're labels, not subjects: no names, colors, maps, references or
