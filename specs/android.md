@@ -92,6 +92,11 @@ Android uses the standard dashcam technique instead
       alarms until the app is opened again. Android 10 and later may refuse
       to open an app from the background (the S40 runs Android 9); the
       attempt is logged.
+    - Verified on the S40: after `adb shell am crash`, the log file had the
+      crash and its stack; Android restarted the capture service 4 s later,
+      which reopened the app, and the camera was open again 18 s after the
+      crash. The log files, the service, the wake lock and the watchdog
+      alarm were all in place after a launch.
   - Verified on the S40 (plugged in): with the screen asleep for over a
     minute, the encoder and motion streams kept running (972 frames each,
     no disconnect) while the preview stream stopped, and the preview came

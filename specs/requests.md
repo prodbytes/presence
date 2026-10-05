@@ -2547,4 +2547,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        phone, and saves the app's logcat at each start;
        `devbox run android-pull` fetches them with the phone's status and
        crash records.
+     - Why the last run failed: at 09:22 its process died while it ran as a
+       foreground service, right after recognition on a clip (30 frames,
+       50 s, the main thread skipping frames), with no crash or native crash
+       on record, while the 3 GB phone was killing idle apps for memory:
+       most likely the low-memory killer. Nothing reopened it, and nobody
+       answered Google's account chooser it opened under, so it ran signed
+       out (no sync) before that too.
+     - Verified on the S40: a forced crash was logged with its stack and the
+       app came back by itself within 18 s, camera open.
      - Specs: [Android](android.md). 385 Flutter tests pass (2 new).
