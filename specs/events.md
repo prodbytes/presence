@@ -48,22 +48,32 @@
   - While searching, the list also matches again whenever a clip's tags
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.
-- **Every device, by default.** An **Only this device** filter chip
-  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, unchecked at
-  launch: the timeline and the [subjects map](subjects.md) show every
-  device's events, such as those fetched from the cloud. Checking it
-  shows only events whose `deviceId` is this device's (events not saved
-  yet, which have no device ID, count as this device's), on both the
-  timeline and the map; checking or clearing it filters both again at
-  once. The choice stays while switching tabs, but not across restarts.
-  The chip appears once the device ID is known; before that, every event
-  shows.
-  - Filtered with nothing left, the timeline says "No events on this
-    device".
-  - **Opening an event of another device** from elsewhere (see below)
-    clears the chip, so the event can show.
+- **Every device, by default.** A **devices dropdown** (`DeviceFilter`)
+  sits at the top of the Monitoring tab: a chip reading **All devices**
+  (or "1 of 3 devices", highlighted, while some are unchecked) that opens
+  a menu with one checkbox line per device with events
+  (`EventTimeline.devicesOf`). The first line is always **This device**,
+  in bold; the other devices follow by ID, sorted. Below them, an **All
+  devices** checkbox (partly checked while some are) checks every device,
+  or, when all are checked, unchecks them all. The menu stays open while
+  checking.
+  - Every device is checked at launch, and so is a device whose events
+    arrive later (the filter keeps the *unchecked* devices,
+    `hiddenDevices`): the timeline and the [subjects map](subjects.md) show
+    every device's events, such as those fetched from the cloud.
+  - Unchecking a device hides its events (`EventTimeline.ofDevices`;
+    events not saved yet, which have no device ID, count as this
+    device's) on both the timeline and the map, and the count; each
+    change filters them all again at once.
+  - The choices stay while switching tabs, but not across restarts. The
+    dropdown appears once the device ID is known; before that, every
+    event shows.
+  - Filtered with nothing left, the timeline says "No events on the
+    devices checked".
+  - **Opening an event of an unchecked device** from elsewhere (see below)
+    checks every device again, so the event can show.
 - **Show system events: on in DEV, off otherwise.** A **Show system
-  events** filter chip (`ShowSystemEvents`), after Only this device,
+  events** filter chip (`ShowSystemEvents`), after the devices dropdown,
   decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;

@@ -396,8 +396,8 @@ void main() {
       expect(out.onPressed, isNull, reason: 'already as far out as it goes');
     });
 
-    testWidgets('the map shows every device until Only this device is '
-        'checked, with the events', (tester) async {
+    testWidgets('the map shows every device until one is unchecked in the '
+        'devices dropdown, with the events', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
         clipWith(['Ana'], minutesAgo: 2, lat: 48.2)..deviceId = 'there',
@@ -418,19 +418,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final chip = find.byKey(const Key('this-device-only'));
+      final dropdown = find.byKey(const Key('device-filter'));
+      final there = find.byWidgetPredicate(
+        (w) =>
+            w is CheckboxMenuButton &&
+            w.key == const Key('device-filter-there'),
+      );
       final rex = find.byKey(const Key('subjects-dot-rex-event-1'));
       final ana = find.byKey(const Key('subjects-dot-ana-event-2'));
       final events = find.byKey(const Key('events-page'));
       Finder card(String name) =>
           find.descendant(of: events, matching: find.text(name));
 
-      expect(tester.widget<FilterChip>(chip).selected, isFalse);
+      expect(find.text('All devices'), findsOneWidget);
       expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
 
-      await tester.tap(chip);
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+      await tester.tap(there);
       await tester.pumpAndSettle();
       expect(rex, findsOneWidget);
       expect(ana, findsNothing);
@@ -438,7 +445,7 @@ void main() {
       expect(card('Rex'), findsOneWidget);
       expect(card('Ana'), findsNothing);
 
-      await tester.tap(chip);
+      await tester.tap(there);
       await tester.pumpAndSettle();
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
