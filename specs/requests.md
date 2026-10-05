@@ -2746,3 +2746,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        rerun. 401 Flutter tests pass.
      - Specs: [Subject recognition](recognition.md), [Android](android.md),
        [Platforms](platforms.md), [Data formats](data-formats.md).
+264. **Barrel roll fix: `scripts/android-install.sh` hung on a locked phone.**
+     (2026-10-06)
+     - Found during the barrel roll: `am start -W` waits for the app's
+       screen to be drawn, which never happens behind the S40's PIN lock,
+       so the script never reached its check, though the app had started.
+     - Changed: it starts the app without `-W` and then checks the process,
+       as before. Specs: none changed ([Android](android.md) already says
+       it starts the app and checks it runs).
