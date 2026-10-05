@@ -26,7 +26,7 @@ their data.
 **App**
 
 - [Navigation](navigation.md): app bar, tabs (Log for admins), and the full-screen Camera tab
-  with its All, Clip, Flip and readiness controls.
+  with its view (One / All / None), Clip, Flip and readiness controls.
 - [About](about.md): what Presence is, made with love by prodbytes, its
   links, and a call to become a member; its icon is always in the app bar.
 - [Theme](theme.md): the Gruvbox dark palette.

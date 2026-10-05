@@ -2585,3 +2585,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Verified on the S40: a forced crash was logged with its stack and the
        app came back by itself within 18 s, camera open.
      - Specs: [Android](android.md). 385 Flutter tests pass (2 new).
+256. **Add a pause/play button to the camera view, to let users shut off
+     the camera if needed; then: fold it into the All button, with three
+     states, One (this camera), All and None.** (2026-10-05)
+     - Added: the All button is now the view button, showing what the
+       Camera tab shows and cycling One → All → None → One. None switches
+       the camera off: it's closed, nothing is recorded and no clips are
+       taken; the view says "Camera off" with Turn on, the readiness pill
+       says Off, and Flip and Clip hide. None is the `camera.paused`
+       setting, saved with the device's settings, so a restart (or the
+       Android watchdog) keeps the camera off.
+     - First built as a separate Pause / Play button (in the bottom row it
+       overflowed a 320 dp phone by 63 px, so it went to the camera's top
+       right), then replaced by the third state, as asked.
+     - Specs: [Camera screen](camera.md), [Navigation](navigation.md),
+       [Configuration](configuration.md), [README](README.md). 387 Flutter
+       tests pass (4 new).

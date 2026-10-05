@@ -604,9 +604,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The event the Monitoring tab's timeline scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
 
-  /// The Camera tab's All button: this device's camera in a grid with
-  /// every other device's latest image.
+  /// The Camera tab's view button, All: this device's camera in a grid
+  /// with every other device's latest image.
   bool _showAll = false;
+
+  /// What the view button shows: One (this camera), All (the grid) or None
+  /// (the camera off: [CameraRig.paused], kept in the settings).
+  CameraViewMode get _viewMode => widget.rig.paused
+      ? CameraViewMode.none
+      : _showAll
+      ? CameraViewMode.all
+      : CameraViewMode.one;
+
+  /// One → All → None → One.
+  void _nextViewMode() {
+    switch (_viewMode) {
+      case CameraViewMode.one:
+        setState(() => _showAll = true);
+      case CameraViewMode.all:
+        setState(() => _showAll = false);
+        widget.rig.setPaused(true);
+      case CameraViewMode.none:
+        widget.rig.setPaused(false);
+    }
+  }
 
   /// The devices unchecked in the Monitoring tab's devices dropdown: none
   /// at launch, so every device's events show, and kept while switching
@@ -1073,24 +1094,40 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 spacing: 12,
                 children: [
-                  // A toggle: highlighted while the grid shows.
+                  // Shows what's on screen (One, All, None); a tap moves
+                  // on to the next. Highlighted for All, and for None, the
+                  // camera off.
                   FloatingActionButton.extended(
                     key: const Key('show-all'),
                     heroTag: 'show-all',
-                    tooltip: _showAll
-                        ? 'Show only this camera'
-                        : 'Show all devices',
-                    backgroundColor: _showAll
-                        ? scheme.secondaryContainer
-                        : scheme.surfaceContainerHigh,
-                    foregroundColor: _showAll
-                        ? scheme.onSecondaryContainer
-                        : scheme.onSurface,
-                    icon: Icon(_showAll ? Icons.crop_square : Icons.grid_view),
-                    label: const Text('All'),
-                    onPressed: () => setState(() => _showAll = !_showAll),
+                    tooltip: switch (_viewMode) {
+                      CameraViewMode.one => 'Show all devices',
+                      CameraViewMode.all => 'Turn the camera off',
+                      CameraViewMode.none => 'Turn the camera on',
+                    },
+                    backgroundColor: switch (_viewMode) {
+                      CameraViewMode.one => scheme.surfaceContainerHigh,
+                      CameraViewMode.all => scheme.secondaryContainer,
+                      CameraViewMode.none => scheme.errorContainer,
+                    },
+                    foregroundColor: switch (_viewMode) {
+                      CameraViewMode.one => scheme.onSurface,
+                      CameraViewMode.all => scheme.onSecondaryContainer,
+                      CameraViewMode.none => scheme.onErrorContainer,
+                    },
+                    icon: Icon(switch (_viewMode) {
+                      CameraViewMode.one => Icons.crop_square,
+                      CameraViewMode.all => Icons.grid_view,
+                      CameraViewMode.none => Icons.videocam_off,
+                    }),
+                    label: Text(switch (_viewMode) {
+                      CameraViewMode.one => 'One',
+                      CameraViewMode.all => 'All',
+                      CameraViewMode.none => 'None',
+                    }),
+                    onPressed: _nextViewMode,
                   ),
-                  if (widget.rig.devices.length > 1)
+                  if (widget.rig.devices.length > 1 && !widget.rig.paused)
                     FloatingActionButton(
                       heroTag: 'flip-camera',
                       tooltip: 'Flip camera',
@@ -1179,6 +1216,11 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         _Dot(color: scheme.outline),
         'Not ready',
         'Camera not ready',
+      ),
+      ClipReadinessState.paused => (
+        _Dot(color: scheme.outline),
+        'Off',
+        'Camera off: nothing is recorded',
       ),
     };
     return StatusPill(
@@ -1302,7 +1344,7 @@ class _CameraStatus extends StatelessWidget {
           listenable: Listenable.merge([rig, battery, roles, ?sync]),
           builder: (context, _) {
             final reading = full ? battery.reading : null;
-            final readiness = full && rig.active != null
+            final readiness = full && (rig.active != null || rig.paused)
                 ? ReadinessIndicator(rig: rig)
                 : null;
             final failed = full
@@ -1424,4 +1466,16 @@ class DevModeLabel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// What the Camera tab shows, chosen with its view button.
+enum CameraViewMode {
+  /// This device's camera, full screen.
+  one,
+
+  /// This device's camera in a grid with every other device's image.
+  all,
+
+  /// Nothing: the camera is off ([CameraRig.paused]).
+  none,
 }

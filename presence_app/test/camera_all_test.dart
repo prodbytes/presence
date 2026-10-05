@@ -208,8 +208,14 @@ void main() {
     final live = tester.getRect(find.byKey(const Key('preview-Main')));
     expect(live.width, lessThan(1280));
 
-    await tester.tap(find.byTooltip('Show only this camera'));
+    // All → None (the camera off) → One.
+    await tester.tap(find.byTooltip('Turn the camera off'));
     await tester.pump();
     expect(find.textContaining('· live'), findsNothing);
+    expect(find.byKey(const Key('camera-paused')), findsOneWidget);
+    await tester.tap(find.byTooltip('Turn the camera on'));
+    await tester.pump();
+    expect(find.byKey(const Key('camera-paused')), findsNothing);
+    expect(find.text('One'), findsOneWidget);
   });
 }

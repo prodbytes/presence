@@ -18,6 +18,9 @@ enum ClipReadinessState {
   /// No open camera.
   unavailable,
 
+  /// The user switched the camera off (None): nothing is recorded.
+  paused,
+
   /// Motion can take a clip (and the Clip button always can).
   ready,
 
@@ -55,6 +58,7 @@ class CameraRig extends ChangeNotifier {
   }) : _now = now ?? DateTime.now,
        _motion = MotionDetector(now: now) {
     _scheduleFrom = _now();
+    _appliedPaused = config.camera.paused;
     config.addListener(_onConfigChanged);
     // Android refuses cameras while the screen is off or the app is in the
     // background: when the app comes back, reopen the camera if it failed.
@@ -146,6 +150,7 @@ class CameraRig extends ChangeNotifier {
   /// Whether a clip taken now would be complete. It changes with time, so
   /// callers showing it should also refresh on a timer.
   ClipReadiness get readiness {
+    if (paused) return const ClipReadiness(ClipReadinessState.paused);
     if (_active == null || _busy) {
       return const ClipReadiness(ClipReadinessState.unavailable);
     }
@@ -215,7 +220,36 @@ class CameraRig extends ChangeNotifier {
 
   bool get canClip => _active != null && !_busy;
 
-  bool get canFlip => _devices.length > 1 && !_busy;
+  bool get canFlip => _devices.length > 1 && !_busy && !paused;
+
+  /// The user switched the camera off (the view button's None,
+  /// [CameraConfig.paused]): it's closed and records nothing (no motion or
+  /// scheduled clips) until switched on.
+  bool get paused => config.camera.paused;
+
+  /// Pauses (closes) or resumes (reopens) the camera; kept in the settings,
+  /// so it lasts across restarts.
+  void setPaused(bool paused) => config.update(
+    (c) => c.copyWith(camera: c.camera.copyWith(paused: paused)),
+  );
+
+  /// The pause state the camera was last opened or closed for.
+  bool _appliedPaused = false;
+
+  Future<void> _applyPaused() async {
+    if (_appliedPaused == paused) return;
+    _appliedPaused = paused;
+    if (paused) {
+      debugPrint('Presence: camera paused');
+      _lostRetry?.cancel();
+      _brightnessRestart?.cancel();
+      await _closeActive();
+      if (!_disposed) _set(busy: false, error: null);
+    } else {
+      debugPrint('Presence: camera resumed');
+      await (_devices.isEmpty ? load() : _openCurrent());
+    }
+  }
 
   /// Lists the cameras and opens the default one: the first back camera, or
   /// else the first camera (on web, the browser's default).
@@ -263,15 +297,17 @@ class CameraRig extends ChangeNotifier {
 
   Future<void> _openCurrent() async {
     final device = _current;
-    if (device == null) {
+    if (device == null || paused) {
       _set(busy: false, error: null);
       return;
     }
     _set(busy: true, error: null);
     try {
       final source = await _backend.open(device, () => config.clip.before);
-      if (_disposed || _current != device) {
+      if (_disposed || _current != device || paused) {
         await source.dispose();
+        // Paused while it opened: nothing else will clear the spinner.
+        if (!_disposed && paused) _set(busy: false, error: null);
         return;
       }
       _active = source;
@@ -323,6 +359,7 @@ class CameraRig extends ChangeNotifier {
   /// A new brightness setting restarts the open camera with it (after
   /// [brightnessRestartDelay]); it's applied live meanwhile.
   void _onConfigChanged() {
+    _applyPaused();
     final ev = config.camera.brightness;
     if (_active == null || ev == _appliedBrightness) return;
     _applyBrightness();
@@ -656,6 +693,17 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
   /// The open camera's preview, or why there isn't one.
   Widget _camera(BuildContext context) {
     final rig = widget.rig;
+    if (rig.paused) {
+      return FeedMessage(
+        key: const Key('camera-paused'),
+        icon: Icons.videocam_off_outlined,
+        message: 'Camera off\nNothing is recorded until you turn it on.',
+        action: TextButton(
+          onPressed: () => rig.setPaused(false),
+          child: const Text('Turn on'),
+        ),
+      );
+    }
     final active = rig.active;
     if (active != null) {
       return SizedBox.expand(
