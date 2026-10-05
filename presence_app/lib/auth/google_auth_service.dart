@@ -36,6 +36,7 @@ class GoogleAuthService extends AuthService {
   String? _error;
   String? _unavailable;
   StreamSubscription<GoogleSignInAuthenticationEvent>? _events;
+  Timer? _refresh;
 
   @override
   AuthUser? get user => _user;
@@ -119,13 +120,19 @@ class GoogleAuthService extends AuthService {
       return;
     }
     try {
-      // Refresh the session quietly, if Google allows it. On web this starts
-      // the FedCM prompt and returns at once; a sign-in then arrives as an
-      // event. Finding nothing leaves a restored session as it is. A failure
-      // (e.g. Android's "[28473] Caller could not be verified", when the
-      // prompt is answered long after it opened) is a failed sign-in, not
-      // an unavailable one: the sign-in button stays.
-      await GoogleSignIn.instance.attemptLightweightAuthentication();
+      // Already signed in (a session restored after a reload): don't start
+      // Google's prompt now, only shortly before the token expires.
+      // Otherwise check quietly for a session, if Google allows it. On web
+      // this starts the FedCM prompt and returns at once; a sign-in then
+      // arrives as an event. A failure (e.g. Android's "[28473] Caller
+      // could not be verified", when the prompt is answered long after it
+      // opened) is a failed sign-in, not an unavailable one: the sign-in
+      // button stays.
+      if (_idToken case final token?) {
+        _scheduleRefresh(token);
+      } else {
+        await GoogleSignIn.instance.attemptLightweightAuthentication();
+      }
     } on GoogleSignInException catch (e) {
       // Usually also reported as an authentication event: logged once.
       if (e.code != GoogleSignInExceptionCode.canceled && _error == null) {
@@ -150,9 +157,11 @@ class GoogleAuthService extends AuthService {
         );
         _idToken = user.authentication.idToken;
         _remember();
+        if (_idToken case final token?) _scheduleRefresh(token);
       case GoogleSignInAuthenticationEventSignOut():
         _user = null;
         _idToken = null;
+        _refresh?.cancel();
         _store.clear();
     }
     notifyListeners();
@@ -178,6 +187,7 @@ class GoogleAuthService extends AuthService {
     // Forget the session here too: a restored session may not be one the
     // library knows about, so it might not send a sign-out event.
     _store.clear();
+    _refresh?.cancel();
     _user = null;
     _idToken = null;
     notifyListeners();
@@ -186,6 +196,19 @@ class GoogleAuthService extends AuthService {
     } catch (e) {
       debugPrint('Presence: Google sign-out failed: $e');
     }
+  }
+
+  /// Refreshes [token] quietly shortly before it expires, so a signed-in
+  /// user isn't asked to sign in while their token is still good. Finding
+  /// nothing leaves the session as it is.
+  void _scheduleRefresh(String token) {
+    _refresh?.cancel();
+    final delay = SavedSession.refreshIn(token, now: _now());
+    if (delay == null) return;
+    _refresh = Timer(delay, () {
+      if (_user == null) return;
+      GoogleSignIn.instance.attemptLightweightAuthentication()?.ignore();
+    });
   }
 
   void _remember() {
@@ -235,6 +258,7 @@ class GoogleAuthService extends AuthService {
   @override
   void dispose() {
     _events?.cancel();
+    _refresh?.cancel();
     super.dispose();
   }
 }

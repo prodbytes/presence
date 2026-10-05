@@ -16,8 +16,12 @@ there's no separate sign-in screen:
   - at launch, before Google's library loads, a remembered session whose
     token has more than a minute left is restored, so the user is signed in
     at once;
-  - the silent FedCM attempt still runs and refreshes the token when Google
-    allows. When it finds nothing, the restored session stays;
+  - a restored session is **not asked to sign in again**: the silent
+    FedCM attempt doesn't run at launch, only five minutes before the
+    token expires, to refresh it (`SavedSession.refreshIn`). Each sign-in
+    schedules the next refresh. When it finds nothing, the session stays
+    until the token expires. Without a restored session, the silent
+    attempt runs at launch as before;
   - an expired or malformed session is dropped;
   - **Sign out** forgets it.
 
@@ -77,8 +81,22 @@ there's no separate sign-in screen:
   readiness, the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email, the
-  [cloud sync](cloud-sync.md) status and **Sign out**. Signing out closes the sheet, returns to the camera and
+  [cloud sync](cloud-sync.md) status, the **profile** and its **devices**,
+  and **Sign out**. Signing out closes the sheet, returns to the camera and
   hides the navigation again. The camera keeps running.
+  - **Profile:** the [profile](profiles.md) ID
+    (`automatic_paranoid_axolotl`), the profile's only name, selectable to
+    copy.
+  - **Devices** ("3 devices"): every [device ID](devices-users-places.md#devices)
+    found on the signed-in user's events (`profileDevices`), the events
+    synced from the profile's cloud folder included. This device comes
+    first, labelled "this device", even before it has an event; the rest
+    are sorted. The list updates while the sheet is open, and scrolls when
+    long. Each ID is selectable. A device shows only once one of its
+    events has synced here, and drops off when its events age out of
+    [event retention](event-retention.md).
+  - The account sheet for a signed-in user without access shows the same
+    profile and devices.
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Signing in also turns on [cloud sync](cloud-sync.md): the user's Google
@@ -94,8 +112,10 @@ there's no separate sign-in screen:
   web, the ID token is issued for the web client.
 - `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
   tests).
-- Known limitation: Google ID tokens last about an hour. A reload after
-  that, without FedCM auto sign-in, signs out.
+- Known limitation: Google ID tokens last about an hour. If the refresh
+  before expiry finds nothing (no FedCM auto sign-in), a reload after
+  that signs out. The refresh itself may briefly show Google's FedCM
+  prompt.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with

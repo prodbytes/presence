@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
+import '../events.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
@@ -16,6 +17,8 @@ class AccountButton extends StatelessWidget {
     this.sync,
     this.roles,
     this.profiles,
+    this.log,
+    this.deviceId,
   });
 
   final AuthService auth;
@@ -24,6 +27,10 @@ class AccountButton extends StatelessWidget {
   /// With [profiles], the sheet offers Linked accounts.
   final RolesService? roles;
   final ProfileClient? profiles;
+
+  /// The events the sheet's device list comes from, and this device's ID.
+  final EventLog? log;
+  final String? deviceId;
 
   @override
   Widget build(BuildContext context) {
@@ -40,11 +47,15 @@ class AccountButton extends StatelessWidget {
           onPressed: () => showModalBottomSheet<void>(
             context: context,
             showDragHandle: true,
+            // Room to scroll a long device list.
+            isScrollControlled: true,
             builder: (_) => AccountSheet(
               auth: auth,
               sync: sync,
               roles: roles,
               profiles: profiles,
+              log: log,
+              deviceId: deviceId,
             ),
           ),
         );
@@ -78,7 +89,8 @@ class SignInAction extends StatelessWidget {
   }
 }
 
-/// Sign in with Google, or show who is signed in and offer sign-out.
+/// Sign in with Google, or show who is signed in, their profile and its
+/// devices, and offer sign-out.
 class AccountSheet extends StatelessWidget {
   const AccountSheet({
     super.key,
@@ -86,6 +98,8 @@ class AccountSheet extends StatelessWidget {
     this.sync,
     this.roles,
     this.profiles,
+    this.log,
+    this.deviceId,
   });
 
   final AuthService auth;
@@ -97,98 +111,186 @@ class AccountSheet extends StatelessWidget {
   final RolesService? roles;
   final ProfileClient? profiles;
 
+  /// The events whose device IDs list the profile's devices (see
+  /// [profileDevices]), and this device's ID, listed first.
+  final EventLog? log;
+  final String? deviceId;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return ListenableBuilder(
-      listenable: auth,
+      listenable: Listenable.merge([auth, ?roles, ?log]),
       builder: (context, _) {
         final user = auth.user;
         final error = auth.error;
         return SafeArea(
-          child: Padding(
-            key: const Key('account-sheet'),
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!auth.available) ...[
-                  Icon(
-                    Icons.lock_outline,
-                    size: 40,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    auth.unavailableReason ?? 'Sign-in is unavailable.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                ] else if (user == null) ...[
-                  Text(
-                    'Sign in to Presence',
-                    style: theme.textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  auth.buildSignInButton() ??
-                      FilledButton.icon(
-                        key: const Key('google-sign-in'),
-                        icon: const Icon(Icons.login),
-                        label: const Text('Sign in with Google'),
-                        onPressed: auth.signIn,
+          child: SingleChildScrollView(
+            child: Padding(
+              key: const Key('account-sheet'),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!auth.available) ...[
+                    Icon(
+                      Icons.lock_outline,
+                      size: 40,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      auth.unavailableReason ?? 'Sign-in is unavailable.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ] else if (user == null) ...[
+                    Text(
+                      'Sign in to Presence',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 16),
+                    auth.buildSignInButton() ??
+                        FilledButton.icon(
+                          key: const Key('google-sign-in'),
+                          icon: const Icon(Icons.login),
+                          label: const Text('Sign in with Google'),
+                          onPressed: auth.signIn,
+                        ),
+                  ] else ...[
+                    UserAvatar(user: user, radius: 32),
+                    const SizedBox(height: 12),
+                    if (user.name case final name?)
+                      Text(name, style: theme.textTheme.titleMedium),
+                    Text(
+                      user.email,
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                    if (sync case final sync?) ...[
+                      const SizedBox(height: 8),
+                      CloudSyncStatus(sync: sync),
+                    ],
+                    if (roles?.profile case final profile?) ...[
+                      const SizedBox(height: 16),
+                      ProfileDevices(
+                        profile: profile,
+                        devices: profileDevices(
+                          log?.events ?? const [],
+                          userId: user.id,
+                          thisDevice: deviceId,
+                        ),
+                        thisDevice: deviceId,
                       ),
-                ] else ...[
-                  UserAvatar(user: user, radius: 32),
-                  const SizedBox(height: 12),
-                  if (user.name case final name?)
-                    Text(name, style: theme.textTheme.titleMedium),
-                  Text(
-                    user.email,
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                  if (sync case final sync?) ...[
-                    const SizedBox(height: 8),
-                    CloudSyncStatus(sync: sync),
-                  ],
-                  if ((roles, profiles) case (
-                    final roles?,
-                    final profiles?,
-                  )) ...[
-                    const SizedBox(height: 8),
-                    LinkedAccountsButton(
-                      auth: auth,
-                      roles: roles,
-                      profiles: profiles,
-                      sync: sync,
+                    ],
+                    if ((roles, profiles) case (
+                      final roles?,
+                      final profiles?,
+                    )) ...[
+                      const SizedBox(height: 8),
+                      LinkedAccountsButton(
+                        auth: auth,
+                        roles: roles,
+                        profiles: profiles,
+                        sync: sync,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      key: const Key('sign-out'),
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign out'),
+                      // Close the sheet first: signing out swaps the whole
+                      // app for the sign-in screen.
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        auth.signOut();
+                      },
                     ),
                   ],
-                  const SizedBox(height: 16),
-                  OutlinedButton.icon(
-                    key: const Key('sign-out'),
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign out'),
-                    // Close the sheet first: signing out swaps the whole
-                    // app for the sign-in screen.
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      auth.signOut();
-                    },
-                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      error,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: scheme.error),
+                    ),
+                  ],
                 ],
-                if (error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    error,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: scheme.error),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Every device ID in [events] of [userId] (the profile's devices, synced
+/// from its cloud folder), sorted, with [thisDevice] first even before it
+/// has an event.
+List<String> profileDevices(
+  Iterable<AppEvent> events, {
+  required String userId,
+  String? thisDevice,
+}) {
+  final others = {
+    for (final event in events)
+      if (event.userId == userId) ?event.deviceId,
+  }..remove(thisDevice);
+  return [?thisDevice, ...others.toList()..sort()];
+}
+
+/// The profile's ID and its devices' IDs, each selectable to copy.
+class ProfileDevices extends StatelessWidget {
+  const ProfileDevices({
+    super.key,
+    required this.profile,
+    required this.devices,
+    this.thisDevice,
+  });
+
+  final String profile;
+  final List<String> devices;
+
+  /// Labelled "this device" in the list.
+  final String? thisDevice;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = TextStyle(color: theme.colorScheme.onSurfaceVariant);
+    return Column(
+      key: const Key('profile-devices'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: 4,
+      children: [
+        Text('Profile', style: muted),
+        SelectableText(
+          profile,
+          key: const Key('profile-id'),
+          style: theme.textTheme.titleSmall,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          devices.length == 1 ? '1 device' : '${devices.length} devices',
+          style: muted,
+        ),
+        for (final device in devices)
+          Row(
+            key: Key('profile-device-$device'),
+            spacing: 8,
+            children: [
+              Icon(
+                device == thisDevice ? Icons.smartphone : Icons.devices_other,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              Flexible(child: SelectableText(device)),
+              if (device == thisDevice) Text('this device', style: muted),
+            ],
+          ),
+      ],
     );
   }
 }

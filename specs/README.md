@@ -30,7 +30,8 @@ emails, add accounts or switch providers without losing their data.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states,
   and the All grid: this camera top left, then every device in the
-  profile with its latest image.
+  profile with its latest image; Clip there is Capture all, a clip on
+  every device, asked through cloud sync.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
   subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus.
@@ -50,11 +51,13 @@ emails, add accounts or switch providers without losing their data.
   app at its first start, owned by nobody, and claimed by the first
   sign-in; later sign-ins load the profile linked to their subject
   (`<iss>#<sub>`); IDs like `automatic_paranoid_axolotl`, never repeated.
-- [Sign-in](sign-in.md): Google sign-in, the role-gated UI and the OAuth
+- [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
+  sheet (the profile ID and its devices, from events) and the OAuth
   clients.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (their
-  own or a suggested `AUTUMN-OTTER-4821`, role, expiry, uses, discount)
+  own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
+  current season by default), uses, discount)
   on the Admin screen.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
@@ -85,7 +88,8 @@ emails, add accounts or switch providers without losing their data.
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
 - [Log](log.md): the admins' Log tab (DEV's too): a health panel
-  (API, AWS, OIDC checked every 30 s, with a history of green and red
+  (API, AWS, OIDC checked every 30 s, the count of devices in the events,
+  with a history of green and red
   bricks), then the app's latest 500 log messages and errors, such as why
   the AWS sync failed.
 - [App icon](app-icon.md): the icon masters and generated icons.
