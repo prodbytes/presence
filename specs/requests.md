@@ -2338,5 +2338,5 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       it's checked (`EventTimeline.ofDevices`); toggling it redraws the
       dots and fits the map to them again (`_SightingsMap.fitKey`).
     - Specs: [Events](events.md), [Monitoring](monitoring.md),
-      [Subjects](subjects.md), [Navigation](navigation.md). 347 Flutter
+      [Subjects](subjects.md), [Navigation](navigation.md). 348 Flutter
       tests (1 new) pass.
