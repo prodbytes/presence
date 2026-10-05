@@ -741,7 +741,8 @@ String autoTagMessage(RecognitionResult result) {
 
 /// A clip's object tags (`human`, `cat`, `bicycle`…), as small chips, by
 /// first sighting; nothing until it's been searched, or if nothing was seen.
-/// A click on one calls [onOpenAt] with where it was first seen.
+/// A click on one calls [onOpenAt] with where it was first seen; its x
+/// removes it from the clip.
 class ClipObjectTags extends StatelessWidget {
   const ClipObjectTags({super.key, required this.annotations, this.onOpenAt});
 
@@ -764,26 +765,37 @@ class ClipObjectTags extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final o in objects)
-              OpenAtLabel(
-                key: Key('clip-object-${o.label}'),
-                ms: o.ms,
-                onOpenAt: onOpenAt,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: scheme.outlineVariant),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    o.label,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
+              Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: scheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OpenAtLabel(
+                      key: Key('clip-object-${o.label}'),
+                      ms: o.ms,
+                      onOpenAt: onOpenAt,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 2, 2, 2),
+                        child: Text(
+                          o.label,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                    RemoveLabelButton(
+                      key: Key('clip-object-remove-${o.label}'),
+                      label: o.label,
+                      onRemove: () => annotations.removeObject(o.label),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -826,6 +838,41 @@ class OpenAtLabel extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The small x beside a label on a clip's card: removes [label] from the
+/// clip ([onRemove]).
+class RemoveLabelButton extends StatelessWidget {
+  const RemoveLabelButton({
+    super.key,
+    required this.label,
+    required this.onRemove,
+  });
+
+  final String label;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Remove $label from this event',
+    child: Semantics(
+      button: true,
+      label: 'Remove $label from this event',
+      excludeSemantics: true,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onRemove,
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            Icons.close,
+            size: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 /// A grabbed frame, with markers for its tags; a click anywhere on it

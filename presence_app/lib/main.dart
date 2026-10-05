@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'about.dart';
 import 'app_log.dart';
 import 'app_version.dart';
 import 'auth/account_sheet.dart';
@@ -770,7 +771,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// fit the screen.
   double _tabWidth(BuildContext context) {
     final buttons =
-        (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
+        (!_dev && widget.roles.isAdmin ? 48 : 0) + 48 + (_dev ? 0 : 48) + 4;
     const titleRoom = 12 + 16;
     final fit =
         (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
@@ -798,6 +799,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     final joinStatus = _joinStatus();
+    // Always shown: signed out, signed in without access, and with it.
+    final about = AboutButton(
+      auth: widget.auth,
+      roles: widget.roles,
+      membership: widget.membership,
+      profiles: widget.profiles,
+    );
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
@@ -837,6 +845,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             : null,
         actions: [
           if (!_hasAccess && !_signedIn) ...[
+            about,
             SignInAction(auth: widget.auth),
             const SizedBox(width: 12),
           ] else if (!_hasAccess) ...[
@@ -857,6 +866,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 membership: widget.membership,
                 profiles: widget.profiles,
               ),
+            about,
             AccountButton(
               auth: widget.auth,
               roles: widget.roles,
@@ -901,6 +911,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
+            about,
             // Account (who's signed in, sign out): an action, not a tab.
             if (!_dev)
               AccountButton(
@@ -987,14 +998,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
             ],
           ),
-          // Bottom left, across from Flip and Clip: the battery, whether a
-          // clip now would be complete, and after it the latest message.
-          // Signed out, only the message.
+          // Bottom left, across from Flip and Clip: a failed health check,
+          // the battery, whether a clip now would be complete, and after it
+          // the latest message. Signed out, only the message.
           if (_onCamera && (_hasAccess || _message != null))
             _CameraStatus(
               rig: widget.rig,
               battery: _battery,
               full: _hasAccess,
+              // Tapping it opens the health panel (Log), or for non-admins
+              // the health line (Settings).
+              roles: widget.roles,
+              sync: widget.sync,
+              onHealthTap: () => _tabs.animateTo(
+                (_showLog ? HomeTab.log : HomeTab.settings).index,
+              ),
               message: switch (_message) {
                 final m? => CameraMessagePill(
                   message: m,
@@ -1200,8 +1218,9 @@ class CameraMessagePill extends StatelessWidget {
 }
 
 /// The status pills over the camera, bottom left, across from Flip and
-/// Clip: the battery, its temperature (Android), the readiness and, beside
-/// it, a clip that just started ([message]). In a row, level with the
+/// Clip: a failed health check ([HealthWarningPill]), the battery, its temperature
+/// (Android), the readiness and, beside it, a clip that just started
+/// ([message]). In a row, level with the
 /// buttons and clear of them, on wide screens. On phones they stack,
 /// starting just above the buttons' row, so however wide they are they
 /// never run into Flip and Clip; the readiness and the message share the
@@ -1210,16 +1229,26 @@ class _CameraStatus extends StatelessWidget {
   const _CameraStatus({
     required this.rig,
     required this.battery,
+    required this.roles,
+    this.sync,
     this.full = true,
+    this.onHealthTap,
     this.message,
   });
 
   final CameraRig rig;
   final BatteryController battery;
 
-  /// With access: the battery and readiness too. Signed out, only
-  /// [message].
+  /// With access: the health warning, battery and readiness too. Signed
+  /// out, only [message].
   final bool full;
+
+  /// The health checks', for [HealthWarningPill].
+  final RolesService roles;
+  final CloudSync? sync;
+
+  /// Where tapping the health warning goes.
+  final VoidCallback? onHealthTap;
 
   /// The pill saying a clip just started, if one did.
   final Widget? message;
@@ -1248,13 +1277,18 @@ class _CameraStatus extends StatelessWidget {
       child: Align(
         alignment: AlignmentDirectional.bottomStart,
         child: ListenableBuilder(
-          listenable: Listenable.merge([rig, battery]),
+          listenable: Listenable.merge([rig, battery, roles, ?sync]),
           builder: (context, _) {
             final reading = full ? battery.reading : null;
             final readiness = full && rig.active != null
                 ? ReadinessIndicator(rig: rig)
                 : null;
+            final failed = full
+                ? HealthWarningPill.failedChecks(roles, sync)
+                : const <String>[];
             final batteryPills = [
+              if (failed.isNotEmpty)
+                HealthWarningPill(failed: failed, onTap: onHealthTap),
               if (reading != null) BatteryPill(battery: battery),
               if (reading?.celsius != null)
                 BatteryTemperaturePill(battery: battery),

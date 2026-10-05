@@ -15,10 +15,14 @@ in the app bar**, which flip between full screens.
   shows over the camera.)
   On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its Log tab and Admin
-    button, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
+    Where that doesn't fit (an admin's app bar, with its Log tab, Admin
+    and About buttons, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
     overflows.
     An indicator marks the selected tab.
+  - **About** (`info_outline`), just before Account (or before Sign in
+    when signed out), is **always shown**: signed out, signed in without
+    access, with access, and in DEV. It opens the [About](about.md)
+    screen.
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
 - **Flipping:** tapping a tab or swiping sideways moves between screens
@@ -61,16 +65,27 @@ in the app bar**, which flip between full screens.
     recording from scratch, so a clip right after a flip has less "before"
     history.
   - **Status pills, bottom left**, across from Flip and Clip
-    (`_CameraStatus` in `lib/main.dart`): the **battery**, its
-    **temperature** (Android), the **readiness indicator** and, after it
-    for 4 s, the latest **message**, all in one pill style
-    (`StatusPill`), 16 px from the edges. On screens 600 px and wider
+    (`_CameraStatus` in `lib/main.dart`): a **health warning** while a
+    health check fails, the **battery**, its **temperature** (Android),
+    the **readiness indicator** and, after it for 4 s, the latest
+    **message**, all in one pill style (`StatusPill`), 16 px from the
+    edges. On screens 600 px and wider
     they're in a row, centered on the buttons and kept clear of them.
-    Narrower, they stack (battery on top), starting just above the buttons'
+    Narrower, they stack (the health warning, then the battery, on top), starting just above the buttons'
     row, so they never run into Flip and Clip; the readiness and the
     message share the lowest line. A label too long for the room is cut
     short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
+  - **Health warning** (`HealthWarningPill` in
+    [lib/system_health.dart](../presence_app/lib/system_health.dart)):
+    only an icon (`warning_amber_rounded`, in the error color), no label,
+    first among the pills, shown with access while one of the
+    [health checks](settings.md) fails (❌, or ⚠️ set on one side only),
+    as they stand now (the auth API's start check and its retries, the
+    Log tab's checks, the cloud sync). Its tooltip and screen-reader label
+    say "Health check failed" and each failed check's explanation.
+    **Tapping it** opens the Log tab's health panel for admins, Settings'
+    health line for everyone else. Gone once every check passes.
   - **Readiness indicator:** shows whether a clip taken now would be
     complete:
     - **"Ready"** (green dot): shown as soon as a camera is open, including
@@ -122,5 +137,6 @@ in the app bar**, which flip between full screens.
   [Settings screen](settings.md)).
 - **Log** (admins only): the app's latest log messages (see [Log](log.md)).
 - The title no longer links to presence.nu01.com. On a full-screen camera,
-  an accidental tap would open a browser. `url_launcher` was removed.
+  an accidental tap would open a browser. The links are on the
+  [About](about.md) screen instead (`url_launcher`).
 - The Flutter demo UI was removed entirely.
