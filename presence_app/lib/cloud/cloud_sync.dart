@@ -34,13 +34,20 @@ abstract class DeviceSettings {
   /// This device's ID.
   Future<String> get deviceId;
 
-  /// The settings as stored: `{deviceId, updatedAt, config}`, where
-  /// `updatedAt` is when they were last changed (ms since the epoch; 0 for
-  /// the defaults, never changed).
+  /// The settings as stored: `{deviceId, profileId, updatedAt, config,
+  /// location}`, where `profileId` is the profile they were last synced
+  /// with (absent before the first sync), `updatedAt` is when they were
+  /// last changed (ms since the epoch; 0 for the defaults, never changed)
+  /// and `location` is the location set on the map, or null.
   Future<Map<String, Object?>> settingsRecord();
 
-  /// Takes on a record fetched from the cloud, newer than the local one.
+  /// Takes on a record fetched from the cloud: newer than the local one,
+  /// or the signing-in profile's while the local one is another's.
   Future<void> applySettings(Map<String, Object?> record);
+
+  /// The settings now belong to [profileId] (they're synced with its
+  /// folder). Not a change by the user.
+  Future<void> claimSettings(String profileId);
 }
 
 /// What a restore brought down from the cloud: records the device didn't
@@ -345,7 +352,8 @@ class CloudSync extends ChangeNotifier {
 
   Future<void> _run() async {
     final idToken = auth.idToken;
-    if (_syncProfile == null || idToken == null) {
+    final owner = _syncProfile;
+    if (owner == null || idToken == null) {
       _set(CloudSyncState.off);
       return;
     }
@@ -354,7 +362,7 @@ class CloudSync extends ChangeNotifier {
       final now = _now().toUtc();
       final last = _lastFullFetch;
       final full = last == null || now.difference(last) >= fullFetchEvery;
-      if (last == null) await _fetchSettings(session);
+      if (last == null) await _fetchSettings(session, owner);
       await _fetch(
         session,
         _fetchPrefixes(now, first: last == null, full: full),
@@ -525,27 +533,35 @@ class CloudSync extends ChangeNotifier {
   }
 
   /// Fetches this device's settings, if the cloud has them, and hands them
-  /// to [settings] when they're newer than the local ones.
-  Future<void> _fetchSettings(CloudSession session) async {
+  /// to [settings] when they're newer than the local ones, or when the
+  /// local ones are another profile's: a sign-in restores what the
+  /// profile last had on this device. Then the local settings are the
+  /// profile's.
+  Future<void> _fetchSettings(CloudSession session, String owner) async {
     final settings = this.settings;
     if (settings == null) return;
     final id = await settings.deviceId;
     final key = settingsKey(id);
     // Listed first: a new device has none, and a missing key is an error.
-    if (!(await session.list('devices/$id/')).contains(key)) return;
-    final bytes = await session.get(key);
-    // Remember what the cloud holds, so local settings that differ from
-    // it (older there, or damaged) are uploaded over it.
-    await (await _store).markSynced(
-      '${session.prefix}/$key',
-      _fingerprint(bytes),
-    );
-    final remote = jsonDecode(utf8.decode(bytes));
-    if (remote is! Map || remote['deviceId'] != id) return;
-    final local = await settings.settingsRecord();
-    if (_updatedAt(remote) > _updatedAt(local)) {
-      await settings.applySettings(remote.cast<String, Object?>());
+    if ((await session.list('devices/$id/')).contains(key)) {
+      final bytes = await session.get(key);
+      // Remember what the cloud holds, so local settings that differ from
+      // it (older there, or damaged) are uploaded over it.
+      await (await _store).markSynced(
+        '${session.prefix}/$key',
+        _fingerprint(bytes),
+      );
+      final remote = jsonDecode(utf8.decode(bytes));
+      if (remote is Map && remote['deviceId'] == id) {
+        final local = await settings.settingsRecord();
+        final mine = local['profileId'];
+        if ((mine != null && mine != owner) ||
+            _updatedAt(remote) > _updatedAt(local)) {
+          await settings.applySettings(remote.cast<String, Object?>());
+        }
+      }
     }
+    await settings.claimSettings(owner);
   }
 
   static int _updatedAt(Map<Object?, Object?> record) =>

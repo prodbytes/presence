@@ -12,6 +12,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
+import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -33,6 +34,7 @@ void main() {
     List<FakeCameraSource> cameras = const [],
     CloudBackend? cloud,
     FakeAuthService? auth,
+    String profile = 'automatic_paranoid_axolotl',
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -47,7 +49,7 @@ void main() {
         mediaIo: fakeMediaIo,
         now: () => clock,
         auth: auth ?? FakeAuthService.signedIn(),
-        rolesClient: FakeRolesClient(),
+        rolesClient: FakeRolesClient()..profile = profile,
         cloud: cloud,
         mapTiles: const SizedBox(),
         locator: NoLocation(),
@@ -852,6 +854,82 @@ void main() {
     await launch(tester, cloud: cloud);
     await settingsLabel(tester, '-2.0 EV');
     expect(cloudSettings(cloud)[key]!['updatedAt'], later);
+  });
+
+  testWidgets("a sign-in to another profile restores that profile's "
+      'settings for this device, with the location set on the map', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    final key = cloudSettings(cloud).keys.single;
+    final deviceId = cloudSettings(cloud)[key]!['deviceId'];
+    expect(
+      cloudSettings(cloud)[key]!['profileId'],
+      'automatic_paranoid_axolotl',
+    );
+    // Changed here, so the local settings are newer than the cloud's below.
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('motion-switch')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pumpWidget(const SizedBox());
+    await settleStorage(tester);
+
+    // What the other profile last had on this device.
+    final onMap = {
+      'lat': 40.7,
+      'lng': -74.0,
+      'accuracy': null,
+      'source': 'map',
+      'time': 1,
+    };
+    putCloudSettings(cloud, key, {
+      'deviceId': deviceId,
+      'profileId': 'huge_wavy_darter',
+      'updatedAt': 1,
+      'config': const PresenceConfig(camera: CameraConfig(brightness: -2))
+          .toJson(),
+      'location': onMap,
+    });
+    await launch(tester, cloud: cloud, profile: 'huge_wavy_darter');
+    await settingsLabel(tester, '-2.0 EV');
+    expect(find.text('Set on the map'), findsOneWidget);
+    final store = await run(tester, EventStore.open(storage));
+    expect(
+      DeviceLocation.fromJson(await run(tester, store.getSettings('location'))),
+      DeviceLocation.fromJson(onMap),
+    );
+    final saved = await run(tester, store.getSettings('config'));
+    store.close();
+    expect(saved!['profileId'], 'huge_wavy_darter');
+    expect((saved['motion']! as Map)['enabled'], isTrue);
+    expect(cloudSettings(cloud)[key]!['updatedAt'], 1);
+  });
+
+  testWidgets('setting the location on the map changes the settings', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    final key = cloudSettings(cloud).keys.single;
+    expect(cloudSettings(cloud)[key]!['location'], isNull);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('location-map')),
+      const Offset(-150, 100),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Set on the map'), findsOneWidget);
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    final record = cloudSettings(cloud)[key]!;
+    expect(record['updatedAt'], clock.millisecondsSinceEpoch);
+    expect(record['location'], containsPair('source', 'map'));
   });
 
   testWidgets('motion settings survive a refresh', (tester) async {

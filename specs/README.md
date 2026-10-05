@@ -82,8 +82,9 @@ their data.
   setting (two weeks; 1 day to 3 months) deleted from the device, with
   their clips, at load and every 3 hours.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
-  S3, with credentials for their profile (the auth API, then a Cognito
-  identity pool).
+  S3, and each device's settings per profile (restored at sign-in), with
+  credentials for their profile (the auth API, then a Cognito identity
+  pool).
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.

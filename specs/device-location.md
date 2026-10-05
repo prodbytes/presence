@@ -119,6 +119,12 @@ the camera. (There used to be a Device tab for both; it's gone.)
 - A location set on the map **is kept**: across restarts the device isn't
   asked again, until **My location** is pressed. A reading that answers
   after the map was moved is dropped, so it never undoes the move.
+- It's **one of this device's settings**: setting it (or going back to
+  **My location**) changes the settings record, which syncs to the
+  profile's folder, and a sign-in brings it back with the rest
+  (`LocationController.applyRemote`; see
+  [Configuration](configuration.md)). Readings of the device's position
+  stay on the device.
 - Longitudes past the date line are wrapped back into -180..180.
 
 ## Storage

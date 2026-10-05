@@ -72,6 +72,16 @@ class Persistence implements DeviceSettings {
   /// by the user.
   bool _applyingRemote = false;
 
+  /// The profile the settings were last synced with, or null before the
+  /// first sync. A sign-in to another profile restores that profile's
+  /// settings for this device (see `CloudSync`).
+  String? _settingsProfile;
+
+  /// Shows a location set on the map that came from the cloud (null: none
+  /// is set there, so the device's own position is used). Set by the app
+  /// to `LocationController.applyRemote`.
+  void Function(DeviceLocation? onMap)? onRemoteLocation;
+
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
 
@@ -107,11 +117,27 @@ class Persistence implements DeviceSettings {
   Future<Map<String, Object?>?> loadLocation() async =>
       (await _store).getSettings(_locationKey);
 
-  /// Saves this device's location.
+  /// Saves this device's location. Setting it on the map, or going back
+  /// to the device's own position from there, changes the settings (which
+  /// sync to the cloud); a new reading of the device's position doesn't.
   Future<void> saveLocation(Map<String, Object?> json) {
-    final write = _store.then((store) => store.putSettings(_locationKey, json));
+    final write = () async {
+      final store = await _store;
+      final before = _onMap(await store.getSettings(_locationKey));
+      await store.putSettings(_locationKey, json);
+      if (mapEquals(before, _onMap(json))) return;
+      // Not over the saved settings before they're loaded.
+      await _configLoaded.future;
+      if (!_disposed) _saveConfig();
+    }();
     _track(write);
     return write;
+  }
+
+  /// [json] if it's a location set on the map, otherwise null.
+  static Map<String, Object?>? _onMap(Map<String, Object?>? json) {
+    final location = DeviceLocation.fromJson(json);
+    return location?.source == LocationSource.map ? location!.toJson() : null;
   }
 
   /// Loads saved settings and history into [log]. Settings are saved on
@@ -134,6 +160,7 @@ class Persistence implements DeviceSettings {
         if (saved != null) {
           config.config = PresenceConfig.fromJson(saved);
           if (saved['updatedAt'] case final int at) _configUpdatedAt = at;
+          if (saved['profileId'] case final String id) _settingsProfile = id;
         } else if (legacy != null) {
           config.config = PresenceConfig.fromLegacy(legacy);
         }
@@ -393,7 +420,11 @@ class Persistence implements DeviceSettings {
   }
 
   void _writeConfig() {
-    final json = {...config.config.toJson(), 'updatedAt': _configUpdatedAt};
+    final json = {
+      ...config.config.toJson(),
+      'updatedAt': _configUpdatedAt,
+      'profileId': ?_settingsProfile,
+    };
     _track(() async {
       final store = await _store;
       await store.putSettings(_configKey, json);
@@ -405,10 +436,13 @@ class Persistence implements DeviceSettings {
   @override
   Future<Map<String, Object?>> settingsRecord() async {
     await _configLoaded.future;
+    final location = (await _store).getSettings(_locationKey);
     return {
       'deviceId': await _deviceId,
+      'profileId': ?_settingsProfile,
       'updatedAt': _configUpdatedAt,
       'config': config.config.toJson(),
+      'location': _onMap(await location),
     };
   }
 
@@ -425,6 +459,42 @@ class Persistence implements DeviceSettings {
       _applyingRemote = false;
     }
     _configUpdatedAt = at;
+    _writeConfig();
+    // Records from before the location synced have no `location`: leave
+    // this device's alone.
+    if (record.containsKey('location')) await _applyLocation(record);
+  }
+
+  /// Takes on the cloud's location set on the map, or its absence.
+  Future<void> _applyLocation(Map<String, Object?> record) async {
+    final remote = DeviceLocation.fromJson(record['location']);
+    if (record['location'] != null && remote == null) return; // Damaged.
+    final onMap = remote?.source == LocationSource.map ? remote : null;
+    final store = await _store;
+    final local = DeviceLocation.fromJson(
+      await store.getSettings(_locationKey),
+    );
+    if (_disposed) return;
+    if (onMap != null) {
+      await store.putSettings(_locationKey, onMap.toJson());
+    } else if (local?.source == LocationSource.map) {
+      // None on the map there: until the device answers, the last point
+      // stands as a reading, not a setting.
+      await store.putSettings(_locationKey, {
+        ...local!.toJson(),
+        'source': LocationSource.device.name,
+      });
+    } else {
+      return;
+    }
+    onRemoteLocation?.call(onMap);
+  }
+
+  @override
+  Future<void> claimSettings(String profileId) async {
+    await _configLoaded.future;
+    if (_disposed || _settingsProfile == profileId) return;
+    _settingsProfile = profileId;
     _writeConfig();
   }
 

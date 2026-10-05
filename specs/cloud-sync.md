@@ -24,7 +24,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
 | `<identityId>/media/<clipId>.jpg` | the thumbnail |
 | `<identityId>/media/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/year=<YYYY>/day=<DDD>/<clipId>.json` | the clip record: camera, window, lengths, state, media reference; in its event's day partition (the event's `time`, which is the clip's `requestedAt`) |
-| `<identityId>/devices/<deviceId>/settings.json` | the device's settings: `{deviceId, updatedAt, config}` (see [Configuration](configuration.md)) |
+| `<identityId>/devices/<deviceId>/settings.json` | the device's settings for this profile: `{deviceId, profileId, updatedAt, config, location}`, every Settings value and the location set on the map (see [Configuration](configuration.md)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images, and the object tags, `objectTags`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 - What a device uploaded under the old layout (`clips/<clipId>.webm`,
@@ -47,7 +47,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
   (after a link) starts it over.
 - **This device's settings:** the first pass for a user (at start, sign-in
   or a user change) lists `devices/<deviceId>/` and, if the record is
-  there, downloads it; the newer `updatedAt` wins (see
+  there, downloads it. It wins when it's newer, or when the local
+  settings are another profile's, so a sign-in restores what the profile
+  last had on this device; then the local settings are the profile's (see
   [Configuration](configuration.md)). Every pass then uploads the local
   record if it differs from what the cloud holds. A settings change
   signals a pass, like a new event. One listing per start; other devices
@@ -205,10 +207,15 @@ In [presence_infra/](../presence_infra):
 
 - Settings: `cloud_sync_test.dart` (the settings listing only on the
   first pass, an upload when they change, another device's or a damaged
-  record ignored and replaced) and `persistence_test.dart` (signed in,
-  the defaults go up under the device ID and a change follows with its
-  time; at start a newer cloud record wins and stays on the device, and
-  an older one loses and is replaced).
+  record ignored and replaced; the profile's older record wins over
+  another profile's newer settings, the profile's own newer ones stay,
+  and the settings are claimed for the profile with or without a record)
+  and `persistence_test.dart` (signed in, the defaults go up under the
+  device ID and a change follows with its time; at start a newer cloud
+  record wins and stays on the device, and an older one loses and is
+  replaced; signing in to another profile restores its settings and its
+  location set on the map, though the local ones were newer; moving the
+  map changes the record).
 - Fetch and timer tests:
   - on sign-in, a remote clip (details, video, thumbnail) and event are
     downloaded, handed over and not uploaded back, while local items are
