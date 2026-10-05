@@ -2364,3 +2364,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      only My location makes it follow the device again. Updated
      [Device location and battery](device-location.md). 3 new widget tests
      pass, and so do the existing location tests.
+241. **Improve the health checks on the Log tab: a card per check, the
+    devices as a number in a pill, all aligned, and the timeline with
+    proper times and scrolling.** (2026-10-05)
+    - The panel is now a card per check (Auth API, AWS, OIDC) with its
+      status in a colored pill (OK, Failed, Mismatch, Checking, Syncing,
+      Off) and what it means under the name, plus a Devices card with the
+      count in a pill. Four across from 720 dp, two by two below, each
+      row's cards the same width and height; under 200 dp the pill goes
+      under the name.
+    - The history of bricks became a timeline card: a row per check, a
+      colored cell per run, the newest on the right and scrolled to,
+      sideways scrolling, and the time (HH:MM) under the first run of
+      every 2 minutes. Tapping a run still shows its details.
+    - Checked by rendering the panel at 360 and 1100 dp.
+    - Specs: [Log](log.md). 350 Flutter tests (3 new) pass.
