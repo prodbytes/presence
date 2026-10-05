@@ -2340,3 +2340,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Events](events.md), [Monitoring](monitoring.md),
       [Subjects](subjects.md), [Navigation](navigation.md). 348 Flutter
       tests (1 new) pass.
+239. **On Android the API health check still shows ❌: check why in the
+    app logs, and make health checks print somewhere findable.**
+    (2026-10-05)
+    - Found: the start check timed out (5 s) on the phone's debug build,
+      and the request reached the API 4 s later; nothing checked again
+      unless the Log tab was open, so ❌ stayed.
+    - Now an unanswered start check is retried (5 s, 15 s, 30 s, then
+      every minute) until the API answers; later checks wait 15 s. Every
+      check is logged with its duration (`Presence: auth API …`), in the
+      Log tab and in logcat (`devbox run android-log`).
+    - Specs: [Execution mode](execution-mode.md), [Log](log.md). 344
+      Flutter tests pass (1 new).

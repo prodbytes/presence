@@ -164,6 +164,13 @@ class RolesService extends ChangeNotifier {
     required this._client,
     bool? oidcClient,
     this.startTimeout = const Duration(seconds: 5),
+    this.checkTimeout = const Duration(seconds: 15),
+    this.retryDelays = const [
+      Duration(seconds: 5),
+      Duration(seconds: 15),
+      Duration(seconds: 30),
+      Duration(minutes: 1),
+    ],
   }) : oidcClient = oidcClient ?? hasOidcClient {
     _start();
   }
@@ -174,8 +181,19 @@ class RolesService extends ChangeNotifier {
   /// Whether this build can sign in; decides the mode when the API can't.
   final bool oidcClient;
 
-  /// How long to wait for the auth API at start.
+  /// How long to wait for the auth API at start, which holds up the mode.
   final Duration startTimeout;
+
+  /// How long a later check ([checkApi]) waits: longer, since nothing waits
+  /// on it. A phone's first HTTPS request can take ~10 s while the app
+  /// starts (a debug build, with the camera and recognition starting).
+  final Duration checkTimeout;
+
+  /// When the start check failed: how long to wait before each check that
+  /// follows it, until one answers; the last delay repeats.
+  final List<Duration> retryDelays;
+
+  Timer? _retry;
 
   ExecutionMode? _mode;
   List<String> _anonymousRoles = const [anonymousRole];
@@ -185,7 +203,8 @@ class RolesService extends ChangeNotifier {
 
   String? _apiError;
 
-  /// Why the auth API didn't answer the start check, if it didn't.
+  /// Why the auth API didn't answer the last check (the start check, then
+  /// [checkApi]), if it didn't.
   String? get apiError => _apiError;
 
   ApiSettings _apiSettings = (oidc: null, aws: null);
@@ -251,14 +270,25 @@ class RolesService extends ChangeNotifier {
   Future<void> _checkApi() async {
     String? error;
     ApiSettings? settings;
+    final watch = Stopwatch()..start();
     try {
-      settings = (await _client.anonymous().timeout(startTimeout)).settings;
+      settings = (await _client.anonymous().timeout(checkTimeout)).settings;
     } catch (e) {
       error = '$e';
     }
     if (_disposed) return;
-    if (error != null && error != _apiError) {
-      debugPrint('Presence: auth API health check failed: $error');
+    // Every failure, and the first answer after one, go to the log (and
+    // logcat on Android), so a health brick's ❌ can be explained.
+    if (error != null) {
+      debugPrint(
+        'Presence: auth API health check failed after '
+        '${watch.elapsedMilliseconds} ms: $error',
+      );
+    } else if (_apiError != null) {
+      debugPrint(
+        'Presence: auth API health check answered in '
+        '${watch.elapsedMilliseconds} ms, after failing: $_apiError',
+      );
     }
     _apiError = error;
     if (settings != null) _apiSettings = settings;
@@ -268,10 +298,18 @@ class RolesService extends ChangeNotifier {
 
   Future<void> _start() async {
     AnonymousAccess access;
+    final watch = Stopwatch()..start();
     try {
       access = await _client.anonymous().timeout(startTimeout);
+      debugPrint(
+        'Presence: auth API answered the start check in '
+        '${watch.elapsedMilliseconds} ms (${access.mode.name} mode)',
+      );
     } catch (e) {
-      debugPrint('Presence: could not ask the execution mode: $e');
+      debugPrint(
+        'Presence: could not ask the execution mode (after '
+        '${watch.elapsedMilliseconds} ms; checking again): $e',
+      );
       _apiError = '$e';
       const unknown = (oidc: null, aws: null);
       access = oidcClient
@@ -291,6 +329,8 @@ class RolesService extends ChangeNotifier {
     _mode = access.mode;
     _anonymousRoles = access.roles;
     _apiSettings = access.settings;
+    // Unanswered: check again, sooner then less often, until it answers.
+    if (_apiError != null) _retryCheck(0);
     if (access.mode == ExecutionMode.dev) {
       _set(AccessState.granted, access.roles);
       return;
@@ -363,9 +403,21 @@ class RolesService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Checks the auth API again after [retryDelays] (the [attempt]th, or the
+  /// last), until a check answers.
+  void _retryCheck(int attempt) {
+    if (retryDelays.isEmpty || _disposed) return;
+    final delay = retryDelays[attempt.clamp(0, retryDelays.length - 1)];
+    _retry = Timer(delay, () async {
+      await checkApi();
+      if (_apiError != null) _retryCheck(attempt + 1);
+    });
+  }
+
   @override
   void dispose() {
     _disposed = true;
+    _retry?.cancel();
     auth.removeListener(_onAuthChanged);
     super.dispose();
   }
