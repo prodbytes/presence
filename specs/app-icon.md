@@ -21,3 +21,19 @@ dot on the ring.
     manifest colors.
 - Verified on the S40: the adaptive icon shows in Recents, next to the app
   name "Presence".
+
+## Name
+
+The app is called **Presence** wherever people see its name, never by its
+Dart package name (`presence_app`):
+
+- **Web:** the page title (the browser tab, and the link text when its URL
+  is dragged or shared), `apple-mobile-web-app-title`, and the manifest's
+  `name` and `short_name` (installed web app). The page and manifest
+  description says what the app does.
+- **Android:** the launcher label (`android:label`).
+- **iOS:** `CFBundleDisplayName` and `CFBundleName`.
+- **Linux:** the window and header bar titles. The binary (`presence_app`)
+  and application ID keep the package name: the install script runs the
+  bundle's `presence_app`.
+- **In the app:** `MaterialApp.title`.
