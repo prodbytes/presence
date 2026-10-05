@@ -2531,3 +2531,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
       listing those steps in order, with the commands for each. No app
       change; no feature spec changes.
+253. **The Android app on the USB phone seems to have crashed: no events
+     from it all day. Keep the app alive even when the phone is
+     unattended, log messages so they can be retrieved for debugging, check
+     why the last run failed, and restart it.** (2026-10-05)
+     - Found: nothing brought the app back once its process died (a
+       crash, a kill, Back, a reboot), and a camera that stopped sending
+       frames without an error went unnoticed. The app's messages lived
+       only in memory and in logcat, which the phone overwrites within
+       hours, so the last run left nothing to read.
+     - Changed: `KeepAlive` reopens the app (a watchdog alarm every 15 min,
+       10 s after a crash, when Android restarts the sticky capture
+       service, and at boot); a camera without frames for 60 s is reopened;
+       `FileLog` writes every Dart and native message to daily files on the
+       phone, and saves the app's logcat at each start;
+       `devbox run android-pull` fetches them with the phone's status and
+       crash records.
+     - Specs: [Android](android.md). 385 Flutter tests pass (2 new).

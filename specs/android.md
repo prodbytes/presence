@@ -74,6 +74,24 @@ Android uses the standard dashcam technique instead
     closes it and tries to reopen it every 10 s
     (`CameraRig.lostRetryDelay`) until it opens. A camera that failed to
     open is also reopened when the app returns to the foreground.
+  - **A stuck camera is reopened too:** every 30 s the plugin checks each
+    open camera's motion frames (about 5 a second); after 60 s without
+    one, it reports the camera lost ("No camera frames for N s"), and it
+    is reopened as above. A camera without the motion stream isn't checked.
+  - **The app comes back when it isn't running** (`KeepAlive`):
+    - a **watchdog** alarm (`WatchdogReceiver`, every 15 min, even in
+      Doze) reopens the app's screen if it's gone: killed, crashed, or
+      closed with Back;
+    - after an uncaught **crash** (logged with its stack first), the
+      watchdog reopens it 10 s later;
+    - when Android restarts the **capture service** after killing the
+      process (`START_STICKY`), the service reopens the app;
+    - after the phone **boots** (`BootReceiver`, `RECEIVE_BOOT_COMPLETED`),
+      the app opens.
+    - Only a force stop (Settings > Apps) keeps it closed: it cancels the
+      alarms until the app is opened again. Android 10 and later may refuse
+      to open an app from the background (the S40 runs Android 9); the
+      attempt is logged.
   - Verified on the S40 (plugged in): with the screen asleep for over a
     minute, the encoder and motion streams kept running (972 frames each,
     no disconnect) while the preview stream stopped, and the preview came
@@ -128,7 +146,22 @@ Android uses the standard dashcam technique instead
   phone runs in OIDC mode, with Google sign-in. The phone lookup is
   [scripts/android-device.sh](../scripts/android-device.sh), shared with
   the log script.
-- **Read the app's log:** `devbox run android-log`, or
+- **Log files on the phone** (`FileLog`): every message the app logs,
+  Dart's (`AppLog.persistToDevice`, through `presence/device` `log`) and
+  the native side's (the app opened, shown or hidden, the capture service,
+  cameras opened, failed, lost or stuck, the watchdog, crashes with their
+  stack), also goes to `presence-YYYY-MM-DD.log` in
+  `/sdcard/Android/data/com.nu01.presence/files/logs/`, which adb reads
+  without root; the latest 7 days are kept. At each start the app also
+  saves what logcat still holds of it (`logcat-before-<time>.txt`, the
+  latest 5): the minutes before a crash or a kill. Native lines are logged
+  with tag `Presence` too.
+- **Pull them:** `devbox run android-pull`, or `scripts/android-log.sh
+  --pull [dir]`, copies those files to `android-logs/<time>/`
+  (git-ignored), with `status.txt` (the phone's time and uptime, whether
+  the app, its service and wake lock are up, the battery, and the system's
+  crash, ANR and kill records) and `dropbox.txt` (those records in full).
+- **Read the app's log live:** `devbox run android-log`, or
   [scripts/android-log.sh](../scripts/android-log.sh), raises the phone's
   log buffer to 16 MB (Android's 256 KB default holds only minutes of a
   busy phone's log), shows what the buffer holds and follows it, keeping
@@ -151,9 +184,10 @@ Android uses the standard dashcam technique instead
   capture notification needs `POST_NOTIFICATIONS`, which the app doesn't
   ask for: without it the service still runs, with its notification only
   in the task manager.
-- If Android kills the app (low memory, the user swipes it away), capture
-  stops until it's opened again: the service doesn't restart without the
-  app, whose camera lives in it.
+- Between a kill and the watchdog's next check, up to 15 min go
+  unrecorded (a crash reopens it in 10 s). A native crash (in a codec or
+  a model) skips the crash handler: the watchdog reopens the app, and the
+  next start's saved logcat shows what logcat kept of it.
 
 - The Android app is locked to portrait (`screenOrientation="portrait"`):
   the preview, the recording's rotation flag and thumbnails all assume a

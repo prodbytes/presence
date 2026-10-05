@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/app_log.dart';
@@ -40,5 +41,25 @@ void main() {
     await tester.tap(find.byKey(const Key('log-clear')));
     await tester.pump();
     expect(find.text('Nothing logged yet.'), findsOneWidget);
+  });
+
+  test('gives every entry to persist, as it is added', () {
+    final log = AppLog();
+    log.add('before');
+    final kept = <LogEntry>[];
+    log.persist = kept.add;
+    log
+      ..add('one')
+      ..add('two', error: true);
+    expect(kept.map((e) => e.message), ['one', 'two']);
+    expect(kept.last.error, isTrue);
+  });
+
+  test('persistToDevice does nothing off Android', () {
+    final log = AppLog();
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    log.persistToDevice();
+    debugDefaultTargetPlatformOverride = null;
+    expect(log.persist, isNull);
   });
 }
