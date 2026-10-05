@@ -73,8 +73,8 @@ class AppEvent {
   static const String captureAllType = 'capture_all';
 
   /// The [userId] of events recorded while nobody was signed in. The next
-  /// user to sign in on the device takes them over
-  /// (`Persistence.claimAnonymous`).
+  /// user to sign in on the device takes them over, with their profile
+  /// (`Persistence.claimForProfile`).
   static const String anonymousUserId = 'anonymous';
 
   final String id;
