@@ -19,8 +19,11 @@ inside `AppLog.capture`, which adds to `AppLog.instance`:
   trace, marked as errors.
 
 Each message still goes where it went before (the console, `adb logcat`).
-The log holds the latest **500** entries, in memory only: it starts empty
-at every launch and isn't uploaded.
+The Log tab holds the latest **500** entries, in memory: it starts empty
+at every launch, and nothing is uploaded. On Android every entry is also
+written to daily log files on the phone (`AppLog.persistToDevice`), kept 7
+days, which `devbox run android-pull` fetches; see
+[Android](android.md).
 
 ## Cloud sync messages
 

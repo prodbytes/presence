@@ -46,7 +46,12 @@ import 'theme.dart';
 
 void main() {
   // Everything the app logs also goes to the admins' Log tab.
-  AppLog.capture(() => runApp(const PresenceApp()));
+  AppLog.capture(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    // On Android, to files on the phone too, for debugging after the fact.
+    AppLog.instance.persistToDevice();
+    runApp(const PresenceApp());
+  });
 }
 
 class PresenceApp extends StatefulWidget {
