@@ -257,7 +257,7 @@ void main() {
 }
 
 /// Recognition with fake models: every frame shows a dog.
-class _DogVision implements Vision {
+class _DogVision extends Vision {
   int frames = 0;
 
   @override
@@ -265,6 +265,8 @@ class _DogVision implements Vision {
     RgbaImage image, {
     bool faces = true,
     bool subjects = true,
+    Set<SeenKind>? kinds,
+    int? maxSeen,
   }) async {
     frames++;
     return const FrameAnalysis(objects: {'dog': 0.9});

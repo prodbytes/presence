@@ -128,13 +128,27 @@ Android uses the standard dashcam technique instead
 ## Subject recognition
 
 - [Recognition](recognition.md) runs the bundled `.tflite` models with
-  **LiteRT** through Google's `tflite_flutter` plugin (Dart FFI, a
-  background isolate per model).
-- **`framesAt`** (`presence/cameras`): `{path, ms: [..], maxWidth}` →
-  a JPEG per time (null where a frame can't be read), from one
-  `MediaMetadataRetriever` per call, each frame upright and scaled as
-  `frameAt`'s; bitmaps are recycled as soon as they're encoded. `frameAt`
-  is now `framesAt` with one time.
+  **LiteRT** through Google's `tflite_flutter` plugin (Dart FFI), all in
+  one worker isolate, 2 CPU threads, the models mapped from files in
+  `files/models/` (copied from the assets on first use).
+- **`keyframesAt`** (`presence/cameras`): `{path, ms: [..], maxWidth}` →
+  a list of `{ms, width, height, pixels}`: for each time, the **keyframe**
+  nearest to it (found in the file's index with `MediaExtractor`, nothing
+  decoded), each keyframe once, `ms` being its own time. Each is decoded
+  alone (`OPTION_CLOSEST_SYNC`) by one `MediaMetadataRetriever` per call,
+  straight to at most `maxWidth` (default 640) px wide upright
+  (`getScaledFrameAtTime`, Android 8.1+; scaled before turning on older
+  ones), then turned upright, and returned as raw RGBA; frames that can't
+  be read are left out. Bitmaps are recycled at once.
+- **`encodeJpeg`** (`presence/cameras`): `{width, height, pixels}` (RGBA,
+  checked to match) → a JPEG (quality 85), for the frame of a recognized
+  tag or suggestion.
+- **`frameAt`** (`presence/cameras`, for tags made by hand): the frame
+  closest to a time (`OPTION_CLOSEST`), upright, at most `maxWidth` px
+  wide, as a JPEG.
+- **`memoryStatus`** (`presence/device`): `ActivityManager`'s
+  `{lowMemory, availMem, threshold, totalMem, lowRamDevice}`; recognition
+  waits while memory is tight.
 - **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
   Kotlin on the toolchain default (21), which Kotlin rejects; the root
   `build.gradle.kts` pins that plugin's Kotlin to JVM 11.

@@ -71,6 +71,29 @@ class FrameAnalysis {
   final Map<String, double> objects;
 }
 
+/// What recognition needs from the models: everyone on a picture, with
+/// their embeddings (unless not [subjects]), and the objects on it.
+/// [VisionModels] runs them on the calling isolate; on Android a worker
+/// isolate does (`vision_worker.dart`).
+abstract class Vision {
+  /// Everyone on [image] and the objects on it ([faces]: whether to look
+  /// for faces at all; [subjects]: whether to embed anyone, or only list
+  /// the objects). Only detections of [kinds] (all if null) are kept, at
+  /// most [maxSeen] of them (all if null), best first: the others aren't
+  /// embedded.
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+    Set<SeenKind>? kinds,
+    int? maxSeen,
+  });
+
+  /// Frees the models' memory, if it can; they're loaded again when next
+  /// needed.
+  void release() {}
+}
+
 /// The four models recognition runs, all TensorFlow Lite, bundled under
 /// `assets/models/` (see its README for sources and licenses):
 ///
@@ -79,7 +102,7 @@ class FrameAnalysis {
 /// - BlazeFace (short range): a face on a person;
 /// - MobileFaceNet: a face's embedding;
 /// - MobileNetV3 small (image embedder): a person's or pet's look.
-class VisionModels {
+class VisionModels extends Vision {
   VisionModels._(this._detector, this._faces, this._faceNet, this._embedder);
 
   static const String detectorAsset = 'assets/models/efficientdet_lite0.tflite';
@@ -100,19 +123,41 @@ class VisionModels {
   static const double minObject = 0.5;
   static const double minFace = 0.5;
 
+  /// Every model's asset.
+  static const List<String> assets = [
+    detectorAsset,
+    faceAsset,
+    faceNetAsset,
+    embedderAsset,
+  ];
+
   static Future<VisionModels> load(
     TfliteRuntime runtime, {
     AssetBundle? bundle,
-  }) async {
+  }) {
     final assets = bundle ?? rootBundle;
-    Future<TfliteModel> model(String asset) async =>
-        runtime.load((await assets.load(asset)).buffer.asUint8List());
-    return VisionModels._(
+    return open((asset) async {
+      final data = await assets.load(asset);
+      return runtime.load(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      );
+    });
+  }
+
+  /// The models, each of [assets] loaded by [model].
+  static Future<VisionModels> open(
+    Future<TfliteModel> Function(String asset) model,
+  ) async {
+    final models = VisionModels._(
       await model(detectorAsset),
       await model(faceAsset),
       await model(faceNetAsset),
       await model(embedderAsset),
     );
+    // Build the anchors now, not on the first frame.
+    efficientDetAnchors.length;
+    blazeFaceAnchors.length;
+    return models;
   }
 
   final TfliteModel _detector;
@@ -208,18 +253,18 @@ class VisionModels {
     return normalized(outputs.single);
   }
 
-  /// Everyone on [image], with their embeddings ([faces]: whether to look
-  /// for faces at all; [subjects]: whether to embed anyone, or only list
-  /// the objects), and the objects on it.
+  @override
   Future<FrameAnalysis> analyse(
     RgbaImage image, {
     bool faces = true,
     bool subjects = true,
+    Set<SeenKind>? kinds,
+    int? maxSeen,
   }) async {
     final (detections, objects) = await detect(image);
     if (!subjects) return FrameAnalysis(objects: objects);
     final seen = <Seen>[];
-    for (final d in detections) {
+    for (final d in keepDetections(detections, kinds: kinds, max: maxSeen)) {
       final found = faces && d.kind == SeenKind.person
           ? await face(image, d.box)
           : null;
@@ -235,12 +280,32 @@ class VisionModels {
     return FrameAnalysis(seen: seen, objects: objects);
   }
 
+  /// Models loaded here stay until [dispose]d.
+  @override
+  void release() {}
+
   void dispose() {
     _detector.dispose();
     _faces.dispose();
     _faceNet.dispose();
     _embedder.dispose();
   }
+}
+
+/// Of [detections] (best first), those of [kinds] (all if null), at most
+/// [max] (all if null).
+List<Detection> keepDetections(
+  List<Detection> detections, {
+  Set<SeenKind>? kinds,
+  int? max,
+}) {
+  final kept = kinds == null
+      ? detections
+      : [
+          for (final d in detections)
+            if (kinds.contains(d.kind)) d,
+        ];
+  return max == null || kept.length <= max ? kept : kept.sublist(0, max);
 }
 
 /// [v] scaled to unit length (cosine similarity is then a dot product).

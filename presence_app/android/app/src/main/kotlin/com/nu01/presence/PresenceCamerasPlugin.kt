@@ -10,7 +10,10 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CameraMetadata
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.EventChannel
@@ -21,6 +24,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 /**
  * The `presence/cameras` channel: lists and opens always-recording cameras,
@@ -96,7 +100,7 @@ class PresenceCamerasPlugin(
     /**
      * The frames at each of [times] (ms) of the recording at [path], as
      * [frameAt] makes them, with the file opened once; null where a frame
-     * can't be read. For recognition, which samples a whole clip.
+     * can't be read.
      */
     private fun framesAt(path: String, times: List<Long>, maxWidth: Int): CompletableFuture<List<ByteArray?>> =
         CompletableFuture.supplyAsync({
@@ -142,6 +146,142 @@ class PresenceCamerasPlugin(
         }
     }
 
+    /**
+     * Recognition's frames of the recording at [path]: for each of [times]
+     * (ms), the keyframe nearest to it, each keyframe once (decoding one
+     * needs no other frame, so it's the cheapest to read), upright, at most
+     * [maxWidth] px wide, as raw RGBA: `{ms, width, height, pixels}`, `ms`
+     * being the keyframe's own time. Frames that can't be read are left out.
+     */
+    private fun keyframesAt(path: String, times: List<Long>, maxWidth: Int): CompletableFuture<List<Map<String, Any>>> =
+        CompletableFuture.supplyAsync({
+            val retriever = MediaMetadataRetriever()
+            val extractor = MediaExtractor()
+            try {
+                retriever.setDataSource(path)
+                extractor.setDataSource(path)
+                val track = (0 until extractor.trackCount).firstOrNull {
+                    extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true
+                }
+                if (track == null) {
+                    emptyList()
+                } else {
+                    extractor.selectTrack(track)
+                    // Where the keyframes are, from the file's index: nothing
+                    // is decoded for this.
+                    val keyframes = LinkedHashSet<Long>()
+                    for (ms in times) {
+                        extractor.seekTo(ms * 1000, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
+                        val us = extractor.sampleTime
+                        if (us >= 0) keyframes.add(us)
+                    }
+                    fun metadata(key: Int) = retriever.extractMetadata(key)?.toIntOrNull() ?: 0
+                    val degrees = metadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                    val width = metadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                    val height = metadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                    // One unreadable frame doesn't lose the others.
+                    keyframes.mapNotNull { us ->
+                        runCatching { rgbaAt(retriever, us, degrees, width, height, maxWidth) }.getOrNull()
+                    }
+                }
+            } finally {
+                extractor.release()
+                retriever.release()
+            }
+        }, frames)
+
+    /**
+     * The keyframe at [us], scaled to at most [maxWidth] px wide upright
+     * before it's turned [degrees] (so only the small copy is turned), as
+     * [keyframesAt] gives it. The file's frames are [width] × [height] as
+     * stored (0 if unknown).
+     */
+    private fun rgbaAt(
+        retriever: MediaMetadataRetriever,
+        us: Long,
+        degrees: Int,
+        width: Int,
+        height: Int,
+        maxWidth: Int,
+    ): Map<String, Any>? {
+        val sync = MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+        // Turned a quarter, the upright width is the stored height.
+        val uprightWidth = if (degrees % 180 == 0) width else height
+        val scale = if (uprightWidth > maxWidth) maxWidth.toFloat() / uprightWidth else 1f
+        val frame = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1 && width > 0 && height > 0) {
+            // Decoded straight to the small size: no full-size bitmap.
+            retriever.getScaledFrameAtTime(
+                us, sync,
+                maxOf(1, (width * scale).roundToInt()),
+                maxOf(1, (height * scale).roundToInt()),
+            )
+        } else {
+            retriever.getFrameAtTime(us, sync)?.let { full ->
+                val s = if (degrees % 180 == 0) full.width else full.height
+                if (s <= maxWidth) {
+                    full
+                } else {
+                    val k = maxWidth.toFloat() / s
+                    Bitmap.createScaledBitmap(
+                        full,
+                        maxOf(1, (full.width * k).roundToInt()),
+                        maxOf(1, (full.height * k).roundToInt()),
+                        true,
+                    ).also { if (it !== full) full.recycle() }
+                }
+            }
+        } ?: return null
+        val upright = if (degrees % 360 == 0) {
+            frame
+        } else {
+            Bitmap.createBitmap(
+                frame, 0, 0, frame.width, frame.height,
+                Matrix().apply { postRotate(degrees.toFloat()) }, true,
+            ).also { if (it !== frame) frame.recycle() }
+        }
+        try {
+            val w = upright.width
+            val h = upright.height
+            val colors = IntArray(w * h)
+            upright.getPixels(colors, 0, w, 0, 0, w, h)
+            val pixels = ByteArray(w * h * 4)
+            for (i in colors.indices) {
+                val c = colors[i]
+                pixels[i * 4] = (c shr 16).toByte()
+                pixels[i * 4 + 1] = (c shr 8).toByte()
+                pixels[i * 4 + 2] = c.toByte()
+                pixels[i * 4 + 3] = 0xFF.toByte()
+            }
+            return mapOf("ms" to us / 1000, "width" to w, "height" to h, "pixels" to pixels)
+        } finally {
+            upright.recycle()
+        }
+    }
+
+    /** [rgba] ([width] × [height], as [keyframesAt] gives) as a JPEG. */
+    private fun jpegOf(width: Int, height: Int, rgba: ByteArray): CompletableFuture<ByteArray> =
+        CompletableFuture.supplyAsync({
+            require(width > 0 && height > 0 && rgba.size.toLong() == width.toLong() * height * 4) {
+                "not $width × $height RGBA"
+            }
+            val colors = IntArray(width * height) { i ->
+                val o = i * 4
+                (0xFF shl 24) or
+                    ((rgba[o].toInt() and 0xFF) shl 16) or
+                    ((rgba[o + 1].toInt() and 0xFF) shl 8) or
+                    (rgba[o + 2].toInt() and 0xFF)
+            }
+            val bitmap = Bitmap.createBitmap(colors, width, height, Bitmap.Config.ARGB_8888)
+            try {
+                ByteArrayOutputStream().use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    out.toByteArray()
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        }, frames)
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         try {
             when (call.method) {
@@ -170,12 +310,20 @@ class PresenceCamerasPlugin(
                         (call.argument<Number>("maxWidth") ?: 960).toInt(),
                     ),
                 ) { it }
-                "framesAt" -> reply(
+                "keyframesAt" -> reply(
                     result,
-                    framesAt(
+                    keyframesAt(
                         call.argument<String>("path")!!,
                         call.argument<List<Number>>("ms")!!.map { it.toLong() },
-                        (call.argument<Number>("maxWidth") ?: 960).toInt(),
+                        (call.argument<Number>("maxWidth") ?: 640).toInt(),
+                    ),
+                ) { it }
+                "encodeJpeg" -> reply(
+                    result,
+                    jpegOf(
+                        (call.argument<Number>("width") ?: 0).toInt(),
+                        (call.argument<Number>("height") ?: 0).toInt(),
+                        call.argument<ByteArray>("pixels")!!,
                     ),
                 ) { it }
                 "close" -> {

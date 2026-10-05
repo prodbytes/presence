@@ -14,6 +14,7 @@ import 'package:presence_app/events.dart';
 import 'package:presence_app/recognition/frames.dart';
 import 'package:presence_app/recognition/image.dart';
 import 'package:presence_app/recognition/matching.dart';
+import 'package:presence_app/recognition/memory.dart';
 import 'package:presence_app/recognition/recognizer.dart';
 import 'package:presence_app/recognition/runtime.dart';
 import 'package:presence_app/recognition/suggestion.dart';
@@ -79,6 +80,9 @@ class FakeSampler implements ClipFrameSampler {
   final int count;
   int jpegs = 0;
 
+  /// Clips sampled.
+  int samples = 0;
+
   @override
   bool get supported => true;
 
@@ -86,8 +90,9 @@ class FakeSampler implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
-    int maxWidth = 960,
+    int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
+    samples++;
     for (var i = 0; i < count; i++) {
       yield SampledFrame(
         Duration(milliseconds: 1000 + i * every.inMilliseconds),
@@ -103,7 +108,7 @@ class FakeSampler implements ClipFrameSampler {
 
 /// Answers from a script: per frame (by image width), who's there, and
 /// which [objects].
-class FakeVision implements Vision {
+class FakeVision extends Vision {
   FakeVision(this.frames, this.references, {this.objects = const {}});
 
   final Map<int, List<Seen>> frames;
@@ -115,22 +120,77 @@ class FakeVision implements Vision {
   /// Pictures analysed for subjects (embeddings), and frames at all.
   int calls = 0;
   int frameCalls = 0;
+  int releases = 0;
+
+  /// What the last frame (not reference) was analysed for.
+  Set<SeenKind>? kinds;
+  int? maxSeen;
 
   @override
   Future<FrameAnalysis> analyse(
     RgbaImage image, {
     bool faces = true,
     bool subjects = true,
+    Set<SeenKind>? kinds,
+    int? maxSeen,
   }) async {
     if (subjects) calls++;
     if (image.width >= 1000) {
       return FrameAnalysis(seen: references[image.width - 1000] ?? []);
     }
     frameCalls++;
+    this.kinds = kinds;
+    this.maxSeen = maxSeen;
     final i = image.width - 1;
     return FrameAnalysis(
       seen: subjects ? frames[i] ?? [] : const [],
       objects: objects[i] ?? const {},
+    );
+  }
+
+  @override
+  void release() => releases++;
+}
+
+/// [FakeVision] whose frames (not reference frames) wait for [gate].
+class _GatedVision extends FakeVision {
+  _GatedVision(super.frames, super.references);
+
+  final gate = Completer<void>();
+
+  @override
+  Future<FrameAnalysis> analyse(
+    RgbaImage image, {
+    bool faces = true,
+    bool subjects = true,
+    Set<SeenKind>? kinds,
+    int? maxSeen,
+  }) async {
+    if (image.width < 1000) await gate.future;
+    return super.analyse(
+      image,
+      faces: faces,
+      subjects: subjects,
+      kinds: kinds,
+      maxSeen: maxSeen,
+    );
+  }
+}
+
+/// Memory that's [tight] for that many more reads.
+class FakeMemory implements MemoryMonitor {
+  int tight = 0;
+  int reads = 0;
+
+  @override
+  Future<MemoryStatus?> status() async {
+    reads++;
+    final low = tight > 0;
+    if (low) tight--;
+    return MemoryStatus(
+      lowMemory: low,
+      availableBytes: 1 << 30,
+      thresholdBytes: 1 << 20,
     );
   }
 }
@@ -216,6 +276,34 @@ void main() {
         0.5,
       );
       expect(kept.map((x) => x.$1), [b, c]);
+    });
+
+    test('detections kept: only the kinds asked for, the best few', () {
+      Detection d(SeenKind kind, double score) =>
+          Detection(const Box(0, 0, 1, 1), score, kind);
+      final all = [
+        d(SeenKind.person, 0.9),
+        d(SeenKind.dog, 0.8),
+        d(SeenKind.person, 0.7),
+        d(SeenKind.cat, 0.6),
+        d(SeenKind.person, 0.5),
+        d(SeenKind.person, 0.4),
+      ];
+      expect(keepDetections(all), all);
+      expect(keepDetections(all, max: 3), all.sublist(0, 3));
+      expect(
+        keepDetections(
+          all,
+          kinds: {SeenKind.person},
+          max: 3,
+        ).map((d) => d.score),
+        [0.9, 0.7, 0.5],
+      );
+      expect(keepDetections(all, kinds: {SeenKind.cat, SeenKind.dog}), [
+        all[1],
+        all[3],
+      ]);
+      expect(keepDetections(all, kinds: {}), isEmpty);
     });
   });
 
@@ -557,12 +645,12 @@ void main() {
       expect(rex.source, TagSource.detected);
       expect(rex.confidence, closeTo(1, 1e-6));
       expect(rex.x, closeTo(0.5, 1e-9));
-      expect(event.annotations.frames[rex.frameId]!.ms, 1500);
+      expect(event.annotations.frames[rex.frameId]!.ms, 2000);
 
       final ana = event.annotations.items.firstWhere((a) => a.name == 'Ana');
       expect(ana.source, TagSource.suggested);
       expect(ana.confidence, closeTo(0.6, 1e-6));
-      expect(event.annotations.frames[ana.frameId]!.ms, 2000);
+      expect(event.annotations.frames[ana.frameId]!.ms, 3000);
       expect(ana.x, closeTo(other.cx, 1e-9));
 
       await Future<void>.delayed(Duration.zero);
@@ -651,8 +739,8 @@ void main() {
       expect(result.objects, ['human', 'cat', 'bicycle']);
       expect(event.annotations.objects, const [
         ObjectTag(label: 'human', ms: 1000, score: 0.7),
-        ObjectTag(label: 'cat', ms: 1500, score: 0.6),
-        ObjectTag(label: 'bicycle', ms: 2500, score: 0.8),
+        ObjectTag(label: 'cat', ms: 2000, score: 0.6),
+        ObjectTag(label: 'bicycle', ms: 4000, score: 0.8),
       ]);
       expect(vision.frameCalls, 4, reason: 'the whole clip');
       expect(vision.calls, 0, reason: 'nobody to embed');
@@ -760,7 +848,7 @@ void main() {
       expect(rex.name, 'Rex');
       expect(rex.source, TagSource.detected);
       // The first frame Rex is on, and none after.
-      expect(event.annotations.frames[rex.frameId]!.ms, 1500);
+      expect(event.annotations.frames[rex.frameId]!.ms, 2000);
       expect(event.annotations.frames, hasLength(1));
     });
 
@@ -879,6 +967,192 @@ void main() {
       );
       final result = await r.recognizeNow(ClipRequested(clip(), id: 'b'));
       expect(result.outcome, RecognitionOutcome.searched);
+    });
+
+    test('only the kinds known are embedded, three a frame at most', () async {
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision({}, {
+        1: [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)],
+      });
+      await recognizer(
+        vision,
+        FakeSampler(1),
+      ).recognize(ClipRequested(clip(), id: 'a'));
+      expect(vision.kinds, {SeenKind.person});
+      expect(vision.maxSeen, SubjectRecognizer.maxSeenPerFrame);
+
+      // A dog known: pets are looked at too (a cat may be taken for one).
+      log.addHistory([
+        tagged(2, ['Fido']),
+      ]);
+      vision.references[2] = [
+        seenAt(const Box(0.3, 0.2, 0.7, 1), kind: SeenKind.dog),
+      ];
+      await recognizer(
+        vision,
+        FakeSampler(1),
+      ).recognize(ClipRequested(clip(), id: 'b'));
+      expect(vision.kinds, SeenKind.values.toSet());
+    });
+
+    /// A new clip, already fully recorded, as the camera publishes it.
+    ClipRequested recorded(String id) => ClipRequested(
+      VideoClip(
+        cameraId: 'cam',
+        cameraLabel: 'Back camera',
+        before: const Duration(seconds: 15),
+        after: const Duration(seconds: 15),
+        capture: ClipCapture(
+          past: Future.value(),
+          full: Future.value(
+            ClipMedia(
+              url: 'blob:$id',
+              start: Duration.zero,
+              end: const Duration(seconds: 30),
+            ),
+          ),
+        ),
+      ),
+      id: id,
+    );
+
+    test('only the latest new clips wait their turn', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = _GatedVision(
+        {
+          0: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      );
+      final sampler = FakeSampler(1);
+      final r = recognizer(vision, sampler);
+      final clips = [for (var i = 0; i < 6; i++) recorded('c$i')];
+      clips.forEach(bus.publish);
+      await pumpEventQueue();
+      // c0 is being searched; c1 to c5 wait, but only the latest three.
+      expect(sampler.samples, 1);
+      vision.gate.complete();
+      await pumpEventQueue();
+      await r.idle;
+      expect(sampler.samples, 1 + r.maxPending);
+      expect(
+        [for (final c in clips) c.annotations.tags.length],
+        [1, 0, 0, 1, 1, 1],
+      );
+      // Asked for, a clip isn't dropped however many wait.
+      final asked = await r.recognizeNow(recorded('asked'));
+      expect(asked.outcome, RecognitionOutcome.searched);
+    });
+
+    test('low on memory: Auto is put off, the models freed', () async {
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision({}, {
+        1: [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)],
+      });
+      final memory = FakeMemory();
+      final r = SubjectRecognizer(
+        bus: bus,
+        log: log,
+        config: config,
+        runtime: FakeRuntime(),
+        sampler: FakeSampler(2),
+        loadVision: () async => vision,
+        decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
+        memory: memory,
+      );
+      final first = await r.recognizeNow(ClipRequested(clip(), id: 'a'));
+      expect(first.outcome, RecognitionOutcome.searched);
+      expect(vision.releases, 0);
+
+      memory.tight = 1 << 30;
+      final put = await r.recognizeNow(ClipRequested(clip(), id: 'b'));
+      expect(put.outcome, RecognitionOutcome.deferred);
+      expect(autoTagMessage(put), contains('low on memory'));
+      await pumpEventQueue();
+      expect(vision.releases, greaterThan(0));
+      expect(vision.frameCalls, 2, reason: 'only the first clip');
+    });
+
+    test('low on memory: a new clip waits until there is room', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          0: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      );
+      SubjectRecognizer withMemory(FakeMemory memory, int retries) =>
+          SubjectRecognizer(
+            bus: bus,
+            log: log,
+            config: config,
+            runtime: FakeRuntime(),
+            sampler: FakeSampler(1),
+            loadVision: () async => vision,
+            decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
+            memory: memory,
+            memoryRetryAfter: const Duration(milliseconds: 1),
+            memoryRetries: retries,
+          );
+
+      // Tight for three reads, then not: searched after waiting.
+      final waits = FakeMemory()..tight = 3;
+      final r = withMemory(waits, 10);
+      final clip1 = recorded('waits');
+      bus.publish(clip1);
+      await pumpEventQueue();
+      await r.idle;
+      expect(waits.reads, greaterThanOrEqualTo(4));
+      expect(clip1.annotations.tags.single.name, 'Rex');
+      r.dispose();
+
+      // Always tight: given up on after the retries.
+      final full = FakeMemory()..tight = 1 << 30;
+      final r2 = withMemory(full, 2);
+      final clip2 = recorded('gives up');
+      bus.publish(clip2);
+      await pumpEventQueue();
+      await r2.idle;
+      expect(full.reads, 3 + 1, reason: 'three tries, then after the run');
+      expect(clip2.annotations.isEmpty, isTrue);
+      r2.dispose();
+    });
+
+    test('memory is tight under the threshold plus what recognition needs', () {
+      const mb = 1 << 20;
+      MemoryStatus status(int available, {bool low = false}) => MemoryStatus(
+        lowMemory: low,
+        availableBytes: available * mb,
+        thresholdBytes: 100 * mb,
+      );
+      expect(status(400).tight, isFalse);
+      expect(status(150).tight, isTrue);
+      expect(status(400, low: true).tight, isTrue);
+      final read = MemoryStatus.fromMap({
+        'lowMemory': false,
+        'availMem': 300 * mb,
+        'threshold': 100 * mb,
+        'totalMem': 3000 * mb,
+        'lowRamDevice': true,
+      })!;
+      expect(read.availableBytes, 300 * mb);
+      expect(read.lowRamDevice, isTrue);
+      expect(read.tight, isFalse);
+      expect(MemoryStatus.fromMap(null), isNull);
     });
   });
 

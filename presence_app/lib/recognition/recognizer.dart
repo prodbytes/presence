@@ -13,33 +13,13 @@ import '../subjects.dart';
 import 'frames.dart';
 import 'image.dart';
 import 'matching.dart';
+import 'memory.dart';
 import 'runtime.dart';
 import 'suggestion.dart';
 import 'vision.dart';
-
-/// What recognition needs from the models: everyone on a picture, with
-/// their embeddings (unless not [subjects]), and the objects on it.
-/// [VisionModels] is the real one.
-abstract interface class Vision {
-  Future<FrameAnalysis> analyse(
-    RgbaImage image, {
-    bool faces = true,
-    bool subjects = true,
-  });
-}
-
-class _ModelsVision implements Vision {
-  _ModelsVision(this._models);
-
-  final VisionModels _models;
-
-  @override
-  Future<FrameAnalysis> analyse(
-    RgbaImage image, {
-    bool faces = true,
-    bool subjects = true,
-  }) => _models.analyse(image, faces: faces, subjects: subjects);
-}
+import 'vision_platform_native.dart'
+    if (dart.library.js_interop) 'vision_platform_web.dart'
+    as platform;
 
 /// How a recognition run went.
 enum RecognitionOutcome {
@@ -57,6 +37,9 @@ enum RecognitionOutcome {
 
   /// The clip was searched for subjects.
   searched,
+
+  /// Not searched: memory was too low, or newer clips were waiting.
+  deferred,
 }
 
 /// What a recognition run found: its [outcome] for subjects, the subjects
@@ -96,11 +79,17 @@ class RecognitionResult {
 /// [TagSource.detected] tag. A subject only reaching
 /// [RecognitionConfig.ask] gets a [TagSource.suggested] entry instead, on
 /// the first frame it did, and a [SubjectSuggestion] event asks about it.
-/// Subjects already on the clip are skipped, so none is tagged twice. Clips
+/// Subjects already on the clip are skipped, so none is tagged twice. Only
+/// detections that could match someone (people if a person is known, pets
+/// if a pet is) are embedded, at most [maxSeenPerFrame] a frame. Clips
 /// are done one at a time, each queued once it's fully recorded, so one
-/// still recording doesn't hold up the others. [recognizeNow] runs it on
-/// any clip, on request (the player's Auto); a new clip already searched
-/// that way isn't searched again.
+/// still recording doesn't hold up the others; only the latest
+/// [maxPending] new clips wait, older ones are skipped. While the device
+/// is low on memory ([MemoryStatus.tight]) a new clip waits
+/// [memoryRetryAfter] at a time (at most [memoryRetries] times), the
+/// models' memory freed meanwhile. [recognizeNow] runs it on any clip, on
+/// request (the player's Auto); a new clip already searched that way isn't
+/// searched again.
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -110,19 +99,33 @@ class SubjectRecognizer {
     ClipFrameSampler? sampler,
     Future<Vision> Function()? loadVision,
     Future<RgbaImage?> Function(Uint8List jpeg)? decode,
+    MemoryMonitor? memory,
     this.every = defaultEvery,
+    this.maxPending = defaultMaxPending,
+    this.memoryRetryAfter = defaultMemoryRetryAfter,
+    this.memoryRetries = defaultMemoryRetries,
   }) : _bus = bus,
        _runtime = runtime ?? TfliteRuntime(),
        _sampler = sampler ?? ClipFrameSampler(),
-       _decode = decode ?? ((jpeg) => RgbaImage.decode(jpeg, maxWidth: 960)) {
-    _loadVision =
-        loadVision ??
-        () async => _ModelsVision(await VisionModels.load(_runtime));
+       _memory = memory ?? MemoryMonitor(),
+       _decode =
+           decode ?? ((jpeg) => RgbaImage.decode(jpeg, maxWidth: frameWidth)) {
+    _loadVision = loadVision ?? () => platform.loadPlatformVision(_runtime);
     _subscription = bus.stream.listen(_onEvent);
   }
 
-  /// How often a clip is sampled.
-  static const Duration defaultEvery = Duration(milliseconds: 500);
+  /// How often a clip is sampled: the recorder's keyframe interval.
+  static const Duration defaultEvery = Duration(seconds: 1);
+
+  /// How wide frames (and reference frames) are at most.
+  static const int frameWidth = ClipFrameSampler.defaultMaxWidth;
+
+  /// The most detections a frame is searched for subjects on, best first.
+  static const int maxSeenPerFrame = 3;
+
+  static const int defaultMaxPending = 3;
+  static const Duration defaultMemoryRetryAfter = Duration(seconds: 30);
+  static const int defaultMemoryRetries = 10;
 
   /// The most references kept per subject (from their latest tags).
   static const int referencesPerSubject = 10;
@@ -135,14 +138,22 @@ class SubjectRecognizer {
   final EventLog log;
   final ConfigController config;
   final Duration every;
+
+  /// The most new clips waiting their turn.
+  final int maxPending;
+  final Duration memoryRetryAfter;
+  final int memoryRetries;
   final TfliteRuntime _runtime;
   final ClipFrameSampler _sampler;
+  final MemoryMonitor _memory;
   final Future<RgbaImage?> Function(Uint8List jpeg) _decode;
   late final Future<Vision> Function() _loadVision;
   late final StreamSubscription<AppEvent> _subscription;
 
   Future<Vision>? _vision;
-  Future<void> _queue = Future.value();
+  final _pending = <_Job>[];
+  bool _running = false;
+  Completer<void>? _drained;
   bool _disposed = false;
 
   /// Each reference tag's detection and embeddings, by tag ID (null: no
@@ -156,7 +167,9 @@ class SubjectRecognizer {
   bool get supported => _runtime.supported && _sampler.supported;
 
   /// Completes once every clip queued so far is done (for tests).
-  Future<void> get idle => _queue;
+  Future<void> get idle => !_running && _pending.isEmpty
+      ? Future.value()
+      : (_drained ??= Completer<void>()).future;
 
   void _onEvent(AppEvent event) {
     if (event is! ClipRequested || event.clip.capture == null) return;
@@ -183,9 +196,58 @@ class SubjectRecognizer {
     ClipRequested event, {
     required bool onRequest,
   }) {
-    final run = _queue.then((_) => recognize(event, onRequest: onRequest));
-    _queue = run.then((_) {}, onError: (_) {});
-    return run;
+    final job = _Job(event, onRequest: onRequest);
+    _pending.add(job);
+    // Clips come faster than they're searched: keep the latest new ones.
+    final waiting = [
+      for (final j in _pending)
+        if (!j.onRequest) j,
+    ];
+    for (final old in waiting.take(math.max(0, waiting.length - maxPending))) {
+      _pending.remove(old);
+      debugPrint(
+        'Presence: recognition skipped ${old.event.id}: newer clips waiting',
+      );
+      old.done.complete(const RecognitionResult(RecognitionOutcome.deferred));
+    }
+    _pump();
+    return job.done.future;
+  }
+
+  Future<void> _pump() async {
+    if (_running) return;
+    _running = true;
+    while (_pending.isNotEmpty) {
+      final job = _pending.removeAt(0);
+      try {
+        job.done.complete(await recognize(job.event, onRequest: job.onRequest));
+      } catch (e, stack) {
+        job.done.completeError(e, stack);
+      }
+      // Free the models now if memory got low, not after the idle delay.
+      if ((await _memory.status())?.tight ?? false) _release();
+    }
+    _running = false;
+    _drained?.complete();
+    _drained = null;
+  }
+
+  /// Frees the models' memory; they load again when next needed.
+  void _release() => _vision?.then((v) => v.release(), onError: (_) {});
+
+  /// Whether there's memory enough to run the models; if not, and
+  /// [wait], once there is (after up to [memoryRetries] waits).
+  Future<bool> _roomToRun({required bool wait}) async {
+    for (var attempt = 0; ; attempt++) {
+      final status = await _memory.status();
+      if (status == null || !status.tight) return true;
+      _release();
+      if (!wait || attempt >= memoryRetries || _disposed) {
+        debugPrint('Presence: recognition put off, low on memory: $status');
+        return false;
+      }
+      await Future<void>.delayed(memoryRetryAfter);
+    }
   }
 
   /// Recognizes the subjects and objects on [event]'s clip (once it's
@@ -216,6 +278,11 @@ class SubjectRecognizer {
     if (media == null || _disposed) {
       return const RecognitionResult(RecognitionOutcome.searched);
     }
+    // Asked for, it's now or not at all; a new clip can wait.
+    if (!await _roomToRun(wait: !onRequest)) {
+      return const RecognitionResult(RecognitionOutcome.deferred);
+    }
+    if (_disposed) return const RecognitionResult(RecognitionOutcome.searched);
     final Vision vision;
     try {
       vision = await (_vision ??= _loadVision());
@@ -230,6 +297,11 @@ class SubjectRecognizer {
     if (_disposed) return const RecognitionResult(RecognitionOutcome.searched);
 
     final faces = gallery.any((g) => g.face != null);
+    // Only who could be someone known: no pets embedded if no pet is.
+    final kinds = {
+      for (final k in SeenKind.values)
+        if (gallery.any((g) => g.kind.sameAs(k))) k,
+    };
     final found = {
       for (final a in event.annotations.items) Subject.idOf(a.name),
     };
@@ -252,13 +324,19 @@ class SubjectRecognizer {
     final objects = <String, ObjectTag>{};
     final started = DateTime.now();
     var frames = 0;
-    await for (final frame in _sampler.sample(media, every: every)) {
+    await for (final frame in _sampler.sample(
+      media,
+      every: every,
+      maxWidth: frameWidth,
+    )) {
       if (_disposed) return RecognitionResult(outcome, tagged: tagged);
       frames++;
       final analysis = await vision.analyse(
         frame.image,
         faces: faces,
         subjects: lookForSubjects,
+        kinds: kinds,
+        maxSeen: maxSeenPerFrame,
       );
       if (objectsOn) {
         for (final MapEntry(key: label, value: score)
@@ -463,7 +541,17 @@ class SubjectRecognizer {
   void dispose() {
     _disposed = true;
     _subscription.cancel();
+    _release();
   }
+}
+
+/// A clip waiting its turn.
+class _Job {
+  _Job(this.event, {required this.onRequest});
+
+  final ClipRequested event;
+  final bool onRequest;
+  final done = Completer<RecognitionResult>();
 }
 
 /// Puts the app's [SubjectRecognizer] within reach of its screens (the

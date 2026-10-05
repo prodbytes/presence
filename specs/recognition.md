@@ -18,6 +18,18 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   clips run one at a time, in the background, on the device that recorded
   them, and one still recording doesn't hold up the others (nor Auto on
   another clip). Restored and synced clips aren't run.
+- **Backpressure:** at most the **latest 3 new clips** wait their turn;
+  when another arrives the oldest waiting one is skipped (logged, outcome
+  `deferred`). Auto is never skipped.
+- **Memory (Android):** before a clip's models run, the app asks Android
+  how much memory is left (`memoryStatus`, see [Android](android.md)). It's
+  **tight** when the system says memory is low, or less than its
+  low-memory threshold plus 64 MB is free. Then the models are freed and a
+  new clip waits 30 s and asks again, up to 10 times (5 min) before it's
+  skipped; Auto doesn't wait but says the phone is low on memory. After
+  each clip, tight memory frees the models at once; otherwise they're
+  freed after **60 s** without a frame, and loaded again for the next
+  clip. Elsewhere there's no such check.
 - A new clip already searched with **Auto** while it was recording isn't
   searched again once it's done (it has its object tags by then, too).
 - Only on a platform that has the runtime: **web** and **Android**. iOS
@@ -44,16 +56,22 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
    spot** (the smallest such box; else the nearest within 15 % of the
    frame) is the reference. Its embeddings are kept in memory for the
    session, never stored or synced.
-2. **Frames.** The clip is sampled **every 0.5 s**, from its start to its
-   end, at most 960 px wide.
+2. **Frames.** The clip is sampled **every 1 s**, from its start to its
+   end, at most **640 px** wide (reference frames too). On Android each
+   sample is the **keyframe** nearest to its time (the recorder makes one
+   a second), each once, at its own time, and only those inside the clip:
+   a keyframe decodes on its own, where any other frame needs the frames
+   since the last keyframe.
 3. **Who's there.** On each frame, **EfficientDet-Lite0** scores every
    COCO class on every anchor, once, for both segments:
    - **object tags:** each of the 80 labels scoring **0.5** or more
      somewhere on the frame, with its best score (`person` is `human`);
    - **subjects** (while someone's still to be found):
      EfficientDet's people, cats and dogs (score 0.4 or more;
-     overlaps merged);
-     for each person, **BlazeFace** looks for a face in a square around
+     overlaps merged), of the sorts some reference is (people if a
+     person is known, cats and dogs if a pet is), the **best 3** per
+     frame; for each person, **BlazeFace** looks for a face (only if
+     some reference has one) in a square around
      them; **MobileFaceNet** embeds it, cropped square at 1.1× its box and
      turned so the eyes are level; everyone gets a **look** embedding
      (**MobileNetV3**) of their box. Once every subject is found, frames
@@ -124,6 +142,8 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
     "Nobody to look for yet: tag someone on another clip first." (no
     reference shows anyone where it was clicked);
   - "Couldn't run recognition; try again." if the models didn't load;
+  - "The phone is low on memory: try again in a moment." when memory is
+    tight (Android);
   - followed by "Also saw: cat, bicycle." when it tagged objects (only on
     a clip without object tags yet).
 - Where recognition can't run (Android and iOS for now) the button is
@@ -170,15 +190,22 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   drawn on a canvas.
 - **Android:** **LiteRT** (TensorFlow Lite, `com.google.ai.edge.litert`
   1.4.0) through Google's **`tflite_flutter`** plugin (0.12.1, Dart FFI),
-  4 CPU threads; each model runs in its own background isolate
-  (`IsolateInterpreter`), so the app doesn't stall. Frames come from the
-  `framesAt` method of the `presence/cameras` channel:
-  `MediaMetadataRetriever` opens the MP4 once per batch of 8 times and
-  returns each frame upright, at most 960 px wide, as a JPEG (null for one
-  it can't read), which Dart decodes. See [Android](android.md).
+  2 CPU threads. One long-lived **worker isolate** (`vision_worker.dart`,
+  `WorkerVision`) owns the four models: it loads them (mapped from files
+  the assets are copied to, so nothing is held twice and nothing leaks
+  when they're freed), builds the anchors, resizes each frame to each
+  model's input, runs them and decodes their outputs, reading
+  EfficientDet's 7 MB of scores in place. The app's isolate only sends
+  each frame's RGBA pixels (moved, not copied) and gets back who's on it,
+  so it doesn't stall. Frames come from `keyframesAt` on the
+  `presence/cameras` channel, 3 times per call, as raw RGBA; a frame's
+  JPEG is only made (`encodeJpeg`) when a tag or suggestion keeps it.
+  Reference frames (JPEGs) are still decoded by the engine
+  (`instantiateImageCodec`). See [Android](android.md).
 - **iOS:** not yet (the switch says "Not available on this device yet").
-  `tflite_flutter` supports iOS, so it needs only `framesAt` in Swift; the
-  iOS app already links its `TensorFlowLiteC` 2.12 through CocoaPods.
+  `tflite_flutter` supports iOS, so it needs `keyframesAt` and
+  `encodeJpeg` in Swift; the iOS app already links its `TensorFlowLiteC`
+  2.12 through CocoaPods.
 - **Models** (`assets/models/`, 14 MB; on web fetched only when
   recognition first runs, in the Android app bundled): see [assets/models/README.md](../presence_app/assets/models/README.md)
   for sources, checksums and licenses.
@@ -204,7 +231,12 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   first frame they're on; a new clip searched with Auto isn't searched
   again; nobody to look for (none
   tagged, or the tag points at nobody) and nobody found; a failed model
-  load doesn't block the next run; object tags: each label once, from its
+  load doesn't block the next run; only the sorts of subject known are
+  embedded, at most 3 detections a frame (`keepDetections`); only the
+  latest 3 new clips wait (older ones skipped, Auto never); tight memory
+  puts Auto off and frees the models, and makes a new clip wait until
+  there's room or give up after its retries; what counts as tight; object
+  tags: each label once, from its
   first frame, over the whole clip, with nobody to look for, and not again
   once searched; they keep going after every subject is found (subjects
   only embedded until then); off in Settings, none stored; their record
@@ -215,6 +247,13 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   player's Auto tags a sure match and the objects, and says so; Auto
   disabled where recognition can't run, and fitting a 320 dp phone's
   dialog.
+- `recognition_worker_test.dart`: the worker isolate (with fake models)
+  gets a frame's pixels and the analysis options and sends back only the
+  analysis; released, it stops and the next frame starts it again; idle,
+  it stops by itself; models that fail to load fail the frame and are
+  tried again. The Android sampler (a faked channel): sample times, each
+  keyframe inside the clip once (across calls too), 3 times per call at
+  640 px, and a JPEG encoded only when asked.
 - `persistence_test.dart`: a suggestion and its question survive a refresh,
   can be answered after it, and the answer survives another.
 - `test/chrome/` (`flutter test --platform chrome test/chrome/`; the
@@ -237,16 +276,19 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   - LiteRT gives the same face cosines as TensorFlow.js in Chrome
     (Lincoln–Lincoln 0.88, Lincoln–Hopper 0.61); a 410 × 480 frame takes
     about 240 ms on the emulator;
-  - `framesAt` reads a red / green / blue MP4 at 0, 0.5, … 2.5 s, the right
-    colour each time, each with a JPEG;
-  - the recognizer, all real: Grace Hopper tagged on her photo, then a new
-    3 s clip where she appears at 1 s gets a recognized "Grace" tag (100 %)
-    on the 1.0 s frame, on her, and stops there (0.9 s in all).
-- 311 Flutter tests pass, plus the 3 in Chrome (rerun with object tags)
-  and the 3 on Android (updated, not rerun with object tags). Web
-  release, Android debug and release builds compile (the release APK
+  - the sampler reads a red / green / blue MP4 (a keyframe a second)
+    asked every 0.5 s: its keyframes at 0, 1 and 2 s, once each, the right
+    colour each, each with a JPEG;
+  - the recognizer, all real (models in the worker): Grace Hopper tagged
+    on her photo, then a new 3 s clip where she appears at 1 s gets a
+    recognized "Grace" tag on the 1 s keyframe, on her.
+
+  These were last run before the worker and keyframes (2026-10-05): the
+  test and its fixtures are updated, not rerun.
+- 401 Flutter tests pass, plus the 3 in Chrome (not rerun since object
+  tags). Web release and Android debug builds compile (the release APK
   carries LiteRT's libraries for arm64, armv7 and x86_64).
-  Not yet tried end to end in the app with a camera, nor on a phone.
+  The worker, keyframes and memory check are not yet tried on a phone.
 
 ## Known limitations
 
@@ -273,6 +315,14 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   Auto, which then searches the whole clip.
 - References are rebuilt after each launch (the first clip searched after a
   launch takes longer).
+- On a slow phone (DOOGEE S40: 4 × Cortex-A53, 3 GB), a 15 s clip took
+  about 64 s, stuttered the app and was followed by a low-memory kill,
+  before the worker, keyframes, 640 px and the memory check; how much they
+  save there isn't measured yet. The memory margin (threshold + 64 MB) is
+  a guess: on a phone always below it, new clips are never searched.
+- Sampling keyframes a second apart can miss someone seen for less than
+  a second, and a tag's time is its keyframe's, up to half a second from
+  when it was asked for.
 - iOS doesn't recognize yet.
 - A tag made on the **preview** (before the full clip was recorded) keeps
   the preview file's time; once the full clip replaces it, clicking that

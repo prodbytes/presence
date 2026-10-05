@@ -21,7 +21,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
-    int maxWidth = 960,
+    int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
     final url = await media.resolveUrl();
     if (url.isEmpty) return;
