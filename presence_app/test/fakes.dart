@@ -269,9 +269,16 @@ class FakeCloudBackend implements CloudBackend {
   /// Thrown by the next put(), once.
   Object? failPut;
 
+  /// Thrown by every connect() while set (the network is down).
+  Object? offline;
+
+  /// The keys uploaded as streams (recordings), in order.
+  final streamed = <String>[];
+
   @override
   Future<CloudSession> connect(String idToken) async {
     tokens.add(idToken);
+    if (offline case final e?) throw e;
     if (failConnect case final e?) {
       failConnect = null;
       throw e;
@@ -298,6 +305,21 @@ class FakeCloudSession implements CloudSession {
       throw e;
     }
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
+  }
+
+  @override
+  Future<void> putStream(
+    String key,
+    Stream<List<int>> body,
+    int length,
+    String contentType,
+  ) async {
+    final bytes = Uint8List.fromList([
+      for (final chunk in await body.toList()) ...chunk,
+    ]);
+    if (bytes.length != length) throw StateError('Length $length is wrong');
+    backend.streamed.add(key);
+    await put(key, bytes, contentType);
   }
 
   @override

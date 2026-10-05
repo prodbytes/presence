@@ -240,7 +240,6 @@ class _PresenceAppState extends State<PresenceApp> {
               final events = await _persistence.importRemote(
                 events: remote.events,
                 clips: remote.clips,
-                media: remote.media,
               );
               _log.addHistory(events);
               // Events changed on another device: their tags as they are

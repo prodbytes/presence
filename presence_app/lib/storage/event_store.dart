@@ -129,6 +129,31 @@ class EventStore {
     return records;
   }
 
+  /// The event [id], or null if there's none.
+  Future<Map<String, Object?>?> getEvent(String id) async {
+    final txn = _db.transaction(events, idbModeReadOnly);
+    final value = await txn.objectStore(events).getObject(id);
+    await txn.completed;
+    return value == null ? null : _map(value);
+  }
+
+  /// The IDs of every event (without reading their records).
+  Future<Set<String>> eventIds() => _keys(events);
+
+  /// The IDs of every clip (without reading their records).
+  Future<Set<String>> clipIds() => _keys(clips);
+
+  /// The clips of the event [eventId] (through the `eventId` index).
+  Future<List<Map<String, Object?>>> clipsOfEvent(String eventId) async {
+    final txn = _db.transaction(clips, idbModeReadOnly);
+    final values = await txn
+        .objectStore(clips)
+        .index('eventId')
+        .getAll(eventId);
+    await txn.completed;
+    return values.map(_map).toList();
+  }
+
   Future<List<Map<String, Object?>>> allClips() => _all(clips);
 
   Future<List<Map<String, Object?>>> allCameras() => _all(cameras);
@@ -189,12 +214,35 @@ class EventStore {
     await txn.completed;
   }
 
+  /// Forgets the synced-store entries whose key [test] accepts (those of
+  /// deleted events and clips), in one transaction. Returns how many went.
+  Future<int> deleteSynced(bool Function(String key) test) async {
+    final txn = _db.transaction(synced, idbModeReadWrite);
+    final store = txn.objectStore(synced);
+    final doomed = <Object>[];
+    await store.openCursor(autoAdvance: true).forEach((cursor) {
+      if (test('${cursor.key}')) doomed.add(cursor.key);
+    });
+    for (final key in doomed) {
+      await store.delete(key);
+    }
+    await txn.completed;
+    return doomed.length;
+  }
+
   void close() => _db.close();
 
   Future<void> _put(String store, Map<String, Object?> record) async {
     final txn = _db.transaction(store, idbModeReadWrite);
     await txn.objectStore(store).put(_compact(record));
     await txn.completed;
+  }
+
+  Future<Set<String>> _keys(String store) async {
+    final txn = _db.transaction(store, idbModeReadOnly);
+    final keys = await txn.objectStore(store).getAllKeys();
+    await txn.completed;
+    return {for (final key in keys) '$key'};
   }
 
   Future<List<Map<String, Object?>>> _all(String store) async {

@@ -30,7 +30,7 @@ Everything goes through `EventStore` and `MediaStore`.
 | `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
 | `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
 | `settings` | name (`config`, `device`, `location`, `consent`) | `config`: the whole `PresenceConfig` as versioned JSON, with when it last changed (`updatedAt`) and the profile it was last synced with (`profileId`); also kept in S3 per profile and device, with the location set on the map, see [Configuration](configuration.md) (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)); `location`: where it is ([Device location](device-location.md)); `consent`: its recording consent, with a verification hash ([Recording consent](consent.md)) |
-| `synced` | S3 object key | a fingerprint of what was uploaded there, and under `etag:<key>` an event's ETag as last uploaded or downloaded ([cloud sync](cloud-sync.md)) |
+| `synced` | S3 object key | a fingerprint of what was uploaded there, and under `etag:<key>` an event's ETag as last uploaded or downloaded ([cloud sync](cloud-sync.md)); an event's entries and its clip's go when [retention](event-retention.md) deletes them |
 
 **References:** each event has a stable `id`, and events from a camera carry
 its `cameraId`. A `ClipRequested` event references its clip (`clipId`). The
@@ -68,7 +68,5 @@ and recordings, at load and every 3 hours: see
 
 - Storage still holds roughly 10 MB per camera per clip, for as long as
   the History setting keeps it.
-- The `synced` store keeps the keys of uploaded events after retention
-  deletes them (a few dozen bytes each).
 - Persistence has been verified with unit and widget tests against an
   in-memory IndexedDB, but not yet in a real browser.

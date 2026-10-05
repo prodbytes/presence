@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 import 'package:presence_app/auth/roles_service.dart';
@@ -16,7 +17,7 @@ import 'fakes.dart';
 
 void main() {
   late EventStore store;
-  late StreamController<void> changes;
+  late StreamController<Set<String>?> changes;
   late FakeCloudBackend backend;
   late FakeAuthService auth;
   late CloudSync sync;
@@ -60,7 +61,7 @@ void main() {
 
   setUp(() async {
     store = await EventStore.open(newIdbFactoryMemory());
-    changes = StreamController<void>.broadcast();
+    changes = StreamController<Set<String>?>.broadcast();
     backend = FakeCloudBackend();
     auth = FakeAuthService();
     await seed();
@@ -165,6 +166,152 @@ void main() {
     expect(backend.uploads.keys, {
       'us-east-1:identity/events/year=1970/day=001/e3.json',
     });
+  });
+
+  test('a pass uploads only the events named as changed, with their '
+      'clips; recordings are streamed', () async {
+    const p = 'us-east-1:identity';
+    await auth.signIn();
+    await sync.idle();
+    expect(backend.streamed, ['media/c1.webm']);
+    backend.uploads.clear();
+
+    // Changed without saying so: left for the next reconciliation.
+    await store.putEvent({
+      'userId': '1',
+      'profileId': '1',
+      'id': 'e1',
+      'type': 'appStarted',
+      'title': 'Application started',
+      'time': 1,
+      'detail': 'quiet',
+    });
+    // A new clip, named.
+    await store.putEvent({
+      'userId': '1',
+      'profileId': '1',
+      'id': 'e5',
+      'type': 'clipRequested',
+      'title': 'Clip',
+      'time': 5,
+      'clipId': 'c5',
+    });
+    await store.putMedia('c5-full', Uint8List.fromList([5, 5]));
+    await store.putClip({
+      'id': 'c5',
+      'eventId': 'e5',
+      'cameraId': 'cam',
+      'state': 'complete',
+      'full': {
+        'mediaId': 'c5-full',
+        'startMs': 0,
+        'endMs': 1000,
+        'mimeType': 'video/mp4',
+      },
+    });
+    changes.add({'e5'});
+    await sync.idle();
+    expect(backend.uploads.keys, {
+      '$p/media/c5.mp4',
+      '$p/clips/year=1970/day=001/c5.json',
+      '$p/events/year=1970/day=001/e5.json',
+    });
+    expect(backend.uploads['$p/media/c5.mp4']!.bytes, [5, 5]);
+
+    // Named but unchanged: nothing goes up.
+    backend.uploads.clear();
+    changes.add({'e2', 'e5'});
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+
+    // A reconciliation finds the quiet change.
+    changes.add(null);
+    await sync.idle();
+    expect(backend.uploads.keys, {'$p/events/year=1970/day=001/e1.json'});
+  });
+
+  test('failed passes back off, doubling the wait up to maxBackoff, log '
+      'the stack once, and keep what was to go up', () async {
+    final logs = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => logs.add('$message');
+    addTearDown(() => debugPrint = print);
+    sync.dispose();
+    sync = CloudSync(
+      auth: auth,
+      backend: backend,
+      store: Future.value(store),
+      media: Future.value(IdbMediaStore(store)),
+      changes: changes.stream,
+      debounce: Duration.zero,
+      interval: const Duration(milliseconds: 10),
+      maxBackoff: 4,
+    );
+    backend.offline = Exception('offline');
+    await auth.signIn();
+    await sync.idle();
+    expect(sync.state, CloudSyncState.error);
+    expect(sync.backoff, const Duration(milliseconds: 10));
+
+    await store.putEvent({
+      'userId': '1',
+      'profileId': '1',
+      'id': 'e3',
+      'type': 'x',
+      'title': 'While offline',
+      'time': 3,
+    });
+    changes.add({'e3'});
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await sync.idle();
+    // Waits of 1, 2, 4, 4… intervals: about 9 tries in 30, not 30.
+    expect(backend.tokens.length, inInclusiveRange(4, 15));
+    expect(sync.backoff, const Duration(milliseconds: 40));
+    expect(logs.where((l) => l.contains('\n')), hasLength(1));
+    expect(
+      logs.where((l) => l.contains('failed again')).length,
+      greaterThanOrEqualTo(2),
+    );
+
+    backend.offline = null;
+    sync.retry();
+    await sync.idle();
+    expect(sync.state, CloudSyncState.synced);
+    expect(sync.backoff, const Duration(milliseconds: 10));
+    expect(
+      backend.uploads.keys,
+      containsAll([
+        'us-east-1:identity/events/year=1970/day=001/e1.json',
+        'us-east-1:identity/events/year=1970/day=001/e3.json',
+      ]),
+    );
+    expect(logs.where((l) => l.contains('recovered')), hasLength(1));
+  });
+
+  test('a state that doesn\'t change notifies no one', () async {
+    var notified = 0;
+    sync.addListener(() => notified++);
+    await auth.signOut();
+    await sync.idle();
+    changes.add(null);
+    await sync.idle();
+    expect(sync.state, CloudSyncState.off);
+    expect(notified, 0);
+  });
+
+  test('synced-store keys of deleted events and clips are recognized', () {
+    bool of(String key) => CloudSync.isSyncedKeyOf(key, {'e1', 'e.2'}, {'c1'});
+    expect(of('id/events/year=2026/day=001/e1.json'), isTrue);
+    expect(of('etag:id/events/year=2026/day=001/e1.json'), isTrue);
+    expect(of('id/events/e.2.json'), isTrue);
+    expect(of('id/media/c1.mp4'), isTrue);
+    expect(of('id/media/c1/frames/f.jpg'), isTrue);
+    expect(of('id/clips/year=2026/day=001/c1.json'), isTrue);
+    expect(of('id/clips/c1/frames/f.jpg'), isTrue);
+    expect(of('id/events/year=2026/day=001/e10.json'), isFalse);
+    expect(of('id/media/c10.mp4'), isFalse);
+    expect(of('id/devices/e1/settings.json'), isFalse);
+    expect(of('no-folder'), isFalse);
   });
 
   test('rejected credentials are renewed once and the sync goes on', () async {
@@ -394,9 +541,8 @@ void main() {
         expect(remote.single.events.map((e) => e['profileId']).toSet(), {'1'});
         expect(remote.single.clips.single['id'], 'r1');
         expect(remote.single.clips.single['thumbnail'], [5]);
-        expect(remote.single.media, {
-          'r1-full': [7, 7, 7],
-        });
+        // The recording is stored as it's downloaded, not handed over.
+        expect(await store.getMedia('r1-full'), [7, 7, 7]);
         expect(
           backend.downloads,
           containsAll([
@@ -498,7 +644,8 @@ void main() {
 
       expect(remote.single.events.map((e) => e['id']), ['new']);
       expect(remote.single.clips.map((c) => c['id']), ['c-new']);
-      expect(remote.single.media.keys, ['c-new-full']);
+      expect(await store.getMedia('c-new-full'), [1]);
+      expect(await store.getMedia('c-old-full'), isNull);
       expect(
         backend.downloads.where((k) => k.contains('old')),
         isEmpty,
@@ -572,7 +719,46 @@ void main() {
       await sync.idle();
       backend.uploads.clear();
 
-      // Saved without a change notification: only the timer finds it.
+      // Saved without a change notification: the timer's passes fetch,
+      // but upload only what's named as changed...
+      await store.putEvent({
+        'userId': '1',
+        'profileId': '1',
+        'id': 'e9',
+        'type': 'x',
+        'title': 'Quiet',
+        'time': 9,
+      });
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await sync.idle();
+      expect(backend.listings, isNotEmpty, reason: 'passes ran');
+      expect(backend.uploads, isEmpty);
+
+      // ...until a reconciliation, which looks at every stored event.
+      changes.add(null);
+      await sync.idle();
+      expect(
+        backend.uploads.keys,
+        contains('us-east-1:identity/events/year=1970/day=001/e9.json'),
+      );
+    });
+
+    test('each full fetch reconciles too', () async {
+      sync.dispose();
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        interval: const Duration(milliseconds: 50),
+        fullFetchEvery: Duration.zero,
+      );
+      await auth.signIn();
+      await sync.idle();
+      backend.uploads.clear();
       await store.putEvent({
         'userId': '1',
         'profileId': '1',
@@ -605,7 +791,7 @@ void main() {
         );
       }
 
-      Future<void> start({int maxFetch = 1000}) async {
+      Future<void> start({int maxFetch = 1000, int fetchBatch = 25}) async {
         sync.dispose();
         clock = now;
         remote = [];
@@ -619,6 +805,7 @@ void main() {
           // Passes run by hand (changes.add) rather than on the timer.
           interval: const Duration(hours: 24),
           maxFetch: maxFetch,
+          fetchBatch: fetchBatch,
           onRemote: (r) async {
             remote.add(r);
             // As the app does: stored, so later passes skip them.
@@ -833,6 +1020,23 @@ void main() {
         clock = now.add(const Duration(hours: 1));
         await pass();
         expect(remote.last.events.map((e) => e['id']), ['day-3']);
+      });
+
+      test('a fetch hands events over in batches, newest first', () async {
+        for (var d = 1; d <= 3; d++) {
+          uploadedElsewhere('day-$d', now.subtract(Duration(days: d)));
+        }
+        await start(fetchBatch: 2);
+        expect(
+          [
+            for (final r in remote) [for (final e in r.events) e['id']],
+          ],
+          [
+            ['day-1', 'day-2'],
+            ['day-3'],
+          ],
+        );
+        expect(sync.downloaded, 3);
       });
     });
   });

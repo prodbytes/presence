@@ -13,8 +13,9 @@ abstract class MediaStore {
   /// A playable URL (web) or file path (Android) for a saved recording.
   Future<String> load(String id, String mimeType);
 
-  /// A saved recording's bytes (for uploading it).
-  Future<Uint8List> bytes(String id);
+  /// A saved recording, for uploading it: its bytes as a stream (read from
+  /// disk as they're sent, on Android) and their length.
+  Future<MediaBytes> read(String id);
 
   /// Saves recording bytes under [id] (a recording downloaded from the
   /// cloud).
@@ -30,6 +31,9 @@ abstract class MediaStore {
   /// Deletes the recordings [ids]; missing ones are skipped.
   Future<void> delete(Iterable<String> ids);
 }
+
+/// A recording's bytes, streamed, and how many there are.
+typedef MediaBytes = ({Stream<List<int>> stream, int length});
 
 /// Moves recordings between playable URLs and stored bytes. Replaceable in
 /// tests; defaults to the platform implementation.
@@ -69,10 +73,10 @@ class IdbMediaStore implements MediaStore {
       _store.putMedia(id, bytes);
 
   @override
-  Future<Uint8List> bytes(String id) async {
+  Future<MediaBytes> read(String id) async {
     final bytes = await _store.getMedia(id);
     if (bytes == null) throw StateError('Recording $id is missing');
-    return bytes;
+    return (stream: Stream<List<int>>.value(bytes), length: bytes.length);
   }
 
   @override

@@ -162,7 +162,7 @@ void main() {
 
   test('reconnect uploads to the new folder after a link', () async {
     final store = await EventStore.open(newIdbFactoryMemory());
-    final changes = StreamController<void>.broadcast();
+    final changes = StreamController<Set<String>?>.broadcast();
     final backend = FakeCloudBackend();
     final auth = FakeAuthService();
     await store.putEvent({

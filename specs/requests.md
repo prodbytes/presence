@@ -2661,6 +2661,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        after an update (`MY_PACKAGE_REPLACED`) when it wasn't stopped.
      - Specs: [Android](android.md). The recognition, sync and camera
        pipeline changes of the same plan are their own requests.
+261. **Make cloud sync light enough for a very old Android phone running
+     24/7 (MT6739, 3 GB RAM, often under 100 MB free): no UI stalls, no
+     memory spikes.** (2026-10-05)
+     - Uploads only what changed: `Persistence.changes` now names the
+       saved events; an ordinary 15 s pass reads just those and their
+       clips (`EventStore.getEvent`, `clipsOfEvent`). A reconciliation of
+       every stored event runs on the first pass, with each hourly full
+       fetch, and after a null notification, letting frames through every
+       20 records. The `synced` store stays in memory between
+       reconciliations. The fetch reads only event and clip IDs, and a
+       stored event only when its ETag differs.
+     - Recordings upload streamed from storage with `UNSIGNED-PAYLOAD`
+       (`S3Bucket.putStream`, `MediaStore.read`), not read whole nor
+       hashed. A restore stores each recording as it's downloaded and
+       hands events over in batches of 25 (`RemoteRecords.media` and
+       `importRemote`'s `media` are gone).
+     - Retention prunes the deleted events' and clips' `synced` and
+       `etag:` entries. `updateFromRemote` reads events by ID.
+     - Failed passes back off (15 s doubling to 4 min), with the stack
+       logged once per streak; the status notifies only on a change.
+       Large S3 listing pages are parsed on another isolate.
+     - S3 layout and JSON formats unchanged.
+     - Specs: [Cloud sync](cloud-sync.md), [Storage](storage.md),
+       [Event retention](event-retention.md). 397 Flutter tests pass (8
+       new).
 
 261. **Implement low-risk performance fixes in the Android camera pipeline
      (DOOGEE S40: the app used ~42% of one core with the screen off).**

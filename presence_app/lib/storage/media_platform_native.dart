@@ -59,10 +59,11 @@ class FileMediaStore implements MediaStore {
   }
 
   @override
-  Future<Uint8List> bytes(String id) async {
+  Future<MediaBytes> read(String id) async {
     final file = await _file(id);
     if (!await file.exists()) throw StateError('Recording $id is missing');
-    return file.readAsBytes();
+    // Read in chunks as the upload sends them, not into memory at once.
+    return (stream: file.openRead(), length: await file.length());
   }
 
   @override
