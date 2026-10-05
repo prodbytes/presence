@@ -2400,3 +2400,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
+246. **Add to CLAUDE.md: "do a barrel roll" is to run a complete cycle of
+     commit changes, rebuild, run tests, merge PRs, cut RC and GA releases,
+     deploy locally starting the dev servers, and redeploy and restart on
+     the Android phone connected by USB.**
+    - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
+      listing those steps in order, with the commands for each. No app
+      change; no feature spec changes.
