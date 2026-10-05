@@ -15,10 +15,14 @@ in the app bar**, which flip between full screens.
   shows over the camera.)
   On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its Log tab and Admin
-    button, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
+    Where that doesn't fit (an admin's app bar, with its Log tab, Admin
+    and About buttons, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
     overflows.
     An indicator marks the selected tab.
+  - **About** (`info_outline`), just before Account (or before Sign in
+    when signed out), is **always shown**: signed out, signed in without
+    access, with access, and in DEV. It opens the [About](about.md)
+    screen.
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
 - **Flipping:** tapping a tab or swiping sideways moves between screens
@@ -133,5 +137,6 @@ in the app bar**, which flip between full screens.
   [Settings screen](settings.md)).
 - **Log** (admins only): the app's latest log messages (see [Log](log.md)).
 - The title no longer links to presence.nu01.com. On a full-screen camera,
-  an accidental tap would open a browser. `url_launcher` was removed.
+  an accidental tap would open a browser. The links are on the
+  [About](about.md) screen instead (`url_launcher`).
 - The Flutter demo UI was removed entirely.
