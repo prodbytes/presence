@@ -100,7 +100,9 @@ void main() {
   });
 
   group('the Log tab\'s health panel', () {
-    testWidgets('checks the auth API at open and every 30 s', (tester) async {
+    testWidgets('checks the auth API at open and every 60 s in RBAC', (
+      tester,
+    ) async {
       final client = FakeRolesClient()..settings = (oidc: true, aws: false);
       final roles = RolesService(
         auth: FakeAuthService(),
@@ -143,7 +145,7 @@ void main() {
 
       // The API goes away: the next check says so.
       client.anonymousError = Exception('offline');
-      await tester.pump(const Duration(seconds: 29));
+      await tester.pump(const Duration(seconds: 59));
       expect(client.anonymousCalls, 2);
       await tester.pump(const Duration(seconds: 1));
       await tester.pump();
@@ -154,27 +156,29 @@ void main() {
       client
         ..anonymousError = null
         ..settings = (oidc: false, aws: false);
-      await tester.pump(const Duration(seconds: 30));
+      await tester.pump(const Duration(seconds: 60));
       await tester.pump();
       expect(client.anonymousCalls, 4);
       expect(status('api'), 'OK');
       expect(status('oidc'), 'Mismatch');
 
-      // The timeline: a column per run, a cell per check, colored by its
-      // status; the time under the first run.
+      // The timeline: a block per run, red if any check failed, green if
+      // all passed; the time under the first run.
       expect(history.checks.map((c) => c.failed), [false, true, true]);
-      Color cell(int i, String key) =>
+      Color block(int i) =>
           (tester
-                      .widget<Container>(find.byKey(Key('health-cell-$i-$key')))
+                      .widget<Container>(find.byKey(Key('health-block-$i')))
                       .decoration!
                   as BoxDecoration)
               .color!;
-      expect(cell(0, 'api'), Gruvbox.green);
-      expect(cell(1, 'api'), isNot(Gruvbox.green));
-      expect(cell(2, 'api'), Gruvbox.green);
-      expect(cell(2, 'oidc'), Gruvbox.yellow);
-      expect(cell(0, 'aws'), Gruvbox.gray);
-      expect(find.text('3 checks · every 30 s'), findsOneWidget);
+      final red = Theme.of(
+        tester.element(find.byKey(const Key('health-panel'))),
+      ).colorScheme.error;
+      expect(block(0), Gruvbox.green);
+      expect(block(1), red);
+      expect(block(2), red);
+      expect(find.byKey(const Key('health-cell-0-api')), findsNothing);
+      expect(find.text('3 checks · every 1 min'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('health-brick-0')),
@@ -194,9 +198,63 @@ void main() {
 
       // Closed: no more checks, but the history stays.
       await tester.pumpWidget(const SizedBox());
-      await tester.pump(const Duration(seconds: 60));
+      await tester.pump(const Duration(seconds: 120));
       expect(client.anonymousCalls, 4);
       expect(history.checks, hasLength(3));
+    });
+
+    testWidgets('checks every 15 s in DEV', (tester) async {
+      final client = FakeRolesClient()
+        ..mode = ExecutionMode.dev
+        ..settings = (oidc: false, aws: false);
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: client,
+        oidcClient: false,
+      );
+      addTearDown(roles.dispose);
+      final history = HealthHistory();
+      await tester.pump();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HealthPanel(
+              roles: roles,
+              oidcClient: false,
+              history: history,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(client.anonymousCalls, 2);
+      await tester.pump(const Duration(seconds: 14));
+      expect(client.anonymousCalls, 2);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(client.anonymousCalls, 3);
+      expect(find.text('2 checks · every 15 s'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    test('the period follows the mode', () {
+      expect(
+        HealthPanel.intervalFor(ExecutionMode.dev, oidcClient: true),
+        const Duration(seconds: 15),
+      );
+      expect(
+        HealthPanel.intervalFor(ExecutionMode.rbac, oidcClient: false),
+        const Duration(seconds: 60),
+      );
+      // Before the start check, the build says which mode it will be.
+      expect(
+        HealthPanel.intervalFor(null, oidcClient: false),
+        const Duration(seconds: 15),
+      );
+      expect(
+        HealthPanel.intervalFor(null, oidcClient: true),
+        const Duration(seconds: 60),
+      );
     });
   });
 

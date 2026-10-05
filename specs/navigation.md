@@ -65,16 +65,27 @@ in the app bar**, which flip between full screens.
     recording from scratch, so a clip right after a flip has less "before"
     history.
   - **Status pills, bottom left**, across from Flip and Clip
-    (`_CameraStatus` in `lib/main.dart`): the **battery**, its
-    **temperature** (Android), the **readiness indicator** and, after it
-    for 4 s, the latest **message**, all in one pill style
-    (`StatusPill`), 16 px from the edges. On screens 600 px and wider
+    (`_CameraStatus` in `lib/main.dart`): a **health warning** while a
+    health check fails, the **battery**, its **temperature** (Android),
+    the **readiness indicator** and, after it for 4 s, the latest
+    **message**, all in one pill style (`StatusPill`), 16 px from the
+    edges. On screens 600 px and wider
     they're in a row, centered on the buttons and kept clear of them.
-    Narrower, they stack (battery on top), starting just above the buttons'
+    Narrower, they stack (the health warning, then the battery, on top), starting just above the buttons'
     row, so they never run into Flip and Clip; the readiness and the
     message share the lowest line. A label too long for the room is cut
     short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
+  - **Health warning** (`HealthWarningPill` in
+    [lib/system_health.dart](../presence_app/lib/system_health.dart)):
+    only an icon (`warning_amber_rounded`, in the error color), no label,
+    first among the pills, shown with access while one of the
+    [health checks](settings.md) fails (❌, or ⚠️ set on one side only),
+    as they stand now (the auth API's start check and its retries, the
+    Log tab's checks, the cloud sync). Its tooltip and screen-reader label
+    say "Health check failed" and each failed check's explanation.
+    **Tapping it** opens the Log tab's health panel for admins, Settings'
+    health line for everyone else. Gone once every check passes.
   - **Readiness indicator:** shows whether a clip taken now would be
     complete:
     - **"Ready"** (green dot): shown as soon as a camera is open, including

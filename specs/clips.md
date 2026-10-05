@@ -148,7 +148,9 @@ spot clicked
   cloud, bring the frames and names back; malformed entries are skipped.
 - A clip's card lists everyone tagged on it, each after a square in their
   color, then its object tags as small chips; clicking either opens the
-  player paused where it was seen (item 3 above). The **Monitoring** tab's
+  player paused where it was seen (item 3 above). Each has a small **x**
+  after it that removes it from that event (see [Subjects](subjects.md)
+  and [Subject recognition](recognition.md), "Object tags"). The **Monitoring** tab's
   map shows the events they're on, with their names (see
   [Subjects](subjects.md)).
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
