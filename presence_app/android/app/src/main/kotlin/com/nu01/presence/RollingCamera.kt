@@ -20,6 +20,7 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaRecorder
+import android.os.Build
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
@@ -80,6 +81,9 @@ class RollingCamera(
     private var audioRecord: AudioRecord? = null
     private var previewSurface: Surface? = null
     @Volatile private var running = true
+
+    /** The encoder and microphone threads, joined on [close]. */
+    private val workers = mutableListOf<Thread>()
 
     /** Completes when the camera device has closed (or never opened). */
     private val closed = CompletableFuture<Unit>()
@@ -216,7 +220,6 @@ class RollingCamera(
     val hasMotion get() = motionReader != null
 
     private var motionReader: ImageReader? = null
-    private val motionThread = HandlerThread("motion-$id").apply { start() }
     @Volatile private var lastMotionFrameMs = 0L
 
     /** How long since the latest motion frame (ms); null before the first. */
@@ -230,15 +233,21 @@ class RollingCamera(
             ?.filter { it.width >= 160 }
             ?.minByOrNull { it.width * it.height } ?: return null
         val reader = ImageReader.newInstance(size.width, size.height, ImageFormat.YUV_420_888, 2)
+        // Every camera frame (~30/s) lands here, on the camera thread, and
+        // must be released or the camera stalls. Between the ~5 used per
+        // second, just release it: one acquire, no other work.
         reader.setOnImageAvailableListener({ r ->
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastMotionFrameMs < 200) {
+                runCatching { r.acquireNextImage()?.close() }
+                return@setOnImageAvailableListener
+            }
             val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return@setOnImageAvailableListener
             image.use { img ->
-                val now = SystemClock.elapsedRealtime()
-                if (now - lastMotionFrameMs < 200) return@use
                 lastMotionFrameMs = now
                 onMotionFrame?.invoke(downsampleLuma(img))
             }
-        }, Handler(motionThread.looper))
+        }, cameraHandler)
         motionReader = reader
         return reader
     }
@@ -348,22 +357,30 @@ class RollingCamera(
             // Some decoders return nothing for the file's very last frame:
             // ask just before it, then fall back to the (≤1 s old) keyframe.
             val endUs = written.endMs * 1000
-            val frame = retriever.getFrameAtTime(
-                maxOf(0L, endUs - 100_000),
-                MediaMetadataRetriever.OPTION_CLOSEST,
-            ) ?: retriever.getFrameAtTime(0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+            val frame = frameAt(retriever, maxOf(0L, endUs - 100_000), MediaMetadataRetriever.OPTION_CLOSEST)
+                ?: frameAt(retriever, 0, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
                 ?: return@supplyAsync null
-            val upright = rotate(frame, orientationHint)
-            val scale = minOf(1f, 480f / upright.width)
-            val thumb = Bitmap.createScaledBitmap(
-                upright,
-                (upright.width * scale).toInt(),
-                (upright.height * scale).toInt(),
-                true,
-            )
-            ByteArrayOutputStream().use { out ->
-                thumb.compress(Bitmap.CompressFormat.JPEG, 80, out)
-                out.toByteArray()
+            // Scale before rotating: the rotation then works on a small bitmap.
+            val sideways = orientationHint % 180 != 0
+            val scale = minOf(1f, 480f / (if (sideways) frame.height else frame.width))
+            val small = if (scale < 1f) {
+                Bitmap.createScaledBitmap(
+                    frame,
+                    (frame.width * scale).toInt(),
+                    (frame.height * scale).toInt(),
+                    true,
+                ).also { if (it !== frame) frame.recycle() }
+            } else {
+                frame
+            }
+            val thumb = rotate(small, orientationHint).also { if (it !== small) small.recycle() }
+            try {
+                ByteArrayOutputStream().use { out ->
+                    thumb.compress(Bitmap.CompressFormat.JPEG, 80, out)
+                    out.toByteArray()
+                }
+            } finally {
+                thumb.recycle()
             }
         } finally {
             retriever.release()
@@ -371,85 +388,136 @@ class RollingCamera(
         }
     }, frameExecutor)
 
-    /** Closes everything; completes once the camera device has closed. */
+    /**
+     * Closes everything; completes once the camera device has closed.
+     * Returns at once: closing the camera and the codecs can block for
+     * hundreds of ms, so that happens on the camera thread, not the caller's.
+     */
     fun close(): CompletableFuture<Unit> {
         running = false
-        runCatching { session?.close() }
-        if (device == null) closed.complete(Unit) else runCatching { device?.close() }
-        runCatching { audioRecord?.stop() }
-        runCatching { audioRecord?.release() }
-        runCatching { videoEncoder?.stop() }
-        runCatching { videoEncoder?.release() }
-        runCatching { audioEncoder?.stop() }
-        runCatching { audioEncoder?.release() }
-        runCatching { previewSurface?.release() }
         onMotionFrame = null
-        runCatching { motionReader?.close() }
-        motionThread.quitSafely()
         clipExecutor.shutdown()
         frameExecutor.shutdown()
         waitExecutor.shutdown()
-        // The closed callback arrives on the camera thread: stop it only
-        // afterwards. Don't wait forever on a device that never reports back
-        // (orTimeout needs Android 12, so time out by hand).
-        cameraHandler.postDelayed({ closed.complete(Unit) }, 3_000)
+        cameraHandler.post {
+            runCatching { session?.close() }
+            if (device == null) closed.complete(Unit) else runCatching { device?.close() }
+            runCatching { motionReader?.close() }
+            // Unblock the microphone read, then let the encoder threads see
+            // `running` and stop (they wait at most CODEC_TIMEOUT_US), so no
+            // thread is inside a codec while it's stopped and released.
+            runCatching { audioRecord?.stop() }
+            workers.forEach { runCatching { it.join(1_000) } }
+            runCatching { audioRecord?.release() }
+            runCatching { videoEncoder?.stop() }
+            runCatching { videoEncoder?.release() }
+            runCatching { audioEncoder?.stop() }
+            runCatching { audioEncoder?.release() }
+            runCatching { previewSurface?.release() }
+            // The closed callback arrives on the camera thread: stop it only
+            // afterwards. Don't wait forever on a device that never reports
+            // back (orTimeout needs Android 12, so time out by hand).
+            cameraHandler.postDelayed({ closed.complete(Unit) }, 3_000)
+        }
         closed.whenComplete { _, _ -> cameraThread.quitSafely() }
         return closed
     }
 
     private fun startVideoEncoder(): Surface {
+        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, size.width, size.height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_BIT_RATE, if (size.width >= 1280) 2_500_000 else 1_500_000)
+            setInteger(MediaFormat.KEY_BIT_RATE, if (size.width >= 1280) 1_500_000 else 1_000_000)
             setInteger(MediaFormat.KEY_FRAME_RATE, 30)
             // A keyframe every second: clips can start at most 1 s before
             // their window, and history is pruned in 1 s steps.
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
         }
-        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
-        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        // Variable bitrate where offered: a still scene (most of the time)
+        // then costs far fewer bits than the cap.
+        val vbr = runCatching {
+            encoder.codecInfo.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC).encoderCapabilities
+                .isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+        }.getOrDefault(false)
+        if (vbr) format.setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
+        try {
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        } catch (e: Exception) {
+            if (!vbr) throw e
+            // The mode was refused after all: configure without it.
+            encoder.reset()
+            format.removeKey(MediaFormat.KEY_BITRATE_MODE)
+            encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+        }
         val surface = encoder.createInputSurface()
         encoder.start()
         videoEncoder = encoder
-        thread(name = "video-encoder-$id") { drain(encoder, SampleRing.VIDEO) }
+        workers += thread(name = "video-encoder-$id") { drain(encoder, SampleRing.VIDEO) }
         return surface
     }
 
-    @SuppressLint("MissingPermission")
+    /**
+     * The microphone at 16 kHz mono, AAC at 32 kbps: plenty for speech and
+     * room sound, with well under half the encoding work of 44.1 kHz. Falls
+     * back to 44.1 kHz at 64 kbps (which every phone supports) if refused.
+     */
     private fun startAudio() {
-        val sampleRate = 44_100
+        for ((sampleRate, bitRate) in listOf(16_000 to 32_000, 44_100 to 64_000)) {
+            if (startAudio(sampleRate, bitRate)) return
+        }
+        // Record video only.
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startAudio(sampleRate: Int, bitRate: Int): Boolean {
         val minBuffer = AudioRecord.getMinBufferSize(
             sampleRate,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT,
         )
+        if (minBuffer <= 0) return false
+        // Read 100 ms (16-bit samples) at a time: fewer wake-ups than the
+        // minimum buffer's ~20-40 ms, and the recorder holds four of them.
+        val chunk = maxOf(minBuffer, sampleRate / 10 * 2)
         val record = runCatching {
             AudioRecord(
                 MediaRecorder.AudioSource.CAMCORDER,
                 sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                minBuffer * 4,
+                chunk * 4,
             )
         }.getOrNull()
         if (record == null || record.state != AudioRecord.STATE_INITIALIZED) {
             record?.release()
-            return // Record video only.
+            return false
         }
         val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, 1).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
-            setInteger(MediaFormat.KEY_BIT_RATE, 64_000)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, minBuffer * 4)
+            setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, chunk)
         }
-        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-        encoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-        encoder.start()
+        val encoder = runCatching {
+            MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).also {
+                try {
+                    it.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+                    it.start()
+                } catch (e: Exception) {
+                    it.release()
+                    throw e
+                }
+            }
+        }.getOrNull()
+        if (encoder == null) {
+            record.release()
+            return false
+        }
         record.startRecording()
         audioRecord = record
         audioEncoder = encoder
 
-        thread(name = "audio-capture-$id") {
-            val pcm = ByteArray(minBuffer)
+        workers += thread(name = "audio-capture-$id") {
+            val pcm = ByteArray(chunk)
             // Timestamps come from the sample count, anchored to the camera
             // clock: "now minus the buffer length" jitters by a few ms, and
             // MP4 rejects audio that goes back in time even slightly.
@@ -471,34 +539,43 @@ class RollingCamera(
                 pts = maxOf(pts, lastPts + 1)
                 lastPts = pts
                 samples += count
-                val index = runCatching { encoder.dequeueInputBuffer(10_000) }.getOrDefault(-1)
-                if (index < 0) continue
-                val input = encoder.getInputBuffer(index) ?: continue
-                input.clear()
-                input.put(pcm, 0, minOf(read, input.remaining()))
-                encoder.queueInputBuffer(index, 0, minOf(read, input.capacity()), pts, 0)
-            }
-        }
-        thread(name = "audio-encoder-$id") { drain(encoder, SampleRing.AUDIO) }
-    }
-
-    /** Moves encoder output into the ring until the camera closes. */
-    private fun drain(encoder: MediaCodec, track: Int) {
-        val info = MediaCodec.BufferInfo()
-        while (running) {
-            val index = try {
-                encoder.dequeueOutputBuffer(info, 10_000)
-            } catch (_: IllegalStateException) {
-                return
-            }
-            when {
-                index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> ring.setFormat(track, encoder.outputFormat)
-                index >= 0 -> {
-                    val buffer = encoder.getOutputBuffer(index)
-                    if (buffer != null) ring.append(track, buffer, info)
-                    encoder.releaseOutputBuffer(index, false)
+                try {
+                    val index = encoder.dequeueInputBuffer(CODEC_TIMEOUT_US)
+                    if (index < 0) continue
+                    val input = encoder.getInputBuffer(index) ?: continue
+                    input.clear()
+                    input.put(pcm, 0, minOf(read, input.remaining()))
+                    encoder.queueInputBuffer(index, 0, minOf(read, input.capacity()), pts, 0)
+                } catch (_: IllegalStateException) {
+                    return@thread // The encoder was stopped or failed.
                 }
             }
+        }
+        workers += thread(name = "audio-encoder-$id") { drain(encoder, SampleRing.AUDIO) }
+        return true
+    }
+
+    /**
+     * Moves encoder output into the ring until the camera closes. The wait
+     * returns as soon as output is ready: its timeout only bounds an idle
+     * wait, so a long one adds no delay, just fewer wake-ups.
+     */
+    private fun drain(encoder: MediaCodec, track: Int) {
+        val info = MediaCodec.BufferInfo()
+        try {
+            while (running) {
+                val index = encoder.dequeueOutputBuffer(info, CODEC_TIMEOUT_US)
+                when {
+                    index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> ring.setFormat(track, encoder.outputFormat)
+                    index >= 0 -> {
+                        val buffer = encoder.getOutputBuffer(index)
+                        if (buffer != null) ring.append(track, buffer, info)
+                        encoder.releaseOutputBuffer(index, false)
+                    }
+                }
+            }
+        } catch (_: IllegalStateException) {
+            // The encoder was stopped or failed.
         }
     }
 
@@ -530,6 +607,24 @@ class RollingCamera(
             ?: top.minByOrNull { it.lower }
     }
 
+    /**
+     * The frame at [timeUs], decoded straight to thumbnail size where the
+     * system can (Android 8.1+): no full-size bitmap to allocate and scale.
+     */
+    private fun frameAt(retriever: MediaMetadataRetriever, timeUs: Long, option: Int): Bitmap? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) return retriever.getFrameAtTime(timeUs, option)
+        // Fits within this box, keeping the aspect ratio: 480 px across once upright.
+        val sideways = orientationHint % 180 != 0
+        val across = if (sideways) size.height else size.width
+        val scale = minOf(1f, 480f / across)
+        return retriever.getScaledFrameAtTime(
+            timeUs,
+            option,
+            (size.width * scale).toInt(),
+            (size.height * scale).toInt(),
+        )
+    }
+
     private fun rotate(bitmap: Bitmap, degrees: Int): Bitmap {
         if (degrees % 360 == 0) return bitmap
         val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
@@ -539,5 +634,8 @@ class RollingCamera(
     companion object {
         const val MOTION_W = 64
         const val MOTION_H = 48
+
+        /** Longest idle wait for a codec buffer (µs); output never waits on it. */
+        const val CODEC_TIMEOUT_US = 100_000L
     }
 }

@@ -2644,3 +2644,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Production deploy](deploy.md), [Auth API](auth-api.md),
        [README](README.md). 77 Java tests pass (4 new).
 
+260. **Implement low-risk performance fixes in the Android camera pipeline
+     (DOOGEE S40: the app used ~42% of one core with the screen off).**
+     (2026-10-05)
+     - Motion: the motion `ImageReader` runs on the camera thread (one
+       thread fewer); frames between the ~5/s that are used are released
+       with a single acquire and no other work. Same 64×48 luma at ~5/s.
+     - Audio: 16 kHz mono AAC at 32 kbps, read 100 ms at a time (was
+       44.1 kHz, 64 kbps, ~40 ms reads), falling back to 44.1 kHz if the
+       microphone or encoder refuses. Timestamps already follow the rate.
+     - Codec waits: 100 ms idle timeouts (were 10 ms) for encoder output
+       and audio input; the drain loops now also exit cleanly when a codec
+       is stopped or fails.
+     - Video: 1.5 Mbps (was 2.5), VBR where the encoder supports it.
+     - `SampleRing` prunes only when a video keyframe arrives, without the
+       per-sample sequence scan and boxed minimum.
+     - `close()` returns at once and tears down on the camera thread,
+       joining the encoder threads before the codecs are stopped; its
+       future still completes when the camera device has closed.
+     - Thumbnails decode straight to thumbnail size (Android 8.1+), scale
+       before rotating, and recycle their bitmaps.
+     - Not done: a smaller preview buffer (it's off with the screen off,
+       and on LEGACY camera HALs the camera still captures at the largest
+       output size); a 5 fps motion stream via a repeating burst (riskier
+       on LEGACY HALs).
+     - Specs: [Android](android.md).
