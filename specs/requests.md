@@ -2413,3 +2413,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       copied.
     - Specs: [About](about.md) (new), [Navigation](navigation.md).
       364 Flutter tests (5 new) pass.
+245. **The prodbytes URL is https://prodbytes.substack.com.**
+    - Changed: About's prodbytes link opens `https://prodbytes.substack.com`
+      (was `https://github.com/prodbytes`).
+    - Specs: [About](about.md).

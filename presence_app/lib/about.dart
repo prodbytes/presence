@@ -79,7 +79,7 @@ class AboutScreen extends StatelessWidget {
 
   static final web = Uri.parse('https://presence.nu01.com');
   static final source = Uri.parse('https://github.com/prodbytes/presence');
-  static final prodbytes = Uri.parse('https://github.com/prodbytes');
+  static final prodbytes = Uri.parse('https://prodbytes.substack.com');
   static final license = Uri.parse(
     'https://github.com/prodbytes/presence/blob/main/LICENSE',
   );
@@ -167,7 +167,7 @@ class AboutScreen extends StatelessWidget {
                   Text('Links', style: theme.textTheme.titleMedium),
                   _link(context, Icons.public, 'Presence on the web', web),
                   _link(context, Icons.code, 'Source code', source),
-                  _link(context, Icons.groups, 'prodbytes', prodbytes),
+                  _link(context, Icons.article, 'prodbytes', prodbytes),
                   _link(
                     context,
                     Icons.gavel,

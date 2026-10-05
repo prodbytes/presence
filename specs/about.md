@@ -26,7 +26,7 @@ becoming a member ([lib/about.dart](../presence_app/lib/about.dart)).
     It follows sign-in and roles changes while open.
   - **Links**: Presence on the web (`https://presence.nu01.com`), Source
     code (`https://github.com/prodbytes/presence`), prodbytes
-    (`https://github.com/prodbytes`), and the License (Apache 2.0, no
+    (`https://prodbytes.substack.com`), and the License (Apache 2.0, no
     warranty). Tapping one opens it outside the app (`url_launcher`); a
     link that can't open is copied, saying "Link copied";
   - **Run it on this machine**: the [install script](install-script.md)'s
