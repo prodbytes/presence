@@ -2400,7 +2400,43 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
-243. **If the health check fails, show an icon warning pill on the camera
+243. **On the timeline of health checks, make it a single block per check:
+     red if any fails, green if all pass.** (2026-10-05)
+     - Was: a column per run with a colored cell per check (API, AWS, OIDC)
+       and their names on the left.
+     - Changed: each run is one block (`health-block-<i>`), red (the error
+       color) when any check failed (❌ or ⚠️, `HealthCheck.failed`) and
+       green otherwise; the names column is gone. Tapping a run still shows
+       the three statuses.
+     - Specs: [Log](log.md). 359 Flutter tests pass.
+244. **Add an x beside each subject and tag label to delete that label from
+     the event, and update the app's state so the subjects and tags are
+     counted right everywhere.**
+    - Each subject name and object tag on a clip's card has a small x
+      (tooltip "Remove Rex from this event"). A subject's x removes every
+      tag of that name on the clip (`ClipAnnotations.removeName`; pending
+      suggestions stay) and frames no entry uses any more. An object tag's
+      x removes that label (`ClipAnnotations.removeObject`). Removal is
+      immediate, with no confirmation or undo.
+    - Everything that counts subjects and tags is already worked out from
+      each clip's annotations and listens to them, so one change updates
+      it all: the card, the subjects map's dots and names, a subject's
+      screen, the Events search and its matching / all count. The event is
+      saved and queued for cloud sync like any tag edit.
+    - Specs: [Subjects](subjects.md), [Subject
+      recognition](recognition.md), [Clips](clips.md), [Events](events.md).
+      363 Flutter tests (4 new, `label_remove_test.dart`) pass.
+245. **Make the health check period 15 s in DEV mode and 60 s in standard
+     (RBAC) mode.** (2026-10-05)
+     - Was: the Log tab's health panel checked every 30 s in both modes.
+     - Changed: `HealthPanel.intervalFor` picks 15 s in DEV and 60 s in
+       RBAC from `RolesService.mode` (the build's mode before the start
+       check), read again before each run, so the period follows the mode.
+       The timeline's header says "every 15 s" or "every 1 min". The 120
+       runs kept now span 30 min in DEV and 2 h in RBAC.
+     - Specs: [Log](log.md), [Settings screen](settings.md),
+       [README](README.md). 361 Flutter tests pass (2 new).
+246. **If the health check fails, show an icon warning pill on the camera
      screen as well.**
     - Was: a failed health check showed only in Settings' health line and
       the Log tab's health panel.
