@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import '../identity/profile_id.dart';
 import 'auth_service.dart';
 import 'google_config.dart';
 
@@ -49,7 +48,8 @@ typedef AnonymousAccess = ({
 
 /// What `GET /api/auth` says about the signed-in user: their roles and
 /// their profile's ID (`automatic_paranoid_axolotl`), the same at every
-/// sign-in with the same account. Null if the API didn't say.
+/// sign-in with the same account, on every device. Null if the API didn't
+/// say.
 typedef UserAccess = ({List<String> roles, String? profile});
 
 /// Where the app stands for the signed-in user.
@@ -71,35 +71,11 @@ enum AccessState {
   denied,
 }
 
-/// Where this device's profile ID is kept. There's always one: made at the
-/// first start ([ProfileId.generate]), owned by nobody, until a sign-in
-/// claims it or answers with the account's own.
-abstract class ProfileStore {
-  /// This device's profile ID, made and kept the first time it's asked.
-  Future<String> get profileId;
-
-  /// Keeps [id] as this device's profile from now on.
-  Future<void> keepProfileId(String id);
-}
-
-/// A [ProfileStore] in memory, for a run without storage.
-class MemoryProfileStore implements ProfileStore {
-  MemoryProfileStore([String? id]) : _id = id ?? ProfileId.generate();
-
-  String _id;
-
-  @override
-  Future<String> get profileId async => _id;
-
-  @override
-  Future<void> keepProfileId(String id) async => _id = id;
-}
-
 /// Asks the auth API (`GET /api/auth`) for a user's roles and profile.
 abstract class RolesClient {
-  /// The roles and profile of the user whose Google ID token is [idToken].
-  /// [profile] is this device's profile, which a first sign-in claims.
-  Future<UserAccess> fetch(String idToken, {String? profile});
+  /// The roles and profile of the user whose Google ID token is [idToken]:
+  /// the profile the account is linked to, made at its first sign-in.
+  Future<UserAccess> fetch(String idToken);
 
   /// The execution mode and the anonymous user's roles, without a token.
   Future<AnonymousAccess> anonymous();
@@ -126,13 +102,9 @@ class HttpRolesClient implements RolesClient {
   final http.Client _client;
 
   @override
-  Future<UserAccess> fetch(String idToken, {String? profile}) async {
+  Future<UserAccess> fetch(String idToken) async {
     final response = await _client.get(
-      base
-          .resolve('/api/auth')
-          .replace(
-            queryParameters: profile == null ? null : {'profile': profile},
-          ),
+      base.resolve('/api/auth'),
       headers: {'authorization': 'Bearer $idToken'},
     );
     if (response.statusCode != 200) throw RolesException(response.statusCode);
@@ -182,25 +154,22 @@ bool get hasOidcClient =>
 /// anonymous user, and sign-in is ignored. If the API can't answer, the
 /// mode follows [oidcClient]: [ExecutionMode.dev] only without one.
 ///
-/// There's always a [profile]: this device's, from [profiles], made at the
-/// first start. A sign-in sends it to the auth API, which links it to the
-/// account if the account has none yet; the profile the API answers with
-/// is kept as this device's from then on.
+/// The [profile] is the signed-in account's, as the auth API answers: the
+/// one the account is linked to, the same on every device, or a new one it
+/// made at the account's first sign-in. Nobody signed in (and DEV), no
+/// profile.
 class RolesService extends ChangeNotifier {
   RolesService({
     required this.auth,
     required this._client,
-    ProfileStore? profiles,
     bool? oidcClient,
     this.startTimeout = const Duration(seconds: 5),
-  }) : _profiles = profiles ?? MemoryProfileStore(),
-       oidcClient = oidcClient ?? hasOidcClient {
+  }) : oidcClient = oidcClient ?? hasOidcClient {
     _start();
   }
 
   final AuthService auth;
   final RolesClient _client;
-  final ProfileStore _profiles;
 
   /// Whether this build can sign in; decides the mode when the API can't.
   final bool oidcClient;
@@ -236,6 +205,9 @@ class RolesService extends ChangeNotifier {
   AccessState _state = AccessState.starting;
   List<String> _roles = const [];
   String? _profile;
+
+  /// Whose [_profile] it is.
+  String? _profileUser;
   String? _error;
   String? _user;
   String? _token;
@@ -245,9 +217,9 @@ class RolesService extends ChangeNotifier {
   AccessState get state => _state;
   List<String> get roles => _roles;
 
-  /// This device's profile ID: whose data it is. The one made at the first
-  /// start until a sign-in answers with the account's, which is kept from
-  /// then on. Null only until storage has it, just after the start.
+  /// The signed-in account's profile ID: whose data it is. Null while
+  /// nobody is signed in, until the auth API answers a sign-in, and in
+  /// DEV. A failed check of the same account keeps it.
   String? get profile => _profile;
 
   /// Why the last check failed, if it did.
@@ -294,33 +266,7 @@ class RolesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reads this device's profile, made the first time.
-  Future<void> _loadProfile() async {
-    try {
-      final id = await _profiles.profileId;
-      // A sign-in's answer, which came first, wins.
-      if (!_disposed && _profile == null) {
-        _profile = id;
-        notifyListeners();
-      }
-    } catch (e) {
-      debugPrint('Presence: no profile ID: $e');
-    }
-  }
-
-  /// Keeps the profile a sign-in answered with as this device's.
-  void _keepProfile(String id) {
-    if (id == _profile) return;
-    _profile = id;
-    _profiles
-        .keepProfileId(id)
-        .catchError(
-          (Object e) => debugPrint('Presence: could not keep the profile: $e'),
-        );
-  }
-
   Future<void> _start() async {
-    _loadProfile().ignore();
     AnonymousAccess access;
     try {
       access = await _client.anonymous().timeout(startTimeout);
@@ -369,6 +315,11 @@ class RolesService extends ChangeNotifier {
   Future<void> _check() async {
     final generation = ++_generation;
     final token = _token = auth.idToken;
+    // Another account (or nobody): the profile was the last one's.
+    if (auth.user?.id != _profileUser) {
+      _profile = null;
+      _profileUser = null;
+    }
     if (auth.user == null) {
       _set(AccessState.signedOut, _anonymousRoles);
       return;
@@ -383,13 +334,14 @@ class RolesService extends ChangeNotifier {
     }
     _set(AccessState.checking, const []);
     try {
-      // A first sign-in claims this device's profile. It's loaded long
-      // before: a session restored at launch isn't a first start, and the
-      // account is linked by then anyway.
-      final access = await _client.fetch(token, profile: _profile);
+      final user = auth.user!.id;
+      final access = await _client.fetch(token);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
-      if (access.profile case final id?) _keepProfile(id);
+      if (access.profile case final id?) {
+        _profile = id;
+        _profileUser = user;
+      }
       _set(
         access.roles.contains(userRole)
             ? AccessState.granted

@@ -142,6 +142,11 @@ class _PresenceAppState extends State<PresenceApp> {
     // have no listener yet.
     _log = EventLog(_bus.stream);
     _auth = widget.auth ?? GoogleAuthService();
+    // The signed-in account's profile, as the auth API answers.
+    _roles = RolesService(
+      auth: _auth,
+      client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
+    );
     final mediaIo = widget.mediaIo;
     _persistence = Persistence(
       factory: widget.storage != null
@@ -149,8 +154,10 @@ class _PresenceAppState extends State<PresenceApp> {
           : newDefaultIdbFactory(),
       bus: _bus,
       config: _config,
-      // Each event belongs to whoever is signed in when it's recorded.
+      // Each event records who is signed in, and belongs to their
+      // profile; none signed out.
       currentUser: () => _auth.user?.id,
+      currentProfile: () => _roles.profile,
       // And records where the device is.
       currentLocation: () => _location.location,
       now: widget.now,
@@ -176,12 +183,7 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _auth.init().ignore();
-    _roles = RolesService(
-      auth: _auth,
-      client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
-      // This device's profile, made at the first start; a sign-in claims it.
-      profiles: _persistence,
-    );
+    _roles.addListener(_onProfileChanged);
     final cloud =
         widget.cloud ??
         (CloudConfig.enabled
@@ -236,9 +238,6 @@ class _PresenceAppState extends State<PresenceApp> {
       config: _config,
       now: widget.now,
     )..start();
-    // A session restored before launch takes over what was recorded
-    // signed out, as a sign-in does.
-    if (_auth.user case final user?) _claim(user.id);
     _persistence.deviceId.then((id) {
       if (mounted) setState(() => _deviceId = id);
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
@@ -309,11 +308,24 @@ class _PresenceAppState extends State<PresenceApp> {
     _rig.load();
   }
 
-  void _claim(String userId) => _persistence
-      .claimAnonymous(userId)
-      .catchError(
-        (Object e) => debugPrint('Presence: could not claim events: $e'),
-      );
+  /// The profile whose events were last claimed; null signed out.
+  String? _claimedFor;
+
+  /// Once the auth API answers a sign-in (or a session restored at launch)
+  /// with the account's profile, the events recorded here without one
+  /// become that profile's.
+  void _onProfileChanged() {
+    final profile = _roles.profile;
+    final user = _auth.user;
+    if (profile == _claimedFor) return;
+    _claimedFor = profile;
+    if (profile == null || user == null) return;
+    _persistence
+        .claimForProfile(profile, user.id)
+        .catchError(
+          (Object e) => debugPrint('Presence: could not claim events: $e'),
+        );
+  }
 
   late final AuthService _auth;
   late final RolesService _roles;
@@ -324,14 +336,12 @@ class _PresenceAppState extends State<PresenceApp> {
   CloudSync? _sync;
   String? _signedInAs;
 
-  /// Sign-ins and sign-outs go on the event stream too. A sign-in takes
-  /// over the events recorded on this device while signed out.
+  /// Sign-ins and sign-outs go on the event stream too.
   void _onAuthChanged() {
     final email = _auth.user?.email;
     if (email == _signedInAs) return;
     final previous = _signedInAs;
     _signedInAs = email;
-    if (_auth.user case final user?) _claim(user.id);
     _bus.publish(
       email != null
           ? AppEvent(icon: Icons.login, title: 'Signed in', detail: email)
@@ -919,7 +929,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   rig: widget.rig,
                   log: widget.log,
                   deviceId: widget.deviceId,
-                  userId: _dev ? null : widget.auth.user?.id,
+                  profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
                 ),
               ),
@@ -931,7 +941,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   onOpenEvent: _openEvent,
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
-                  userId: widget.auth.user?.id,
+                  profileId: widget.roles.profile,
                   thisDeviceOnly: _thisDeviceOnly,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,
@@ -968,7 +978,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       roles: widget.roles,
                       sync: widget.sync,
                       events: widget.log,
-                      userId: widget.auth.user?.id,
+                      profileId: widget.roles.profile,
                       deviceId: widget.deviceId,
                     ),
                   ),

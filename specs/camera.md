@@ -53,9 +53,10 @@ profile (`CameraFeedsView.showAll`,
   latest event. Tapping a cell with a playable clip opens it in the clip
   player.
 - **Which devices:** those in the event log with a device ID other than
-  this one's, from the signed-in user's events only (in DEV, every
-  event's). Other devices' events reach this one through
-  [cloud sync](cloud-sync.md), from the user's folder, so the grid is the
+  this one's, from the signed-in account's [profile](profiles.md)'s events
+  only (signed out and in DEV, every event's). Other devices' events reach
+  this one through [cloud sync](cloud-sync.md), from the profile's folder,
+  so the grid is the
   profile's devices with whatever they last uploaded (new events within
   15 s, the last two weeks on a new device). Nothing new is uploaded or
   fetched for it.

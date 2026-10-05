@@ -60,7 +60,7 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | `type` | string | `app_started`, `capture_all`, `clip_requested`, `subject_suggestion`, `generic`… |
 | `title`, `detail` | string | as shown; `detail` may be null |
 | `time` | integer (ms, UTC) | when it happened; also its partition |
-| `cameraId`, `deviceId`, `userId` | string | see [Devices, users and places](devices-users-places.md) |
+| `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
 | `location` | object | `{lat, lng, accuracy, source, time}`: where the device was (see [Device location](device-location.md)); may be null |
 
 Clip events (`clip_requested`) add:
@@ -133,7 +133,7 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
   ```sql
   CREATE EXTERNAL TABLE presence_events (
     id string, type string, title string, detail string, `time` bigint,
-    cameraId string, deviceId string, userId string,
+    cameraId string, deviceId string, userId string, profileId string,
     location struct<lat:double, lng:double, accuracy:double, source:string, `time`:bigint>,
     clipId string, clipState string, `trigger` string,
     annotations array<struct<id:string, name:string, x:double, y:double,

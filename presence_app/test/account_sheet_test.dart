@@ -9,19 +9,23 @@ import 'package:presence_app/events.dart';
 
 import 'fakes.dart';
 
-/// An event recorded on [device] by [userId].
-AppEvent eventOf(String device, {String userId = '1', int minutesAgo = 0}) =>
-    AppEvent(
-      icon: Icons.directions_run,
-      title: 'Motion',
-      time: DateTime(2026, 10, 5, 12).subtract(Duration(minutes: minutesAgo)),
-      deviceId: device,
-      userId: userId,
-    );
+/// An event recorded on [device] for [profile].
+AppEvent eventOf(
+  String device, {
+  String profile = 'automatic_paranoid_axolotl',
+  int minutesAgo = 0,
+}) => AppEvent(
+  icon: Icons.directions_run,
+  title: 'Motion',
+  time: DateTime(2026, 10, 5, 12).subtract(Duration(minutes: minutesAgo)),
+  deviceId: device,
+  userId: '1',
+  profileId: profile,
+);
 
 void main() {
   group('profileDevices', () {
-    test('this device first, then the user\'s other devices sorted', () {
+    test('this device first, then the profile\'s other devices sorted', () {
       final events = [
         eventOf('zesty_calm_kettle'),
         eventOf('brave_quiet_lamp', minutesAgo: 1),
@@ -29,23 +33,37 @@ void main() {
         eventOf('happy_tidy_gadget', minutesAgo: 3),
       ];
       expect(
-        profileDevices(events, userId: '1', thisDevice: 'happy_tidy_gadget'),
+        profileDevices(
+          events,
+          profileId: 'automatic_paranoid_axolotl',
+          thisDevice: 'happy_tidy_gadget',
+        ),
         ['happy_tidy_gadget', 'brave_quiet_lamp', 'zesty_calm_kettle'],
       );
     });
 
-    test('leaves out other users\' events and events without a device', () {
+    test('leaves out other profiles\' events and events without a device', () {
       final events = [
-        eventOf('brave_quiet_lamp', userId: '2'),
+        eventOf('brave_quiet_lamp', profile: 'other_profile_owl'),
         AppEvent(
           icon: Icons.login,
           title: 'Signed in',
           time: DateTime(2026, 10, 5),
-          userId: '1',
+          profileId: 'automatic_paranoid_axolotl',
         ),
       ];
-      expect(profileDevices(events, userId: '1', thisDevice: 'mine'), ['mine']);
-      expect(profileDevices(events, userId: '1'), isEmpty);
+      expect(
+        profileDevices(
+          events,
+          profileId: 'automatic_paranoid_axolotl',
+          thisDevice: 'mine',
+        ),
+        ['mine'],
+      );
+      expect(
+        profileDevices(events, profileId: 'automatic_paranoid_axolotl'),
+        isEmpty,
+      );
     });
   });
 
@@ -60,7 +78,7 @@ void main() {
     final log = EventLog(events.stream)
       ..addHistory([
         eventOf('brave_quiet_lamp'),
-        eventOf('zesty_calm_kettle', userId: '2'),
+        eventOf('zesty_calm_kettle', profile: 'other_profile_owl'),
       ]);
     addTearDown(() {
       log.dispose();

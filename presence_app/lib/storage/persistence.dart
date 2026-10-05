@@ -8,13 +8,11 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
-import '../auth/roles_service.dart' show ProfileStore;
 import '../cloud/cloud_sync.dart' show DeviceSettings;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
-import '../identity/profile_id.dart';
 import '../location/device_location.dart';
 import '../recognition/suggestion.dart';
 import 'event_store.dart';
@@ -33,15 +31,18 @@ import 'media_store.dart';
 /// It subscribes to the bus as soon as it's created, so it doesn't miss
 /// events published while the database is still opening.
 ///
-/// Every event it saves gets this device's ID ([deviceId]), its owner (the
-/// [currentUser] when it's published, or [AppEvent.anonymousUserId]) and
-/// the [currentLocation] when it's published.
-class Persistence implements DeviceSettings, ProfileStore {
+/// Every event it saves gets this device's ID ([deviceId]), who's signed
+/// in (the [currentUser] when it's published, or
+/// [AppEvent.anonymousUserId]), the profile it belongs to (the
+/// [currentProfile], or none signed out) and the [currentLocation] when
+/// it's published.
+class Persistence implements DeviceSettings {
   Persistence({
     required Future<IdbFactory> factory,
     required AppEventBus bus,
     required this.config,
     this.currentUser,
+    this.currentProfile,
     this.currentLocation,
     DateTime Function()? now,
     MediaStore Function(EventStore store)? mediaStore,
@@ -73,6 +74,10 @@ class Persistence implements DeviceSettings, ProfileStore {
 
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
+
+  /// The signed-in account's profile, or null when nobody is signed in
+  /// (or the auth API hasn't answered the sign-in yet).
+  final String? Function()? currentProfile;
 
   /// This device's location, or null while it's unknown.
   final DeviceLocation? Function()? currentLocation;
@@ -168,16 +173,6 @@ class Persistence implements DeviceSettings, ProfileStore {
   @override
   Future<String> get deviceId => _deviceId;
 
-  /// This device's profile: made at its first start, owned by nobody until a
-  /// sign-in claims it, then the one the sign-in answered with.
-  @override
-  Future<String> get profileId =>
-      _store.then((store) => store.profileId(ProfileId.generate));
-
-  @override
-  Future<void> keepProfileId(String id) =>
-      _store.then((store) => store.setProfileId(id));
-
   /// Settings-store key of this device's recording consent.
   static const String _consentKey = 'consent';
 
@@ -197,11 +192,14 @@ class Persistence implements DeviceSettings, ProfileStore {
     await store.putSettings(_consentKey, DeviceConsent.record(id, at));
   }
 
-  /// Hands [userId] the events recorded on this device while nobody was
-  /// signed in (and those saved before events had owners), so a sign-in
-  /// loses none of them: they show and sync as the user's from then on.
-  /// Runs after the history is restored and pending saves are done.
-  Future<void> claimAnonymous(String userId) {
+  /// Gives [profileId], the profile the auth API answered [userId]'s
+  /// sign-in with, the events on this device that have no profile yet:
+  /// those recorded while nobody was signed in, while the sign-in was being
+  /// answered, and before events had profiles. A sign-in loses none of
+  /// them: they show and sync as the profile's from then on. Another
+  /// user's events without a profile stay as they are. Runs after the
+  /// history is restored and pending saves are done.
+  Future<void> claimForProfile(String profileId, String userId) {
     final pending = List.of(_pending);
     final restoring = _restoring;
     final claim = () async {
@@ -209,24 +207,32 @@ class Persistence implements DeviceSettings, ProfileStore {
       await Future.wait(pending);
       if (_disposed) return;
       final store = await _store;
-      bool anonymous(String? owner) =>
-          owner == null || owner == AppEvent.anonymousUserId;
+      bool anonymous(String? user) =>
+          user == null || user == AppEvent.anonymousUserId;
+      bool unclaimed(String? profile, String? user) =>
+          profile == null && (anonymous(user) || user == userId);
       // The events in memory first: their records are the freshest, and
       // later saves of them (a clip completing, a tag) must keep the owner.
       final claimed = <String>{};
       for (final event in _log?.events ?? const <AppEvent>[]) {
-        if (!anonymous(event.userId)) continue;
-        event.userId = userId;
+        if (!unclaimed(event.profileId, event.userId)) continue;
+        event.profileId = profileId;
+        if (anonymous(event.userId)) event.userId = userId;
         claimed.add(event.id);
         await store.putEvent(event.toRecord());
       }
       // Then any stored ones that aren't in memory.
       for (final record in await store.allEvents()) {
+        final user = AppEvent.ownerOf(record);
         if (claimed.contains(record['id']) ||
-            !anonymous(AppEvent.ownerOf(record))) {
+            !unclaimed(AppEvent.profileOf(record), user)) {
           continue;
         }
-        await store.putEvent({...record, 'userId': userId});
+        await store.putEvent({
+          ...record,
+          'userId': anonymous(user) ? userId : user,
+          'profileId': profileId,
+        });
       }
       _changed();
     }();
@@ -338,6 +344,7 @@ class Persistence implements DeviceSettings, ProfileStore {
   void _onEvent(AppEvent event) {
     // Who's signed in now, not once the database is open.
     event.userId ??= currentUser?.call() ?? AppEvent.anonymousUserId;
+    event.profileId ??= currentProfile?.call();
     event.location ??= currentLocation?.call();
     _track(() async {
       final store = await _store;
@@ -470,9 +477,9 @@ class Persistence implements DeviceSettings, ProfileStore {
   AppEvent _restoreEvent(
     Map<String, Object?> record,
     Map<String, VideoClip> clips,
-  ) =>
-      _restoreEventOnly(record, clips)
-        ..location ??= DeviceLocation.fromJson(record['location']);
+  ) => _restoreEventOnly(record, clips)
+    ..location ??= DeviceLocation.fromJson(record['location'])
+    ..profileId ??= AppEvent.profileOf(record);
 
   AppEvent _restoreEventOnly(
     Map<String, Object?> record,

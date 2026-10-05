@@ -8,7 +8,6 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:presence_app/auth/auth_service.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/identity/device_id.dart';
-import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/identity/join_link.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/main.dart';
@@ -169,23 +168,24 @@ void main() {
       );
     });
 
-    testWidgets('without an answer or in DEV, Settings shows the device '
-        'profile', (tester) async {
-      String profileShown() => tester
-          .widget<SelectableText>(find.byKey(const Key('profile-id')))
-          .data!;
+    testWidgets('signed out, without an answer or in DEV, Settings shows '
+        'no profile', (tester) async {
+      String profileShown() =>
+          tester.widget<Text>(find.byKey(const Key('profile-id'))).data!;
+      Future<void> openSettings() async {
+        await tester.tap(find.byTooltip('Settings'));
+        await tester.pumpAndSettle();
+        await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+      }
+
       await launch(tester, roles: FakeRolesClient()..profile = null);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
-      expect(profileShown(), matches(ProfileId.pattern));
+      await openSettings();
+      expect(profileShown(), 'none until signed in');
 
       final dev = FakeRolesClient()..mode = ExecutionMode.dev;
       await launch(tester, auth: FakeAuthService(), roles: dev);
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
-      await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
-      expect(profileShown(), matches(ProfileId.pattern));
+      await openSettings();
+      expect(profileShown(), 'none until signed in');
       expect(deviceIdShown(tester), matches(DeviceId.pattern));
     });
 
@@ -196,7 +196,8 @@ void main() {
         ),
       );
       await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
-      expect(find.text('loading…'), findsNWidgets(2));
+      expect(find.text('loading…'), findsOneWidget);
+      expect(find.text('none until signed in'), findsOneWidget);
     });
 
     testWidgets('Settings ends with a QR code for this device and user', (

@@ -167,6 +167,7 @@ void main() {
     final auth = FakeAuthService();
     await store.putEvent({
       'userId': '1',
+      'profileId': '1',
       'id': 'e1',
       'type': 'appStarted',
       'title': 'Application started',

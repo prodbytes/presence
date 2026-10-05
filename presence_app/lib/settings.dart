@@ -342,7 +342,8 @@ class _SettingsViewState extends State<SettingsView> {
             _IdLine(
               label: 'Profile',
               id: widget.profileId,
-              missing: 'loading…',
+              // A profile is the signed-in account's.
+              missing: 'none until signed in',
               idKey: const Key('profile-id'),
             ),
             if (health case final health?) ...[
