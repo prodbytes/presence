@@ -26,8 +26,10 @@ flutter build apk --release "${DART_DEFINES[@]}" \
 
 echo "Installing $VERSION on $serial" >&2
 adb_s install -r build/app/outputs/flutter-apk/app-release.apk
-# NEW_TASK | CLEAR_TASK (0x10008000): a fresh task with only the app.
-adb_s shell am start -W -f 0x10008000 -n "$package/.MainActivity" >/dev/null
+# NEW_TASK | CLEAR_TASK (0x10008000): a fresh task with only the app. No
+# -W: it waits for the screen to be drawn, which never happens while the
+# phone is locked (the app still starts, and is checked below).
+adb_s shell am start -f 0x10008000 -n "$package/.MainActivity" >/dev/null
 
 for _ in $(seq 1 20); do
   pid="$(adb_s shell pidof "$package" | tr -d '\r' || true)"
