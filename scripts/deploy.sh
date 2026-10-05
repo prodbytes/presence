@@ -9,13 +9,15 @@
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
 #      presence-auth-api / presence-rc-auth-api)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
-#      presence-web: certificate, bucket, CloudFront, DNS)
+#      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
+#      health check of /health with its alarm emails)
 #   5. uploads the index page (/) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site: /app/version.json must report this
 #      version, / must be the index page, and /api/auth must refuse a
 #      request without a token (401: the route and its authorizer are live),
-#      and /api/auth/anonymous must report RBAC mode
+#      and /api/auth/anonymous must report RBAC mode, and /health must say
+#      every dependency is ok
 #
 # Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
 # credentials. Settings, from the environment:
@@ -33,6 +35,9 @@
 #   PRESENCE_ROOT_EMAILS  the root allowlist's single emails, comma-separated
 #                (default none). Both also come from .env; their verified
 #                users get presence_root, presence_admin and presence_user.
+#   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
+#                recovers, comma-separated (default julio+health@nu01.com;
+#                also from .env). Each must confirm AWS's subscription email.
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -107,6 +112,17 @@ PRESENCE_ROOT_DOMAINS="${PRESENCE_ROOT_DOMAINS:-nu01.com}"
 root_emails=0; [[ -n "${PRESENCE_ROOT_EMAILS:-}" ]] && root_emails=$(tr ',' '\n' <<<"$PRESENCE_ROOT_EMAILS" | grep -c .)
 echo "    root allowlist: domains $PRESENCE_ROOT_DOMAINS, $root_emails email(s)"
 
+# Health alarm emails: from the environment, else .env, else the default.
+if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
+  PRESENCE_HEALTH_EMAILS="$(sed -n 's/^PRESENCE_HEALTH_EMAILS=//p' .env | tail -1)"
+fi
+PRESENCE_HEALTH_EMAILS="${PRESENCE_HEALTH_EMAILS:-julio+health@nu01.com}"
+if [[ ! "$PRESENCE_HEALTH_EMAILS" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+(,[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+)*$ ]]; then
+  echo "error: PRESENCE_HEALTH_EMAILS must be comma-separated emails" >&2
+  exit 1
+fi
+echo "    health alarm emails: $(tr ',' '\n' <<<"$PRESENCE_HEALTH_EMAILS" | grep -c .)"
+
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
 aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
@@ -152,10 +168,12 @@ echo "    API origin: $api_domain"
 
 # 4. The site
 echo "==> deploying $SITE_STACK"
+# AUTO_EXPAND: the template's Fn::ForEach (AWS::LanguageExtensions).
 aws cloudformation deploy --stack-name "$SITE_STACK" \
-  --template-file presence_infra/site.yaml \
+  --template-file presence_infra/site.yaml --capabilities CAPABILITY_AUTO_EXPAND \
   --parameter-overrides "DomainName=$DOMAIN" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
+    "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
@@ -190,6 +208,10 @@ check() {
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
+  # What the Route 53 health check polls: every dependency must be ok.
+  local health
+  health="$(curl -s --max-time 20 "https://$DOMAIN/health")"
+  [[ "$health" == '{"status":"ok",'* ]] || { echo "    /health answered $health, want status ok"; return 1; }
 }
 for attempt in $(seq 1 30); do
   if check; then

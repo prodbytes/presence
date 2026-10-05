@@ -10,11 +10,12 @@ Description: >
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
   returns the execution mode (DEV without GoogleWebClientId, else RBAC),
-  the anonymous roles and which settings are set. Roles: the root
+  the anonymous roles and which settings are set; GET /health (no token)
+  checks the dependencies for Route 53. Roles: the root
   allowlist (RootDomains, RootEmails) gets presence_root, presence_admin
   and presence_user; the UserRoles table adds more (never presence_root);
   a linked account shares its profile owner's. Served under /api/* by the
-  site's CloudFront distribution.
+  site's CloudFront distribution, with /health.
 
 Parameters:
   GoogleWebClientId:
@@ -217,6 +218,11 @@ Resources:
           ThrottlingRateLimit: 20
         # Public (no token): the app asks it at every start.
         "GET /api/auth/anonymous":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        # Public (no token): Route 53's health checkers, from several
+        # regions every 30 s. Answers are reused for 20 s (HealthHandler).
+        "GET /health":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
         # Link codes: slow enough that guessing one (40 bits) is hopeless.
@@ -515,6 +521,61 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/unlink
             Method: post
+
+  # GET /health: whether every dependency answers (presence.auth.HealthHandler),
+  # polled by the site's Route 53 health check. Read-only: it only
+  # describes the tables, heads the bucket and describes the pool.
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.HealthHandler::handleRequest
+      # More memory, more CPU: a cold start must still answer Route 53 in time.
+      MemorySize: 1024
+      Environment:
+        Variables:
+          GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
+          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
+          USER_DATA_BUCKET: !Ref UserDataBucket
+          HEALTH_TABLES: !Join
+            - ','
+            - - !Ref UserRolesTable
+              - !Ref ProfilesTable
+              - !Ref ProfileSubjectsTable
+              - !Ref MembershipTable
+              - !Ref VoucherTable
+              - !Ref LinkCodesTable
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:DescribeTable
+              Resource:
+                - !GetAtt UserRolesTable.Arn
+                - !GetAtt ProfilesTable.Arn
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !GetAtt MembershipTable.Arn
+                - !GetAtt VoucherTable.Arn
+                - !GetAtt LinkCodesTable.Arn
+            # HeadBucket needs ListBucket; the bucket only ("none" when unset).
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+            - Effect: Allow
+              Action: cognito-identity:DescribeIdentityPool
+              Resource: !Sub
+                - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
+                - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /health
+            Method: get
+            Auth:
+              Authorizer: NONE
 
 Outputs:
   ApiDomain:

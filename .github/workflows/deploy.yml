@@ -85,6 +85,8 @@ jobs:
           # The root allowlist (empty: nu01.com, no single emails).
           PRESENCE_ROOT_DOMAINS: ${{ vars.PRESENCE_ROOT_DOMAINS }}
           PRESENCE_ROOT_EMAILS: ${{ vars.PRESENCE_ROOT_EMAILS }}
+          # Unset: scripts/deploy.sh's default, julio+health@nu01.com.
+          PRESENCE_HEALTH_EMAILS: ${{ vars.PRESENCE_HEALTH_EMAILS }}
         run: bash scripts/deploy.sh
 
       # https://sh.presence.nu01.com: the curl | sh install script.

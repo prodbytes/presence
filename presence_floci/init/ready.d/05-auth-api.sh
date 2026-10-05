@@ -13,7 +13,9 @@
 # floci:override-id tag): the same Google JWT authorizer and routes as
 # template.yaml's AuthHttpApi. Its host, $API_ID.execute-api.localhost.floci.io,
 # is written to /tmp/presence-api-host, which 10-cloudfront.sh routes /api/*
-# to. Keep the routes below in step with template.yaml.
+# to. Keep the routes below in step with template.yaml, except GET /health:
+# it checks AWS resources (the identity pool and bucket in .env are AWS's,
+# not Floci's), so it's AWS only, like the Route 53 health check.
 #
 # Without GOOGLE_WEB_CLIENT_ID the API runs in DEV mode: only the public
 # GET /api/auth/anonymous route is created, and it gives the anonymous user

@@ -66,8 +66,10 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
 
    The role trusts only tokens for `repo:prodbytes/presence:ref:refs/tags/*GA`.
    Its permissions cover the Presence stacks: CloudFormation, S3, the
-   `presence-*` IAM roles (passed only to Cognito), Cognito identity pools, CloudFront, ACM, and the `nu01.com`
-   zone.
+   `presence-*` IAM roles (passed only to Cognito), Cognito identity pools, CloudFront, ACM, the `nu01.com`
+   zone, and the site's health check (Route 53 health checks, `presence-*`
+   alarms and SNS topics, the `LanguageExtensions` transform). Run the
+   same command again whenever `github-deploy.yaml` changes.
 
 2. Set the repository variable to the stack's `DeployRoleArn` output:
 

@@ -1,9 +1,11 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: four Java 25
+[presence_api_auth/](../presence_api_auth) is a SAM application: six Java 25
 Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
 site (`/api/*` in the CloudFront distribution; see
-[Production deploy](deploy.md)):
+[Production deploy](deploy.md)), plus the public **`GET /health`**
+(`HealthHandler`), which checks the API's dependencies for Route 53 (see
+[Health check](health-check.md)):
 
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's **profile**
   and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",

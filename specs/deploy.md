@@ -16,6 +16,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
+| `/health` | The same HTTP API's public [health check](health-check.md), not cached |
 
 - **Infrastructure as code:**
   - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
@@ -26,8 +27,10 @@ One CloudFront distribution serves the whole site, laid out like the local
     `presence-web`: an ACM certificate for `presence.nu01.com`
     (DNS-validated in the `nu01.com` zone), a private S3 bucket readable
     only by the distribution (OAC), the distribution (HTTP/2 and HTTP/3,
-    HTTPS only, TLS 1.2+, AWS's managed security-headers policy), and
-    Route 53 A/AAAA aliases.
+    HTTPS only, TLS 1.2+, AWS's managed security-headers policy), Route
+    53 A/AAAA aliases, and the Route 53 [health check](health-check.md)
+    of `/health` with its alarm and email topic (`HealthNotificationEmails`,
+    from `PRESENCE_HEALTH_EMAILS`, default `julio+health@nu01.com`).
   - [presence_sh/template.yaml](../presence_sh/template.yaml), stack
     `presence-sh`: https://sh.presence.nu01.com, the
     [install URL](install-url.md), deployed after the site by
@@ -47,7 +50,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
   token (401), and `/api/auth/anonymous` must answer RBAC with only
-  `presence_anonymous`, and report the OIDC client and AWS settings set. It retries for up to 10 minutes.
+  `presence_anonymous`, and report the OIDC client and AWS settings set,
+  and `/health` must answer `"status":"ok"`. It retries for up to 10 minutes.
 
 ## Release candidates (rc.presence.nu01.com)
 
@@ -97,7 +101,9 @@ with an optional `tag` input, deploys that version to
   permissions are limited to the Presence stacks: CloudFormation, S3,
   `presence-*` IAM roles, Lambda functions, HTTP APIs, DynamoDB tables (TTL included),
   Cognito identity pools,
-  CloudFront, ACM and the `nu01.com` zone. The RC role gets the same,
+  CloudFront, ACM, the `nu01.com` zone, and the
+  [health check](health-check.md)'s Route 53 health checks, alarms and SNS
+  topics (and the `LanguageExtensions` transform). The RC role gets the same,
   limited to `presence-rc-*`.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).

@@ -137,6 +137,10 @@ their data.
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
+- [Health check](health-check.md): `GET /health` checks the settings,
+  tables, user-data bucket, identity pool and Google's keys; a Route 53
+  health check polls it and emails `HealthNotificationEmails` (default
+  julio+health@nu01.com) when it fails or recovers.
 
 ## Workflow
 
