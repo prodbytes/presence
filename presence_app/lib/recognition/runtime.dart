@@ -23,7 +23,8 @@ abstract class TfliteRuntime {
 abstract class TfliteModel {
   /// Runs the model on [input] (shaped as its input: a `Float32List`, or an
   /// `Int32List` for byte inputs) and returns every output, flattened, in
-  /// no particular order (callers tell them apart by length).
+  /// no particular order (callers tell them apart by length). They may be
+  /// views of the model's own memory: read them before the next run.
   Future<List<Float32List>> run(TypedData input);
 
   void dispose();

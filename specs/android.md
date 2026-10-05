@@ -6,7 +6,8 @@ Android uses the standard dashcam technique instead
 
 - **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
   and a hardware **H.264** encoder, up to 1280×720, with a keyframe every
-  second.
+  second, at 1.5 Mbps (1 Mbps below 1280 wide), variable bitrate where the
+  encoder offers it (a still scene then costs fewer bits).
   - **Frame rate is variable, up to 30 fps** (for example 5–30 on the S40).
     A fixed 30 fps caps exposure at 1/30 s, which made the S40's picture
     almost black indoors (average luma 17). With 5–30 fps and +1 EV it
@@ -14,10 +15,23 @@ Android uses the standard dashcam technique instead
     expose longer, so motion blurs and the frame rate drops. In good light
     it stays at 30 fps. Keyframes may then be further apart, so clip files
     can start a little earlier before their window (the window offsets
-    still cut them exactly). The default microphone (`AudioRecord`) feeds an **AAC**
-  encoder. Audio and video share the camera's clock.
+    still cut them exactly).
+  - The default microphone (`AudioRecord`, read 100 ms at a time) feeds an
+    **AAC** encoder at **16 kHz mono, 32 kbps** (under half the encoding
+    work of 44.1 kHz); if the phone refuses 16 kHz, it falls back to
+    44.1 kHz at 64 kbps. Audio and video share the camera's clock.
+  - The **motion stream** (a small YUV `ImageReader`) is handled on the
+    camera's own thread: every frame (~30/s) is released at once, and only
+    about 5 a second are acquired as the latest and sampled to 64×48 luma.
+  - The encoder threads wait up to 100 ms for output (it's handed over as
+    soon as it's ready; the long timeout only means fewer idle wake-ups).
+  - **Closing** returns at once: the camera, microphone and codecs are
+    closed on the camera thread (after the encoder threads stop), and the
+    returned future completes once the camera device has closed (or 3 s
+    pass), so the main thread never blocks on it.
 - **`SampleRing`:** the encoded samples are kept in an in-memory ring buffer,
-  holding *before* + 1 s of history, pruned a whole GOP at a time.
+  holding *before* + 1 s of history (up to 1 s more between keyframes),
+  pruned a whole GOP at a time, when a video keyframe arrives.
 - **On Clip:** the before part is muxed from the ring into an MP4 at once
   (`MediaMuxer`). The full clip is muxed once the after period has been
   buffered. Files start at the keyframe at or before the window, and the
@@ -37,7 +51,9 @@ Android uses the standard dashcam technique instead
     because of a double rotation.
 - **Thumbnail:** the latest frame, taken from the ring with
   `MediaMetadataRetriever` (just before the last frame, falling back to the
-  latest keyframe), turned upright and saved as JPEG.
+  latest keyframe), decoded straight to thumbnail size where Android allows
+  (8.1+, `getScaledFrameAtTime`), scaled to 480 px wide before it's turned
+  upright, and saved as JPEG; the bitmaps are recycled at once.
 - **Playback:** `video_player` (ExoPlayer), with the same before-then-full
   continuation and exact window end as web. Tap to pause and play.
 - **One camera at a time:** Flip closes the open camera (waiting for
@@ -87,7 +103,12 @@ Android uses the standard dashcam technique instead
     - when Android restarts the **capture service** after killing the
       process (`START_STICKY`), the service reopens the app;
     - after the phone **boots** (`BootReceiver`, `RECEIVE_BOOT_COMPLETED`),
-      the app opens.
+      or the app is **updated** (`MY_PACKAGE_REPLACED`; not after `flutter
+      run` or `android-install.sh`, which force-stop it first, and a
+      stopped app gets no broadcasts), the app opens.
+    - The watchdog opens it in a fresh task (`NEW_TASK | CLEAR_TASK`), so
+      a screen left on top of the app's old task can't keep it from
+      starting.
     - Only a force stop (Settings > Apps) keeps it closed: it cancels the
       alarms until the app is opened again. Android 10 and later may refuse
       to open an app from the background (the S40 runs Android 9); the
@@ -128,17 +149,42 @@ Android uses the standard dashcam technique instead
 ## Subject recognition
 
 - [Recognition](recognition.md) runs the bundled `.tflite` models with
-  **LiteRT** through Google's `tflite_flutter` plugin (Dart FFI, a
-  background isolate per model).
-- **`framesAt`** (`presence/cameras`): `{path, ms: [..], maxWidth}` →
-  a JPEG per time (null where a frame can't be read), from one
-  `MediaMetadataRetriever` per call, each frame upright and scaled as
-  `frameAt`'s; bitmaps are recycled as soon as they're encoded. `frameAt`
-  is now `framesAt` with one time.
+  **LiteRT** through Google's `tflite_flutter` plugin (Dart FFI), all in
+  one worker isolate, 2 CPU threads, the models mapped from files in
+  `files/models/` (copied from the assets on first use).
+- **`keyframesAt`** (`presence/cameras`): `{path, ms: [..], maxWidth}` →
+  a list of `{ms, width, height, pixels}`: for each time, the **keyframe**
+  nearest to it (found in the file's index with `MediaExtractor`, nothing
+  decoded), each keyframe once, `ms` being its own time. Each is decoded
+  alone (`OPTION_CLOSEST_SYNC`) by one `MediaMetadataRetriever` per call,
+  straight to at most `maxWidth` (default 640) px wide upright
+  (`getScaledFrameAtTime`, Android 8.1+; scaled before turning on older
+  ones), then turned upright, and returned as raw RGBA; frames that can't
+  be read are left out. Bitmaps are recycled at once.
+- **`encodeJpeg`** (`presence/cameras`): `{width, height, pixels}` (RGBA,
+  checked to match) → a JPEG (quality 85), for the frame of a recognized
+  tag or suggestion.
+- **`frameAt`** (`presence/cameras`, for tags made by hand): the frame
+  closest to a time (`OPTION_CLOSEST`), upright, at most `maxWidth` px
+  wide, as a JPEG.
+- **`memoryStatus`** (`presence/device`): `ActivityManager`'s
+  `{lowMemory, availMem, threshold, totalMem, lowRamDevice}`; recognition
+  waits while memory is tight.
 - **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
   Kotlin on the toolchain default (21), which Kotlin rejects; the root
   `build.gradle.kts` pins that plugin's Kotlin to JVM 11.
-- **Run on a USB phone:** `devbox run android`, or
+- **Install on the unattended phone:** `devbox run android-release`, or
+  [scripts/android-install.sh](../scripts/android-install.sh), builds a
+  release APK with the `.env` settings and the version, installs it over
+  the app (keeping its data; the version code stays the pubspec's, as
+  `flutter run` builds it), starts it in a fresh task (`NEW_TASK |
+  CLEAR_TASK`), and checks it runs. Release, because on the S40 it took
+  173 MB against the debug build's 384 MB, and Dart runs compiled. A
+  fresh task, because a screen left on top of the app's task (Google's
+  account chooser) kept Android from starting the app at all: `flutter
+  run`'s own start, after its install, only brought that screen back.
+- **Run on a USB phone while developing:** `devbox run android` (debug,
+  with hot reload), or
   [scripts/flutter-android.sh](../scripts/flutter-android.sh), finds `adb`
   (on the `PATH`, `ANDROID_HOME`, Flutter's configured SDK or Homebrew's
   `android-commandlinetools`), picks the one phone attached by USB
@@ -201,7 +247,9 @@ Android uses the standard dashcam technique instead
 - **Verified on a DOOGEE S40 (Android 9, MT6739):**
   - The camera opens, and the hardware H.264 encoder runs at ~30 fps.
   - Clips are written as a before part (15.7 s) and a full clip (30.1 s),
-    each 1280×720 H.264 with AAC audio at 44.1 kHz, with real sound.
+    each 1280×720 H.264 with AAC audio, with real sound (verified at
+    44.1 kHz and 2.5 Mbps; the 16 kHz audio and 1.5 Mbps VBR video of
+    2026-10-05 are not yet verified on the phone).
   - The full clip is saved, the before-only file is deleted, the thumbnail
     is an upright 480×853 JPEG, and clips and events survive relaunches.
   - Playback starts with audio.

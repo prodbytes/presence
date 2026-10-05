@@ -726,6 +726,8 @@ String autoTagMessage(RecognitionResult result) {
       'Nobody to look for yet: tag someone on another clip first.',
     RecognitionResult(outcome: RecognitionOutcome.allTagged) =>
       'Everyone tagged before is already on this clip.',
+    RecognitionResult(outcome: RecognitionOutcome.deferred) =>
+      'The phone is low on memory: try again in a moment.',
     RecognitionResult(tagged: [], asked: []) => 'Nobody recognized.',
     RecognitionResult(:final tagged, :final asked) => [
       if (tagged.isNotEmpty) 'Tagged ${names(tagged)}.',

@@ -2643,7 +2643,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Health check](health-check.md) (new),
        [Production deploy](deploy.md), [Auth API](auth-api.md),
        [README](README.md). 77 Java tests pass (4 new).
-260. **Make cloud sync light enough for a very old Android phone running
+260. **Go ahead with the performance plan, starting with running a release
+     build on the phone; do a barrel roll when done.** (2026-10-05)
+     - Measured on the S40: the debug build that `flutter run` installs
+       took 384 MB (PSS) against 173 MB for the release build of the same
+       code; at rest with the screen off, the release app used ~42% of one
+       core, mostly the camera pipeline (motion reader 9%, codecs 9%, audio
+       7%), with Dart nearly idle (~0.5%).
+     - Found: after `flutter run` installed a release build, the app
+       didn't start: Google's account chooser was still on top of the
+       app's task, so Android brought that back instead of starting the
+       app.
+     - Added: `devbox run android-release` (`scripts/android-install.sh`):
+       builds a release APK, installs it, starts it in a fresh task and
+       checks it runs; the barrel roll redeploys the phone with it. The
+       watchdog also opens the app in a fresh task, and the app opens
+       after an update (`MY_PACKAGE_REPLACED`) when it wasn't stopped.
+     - Specs: [Android](android.md). The recognition, sync and camera
+       pipeline changes of the same plan are their own requests.
+261. **Make cloud sync light enough for a very old Android phone running
      24/7 (MT6739, 3 GB RAM, often under 100 MB free): no UI stalls, no
      memory spikes.** (2026-10-05)
      - Uploads only what changed: `Persistence.changes` now names the
@@ -2669,3 +2687,62 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Event retention](event-retention.md). 397 Flutter tests pass (8
        new).
 
+261. **Implement low-risk performance fixes in the Android camera pipeline
+     (DOOGEE S40: the app used ~42% of one core with the screen off).**
+     (2026-10-05)
+     - Motion: the motion `ImageReader` runs on the camera thread (one
+       thread fewer); frames between the ~5/s that are used are released
+       with a single acquire and no other work. Same 64×48 luma at ~5/s.
+     - Audio: 16 kHz mono AAC at 32 kbps, read 100 ms at a time (was
+       44.1 kHz, 64 kbps, ~40 ms reads), falling back to 44.1 kHz if the
+       microphone or encoder refuses. Timestamps already follow the rate.
+     - Codec waits: 100 ms idle timeouts (were 10 ms) for encoder output
+       and audio input; the drain loops now also exit cleanly when a codec
+       is stopped or fails.
+     - Video: 1.5 Mbps (was 2.5), VBR where the encoder supports it.
+     - `SampleRing` prunes only when a video keyframe arrives, without the
+       per-sample sequence scan and boxed minimum.
+     - `close()` returns at once and tears down on the camera thread,
+       joining the encoder threads before the codecs are stopped; its
+       future still completes when the camera device has closed.
+     - Thumbnails decode straight to thumbnail size (Android 8.1+), scale
+       before rotating, and recycle their bitmaps.
+     - Not done: a smaller preview buffer (it's off with the screen off,
+       and on LEGACY camera HALs the camera still captures at the largest
+       output size); a 5 fps motion stream via a repeating burst (riskier
+       on LEGACY HALs).
+     - Specs: [Android](android.md).
+262. **Make recognition much cheaper on a slow Android phone (DOOGEE S40:
+     a 15 s clip took ~64 s, the app stuttered and was killed for memory
+     right after) without changing what it recognizes: models in one
+     worker isolate, cheaper frames, a memory gate with backpressure, and
+     less work per frame.** (2026-10-05)
+     - Worker: on Android one long-lived isolate (`vision_worker.dart`,
+       `WorkerVision`) owns the four models, loads them (mapped from files
+       in `files/models/`, since `tflite_flutter` never frees a model
+       loaded from bytes), builds the anchors, preprocesses, runs and
+       decodes; outputs are read in place, not copied (EfficientDet's
+       7 MB of scores per frame). Frames go in as transferable RGBA, only
+       the analysis comes back. 2 interpreter threads (was 4). Freed after
+       60 s idle. `Vision` moved to `vision.dart`, with `release()`; web
+       keeps `VisionModels` on its own thread.
+     - Frames: new `keyframesAt` (`presence/cameras`) returns the keyframe
+       nearest each time, each once, decoded alone and scaled while
+       decoding (`getScaledFrameAtTime`), turned after, as raw RGBA; JPEGs
+       only on demand (`encodeJpeg`). `framesAt` is gone from the channel.
+       Sampling every 1 s (was 0.5 s) at 640 px (was 960), 3 per call
+       (was 8).
+     - Memory: `memoryStatus` on `presence/device`; while it's tight
+       (low, or under threshold + 64 MB) a new clip waits 30 s at a time
+       (up to 10), Auto says the phone is low on memory (new outcome
+       `deferred`), and the models are freed. Only the latest 3 new clips
+       wait; older ones are skipped.
+     - Less work: only detections of sorts some reference is (people /
+       pets) are embedded, the best 3 per frame.
+     - Tests: frame times in `recognition_test.dart` follow the 1 s
+       spacing; new tests for the detection cap, kinds, queue cap, memory
+       gate, the worker isolate and the Android sampler. The Android
+       integration test and its fixtures (`-g 30`) follow keyframes, not
+       rerun. 401 Flutter tests pass.
+     - Specs: [Subject recognition](recognition.md), [Android](android.md),
+       [Platforms](platforms.md), [Data formats](data-formats.md).

@@ -1,6 +1,7 @@
 /// Recognition on an Android device or emulator, for real: LiteRT running
-/// the bundled models, `framesAt` reading MP4s, and the recognizer end to
-/// end. The clips and portraits go in first:
+/// the bundled models, `keyframesAt` reading MP4s, and the recognizer end
+/// to end (models in their worker isolate). The clips and portraits go in
+/// first:
 ///
 /// ```sh
 /// flutter install --debug        # once, so the app's files exist
@@ -107,8 +108,9 @@ void main() {
     expect(faceConfidence(same), greaterThanOrEqualTo(0.8));
   });
 
-  testWidgets('framesAt reads an MP4 every half second', (_) async {
+  testWidgets('keyframesAt reads each keyframe of an MP4 once', (_) async {
     final frames = <(int, int, int, int)>[];
+    // Asked every half second, with a keyframe every second.
     await for (final f in ClipFrameSampler().sample(
       clipOf('colours.mp4').clip.full!,
       every: const Duration(milliseconds: 500),
@@ -125,9 +127,9 @@ void main() {
     }
     // ignore: avoid_print
     print('frames: $frames');
-    expect(frames.map((f) => f.$1), [0, 500, 1000, 1500, 2000, 2500]);
+    expect(frames.map((f) => f.$1), [0, 1000, 2000]);
     expect(frames.first.$2, greaterThan(200)); // red
-    expect(frames[3].$3, greaterThan(100)); // green
+    expect(frames[1].$3, greaterThan(100)); // green
     expect(frames.last.$4, greaterThan(200)); // blue
   });
 
@@ -167,7 +169,8 @@ void main() {
     final tag = event.annotations.tags.single;
     expect(tag.name, 'Grace');
     expect(tag.source, TagSource.detected);
-    expect(tag.frameMs, inInclusiveRange(1000, 1500));
+    // The keyframe at 1 s, the first she's on.
+    expect(tag.frameMs, 1000);
     expect(tag.confidence, greaterThanOrEqualTo(0.8));
     // Where she is: (100, 200) on 1280 × 720, her face in the upper part.
     expect(tag.x, inInclusiveRange(100 / 1280, 510 / 1280));

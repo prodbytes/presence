@@ -1,6 +1,7 @@
 package com.nu01.presence
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.Intent
@@ -94,6 +95,7 @@ class MainActivity : FlutterActivity() {
                         result.success(null)
                     }
                     "logDirectory" -> result.success(FileLog.directory?.path)
+                    "memoryStatus" -> result.success(memoryStatus())
                     else -> result.notImplemented()
                 }
             }
@@ -109,8 +111,23 @@ class MainActivity : FlutterActivity() {
         return if (tenths == Int.MIN_VALUE) null else tenths / 10.0
     }
 
+    /// How much memory is left, as the system judges it: recognition waits
+    /// while it's low, so the low-memory killer doesn't take the app.
+    private fun memoryStatus(): Map<String, Any> {
+        val activities = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val info = ActivityManager.MemoryInfo().also { activities.getMemoryInfo(it) }
+        return mapOf(
+            "lowMemory" to info.lowMemory,
+            "availMem" to info.availMem,
+            "threshold" to info.threshold,
+            "totalMem" to info.totalMem,
+            "lowRamDevice" to activities.isLowRamDevice,
+        )
+    }
+
     companion object {
-        /// Device readings beyond the cameras (the battery's temperature).
+        /// Device readings beyond the cameras (the battery's temperature,
+        /// free memory).
         const val DEVICE_CHANNEL = "presence/device"
 
         /** Whether the app's screen exists (the watchdog opens it if not). */
