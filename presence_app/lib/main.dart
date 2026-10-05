@@ -4,6 +4,7 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
+import 'about.dart';
 import 'app_log.dart';
 import 'app_version.dart';
 import 'auth/account_sheet.dart';
@@ -770,7 +771,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// fit the screen.
   double _tabWidth(BuildContext context) {
     final buttons =
-        (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
+        (!_dev && widget.roles.isAdmin ? 48 : 0) + 48 + (_dev ? 0 : 48) + 4;
     const titleRoom = 12 + 16;
     final fit =
         (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
@@ -798,6 +799,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     final joinStatus = _joinStatus();
+    // Always shown: signed out, signed in without access, and with it.
+    final about = AboutButton(
+      auth: widget.auth,
+      roles: widget.roles,
+      membership: widget.membership,
+      profiles: widget.profiles,
+    );
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
@@ -837,6 +845,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             : null,
         actions: [
           if (!_hasAccess && !_signedIn) ...[
+            about,
             SignInAction(auth: widget.auth),
             const SizedBox(width: 12),
           ] else if (!_hasAccess) ...[
@@ -857,6 +866,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 membership: widget.membership,
                 profiles: widget.profiles,
               ),
+            about,
             AccountButton(
               auth: widget.auth,
               roles: widget.roles,
@@ -901,6 +911,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
+            about,
             // Account (who's signed in, sign out): an action, not a tab.
             if (!_dev)
               AccountButton(

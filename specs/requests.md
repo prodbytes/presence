@@ -2400,3 +2400,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
+244. **Add an "about" navigation icon that explains what this app is, made
+     with love by prodbytes, links, a call to action to support it by
+     becoming a member, etc. Make it always visible.**
+    - Added: an About icon (`info_outline`) in the app bar, shown signed
+      out, signed in without access, with access and in DEV. It opens an
+      About screen: what Presence does, the version, "Made with ♥ by
+      prodbytes", a support card (sign in, then Become a member, which
+      opens Request access; members are thanked), links (the web app,
+      the source, prodbytes, the license) and the install command.
+    - `url_launcher` is back, for the links; one that can't open is
+      copied.
+    - Specs: [About](about.md) (new), [Navigation](navigation.md).
+      364 Flutter tests (5 new) pass.

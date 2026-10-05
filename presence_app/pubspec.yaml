@@ -50,6 +50,7 @@ dependencies:
   share_plus: ^13.3.0
   app_links: ^7.2.1
   tflite_flutter: ^0.12.1
+  url_launcher: ^6.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
