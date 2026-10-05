@@ -200,7 +200,8 @@ _checks = [
 /// The Log tab's health panel: a card per check (the auth API, AWS, OIDC)
 /// with its status in a colored pill, a card with the number of devices in
 /// the events, and a timeline of the latest checks ([HealthHistory]): a
-/// colored cell per check and run, newest on the right, with the time
+/// block per run, red if any check failed and green if all passed, newest
+/// on the right, with the time
 /// every 2 minutes, scrolling sideways; tap a run for its details. It asks
 /// the auth API again ([RolesService.checkApi]) when it opens and every
 /// [intervalFor] the execution mode while it's shown, then records the checks; AWS shows the
@@ -258,9 +259,9 @@ class HealthPanel extends StatefulWidget {
   Duration intervalOf(RolesService roles) =>
       interval ?? intervalFor(roles.mode, oidcClient: oidcClient);
 
-  /// Room each run takes on the timeline, and its cells' size.
+  /// Room each run takes on the timeline, and its block's size.
   static const double runWidth = 14;
-  static const Size cellSize = Size(10, 14);
+  static const Size blockSize = Size(10, 32);
 
   @override
   State<HealthPanel> createState() => _HealthPanelState();
@@ -447,17 +448,15 @@ class _HealthPanelState extends State<HealthPanel> {
     );
   }
 
-  /// The latest runs: a row per check, a column per run, newest on the
-  /// right and scrolled to, with the time under the first run of every 2
+  /// The latest runs: a block per run, red if any check failed and green if
+  /// all passed, newest on the right and scrolled to, with the time under the first run of every 2
   /// minutes.
   Widget _timeline(ThemeData theme, TextStyle? small) {
     final checks = widget.history.checks;
     if (checks.isEmpty) return const SizedBox.shrink();
     final selected = checks.contains(_selected) ? _selected : null;
-    const cell = HealthPanel.cellSize;
-    const gap = 3.0;
     const labelHeight = 18.0;
-    final cellsHeight = _checks.length * (cell.height + gap);
+    final blockHeight = HealthPanel.blockSize.height;
     final every = widget.intervalOf(widget.roles).inSeconds;
     return Card(
       key: const Key('health-timeline'),
@@ -487,59 +486,30 @@ class _HealthPanelState extends State<HealthPanel> {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: cellsHeight + labelHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // The checks' names, each beside its row.
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final (_, emoji, name, _) in _checks)
-                        Container(
-                          height: cell.height,
-                          margin: const EdgeInsets.only(bottom: gap),
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '$emoji ${name == 'Auth API' ? 'API' : name}',
-                            style: small?.copyWith(height: 1),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ListView.builder(
-                      key: const Key('health-history'),
-                      scrollDirection: Axis.horizontal,
-                      // Starts at the newest, on the right.
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: checks.length,
-                      itemBuilder: (context, j) {
-                        final i = checks.length - 1 - j;
-                        final check = checks[i];
-                        return _run(
-                          i,
-                          check,
-                          tick:
-                              i == 0 ||
-                              _bucket(checks[i - 1]) != _bucket(check),
-                          selected: identical(check, selected),
-                          cellsHeight: cellsHeight,
-                          gap: gap,
-                          theme: theme,
-                          small: small,
-                          onTap: () => setState(
-                            () => _selected = identical(check, selected)
-                                ? null
-                                : check,
-                          ),
-                        );
-                      },
+              height: blockHeight + labelHeight,
+              child: ListView.builder(
+                key: const Key('health-history'),
+                scrollDirection: Axis.horizontal,
+                // Starts at the newest, on the right.
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: checks.length,
+                itemBuilder: (context, j) {
+                  final i = checks.length - 1 - j;
+                  final check = checks[i];
+                  return _run(
+                    i,
+                    check,
+                    tick: i == 0 || _bucket(checks[i - 1]) != _bucket(check),
+                    selected: identical(check, selected),
+                    theme: theme,
+                    small: small,
+                    onTap: () => setState(
+                      () =>
+                          _selected = identical(check, selected) ? null : check,
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
             if (selected != null)
@@ -573,13 +543,11 @@ class _HealthPanelState extends State<HealthPanel> {
     HealthCheck check, {
     required bool tick,
     required bool selected,
-    required double cellsHeight,
-    required double gap,
     required ThemeData theme,
     required TextStyle? small,
     required VoidCallback onTap,
   }) {
-    const cell = HealthPanel.cellSize;
+    const block = HealthPanel.blockSize;
     const width = HealthPanel.runWidth;
     final t = check.time;
     String two(int n) => n.toString().padLeft(2, '0');
@@ -595,33 +563,27 @@ class _HealthPanelState extends State<HealthPanel> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Column(
-                children: [
-                  for (final (key, _, _, part) in _checks)
-                    Container(
-                      key: Key('health-cell-$i-$key'),
-                      width: cell.width,
-                      height: cell.height,
-                      margin: EdgeInsets.only(bottom: gap),
-                      decoration: BoxDecoration(
-                        color: _tone(part(check.status), theme.colorScheme).$2,
-                        borderRadius: BorderRadius.circular(2),
-                        border: selected
-                            ? Border.all(
-                                color: theme.colorScheme.onSurface,
-                                width: 1.5,
-                              )
-                            : null,
-                      ),
-                    ),
-                ],
+              Container(
+                key: Key('health-block-$i'),
+                width: block.width,
+                height: block.height,
+                decoration: BoxDecoration(
+                  color: check.failed ? theme.colorScheme.error : Gruvbox.green,
+                  borderRadius: BorderRadius.circular(2),
+                  border: selected
+                      ? Border.all(
+                          color: theme.colorScheme.onSurface,
+                          width: 1.5,
+                        )
+                      : null,
+                ),
               ),
               if (tick)
                 Positioned(
-                  // Centered on the run's cells.
-                  left: cell.width / 2 - 20,
+                  // Centered on the run's block.
+                  left: block.width / 2 - 20,
                   width: 40,
-                  top: cellsHeight,
+                  top: block.height,
                   child: Column(
                     children: [
                       Container(

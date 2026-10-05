@@ -162,20 +162,22 @@ void main() {
       expect(status('api'), 'OK');
       expect(status('oidc'), 'Mismatch');
 
-      // The timeline: a column per run, a cell per check, colored by its
-      // status; the time under the first run.
+      // The timeline: a block per run, red if any check failed, green if
+      // all passed; the time under the first run.
       expect(history.checks.map((c) => c.failed), [false, true, true]);
-      Color cell(int i, String key) =>
+      Color block(int i) =>
           (tester
-                      .widget<Container>(find.byKey(Key('health-cell-$i-$key')))
+                      .widget<Container>(find.byKey(Key('health-block-$i')))
                       .decoration!
                   as BoxDecoration)
               .color!;
-      expect(cell(0, 'api'), Gruvbox.green);
-      expect(cell(1, 'api'), isNot(Gruvbox.green));
-      expect(cell(2, 'api'), Gruvbox.green);
-      expect(cell(2, 'oidc'), Gruvbox.yellow);
-      expect(cell(0, 'aws'), Gruvbox.gray);
+      final red = Theme.of(
+        tester.element(find.byKey(const Key('health-panel'))),
+      ).colorScheme.error;
+      expect(block(0), Gruvbox.green);
+      expect(block(1), red);
+      expect(block(2), red);
+      expect(find.byKey(const Key('health-cell-0-api')), findsNothing);
       expect(find.text('3 checks · every 1 min'), findsOneWidget);
       expect(
         find.descendant(
