@@ -13,7 +13,8 @@ import android.os.SystemClock
  * - a **watchdog** alarm every [INTERVAL_MS] ([WatchdogReceiver]) reopens
  *   the app if its screen is gone (killed, crashed, closed with Back);
  * - after a **crash**, the app reopens [CRASH_RESTART_MS] later;
- * - after the phone **boots** ([BootReceiver]), the app opens.
+ * - after the phone **boots**, or the app is **updated** ([BootReceiver]),
+ *   the app opens.
  *
  * Only a force stop (Settings > Apps) keeps it closed: that cancels the
  * alarms, until the app is opened again. Android 10 and later may refuse to
@@ -46,7 +47,11 @@ object KeepAlive {
         FileLog.i("opening the app: $why")
         try {
             context.startActivity(
-                Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                // A fresh task: a screen left on top of the app's old task
+                // (Google's account chooser) would otherwise be shown
+                // instead, and the app wouldn't start at all.
+                Intent(context, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             )
         } catch (e: Exception) {
             FileLog.e("could not open the app ($why)", e)
@@ -88,12 +93,19 @@ class WatchdogReceiver : BroadcastReceiver() {
     }
 }
 
-/** Opens the app once the phone has booted. */
+/**
+ * Opens the app once the phone has booted, and after the app is updated
+ * (an install stops it, and nothing else would start it again).
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-        FileLog.init(context, "boot")
+        val why = when (intent.action) {
+            Intent.ACTION_BOOT_COMPLETED -> "the phone booted"
+            Intent.ACTION_MY_PACKAGE_REPLACED -> "the app was updated"
+            else -> return
+        }
+        FileLog.init(context, why)
         KeepAlive.schedule(context)
-        KeepAlive.open(context, "the phone booted")
+        KeepAlive.open(context, why)
     }
 }
