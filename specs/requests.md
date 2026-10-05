@@ -2327,3 +2327,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       [Settings screen](settings.md), [Auth API](auth-api.md),
       [Sign-in](sign-in.md), [Camera screen](camera.md), [Log](log.md),
       [README](README.md). 346 Flutter tests (5 new) pass.
+238. **On the events page, show every device's events by default; let
+     users check Only this device otherwise, and re-filter the map and the
+     events when it changes.**
+    - Was: **Only this device** was checked at launch, and it filtered only
+      the events list; the subjects map always showed every device.
+    - Changed: the chip starts unchecked (`ValueNotifier(false)` in the
+      app, `MonitoringView` and `EventTimeline`). `SubjectsMap` takes the
+      device ID and the chip and keeps only this device's events while
+      it's checked (`EventTimeline.ofDevices`); toggling it redraws the
+      dots and fits the map to them again (`_SightingsMap.fitKey`).
+    - Specs: [Events](events.md), [Monitoring](monitoring.md),
+      [Subjects](subjects.md), [Navigation](navigation.md). 347 Flutter
+      tests (1 new) pass.

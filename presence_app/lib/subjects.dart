@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -94,16 +95,23 @@ List<Subject> subjectsOf(Iterable<AppEvent> events) {
 /// Rebuilds [builder] with the current subjects whenever an event is added
 /// or a clip's tags change.
 class _SubjectsBuilder extends StatelessWidget {
-  const _SubjectsBuilder({required this.log, required this.builder});
+  const _SubjectsBuilder({
+    required this.log,
+    required this.builder,
+    this.where,
+  });
 
   final EventLog log;
   final Widget Function(BuildContext context, List<Subject> subjects) builder;
+
+  /// The events the subjects are taken from; every one when null.
+  final List<AppEvent> Function(List<AppEvent> events)? where;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: log,
     builder: (context, _) {
-      final events = log.events;
+      final events = where?.call(log.events) ?? log.events;
       return ListenableBuilder(
         listenable: Listenable.merge([
           for (final e in events.whereType<ClipRequested>()) e.annotations,
@@ -117,6 +125,7 @@ class _SubjectsBuilder extends StatelessWidget {
 /// A map merging every subject's latest events, each subject in its own
 /// color (on the Monitoring tab), with the subject's name beside its newest
 /// dot. Tapping a dot opens its event; tapping a name opens the subject.
+/// While [thisDeviceOnly] is on, only this device's events show.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -124,10 +133,19 @@ class SubjectsMap extends StatelessWidget {
     required this.config,
     this.tiles,
     this.onOpenEvent,
+    this.deviceId,
+    this.thisDeviceOnly,
   });
 
   final EventLog log;
   final ConfigController config;
+
+  /// This device's ID, for [thisDeviceOnly].
+  final String? deviceId;
+
+  /// The "Only this device" chip ([EventTimeline.thisDeviceOnly]): on, the
+  /// map shows only this device's events, like the timeline. Off when null.
+  final ValueListenable<bool>? thisDeviceOnly;
 
   /// Opens an event (a dot tapped on the map).
   final ValueChanged<AppEvent>? onOpenEvent;
@@ -137,9 +155,14 @@ class SubjectsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: config,
+    listenable: Listenable.merge([config, thisDeviceOnly]),
     builder: (context, _) => _SubjectsBuilder(
       log: log,
+      where: (events) => EventTimeline.ofDevices(
+        events,
+        deviceId: deviceId,
+        thisDeviceOnly: thisDeviceOnly?.value ?? false,
+      ),
       builder: (context, subjects) {
         final limit = config.subjects.mapEvents;
         final dots = <_MapPoint>[];
@@ -171,6 +194,8 @@ class SubjectsMap extends StatelessWidget {
         }
         return _SightingsMap(
           key: const Key('subjects-map'),
+          // Fitted again to the dots shown when the chip changes.
+          fitKey: thisDeviceOnly?.value,
           dots: dots,
           labels: labels,
           tiles: tiles,
@@ -514,7 +539,11 @@ class _SightingsMap extends StatefulWidget {
     this.labels = const [],
     this.tiles,
     this.onOpen,
+    this.fitKey,
   });
+
+  /// When it changes, the map fits the dots again, as when it opened.
+  final Object? fitKey;
 
   /// Called with a tapped dot's event.
   final ValueChanged<AppEvent>? onOpen;
@@ -563,35 +592,56 @@ class _SightingsMapState extends State<_SightingsMap> {
   double get _zoomLevel => _ready ? _map.camera.zoom : _SightingsMap.minZoom;
 
   @override
+  void didUpdateWidget(_SightingsMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_ready && oldWidget.fitKey != widget.fitKey) {
+      // After this build, once the map has the new dots.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final fit = _fit(widget.dots);
+        if (fit == null) {
+          _map.move(const LatLng(20, 0), _SightingsMap.minZoom);
+        } else {
+          _map.fitCamera(fit);
+        }
+        setState(() {});
+      });
+    }
+  }
+
+  /// Centered on the newest dot, out far enough for all of them; null
+  /// without any (the whole world).
+  static CameraFit? _fit(List<_MapPoint> dots) {
+    if (dots.isEmpty) return null;
+    final points = [for (final d in dots) _SightingsMap._at(d.sighting)];
+    var newest = 0;
+    for (var i = 1; i < dots.length; i++) {
+      if (dots[i].sighting.event.time.isAfter(
+        dots[newest].sighting.event.time,
+      )) {
+        newest = i;
+      }
+    }
+    return CameraFit.coordinates(
+      coordinates: framedAround(points[newest], points),
+      padding: const EdgeInsets.all(48),
+      maxZoom: 17,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dots = widget.dots;
     final points = [for (final d in dots) _SightingsMap._at(d.sighting)];
     // Faintest first, so newer dots are drawn on top.
     final order = [for (var i = 0; i < dots.length; i++) i]
       ..sort((a, b) => dots[a].opacity.compareTo(dots[b].opacity));
-    // The newest event of all, whoever it's of.
-    final newest = dots.isEmpty
-        ? null
-        : [for (var i = 0; i < dots.length; i++) i].reduce(
-            (a, b) =>
-                dots[b].sighting.event.time.isAfter(dots[a].sighting.event.time)
-                ? b
-                : a,
-          );
     return Stack(
       children: [
         FlutterMap(
           mapController: _map,
           options: MapOptions(
-            // Centered on the newest dot, out far enough for all of them;
-            // the whole world without any.
-            initialCameraFit: newest == null
-                ? null
-                : CameraFit.coordinates(
-                    coordinates: framedAround(points[newest], points),
-                    padding: const EdgeInsets.all(48),
-                    maxZoom: 17,
-                  ),
+            initialCameraFit: _fit(dots),
             initialCenter: const LatLng(20, 0),
             initialZoom: 2,
             minZoom: _SightingsMap.minZoom,
