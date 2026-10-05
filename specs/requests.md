@@ -2524,3 +2524,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Scheduled clips](scheduled-clips.md),
       [Settings](settings.md), [Configuration](configuration.md),
       [Camera](camera.md). 362 Flutter tests (3 new) pass.
+252. **Add to CLAUDE.md: "do a barrel roll" is to run a complete cycle of
+     commit changes, rebuild, run tests, merge PRs, cut RC and GA releases,
+     deploy locally starting the dev servers, and redeploy and restart on
+     the Android phone connected by USB.**
+    - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
+      listing those steps in order, with the commands for each. No app
+      change; no feature spec changes.
