@@ -2687,7 +2687,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Event retention](event-retention.md). 397 Flutter tests pass (8
        new).
 
-261. **Implement low-risk performance fixes in the Android camera pipeline
+262. **Implement low-risk performance fixes in the Android camera pipeline
      (DOOGEE S40: the app used ~42% of one core with the screen off).**
      (2026-10-05)
      - Motion: the motion `ImageReader` runs on the camera thread (one
@@ -2712,7 +2712,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        output size); a 5 fps motion stream via a repeating burst (riskier
        on LEGACY HALs).
      - Specs: [Android](android.md).
-262. **Make recognition much cheaper on a slow Android phone (DOOGEE S40:
+263. **Make recognition much cheaper on a slow Android phone (DOOGEE S40:
      a 15 s clip took ~64 s, the app stuttered and was killed for memory
      right after) without changing what it recognizes: models in one
      worker isolate, cheaper frames, a memory gate with backpressure, and
