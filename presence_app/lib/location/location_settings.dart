@@ -69,9 +69,13 @@ class _LocationSettingsState extends State<LocationSettings> {
   /// Pointers down on the map.
   int _held = 0;
 
-  /// The device position the map last moved to, so it moves once per
-  /// reading.
+  /// The location the map last moved to (or the user set on it), so it
+  /// moves once per location.
   DeviceLocation? _followed;
+
+  /// The user moved the map since it opened (or since My location): the
+  /// map stays where they put it, and new locations no longer move it.
+  bool _moved = false;
 
   LocationController get _location => widget.location;
 
@@ -106,15 +110,19 @@ class _LocationSettingsState extends State<LocationSettings> {
     if (was != _held > 0) widget.onMapHeld?.call(_held > 0);
   }
 
-  /// A new reading from the device recenters the map on it. A location set
-  /// on the map is already where the map is.
+  /// Until the user moves the map, it follows the location in force: the
+  /// saved one once it loads, then the device's reading. Once they move
+  /// it, it stays where they put it.
   void _onLocation() {
     setState(() {});
+    _follow();
+  }
+
+  /// Centers the map on the location in force, unless it's already there
+  /// or the user moved the map.
+  void _follow() {
     final location = _location.location;
-    if (!_ready ||
-        location == null ||
-        location.source != LocationSource.device ||
-        location == _followed) {
+    if (!_ready || _moved || location == null || location == _followed) {
       return;
     }
     _followed = location;
@@ -128,10 +136,12 @@ class _LocationSettingsState extends State<LocationSettings> {
   /// location. Moves made by the app (recentering) don't count.
   void _onMoved(MapCamera camera, bool hasGesture) {
     if (!hasGesture) return;
+    _moved = true;
     _commit?.cancel();
     _commit = Timer(const Duration(milliseconds: 400), () {
       final center = camera.center;
       _location.setOnMap(center.latitude, _wrap(center.longitude));
+      _followed = _location.location;
     });
   }
 
@@ -148,6 +158,12 @@ class _LocationSettingsState extends State<LocationSettings> {
       ),
     );
     setState(() {});
+  }
+
+  /// My location: asks the device again, and the map follows the answer.
+  void _locate() {
+    _moved = false;
+    _location.locate();
   }
 
   /// The map's zoom, once it's ready.
@@ -186,7 +202,11 @@ class _LocationSettingsState extends State<LocationSettings> {
                   interactionOptions: const InteractionOptions(
                     flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                   ),
-                  onMapReady: () => setState(() => _ready = true),
+                  // A location that arrived before the map was ready.
+                  onMapReady: () {
+                    setState(() => _ready = true);
+                    _follow();
+                  },
                   onPositionChanged: _onMoved,
                 ),
                 children: [
@@ -229,7 +249,7 @@ class _LocationSettingsState extends State<LocationSettings> {
                     FloatingActionButton.small(
                       heroTag: 'my-location',
                       tooltip: 'My location',
-                      onPressed: _location.locating ? null : _location.locate,
+                      onPressed: _location.locating ? null : _locate,
                       child: _location.locating
                           ? const SizedBox.square(
                               dimension: 18,
