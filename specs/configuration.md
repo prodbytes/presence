@@ -8,7 +8,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `clip` (`ClipConfig`) | `before` (5 s, 5–60 s, 5 s steps), `after` (10 s, 5–60 s) |
 | `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps) |
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (10 %, 1–50 %), `cooldown` (5 min, 1–60 min) |
-| `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (240 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
+| `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (180 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
 | `subjects` (`SubjectsConfig`) | `mapEvents` (20, 5–100 in steps of 5): events on a [subject's](subjects.md) screen |
 | `history` (`HistoryConfig`) | `keep` (14 days, 1–90 days in 1-day steps): events older than this are deleted from the device ([event retention](event-retention.md)) |
 

@@ -101,6 +101,19 @@ class CameraRig extends ChangeNotifier {
       ? (_lastScheduledClip ?? _scheduleFrom).add(config.schedule.every)
       : null;
 
+  /// Whether the startup clip is still to come (scheduled clips on).
+  bool get startupClipPending => config.schedule.enabled && !_startupClipTaken;
+
+  /// Time left until the next scheduled clip, for the Settings countdown:
+  /// zero once it's due (it waits for an open camera), null when they're
+  /// off.
+  Duration? get untilScheduledClip {
+    final due = nextScheduledClip;
+    if (due == null) return null;
+    final left = due.difference(_now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
   /// Takes the startup clip, then a scheduled clip whenever one is due,
   /// once the camera is open and its "before" history is full: the same
   /// path as the Clip button.

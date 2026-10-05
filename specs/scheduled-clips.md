@@ -1,7 +1,7 @@
 # Scheduled clips
 
 Besides the Clip button and [motion](motion-clips.md), the app takes clips
-on its own: **one when it starts, then one every 240 minutes** by default
+on its own: **one when it starts, then one every 3 hours** by default
 ([lib/camera_feeds.dart](../presence_app/lib/camera_feeds.dart),
 `CameraRig`).
 
@@ -12,7 +12,7 @@ on its own: **one when it starts, then one every 240 minutes** by default
   the clip is complete. It comes after the [recording
   consent](consent.md), like everything the camera does.
 - **Then on a timer:** a **scheduled clip** every `ScheduleConfig.every`,
-  counted from the last one (the startup clip first): **240 minutes** by
+  counted from the last one (the startup clip first): **180 minutes** by
   default, from **30 minutes to 24 hours** in 30-minute steps. Changing the
   interval applies from the last clip.
 - The schedule is checked every 5 s (`CameraRig.scheduleCheck`). A clip
@@ -40,16 +40,34 @@ A **Scheduled clips** section (see [Settings screen](settings.md)), saved
 with the rest of the config (`schedule` in `PresenceConfig`):
 
 - **Clip at start and on a timer** (on by default): turns both off.
-- **One clip every**, a slider shown as "30 min", "4 h", "1 h 30 min" up
+- **One clip every**, a slider shown as "30 min", "3 h", "1 h 30 min" up
   to "24 h"; off while the switch is.
+- Under it, while the switch is on, **when the next clip is taken**,
+  refreshed every second (`ScheduledClipCountdown`, from
+  `CameraRig.untilScheduledClip`):
+  - before the startup clip: "Startup clip: once the camera is ready";
+  - then: "Next clip in 2 h 59 min 58 s" (rounded up to the second);
+  - due while no camera is open: "Next clip: due, once a camera is open".
+- Devices that saved their settings before the default changed keep the
+  interval they saved (4 h for most), until someone moves the slider.
 
 ## Verified
 
-- `scheduled_clips_test.dart`: no clip before the "before" part is full,
-  then one startup clip with its title and icon; the next scheduled clip
-  at 240 minutes, not at 239; a 30-minute interval applies from the last
-  clip; switched off, nothing in 25 hours; the interval's limits, the
-  config round-trip and old configs getting the default; the labels; the
-  Settings slider's ends and the switch disabling it.
+- `scheduled_clips_test.dart`, end to end in the whole app (signed in,
+  syncing, recognition with fake models that see a dog): at load, no clip
+  until the "before" part is full, then the startup grab is **triggered**
+  (the camera is asked for a clip), **captured** (saved complete),
+  **recognized** (searched, its object tags `dog`) and **synced** (its
+  event uploaded, complete, with `trigger: startup` and the object tags,
+  and its recording and thumbnail beside it); none a minute before 3 h,
+  then the scheduled grab goes the same way.
+- `scheduled_clips_test.dart`, on the rig: no clip before the "before"
+  part is full, then one startup clip with its title and icon; the next
+  scheduled clip at 180 minutes, not at 179, and the time left to it; a
+  30-minute interval applies from the last clip; switched off, nothing in
+  25 hours; the interval's limits, the config round-trip and old configs
+  getting the default; the labels and the countdown's format; the
+  countdown's four states, ticking every second; the Settings slider's
+  ends, the switch disabling it and hiding the countdown.
 - `readiness_test.dart`: a Clip press after 16 s comes after the startup
   clip, and the pill stays Ready.

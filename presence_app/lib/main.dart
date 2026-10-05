@@ -66,7 +66,17 @@ class PresenceApp extends StatefulWidget {
     this.mapTiles,
     this.battery,
     this.links,
+    this.recognizer,
   });
+
+  /// Makes the recognizer that searches each new clip (used by tests, with
+  /// fake models); defaults to [SubjectRecognizer] with the real ones.
+  final SubjectRecognizer Function(
+    AppEventBus bus,
+    EventLog log,
+    ConfigController config,
+  )?
+  recognizer;
 
   /// Overrides the links the app is opened with (used by tests); defaults
   /// to `app_links`: the page's address on web, App Links on Android.
@@ -175,7 +185,9 @@ class _PresenceAppState extends State<PresenceApp> {
     // Settings restored from the cloud include the location set on the map.
     _persistence.onRemoteLocation = _location.applyRemote;
     // Finds the subjects on each new clip once it's recorded.
-    _recognizer = SubjectRecognizer(bus: _bus, log: _log, config: _config);
+    _recognizer =
+        widget.recognizer?.call(_bus, _log, _config) ??
+        SubjectRecognizer(bus: _bus, log: _log, config: _config);
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -954,6 +966,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 child: SettingsView(
                   config: widget.config,
                   motionLevel: widget.rig.motionLevel,
+                  nextClip: ScheduledClipCountdown(rig: widget.rig),
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
                   health: SystemHealth(roles: widget.roles, sync: widget.sync),
