@@ -80,7 +80,9 @@ profile (`CameraFeedsView.showAll`,
 - The grid and the camera alone are the same widget tree, so switching
   never rebuilds or reopens the camera's preview, and recording goes on.
 - Tests: `camera_all_test.dart` (which devices and images, the grid's
-  places, the same preview across switches, the button).
+  places, the same preview across switches, the button) and
+  `camera_pause_test.dart` (the view button's cycle, the camera closed and
+  no clips while off, Turn on, the setting kept).
 
 ## Capture all
 

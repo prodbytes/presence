@@ -30,8 +30,9 @@ their data.
 - [About](about.md): what Presence is, made with love by prodbytes, its
   links, and a call to become a member; its icon is always in the app bar.
 - [Theme](theme.md): the Gruvbox dark palette.
-- [Camera screen](camera.md): opening cameras, audio capture and states,
-  and the All grid: this camera top left, then every device in the
+- [Camera screen](camera.md): opening cameras, audio capture and states;
+  the view button (One / All / None: this camera, the All grid, or the
+  camera off); the All grid: this camera top left, then every device in the
   profile with its latest image; Clip there is Capture all, a clip on
   every device, asked through cloud sync.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
@@ -101,7 +102,9 @@ their data.
 **Platforms**
 
 - [Platforms](platforms.md): camera layers and feature parity.
-- [Android](android.md): the native Camera2 recording layer.
+- [Android](android.md): the native Camera2 recording layer, keep-alive
+  (watchdog, crash and boot restart) and log files on the phone
+  (`devbox run android-pull`).
 - [iOS](ios.md): the native AVFoundation recording layer.
 
 **Backend**

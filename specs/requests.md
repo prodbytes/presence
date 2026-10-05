@@ -2546,19 +2546,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      checkmark with a dropdown with a checkbox per line: the first line
      always this device, in bold; all checked by default; let users check
      or uncheck all or each one; always refresh the map and events list
-     accordingly.**
-    - Was: an **Only this device** filter chip (`ThisDeviceOnly`).
-    - Now: a **devices dropdown** (`DeviceFilter`): a chip ("All devices",
-      or "1 of 2 devices") opening a menu with a checkbox per device with
-      events, **This device** first in bold, then the others by ID, and an
-      **All devices** line that checks them all, or unchecks them all when
-      all are checked. The filter keeps the unchecked devices
-      (`hiddenDevices`), so every device, including ones whose events
-      arrive later, is checked by default. The map, the events list and the
-      count refilter on every change; opening an event of an unchecked
-      device checks them all again.
-    - Specs: [Events](events.md), [Monitoring](monitoring.md),
-      [Subjects](subjects.md), [Navigation](navigation.md).
+     accordingly.** (2026-10-05)
+     - Was: an **Only this device** filter chip (`ThisDeviceOnly`).
+     - Now: a **devices dropdown** (`DeviceFilter`): a chip ("All devices",
+       or "1 of 2 devices") opening a menu with a checkbox per device with
+       events, **This device** first in bold, then the others by ID, and an
+       **All devices** line that checks them all, or unchecks them all when
+       all are checked. The filter keeps the unchecked devices
+       (`hiddenDevices`), so every device, including ones whose events
+       arrive later, is checked by default. The map, the events list and the
+       count refilter on every change; opening an event of an unchecked
+       device checks them all again.
+     - Specs: [Events](events.md), [Monitoring](monitoring.md),
+       [Subjects](subjects.md), [Navigation](navigation.md).
 255. **The Android app on the USB phone seems to have crashed: no events
      from it all day. Keep the app alive even when the phone is
      unattended, log messages so they can be retrieved for debugging, check
@@ -2610,3 +2610,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       https://rc.presence.nu01.com reports the new version; report it
       live, or the failure. Local deploy and the Android redeploy are now
       steps 6 and 7. No app change; no feature spec changes.
+258. **Review the specs after merging #184–#187.**
+     (2026-10-05)
+     - Fixed: the [README](README.md) index's Camera screen entry now names
+       the One / All / None view button, and its Android entry the
+       keep-alive and on-phone log files; [Camera](camera.md) lists
+       `camera_pause_test.dart`; entry 254 matches the log's format.
+     - Found and left as history: older duplicate or out-of-order numbers
+       in this log (39, 230, 231, 233, 234) and four links in old entries
+       to paths that no longer exist. Every feature spec is indexed and
+       its claims spot-checked against the code match.
