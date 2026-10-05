@@ -60,8 +60,12 @@ an Athena table are in [Recording and data formats](data-formats.md).
   with a signed-in `presence_user` (a new sign-in, or a session restored
   at launch, e.g. a reload), whenever the user changes, **every 15 s**
   (`CloudSync.interval`), and 0.5 s after an event is saved or a clip's
-  recording completes (`Persistence.changes`). Passes stop after a
-  credentials failure (see **Errors**).
+  recording completes (`Persistence.changes`). After a failed pass the
+  timer **backs off**: each failure in a row doubles the wait (15 s,
+  30 s, 1 min, 2 min, then 4 min at most, `CloudSync.maxBackoff`), and
+  saves during the wait don't start passes either (they're kept for the
+  next). A successful pass, **Retry** or a new sign-in ends it. Passes
+  stop after a credentials failure (see **Errors**).
 - **Fetch:** the events in the user's folder that the device doesn't have
   are downloaded, with their clips (details, recording and thumbnail) and
   tagged frames:
@@ -76,10 +80,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - only the clips those events use: each record read from its event's
     day partition (`clips/year=…/day=…/<clipId>.json`, listed first), and
     its media found by listing just its own keys (`media/<clipId>`);
-  - they're marked as synced, so they aren't uploaded back, stored
-    (`Persistence.importRemote`, with recordings through
-    `MediaStore.saveBytes`) and added to the event log, so the
-    **Monitoring** tab shows them at once.
+  - each recording is stored as soon as it's downloaded
+    (`MediaStore.saveBytes`), so only one is in memory at a time;
+  - they're handed over **in batches of 25 events**
+    (`CloudSync.fetchBatch`, with their clips, thumbnails and frames),
+    marked as synced, so they aren't uploaded back, stored
+    (`Persistence.importRemote`) and added to the event log, so the
+    **Monitoring** tab shows them as each batch lands.
 - **Changes from other devices:** an event the device has that another
   device changed since (a tag added, renamed or removed, a suggestion
   confirmed, object tags) comes down again in the same pass, within the
@@ -126,16 +133,40 @@ an Athena table are in [Recording and data formats](data-formats.md).
   hence the same Cognito identity) come down within 15 s, and so do
   their changes to today's and yesterday's events. Older data stays in the bucket until it
   expires, and on the devices that recorded it.
-- **Upload:** everything stored and not yet uploaded goes up. Clips go
+- **Upload:** what's stored and not yet uploaded goes up. Clips go
   first, recordings being what matters most.
+  - **Only what changed:** `Persistence.changes` names the events it
+    saves (a new event, its clip completing, a tag, the events a sign-in
+    claims; none for a settings change). An ordinary pass reads just
+    those events and their clips (`EventStore.getEvent`,
+    `clipsOfEvent`), so its cost doesn't grow with the history. A failed
+    pass keeps them for the next.
+  - **A reconciliation** looks at every stored event of the profile and
+    its clips, to catch anything saved without a notification: on the
+    first pass for a user (at start, sign-in or a user change), with each
+    hourly full listing, and after a change notification that names
+    nothing (null). It lets frames through every 20 records, so the UI
+    doesn't stall on a long history.
+  - **Recordings are streamed:** read from storage as they're sent
+    (an MP4 file on Android, `MediaStore.read`) with a `Content-Length`,
+    rather than read whole into memory, and signed with
+    `x-amz-content-sha256: UNSIGNED-PAYLOAD` (allowed by S3 over HTTPS,
+    which the bucket requires), so they aren't hashed first. JSON and
+    images are small and keep a signed SHA-256 payload.
 - Tests: `cloud_sync_test.dart` ("a new device gets only the last two
   weeks"; another device's event on the next pass, listing only today and
   yesterday; the hourly full listing; at most `maxFetch` per pass, newest
   first; another device's change comes down once, as `updated`, and
   doesn't go back up, then again when it changes once more; a change here
   not uploaded yet wins; events synced before ETags were kept are fetched
-  at most once more), `s3_test.dart` (keys listed with their ETags, across
-  pages) and `persistence_test.dart` (a session restored at launch; "every
+  at most once more; a fetch in batches; only the events named as changed
+  go up, with their clips, a quiet change at the next reconciliation;
+  each full fetch reconciles; failed passes back off, log the stack once
+  and keep what was to go up; recordings stored as downloaded),
+  `s3_test.dart` (keys listed with their ETags, across pages; a full
+  1000-key page parsed off the UI isolate; a streamed upload with
+  `UNSIGNED-PAYLOAD` and signed headers) and `persistence_test.dart` (a
+  session restored at launch; "every
   15 s, events from another device join the timeline"; "a tag removed on
   another device goes at the next sync": the name and the object tag
   leave the card and the map, the frame another tag uses stays, the
@@ -145,7 +176,15 @@ an Athena table are in [Recording and data formats](data-formats.md).
   a fingerprint of its content (the SHA-256 of the JSON, or the media ID),
   and for events their ETag too (`etag:<object key>`, see **Changes from
   other devices**). An unchanged object is skipped. A changed one, such as a clip's event
-  that's updated when the clip completes, is uploaded again.
+  that's updated when the clip completes, is uploaded again. The sync
+  keeps that store in memory, read again at each reconciliation, rather
+  than reading it every pass; [retention](event-retention.md) prunes the
+  entries of the events it deletes.
+- **Light on the device:** a pass reads only event and clip IDs to find
+  what's missing, and a stored event only when its listed ETag differs.
+  A listing page over 64 KB (a full one is up to 1000 keys) is parsed on
+  another isolate (`compute`). The status notifies listeners only when
+  it changes.
 - One pass runs at a time. A change during a pass queues one more pass.
 
 ## How
@@ -163,7 +202,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to
   `https://<bucket>.s3.us-east-1.amazonaws.com/<key>`, signed with AWS
   Signature Version 4 in pure Dart (`crypto`, `http`). The signer is tested
-  against AWS's published S3 examples.
+  against AWS's published S3 examples. Recordings go with `putStream`
+  (`UNSIGNED-PAYLOAD`, the body streamed with its `Content-Length`; the
+  headers, storage class included, are still signed); the rest with a
+  signed SHA-256 of the body.
 - **Errors:**
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
@@ -177,8 +219,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `CloudSync.retry`), or `reconnect()` after a profile link. Other
     errors than a rejected token show the auth API's message (for
     example "the profile service failed");
-  - other failures (S3, the network) show "Upload failed (HTTP …)" and
-    the next pass tries again.
+  - other failures (S3, the network) show "Upload failed (HTTP …)" and a
+    later pass tries again, after the back-off (see **When**).
 - **Status:** the account sheet shows a line under the email: "Cloud backup
   is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
@@ -194,9 +236,11 @@ an Athena table are in [Recording and data formats](data-formats.md).
   directly, and Android and iOS through `serverClientId`. So the auth API
   and the identity pool trust that one client ID.
 
-A failed pass is logged once with its full error (the S3 or auth API response,
-not only the "Upload failed (HTTP 403)" in the health tooltip), and admins
-read it on the [Log](log.md) tab.
+The first failed pass of a streak is logged with its full error and stack
+(the S3 or auth API response, not only the "Upload failed (HTTP 403)" in
+the health tooltip); each further one in a row gets one line, with the
+count and the wait before the next try, and the first pass that works
+again logs that it recovered. Admins read them on the [Log](log.md) tab.
 
 ## Infrastructure
 
@@ -261,8 +305,9 @@ In [presence_infra/](../presence_infra):
     downloaded, handed over and not uploaded back, while local items are
     uploaded;
   - the fetch runs once per sign-in;
-  - a periodic pass uploads an event that was saved without a change
-    notification;
+  - periodic passes run without a change, but upload an event saved
+    without a change notification only at the next reconciliation (a
+    null notification, or each full fetch);
   - at app level, a clip from the cloud joins the Events timeline and its
     downloaded recording plays.
 - Against AWS, the app's `S3Bucket` uploaded a 300 KB recording and an event
@@ -299,6 +344,12 @@ In [presence_infra/](../presence_infra):
   own prefix.
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
+- A downloaded recording is held whole in memory until it's stored (one
+  at a time); only uploads stream.
+- An event changed in storage without a `Persistence.changes`
+  notification goes up only at the next reconciliation, within the hour.
+- A reconciliation still encodes and hashes every stored event and clip
+  record (letting frames through as it goes), once an hour.
 - A clip deleted on one device isn't deleted elsewhere (nothing is
   deleted yet).
 - Of a changed event, only its tags, suggestions and object tags are taken

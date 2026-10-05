@@ -35,6 +35,11 @@ class SigV4Signer {
   /// The SHA-256 of an empty body, used for requests without one.
   static final String emptyPayloadHash = sha256.convert(const []).toString();
 
+  /// Stands for the payload hash when the body isn't signed: allowed by S3
+  /// over HTTPS, where TLS protects the body. Lets a large upload be sent
+  /// without hashing it first.
+  static const String unsignedPayload = 'UNSIGNED-PAYLOAD';
+
   /// Signs [method] [uri] with [headers] (which must include `host`) and a
   /// body whose SHA-256 is [payloadHash]. Returns every header to send:
   /// the given ones plus `x-amz-date`, `x-amz-content-sha256`,

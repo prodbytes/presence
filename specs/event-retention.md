@@ -24,8 +24,14 @@ than the **History** setting, **two weeks** by default
   on web, MP4 files on Android) and any **"Is this Rex?" suggestion**
   about it, however recent. Tagged frames live in the event record and go
   with it.
+- What [cloud sync](cloud-sync.md) remembers of them goes too: their
+  entries in the `synced` store (each uploaded or downloaded object key
+  of the event and its clip, and the event's `etag:` entry, in the
+  current layout and the old one; `EventStore.deleteSynced`,
+  `CloudSync.isSyncedKeyOf`), so that store doesn't grow forever.
 - The events and clip records go in one transaction
-  (`EventStore.deleteEvents`), then the recordings
+  (`EventStore.deleteEvents`), then their `synced` entries, then the
+  recordings
   (`MediaStore.delete`). Then they leave the event log, so the Monitoring
   tab and the [events count](events.md) drop them at once
   (`Persistence.deleteEventsBefore`, `EventLog.remove`).
@@ -53,7 +59,8 @@ than the **History** setting, **two weeks** by default
 ## Tests
 
 - `retention_test.dart`: the deletion of old events with their clips,
-  recordings and suggestions, keeping the rest (store and log); runs at
+  recordings, suggestions and `synced` entries (not the device's
+  settings', nor the kept events'), keeping the rest (store and log); runs at
   start and every 3 h with the setting current at each run; one run at a
   time; a failed run allows the next; the slider's range and labels.
 - `persistence_test.dart`: in the app, an event three weeks old is gone

@@ -34,6 +34,97 @@ void main() {
     expect(sent.bodyBytes, [1, 2, 3]);
   });
 
+  test('recordings are streamed, with an unsigned payload and signed '
+      'headers', () async {
+    late http.Request sent;
+    final bucket = S3Bucket(
+      bucket: 'b',
+      region: 'us-east-1',
+      now: () => DateTime.utc(2026, 9, 27),
+      client: MockClient((request) async {
+        sent = request;
+        return http.Response('', 200);
+      }),
+    );
+    var read = false;
+    Stream<List<int>> body() async* {
+      read = true;
+      yield [1, 2];
+      yield [3];
+    }
+
+    await bucket.putStream(
+      'us-east-1:id/media/c.mp4',
+      body(),
+      3,
+      contentType: 'video/mp4',
+      credentials: const AwsCredentials(
+        accessKeyId: 'AKID',
+        secretAccessKey: 'secret',
+        sessionToken: 'token',
+      ),
+    );
+    expect(read, isTrue);
+    expect(sent.method, 'PUT');
+    expect(sent.url.path, '/us-east-1:id/media/c.mp4');
+    expect(sent.headers['x-amz-content-sha256'], 'UNSIGNED-PAYLOAD');
+    expect(sent.headers['x-amz-storage-class'], 'INTELLIGENT_TIERING');
+    expect(sent.headers['content-type'], 'video/mp4');
+    expect(sent.contentLength, 3);
+    expect(sent.bodyBytes, [1, 2, 3]);
+    final authorization = sent.headers['authorization']!;
+    expect(authorization, contains('x-amz-content-sha256'));
+    expect(authorization, contains('x-amz-storage-class'));
+    // Signed as AWS documents for UNSIGNED-PAYLOAD: the literal string in
+    // the canonical request's payload line.
+    final expected = const SigV4Signer(region: 'us-east-1').sign(
+      method: 'PUT',
+      uri: sent.url,
+      headers: {
+        'host': 'b.s3.us-east-1.amazonaws.com',
+        'content-type': 'video/mp4',
+        'x-amz-storage-class': 'INTELLIGENT_TIERING',
+      },
+      payloadHash: SigV4Signer.unsignedPayload,
+      credentials: const AwsCredentials(
+        accessKeyId: 'AKID',
+        secretAccessKey: 'secret',
+        sessionToken: 'token',
+      ),
+      now: DateTime.utc(2026, 9, 27),
+    );
+    expect(authorization, expected['authorization']);
+  });
+
+  test('a full listing page is parsed on another isolate, the same', () async {
+    final xml = StringBuffer('<ListBucketResult>');
+    for (var i = 0; i < 1000; i++) {
+      xml.write(
+        '<Contents><Key>p/events/year=2026/day=001/$i.json</Key>'
+        '<LastModified>2026-10-01T00:00:00.000Z</LastModified>'
+        '<ETag>&quot;e$i&quot;</ETag><Size>300</Size>'
+        '<StorageClass>INTELLIGENT_TIERING</StorageClass></Contents>',
+      );
+    }
+    xml.write('<IsTruncated>false</IsTruncated></ListBucketResult>');
+    expect(xml.length, greaterThan(64 * 1024));
+    final bucket = S3Bucket(
+      bucket: 'b',
+      region: 'us-east-1',
+      client: MockClient((request) async => http.Response('$xml', 200)),
+    );
+    final objects = await bucket.listETags(
+      'p/',
+      credentials: const AwsCredentials(
+        accessKeyId: 'AKID',
+        secretAccessKey: 'secret',
+      ),
+    );
+    expect(objects, hasLength(1000));
+    expect(objects['p/events/year=2026/day=001/999.json'], 'e999');
+    expect(S3Bucket.parseListing('$xml').$1, objects);
+  });
+
   test('lists keys with their ETags, across pages', () async {
     final pages = [
       '<ListBucketResult><IsTruncated>true</IsTruncated>'

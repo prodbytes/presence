@@ -8,7 +8,7 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
-import '../cloud/cloud_sync.dart' show DeviceSettings;
+import '../cloud/cloud_sync.dart' show CloudSync, DeviceSettings;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
@@ -99,7 +99,8 @@ class Persistence implements DeviceSettings {
   Future<void>? _restoring;
   late final StreamSubscription<AppEvent> _subscription;
   final Set<Future<void>> _pending = {};
-  final StreamController<void> _changes = StreamController<void>.broadcast();
+  final StreamController<Set<String>> _changes =
+      StreamController<Set<String>>.broadcast();
   final Set<String> _watched = {};
 
   /// Events whose annotations are being replaced by `updateFromRemote`.
@@ -263,8 +264,9 @@ class Persistence implements DeviceSettings {
           'userId': anonymous(user) ? userId : user,
           'profileId': profileId,
         });
+        claimed.add(record['id']! as String);
       }
-      _changed();
+      _changed(claimed);
     }();
     _track(claim);
     return claim;
@@ -302,9 +304,13 @@ class Persistence implements DeviceSettings {
         for (final c in await store.allClips())
           if (ids.contains(c['eventId'])) c,
       ];
-      await store.deleteEvents(ids, [
-        for (final c in clips) c['id']! as String,
-      ]);
+      final clipIds = {for (final c in clips) c['id']! as String};
+      await store.deleteEvents(ids, clipIds);
+      // What cloud sync remembers of them (uploads, ETags) goes too, so
+      // its store doesn't grow forever.
+      await store.deleteSynced(
+        (key) => CloudSync.isSyncedKeyOf(key, ids, clipIds),
+      );
       await (await _media).delete([
         for (final c in clips)
           for (final ref in [c['past'], c['full']])
@@ -323,23 +329,21 @@ class Persistence implements DeviceSettings {
   Future<EventStore> get store => _store;
   Future<MediaStore> get media => _media;
 
-  /// Fires after an event is saved, and again when its clip's recording is
-  /// complete (so uploads can follow).
-  Stream<void> get changes => _changes.stream;
+  /// Fires with the IDs of the events saved (so uploads can follow, of
+  /// just those): after an event is saved, again when its clip's recording
+  /// is complete, when its tags change, and for the events a sign-in
+  /// claims. Empty after a settings change.
+  Stream<Set<String>> get changes => _changes.stream;
 
   /// Saves records downloaded from the cloud (another device's clips and
   /// events) without publishing them, and returns their events, ready for
-  /// `EventLog.addHistory`. [media] maps media IDs to recording bytes.
+  /// `EventLog.addHistory`. Their recordings are already stored (cloud
+  /// sync saves each as it's downloaded).
   Future<List<AppEvent>> importRemote({
     required List<Map<String, Object?>> events,
     required List<Map<String, Object?>> clips,
-    required Map<String, Uint8List> media,
   }) async {
     final store = await _store;
-    final mediaStore = await _media;
-    for (final MapEntry(:key, :value) in media.entries) {
-      await mediaStore.saveBytes(key, value);
-    }
     for (final clip in clips) {
       await store.putClip(clip);
     }
@@ -361,9 +365,9 @@ class Persistence implements DeviceSettings {
     if (records.isEmpty) return;
     final store = await _store;
     final byId = {for (final e in shown) e.id: e};
-    final stored = {for (final r in await store.allEvents()) r['id']: r};
     for (final record in records) {
-      final local = stored[record['id']];
+      final id = record['id'];
+      final local = id is String ? await store.getEvent(id) : null;
       if (local == null) continue;
       final frames = {
         if (local['frames'] case final Map frames) ...frames,
@@ -428,14 +432,14 @@ class Persistence implements DeviceSettings {
       try {
         event.deviceId ??= await _deviceId;
         await store.putEvent(event.toRecord());
-        _changed();
+        _changed({event.id});
       } catch (e) {
         debugPrint('Presence: could not save event ${event.id}: $e');
       }
       if (event is ClipRequested) _watchAnnotations(event);
       if (event is ClipRequested && event.clip.capture != null) {
         await _ClipWriter(store, await _media, event).run();
-        _changed();
+        _changed({event.id});
       }
     }());
   }
@@ -453,15 +457,15 @@ class Persistence implements DeviceSettings {
         _track(() async {
           final store = await _store;
           await store.putEvent(event.toRecord());
-          _changed();
+          _changed({event.id});
         }());
       });
     }
     return event;
   }
 
-  void _changed() {
-    if (!_changes.isClosed) _changes.add(null);
+  void _changed(Set<String> eventIds) {
+    if (!_changes.isClosed) _changes.add(eventIds);
   }
 
   /// The user changed a setting.
@@ -481,7 +485,7 @@ class Persistence implements DeviceSettings {
       final store = await _store;
       await store.putSettings(_configKey, json);
       // Cloud sync uploads the new settings.
-      _changed();
+      _changed(const {});
     }());
   }
 

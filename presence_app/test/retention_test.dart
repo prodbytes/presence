@@ -68,6 +68,32 @@ void main() {
         'clipEventId': 'old-clip',
       });
 
+      // What cloud sync remembers of them: uploads and ETags, under the
+      // current layout and the old one, and the device's settings.
+      const p = 'us-east-1:identity';
+      const deletedKeys = [
+        '$p/events/year=2026/day=001/old-clip.json',
+        'etag:$p/events/year=2026/day=001/old-clip.json',
+        '$p/events/old-door.json',
+        '$p/events/year=2026/day=001/ask.json',
+        '$p/media/c-old.webm',
+        '$p/media/c-old.jpg',
+        '$p/media/c-old/frames/f1.jpg',
+        '$p/clips/year=2026/day=001/c-old.json',
+        '$p/clips/c-old.webm',
+        '$p/clips/c-old/frames/f1.jpg',
+      ];
+      const keptKeys = [
+        '$p/events/year=2026/day=001/door.json',
+        'etag:$p/events/year=2026/day=001/new-clip.json',
+        '$p/media/c-new.webm',
+        '$p/clips/year=2026/day=001/c-new.json',
+        '$p/devices/old-clip/settings.json',
+      ];
+      for (final key in [...deletedKeys, ...keptKeys]) {
+        await store.markSynced(key, 'x');
+      }
+
       final log = EventLog(bus.stream);
       addTearDown(log.dispose);
       await persistence.restore(log);
@@ -84,6 +110,7 @@ void main() {
       );
       expect((await store.allClips()).map((c) => c['id']), ['c-new']);
       expect(await store.mediaIds(), ['c-new-full']);
+      expect((await store.syncedKeys()).keys, unorderedEquals(keptKeys));
       expect(
         log.events.map((e) => e.id),
         unorderedEquals(['new-clip', 'door']),
