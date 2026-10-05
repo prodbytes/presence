@@ -622,7 +622,7 @@ void main() {
           onRemote: (r) async {
             remote.add(r);
             // As the app does: stored, so later passes skip them.
-            for (final e in r.events) {
+            for (final e in [...r.events, ...r.updated]) {
               await store.putEvent(e);
             }
           },
@@ -682,6 +682,146 @@ void main() {
         );
         expect(remote.last.events.single['id'], 'late');
       });
+
+      test("another device's change to an event here comes down on the "
+          'next pass, once, and doesn\'t go back up', () async {
+        await start();
+        // Today's event, from the phone: downloaded, then not again.
+        final time = now.subtract(const Duration(minutes: 1));
+        uploadedElsewhere('from-phone', time);
+        final key = CloudSync.eventKey({
+          'id': 'from-phone',
+          'time': time.millisecondsSinceEpoch,
+        });
+        await pass();
+        expect(remote.single.events.single['id'], 'from-phone');
+        await pass();
+        expect(remote, hasLength(1), reason: 'own state is no change');
+
+        // The phone tags it, and recognition saw a cat.
+        final changed = {
+          ...jsonDecode(utf8.decode(backend.uploads['$prefix/$key']!.bytes))
+              as Map<String, Object?>,
+          'annotations': [
+            {'id': 'a1', 'name': 'Rex', 'x': 0.5, 'y': 0.5},
+          ],
+          'objectTags': [
+            {'label': 'cat', 'ms': 0, 'score': 0.9},
+          ],
+        };
+        backend.uploads['$prefix/$key'] = (
+          bytes: json(changed),
+          contentType: 'application/json',
+        );
+        final downloaded = sync.downloaded;
+        await pass();
+        expect(remote.last.events, isEmpty);
+        final updated = remote.last.updated.single;
+        expect(updated['id'], 'from-phone');
+        expect(updated['profileId'], '1');
+        expect(updated['annotations'], changed['annotations']);
+        expect(sync.downloaded, downloaded + 1);
+
+        // Taken on: not uploaded back, nor downloaded again.
+        backend.downloads.clear();
+        final uploaded = sync.uploaded;
+        await pass();
+        expect(remote, hasLength(2));
+        expect(backend.downloads, isEmpty);
+        expect(sync.uploaded, uploaded);
+
+        // Changed again over there (the tag removed): down again.
+        backend.uploads['$prefix/$key'] = (
+          bytes: json({...changed, 'annotations': <Object?>[]}),
+          contentType: 'application/json',
+        );
+        await pass();
+        expect(remote.last.updated.single['annotations'], isEmpty);
+      });
+
+      test('a change here not uploaded yet wins over one elsewhere', () async {
+        await start();
+        final time = now.subtract(const Duration(minutes: 1));
+        uploadedElsewhere('from-phone', time);
+        await pass();
+        final key = CloudSync.eventKey({
+          'id': 'from-phone',
+          'time': time.millisecondsSinceEpoch,
+        });
+        backend.uploads['$prefix/$key'] = (
+          bytes: json({
+            'id': 'from-phone',
+            'time': time.millisecondsSinceEpoch,
+            'title': 'Theirs',
+          }),
+          contentType: 'application/json',
+        );
+        final local = (await store.allEvents()).firstWhere(
+          (e) => e['id'] == 'from-phone',
+        );
+        await store.putEvent({...local, 'title': 'Mine'});
+        await pass();
+        expect(remote, hasLength(1));
+        final cloud = jsonDecode(
+          utf8.decode(backend.uploads['$prefix/$key']!.bytes),
+        );
+        expect(cloud['title'], 'Mine');
+      });
+
+      test(
+        'events synced before ETags were kept are fetched at most once more',
+        () async {
+          uploadedElsewhere(
+            'from-phone',
+            now.subtract(const Duration(hours: 1)),
+          );
+          await start();
+          // Uploaded by this device, too.
+          await store.putEvent({
+            'userId': '1',
+            'profileId': '1',
+            'id': 'mine',
+            'type': 'x',
+            'title': 'Mine',
+            'time': now.millisecondsSinceEpoch,
+          });
+          await pass();
+          remote.clear();
+          // As left by an older version: the uploads remembered, not ETags.
+          final store2 = await EventStore.open(newIdbFactoryMemory());
+          addTearDown(store2.close);
+          for (final e in await store.allEvents()) {
+            await store2.putEvent(e);
+          }
+          for (final MapEntry(:key, :value)
+              in (await store.syncedKeys()).entries) {
+            if (!key.startsWith('etag:')) await store2.markSynced(key, value);
+          }
+          sync.dispose();
+          sync = CloudSync(
+            auth: auth,
+            backend: backend,
+            store: Future.value(store2),
+            media: Future.value(IdbMediaStore(store2)),
+            changes: changes.stream,
+            debounce: Duration.zero,
+            interval: const Duration(hours: 24),
+            onRemote: (r) async => remote.add(r),
+            now: () => clock,
+          );
+          backend.downloads.clear();
+          await sync.idle();
+          // This device's upload is known by its bytes. The one it
+          // downloaded is stored with its profile, so it's fetched once
+          // more, to learn its ETag.
+          expect(remote.single.updated.map((e) => e['id']), ['from-phone']);
+          expect(backend.downloads.where((k) => k.contains('mine')), isEmpty);
+          backend.downloads.clear();
+          await pass();
+          expect(remote, hasLength(1));
+          expect(backend.downloads, isEmpty);
+        },
+      );
 
       test('at most maxFetch events per pass, the newest first', () async {
         for (var d = 1; d <= 3; d++) {

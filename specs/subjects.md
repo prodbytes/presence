@@ -16,6 +16,10 @@ and pets"), each with where the device was when they were seen
 - They're worked out from the event history in memory (`subjectsOf`):
   restored, synced from the cloud and new events alike. Nothing extra is
   stored. Adding, renaming or removing a tag updates both screens at once.
+- **Changes on another device** of the profile (a tag added, renamed or
+  removed) reach this one at the next [cloud sync](cloud-sync.md) pass
+  (within 15 s for today's and yesterday's events, within the hour for
+  older ones) and update its screens the same way.
 
 ## On the Monitoring tab
 

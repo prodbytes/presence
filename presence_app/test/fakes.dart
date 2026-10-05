@@ -300,6 +300,12 @@ class FakeCloudSession implements CloudSession {
   }
 
   @override
+  Future<Map<String, String>> listETags([String under = '']) async => {
+    for (final key in await list(under))
+      key: CloudSync.etagOf(backend.uploads['$prefix/$key']!.bytes),
+  };
+
+  @override
   Future<Uint8List> get(String key) async {
     backend.downloads.add(key);
     final object = backend.uploads['$prefix/$key'];
