@@ -138,20 +138,49 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             // and the request ID that finds the full error in the log, but
             // not AWS's message, which names ARNs.
             var requestId = context == null ? null : context.getAwsRequestId();
-            System.err.println("presence: " + route + " failed (request " + requestId + "): " + e);
+            System.err.println("presence: " + route + " failed (request " + requestId + "): "
+                    + cause(e) + ": " + e);
             return response(502, "{\"error\":\"the profile service failed\",\"cause\":"
                     + Json.string(cause(e))
                     + (requestId == null ? "" : ",\"requestId\":" + Json.string(requestId)) + "}");
         }
     }
 
-    /** What failed, for the caller: an AWS service and its error code, or the exception's type. */
+    /**
+     * What failed, for the caller: an AWS service, the operation (when the
+     * SDK client called it) and its error code, or the exception's type.
+     */
     static String cause(RuntimeException e) {
         if (e instanceof AwsServiceException aws && aws.awsErrorDetails() != null) {
             var details = aws.awsErrorDetails();
-            return details.serviceName() + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
+            var cause = details.serviceName() + operation(e).map(op -> " " + op + ":").orElse("")
+                    + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
+            // AWS knows every operation the SDK sends; an endpoint that
+            // doesn't is an emulator, such as Floci locally.
+            if ("UnknownOperationException".equals(details.errorCode())) {
+                cause += "; the endpoint doesn't implement it (a local AWS emulator?)";
+            }
+            return cause;
         }
         return e.getClass().getSimpleName();
+    }
+
+    /**
+     * The AWS operation that threw {@code e}: the SDK client's method in its
+     * stack trace ({@code DefaultCognitoIdentityClient.getId} is
+     * {@code GetId}), if it's there.
+     */
+    static Optional<String> operation(Throwable e) {
+        for (var frame : e.getStackTrace()) {
+            var type = frame.getClassName();
+            if (type.startsWith("software.amazon.awssdk.services.")
+                    && type.substring(type.lastIndexOf('.') + 1).startsWith("Default")
+                    && type.endsWith("Client")) {
+                var method = frame.getMethodName();
+                return Optional.of(Character.toUpperCase(method.charAt(0)) + method.substring(1));
+            }
+        }
+        return Optional.empty();
     }
 
     /** The signed-in subject: its issuer and Google ID, verified email (lowercase) and ID token. */

@@ -160,13 +160,17 @@
 - `profile` is `null` only for a token without an issuer or subject.
 - The profile routes need a verified email. A Cognito or DynamoDB failure
   answers 502 `{"error": "the profile service failed", "cause",
-  "requestId"}`: `cause` is the AWS service, error code and HTTP status
-  (`CognitoIdentity AccessDeniedException (HTTP 400)`), or the exception's
-  type for other failures; `requestId` is the Lambda request ID, which
-  finds the full error in the function's log (`presence: <route> failed
-  (request <id>): <exception>`). AWS's message, which names ARNs, isn't
-  sent. Without an identity pool and bucket
-  (locally, by default), every profile route but the listing answers 503.
+  "requestId"}`: `cause` is the AWS service, the operation that failed
+  (the SDK client's method in the stack trace, when it's there), error
+  code and HTTP status (`CognitoIdentity GetId: AccessDeniedException
+  (HTTP 400)`), or the exception's type for other failures. An
+  `UnknownOperationException`, which AWS itself never answers to the SDK,
+  adds "the endpoint doesn't implement it (a local AWS emulator?)".
+  `requestId` is the Lambda request ID, which finds the full error in the
+  function's log (`presence: <route> failed (request <id>): <cause>:
+  <exception>`). AWS's message, which names ARNs, isn't sent. Without an
+  identity pool and bucket (locally, by default), every profile route but
+  the listing answers 503.
 
 ## Where it's kept
 
@@ -277,6 +281,12 @@ deleted, and the contents live only in AWS.
 - Floci: the stack deploys with the tables, the function and its routes.
 
 ## Known limitations
+
+- **Not locally with Floci:** Floci (the local AWS) has no Cognito
+  Identity: with an identity pool set in `.env`, `/api/auth/credentials`
+  fails with `CognitoIdentity GetId: UnknownOperationException (HTTP 400);
+  the endpoint doesn't implement it (a local AWS emulator?)`, so cloud
+  sync doesn't work on the local stack. Production and RC call AWS.
 
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay

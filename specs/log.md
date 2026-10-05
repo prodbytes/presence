@@ -32,9 +32,10 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
   <type>: <message> (<detail>)`, once, when credentials can't be had. For
   the auth API, `<type>` is `HTTP <status> from /api/auth/credentials`
   (or `NotAuthorizedException` for a 401), and `<detail>` is its `cause`
-  and `requestId` (`cause: CognitoIdentity AccessDeniedException (HTTP
-  400); request <id>`), or the first 300 characters of a body that isn't
-  JSON;
+  and `requestId` (`cause: CognitoIdentity GetId: AccessDeniedException
+  (HTTP 400); request <id>`, with the failed operation; see
+  [Profiles](profiles.md)), or the first 300 characters of a body that
+  isn't JSON;
 - `Presence: cloud credentials rejected, renewing: …`, when credentials
   expire during a pass and the app gets new ones.
 
