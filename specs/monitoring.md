@@ -17,13 +17,15 @@ the separate Events and Subjects tabs.
 - **At the top,** in one row that wraps on narrow phones: on the left the
   **Search events** field (220 dp; filters the events as you type, with
   an x to clear it) with its **matching / all** event count beside it (see
-  [Events](events.md)), then the **Only this device** filter chip (checked by
-  default; shown once the device ID is known), then the **Show system
+  [Events](events.md)), then the **Only this device** filter chip (unchecked by
+  default, so every device's events show; shown once the device ID is
+  known; it filters both the map and the events), then the **Show system
   events** chip (checked by default in DEV only: off, only grabs show). On
   a 320 dp phone the chips go on the rows below the field. See
   [Events](events.md).
 - **Wide screens (720 dp and up), two columns:**
-  - **left:** the **map of every subject's events**, in a rounded,
+  - **left:** the **map of every subject's events** (only this
+    device's while **Only this device** is checked), in a rounded,
     outlined frame: each subject in its own color, the newest dot solid
     and older ones fading, and **the subject's name beside their newest
     dot**, in a pill edged in their color. It opens **centered on the
@@ -63,8 +65,11 @@ the separate Events and Subjects tabs.
   name only beside each subject's newest dot; tapping a name opens the
   subject's screen; on a 360 dp phone the map sits above the events; a dot
   tapped on a subject's screen closes it and outlines the event in this
-  tab's list. `events_filter_test.dart`: the Only this device chip filters
-  and keeps its state across tabs. `system_events_test.dart`: signed in
+  tab's list. `events_filter_test.dart`: the Only this device chip starts
+  unchecked (every device shows), filters when checked and keeps its state
+  across tabs. `subjects_test.dart` also checks that checking it takes the
+  other device's dots off the map and its events off the list, and
+  clearing it brings them back. `system_events_test.dart`: signed in
   (RBAC), only the clip shows until Show system events is checked, and the
   choice stays across tabs; with no grabs, the hidden-events message; in
   DEV, system events show by default and hide when cleared.

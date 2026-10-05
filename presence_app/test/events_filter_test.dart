@@ -96,46 +96,48 @@ void main() {
   bool checked(WidgetTester tester) =>
       tester.widget<FilterChip>(checkbox()).selected;
 
-  testWidgets('shows only this device until the checkbox is cleared', (
+  testWidgets('shows every device until the checkbox is checked', (
     tester,
   ) async {
     await launch(tester);
 
     expect(checkbox(), findsOneWidget);
-    expect(checked(tester), isTrue);
+    expect(checked(tester), isFalse);
     expect(find.text('Only this device'), findsOneWidget);
+    expect(find.text('Door opened here'), findsOneWidget);
+    expect(find.text('Door opened there'), findsOneWidget);
+    final (shown, all) = counts(tester);
+    expect(shown, all);
+
+    await tester.tap(checkbox());
+    await tester.pumpAndSettle();
+    expect(checked(tester), isTrue);
     expect(find.text('Door opened here'), findsOneWidget);
     expect(find.text('Door opened there'), findsNothing);
     // Events published since launch are this device's too.
     expect(find.text('Application started'), findsWidgets);
     // The count leaves the other device's event out of the shown, not all.
-    final (shown, all) = counts(tester);
-    expect(shown, all - 1);
-
-    await tester.tap(checkbox());
-    await tester.pumpAndSettle();
-    expect(checked(tester), isFalse);
-    expect(find.text('Door opened here'), findsOneWidget);
-    expect(find.text('Door opened there'), findsOneWidget);
-    expect(counts(tester), (all, all));
+    expect(counts(tester), (all - 1, all));
 
     // The choice stays while switching tabs.
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
-    expect(checked(tester), isFalse);
-    expect(find.text('Door opened there'), findsOneWidget);
+    expect(checked(tester), isTrue);
+    expect(find.text('Door opened there'), findsNothing);
 
     await tester.tap(checkbox());
     await tester.pumpAndSettle();
-    expect(find.text('Door opened there'), findsNothing);
+    expect(find.text('Door opened there'), findsOneWidget);
   });
 
   testWidgets("a new event shows while filtered, before it's saved", (
     tester,
   ) async {
     await launch(tester);
+    await tester.tap(checkbox());
+    await tester.pumpAndSettle();
     AppEventBusScope.of(tester.element(find.byType(Scaffold).first))
         .publish(AppEvent(icon: Icons.circle, title: 'Just now'));
     // The bus delivers in a microtask; the next frame shows it.
