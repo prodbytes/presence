@@ -959,6 +959,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
+                  // Pause / Play, with the camera's other buttons.
+                  controls: _hasAccess,
                 ),
               ),
               SafeArea(
@@ -1084,7 +1086,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     label: const Text('All'),
                     onPressed: () => setState(() => _showAll = !_showAll),
                   ),
-                  if (widget.rig.devices.length > 1)
+                  if (widget.rig.devices.length > 1 && !widget.rig.paused)
                     FloatingActionButton(
                       heroTag: 'flip-camera',
                       tooltip: 'Flip camera',
@@ -1173,6 +1175,11 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         _Dot(color: scheme.outline),
         'Not ready',
         'Camera not ready',
+      ),
+      ClipReadinessState.paused => (
+        _Dot(color: scheme.outline),
+        'Paused',
+        'Camera paused: nothing is recorded',
       ),
     };
     return StatusPill(
@@ -1296,7 +1303,7 @@ class _CameraStatus extends StatelessWidget {
           listenable: Listenable.merge([rig, battery, roles, ?sync]),
           builder: (context, _) {
             final reading = full ? battery.reading : null;
-            final readiness = full && rig.active != null
+            final readiness = full && (rig.active != null || rig.paused)
                 ? ReadinessIndicator(rig: rig)
                 : null;
             final failed = full

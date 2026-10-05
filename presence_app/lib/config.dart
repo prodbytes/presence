@@ -153,7 +153,10 @@ class ClipConfig {
 /// Camera picture settings.
 @immutable
 class CameraConfig {
-  const CameraConfig({this.brightness = defaultBrightness});
+  const CameraConfig({
+    this.brightness = defaultBrightness,
+    this.paused = false,
+  });
 
   static const double minBrightness = -2;
   static const double maxBrightness = 2;
@@ -165,23 +168,36 @@ class CameraConfig {
   /// Exposure compensation in EV, applied live where the camera supports it.
   final double brightness;
 
-  CameraConfig copyWith({double? brightness}) => CameraConfig(
+  /// The user switched the camera off (Pause): it stays closed, recording
+  /// nothing, until they press Play, across restarts too.
+  final bool paused;
+
+  CameraConfig copyWith({double? brightness, bool? paused}) => CameraConfig(
     brightness: (brightness ?? this.brightness)
         .clamp(minBrightness, maxBrightness)
         .toDouble(),
+    paused: paused ?? this.paused,
   );
 
-  Map<String, Object?> toJson() => {'brightnessEv': brightness};
+  Map<String, Object?> toJson() => {
+    'brightnessEv': brightness,
+    'paused': paused,
+  };
 
   factory CameraConfig.fromJson(Map<String, Object?> json) =>
-      const CameraConfig().copyWith(brightness: _num(json['brightnessEv']));
+      const CameraConfig().copyWith(
+        brightness: _num(json['brightnessEv']),
+        paused: json['paused'] == true,
+      );
 
   @override
   bool operator ==(Object other) =>
-      other is CameraConfig && other.brightness == brightness;
+      other is CameraConfig &&
+      other.brightness == brightness &&
+      other.paused == paused;
 
   @override
-  int get hashCode => brightness.hashCode;
+  int get hashCode => Object.hash(brightness, paused);
 }
 
 /// Automatic clips when the picture moves.

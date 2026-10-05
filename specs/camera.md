@@ -6,6 +6,20 @@
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
+- **Pause / Play** (top right of the camera, under the app bar; in the
+  All grid, on this device's cell): switches the camera off and on, for
+  users with access (not signed out).
+  - Paused, the camera is closed (`CameraRig.setPaused`): nothing is
+    recorded, no motion, scheduled or Capture all clips are taken, and
+    Flip and Clip are hidden. The camera shows "Camera paused / Nothing is
+    recorded until you resume it." with **Resume**, the readiness pill says
+    **Paused**, and the button turns to Play (highlighted).
+  - Nothing reopens a paused camera (Retry, the app returning to the
+    foreground, a lost camera's retries) but Play or Resume, which reopen
+    it as it was.
+  - It's a camera setting (`camera.paused`), saved with the device's
+    settings, so it lasts across restarts, including the Android
+    watchdog's.
 - One camera shows at a time, full screen (see [Navigation](navigation.md)).
   **All** puts it in the top-left cell of a grid with every other device's
   latest image ([All devices](#all-devices) below).

@@ -2531,3 +2531,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
       listing those steps in order, with the commands for each. No app
       change; no feature spec changes.
+253. **Add a pause/play button to the camera view, to let users shut off
+     the camera if needed.** (2026-10-05)
+     - Added: a Pause / Play button at the camera's top right (under the
+       app bar; on this device's cell in the All grid), for users with
+       access. Pause closes the camera, so nothing is recorded and no
+       clips are taken; the view says "Camera paused" with Resume, the
+       readiness pill says Paused, and Flip and Clip hide. Play reopens it.
+       The state is the `camera.paused` setting, saved with the device's
+       settings, so a restart (or the Android watchdog) keeps it paused.
+     - First tried in the bottom button row, which overflowed a 320 dp
+       phone by 63 px; hence the corner.
+     - Specs: [Camera screen](camera.md), [Configuration](configuration.md),
+       [README](README.md). 387 Flutter tests pass (4 new).
