@@ -2531,3 +2531,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Added: a "Do a barrel roll" section to [CLAUDE.md](../CLAUDE.md)
       listing those steps in order, with the commands for each. No app
       change; no feature spec changes.
+253. **In the events monitoring view, replace the "Only this device"
+     checkmark with a dropdown with a checkbox per line: the first line
+     always this device, in bold; all checked by default; let users check
+     or uncheck all or each one; always refresh the map and events list
+     accordingly.**
+    - Was: an **Only this device** filter chip (`ThisDeviceOnly`).
+    - Now: a **devices dropdown** (`DeviceFilter`): a chip ("All devices",
+      or "1 of 2 devices") opening a menu with a checkbox per device with
+      events, **This device** first in bold, then the others by ID, and an
+      **All devices** line that checks them all, or unchecks them all when
+      all are checked. The filter keeps the unchecked devices
+      (`hiddenDevices`), so every device, including ones whose events
+      arrive later, is checked by default. The map, the events list and the
+      count refilter on every change; opening an event of an unchecked
+      device checks them all again.
+    - Specs: [Events](events.md), [Monitoring](monitoring.md),
+      [Subjects](subjects.md), [Navigation](navigation.md).
