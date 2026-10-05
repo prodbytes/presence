@@ -109,6 +109,12 @@ abstract class CameraSource {
   /// second) for motion detection, or null if this camera can't supply them.
   Stream<Uint8List>? get motionFrames;
 
+  /// Completes with the reason when the platform takes the running camera
+  /// away (on Android: disconnected, or an error, e.g. when the system
+  /// claims it); never on platforms that don't. The camera is then dead:
+  /// dispose it and open it again.
+  Future<String> get lost;
+
   /// Brighter (positive) or darker (negative) picture, as exposure
   /// compensation in EV. Best effort: ignored where unsupported.
   Future<void> setBrightness(double ev);

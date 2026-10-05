@@ -27,6 +27,8 @@ their data.
 
 - [Navigation](navigation.md): app bar, tabs (Log for admins), and the full-screen Camera tab
   with its All, Clip, Flip and readiness controls.
+- [About](about.md): what Presence is, made with love by prodbytes, its
+  links, and a call to become a member; its icon is always in the app bar.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states,
   and the All grid: this camera top left, then every device in the
@@ -46,7 +48,7 @@ their data.
   tagging people and pets by clicking them on the video, or with Auto.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
-  240 minutes (30 min to a day, in Settings).
+  3 hours (30 min to a day, in Settings, with a countdown).
 - [Profiles](profiles.md): **the owner of a user's data and events.**
   None signed out; an account's first sign-in makes it and later ones, on
   any device, load it (by subject, `<iss>#<sub>`); IDs like
@@ -89,7 +91,7 @@ their data.
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
 - [Log](log.md): the admins' Log tab (DEV's too): a health panel (a
-  card per check, API, AWS, OIDC, checked every 30 s, a card with the
+  card per check, API, AWS, OIDC, checked every 15 s in DEV and 60 s in RBAC, a card with the
   devices in the events, and a scrolling timeline of the runs with their
   times), then the app's latest 500 log messages and errors, such as why
   the AWS sync failed.

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
 import 'events.dart';
+import 'status_pill.dart';
 import 'theme.dart';
 
 /// One check's status: its emoji and what it means (the tooltip).
@@ -128,6 +129,56 @@ class SystemHealth extends StatelessWidget {
   };
 }
 
+/// Over the camera, while a health check fails: a [StatusPill] with only
+/// a warning icon, in the error color. Its tooltip and screen-reader label
+/// name the [failed] checks; tapping it calls [onTap].
+class HealthWarningPill extends StatelessWidget {
+  const HealthWarningPill({super.key, required this.failed, this.onTap});
+
+  /// The failed checks' explanations ([failedChecks]).
+  final List<String> failed;
+
+  /// Where tapping it goes: the checks' details.
+  final VoidCallback? onTap;
+
+  /// The explanations of the checks that fail now ([healthPartFailed]);
+  /// empty while every check passes or is still running.
+  static List<String> failedChecks(
+    RolesService roles,
+    CloudSync? sync, {
+    bool? oidcClient,
+  }) {
+    final status = SystemHealth.statusOf(
+      roles,
+      sync,
+      oidcClient: oidcClient ?? hasOidcClient,
+    );
+    return [
+      for (final part in [status.api, status.aws, status.oidc])
+        if (healthPartFailed(part)) part.$2,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pill = StatusPill(
+      key: const Key('health-warning'),
+      leading: Icon(
+        Icons.warning_amber_rounded,
+        size: 18,
+        color: Theme.of(context).colorScheme.error,
+      ),
+      semantics: [
+        'Health check failed',
+        ...failed,
+        if (onTap != null) 'Tap for details.',
+      ].join('\n'),
+    );
+    if (onTap == null) return pill;
+    return GestureDetector(onTap: onTap, child: pill);
+  }
+}
+
 /// One run of the health panel's checks.
 class HealthCheck {
   const HealthCheck(this.time, this.status);
@@ -148,7 +199,7 @@ class HealthHistory extends ChangeNotifier {
   /// The app's history, which the Log tab's panel writes to.
   static final HealthHistory instance = HealthHistory();
 
-  /// How many checks are kept (an hour, at one every 30 s).
+  /// How many checks are kept (30 min in DEV, 2 h in RBAC).
   final int capacity;
 
   final _checks = ListQueue<HealthCheck>();
@@ -200,10 +251,11 @@ _checks = [
 /// The Log tab's health panel: a card per check (the auth API, AWS, OIDC)
 /// with its status in a colored pill, a card with the number of devices in
 /// the events, and a timeline of the latest checks ([HealthHistory]): a
-/// colored cell per check and run, newest on the right, with the time
+/// block per run, red if any check failed and green if all passed, newest
+/// on the right, with the time
 /// every 2 minutes, scrolling sideways; tap a run for its details. It asks
 /// the auth API again ([RolesService.checkApi]) when it opens and every
-/// [interval] while it's shown, then records the checks; AWS shows the
+/// [intervalFor] the execution mode while it's shown, then records the checks; AWS shows the
 /// cloud sync's latest pass, which runs on its own.
 class HealthPanel extends StatefulWidget {
   HealthPanel({
@@ -215,7 +267,7 @@ class HealthPanel extends StatefulWidget {
     this.deviceId,
     bool? oidcClient,
     HealthHistory? history,
-    this.interval = const Duration(seconds: 30),
+    this.interval,
   }) : oidcClient = oidcClient ?? hasOidcClient,
        history = history ?? HealthHistory.instance;
 
@@ -240,12 +292,27 @@ class HealthPanel extends StatefulWidget {
   static int devicesIn(Iterable<AppEvent> events, {String? deviceId}) =>
       {for (final e in events) ?(e.deviceId ?? deviceId)}.length;
 
-  /// How often the checks run.
-  final Duration interval;
+  /// How often the checks run; by default [intervalFor] the mode.
+  final Duration? interval;
 
-  /// Room each run takes on the timeline, and its cells' size.
+  /// How often the checks run in [mode]: 15 s in DEV, 60 s in RBAC (and
+  /// before the start check, when [oidcClient] says which it will be).
+  static Duration intervalFor(
+    ExecutionMode? mode, {
+    required bool oidcClient,
+  }) =>
+      (mode ?? (oidcClient ? ExecutionMode.rbac : ExecutionMode.dev)) ==
+          ExecutionMode.dev
+      ? const Duration(seconds: 15)
+      : const Duration(seconds: 60);
+
+  /// How often the checks run with [roles]' mode.
+  Duration intervalOf(RolesService roles) =>
+      interval ?? intervalFor(roles.mode, oidcClient: oidcClient);
+
+  /// Room each run takes on the timeline, and its block's size.
   static const double runWidth = 14;
-  static const Size cellSize = Size(10, 14);
+  static const Size blockSize = Size(10, 32);
 
   @override
   State<HealthPanel> createState() => _HealthPanelState();
@@ -262,13 +329,16 @@ class _HealthPanelState extends State<HealthPanel> {
   void initState() {
     super.initState();
     _check();
-    _timer = Timer.periodic(widget.interval, (_) => _check());
   }
 
+  /// Checks, records the run, and checks again after the mode's interval
+  /// (read each time, as the start check may change the mode).
   Future<void> _check() async {
     await widget.roles.checkApi();
+    if (_disposed) return;
+    _timer = Timer(widget.intervalOf(widget.roles), _check);
     // Before the start check, there's nothing to record yet.
-    if (_disposed || widget.roles.mode == null) return;
+    if (widget.roles.mode == null) return;
     widget.history.add(
       HealthCheck(
         widget.roles.apiCheckedAt ?? DateTime.now(),
@@ -429,18 +499,16 @@ class _HealthPanelState extends State<HealthPanel> {
     );
   }
 
-  /// The latest runs: a row per check, a column per run, newest on the
-  /// right and scrolled to, with the time under the first run of every 2
+  /// The latest runs: a block per run, red if any check failed and green if
+  /// all passed, newest on the right and scrolled to, with the time under the first run of every 2
   /// minutes.
   Widget _timeline(ThemeData theme, TextStyle? small) {
     final checks = widget.history.checks;
     if (checks.isEmpty) return const SizedBox.shrink();
     final selected = checks.contains(_selected) ? _selected : null;
-    const cell = HealthPanel.cellSize;
-    const gap = 3.0;
     const labelHeight = 18.0;
-    final cellsHeight = _checks.length * (cell.height + gap);
-    final every = widget.interval.inSeconds;
+    final blockHeight = HealthPanel.blockSize.height;
+    final every = widget.intervalOf(widget.roles).inSeconds;
     return Card(
       key: const Key('health-timeline'),
       margin: EdgeInsets.zero,
@@ -469,59 +537,30 @@ class _HealthPanelState extends State<HealthPanel> {
             ),
             const SizedBox(height: 8),
             SizedBox(
-              height: cellsHeight + labelHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // The checks' names, each beside its row.
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final (_, emoji, name, _) in _checks)
-                        Container(
-                          height: cell.height,
-                          margin: const EdgeInsets.only(bottom: gap),
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            '$emoji ${name == 'Auth API' ? 'API' : name}',
-                            style: small?.copyWith(height: 1),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ListView.builder(
-                      key: const Key('health-history'),
-                      scrollDirection: Axis.horizontal,
-                      // Starts at the newest, on the right.
-                      reverse: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: checks.length,
-                      itemBuilder: (context, j) {
-                        final i = checks.length - 1 - j;
-                        final check = checks[i];
-                        return _run(
-                          i,
-                          check,
-                          tick:
-                              i == 0 ||
-                              _bucket(checks[i - 1]) != _bucket(check),
-                          selected: identical(check, selected),
-                          cellsHeight: cellsHeight,
-                          gap: gap,
-                          theme: theme,
-                          small: small,
-                          onTap: () => setState(
-                            () => _selected = identical(check, selected)
-                                ? null
-                                : check,
-                          ),
-                        );
-                      },
+              height: blockHeight + labelHeight,
+              child: ListView.builder(
+                key: const Key('health-history'),
+                scrollDirection: Axis.horizontal,
+                // Starts at the newest, on the right.
+                reverse: true,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: checks.length,
+                itemBuilder: (context, j) {
+                  final i = checks.length - 1 - j;
+                  final check = checks[i];
+                  return _run(
+                    i,
+                    check,
+                    tick: i == 0 || _bucket(checks[i - 1]) != _bucket(check),
+                    selected: identical(check, selected),
+                    theme: theme,
+                    small: small,
+                    onTap: () => setState(
+                      () =>
+                          _selected = identical(check, selected) ? null : check,
                     ),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
             if (selected != null)
@@ -555,13 +594,11 @@ class _HealthPanelState extends State<HealthPanel> {
     HealthCheck check, {
     required bool tick,
     required bool selected,
-    required double cellsHeight,
-    required double gap,
     required ThemeData theme,
     required TextStyle? small,
     required VoidCallback onTap,
   }) {
-    const cell = HealthPanel.cellSize;
+    const block = HealthPanel.blockSize;
     const width = HealthPanel.runWidth;
     final t = check.time;
     String two(int n) => n.toString().padLeft(2, '0');
@@ -577,33 +614,27 @@ class _HealthPanelState extends State<HealthPanel> {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Column(
-                children: [
-                  for (final (key, _, _, part) in _checks)
-                    Container(
-                      key: Key('health-cell-$i-$key'),
-                      width: cell.width,
-                      height: cell.height,
-                      margin: EdgeInsets.only(bottom: gap),
-                      decoration: BoxDecoration(
-                        color: _tone(part(check.status), theme.colorScheme).$2,
-                        borderRadius: BorderRadius.circular(2),
-                        border: selected
-                            ? Border.all(
-                                color: theme.colorScheme.onSurface,
-                                width: 1.5,
-                              )
-                            : null,
-                      ),
-                    ),
-                ],
+              Container(
+                key: Key('health-block-$i'),
+                width: block.width,
+                height: block.height,
+                decoration: BoxDecoration(
+                  color: check.failed ? theme.colorScheme.error : Gruvbox.green,
+                  borderRadius: BorderRadius.circular(2),
+                  border: selected
+                      ? Border.all(
+                          color: theme.colorScheme.onSurface,
+                          width: 1.5,
+                        )
+                      : null,
+                ),
               ),
               if (tick)
                 Positioned(
-                  // Centered on the run's cells.
-                  left: cell.width / 2 - 20,
+                  // Centered on the run's block.
+                  left: block.width / 2 - 20,
                   width: 40,
-                  top: cellsHeight,
+                  top: block.height,
                   child: Column(
                     children: [
                       Container(

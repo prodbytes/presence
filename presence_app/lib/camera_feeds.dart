@@ -101,6 +101,19 @@ class CameraRig extends ChangeNotifier {
       ? (_lastScheduledClip ?? _scheduleFrom).add(config.schedule.every)
       : null;
 
+  /// Whether the startup clip is still to come (scheduled clips on).
+  bool get startupClipPending => config.schedule.enabled && !_startupClipTaken;
+
+  /// Time left until the next scheduled clip, for the Settings countdown:
+  /// zero once it's due (it waits for an open camera), null when they're
+  /// off.
+  Duration? get untilScheduledClip {
+    final due = nextScheduledClip;
+    if (due == null) return null;
+    final left = due.difference(_now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
   /// Takes the startup clip, then a scheduled clip whenever one is due,
   /// once the camera is open and its "before" history is full: the same
   /// path as the Clip button.
@@ -266,10 +279,38 @@ class CameraRig extends ChangeNotifier {
       _appliedBrightness = null;
       _applyBrightness();
       _watchMotion(source);
+      source.lost.then((reason) => _onLost(source, reason)).ignore();
       _set(busy: false, error: null);
     } catch (e) {
       if (!_disposed) _set(busy: false, error: e);
     }
+  }
+
+  /// How long after losing the camera, or failing to get it back, the rig
+  /// tries to reopen it.
+  static const Duration lostRetryDelay = Duration(seconds: 10);
+  Timer? _lostRetry;
+
+  /// The platform took the running camera away (on Android, e.g. while the
+  /// screen was off): close it and keep trying to reopen it, so capture
+  /// goes on without anyone touching the phone.
+  Future<void> _onLost(CameraSource source, String reason) async {
+    if (_disposed || !identical(_active, source)) return;
+    debugPrint('Presence: lost the camera ($reason); reopening');
+    await _closeActive();
+    if (_disposed) return;
+    _set(busy: false, error: CameraUnavailable(reason));
+    _reopenLost();
+  }
+
+  void _reopenLost() {
+    _lostRetry?.cancel();
+    _lostRetry = Timer(lostRetryDelay, () async {
+      // Something else (a resume, Retry, Flip) may have reopened it.
+      if (_disposed || _active != null || _busy || _error == null) return;
+      await _openCurrent();
+      if (!_disposed && _active == null && _error != null) _reopenLost();
+    });
   }
 
   double? _appliedBrightness;
@@ -452,6 +493,7 @@ class CameraRig extends ChangeNotifier {
     _disposed = true;
     _scheduleTimer?.cancel();
     _brightnessRestart?.cancel();
+    _lostRetry?.cancel();
     _latestMotionClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();

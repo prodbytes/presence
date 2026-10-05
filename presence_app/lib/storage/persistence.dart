@@ -101,6 +101,9 @@ class Persistence implements DeviceSettings {
   final Set<Future<void>> _pending = {};
   final StreamController<void> _changes = StreamController<void>.broadcast();
   final Set<String> _watched = {};
+
+  /// Events whose annotations are being replaced by `updateFromRemote`.
+  final Set<String> _updating = {};
   CameraRig? _rig;
   List<CameraDevice>? _saved;
   bool _disposed = false;
@@ -347,6 +350,53 @@ class Persistence implements DeviceSettings {
     return _loadHistory(store, events);
   }
 
+  /// Takes on events another device changed ([records], fetched again by
+  /// cloud sync): their tags, suggestions, object tags and the frames they
+  /// use replace the ones here, on screen ([shown], the app's events) and
+  /// in storage. The rest of the event stays as it is here.
+  Future<void> updateFromRemote(
+    List<Map<String, Object?>> records,
+    Iterable<AppEvent> shown,
+  ) async {
+    if (records.isEmpty) return;
+    final store = await _store;
+    final byId = {for (final e in shown) e.id: e};
+    final stored = {for (final r in await store.allEvents()) r['id']: r};
+    for (final record in records) {
+      final local = stored[record['id']];
+      if (local == null) continue;
+      final frames = {
+        if (local['frames'] case final Map frames) ...frames,
+        if (record['frames'] case final Map frames) ...frames,
+      };
+      final remote = ClipAnnotations.fromJson(
+        record['annotations'],
+        frames,
+        record['objectTags'],
+      );
+      if (byId[record['id']] case final ClipRequested event) {
+        // Not saved again by its listener: it's saved here, as it is now.
+        _updating.add(event.id);
+        try {
+          event.annotations.replaceWith(remote);
+        } finally {
+          _updating.remove(event.id);
+        }
+        await store.putEvent(event.toRecord());
+      } else {
+        await store.putEvent({
+          for (final MapEntry(:key, :value) in local.entries)
+            if (!const {'annotations', 'frames', 'objectTags'}.contains(key))
+              key: value,
+          if (!remote.isEmpty) 'annotations': remote.toJson(),
+          if (!remote.isEmpty) 'frames': remote.framesToRecord(),
+          if (remote.objects case final objects?)
+            'objectTags': [for (final o in objects) o.toJson()],
+        });
+      }
+    }
+  }
+
   /// Completes when all writes issued so far have finished (for tests).
   Future<void> flush() => Future.wait(List.of(_pending));
 
@@ -398,6 +448,8 @@ class Persistence implements DeviceSettings {
       event.annotations.addListener(() {
         // Not once it's deleted (`deleteEventsBefore`).
         if (_disposed || !_watched.contains(event.id)) return;
+        // Taken on from the cloud (`updateFromRemote`), which saves it.
+        if (_updating.contains(event.id)) return;
         _track(() async {
           final store = await _store;
           await store.putEvent(event.toRecord());

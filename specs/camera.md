@@ -103,7 +103,7 @@ grid soon shows each one's current picture, not its last clip:
 - Only one camera records at a time. Clips come from the camera being
   shown.
 - **All** shows each other device's latest *clip* image, not a live
-  picture: how old it is depends on its clips (scheduled ones every 240
+  picture: how old it is depends on its clips (scheduled ones every 180
   minutes by default, motion, Clip presses, or a [Capture
   all](#capture-all)).
 - Capture all reaches devices only through cloud sync, so a device that's

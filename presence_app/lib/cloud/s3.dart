@@ -53,8 +53,15 @@ class S3Bucket {
   Future<List<String>> list(
     String prefix, {
     required AwsCredentials credentials,
+  }) async => (await listETags(prefix, credentials: credentials)).keys.toList();
+
+  /// Every key under [prefix] with its ETag, unquoted: for a single PUT to
+  /// this bucket (SSE-S3), the MD5 of the object's bytes, in hex.
+  Future<Map<String, String>> listETags(
+    String prefix, {
+    required AwsCredentials credentials,
   }) async {
-    final keys = <String>[];
+    final objects = <String, String>{};
     String? token;
     do {
       final response = await _send(
@@ -67,11 +74,16 @@ class S3Bucket {
         credentials,
       );
       final xml = response.body;
-      keys.addAll(
-        RegExp(r'<Key>([^<]*)</Key>')
-            .allMatches(xml)
-            .map((m) => _unescape(m[1]!)),
-      );
+      for (final m in RegExp(
+        r'<Contents>(.*?)</Contents>',
+        dotAll: true,
+      ).allMatches(xml)) {
+        final contents = m[1]!;
+        final key = RegExp(r'<Key>([^<]*)</Key>').firstMatch(contents)?[1];
+        if (key == null) continue;
+        final etag = RegExp(r'<ETag>([^<]*)</ETag>').firstMatch(contents)?[1];
+        objects[_unescape(key)] = _unescape(etag ?? '').replaceAll('"', '');
+      }
       final next = RegExp(
         r'<NextContinuationToken>([^<]*)</NextContinuationToken>',
       ).firstMatch(xml);
@@ -79,7 +91,7 @@ class S3Bucket {
           ? next?.group(1)
           : null;
     } while (token != null);
-    return keys;
+    return objects;
   }
 
   Future<http.Response> _send(

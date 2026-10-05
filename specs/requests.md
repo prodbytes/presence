@@ -2400,7 +2400,131 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       sync](cloud-sync.md), [Recording and data formats](data-formats.md),
       [Device location and battery](device-location.md),
       [Storage](storage.md). 352 Flutter tests (4 new) pass.
-246. **Add to CLAUDE.md: "do a barrel roll" is to run a complete cycle of
+243. **On the timeline of health checks, make it a single block per check:
+     red if any fails, green if all pass.** (2026-10-05)
+     - Was: a column per run with a colored cell per check (API, AWS, OIDC)
+       and their names on the left.
+     - Changed: each run is one block (`health-block-<i>`), red (the error
+       color) when any check failed (❌ or ⚠️, `HealthCheck.failed`) and
+       green otherwise; the names column is gone. Tapping a run still shows
+       the three statuses.
+     - Specs: [Log](log.md). 359 Flutter tests pass.
+244. **Add an x beside each subject and tag label to delete that label from
+     the event, and update the app's state so the subjects and tags are
+     counted right everywhere.**
+    - Each subject name and object tag on a clip's card has a small x
+      (tooltip "Remove Rex from this event"). A subject's x removes every
+      tag of that name on the clip (`ClipAnnotations.removeName`; pending
+      suggestions stay) and frames no entry uses any more. An object tag's
+      x removes that label (`ClipAnnotations.removeObject`). Removal is
+      immediate, with no confirmation or undo.
+    - Everything that counts subjects and tags is already worked out from
+      each clip's annotations and listens to them, so one change updates
+      it all: the card, the subjects map's dots and names, a subject's
+      screen, the Events search and its matching / all count. The event is
+      saved and queued for cloud sync like any tag edit.
+    - Specs: [Subjects](subjects.md), [Subject
+      recognition](recognition.md), [Clips](clips.md), [Events](events.md).
+      363 Flutter tests (4 new, `label_remove_test.dart`) pass.
+245. **Make the health check period 15 s in DEV mode and 60 s in standard
+     (RBAC) mode.** (2026-10-05)
+     - Was: the Log tab's health panel checked every 30 s in both modes.
+     - Changed: `HealthPanel.intervalFor` picks 15 s in DEV and 60 s in
+       RBAC from `RolesService.mode` (the build's mode before the start
+       check), read again before each run, so the period follows the mode.
+       The timeline's header says "every 15 s" or "every 1 min". The 120
+       runs kept now span 30 min in DEV and 2 h in RBAC.
+     - Specs: [Log](log.md), [Settings screen](settings.md),
+       [README](README.md). 361 Flutter tests pass (2 new).
+246. **If the health check fails, show an icon warning pill on the camera
+     screen as well.**
+    - Was: a failed health check showed only in Settings' health line and
+      the Log tab's health panel.
+    - Changed: over the camera, first among the status pills, a pill with
+      only a warning icon (error color) while any check fails (❌, or ⚠️);
+      its tooltip names the failed checks, and tapping it opens the Log
+      tab's health panel (admins) or Settings. `StatusPill`'s label is
+      now optional.
+    - Specs: [Navigation](navigation.md), [Settings screen](settings.md).
+      361 Flutter tests (2 new) pass.
+247. **Add an "about" navigation icon that explains what this app is, made
+     with love by prodbytes, links, a call to action to support it by
+     becoming a member, etc. Make it always visible.**
+    - Added: an About icon (`info_outline`) in the app bar, shown signed
+      out, signed in without access, with access and in DEV. It opens an
+      About screen: what Presence does, the version, "Made with ♥ by
+      prodbytes", a support card (sign in, then Become a member, which
+      opens Request access; members are thanked), links (the web app,
+      the source, prodbytes, the license) and the install command.
+    - `url_launcher` is back, for the links; one that can't open is
+      copied.
+    - Specs: [About](about.md) (new), [Navigation](navigation.md).
+      364 Flutter tests (5 new) pass.
+248. **The prodbytes URL is https://prodbytes.substack.com.**
+    - Changed: About's prodbytes link opens `https://prodbytes.substack.com`
+      (was `https://github.com/prodbytes`).
+    - Specs: [About](about.md).
+249. **Ensure that on Android the device keeps capturing even if untouched
+     for a long time: prevent the camera and device from sleeping to the
+     point the app stops working; turning only the screen off to save
+     battery is fine.** (2026-10-05)
+     - Found on the S40: under Google's sign-in chooser at launch, Android
+       refused the camera ("can't use the camera from an idle UID"), as it
+       does with the screen off; a running camera taken away was closed
+       without telling Dart, so capture stopped silently; and with the
+       screen off, the undrawn preview could stall the recording.
+     - Changed: a `CaptureService` foreground service (camera, microphone)
+       with a partial wake lock and a Wi-Fi lock, started when the app is
+       shown; the preview leaves the capture request while the app isn't
+       shown; a lost camera is reported (`CameraSource.lost`) and reopened
+       every 10 s until it opens; the app asks once to skip battery
+       optimization.
+     - Verified on the S40: the camera kept recording with the screen asleep
+       for over a minute. Specs: [Android](android.md). 361 Flutter tests
+       pass (2 new).
+250. **When events are synced, update them on screen, so a tag removed on
+     one device stops showing on the others at the next sync. Check
+     whether it already works that way, or make it so.**
+    - Checked: it didn't. The fetch only downloaded events the device
+      didn't have and never overwrote local ones, so another device's
+      change to an event (a tag added, renamed or removed) never reached
+      a device that already had it. Also, the sync runs every 15 s, not
+      every 5 minutes; events older than yesterday are only listed in
+      the hourly full pass.
+    - Changed: the listing now reads each event's ETag (the MD5 of its
+      bytes for this bucket, `S3Bucket.listETags`), and the `synced`
+      store keeps the ETag of each event as this device last uploaded or
+      downloaded it (`etag:<key>`). An event whose ETag differs comes down
+      again (`RemoteRecords.updated`), unless the device has its own
+      change not uploaded yet, which then goes up over it. The app
+      replaces that clip's tags, suggestions, object tags and frames in
+      the event on screen (`Persistence.updateFromRemote`,
+      `ClipAnnotations.replaceWith`) and saves it, so the card, the
+      subjects map, a subject's screen and the Events search and count
+      update at once. Then that version counts as synced, so it isn't
+      uploaded back.
+    - Specs: [Cloud sync](cloud-sync.md), [Subjects](subjects.md),
+      [Storage](storage.md). 365 Flutter tests (6 new) pass.
+251. **Verify that a grab event is triggered, captured, recognized and
+     synced when the app loads and every 3 hours. Make that interval
+     configurable and show a countdown in Settings.** (2026-10-05)
+    - Verified: a new end-to-end test runs the whole app, signed in and
+      syncing, with recognition on fake models. The startup grab and the
+      one 3 h later are each triggered, captured, recognized (object tags)
+      and uploaded with their recording and thumbnail; none comes a minute
+      early. To let the test use fake models, `PresenceApp` now takes an
+      optional `recognizer` factory.
+    - Changed: the default interval is **3 h** (was 4 h). It was already
+      configurable (30 min to 24 h); devices that saved their settings
+      before keep what they saved.
+    - Added: under the **One clip every** slider, a countdown that updates
+      every second: "Startup clip: once the camera is ready", then "Next
+      clip in 2 h 59 min 58 s", or "Next clip: due, once a camera is open";
+      hidden while scheduled clips are off.
+    - Specs: [Scheduled clips](scheduled-clips.md),
+      [Settings](settings.md), [Configuration](configuration.md),
+      [Camera](camera.md). 362 Flutter tests (3 new) pass.
+252. **Add to CLAUDE.md: "do a barrel roll" is to run a complete cycle of
      commit changes, rebuild, run tests, merge PRs, cut RC and GA releases,
      deploy locally starting the dev servers, and redeploy and restart on
      the Android phone connected by USB.**

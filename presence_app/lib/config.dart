@@ -258,7 +258,7 @@ class ScheduleConfig {
   static const Duration minEvery = Duration(minutes: 30);
   static const Duration maxEvery = Duration(days: 1);
   static const Duration everyStep = Duration(minutes: 30);
-  static const Duration defaultEvery = Duration(minutes: 240);
+  static const Duration defaultEvery = Duration(minutes: 180);
 
   /// Whether a clip is taken every [every].
   final bool enabled;

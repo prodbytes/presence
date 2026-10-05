@@ -33,8 +33,10 @@
 - **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):
   - A **Clip at start and on a timer** switch (default on).
   - **One clip every**, 30 min to 24 h in 30-minute steps, default
-    **4 h**, shown as "30 min", "4 h", "1 h 30 min"; off while the switch
+    **3 h**, shown as "30 min", "3 h", "1 h 30 min"; off while the switch
     is.
+  - Under it, while the switch is on, a countdown to the next clip,
+    refreshed every second ("Next clip in 2 h 59 min 58 s").
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).
@@ -88,8 +90,10 @@
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
   - Here it shows the start check's answer; the [Log](log.md) tab's
-    health panel shows the same line, checked again every 30 s, with a
+    health panel shows the same line, checked again every 15 s in DEV and 60 s in RBAC, with a
     history.
+  - While a check fails, a warning icon pill shows over the camera too
+    ([Navigation](navigation.md)).
 - **Add a device**, the last thing, under the health line, shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
