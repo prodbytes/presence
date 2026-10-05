@@ -28,11 +28,12 @@
   - **Counts.** Right after the field, on its row, the count of events
     (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
     tooltip "2 of 12 events shown".
-    - *All* is every event of the signed-in user on this device
-      (`EventTimeline.ofUser`): recorded here, restored from storage, or
-      fetched from the cloud (S3), so it grows as sync loads more. Events
-      recorded signed out count too, since the next sign-in takes them over,
-      and so do new events not saved yet. Other users' events left on the
+    - *All* is every event of the signed-in account's profile on this
+      device (`EventTimeline.ofProfile`): recorded here, restored from
+      storage, or fetched from the cloud (S3), so it grows as sync loads
+      more. Events without a profile (recorded signed out, or not saved
+      yet) count too, since the next sign-in gives them its profile. Other
+      profiles' events left on the
       device don't count.
     - *Matching* is those events left after the search and both chips,
       using the timeline's own filter steps (`EventTimeline.ofDevices`,
@@ -87,9 +88,9 @@
   built (up to 8 tries), then scrolls it into view.
 - On launch, the app pushes an **Application started** event.
 - Every event carries the **device** it was recorded on (`deviceId`) and
-  the **user** it belongs to (`userId`, or `anonymous` until a user signs
-  in and takes it over). See [Devices, users and
-  places](devices-users-places.md).
+  the **profile** it belongs to (`profileId`, none until a sign-in gives
+  it one), and who was signed in (`userId`, or `anonymous`). See
+  [Devices, users and places](devices-users-places.md).
 - With no events, the panel shows a "No events" empty state.
 - Events flow through an app-wide **event bus**: a plain Dart broadcast
   `StreamController` (`AppEventBus` in

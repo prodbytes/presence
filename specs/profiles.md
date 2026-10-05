@@ -11,23 +11,22 @@
 
 ## The rule
 
-- **There's always a profile.** Like the [device
-  ID](devices-users-places.md#devices), the app makes one at its **first
-  start** and keeps it in storage, before anyone signs in. It's owned by
-  nobody yet.
-- **The first sign-in claims it.** The app sends it with
-  `GET /api/auth?profile=<id>`. If the token's **subject** isn't linked to
-  a profile yet, the [auth API](auth-api.md) creates the profile with that
-  ID, owned by the subject, and links it, so **the next sign-in finds the
-  same one**.
-- **Every later sign-in loads the subject's profile.** A subject already
-  linked keeps its profile, whatever the app sends, and the app keeps the
-  answer as **its** profile from then on (a second device of the same
-  account switches to the account's profile).
-- **A profile isn't claimed when** the ID is taken (it belongs to another
-  subject) or isn't one the app could make (two different adjectives and
-  an animal from the lists). The subject then gets a fresh ID, and the app
-  keeps that one.
+- **No sign-in, no profile.** While nobody is signed in (and in
+  [DEV](execution-mode.md), where nobody can), the app has no profile
+  (`null`). Events recorded then have none, and nothing syncs.
+- **A sign-in finds the account's profile, or makes one.** The app asks
+  `GET /api/auth`. If the token's **subject** is linked to a profile, the
+  [auth API](auth-api.md) answers with it. If not, it creates a profile
+  with a fresh ID, owned by the subject, and links it, so **every later
+  sign-in finds the same one**.
+- **Same account, same profile, on every device.** The profile is found
+  by the subject, never by the device, so signing in with one account on a
+  phone and a laptop gives both the same profile, the same folder and the
+  same events.
+- **At sign-in, the device's events get the profile.** Everything recorded
+  here without a profile (signed out, while the sign-in was being
+  answered, or before events had profiles) becomes the profile's, and
+  syncs. See [Devices, users and places](devices-users-places.md#users).
 - **A subject is the issuer and the `sub`**, `<iss>#<sub>`, e.g.
   `https://accounts.google.com#1234567890`. That's the provider's stable
   account ID, never the email. The same account with a new email keeps its
@@ -40,10 +39,8 @@
   one login per provider, which is why the auth API keeps the links.
 - **Everyone signed in has a profile,** whatever their roles. A user
   without `presence_user` (see [Membership](membership.md)) has one too.
-- **Signed out and in [DEV mode](execution-mode.md)** the app shows its
-  own profile. The server doesn't know it until a sign-in claims it: the
-  anonymous route (`GET /api/auth/anonymous`) never creates or returns
-  profiles, so nobody can make profile rows without signing in.
+- The anonymous route (`GET /api/auth/anonymous`) never creates or
+  returns profiles, so nobody can make profile rows without signing in.
 
 ## Profile IDs
 
@@ -66,12 +63,12 @@
     profiles.
   - The profiles table makes it impossible: a new profile is written only
     if its ID isn't taken (a conditional put).
-  - The app's own ID is tried first, then a taken ID is replaced by a
-    fresh one, up to 10 tries, before the sign-in fails.
-- The app makes its ID with the same words (`ProfileId`,
-  [lib/identity/profile_id.dart](../presence_app/lib/identity/profile_id.dart),
-  the animals in `animal_words.dart`) and a secure random generator. The
-  API claims only IDs made of those words (`ProfileId.valid`).
+  - A taken ID is replaced by a fresh one, up to 10 tries, before the
+    sign-in fails.
+- **Only the auth API makes profile IDs.** The app no longer makes one or
+  sends one. The API still accepts `?profile=<id>` and uses it for a new
+  profile if it's valid (`ProfileId.valid`) and free, but the app doesn't
+  send it.
 - The profile ID is also the user identifier Cognito knows the profile by
   (its developer identity).
 
@@ -150,7 +147,7 @@
 
 | Route | Who | Answer |
 |---|---|---|
-| `GET /api/auth[?profile=<id>]` | any signed-in user | `{"email", "profile", "roles"}` (makes the profile at the first sign-in, with the app's ID when it's free) |
+| `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (the subject's profile, made at its first sign-in) |
 | `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token"}` |
 | `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
@@ -187,8 +184,7 @@ deleted, and the contents live only in AWS.
 - **Finding:** a consistent read of the subject's link. A found profile's
   `lastSignInAt` is updated, which also returns the profile, and the
   profile row is recreated if a link names one that's missing.
-- **Creating:** the new profile is put first, only if its ID is free (the
-  app's, then fresh ones).
+- **Creating:** the new profile is put first, only if its ID is free.
   Then comes the link, only if the subject has none. If two first sign-ins
   of the same subject race, the first link wins and the other sign-in
   reads it, so both get the same profile. The loser's new profile is left
@@ -214,22 +210,19 @@ deleted, and the contents live only in AWS.
 
 ## In the app
 
-- **This device's profile** is the `profile` settings record in
-  IndexedDB (`EventStore.profileId`), made at the first start like the
-  `device` record, read and written in one transaction.
 - `RolesService.profile`
   ([lib/auth/roles_service.dart](../presence_app/lib/auth/roles_service.dart))
-  holds it, through a `ProfileStore` (`Persistence`; in memory without
-  storage). Each roles check sends it, and a profile in the answer
-  replaces it, in memory and in storage. Signing out, a failed check and
-  DEV keep it. It's null only until storage has read it, just after the
-  start.
-  - The check doesn't wait for storage: a session restored at launch isn't
-    a first start, so the profile is loaded by then, and the account is
-    already linked.
-- **Settings always shows it**, as **Profile** `huge_wavy_darter` under
-  the device ID (*loading…* only until it's read); see
-  [Settings screen](settings.md).
+  is the profile the auth API answered the signed-in account with. It's
+  null signed out, in DEV, and from a sign-in until the API answers.
+  Another account drops the last one's at once. A failed check of the same
+  account keeps it. It isn't stored: each launch asks the API again.
+- **Events:** every event saved while there's a profile gets it
+  (`AppEvent.profileId`). When the profile arrives, the events without one
+  become its (`Persistence.claimForProfile`); see [Devices, users and
+  places](devices-users-places.md#users).
+- **Settings shows it**, as **Profile** `huge_wavy_darter` under the
+  device ID, or *none until signed in*; see [Settings screen](settings.md).
+  The [account sheet](sign-in.md) shows it with the profile's devices.
 - `CognitoCredentials` ([lib/cloud/cognito.dart](../presence_app/lib/cloud/cognito.dart))
   asks `POST /api/auth/credentials`, then `GetCredentialsForIdentity`.
   A 401 from the API shows as "Sign in again to resume uploads".
@@ -247,8 +240,8 @@ deleted, and the contents live only in AWS.
   - a race keeps the first link;
   - a link whose profile is missing gets it back;
   - taken IDs are skipped, and the sign-in fails after 10;
-  - a first sign-in claims the app's profile; a linked subject keeps its
-    own whatever the app sends; a taken or malformed ID isn't claimed;
+  - a requested ID (`?profile=`, which the app no longer sends) is used
+    when valid and free; a linked subject keeps its own whatever is sent;
   - the ID format and word lists;
   - no subject, no profile;
   - the handler answers with the profile, claims the app's
@@ -269,11 +262,18 @@ deleted, and the contents live only in AWS.
     profile;
   - the listing, 503 without cloud sync, and unverified emails.
 - Flutter:
-  - `roles_test.dart` and `add_device_test.dart`: a profile at the first
-    start, sent at sign-in, replaced by the account's, kept signed out, in
-    DEV and after a failed check, and shown in Settings;
-  - `persistence_test.dart`: the profile record is made once and
-    replaced by a sign-in's;
+  - `roles_test.dart`: no profile signed out or in DEV; a sign-in gets the
+    account's (without access too), with nothing sent; two devices of the
+    same account get the same one; a failed check keeps it, and another
+    account drops it at once;
+  - `add_device_test.dart`: Settings shows the profile, or *none until
+    signed in*;
+  - `persistence_test.dart`: events recorded signed out get the profile
+    at sign-in and upload with it; after a sign-out new events have none
+    and stay local until the next sign-in; another profile's or user's
+    events aren't taken;
+  - `cloud_sync_test.dart`: nothing syncs until the API answers with a
+    profile; only its events go up; fetched events become its;
   - `profile_test.dart`:
     - the credentials exchange, reused while valid, and 401 versus 403;
     - `reconnect` switches folders;
@@ -291,22 +291,17 @@ deleted, and the contents live only in AWS.
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay
   unlinked.
-- **Events** still carry the Google account ID as `userId` (see [Devices,
-  users and places](devices-users-places.md#users)), not the profile ID.
-  Cloud sync uploads only the signed-in account's events, so events
-  another linked account recorded on the same device don't go up from
-  this one, though they usually already have from theirs.
 - Roles are still declared per email in `UserRolesTable`, and membership
   requests are per email. Linked subjects share the owner's roles.
 - Google stays a login provider of the pool. An account can therefore
   still get credentials straight from Cognito for its own Google
   identity's folder, without the roles check, as before profiles. Remove
   it once every account has a profile with an identity.
-- A profile made on a device that never signs in stays on that device;
-  the server never hears of it.
-- Signing out keeps the last account's profile as the device's. Another
-  account that signs in next can't claim it (it's taken), so it gets its
-  own.
+- Events recorded signed out on a shared device go to whoever signs in
+  next, not necessarily who recorded them.
+- With the auth API unreachable at launch, a restored session has no
+  profile until it answers: events recorded meanwhile wait, and get it
+  then.
 - Any Google account can create a profile by signing in (one per subject;
   `GET /api/auth` is throttled to 20 requests/s, burst 50). A lost race
   leaves one unused profile row. Profiles are never deleted.

@@ -21,6 +21,7 @@ class AppEvent {
     this.cameraId,
     this.deviceId,
     this.userId,
+    this.profileId,
     this.location,
     DateTime? time,
     String? id,
@@ -33,6 +34,7 @@ class AppEvent {
     String? id,
     String? deviceId,
     String? userId,
+    String? profileId,
   }) : this(
          icon: Icons.power_settings_new,
          title: 'Application started',
@@ -41,6 +43,7 @@ class AppEvent {
          id: id,
          deviceId: deviceId,
          userId: userId,
+         profileId: profileId,
        );
 
   /// The Clip button was pressed with the Camera tab's All grid showing:
@@ -52,6 +55,7 @@ class AppEvent {
     String? id,
     String? deviceId,
     String? userId,
+    String? profileId,
   }) : this(
          icon: Icons.grid_view,
          title: 'Capture all',
@@ -61,6 +65,7 @@ class AppEvent {
          id: id,
          deviceId: deviceId,
          userId: userId,
+         profileId: profileId,
        );
 
   static const String genericType = 'generic';
@@ -68,8 +73,8 @@ class AppEvent {
   static const String captureAllType = 'capture_all';
 
   /// The [userId] of events recorded while nobody was signed in. The next
-  /// user to sign in on the device takes them over
-  /// (`Persistence.claimAnonymous`).
+  /// user to sign in on the device takes them over, with their profile
+  /// (`Persistence.claimForProfile`).
   static const String anonymousUserId = 'anonymous';
 
   final String id;
@@ -89,10 +94,17 @@ class AppEvent {
   /// `automatic_paranoid_gadget`). Set when it's saved.
   String? deviceId;
 
-  /// Who the event belongs to: the signed-in user's ID when it was
-  /// recorded, or [anonymousUserId]. Set when it's saved, and changed once,
-  /// from anonymous, when a user signs in on the device.
+  /// Who was signed in when the event was recorded: their Google ID, or
+  /// [anonymousUserId]. Set when it's saved, and changed once, from
+  /// anonymous, when a user signs in on the device.
   String? userId;
+
+  /// The profile the event belongs to (`automatic_paranoid_axolotl`): the
+  /// signed-in account's when it was saved. Null while nobody is signed in
+  /// (or before the auth API answers a sign-in): then the next sign-in on
+  /// the device gives it its profile (`Persistence.claimForProfile`). Only
+  /// events with a profile sync.
+  String? profileId;
 
   /// Where the device was when the event was published: its own position,
   /// or the one set on the Device screen's map. Null while it's unknown.
@@ -109,6 +121,7 @@ class AppEvent {
     'cameraId': cameraId,
     'deviceId': deviceId,
     'userId': userId,
+    'profileId': profileId,
     'location': location?.toJson(),
   };
 
@@ -147,13 +160,21 @@ class AppEvent {
       ),
       _ => null,
     };
-    return event?..location = DeviceLocation.fromJson(record['location']);
+    return event
+      ?..location = DeviceLocation.fromJson(record['location'])
+      ..profileId = profileOf(record);
   }
 
-  /// The user a stored event belongs to. Events saved before events had
-  /// owners count as anonymous.
+  /// Who was signed in when a stored event was recorded. Events saved
+  /// before events had owners count as anonymous.
   static String ownerOf(Map<String, Object?> record) =>
       record['userId'] as String? ?? anonymousUserId;
+
+  /// The profile a stored event belongs to; null if none yet.
+  static String? profileOf(Map<String, Object?> record) {
+    final id = record['profileId'];
+    return id is String && id.isNotEmpty ? id : null;
+  }
 
   /// Unique enough for one person's event history: time-ordered, plus
   /// randomness so events in the same microsecond don't collide.
@@ -287,16 +308,13 @@ class EventTimeline extends StatefulWidget {
       event is SubjectSuggestion ||
       event.type == AppEvent.captureAllType;
 
-  /// [events] of [userId], the signed-in user (null signed out): theirs,
-  /// and those recorded signed out, which the next sign-in takes over
-  /// (`Persistence.claimAnonymous`). Events not saved yet have no owner;
-  /// they're the current user's.
-  static List<AppEvent> ofUser(List<AppEvent> events, String? userId) => [
+  /// [events] of [profileId], the signed-in account's profile (null
+  /// signed out): its own, and those without a profile (recorded signed
+  /// out, or not saved yet), which the next sign-in gives its profile
+  /// (`Persistence.claimForProfile`).
+  static List<AppEvent> ofProfile(List<AppEvent> events, String? profileId) => [
     for (final e in events)
-      if (e.userId == null ||
-          e.userId == AppEvent.anonymousUserId ||
-          e.userId == userId)
-        e,
+      if (e.profileId == null || e.profileId == profileId) e,
   ];
 
   /// [events] of the devices shown: this device's while [thisDeviceOnly]
@@ -678,7 +696,7 @@ class _EventSearchState extends State<EventSearch> {
 }
 
 /// The event counts beside the [EventSearch] field, as "3 / 12": *all* is
-/// every event of [userId] on this device ([EventTimeline.ofUser]: recorded
+/// every event of [profileId] on this device ([EventTimeline.ofProfile]: recorded
 /// here, restored, or fetched from the cloud, so it grows as sync brings
 /// more), and *matching* those of them left after the search and the filter
 /// chips, with the same steps as the [EventTimeline].
@@ -686,7 +704,7 @@ class EventCount extends StatelessWidget {
   const EventCount({
     super.key,
     required this.log,
-    required this.userId,
+    required this.profileId,
     required this.deviceId,
     required this.thisDeviceOnly,
     required this.showSystemEvents,
@@ -695,8 +713,8 @@ class EventCount extends StatelessWidget {
 
   final EventLog log;
 
-  /// The signed-in user's ID; null signed out.
-  final String? userId;
+  /// The signed-in account's profile; null signed out.
+  final String? profileId;
   final String? deviceId;
   final ValueListenable<bool> thisDeviceOnly;
   final ValueListenable<bool> showSystemEvents;
@@ -718,7 +736,7 @@ class EventCount extends StatelessWidget {
           if (e is ClipRequested) e.annotations,
       ]),
       builder: (context, _) {
-        final mine = EventTimeline.ofUser(log.events, userId);
+        final mine = EventTimeline.ofProfile(log.events, profileId);
         final all = mine.length;
         final shown = EventTimeline.matching(
           EventTimeline.ofKinds(

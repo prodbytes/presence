@@ -181,7 +181,7 @@ void main() {
       icon: Icons.circle,
       title: 'e',
       deviceId: device,
-      userId: user,
+      profileId: user,
     );
 
     test('counts distinct devices; unsaved events are this device\'s', () {
@@ -226,7 +226,7 @@ void main() {
               oidcClient: true,
               history: HealthHistory(),
               events: log,
-              userId: 'ana',
+              profileId: 'ana',
               deviceId: 'a',
               interval: const Duration(hours: 1),
             ),

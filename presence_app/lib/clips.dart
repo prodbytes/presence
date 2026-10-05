@@ -164,6 +164,7 @@ class ClipRequested extends AppEvent {
     super.id,
     super.deviceId,
     super.userId,
+    super.profileId,
   }) : annotations = annotations ?? ClipAnnotations(),
        super(
          icon: switch (trigger) {

@@ -33,16 +33,18 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## When
 
-- **Only the user's own:** a pass uploads the events whose `userId` is the
-  signed-in user's, and only the clips (and tagged frames) of those
-  events. Events recorded signed out go up once the sign-in takes them
-  over, moments later; another user's never do. Fetched events get the
-  user's ID if they have none. See [Devices, users and
+- **Only the profile's own:** a pass uploads the events whose
+  `profileId` is the signed-in account's [profile](profiles.md), and only
+  the clips (and tagged frames) of those events. Events recorded signed
+  out go up once the sign-in gives them its profile, moments later;
+  another profile's never do. Fetched events, from the profile's folder,
+  get its `profileId`. See [Devices, users and
   places](devices-users-places.md).
-- **Signed out, or signed in without `presence_user`:** nothing is
-  uploaded or fetched (see [Sign-in](sign-in.md) and
-  [Membership](membership.md)). Sync starts once the roles check grants
-  access.
+- **Signed out, signed in without `presence_user`, or before the auth API
+  answers with the profile:** nothing is uploaded or fetched (see
+  [Sign-in](sign-in.md) and [Membership](membership.md)). Sync starts once
+  the roles check grants access and gives the profile; another profile
+  (after a link) starts it over.
 - **This device's settings:** the first pass for a user (at start, sign-in
   or a user change) lists `devices/<deviceId>/` and, if the record is
   there, downloads it; the newer `updatedAt` wins (see

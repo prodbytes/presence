@@ -472,7 +472,7 @@ class CameraFeedsView extends StatefulWidget {
     required this.rig,
     this.log,
     this.deviceId,
-    this.userId,
+    this.profileId,
     this.showAll = false,
   });
 
@@ -484,8 +484,8 @@ class CameraFeedsView extends StatefulWidget {
   /// This device's ID: its own events aren't another device's.
   final String? deviceId;
 
-  /// Only this user's events count, when set (signed in).
-  final String? userId;
+  /// Only this profile's events count, when set (signed in).
+  final String? profileId;
 
   /// The grid of every device instead of the camera alone.
   final bool showAll;
@@ -545,7 +545,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
               ? latestByDevice(
                   log?.events ?? const [],
                   thisDevice: widget.deviceId,
-                  userId: widget.userId,
+                  profileId: widget.profileId,
                 )
               : const <DeviceLatest>[];
           final padding = MediaQuery.paddingOf(context);
@@ -657,19 +657,19 @@ class DeviceLatest {
 
 /// Each other device in [events] (newest first, as in [EventLog]) with its
 /// newest clip thumbnail, sorted by device ID so cells don't move. Events of
-/// [thisDevice], without a device, or (when [userId] is set) of another user
-/// are left out: the rest are the profile's devices, synced from its cloud
-/// folder.
+/// [thisDevice], without a device, or (when [profileId] is set) of another
+/// profile are left out: the rest are the profile's devices, synced from
+/// its cloud folder.
 List<DeviceLatest> latestByDevice(
   Iterable<AppEvent> events, {
   String? thisDevice,
-  String? userId,
+  String? profileId,
 }) {
   final latest = <String, DeviceLatest>{};
   for (final event in events) {
     final device = event.deviceId;
     if (device == null || device == thisDevice) continue;
-    if (userId != null && event.userId != userId) continue;
+    if (profileId != null && event.profileId != profileId) continue;
     final known = latest[device];
     if (known?.clip != null) continue;
     final clip = event is ClipRequested && event.clip.thumbnail != null

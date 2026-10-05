@@ -15,7 +15,7 @@ import 'fakes.dart';
 ClipRequested clipOf(
   String device, {
   int minutesAgo = 0,
-  String userId = 'user-1',
+  String profile = 'user-1',
   bool thumbnail = true,
 }) => ClipRequested(
   VideoClip.restored(
@@ -31,7 +31,7 @@ ClipRequested clipOf(
   time: DateTime(2026, 10, 4, 12).subtract(Duration(minutes: minutesAgo)),
   id: 'event-$device-$minutesAgo',
   deviceId: device,
-  userId: userId,
+  profileId: profile,
 );
 
 void main() {
@@ -43,15 +43,15 @@ void main() {
         clipOf('brave_fox', minutesAgo: 2, thumbnail: false),
         clipOf('brave_fox', minutesAgo: 3),
         clipOf('zesty_owl', minutesAgo: 4),
-        AppEvent.appStarted(deviceId: 'quiet_cat', userId: 'user-1'),
-        clipOf('other_users', userId: 'user-2'),
+        AppEvent.appStarted(deviceId: 'quiet_cat', profileId: 'user-1'),
+        clipOf('other_users', profile: 'user-2'),
         AppEvent.appStarted(),
       ]..sort((a, b) => b.time.compareTo(a.time));
 
       final latest = latestByDevice(
         events,
         thisDevice: 'this_device',
-        userId: 'user-1',
+        profileId: 'user-1',
       );
 
       expect(latest.map((d) => d.deviceId), [
@@ -68,7 +68,7 @@ void main() {
 
     test('every user counts without a user (dev)', () {
       final latest = latestByDevice([
-        clipOf('other_users', userId: 'user-2'),
+        clipOf('other_users', profile: 'user-2'),
       ], thisDevice: 'this_device');
       expect(latest.single.deviceId, 'other_users');
     });
@@ -122,7 +122,7 @@ void main() {
             rig: rig,
             log: log,
             deviceId: 'this_device',
-            userId: 'user-1',
+            profileId: 'user-1',
             showAll: all,
           ),
         ),

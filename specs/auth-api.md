@@ -9,9 +9,10 @@ site (`/api/*` in the CloudFront distribution; see
   and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",
   "roles": [...]}`. The profile is the one linked to the token's subject
   (`iss` and `sub`), or a new one created and linked at the first
-  sign-in, for every signed-in user, with or without roles. The new one
-  takes the app's own profile ID (`?profile=<id>`) when it's well-formed
-  and free, so the first sign-in claims the profile the app made. **Data belongs
+  sign-in, for every signed-in user, with or without roles, so the same
+  account gets the same profile on every device. A new one gets a fresh
+  ID (or `?profile=<id>` when it's well-formed and free, which the app no
+  longer sends). **Data belongs
   to the profile, not the login**: see [Profiles](profiles.md). Throttled
   to 20 requests/s (burst 50), since a first sign-in writes;
 - **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a

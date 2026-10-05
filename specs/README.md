@@ -11,15 +11,15 @@ Presence is a surveillance app. It shows live camera feeds and a stream of
 events detected from them. The cameras are always recording, video and
 audio, so a clip can include the moments before someone pressed Clip.
 
-**Data belongs to profiles, not logins.** There's always a
-[profile](profiles.md) (`automatic_paranoid_axolotl`): the app makes one
-at its first start, owned by nobody, and the first sign-in claims it.
-Later sign-ins load the profile linked to the subject they sign in with.
-The profile owns the user's cloud folder and roles, and several Google
-accounts can be linked to it with a one-time code. So users can change
-emails, add accounts or switch providers without losing their data.
-(Events still carry the Google account ID; see
-[Profiles](profiles.md#known-limitations).)
+**Data belongs to profiles, not logins.** A [profile](profiles.md)
+(`automatic_paranoid_axolotl`) exists only once someone signs in: the
+first sign-in of an account makes it, and every later one, on any device,
+loads the same profile. Signed out there's no profile, and nothing syncs.
+At sign-in, the events recorded on the device without a profile become
+the profile's. The profile owns the events, the cloud folder and roles,
+and several Google accounts can be linked to it with a one-time code. So
+users can change emails, add accounts or switch providers without losing
+their data.
 
 ## Features
 
@@ -47,10 +47,10 @@ emails, add accounts or switch providers without losing their data.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   240 minutes (30 min to a day, in Settings).
-- [Profiles](profiles.md): **the owner of a user's data.** Made by the
-  app at its first start, owned by nobody, and claimed by the first
-  sign-in; later sign-ins load the profile linked to their subject
-  (`<iss>#<sub>`); IDs like `automatic_paranoid_axolotl`, never repeated.
+- [Profiles](profiles.md): **the owner of a user's data and events.**
+  None signed out; an account's first sign-in makes it and later ones, on
+  any device, load it (by subject, `<iss>#<sub>`); IDs like
+  `automatic_paranoid_axolotl`, never repeated.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
   sheet (the profile ID and its devices, from events) and the OAuth
   clients.

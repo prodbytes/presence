@@ -177,7 +177,7 @@ class AccountSheet extends StatelessWidget {
                         profile: profile,
                         devices: profileDevices(
                           log?.events ?? const [],
-                          userId: user.id,
+                          profileId: profile,
                           thisDevice: deviceId,
                         ),
                         thisDevice: deviceId,
@@ -226,17 +226,17 @@ class AccountSheet extends StatelessWidget {
   }
 }
 
-/// Every device ID in [events] of [userId] (the profile's devices, synced
+/// Every device ID in [events] of [profileId] (the profile's devices, synced
 /// from its cloud folder), sorted, with [thisDevice] first even before it
 /// has an event.
 List<String> profileDevices(
   Iterable<AppEvent> events, {
-  required String userId,
+  required String profileId,
   String? thisDevice,
 }) {
   final others = {
     for (final event in events)
-      if (event.userId == userId) ?event.deviceId,
+      if (event.profileId == profileId) ?event.deviceId,
   }..remove(thisDevice);
   return [?thisDevice, ...others.toList()..sort()];
 }

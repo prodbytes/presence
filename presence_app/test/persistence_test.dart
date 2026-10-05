@@ -12,7 +12,6 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
-import 'package:presence_app/identity/profile_id.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -24,19 +23,6 @@ void main() {
   late IdbFactory storage;
 
   setUp(() => storage = newIdbFactoryMemory());
-
-  test('the profile is made once, and a sign-in\'s replaces it', () async {
-    Future<EventStore> open() => EventStore.open(storage);
-    final first = await (await open()).profileId(ProfileId.generate);
-    expect(first, matches(ProfileId.pattern));
-    // The next start finds the same one.
-    expect(await (await open()).profileId(() => 'never_made_this'), first);
-    await (await open()).setProfileId('automatic_paranoid_axolotl');
-    expect(
-      await (await open()).profileId(() => 'never_made_this'),
-      'automatic_paranoid_axolotl',
-    );
-  });
 
   // The clock the app sees; tests may move it.
   late DateTime clock;
@@ -291,8 +277,13 @@ void main() {
     expect(grabs.map((e) => e['title']).toSet(), {
       for (final n in [1, 2, 3, 4, 5]) 'Grab $n',
     });
-    // Every event is the user's, and was recorded on this device.
+    // Every event is the user's, has the profile the auth API answered
+    // with (those recorded signed out too), and was recorded on this
+    // device.
     expect(uploaded.map((e) => e['userId']).toSet(), {'1'});
+    expect(uploaded.map((e) => e['profileId']).toSet(), {
+      'automatic_paranoid_axolotl',
+    });
     final devices = uploaded.map((e) => e['deviceId']).toSet();
     expect(devices, hasLength(1));
     expect(devices.single, matches(DeviceId.pattern));
@@ -300,10 +291,16 @@ void main() {
     final store = await run(tester, EventStore.open(storage));
     final stored = await run(tester, store.allEvents());
     expect(stored.map(AppEvent.ownerOf).toSet(), {'1'});
+    expect(stored.map(AppEvent.profileOf).toSet(), {
+      'automatic_paranoid_axolotl',
+    });
     expect(stored.map((e) => e['deviceId']).toSet(), devices);
     await showEvents(tester);
     final log = tester.widget<EventTimeline>(find.byType(EventTimeline)).log;
     expect(log.events.map((e) => e.userId).toSet(), {'1'});
+    expect(log.events.map((e) => e.profileId).toSet(), {
+      'automatic_paranoid_axolotl',
+    });
 
     // Settings shows the device's ID.
     await tester.tap(find.byTooltip('Settings'));
@@ -316,6 +313,100 @@ void main() {
           )
           .data,
       devices.single,
+    );
+  });
+
+  testWidgets('signed out, events have no profile and stay on the device '
+      'until the next sign-in gives them its profile', (tester) async {
+    final cloud = FakeCloudBackend();
+    final auth = FakeAuthService.signedIn();
+    await launch(tester, cloud: cloud, auth: auth);
+    final bus = AppEventBusScope.of(tester.element(find.byType(HomeScreen)));
+    void record(String title) =>
+        bus.publish(AppEvent(icon: Icons.videocam, title: title));
+    List<Map<String, Object?>> uploaded() => [
+      for (final MapEntry(:key, :value) in cloud.uploads.entries)
+        if (key.contains('/events/'))
+          (jsonDecode(utf8.decode(value.bytes)) as Map).cast<String, Object?>(),
+    ];
+    Future<Map<String, Object?>> stored(String title) async {
+      final store = await run(tester, EventStore.open(storage));
+      final events = await run(tester, store.allEvents());
+      return events.firstWhere((e) => e['title'] == title);
+    }
+
+    record('Signed in');
+    await settleStorage(tester);
+    await auth.signOut();
+    await settleStorage(tester);
+    record('Signed out');
+    await settleStorage(tester);
+    await settleStorage(tester);
+
+    expect(
+      AppEvent.profileOf(await stored('Signed in')),
+      'automatic_paranoid_axolotl',
+    );
+    expect(AppEvent.profileOf(await stored('Signed out')), isNull);
+    expect(
+      uploaded().map((e) => e['title']),
+      allOf(contains('Signed in'), isNot(contains('Signed out'))),
+    );
+
+    await auth.signIn();
+    await settleStorage(tester);
+    await settleStorage(tester);
+    expect(
+      AppEvent.profileOf(await stored('Signed out')),
+      'automatic_paranoid_axolotl',
+    );
+    final signedOut = uploaded().firstWhere((e) => e['title'] == 'Signed out');
+    expect(signedOut['profileId'], 'automatic_paranoid_axolotl');
+    expect(signedOut['userId'], '1');
+  });
+
+  testWidgets('a sign-in takes no other profile\'s or user\'s events', (
+    tester,
+  ) async {
+    final store = await run(tester, EventStore.open(storage));
+    Future<void> put(String id, Map<String, Object?> owner) => run(
+      tester,
+      store.putEvent({
+        'id': id,
+        'type': AppEvent.genericType,
+        'title': id,
+        'time': clock.millisecondsSinceEpoch,
+        ...owner,
+      }),
+    );
+    await put('other-profile', {
+      'userId': '2',
+      'profileId': 'other_quiet_heron',
+    });
+    await put('other-user', {'userId': '2'});
+    await put('anonymous', {'userId': AppEvent.anonymousUserId});
+    await put('mine-before-profiles', {'userId': '1'});
+    store.close();
+
+    await launch(tester);
+    final events = {
+      for (final e in await run(
+        tester,
+        (await run(tester, EventStore.open(storage))).allEvents(),
+      ))
+        e['id']: e,
+    };
+    expect(AppEvent.profileOf(events['other-profile']!), 'other_quiet_heron');
+    expect(AppEvent.profileOf(events['other-user']!), isNull);
+    expect(events['other-user']!['userId'], '2');
+    expect(
+      AppEvent.profileOf(events['anonymous']!),
+      'automatic_paranoid_axolotl',
+    );
+    expect(events['anonymous']!['userId'], '1');
+    expect(
+      AppEvent.profileOf(events['mine-before-profiles']!),
+      'automatic_paranoid_axolotl',
     );
   });
 
