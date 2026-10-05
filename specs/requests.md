@@ -2196,8 +2196,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       ([scripts/android-log.sh](../scripts/android-log.sh)): a 16 MB
       buffer, and only the app's lines plus Google sign-in and crash
       lines. Phone lookup shared in `scripts/android-device.sh`.
+    - With the new log: `[28473] Caller could not be verified`, both times
+      from an account sheet answered long after it opened (17 min, then
+      3 h 45 min; Play services' caller-verification token had expired).
+      A fresh sheet works. That failure also made the app call sign-in
+      "unavailable" (hiding the button) until a restart; now only a
+      library that can't start does.
     - Also seen: the debug build starts slowly enough that the launch
       check of the auth API timed out (5 s) again.
     - Specs: [Android](android.md), [Sign-in](sign-in.md), [Log](log.md).
-      331 Flutter tests pass (1 new).
+      330 Flutter tests pass (1 new).
 

@@ -110,13 +110,29 @@ class GoogleAuthService extends AuthService {
           _fail('Google sign-in failed', e);
         },
       );
-      // Refresh the session quietly, if Google allows it. On web this starts
-      // the FedCM prompt and returns at once; a sign-in then arrives as an
-      // event. Finding nothing leaves a restored session as it is.
-      await google.attemptLightweightAuthentication();
     } catch (e) {
+      // Only a library that can't start makes sign-in unavailable.
       debugPrint('Presence: Google sign-in is unavailable: ${_details(e)}');
       _unavailable = 'Google sign-in is unavailable: ${_describe(e)}';
+      _checking = false;
+      notifyListeners();
+      return;
+    }
+    try {
+      // Refresh the session quietly, if Google allows it. On web this starts
+      // the FedCM prompt and returns at once; a sign-in then arrives as an
+      // event. Finding nothing leaves a restored session as it is. A failure
+      // (e.g. Android's "[28473] Caller could not be verified", when the
+      // prompt is answered long after it opened) is a failed sign-in, not
+      // an unavailable one: the sign-in button stays.
+      await GoogleSignIn.instance.attemptLightweightAuthentication();
+    } on GoogleSignInException catch (e) {
+      // Usually also reported as an authentication event: logged once.
+      if (e.code != GoogleSignInExceptionCode.canceled && _error == null) {
+        _fail('Google sign-in failed', e);
+      }
+    } catch (e) {
+      if (_error == null) _fail('Google sign-in failed', e);
     }
     _checking = false;
     notifyListeners();

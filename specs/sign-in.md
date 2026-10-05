@@ -42,6 +42,13 @@ there's no separate sign-in screen:
   details: <details>` (on Android, the details are Credential Manager's
   error, e.g. its Play services code), and `Presence: Google sign-in is
   unavailable: …` when the library can't start. See [Log](log.md).
+- Only a library that can't start makes sign-in unavailable. A failed
+  quiet sign-in at launch is a failed sign-in: the button stays.
+- On Android, Credential Manager's account sheet expires: Play services
+  makes a caller-verification token when it opens, and picking an account
+  long after (minutes to hours, e.g. on a phone left asleep) fails with
+  `[28473] Caller could not be verified`. Signing in again opens a fresh
+  sheet.
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
   After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
   with the Google ID token) for the user's roles and their
