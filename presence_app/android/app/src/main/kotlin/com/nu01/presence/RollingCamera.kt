@@ -124,21 +124,38 @@ class RollingCamera(
 
             override fun onDisconnected(camera: CameraDevice) {
                 camera.close()
-                if (!ready.isDone) ready.completeExceptionally(IllegalStateException("Camera disconnected"))
+                fail(ready, "Camera disconnected")
             }
 
             override fun onError(camera: CameraDevice, error: Int) {
                 camera.close()
-                val reason = when (error) {
-                    ERROR_CAMERA_IN_USE -> "Camera is in use by another app"
-                    ERROR_MAX_CAMERAS_IN_USE -> "Too many cameras open at once"
-                    ERROR_CAMERA_DISABLED -> "Camera is disabled"
-                    else -> "Camera error $error"
-                }
-                if (!ready.isDone) ready.completeExceptionally(IllegalStateException(reason))
+                fail(
+                    ready,
+                    when (error) {
+                        ERROR_CAMERA_IN_USE -> "Camera is in use by another app"
+                        ERROR_MAX_CAMERAS_IN_USE -> "Too many cameras open at once"
+                        ERROR_CAMERA_DISABLED -> "Camera is disabled"
+                        else -> "Camera error $error"
+                    },
+                )
             }
         }, cameraHandler)
     }
+
+    /**
+     * Fails opening with [reason], or, once the camera is running, reports
+     * that the system took it away ([onLost]), so it can be reopened.
+     */
+    private fun fail(ready: CompletableFuture<Unit>, reason: String) {
+        if (!ready.isDone) {
+            ready.completeExceptionally(IllegalStateException(reason))
+        } else if (running) {
+            onLost?.invoke(reason)
+        }
+    }
+
+    /** Called when the running camera is taken away (disconnected or failed). */
+    @Volatile var onLost: ((String) -> Unit)? = null
 
     /**
      * Preview + encoder, plus a small YUV stream for motion detection if the
@@ -160,7 +177,7 @@ class RollingCamera(
                 override fun onConfigured(s: CameraCaptureSession) {
                     session = s
                     request = camera.createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
-                        outputs.forEach { addTarget(it) }
+                        outputs.filter { it !== preview }.forEach { addTarget(it) }
                         set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO)
                         set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                         chooseFpsRange()?.let { set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, it) }
@@ -230,6 +247,19 @@ class RollingCamera(
     /** The repeating capture request, kept so settings can change live. */
     private var request: CaptureRequest.Builder? = null
 
+    /**
+     * Whether frames go to the preview. Off while the app isn't shown (the
+     * screen is off or it's in the background): nothing draws the preview
+     * then, its buffers fill up, and the camera would stall every output,
+     * the recording too.
+     */
+    @Volatile private var previewOn = true
+
+    fun setPreview(on: Boolean) {
+        previewOn = on
+        cameraHandler.post { applyRequest() }
+    }
+
     /** Requested brightness, in EV (exposure compensation). */
     @Volatile private var brightnessEv = 0f
 
@@ -245,6 +275,7 @@ class RollingCamera(
     private fun applyRequest() {
         val builder = request ?: return
         val s = session ?: return
+        previewSurface?.let { if (previewOn) builder.addTarget(it) else builder.removeTarget(it) }
         val range = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_RANGE)
         val step = characteristics.get(CameraCharacteristics.CONTROL_AE_COMPENSATION_STEP)
         if (range != null && step != null && step.toFloat() > 0f) {

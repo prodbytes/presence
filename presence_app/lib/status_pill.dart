@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 
 /// A small rounded status chip over the camera: something [leading] (a dot
-/// or an icon) and a short [label]. [semantics] spells it out for the
-/// tooltip and screen readers.
+/// or an icon) and a short [label], or only [leading] without one.
+/// [semantics] spells it out for the tooltip and screen readers.
 class StatusPill extends StatelessWidget {
   const StatusPill({
     super.key,
     required this.leading,
-    required this.label,
+    this.label,
     required this.semantics,
     this.labelColor,
   });
 
   final Widget leading;
-  final String label;
+  final String? label;
   final String semantics;
 
   /// The label's color; the surface's text color by default.
@@ -40,19 +40,20 @@ class StatusPill extends StatelessWidget {
             spacing: 8,
             children: [
               leading,
-              Flexible(
-                child: ExcludeSemantics(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: labelColor ?? scheme.onSurface,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+              if (label case final label?)
+                Flexible(
+                  child: ExcludeSemantics(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        color: labelColor ?? scheme.onSurface,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

@@ -80,7 +80,7 @@ On Android, `devbox run android-log` reads these from the phone (see
   removes the tab at the next roles check (sign-in, Check again, a
   reload), and signing out removes it at once.
 - Tests: `system_health_test.dart` (the health panel: statuses, the
-  timeline's cells and times, scrolling to the oldest run, the cards in
+  timeline's red and green blocks and times, scrolling to the oldest run, the cards in
   one row when wide and two by two on a 320 dp phone without overflow), `app_log_test.dart` (capacity, the tab's order and Clear) and
   `roles_test.dart` ("the Log tab": an admin and a root see it with the
   log; nobody else does; no return to it after a refresh; it goes with the
@@ -118,7 +118,9 @@ top of the Log tab:
   or more, otherwise two by two; the cards in a row share their width and
   height. Under 200 dp a card's pill goes under its name, so a 320 dp
   phone overflows nothing.
-- **Every 30 s**, and when the tab opens, it checks again:
+- **Every 15 s in DEV, every 60 s in RBAC** (`HealthPanel.intervalFor`
+  the execution mode, read before each next run; before the start check,
+  the build's mode), and when the tab opens, it checks again:
   `RolesService.checkApi` asks `GET /api/auth/anonymous` (15 s timeout)
   whether the API answers and which settings it has, and updates the
   API status and those settings; the execution mode stays the one the
@@ -127,16 +129,17 @@ top of the Log tab:
   AWS shows the cloud sync's latest pass, which runs on its own every
   15 s ([Cloud sync](cloud-sync.md)). The checks stop while the tab is
   closed.
-- **Timeline**, a card under them, headed "N checks · every 30 s": a row
-  per check (API, AWS, OIDC) and a column per run, each cell in its
-  status's color, the newest on the right.
+- **Timeline**, a card under them, headed "N checks · every 15 s" (DEV) or
+  "… · every 1 min" (RBAC): a single block per run, red (the error color)
+  if any check failed (❌ or ⚠️) and green if all passed, the newest on the
+  right.
   - Under the first run of every 2 minutes, a tick and its time (HH:MM).
     Labels follow the clock, so they stay put as runs are added.
   - It scrolls sideways and opens at the newest run.
   - Tap a run to show its time (HH:MM:SS), whether all passed or it
     failed (any ❌ or ⚠️), and the three statuses with what they mean
     (selectable); tap it again to hide them.
-  - `HealthHistory.instance` keeps the latest 120 runs (an hour) in
+  - `HealthHistory.instance` keeps the latest 120 runs (30 min in DEV, 2 h in RBAC) in
     memory: they outlast closing the tab, not a restart.
 
 ## Known limitations

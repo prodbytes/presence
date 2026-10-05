@@ -15,7 +15,10 @@ and pets"), each with where the device was when they were seen
   name tagged, one per event even when tagged twice on it, newest first.
 - They're worked out from the event history in memory (`subjectsOf`):
   restored, synced from the cloud and new events alike. Nothing extra is
-  stored. Adding, renaming or removing a tag updates both screens at once.
+  stored. Adding, renaming or removing a tag (under the player, or with a
+  label's **x** on a clip's card) updates every screen at once: the cards,
+  the subjects map and its names, a subject's screen, and the Events
+  search and count.
 - **Changes on another device** of the profile (a tag added, renamed or
   removed) reach this one at the next [cloud sync](cloud-sync.md) pass
   (within 15 s for today's and yesterday's events, within the hour for
@@ -47,6 +50,14 @@ and pets"), each with where the device was when they were seen
   to match them with their dots on the map. Clicking a name opens the
   player paused at the earliest frame that subject is tagged on (see
   [Clips](clips.md)).
+- **Removing a subject from an event:** a small **x** after each name
+  (`RemoveLabelButton`, key `event-subject-remove-<id>`, tooltip "Remove
+  Rex from this event") removes, at once and without asking, every tag of
+  that name on that clip (`ClipAnnotations.removeName`, ignoring case and
+  surrounding spaces) and the frames no entry uses any more. A pending
+  "Is this Rex?" suggestion on the clip stays, for its own Yes / No. The
+  subject keeps its other events; with none left, it's gone from the map.
+  The change is saved and synced like any tag edit.
 
 ## The map's view
 
@@ -120,7 +131,12 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
   subjects map (left of the events) has every subject's located dots (one
   per subject on a shared clip) in each subject's color, faded per
   subject, a name beside each subject's newest dot, the cards' squares
-  match those colors, and a tapped dot opens its event; the map opens with
+  match those colors, and a tapped dot opens its event;
+  `label_remove_test.dart`: `removeName` drops every tag of the name (not
+  suggestions) and frames left unused, `removeObject` drops one object
+  tag; a card's x removes the subject from that event only, its map dot,
+  name and search match go and the count drops, and a subject without
+  events leaves the map; the map opens with
   the newest dot in its middle (not the middle of the three) and all dots
   in view, the farthest near the edge, and the zoom buttons double and
   halve the spacing of the dots; without located events, zoom out is off;
@@ -137,6 +153,8 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
 - The view is set when a map opens: events added while it's open don't
   recenter it.
 
+- Removing a subject from an event can't be undone, short of tagging
+  them again under the player.
 - Subjects are matched by name only: two people tagged with the same name
   are one subject, and one person tagged with two spellings is two.
 - With seven colors, some subjects share one.

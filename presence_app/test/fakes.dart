@@ -85,8 +85,18 @@ class FakeCameraSource implements CameraSource {
   @override
   Future<void> setBrightness(double ev) async => brightness.add(ev);
 
+  /// Completes [lost], as when Android takes the camera away. Each
+  /// opening gets a new one (the fake is reused, unlike real cameras).
+  Completer<String> lostCompleter = Completer();
+
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<String> get lost => lostCompleter.future;
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+    if (lostCompleter.isCompleted) lostCompleter = Completer();
+  }
 }
 
 /// Cameras that open instantly as the given fakes, in order.
