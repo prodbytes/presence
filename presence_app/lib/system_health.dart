@@ -182,7 +182,7 @@ class HealthPanel extends StatefulWidget {
     required this.roles,
     this.sync,
     this.events,
-    this.userId,
+    this.profileId,
     this.deviceId,
     bool? oidcClient,
     HealthHistory? history,
@@ -199,9 +199,9 @@ class HealthPanel extends StatefulWidget {
   /// without it.
   final EventLog? events;
 
-  /// The signed-in user's ID (null signed out): only their events count,
+  /// The signed-in account's profile (null signed out): only its events count,
   /// as in the Events tab.
-  final String? userId;
+  final String? profileId;
 
   /// This device's ID, for events not saved yet (they have none).
   final String? deviceId;
@@ -298,7 +298,7 @@ class _HealthPanelState extends State<HealthPanel> {
                 listenable: events,
                 builder: (context, _) {
                   final n = HealthPanel.devicesIn(
-                    EventTimeline.ofUser(events.events, widget.userId),
+                    EventTimeline.ofProfile(events.events, widget.profileId),
                     deviceId: widget.deviceId,
                   );
                   return Padding(

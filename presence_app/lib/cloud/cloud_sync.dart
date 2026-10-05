@@ -139,9 +139,10 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   keys included), one every [fullFetchEvery] lists each day of the
 ///   [restoreWindow], and the others only today's and yesterday's
 ///   partitions, where other devices' new events land.
-/// - Only the user's own events go up (their `userId`), with their clips.
-///   Anonymous ones go up once the user takes them over
-///   (`Persistence.claimAnonymous`); other users' never do.
+/// - Only the profile's own events go up (their `profileId`), with their
+///   clips. Nothing syncs without a profile: events recorded signed out go
+///   up once a sign-in gives them its profile
+///   (`Persistence.claimForProfile`); other profiles' never do.
 ///
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
@@ -219,7 +220,9 @@ class CloudSync extends ChangeNotifier {
   CloudSyncState _state = CloudSyncState.off;
   String? _error;
   int _uploaded = 0;
-  String? _user;
+
+  /// The profile syncing now ([_syncProfile]); null while nothing syncs.
+  String? _owner;
   Timer? _timer;
   Timer? _periodic;
 
@@ -263,27 +266,30 @@ class CloudSync extends ChangeNotifier {
     }
   }
 
-  /// The user whose data syncs: the signed-in one, if they have access.
-  /// Never in dev mode, where access doesn't come from signing in.
-  String? get _syncUser => roles?.mode == ExecutionMode.dev
-      ? null
-      : (roles == null || roles!.hasAccess)
-      ? auth.user?.id
-      : null;
+  /// The profile whose data syncs: the signed-in account's, once the auth
+  /// API has answered with it, if the account has access. Never in dev
+  /// mode, where nobody signs in. Without [roles] (tests), the signed-in
+  /// user's ID stands in for it.
+  String? get _syncProfile {
+    final roles = this.roles;
+    if (roles == null) return auth.user?.id;
+    if (roles.mode == ExecutionMode.dev || !roles.hasAccess) return null;
+    return auth.user == null ? null : roles.profile;
+  }
 
   void _onAuthChanged() {
-    final user = _syncUser;
-    if (user == _user) {
+    final profile = _syncProfile;
+    if (profile == _owner) {
       // Signed in again (a new ID token): try again after a stop.
-      if (user != null && stopped && auth.idToken != _stoppedFor) retry();
+      if (profile != null && stopped && auth.idToken != _stoppedFor) retry();
       return;
     }
-    _user = user;
+    _owner = profile;
     _stoppedFor = null;
     backend.reset();
     _periodic?.cancel();
     _lastFullFetch = null;
-    if (user == null) {
+    if (profile == null) {
       _timer?.cancel();
       _set(CloudSyncState.off);
     } else {
@@ -300,7 +306,7 @@ class CloudSync extends ChangeNotifier {
   /// Starts over with new credentials, as for a new user: after the
   /// signed-in account joins or leaves a profile, its folder is another one.
   void reconnect() {
-    if (_user == null) return;
+    if (_owner == null) return;
     backend.reset();
     _lastFullFetch = null;
     retry();
@@ -308,7 +314,7 @@ class CloudSync extends ChangeNotifier {
 
   /// Syncs again after credentials failed and syncing [stopped].
   void retry() {
-    if (_user == null || _disposed) return;
+    if (_owner == null || _disposed) return;
     if (stopped) {
       _stoppedFor = null;
       _startPeriodic();
@@ -317,7 +323,7 @@ class CloudSync extends ChangeNotifier {
   }
 
   void _schedule({bool immediately = false}) {
-    if (_disposed || _syncUser == null || stopped) return;
+    if (_disposed || _syncProfile == null || stopped) return;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
@@ -339,7 +345,7 @@ class CloudSync extends ChangeNotifier {
 
   Future<void> _run() async {
     final idToken = auth.idToken;
-    if (_syncUser == null || idToken == null) {
+    if (_syncProfile == null || idToken == null) {
       _set(CloudSyncState.off);
       return;
     }
@@ -457,9 +463,9 @@ class CloudSync extends ChangeNotifier {
           ).isBefore(since)) {
         continue;
       }
-      // Events in the user's folder are theirs, even from before events
-      // had owners.
-      event['userId'] ??= _user;
+      // Events in the profile's folder are the profile's, even from before
+      // events had profiles.
+      event['profileId'] = _owner;
       await synced(key, _fingerprint(_json(event)));
       // The frames its tags were clicked on come back as images.
       final frames = <String, Uint8List>{};
@@ -604,10 +610,10 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
-    // Only the user's events, and the clips they show.
+    // Only the profile's events, and the clips they show.
     final events = [
       for (final record in await store.allEvents())
-        if (AppEvent.ownerOf(record) == _user) record,
+        if (AppEvent.profileOf(record) == _owner) record,
     ];
     final eventIds = {for (final e in events) e['id']};
     // A clip's record goes in its event's day partition, where a fetch

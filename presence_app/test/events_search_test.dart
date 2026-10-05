@@ -75,7 +75,7 @@ void main() {
   Future<void> show(
     WidgetTester tester, {
     double width = 1280,
-    String? userId,
+    String? profileId,
   }) async {
     // Tall, so every card is built.
     tester.view.physicalSize = Size(width, 2000);
@@ -89,7 +89,7 @@ void main() {
             config: ConfigController(),
             tiles: const SizedBox(),
             deviceId: 'this_device',
-            userId: userId,
+            profileId: profileId,
           ),
         ),
       ),
@@ -252,39 +252,43 @@ void main() {
     expect(titles(tester), ['Door opened']);
   });
 
-  testWidgets("all is this user's events, growing as the cloud's arrive", (
+  testWidgets("all is this profile's events, growing as the cloud's arrive", (
     tester,
   ) async {
-    AppEvent stored(String id, String owner, {String device = 'this_device'}) =>
+    AppEvent stored(
+      String id,
+      String? owner, {
+      String device = 'this_device',
+    }) =>
         AppEvent(
             icon: Icons.notifications_none,
             title: 'Door opened',
             time: DateTime(2026, 10, 1, 11),
             id: id,
           )
-          ..userId = owner
+          ..profileId = owner
           ..deviceId = device;
-    // Someone who used this device before, and a signed-out event that
-    // the next sign-in takes over.
+    // Another profile's event, and a signed-out one (no profile) that the
+    // next sign-in gives its profile.
     log.addHistory([
       stored('theirs', 'someone-else'),
-      stored('signed-out', AppEvent.anonymousUserId),
+      stored('signed-out', null),
     ]);
-    await show(tester, userId: 'me');
+    await show(tester, profileId: 'me');
     expect(count(tester), '5 / 5');
 
-    // Sync brings down events from the cloud: this user's, from this
+    // Sync brings down events from the cloud: this profile's, from this
     // device and another one.
     log.addHistory([
       stored('cloud-here', 'me'),
       stored('cloud-there', 'me', device: 'other_device'),
     ]);
     await tester.pumpAndSettle();
-    // Only this device is checked: the other device's event isn't matching.
-    expect(count(tester), '6 / 7');
+    // Every device shows by default: both match.
+    expect(count(tester), '7 / 7');
 
     await type(tester, 'door');
-    expect(count(tester), '4 / 7');
+    expect(count(tester), '5 / 7');
   });
 
   testWidgets('fits a 320 dp phone, the chips wrapping below', (tester) async {

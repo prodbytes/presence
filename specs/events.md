@@ -28,11 +28,12 @@
   - **Counts.** Right after the field, on its row, the count of events
     (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
     tooltip "2 of 12 events shown".
-    - *All* is every event of the signed-in user on this device
-      (`EventTimeline.ofUser`): recorded here, restored from storage, or
-      fetched from the cloud (S3), so it grows as sync loads more. Events
-      recorded signed out count too, since the next sign-in takes them over,
-      and so do new events not saved yet. Other users' events left on the
+    - *All* is every event of the signed-in account's profile on this
+      device (`EventTimeline.ofProfile`): recorded here, restored from
+      storage, or fetched from the cloud (S3), so it grows as sync loads
+      more. Events without a profile (recorded signed out, or not saved
+      yet) count too, since the next sign-in gives them its profile. Other
+      profiles' events left on the
       device don't count.
     - *Matching* is those events left after the search and both chips,
       using the timeline's own filter steps (`EventTimeline.ofDevices`,
@@ -46,14 +47,16 @@
   - While searching, the list also matches again whenever a clip's tags
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.
-- **Only this device, by default.** An **Only this device** filter chip
-  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, checked at
-  launch: the timeline shows only
-  events whose `deviceId` is this device's (events not saved yet, which
-  have no device ID, count as this device's). Clearing it shows every
-  device's events, such as those fetched from the cloud. The choice stays
-  while switching tabs, but not across restarts. The chip appears once
-  the device ID is known; before that, every event shows.
+- **Every device, by default.** An **Only this device** filter chip
+  (`ThisDeviceOnly`) sits at the top of the Monitoring tab, unchecked at
+  launch: the timeline and the [subjects map](subjects.md) show every
+  device's events, such as those fetched from the cloud. Checking it
+  shows only events whose `deviceId` is this device's (events not saved
+  yet, which have no device ID, count as this device's), on both the
+  timeline and the map; checking or clearing it filters both again at
+  once. The choice stays while switching tabs, but not across restarts.
+  The chip appears once the device ID is known; before that, every event
+  shows.
   - Filtered with nothing left, the timeline says "No events on this
     device".
   - **Opening an event of another device** from elsewhere (see below)
@@ -87,9 +90,9 @@
   built (up to 8 tries), then scrolls it into view.
 - On launch, the app pushes an **Application started** event.
 - Every event carries the **device** it was recorded on (`deviceId`) and
-  the **user** it belongs to (`userId`, or `anonymous` until a user signs
-  in and takes it over). See [Devices, users and
-  places](devices-users-places.md).
+  the **profile** it belongs to (`profileId`, none until a sign-in gives
+  it one), and who was signed in (`userId`, or `anonymous`). See
+  [Devices, users and places](devices-users-places.md).
 - With no events, the panel shows a "No events" empty state.
 - Events flow through an app-wide **event bus**: a plain Dart broadcast
   `StreamController` (`AppEventBus` in

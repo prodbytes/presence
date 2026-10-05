@@ -88,8 +88,9 @@ there's no separate sign-in screen:
     (`automatic_paranoid_axolotl`), the profile's only name, selectable to
     copy.
   - **Devices** ("3 devices"): every [device ID](devices-users-places.md#devices)
-    found on the signed-in user's events (`profileDevices`), the events
-    synced from the profile's cloud folder included. This device comes
+    found on the profile's events (`profileDevices`), the events synced
+    from the profile's cloud folder included, so the same account's other
+    devices and linked accounts' devices show. This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
     long. Each ID is selectable. A device shows only once one of its

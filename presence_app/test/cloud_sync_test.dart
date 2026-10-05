@@ -24,6 +24,7 @@ void main() {
   Future<void> seed() async {
     await store.putEvent({
       'userId': '1',
+      'profileId': '1',
       'id': 'e1',
       'type': 'appStarted',
       'title': 'Application started',
@@ -31,6 +32,7 @@ void main() {
     });
     await store.putEvent({
       'userId': '1',
+      'profileId': '1',
       'id': 'e2',
       'type': 'clipRequested',
       'title': 'Clip',
@@ -130,6 +132,7 @@ void main() {
 
       await store.putEvent({
         'userId': '1',
+        'profileId': '1',
         'id': 'e1',
         'type': 'appStarted',
         'title': 'Application started',
@@ -151,6 +154,7 @@ void main() {
 
     await store.putEvent({
       'userId': '1',
+      'profileId': '1',
       'id': 'e3',
       'type': 'x',
       'title': 'New',
@@ -232,6 +236,7 @@ void main() {
     backend.uploads.clear();
     await store.putEvent({
       'userId': '1',
+      'profileId': '1',
       'id': 'e4',
       'type': 'x',
       'title': 'Later',
@@ -243,9 +248,9 @@ void main() {
     expect(sync.state, CloudSyncState.off);
   });
 
-  test('only the user\'s own events, and their clips, go up', () async {
-    // Recorded signed out (not yet taken over), and by someone else who
-    // used this device, with a finished clip.
+  test('only the profile\'s own events, and their clips, go up', () async {
+    // Recorded signed out (no profile yet), and by someone else who used
+    // this device, with a finished clip.
     await store.putEvent({
       'id': 'anon',
       'type': 'x',
@@ -385,8 +390,8 @@ void main() {
           're1',
           're2',
         });
-        // Events in the user's folder are the user's.
-        expect(remote.single.events.map((e) => e['userId']).toSet(), {'1'});
+        // Events in the profile's folder are the profile's.
+        expect(remote.single.events.map((e) => e['profileId']).toSet(), {'1'});
         expect(remote.single.clips.single['id'], 'r1');
         expect(remote.single.clips.single['thumbnail'], [5]);
         expect(remote.single.media, {
@@ -570,6 +575,7 @@ void main() {
       // Saved without a change notification: only the timer finds it.
       await store.putEvent({
         'userId': '1',
+        'profileId': '1',
         'id': 'e9',
         'type': 'x',
         'title': 'Quiet',
@@ -644,7 +650,7 @@ void main() {
         clock = now.add(const Duration(seconds: 15));
         await pass();
         expect(remote.last.events.single['id'], 'from-phone');
-        expect(remote.last.events.single['userId'], '1');
+        expect(remote.last.events.single['profileId'], '1');
         expect(
           backend.listings.where((p) => p.startsWith('events/')).toList(),
           ['events/year=2026/day=274/', 'events/year=2026/day=273/'],
@@ -735,6 +741,7 @@ void main() {
     () async {
       await store.putEvent({
         'userId': '1',
+        'profileId': '1',
         'id': 't1',
         'type': 'clipRequested',
         'title': 'Clip',
@@ -811,6 +818,66 @@ void main() {
     await sync.idle();
     expect(backend.uploads, isEmpty);
     expect(backend.tokens, isEmpty);
+    expect(sync.state, CloudSyncState.off);
+    roles.dispose();
+  });
+
+  test('with access, the profile the auth API answers with syncs: its '
+      'events go up, and fetched ones become its', () async {
+    sync.dispose();
+    final client = FakeRolesClient()..profile = null;
+    final roles = RolesService(auth: auth, client: client);
+    await store.putEvent({
+      'id': 'p1',
+      'type': 'x',
+      'title': 'The profile\'s',
+      'time': 3,
+      'userId': '1',
+      'profileId': 'automatic_paranoid_axolotl',
+    });
+    backend.uploads['us-east-1:identity/events/year=1970/day=001/r1.json'] = (
+      bytes: Uint8List.fromList(
+        utf8.encode(
+          jsonEncode({'id': 'r1', 'type': 'x', 'title': 'Old', 'time': 4}),
+        ),
+      ),
+      contentType: 'application/json',
+    );
+    final fetched = <RemoteRecords>[];
+    sync = CloudSync(
+      auth: auth,
+      roles: roles,
+      backend: backend,
+      store: Future.value(store),
+      media: Future.value(IdbMediaStore(store)),
+      changes: changes.stream,
+      debounce: Duration.zero,
+      onRemote: (r) async => fetched.add(r),
+      now: () => DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+    );
+    final before = Set.of(backend.uploads.keys);
+
+    // Access, but the API answered with no profile: nothing syncs.
+    await auth.signIn();
+    await Future<void>.delayed(Duration.zero);
+    await sync.idle();
+    expect(roles.hasAccess, isTrue);
+    expect(backend.tokens, isEmpty);
+    expect(sync.state, CloudSyncState.off);
+
+    client.profile = 'automatic_paranoid_axolotl';
+    await roles.refresh();
+    await sync.idle();
+    expect(backend.uploads.keys.toSet().difference(before), {
+      'us-east-1:identity/events/year=1970/day=001/p1.json',
+    }, reason: 'only the profile\'s event, not user 1\'s without one');
+    expect(
+      fetched.single.events.single['profileId'],
+      'automatic_paranoid_axolotl',
+    );
+
+    await auth.signOut();
+    await sync.idle();
     expect(sync.state, CloudSyncState.off);
     roles.dispose();
   });

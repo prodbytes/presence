@@ -2301,7 +2301,46 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       check of the auth API timed out (5 s) again.
     - Specs: [Android](android.md), [Sign-in](sign-in.md), [Log](log.md).
       330 Flutter tests pass (1 new).
-237. **On Android the API health check still shows ❌: check why in the
+237. **Verify profiles: the same account on two devices must find and use
+    the same profile; no profile (null) while nobody is signed in, and no
+    sync to S3 then; at sign-in, events get the profile and sync.**
+    (2026-10-05)
+    - Found: the server already found the account's profile by its
+      subject, but the app made a profile per device at its first start
+      and kept the last account's after sign-out, and events belonged to
+      the Google account (`userId`), not the profile. So linked accounts
+      didn't share events, and signed-out events went to the account.
+    - Changed: no profile until a sign-in; `RolesService.profile` is the
+      API's answer for the signed-in account (null signed out, in DEV and
+      until the answer; another account drops it at once), not stored.
+      The app no longer makes or sends profile IDs (`ProfileId` and its
+      store removed). Every event gets `profileId`; once the profile
+      arrives, the device's events without one become its
+      (`Persistence.claimForProfile`). Cloud sync runs only with a profile,
+      uploads its events and gives fetched ones its ID. The Events count,
+      the All grid, the health panel's device count and the account
+      sheet's devices go by profile. Settings shows *none until signed
+      in*.
+    - Specs: [Profiles](profiles.md), [Devices, users and
+      places](devices-users-places.md), [Cloud sync](cloud-sync.md),
+      [Events](events.md), [Recording and data formats](data-formats.md),
+      [Settings screen](settings.md), [Auth API](auth-api.md),
+      [Sign-in](sign-in.md), [Camera screen](camera.md), [Log](log.md),
+      [README](README.md). 346 Flutter tests (5 new) pass.
+238. **On the events page, show every device's events by default; let
+     users check Only this device otherwise, and re-filter the map and the
+     events when it changes.**
+    - Was: **Only this device** was checked at launch, and it filtered only
+      the events list; the subjects map always showed every device.
+    - Changed: the chip starts unchecked (`ValueNotifier(false)` in the
+      app, `MonitoringView` and `EventTimeline`). `SubjectsMap` takes the
+      device ID and the chip and keeps only this device's events while
+      it's checked (`EventTimeline.ofDevices`); toggling it redraws the
+      dots and fits the map to them again (`_SightingsMap.fitKey`).
+    - Specs: [Events](events.md), [Monitoring](monitoring.md),
+      [Subjects](subjects.md), [Navigation](navigation.md). 348 Flutter
+      tests (1 new) pass.
+239. **On Android the API health check still shows ❌: check why in the
     app logs, and make health checks print somewhere findable.**
     (2026-10-05)
     - Found: the start check timed out (5 s) on the phone's debug build,
@@ -2313,4 +2352,3 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       Log tab and in logcat (`devbox run android-log`).
     - Specs: [Execution mode](execution-mode.md), [Log](log.md). 344
       Flutter tests pass (1 new).
-

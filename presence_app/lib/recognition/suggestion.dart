@@ -19,6 +19,7 @@ class SubjectSuggestion extends AppEvent {
     super.cameraId,
     super.deviceId,
     super.userId,
+    super.profileId,
     super.time,
     super.id,
   }) : super(
