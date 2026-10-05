@@ -306,6 +306,33 @@ class ClipAnnotations extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Removes every tag named [name] (ignoring case and surrounding spaces),
+  /// and the frames no entry uses any more: the subject is off the clip.
+  /// Suggestions stay, for their own Yes / No.
+  void removeName(String name) {
+    final id = name.trim().toLowerCase();
+    final removed = [
+      for (final a in _items)
+        if (a.source != TagSource.suggested &&
+            a.name.trim().toLowerCase() == id)
+          a,
+    ];
+    if (removed.isEmpty) return;
+    _items.removeWhere(removed.contains);
+    for (final frameId in {for (final a in removed) ?a.frameId}) {
+      if (_items.every((a) => a.frameId != frameId)) _frames.remove(frameId);
+    }
+    notifyListeners();
+  }
+
+  /// Removes the object tag [label].
+  void removeObject(String label) {
+    final objects = _objects;
+    if (objects == null || !objects.any((o) => o.label == label)) return;
+    objects.removeWhere((o) => o.label == label);
+    notifyListeners();
+  }
+
   List<Map<String, Object?>> toJson() => [for (final a in _items) a.toJson()];
 
   /// The frames tags use, as stored: id -> JPEG bytes.

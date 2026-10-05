@@ -39,7 +39,8 @@
       using the timeline's own filter steps (`EventTimeline.ofDevices`,
       `ofKinds`, `matching`).
     - Both numbers update with new events, sync, the chips, the search,
-      tags recognition adds later, and sign-in or sign-out. On a narrow phone
+      tags recognition adds later, labels removed with their x on a
+      card, and sign-in or sign-out. On a narrow phone
       the field gets narrower so the count stays beside it.
   - What's searched is one function, `eventSearchFields` (used by
     `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
