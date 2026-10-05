@@ -2505,3 +2505,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       uploaded back.
     - Specs: [Cloud sync](cloud-sync.md), [Subjects](subjects.md),
       [Storage](storage.md). 365 Flutter tests (6 new) pass.
+251. **Verify that a grab event is triggered, captured, recognized and
+     synced when the app loads and every 3 hours. Make that interval
+     configurable and show a countdown in Settings.** (2026-10-05)
+    - Verified: a new end-to-end test runs the whole app, signed in and
+      syncing, with recognition on fake models. The startup grab and the
+      one 3 h later are each triggered, captured, recognized (object tags)
+      and uploaded with their recording and thumbnail; none comes a minute
+      early. To let the test use fake models, `PresenceApp` now takes an
+      optional `recognizer` factory.
+    - Changed: the default interval is **3 h** (was 4 h). It was already
+      configurable (30 min to 24 h); devices that saved their settings
+      before keep what they saved.
+    - Added: under the **One clip every** slider, a countdown that updates
+      every second: "Startup clip: once the camera is ready", then "Next
+      clip in 2 h 59 min 58 s", or "Next clip: due, once a camera is open";
+      hidden while scheduled clips are off.
+    - Specs: [Scheduled clips](scheduled-clips.md),
+      [Settings](settings.md), [Configuration](configuration.md),
+      [Camera](camera.md). 362 Flutter tests (3 new) pass.

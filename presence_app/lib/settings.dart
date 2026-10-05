@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'app_version.dart';
+import 'camera_feeds.dart';
 import 'config.dart';
 import 'location/device_location.dart';
 import 'location/location_settings.dart';
@@ -20,7 +23,12 @@ class SettingsView extends StatefulWidget {
     this.location,
     this.tiles,
     this.onMapHeld,
+    this.nextClip,
   });
+
+  /// Under the scheduled clips' interval while they're on: when the next
+  /// one is taken ([ScheduledClipCountdown]).
+  final Widget? nextClip;
 
   /// Where this device is: the **Location** section and its map, when
   /// given.
@@ -223,6 +231,8 @@ class _SettingsViewState extends State<SettingsView> {
                     )
                   : null,
             ),
+            if (widget.nextClip case final nextClip? when schedule.enabled)
+              nextClip,
             const SizedBox(height: 16),
             Text('Subjects', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -367,6 +377,67 @@ String formatEvery(Duration every) {
   final minutes = every.inMinutes % 60;
   if (hours == 0) return '$minutes min';
   return minutes == 0 ? '$hours h' : '$hours h $minutes min';
+}
+
+/// Time left, as "2 h 59 min 58 s", "4 min 0 s" or "12 s", rounded up to
+/// the second so it reads 1 s, not 0 s, until it's over.
+String formatCountdown(Duration left) {
+  final seconds = (left.inMilliseconds + 999) ~/ 1000;
+  final h = seconds ~/ 3600;
+  final m = seconds % 3600 ~/ 60;
+  final s = seconds % 60;
+  if (h > 0) return '$h h $m min $s s';
+  if (m > 0) return '$m min $s s';
+  return '$s s';
+}
+
+/// When the next scheduled clip is taken, from [rig], refreshed every
+/// second: the startup clip once the camera is ready, then a countdown to
+/// the next one.
+class ScheduledClipCountdown extends StatefulWidget {
+  const ScheduledClipCountdown({super.key, required this.rig});
+
+  final CameraRig rig;
+
+  @override
+  State<ScheduledClipCountdown> createState() => _ScheduledClipCountdownState();
+}
+
+class _ScheduledClipCountdownState extends State<ScheduledClipCountdown> {
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final rig = widget.rig;
+    final left = rig.untilScheduledClip;
+    if (left == null) return const SizedBox.shrink();
+    final text = rig.startupClipPending
+        ? 'Startup clip: once the camera is ready'
+        : left == Duration.zero
+        ? 'Next clip: due, once a camera is open'
+        : 'Next clip in ${formatCountdown(left)}';
+    return Row(
+      key: const Key('schedule-countdown'),
+      children: [
+        Icon(Icons.schedule, size: 16, color: theme.colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: theme.textTheme.bodyMedium)),
+      ],
+    );
+  }
 }
 
 /// How long events are kept, as "1 day", "10 days", "2 weeks" or

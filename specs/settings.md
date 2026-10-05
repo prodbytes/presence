@@ -33,8 +33,10 @@
 - **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):
   - A **Clip at start and on a timer** switch (default on).
   - **One clip every**, 30 min to 24 h in 30-minute steps, default
-    **4 h**, shown as "30 min", "4 h", "1 h 30 min"; off while the switch
+    **3 h**, shown as "30 min", "3 h", "1 h 30 min"; off while the switch
     is.
+  - Under it, while the switch is on, a countdown to the next clip,
+    refreshed every second ("Next clip in 2 h 59 min 58 s").
 - **Subjects** section: **Latest events on a subject's map**, 5–100 in
   steps of 5, default **20**: how many of a subject's latest events its
   screen lists and maps (see [Subjects](subjects.md)).

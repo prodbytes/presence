@@ -48,7 +48,7 @@ their data.
   tagging people and pets by clicking them on the video, or with Auto.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
-  240 minutes (30 min to a day, in Settings).
+  3 hours (30 min to a day, in Settings, with a countdown).
 - [Profiles](profiles.md): **the owner of a user's data and events.**
   None signed out; an account's first sign-in makes it and later ones, on
   any device, load it (by subject, `<iss>#<sub>`); IDs like
