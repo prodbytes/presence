@@ -167,7 +167,7 @@ void main() {
   testWidgets('the field sits top left, on the chips row', (tester) async {
     await show(tester);
     final search = tester.getRect(field());
-    final chip = tester.getRect(find.byKey(const Key('this-device-only')));
+    final chip = tester.getRect(find.byKey(const Key('device-filter')));
     final page = tester.getRect(find.byKey(const Key('monitoring-page')));
     expect(search.left, closeTo(page.left + 16, 0.5));
     expect(search.right, lessThan(chip.left));

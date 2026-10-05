@@ -10,8 +10,8 @@ import 'subjects.dart';
 /// Two columns on a wide screen: the map of every subject's events on the
 /// left, all events on the right, each clip's card showing its subjects in
 /// their colors. On a phone the map sits above the events. Once the device
-/// ID is known, the "Only this device" chip sits at the top, next to the
-/// "Show system events" chip, both after the events search field (top
+/// ID is known, the devices dropdown ([DeviceFilter]) sits at the top, next
+/// to the "Show system events" chip, both after the events search field (top
 /// left) and its matching / all events count ([EventCount]). Tapping a
 /// dot on the map scrolls the events to its event; tapping a subject's
 /// name opens the subject.
@@ -25,7 +25,7 @@ class MonitoringView extends StatefulWidget {
     this.focus,
     this.deviceId,
     this.profileId,
-    this.thisDeviceOnly,
+    this.hiddenDevices,
     this.showSystemEvents,
     this.search,
   });
@@ -57,13 +57,15 @@ class MonitoringView extends StatefulWidget {
   /// The event the timeline scrolls to and outlines.
   final ValueListenable<String?>? focus;
 
-  /// This device's ID, for the "Only this device" chip.
+  /// This device's ID, the devices dropdown's first line.
   final String? deviceId;
 
   /// The signed-in account's profile (null signed out): the events count counts
   /// only its own ([EventCount]).
   final String? profileId;
-  final ValueNotifier<bool>? thisDeviceOnly;
+
+  /// The devices unchecked in the dropdown ([EventTimeline.hiddenDevices]).
+  final ValueNotifier<Set<String>>? hiddenDevices;
 
   /// The "Show system events" chip ([EventTimeline.showSystemEvents]).
   final ValueNotifier<bool>? showSystemEvents;
@@ -76,9 +78,9 @@ class MonitoringView extends StatefulWidget {
 }
 
 class _MonitoringViewState extends State<MonitoringView> {
-  ValueNotifier<bool>? _ownFilter;
-  ValueNotifier<bool> get _filter =>
-      widget.thisDeviceOnly ?? (_ownFilter ??= ValueNotifier(false));
+  ValueNotifier<Set<String>>? _ownFilter;
+  ValueNotifier<Set<String>> get _filter =>
+      widget.hiddenDevices ?? (_ownFilter ??= ValueNotifier(const {}));
 
   ValueNotifier<bool>? _ownSystem;
   ValueNotifier<bool> get _system =>
@@ -104,7 +106,7 @@ class _MonitoringViewState extends State<MonitoringView> {
       tiles: widget.tiles,
       onOpenEvent: widget.onOpenEvent,
       deviceId: widget.deviceId,
-      thisDeviceOnly: _filter,
+      hiddenDevices: _filter,
     );
     Widget events(EdgeInsets padding) => KeyedSubtree(
       key: const Key('events-page'),
@@ -112,7 +114,7 @@ class _MonitoringViewState extends State<MonitoringView> {
         log: widget.log,
         focus: widget.focus,
         deviceId: widget.deviceId,
-        thisDeviceOnly: _filter,
+        hiddenDevices: _filter,
         showSystemEvents: _system,
         search: _search,
         padding: padding,
@@ -154,7 +156,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                               log: widget.log,
                               profileId: widget.profileId,
                               deviceId: widget.deviceId,
-                              thisDeviceOnly: _filter,
+                              hiddenDevices: _filter,
                               showSystemEvents: _system,
                               search: _search,
                             ),
@@ -162,8 +164,12 @@ class _MonitoringViewState extends State<MonitoringView> {
                         ),
                         // Until the device ID is known there's nothing to
                         // filter by.
-                        if (widget.deviceId != null)
-                          ThisDeviceOnly(value: _filter),
+                        if (widget.deviceId case final deviceId?)
+                          DeviceFilter(
+                            log: widget.log,
+                            deviceId: deviceId,
+                            value: _filter,
+                          ),
                         ShowSystemEvents(value: _system),
                       ],
                     ),
