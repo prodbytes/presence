@@ -39,6 +39,19 @@ So a failed sync says why (see [Cloud sync](cloud-sync.md)):
 - `Presence: cloud credentials rejected, renewing: …`, when credentials
   expire during a pass and the app gets new ones.
 
+## Auth API health messages
+
+So the health line's 🔌 API ❌ can be explained (each with how long it
+took):
+
+- `Presence: auth API answered the start check in <ms> ms (<mode> mode)`;
+- `Presence: could not ask the execution mode (after <ms> ms; checking
+  again): <error>`, when the start check fails or times out (5 s);
+- `Presence: auth API health check failed after <ms> ms: <error>`, every
+  failed check after that (the retries and the health panel's);
+- `Presence: auth API health check answered in <ms> ms, after failing:
+  <error>`, the first answer after a failure.
+
 Google sign-in failures are logged too (`Presence: Google sign-in failed:
 <code>; <description>; details: <details>`; see [Sign-in](sign-in.md)).
 On Android, `devbox run android-log` reads these from the phone (see
@@ -88,10 +101,11 @@ at the top of the Log tab:
   not saved yet count as this device. It updates as events arrive or are
   deleted.
 - **Every 30 s**, and when the tab opens, it checks again:
-  `RolesService.checkApi` asks `GET /api/auth/anonymous` (5 s timeout)
+  `RolesService.checkApi` asks `GET /api/auth/anonymous` (15 s timeout)
   whether the API answers and which settings it has, and updates the
   API status and those settings; the execution mode stays the one the
-  start check decided. A failure is logged once, when its error changes.
+  start check decided (which also retries on its own when it failed; see
+  [Execution mode](execution-mode.md)). Checks are logged (below).
   AWS shows the cloud sync's latest pass, which runs on its own every
   15 s ([Cloud sync](cloud-sync.md)). The checks stop while the tab is
   closed.
