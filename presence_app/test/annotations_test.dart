@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/annotations.dart';
 
+import 'fakes.dart';
+
 void main() {
   test('adds as many names as needed, renames and removes them', () {
     final list = ClipAnnotations();
@@ -68,5 +70,32 @@ void main() {
     list.remove(ana.id);
     expect(list.frames, isEmpty);
     expect(list.framesToRecord(), isEmpty);
+  });
+
+  test('replaceWith takes on another version of the clip', () {
+    final here = ClipAnnotations();
+    final frame = here.newFrame(onePixelPng, 100);
+    here
+      ..add('Rex', 0.1, 0.1, frame: frame)
+      ..add('Ana', 0.2, 0.2, frame: frame);
+    final there = ClipAnnotations.fromJson(
+      [here.toJson()[1]],
+      here.framesToRecord(),
+      [
+        {'label': 'cat', 'ms': 0, 'score': 0.9},
+      ],
+    );
+    var notified = 0;
+    here.addListener(() => notified++);
+    here.replaceWith(there);
+    expect(notified, 1);
+    expect(here.tags.map((a) => a.name), ['Ana']);
+    expect(here.frames.keys, [frame.id]);
+    expect(here.objects!.single.label, 'cat');
+
+    here.replaceWith(ClipAnnotations());
+    expect(here.isEmpty, isTrue);
+    expect(here.frames, isEmpty);
+    expect(here.objects, isNull);
   });
 }

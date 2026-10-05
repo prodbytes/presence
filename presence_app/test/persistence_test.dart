@@ -531,6 +531,110 @@ void main() {
     );
   });
 
+  testWidgets('a tag removed on another device goes at the next sync', (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    const prefix = 'us-east-1:identity';
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    final time = clock.subtract(const Duration(hours: 1));
+    final event = {
+      'id': 'remote-event',
+      'type': ClipRequested.clipRequestedType,
+      'title': 'Clip requested',
+      'time': time.millisecondsSinceEpoch,
+      'cameraId': 'garage-cam',
+      'clipId': 'remote-clip',
+      'clipState': 'complete',
+      'trigger': 'manual',
+      'annotations': [
+        {'id': 'a1', 'name': 'Rex', 'x': 0.2, 'y': 0.5, 'frameId': 'f1'},
+        {'id': 'a2', 'name': 'Ana', 'x': 0.7, 'y': 0.5, 'frameId': 'f1'},
+      ],
+      'objectTags': [
+        {'label': 'cat', 'ms': 0, 'score': 0.9},
+      ],
+    };
+    final key = '$prefix/${CloudSync.eventKey(event)}';
+    cloud.uploads[key] = (bytes: json(event), contentType: 'application/json');
+    cloud.uploads['$prefix/${CloudSync.clipRecordKey('remote-clip', time.millisecondsSinceEpoch)}'] =
+        (
+          bytes: json({
+            'id': 'remote-clip',
+            'eventId': 'remote-event',
+            'cameraId': 'garage-cam',
+            'cameraLabel': 'Garage',
+            'requestedAt': time.millisecondsSinceEpoch,
+            'beforeMs': 15000,
+            'afterMs': 15000,
+            'supported': true,
+            'state': 'complete',
+          }),
+          contentType: 'application/json',
+        );
+    cloud.uploads['$prefix/${CloudSync.frameKeyOf('remote-clip', 'f1')}'] = (
+      bytes: onePixelPng,
+      contentType: 'image/jpeg',
+    );
+
+    await launch(tester, cloud: cloud);
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+    expect(
+      inEvents(find.byKey(const Key('event-subject-rex'))),
+      findsOneWidget,
+    );
+    expect(
+      inEvents(find.byKey(const Key('event-subject-ana'))),
+      findsOneWidget,
+    );
+    expect(inEvents(find.byKey(const Key('clip-object-cat'))), findsOneWidget);
+
+    // On the other device: Rex and the cat removed.
+    final changed = {
+      ...event,
+      'annotations': [(event['annotations']! as List)[1]],
+      'objectTags': <Object?>[],
+    };
+    cloud.uploads[key] = (
+      bytes: json(changed),
+      contentType: 'application/json',
+    );
+
+    // The next periodic pass (every 15 s).
+    await tester.pump(const Duration(seconds: 16));
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(inEvents(find.byKey(const Key('event-subject-rex'))), findsNothing);
+    expect(
+      inEvents(find.byKey(const Key('event-subject-ana'))),
+      findsOneWidget,
+    );
+    expect(inEvents(find.byKey(const Key('clip-object-cat'))), findsNothing);
+    expect(find.byKey(const Key('subjects-label-rex')), findsNothing);
+    final tags = clipEvent(tester).annotations;
+    expect(tags.tags.map((a) => a.name), ['Ana']);
+    expect(tags.frames.keys, ['f1'], reason: 'the frame Ana is on stays');
+
+    // Not uploaded back over the other device's version.
+    await tester.pump(const Duration(seconds: 16));
+    await settleStorage(tester);
+    expect(cloud.uploads[key]!.bytes, json(changed));
+
+    // Saved: still gone after a restart.
+    await refresh(tester);
+    await showEvents(tester);
+    expect(inEvents(find.byKey(const Key('event-subject-rex'))), findsNothing);
+    expect(
+      inEvents(find.byKey(const Key('event-subject-ana'))),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'tags: a clicked frame, positions and names saved with the event',
     (tester) async {

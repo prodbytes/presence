@@ -85,8 +85,18 @@ class FakeCameraSource implements CameraSource {
   @override
   Future<void> setBrightness(double ev) async => brightness.add(ev);
 
+  /// Completes [lost], as when Android takes the camera away. Each
+  /// opening gets a new one (the fake is reused, unlike real cameras).
+  Completer<String> lostCompleter = Completer();
+
   @override
-  Future<void> dispose() async => disposed = true;
+  Future<String> get lost => lostCompleter.future;
+
+  @override
+  Future<void> dispose() async {
+    disposed = true;
+    if (lostCompleter.isCompleted) lostCompleter = Completer();
+  }
 }
 
 /// Cameras that open instantly as the given fakes, in order.
@@ -298,6 +308,12 @@ class FakeCloudSession implements CloudSession {
         if (key.startsWith('$prefix/$under')) key.substring(prefix.length + 1),
     ];
   }
+
+  @override
+  Future<Map<String, String>> listETags([String under = '']) async => {
+    for (final key in await list(under))
+      key: CloudSync.etagOf(backend.uploads['$prefix/$key']!.bytes),
+  };
 
   @override
   Future<Uint8List> get(String key) async {
