@@ -143,6 +143,96 @@ void main() {
     });
   });
 
+  group('The Settings map', () {
+    Map<String, Object?>? saved;
+    setUp(() => saved = null);
+
+    /// Shows the map alone, before the location is known: [init] is left
+    /// to the test.
+    Future<LocationController> show(
+      WidgetTester tester,
+      FakeLocator locator,
+    ) async {
+      final location = LocationController(
+        locator: locator,
+        load: () async => saved,
+        save: (json) async => saved = json,
+      );
+      addTearDown(location.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LocationSettings(location: location, tiles: const SizedBox()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return location;
+    }
+
+    MapCamera camera(WidgetTester tester) => tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+
+    testWidgets('opens on the world, then moves to the detected place', (
+      tester,
+    ) async {
+      final location = await show(tester, FakeLocator());
+      expect(camera(tester).zoom, LocationSettings.minZoom);
+
+      await tester.runAsync(location.init);
+      await tester.pumpAndSettle();
+      expect(camera(tester).center.latitude, closeTo(48.8584, 1e-6));
+      expect(camera(tester).center.longitude, closeTo(2.2945, 1e-6));
+      expect(camera(tester).zoom, LocationSettings.deviceZoom);
+    });
+
+    testWidgets('moves to a saved location once it loads', (tester) async {
+      saved = DeviceLocation(
+        latitude: 40.7,
+        longitude: -74,
+        source: LocationSource.map,
+        time: DateTime(2026),
+      ).toJson();
+      final location = await show(tester, FakeLocator());
+      await tester.runAsync(location.init);
+      await tester.pumpAndSettle();
+      expect(camera(tester).center.latitude, closeTo(40.7, 1e-6));
+      expect(camera(tester).center.longitude, closeTo(-74, 1e-6));
+    });
+
+    testWidgets('a reading after the user moved the map leaves it there', (
+      tester,
+    ) async {
+      final locator = FakeLocator()..gate = Completer();
+      final location = await show(tester, locator);
+      final reading = location.init();
+      await tester.pump();
+
+      await tester.drag(
+        find.byKey(const Key('location-map')),
+        const Offset(-150, 100),
+      );
+      await tester.pump();
+      final moved = camera(tester).center;
+      // The device answers before the move is committed.
+      locator.gate!.complete();
+      await tester.runAsync(() => reading);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(camera(tester).center, moved);
+      expect(location.location?.source, LocationSource.map);
+      expect(location.location?.latitude, closeTo(moved.latitude, 1e-6));
+
+      // My location follows the device again.
+      await tester.tap(find.byTooltip('My location'));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      expect(camera(tester).center.latitude, closeTo(48.8584, 1e-6));
+    });
+  });
+
   group('Location and battery', () {
     late IdbFactory storage;
     setUp(() => storage = newIdbFactoryMemory());

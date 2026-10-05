@@ -2352,3 +2352,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       Log tab and in logcat (`devbox run android-log`).
     - Specs: [Execution mode](execution-mode.md), [Log](log.md). 344
       Flutter tests pass (1 new).
+240. **Make the Settings map open on the detected place, only as a default
+     when nothing is set; users can move it elsewhere.** The map used to
+     follow only device readings that came after it was ready, so a saved
+     location that loaded late, or a reading that came before the map was
+     ready, left it on the whole world. And a reading that arrived just
+     after a drag pulled the map back. Now, until the user moves the map, it
+     follows the location in force: the saved one once it loads, then the
+     device's reading. A reading that came before the map was ready is
+     applied when it's ready. Once the user drags the map it stays put, and
+     only My location makes it follow the device again. Updated
+     [Device location and battery](device-location.md). 3 new widget tests
+     pass, and so do the existing location tests.
