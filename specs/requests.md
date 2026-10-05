@@ -2601,3 +2601,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Camera screen](camera.md), [Navigation](navigation.md),
        [Configuration](configuration.md), [README](README.md). 387 Flutter
        tests pass (4 new).
+257. **Do a barrel roll, and include checking the live updated version as
+     part of it: confirm it's updated live or report the failure.**
+    - Added: a step 5 to the "Do a barrel roll" section of
+      [CLAUDE.md](../CLAUDE.md): after the RC and GA tags are pushed, wait
+      for the Deploy and Deploy RC runs, then check that
+      `/app/version.json` on https://presence.nu01.com and
+      https://rc.presence.nu01.com reports the new version; report it
+      live, or the failure. Local deploy and the Android redeploy are now
+      steps 6 and 7. No app change; no feature spec changes.

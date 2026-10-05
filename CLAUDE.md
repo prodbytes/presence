@@ -39,7 +39,12 @@ cycle, in this order, stopping to report if any step fails:
 4. **Cut the RC and GA releases**: signed tags on the merge commit at the
    tip of `main` (see [specs/release.md](specs/release.md)), pushed so the
    Release and Deploy workflows run.
-5. **Deploy locally**: start the dev servers (`devbox services up`) and
+5. **Check the live version**: wait for the Deploy and Deploy RC runs to
+   finish, then confirm https://presence.nu01.com/app/version.json and
+   https://rc.presence.nu01.com/app/version.json report the new tags'
+   version. Report it updated live, or report the failure (the failing
+   run, or the version still live).
+6. **Deploy locally**: start the dev servers (`devbox services up`) and
    check they come up healthy.
-6. **Redeploy and restart on the Android phone** connected by USB
+7. **Redeploy and restart on the Android phone** connected by USB
    (`devbox run android`).
