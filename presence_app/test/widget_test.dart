@@ -99,10 +99,30 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      expect(find.byKey(const Key('admin')), findsOneWidget);
+      // Admin is a tab, after Settings, and the account button still fits.
+      final admin = find.byTooltip('Admin');
+      expect(
+        find.descendant(of: find.byType(TabBar), matching: admin),
+        findsOneWidget,
+      );
+      expect(
+        tester.getRect(find.byTooltip('Settings')).right,
+        lessThanOrEqualTo(tester.getRect(admin).left),
+      );
+      expect(
+        tester.getRect(admin).right,
+        lessThanOrEqualTo(
+          tester.getRect(find.byKey(const Key('account-button'))).left,
+        ),
+      );
       expect(
         tester.getRect(find.byKey(const Key('account-button'))).right,
         lessThanOrEqualTo(size.width),
+      );
+      // Four tabs, none narrower than the minimum.
+      expect(
+        tester.getSize(find.byType(TabBar)).width / 4,
+        greaterThanOrEqualTo(HomeScreen.minTabWidth),
       );
       expect(tester.takeException(), isNull);
     });
@@ -251,7 +271,7 @@ void main() {
     expect(find.byKey(const Key('account-button')), findsNothing);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(find.byKey(const Key('sign-up')), findsNothing);
-    expect(find.byKey(const Key('admin')), findsNothing);
+    expect(find.byTooltip('Admin'), findsNothing);
     await openTab(tester, 'Settings');
     expect(tabs(tester).index, HomeTab.settings.index);
 

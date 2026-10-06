@@ -6,12 +6,15 @@ import 'membership_client.dart';
 import 'roles_service.dart';
 import 'voucher_code.dart';
 
-/// Admins only (`presence_user` + `presence_admin`): the pending membership
-/// requests, each with **Grant access** (gives it the `presence_user` role)
-/// and **Dismiss**; then the voucher codes, which grant a role to whoever
-/// redeems them, with a form to create one.
-class AdminScreen extends StatefulWidget {
-  const AdminScreen({
+/// The Admin tab's page, for admins only (`presence_user` +
+/// `presence_admin`): the pending membership requests, each with **Grant
+/// access** (gives it the `presence_user` role) and **Dismiss**; then the
+/// voucher codes, which grant a role to whoever redeems them, with a form
+/// to create one. A page of the home screen's tabs, like Settings: no
+/// scaffold or app bar of its own; Reload sits by the first heading, and
+/// pulling down reloads too.
+class AdminView extends StatefulWidget {
+  const AdminView({
     super.key,
     required this.auth,
     required this.membership,
@@ -26,10 +29,10 @@ class AdminScreen extends StatefulWidget {
   final bool canCreateAdmins;
 
   @override
-  State<AdminScreen> createState() => _AdminScreenState();
+  State<AdminView> createState() => _AdminViewState();
 }
 
-class _AdminScreenState extends State<AdminScreen> {
+class _AdminViewState extends State<AdminView> {
   List<MembershipRequest>? _requests;
   String? _error;
   List<Voucher>? _vouchers;
@@ -190,89 +193,90 @@ class _AdminScreenState extends State<AdminScreen> {
     final requests = _requests;
     final vouchers = _vouchers;
     final now = DateTime.now();
-    return Scaffold(
-      key: const Key('admin-screen'),
-      appBar: AppBar(
-        title: const Text('Admin'),
-        actions: [
-          IconButton(
-            tooltip: 'Reload',
-            icon: const Icon(Icons.refresh),
-            onPressed: _load,
-          ),
-        ],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text('Membership requests', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 8),
-                ...switch ((requests, _error)) {
-                  (_, final error?) => [status(error, error: true)],
-                  (null, _) => [loading],
-                  (final list?, _) when list.isEmpty => [
-                    status('No pending requests.'),
-                  ],
-                  (final list?, _) => [
-                    for (final request in list)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _RequestCard(
-                          request: request,
-                          busy: _busy.contains(request.email),
-                          onGrant: () => _act(request, grant: true),
-                          onDismiss: () => _act(request, grant: false),
-                        ),
+    return Center(
+      key: const Key('admin-view'),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: RefreshIndicator(
+          onRefresh: _load,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Membership requests',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('admin-reload'),
+                    tooltip: 'Reload',
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _load,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...switch ((requests, _error)) {
+                (_, final error?) => [status(error, error: true)],
+                (null, _) => [loading],
+                (final list?, _) when list.isEmpty => [
+                  status('No pending requests.'),
+                ],
+                (final list?, _) => [
+                  for (final request in list)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _RequestCard(
+                        request: request,
+                        busy: _busy.contains(request.email),
+                        onGrant: () => _act(request, grant: true),
+                        onDismiss: () => _act(request, grant: false),
                       ),
-                  ],
-                },
-                const SizedBox(height: 24),
-                Text('Voucher codes', style: theme.textTheme.titleLarge),
-                const SizedBox(height: 4),
-                Text(
-                  widget.canCreateAdmins
-                      ? 'Whoever redeems a code on the Request access sheet '
-                            'gets its role at once. Admin codes also grant '
-                            'Member.'
-                      : 'Whoever redeems a code on the Request access sheet '
-                            'becomes a Member at once. Only roots create '
-                            'Admin codes.',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 8),
-                _VoucherForm(
-                  onCreate: _create,
-                  roles: widget.canCreateAdmins
-                      ? const [userRole, adminRole]
-                      : const [userRole],
-                ),
-                const SizedBox(height: 8),
-                ...switch ((vouchers, _vouchersError)) {
-                  (_, final error?) => [status(error, error: true)],
-                  (null, _) => [loading],
-                  (final list?, _) when list.isEmpty => [
-                    status('No vouchers.'),
-                  ],
-                  (final list?, _) => [
-                    for (final voucher in list)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _VoucherCard(
-                          voucher: voucher,
-                          now: now,
-                          busy: _busy.contains(voucher.code),
-                          onDelete: () => _delete(voucher),
-                        ),
+                    ),
+                ],
+              },
+              const SizedBox(height: 24),
+              Text('Voucher codes', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                widget.canCreateAdmins
+                    ? 'Whoever redeems a code on the Request access sheet '
+                          'gets its role at once. Admin codes also grant '
+                          'Member.'
+                    : 'Whoever redeems a code on the Request access sheet '
+                          'becomes a Member at once. Only roots create '
+                          'Admin codes.',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              _VoucherForm(
+                onCreate: _create,
+                roles: widget.canCreateAdmins
+                    ? const [userRole, adminRole]
+                    : const [userRole],
+              ),
+              const SizedBox(height: 8),
+              ...switch ((vouchers, _vouchersError)) {
+                (_, final error?) => [status(error, error: true)],
+                (null, _) => [loading],
+                (final list?, _) when list.isEmpty => [status('No vouchers.')],
+                (final list?, _) => [
+                  for (final voucher in list)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _VoucherCard(
+                        voucher: voucher,
+                        now: now,
+                        busy: _busy.contains(voucher.code),
+                        onDelete: () => _delete(voucher),
                       ),
-                  ],
-                },
-              ],
-            ),
+                    ),
+                ],
+              },
+            ],
           ),
         ),
       ),

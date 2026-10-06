@@ -8,7 +8,7 @@ in without asking. Roles come from the
 |---|---|---|
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
 | Member | `presence_user` | every feature: tabs, camera buttons, cloud sync |
-| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** icon; creates Member vouchers |
+| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers |
 | Root | `presence_user`, `presence_admin`, `presence_root` | as Admin, and also creates Admin vouchers |
 
 Roots are the auth API's **root allowlist**: verified emails at one of
@@ -47,7 +47,7 @@ opens "Request access":
 The API keeps one request per email in `MembershipTable` (email, Google
 profile name cleaned to one line of 100 characters, message, time in epoch
 milliseconds). No notification is sent: administrators see pending
-requests when they open the Admin screen.
+requests when they open the Admin tab.
 
 ## Voucher codes
 
@@ -68,7 +68,7 @@ A voucher grants a role to whoever redeems it:
   its discount: no role is granted and no use is counted, because the
   user would pay the rest, and payment isn't built yet.
 - **Role:** `presence_user` (Member) or `presence_admin` (Admin). An Admin
-  voucher also grants `presence_user`, since the Admin screen needs both.
+  voucher also grants `presence_user`, since the Admin tab needs both.
   Only a `presence_root` may create an Admin voucher (403 for other
   admins), and no voucher grants `presence_root` (400).
 - **Validity:** a start (`startsAt`) and an end (`expiresAt`) instant.
@@ -97,12 +97,18 @@ vouchers from before discounts); when it fails, the code is read back,
 and one this email could otherwise redeem with a partial discount gets
 402 instead of 404.
 
-## The Admin screen
+## The Admin tab
 
-The **Admin** icon (`Icons.admin_panel_settings`, tooltip "Admin") shows in
-the app bar for users with both roles. It opens `AdminScreen`
+The **Admin** tab (`HomeTab.admin`, `Icons.admin_panel_settings`, tooltip
+"Admin") is the last tab in the app bar, after Settings (and the Log when
+shown), for signed-in users with both roles; never in DEV, where there are
+no accounts. Like the other tabs it slides in when tapped or swiped to,
+with no back button, and a browser refresh comes back to it. Its page is
+`AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
-titled "Admin", one scrolling page with two sections.
+a tab page with no scaffold or app bar of its own: one scrolling page,
+up to 720 dp wide, with two sections. It loads both lists each time it's
+opened.
 
 **Membership requests:**
 
@@ -141,17 +147,18 @@ titled "Admin", one scrolling page with two sections.
   "valid from" its start and "expires" its end, who redeemed it, and **Copy code**
   and **Delete** buttons. "No vouchers." when there are none.
 
-**Reload** (and pull to refresh) fetches both lists again; each section
+**Reload** (a refresh icon beside the "Membership requests" heading) and
+pull to refresh fetch both lists again; each section
 shows its own loading error.
 
 The admin routes check both roles themselves, as the app does, so hiding
-the icon is not the only guard. `MembershipClient` ([lib/auth/membership_client.dart](../presence_app/lib/auth/membership_client.dart))
+the tab is not the only guard. `MembershipClient` ([lib/auth/membership_client.dart](../presence_app/lib/auth/membership_client.dart))
 is the app's client (a fake in tests).
 
 ## Known limitations
 
 - Administrators aren't told about new requests; they have to open the
-  Admin screen.
+  Admin tab.
 - A request's **Grant access** gives `presence_user` only.
   `presence_admin` comes from the root allowlist, a root's Admin voucher,
   or editing `UserRolesTable` by hand.

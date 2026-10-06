@@ -10,16 +10,21 @@ in the app bar**, which flip between full screens.
   **Monitoring** and **Settings**, and for admins (`presence_admin`, so
   everyone in DEV, where the anonymous user is a root) a fourth, **Log**,
   when Settings' **Show the Log tab** switch is on: on by default in DEV,
-  off otherwise (see [Log](log.md)); then a **Login** icon button. The
-  Log tab comes and goes as the roles or the switch change (the tab
-  controller is rebuilt, staying on the open tab, or on Settings if it
-  was the Log). (The
+  off otherwise (see [Log](log.md)); for signed-in admins (not DEV:
+  there are no accounts) an **Admin** tab last (see
+  [Membership](membership.md#the-admin-tab)); then a **Login** icon
+  button. The Log and Admin tabs come and go as the roles or the switch
+  change (the tab controller is rebuilt, staying on the open tab, or on
+  the nearest tab before it if that one goes: Settings for the Log).
+  A tab's controller index is its place among the shown tabs
+  (`_indexOf`), not its `HomeTab.index`: with the Log hidden, the Admin
+  tab is the fourth. (The
   Device tab is gone: its map is a section of Settings, and the battery
   shows over the camera.)
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its Log tab and
-    Admin button, on a 320 dp phone), the tabs narrow, down to 40 dp, so
-    nothing overflows.
+    Where that doesn't fit (an admin's app bar, with its Log and Admin
+    tabs, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
+    overflows.
     An indicator marks the selected tab.
   - There's **no About button**: what Presence is, with a link to its
     code, is a paragraph at the end of the account sheet (see
@@ -31,7 +36,8 @@ in the app bar**, which flip between full screens.
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
 - **A browser refresh stays on the open tab** (Camera, Monitoring,
-  Settings or Log; the Log only if the user still has it): each switch is remembered in the browser tab's
+  Settings, Log or Admin; the Log and Admin only if the user still has
+  them), remembered by name: each switch is remembered in the browser tab's
   `sessionStorage` (`presence.tab`, `lib/tab_memory.dart`), and the app
   opens on it again once the tabs can show (access is known only after the
   roles load; signed out, it stays on the camera and keeps the memory for
@@ -168,6 +174,11 @@ in the app bar**, which flip between full screens.
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).
+- **Admin** (signed-in admins only): membership requests and voucher
+  codes, a page of the tabs like Settings, reached with the same slide
+  and swipe; no back button (see
+  [Membership](membership.md#the-admin-tab)). It used to be an app-bar
+  button opening a separate screen.
 - Nothing in the app bar links out: on a full-screen camera, an accidental
   tap would open a browser. The source code link is at the end of the
   account sheet ([About](about.md)).

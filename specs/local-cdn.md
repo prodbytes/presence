@@ -114,7 +114,7 @@ web client's local origin**.
 ## The local auth API
 
 At every start, Floci deploys the real auth API into itself, so sign-in,
-roles, membership requests and the Admin screen work locally without AWS:
+roles, membership requests and the Admin tab work locally without AWS:
 
 - **Build:** [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs
   `sam build` before Floci starts (in the `4-floci` command), only when

@@ -2985,3 +2985,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Monitoring](monitoring.md), [Events](events.md),
        [Event flags](event-flags.md), [Clips](clips.md),
        [Navigation](navigation.md).
+277. **Admin as a tab, with the same slide as the others.** (2026-10-06)
+     - Asked: the Admin screen looked different from the other sections
+       (a back button, everything shown again); give it the same slide
+       and navigation as Settings, Monitoring and Camera.
+     - Changed: Admin is a tab (`HomeTab.admin`, last, after the Log),
+       shown to signed-in admins only (not DEV), in the tab bar with the
+       same slide and swipe; the app-bar Admin button and its pushed
+       route are gone. `AdminScreen` became `AdminView`, a tab page with
+       no scaffold, app bar or back arrow (Reload moved beside the
+       "Membership requests" heading; pull to refresh stays). The home
+       screen keeps the list of tabs its controller was made for and maps
+       each tab to its index through it (`_indexOf`, `_tab`), so with the
+       Log hidden the Admin tab is the fourth; tab memory saves the tab's
+       name, not `HomeTab.values[index]`. A tab change keeps the open tab,
+       or the nearest one before it if it goes. The app bar's tab width no
+       longer reserves room for the Admin button.
+     - Tests: `roles_test.dart` (the Admin tab: in the tab bar after
+       Settings, tapped and swiped to, requests and vouchers shown, no
+       back button; Reload; a refresh comes back to it and memory says
+       "admin"; a member's remembered "admin" opens the camera; with the
+       Log shown the Admin tab comes after it and indices follow; DEV has
+       no Admin tab), the voucher and request tests open the tab;
+       `widget_test.dart` (an admin's app bar fits at 320 and 1280 dp
+       with the Admin tab). 457 Flutter tests pass; `flutter analyze` and
+       `flutter build web` are clean.
+     - Specs: [Navigation](navigation.md), [Membership](membership.md),
+       [Execution mode](execution-mode.md), [Auth API](auth-api.md),
+       [Local CDN](local-cdn.md), the index.
