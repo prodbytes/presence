@@ -35,6 +35,17 @@ https://sh.presence.nu01.com serves the script at every path (see
     packages `libgtk-3-0 libegl1 libgles2`);
   - the native app exits with a non-zero status.
 - `PRESENCE_WEB=1` skips the native app and opens the web app.
+- `PRESENCE_KIOSK=1` installs the [Raspberry Pi camera](raspberry-pi.md)
+  instead (`curl -fsSL https://sh.presence.nu01.com | PRESENCE_KIOSK=1 sh`):
+  on Linux arm64 with `apt-get`, it downloads
+  `presence-<tag>-raspberrypi-arm64.deb` and installs it with
+  `sudo apt-get install -y` (no sudo as root). Since that runs as root,
+  the checksum is required: if the release API can't give it, it stops
+  rather than install unverified. It doesn't fall back to the web app;
+  it exits non-zero on failure. Elsewhere it says the kiosk is for 64-bit
+  Raspberry Pi OS.
+- On a Raspberry Pi (`/proc/device-tree/model`) on arm64, the normal run
+  prints a tip with the `PRESENCE_KIOSK=1` command.
 
 Verified in Ubuntu 24.04 containers: on amd64 with GTK, EGL, GLES and Xvfb
 the GA x64 bundle downloads, extracts, starts and stays up (a second run
@@ -54,7 +65,8 @@ curl -fsSL https://sh.presence.nu01.com | sh
 Verified on Debian 12 arm64 (Raspberry Pi OS Bookworm's base) with those
 packages and Xvfb: the live URL runs the `0.5.202610021114-GA` arm64
 bundle. The 32-bit OS (`armv7l`) has no native build and gets the web app.
-The README's "Run it on a Raspberry Pi" section has the same steps.
+The README's "Raspberry Pi" section has the same steps, and the camera
+`.deb`.
 
 ## Known limitations
 

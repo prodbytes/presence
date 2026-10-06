@@ -1,0 +1,11 @@
+{
+  "VideoCaptureAllowedUrls": [
+    "https://presence.nu01.com",
+    "https://rc.presence.nu01.com"
+  ],
+  "AudioCaptureAllowedUrls": [
+    "https://presence.nu01.com",
+    "https://rc.presence.nu01.com"
+  ],
+  "TranslateEnabled": false
+}

@@ -1,0 +1,20 @@
+Package: presence
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: ProdBytes <julio@nu01.com>
+Installed-Size: @SIZE@
+Section: video
+Priority: optional
+Homepage: https://github.com/prodbytes/presence
+Depends: adduser, cage, xwayland, chromium | chromium-browser, libc6 (>= 2.35), libgcc-s1, libstdc++6, libglib2.0-0 (>= 2.72), libgtk-3-0, libepoxy0, libfontconfig1, libegl1, libgles2
+Recommends: libcamera-v4l2
+Description: Presence camera kiosk
+ Turns the machine (a Raspberry Pi with Raspberry Pi OS Lite, 64-bit) into
+ a Presence camera: at boot, presence-kiosk.service runs Presence full
+ screen on tty1 under the cage Wayland compositor, as the presence system
+ user, and restarts it whenever it stops. By default it shows the Presence
+ web app in Chromium, which records from a USB webcam; the native Linux
+ app is installed in /opt/presence/bundle (the presence command).
+ .
+ Settings: /etc/default/presence. Turn the kiosk on or off with
+ sudo presence-kiosk enable|disable.

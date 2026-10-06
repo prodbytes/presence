@@ -1,0 +1,29 @@
+#!/bin/sh
+# presence-kiosk.service's command, run as the presence user on tty1:
+# starts cage, the full-screen Wayland compositor, with the kiosk app
+# (kiosk-app) as its only client. When the app exits, cage exits, and
+# systemd starts both again.
+set -eu
+
+log() { printf 'presence-kiosk: %s\n' "$*" >&2; }
+
+# Start without a keyboard or mouse (wlroots refuses to by default).
+export WLR_LIBINPUT_NO_DEVICES=1
+
+# With no screen connected, run on a virtual one: the camera still records.
+connected=
+for status in /sys/class/drm/card*-*/status; do
+  [ -r "$status" ] || continue
+  if [ "$(cat "$status" 2>/dev/null)" = connected ]; then
+    connected=1
+    break
+  fi
+done
+if [ -z "$connected" ]; then
+  log "no screen connected: running on a virtual (headless) display"
+  export WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1
+fi
+
+# -d: no window decorations; -s: allow switching virtual terminals
+# (Ctrl+Alt+F2 for a console, when a keyboard is plugged in).
+exec cage -d -s -- /opt/presence/lib/kiosk-app

@@ -1,0 +1,22 @@
+#!/bin/sh
+# presence: purge deletes the kiosk's data (the browser profile with its
+# sign-in, and events and clips not yet synced) and state. Remove and
+# upgrade keep them. The presence system user stays, as Debian does for
+# system users.
+set -e
+
+case "$1" in
+  remove)
+    # So installing again sets up the kiosk like a fresh install.
+    mkdir -p /var/lib/presence-kiosk
+    touch /var/lib/presence-kiosk/removed
+    if [ -d /run/systemd/system ]; then
+      systemctl daemon-reload || true
+    fi
+    ;;
+  purge)
+    rm -rf /var/lib/presence /var/lib/presence-kiosk
+    ;;
+esac
+
+exit 0

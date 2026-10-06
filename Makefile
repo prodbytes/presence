@@ -6,6 +6,7 @@
 #   make android   release APK
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)
+#   make deb       Linux bundle as the Raspberry Pi camera kiosk .deb (Linux only)
 #   make clean     flutter clean
 
 # One build time for every target in a run, so they share a version (see
@@ -16,7 +17,7 @@ endif
 
 export MODE IOS_CODESIGN BUILD_NUMBER VERSION_Z
 
-.PHONY: all web android ios linux clean
+.PHONY: all web android ios linux deb clean
 
-all web android ios linux clean:
+all web android ios linux deb clean:
 	@bash scripts/make.sh $@

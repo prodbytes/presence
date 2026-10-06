@@ -1,0 +1,110 @@
+#!/bin/sh
+# The app the Presence kiosk shows full screen, inside cage (kiosk-session).
+# Settings come from /etc/default/presence (the service's EnvironmentFile).
+set -eu
+
+log() { printf 'presence-kiosk: %s\n' "$*" >&2; }
+
+DEFAULT_URL=https://presence.nu01.com/app/
+
+run_native() {
+  log "starting the native app; it has no camera layer or Google sign-in on Linux yet"
+  export GDK_BACKEND=wayland
+  exec /opt/presence/bundle/presence_app
+}
+
+# Whether a USB (UVC) webcam is plugged in.
+has_usb_webcam() {
+  for driver in /sys/class/video4linux/video*/device/driver; do
+    [ -e "$driver" ] || continue
+    [ "$(basename "$(readlink -f "$driver")")" = uvcvideo ] && return 0
+  done
+  return 1
+}
+
+use_libcamerify() {
+  command -v libcamerify >/dev/null 2>&1 || return 1
+  case "${PRESENCE_LIBCAMERIFY:-auto}" in
+    1) return 0 ;;
+    0) return 1 ;;
+    *) ! has_usb_webcam ;;
+  esac
+}
+
+run_web() {
+  url=${PRESENCE_URL:-$DEFAULT_URL}
+  case "$url" in
+    https://*) ;;
+    *)
+      log "PRESENCE_URL must start with https:// (got '$url'); opening $DEFAULT_URL"
+      url=$DEFAULT_URL
+      ;;
+  esac
+
+  browser=
+  for name in chromium chromium-browser; do
+    if command -v "$name" >/dev/null 2>&1; then
+      browser=$name
+      break
+    fi
+  done
+  if [ -z "$browser" ]; then
+    log "Chromium isn't installed (apt install chromium); starting the native app"
+    run_native
+  fi
+
+  # Wait (up to a minute) for the network after boot, so the first page
+  # load doesn't fail.
+  host=$(printf '%s\n' "$url" | sed 's|^https://||; s|[/:?#].*||')
+  tries=0
+  while [ "$tries" -lt 60 ] && ! getent hosts "$host" >/dev/null 2>&1; do
+    sleep 1
+    tries=$((tries + 1))
+  done
+
+  # The browser profile (sign-in, the app's events and clips) lives in the
+  # presence user's home, /var/lib/presence, so it survives reboots. Mark
+  # the last run as a clean exit, so a crash or power cut doesn't bring up
+  # a "restore pages" prompt.
+  profile="$HOME/chromium"
+  prefs="$profile/Default/Preferences"
+  if [ -f "$prefs" ]; then
+    sed -i 's/"exited_cleanly":false/"exited_cleanly":true/; s/"exit_type":"[A-Za-z]*"/"exit_type":"Normal"/' \
+      "$prefs" 2>/dev/null || true
+  fi
+
+  set -- "$browser" \
+    --kiosk \
+    --ozone-platform=wayland \
+    --user-data-dir="$profile" \
+    --password-store=basic \
+    --no-first-run \
+    --noerrdialogs \
+    --disable-infobars \
+    --disable-session-crashed-bubble \
+    --disable-features=Translate \
+    --deny-permission-prompts \
+    --autoplay-policy=no-user-gesture-required \
+    --overscroll-history-navigation=0 \
+    --check-for-update-interval=31536000
+  # Extra flags from the settings, split on spaces (not globbed).
+  set -f
+  # shellcheck disable=SC2086
+  set -- "$@" ${PRESENCE_CHROMIUM_FLAGS:-} "$url"
+  set +f
+  if use_libcamerify; then
+    log "using libcamerify for the camera module"
+    set -- libcamerify "$@"
+  fi
+  log "opening $url in $browser"
+  exec "$@"
+}
+
+case "${PRESENCE_KIOSK_APP:-web}" in
+  native) run_native ;;
+  web) run_web ;;
+  *)
+    log "unknown PRESENCE_KIOSK_APP '${PRESENCE_KIOSK_APP:-}'; showing the web app"
+    run_web
+    ;;
+esac

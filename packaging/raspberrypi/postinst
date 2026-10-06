@@ -1,0 +1,54 @@
+#!/bin/sh
+# presence: creates the presence system user and starts the camera kiosk
+# on a fresh install (unless a desktop holds the screen); restarts it on
+# upgrade if it's enabled.
+set -e
+
+USER_NAME=presence
+HOME_DIR=/var/lib/presence
+UNIT=presence-kiosk.service
+
+running() { [ -d /run/systemd/system ]; }
+
+if [ "$1" = configure ]; then
+  if ! getent passwd "$USER_NAME" >/dev/null; then
+    adduser --system --group --home "$HOME_DIR" --shell /usr/sbin/nologin \
+      --gecos "Presence camera kiosk" "$USER_NAME"
+  fi
+  # The camera, the microphone and the GPU.
+  for group in video audio render; do
+    if getent group "$group" >/dev/null; then
+      adduser "$USER_NAME" "$group" >/dev/null
+    fi
+  done
+  mkdir -p "$HOME_DIR"
+  chown "$USER_NAME:$USER_NAME" "$HOME_DIR"
+  chmod 0700 "$HOME_DIR"
+
+  if running; then
+    systemctl daemon-reload || true
+  fi
+
+  if [ -z "$2" ] || [ -e /var/lib/presence-kiosk/removed ]; then
+    # Fresh install, or installed again after a remove.
+    rm -f /var/lib/presence-kiosk/removed
+    # An enabled display manager links display-manager.service to itself.
+    if [ -L /etc/systemd/system/display-manager.service ]; then
+      dm=$(basename "$(readlink -f /etc/systemd/system/display-manager.service)")
+      echo "presence: a desktop ($dm) holds the screen, so the camera kiosk isn't turned on."
+      echo "presence: to boot into the camera instead: sudo presence-kiosk enable"
+    else
+      systemctl enable "$UNIT" || true
+      if running; then
+        systemctl start "$UNIT" || true
+      fi
+      echo "presence: the camera kiosk is on (tty1) and starts at every boot."
+      echo "presence: sudo presence-kiosk disable turns it off."
+    fi
+  elif running && systemctl is-enabled --quiet "$UNIT" 2>/dev/null; then
+    # Upgrade: pick up the new app.
+    systemctl try-restart "$UNIT" || true
+  fi
+fi
+
+exit 0

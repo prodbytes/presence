@@ -1,0 +1,27 @@
+# Settings for the Presence camera kiosk (presence-kiosk.service).
+# Apply changes with: sudo presence-kiosk restart
+
+# What the kiosk shows:
+#   web     the Presence web app in Chromium (default). It opens USB (UVC)
+#           webcams and the microphone, and keeps its sign-in in
+#           /var/lib/presence.
+#   native  the native Linux app in /opt/presence/bundle. It has no camera
+#           layer or Google sign-in on Linux yet, so it can't record.
+PRESENCE_KIOSK_APP=web
+
+# The web app the kiosk opens (https only). The Chromium policy in
+# /etc/chromium/policies/managed/presence.json lets presence.nu01.com and
+# rc.presence.nu01.com use the camera and microphone without asking; add
+# another origin there if you change this.
+PRESENCE_URL=https://presence.nu01.com/app/
+
+# Run Chromium under libcamerify (package libcamera-v4l2), for a Raspberry
+# Pi camera module (CSI) instead of a USB webcam:
+#   auto  when libcamerify is installed and there's no USB webcam (default)
+#   1     always
+#   0     never
+PRESENCE_LIBCAMERIFY=auto
+
+# Extra Chromium flags, separated by spaces, e.g.
+# --force-device-scale-factor=1.5 for a small, high-resolution screen.
+PRESENCE_CHROMIUM_FLAGS=

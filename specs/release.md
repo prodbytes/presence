@@ -17,7 +17,8 @@ app binaries with `make` and publishes them as a GitHub release.
     uses the selected ref if it's a tag, or `manual-<run number>`. A tag
     that doesn't exist yet is created on the dispatched commit.
   - **Pull requests** that change the workflow, the `Makefile`,
-    `scripts/make.sh`, `scripts/dart-defines.sh`, `scripts/version.sh` or
+    `scripts/make.sh`, `scripts/deb.sh`, `packaging/`,
+    `scripts/dart-defines.sh`, `scripts/version.sh` or
     the version files run the builds only,
     without a release.
   - Tag names must be letters, digits, `.`, `_` and `-`.
@@ -29,7 +30,9 @@ app binaries with `make` and publishes them as a GitHub release.
   tag): `web` and `android` (JDK 17) on `ubuntu-latest`, `ios` on
   `macos-latest`, and `linux` (GTK build packages) twice, x64 on
   `ubuntu-22.04` and arm64 on `ubuntu-22.04-arm` (Flutter doesn't
-  cross-compile Linux desktop). Each runs `make <target>`.
+  cross-compile Linux desktop). Each runs `make <target>`; the arm64 one
+  runs `make deb`, which builds the bundle and packages it as the
+  [Raspberry Pi camera](raspberry-pi.md) `.deb`.
   - Linux builds on 22.04 because the bundle needs at least the GLib and
     glibc it was built against. A 24.04 build (GLib 2.80) fails on
     Debian 12 / Raspberry Pi OS Bookworm (GLib 2.74) with
@@ -45,6 +48,9 @@ app binaries with `make` and publishes them as a GitHub release.
   - `presence-<tag>-linux-x64.tar.gz` and
     `presence-<tag>-linux-arm64.tar.gz`: the Linux `bundle/` for each
     architecture (named from Flutter's `build/linux/<arch>/` folder).
+  - `presence-<tag>-raspberrypi-arm64.deb`: the arm64 bundle as the
+    [Raspberry Pi camera](raspberry-pi.md) package (the job prints its
+    `dpkg-deb --info` and contents).
 - **Settings:** the job writes a `.env` with only the Google client IDs,
   from the repository **variables** `GOOGLE_WEB_CLIENT_ID` and
   `GOOGLE_IOS_CLIENT_ID`. They're public identifiers that get compiled into

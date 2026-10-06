@@ -21,9 +21,11 @@ can be viewed from another device.
 
   On Linux x64 or arm64 it downloads and runs the native app (it needs
   `libgtk-3-0 libegl1 libgles2`); anywhere else, or if the native app
-  can't run, it opens the web app. See [Run it on a Raspberry Pi](#run-it-on-a-raspberry-pi)
-  and [specs/install-script.md](specs/install-script.md);
+  can't run, it opens the web app. See [specs/install-script.md](specs/install-script.md);
   [presence_sh/](presence_sh) serves it.
+- Make a Raspberry Pi a camera that starts at boot: the
+  `presence-<tag>-raspberrypi-arm64.deb` package; see
+  [Raspberry Pi](#raspberry-pi).
 
 > [!IMPORTANT]
 > **Make sure you're allowed to record.** Presence records video *and
@@ -36,11 +38,105 @@ can be viewed from another device.
 > You are responsible for how you use it. The software comes with no
 > warranty ([LICENSE](LICENSE)).
 
-## Run it on a Raspberry Pi
+## Raspberry Pi
 
-You need a Raspberry Pi 3, 4 or 5 running **Raspberry Pi OS (64-bit)**,
-Bookworm or newer, with the desktop. The 32-bit OS has no native build,
-so the script opens the web app there instead.
+### As a camera (the .deb)
+
+The `presence-<tag>-raspberrypi-arm64.deb` package turns a Raspberry Pi
+into a Presence camera: it starts by itself at every boot, full screen,
+and comes back if it crashes. Details: [specs/raspberry-pi.md](specs/raspberry-pi.md).
+
+> [!IMPORTANT]
+> **The camera runs as the web app, not the native Linux app.** The native
+> Linux app has no camera layer (and no Google sign-in) yet, so it can't
+> record. The kiosk opens https://presence.nu01.com/app/ in Chromium
+> instead, which records video and audio like the web app anywhere else.
+
+**What you need**
+
+- A Raspberry Pi 4 or 5 (2 GB or more) with **Raspberry Pi OS (64-bit)**,
+  Bookworm or newer. **Lite** (no desktop) is the simplest: the camera
+  takes over the screen. On the desktop image, see step 3.
+- A **USB webcam** (any UVC camera; most USB webcams are). A Raspberry Pi
+  camera module (CSI) isn't verified: the kiosk runs Chromium under
+  `libcamerify` for it (`sudo apt install libcamera-v4l2`), which may or
+  may not work.
+- A microphone for audio (many webcams have one).
+- A screen is optional: without one it records on a virtual display. A
+  mouse and keyboard (or touch screen) only for the first setup.
+- A network connection: it loads the web app from presence.nu01.com.
+
+**Install**
+
+1. Download the `.deb` from the latest release on
+   [GitHub Releases](https://github.com/prodbytes/presence/releases)
+   (`presence-<tag>-raspberrypi-arm64.deb`; releases after this package
+   was added have it) and install it with apt, which also installs what
+   it needs (cage, Chromium, Xwayland, GTK):
+
+   ```sh
+   sudo apt update
+   sudo apt install ./presence-<tag>-raspberrypi-arm64.deb
+   ```
+
+   Or let the install script download, verify and install the latest one:
+
+   ```sh
+   curl -fsSL https://sh.presence.nu01.com | PRESENCE_KIOSK=1 sh
+   ```
+
+2. On Raspberry Pi OS Lite the camera starts right away on the screen
+   (tty1), and at every boot after that.
+3. On the desktop image the desktop keeps the screen. To boot into the
+   camera instead (this turns the desktop off at boot):
+
+   ```sh
+   sudo presence-kiosk enable
+   sudo reboot
+   ```
+
+**First setup** (once, with a mouse and keyboard)
+
+1. Tap **I agree** on the recording consent screen.
+2. Sign in with Google from the app bar, with the same account as your
+   other devices: that's what makes the Pi one of your devices (the
+   **Add a device** link is the same sign-in, checked against the link;
+   on the Pi just sign in). The Google session stays in the kiosk's
+   browser profile (`/var/lib/presence`), so after a reboot or restart the
+   app signs back in by itself (Google's automatic sign-in), like the web
+   app does in any browser.
+
+Then unplug the keyboard and mouse: it runs without them.
+
+**Start, stop, logs**
+
+```sh
+sudo systemctl restart presence-kiosk    # restart (also: sudo presence-kiosk restart)
+sudo systemctl stop presence-kiosk       # stop until the next boot
+sudo systemctl start presence-kiosk      # start again
+systemctl status presence-kiosk          # is it running?
+journalctl -u presence-kiosk -f          # its log
+sudo presence-kiosk disable              # don't start at boot (and give the screen back to the desktop)
+sudo presence-kiosk enable               # start at boot again
+```
+
+Settings are in `/etc/default/presence` (which URL to open, the camera
+module wrapper, extra Chromium flags); restart after editing it.
+
+**Uninstall**
+
+```sh
+sudo apt remove presence   # stops it and gives the screen back; keeps settings and sign-in
+sudo apt purge presence    # also deletes the settings and /var/lib/presence (sign-in, clips not yet synced)
+```
+
+### From the desktop (native app)
+
+The install script also runs the native Linux app on a Raspberry Pi
+desktop, without installing anything system-wide. It has **no camera
+support yet**, so it's only useful to look at events and clips. You need
+Raspberry Pi OS (64-bit), Bookworm or newer, with the desktop; the 32-bit
+OS has no native build, so the script opens the web app there instead.
 
 1. Open a terminal on the Pi's desktop. The app needs a display, so over
    SSH, run it from the desktop session instead.
@@ -64,8 +160,7 @@ so the script opens the web app there instead.
    update it when a new release is out.
 
 If the app can't start, the script says why (a missing library, or no
-display), then opens https://presence.nu01.com in the browser instead. The
-Linux app has no camera support yet.
+display), then opens https://presence.nu01.com in the browser instead.
 
 ## Technology
 

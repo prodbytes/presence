@@ -1,0 +1,97 @@
+#!/bin/sh
+# Turns the Presence camera kiosk on or off: presence-kiosk.service, cage
+# on tty1 showing Presence full screen from boot.
+#
+#   sudo presence-kiosk enable    start it at boot (and now, if no desktop runs)
+#   sudo presence-kiosk disable   stop it, and give the screen back to the desktop
+#   sudo presence-kiosk restart   restart it (e.g. after editing /etc/default/presence)
+#   presence-kiosk status         show whether it runs, and its recent log
+#
+# On a desktop image the display manager (e.g. lightdm) holds the screen,
+# so `enable` turns it off for the next boot and `disable` turns it back on.
+set -eu
+
+UNIT=presence-kiosk.service
+STATE=/var/lib/presence-kiosk
+DM_FILE=$STATE/display-manager
+
+say() { printf 'presence-kiosk: %s\n' "$*" >&2; }
+
+need_root() {
+  [ "$(id -u)" = 0 ] || { say "run it as root: sudo presence-kiosk $1"; exit 1; }
+}
+
+# Whether $1 is a plain service unit name (it's read back from a file).
+valid_unit() {
+  case "$1" in
+    "" | *[!A-Za-z0-9@._-]*) return 1 ;;
+    ?*.service) return 0 ;;
+  esac
+  return 1
+}
+
+# The enabled display manager (lightdm.service, gdm3.service, ...), or
+# nothing. Enabling one links display-manager.service to it; reading the
+# link also works where systemd isn't running (an image being built).
+display_manager() {
+  link=/etc/systemd/system/display-manager.service
+  [ -L "$link" ] || return 0
+  unit=$(basename "$(readlink -f "$link")")
+  valid_unit "$unit" || return 0
+  echo "$unit"
+}
+
+running() { [ -d /run/systemd/system ]; }
+
+kiosk_enable() {
+  need_root enable
+  systemctl enable "$UNIT"
+  dm=$(display_manager)
+  if [ -n "$dm" ]; then
+    mkdir -p "$STATE"
+    chmod 755 "$STATE"
+    echo "$dm" > "$DM_FILE"
+    systemctl disable "$dm"
+    say "turned off the desktop ($dm) at boot; 'sudo presence-kiosk disable' turns it back on"
+    if running && systemctl is-active --quiet "$dm"; then
+      say "the desktop is running now: reboot to start the camera (sudo reboot)"
+      return 0
+    fi
+  fi
+  if running; then
+    systemctl restart "$UNIT"
+    say "started; it starts at every boot"
+  fi
+}
+
+kiosk_disable() {
+  need_root disable
+  systemctl disable "$UNIT"
+  if running; then systemctl stop "$UNIT"; fi
+  if [ -f "$DM_FILE" ]; then
+    dm=$(cat "$DM_FILE")
+    if valid_unit "$dm"; then
+      systemctl enable "$dm" || true
+      if running; then systemctl start "$dm" || true; fi
+      say "turned the desktop ($dm) back on"
+    fi
+    rm -f "$DM_FILE"
+  fi
+  say "stopped; it no longer starts at boot"
+}
+
+case "${1:-}" in
+  enable) kiosk_enable ;;
+  disable) kiosk_disable ;;
+  restart)
+    need_root restart
+    systemctl restart "$UNIT"
+    ;;
+  status)
+    systemctl status --no-pager "$UNIT" || true
+    ;;
+  *)
+    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//' >&2
+    exit 2
+    ;;
+esac
