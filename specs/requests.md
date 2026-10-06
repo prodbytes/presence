@@ -3576,3 +3576,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Events](events.md), [Cloud sync](cloud-sync.md), [Device
        presence](device-presence.md), [Recording and data
        formats](data-formats.md), [index](README.md).
+
+294. **A larger version label.** (2026-10-06)
+     - Asked: make the version label larger as well (after the device and
+       profile IDs, #219).
+     - Changed: the build's version at the bottom of Settings ("Presence
+       0.6.…") went from `bodySmall` (12 sp) to `bodyMedium` (14 sp), the
+       IDs' size under it. The About text and the dev-mode label in the
+       title bar are unchanged. Specs: [Settings](settings.md).

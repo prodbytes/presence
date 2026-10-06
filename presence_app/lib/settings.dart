@@ -404,7 +404,9 @@ class _SettingsViewState extends State<SettingsView> {
                 'Presence ${AppVersion.version}',
                 key: const Key('app-version'),
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodySmall?.copyWith(
+                // bodyMedium, as the IDs under it: read out to check a
+                // deploy landed.
+                style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -734,8 +736,8 @@ class _IdLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // bodyMedium, a step above the version's bodySmall: IDs get read out
-    // and typed on other devices.
+    // bodyMedium, as the version above: IDs get read out and typed on
+    // other devices.
     final style = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );

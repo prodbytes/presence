@@ -88,7 +88,8 @@
   latest events its screen lists and maps, and each subject's on the
   Subjects map (see [Subjects](subjects.md)). Stored values are kept
   (raised to 10 if below).
-- **The build's version** is at the very bottom, small and centred: only
+- **The build's version** is at the very bottom, centred, quiet
+  (`onSurfaceVariant`) at `bodyMedium` (14 sp, was `bodySmall`, 12 sp): only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
   as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
@@ -96,8 +97,8 @@
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
 - **The device and profile IDs, always**, under the version, quiet
-  (`onSurfaceVariant`) but a step larger than it (`bodyMedium`, 14 sp, the
-  version's `bodySmall` is 12 sp), one labelled line each, the IDs
+  (`onSurfaceVariant`) and the same size (`bodyMedium`, 14 sp), one
+  labelled line each, the IDs
   selectable to copy. Each line wraps, so at 320 dp and a 2x system font
   the ID moves under its label rather than overflowing:
   - **Device** `automatic_paranoid_gadget` (see [Devices, users and
