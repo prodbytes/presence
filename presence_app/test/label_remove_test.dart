@@ -42,7 +42,8 @@ ClipRequested clipOf(
       id: 'event-$minute',
     )
     ..location = DeviceLocation(
-      latitude: 48 + minute / 10,
+      // A few hundred metres apart: all in view at street level.
+      latitude: 48 + minute / 2000,
       longitude: 2.29,
       source: LocationSource.map,
       time: DateTime(2026, 10, 1, 12, minute),

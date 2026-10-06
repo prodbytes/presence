@@ -196,6 +196,7 @@ class SubjectsMap extends StatelessWidget {
           key: const Key('subjects-map'),
           // Fitted again to the dots shown when the device filter changes.
           fitKey: onlyDevice?.value,
+          closeUp: true,
           dots: dots,
           labels: labels,
           tiles: tiles,
@@ -543,6 +544,8 @@ List<LatLng> framedAround(LatLng center, List<LatLng> points) {
 
 /// A map of [dots], opening centered on the newest one and zoomed out to
 /// show them all (on the whole world without any), with zoom buttons.
+/// With [closeUp], it opens on the newest one at street level instead, and
+/// follows the newest as events arrive until the map is moved.
 /// Tapping a dot opens its event.
 class _SightingsMap extends StatefulWidget {
   const _SightingsMap({
@@ -552,10 +555,17 @@ class _SightingsMap extends StatefulWidget {
     this.tiles,
     this.onOpen,
     this.fitKey,
+    this.closeUp = false,
   });
 
   /// When it changes, the map fits the dots again, as when it opened.
   final Object? fitKey;
+
+  /// Centered on the newest dot at street level ([closeUpZoom]), showing
+  /// only the dots within [nearbyMeters] of it; fitted again when a newer
+  /// dot arrives (or the first, once the events load) until the map is
+  /// moved by hand.
+  final bool closeUp;
 
   /// Called with a tapped dot's event.
   final ValueChanged<AppEvent>? onOpen;
@@ -573,6 +583,13 @@ class _SightingsMap extends StatefulWidget {
   static const double minZoom = 2;
   static const double maxZoom = 19;
 
+  /// The close-up zoom range: street level ([closeUp]).
+  static const double closeUpMinZoom = 16;
+  static const double closeUpZoom = 17;
+
+  /// The dots this close to the newest are fitted with it ([closeUp]).
+  static const double nearbyMeters = 300;
+
   static LatLng _at(Sighting s) =>
       LatLng(s.event.location!.latitude, s.event.location!.longitude);
 
@@ -584,6 +601,30 @@ class _SightingsMapState extends State<_SightingsMap> {
   final _map = MapController();
   bool _ready = false;
 
+  /// Moved by hand (a drag, pinch, wheel or the zoom buttons): a newer dot
+  /// no longer refits a [_SightingsMap.closeUp] map.
+  bool _moved = false;
+
+  /// The fit the map opens on, worked out once from the first dots:
+  /// flutter_map applies it at the first real size it gets, which may come
+  /// later (a resize), and a fit of the current dots then would snap back to
+  /// the newest after the map was moved. Newer dots are followed through
+  /// [didUpdateWidget] (or [_onReady]) instead.
+  late final CameraFit? _initialFit;
+
+  /// What [_initialFit] was worked out from, to tell at [_onReady] whether
+  /// the dots changed before the map was ready.
+  late final Object? _initialFitKey;
+  late final String? _initialNewest;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialFit = _fit(widget.dots, closeUp: widget.closeUp);
+    _initialFitKey = widget.fitKey;
+    _initialNewest = _newest(widget.dots)?.sighting.event.id;
+  }
+
   @override
   void dispose() {
     _map.dispose();
@@ -593,6 +634,7 @@ class _SightingsMapState extends State<_SightingsMap> {
   /// One step in ([by] 1) or out (-1), around the map's center.
   void _zoom(double by) {
     if (!_ready) return;
+    _moved = true;
     final camera = _map.camera;
     _map.move(
       camera.center,
@@ -606,38 +648,79 @@ class _SightingsMapState extends State<_SightingsMap> {
   @override
   void didUpdateWidget(_SightingsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_ready && oldWidget.fitKey != widget.fitKey) {
-      // After this build, once the map has the new dots.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final fit = _fit(widget.dots);
-        if (fit == null) {
-          _map.move(const LatLng(20, 0), _SightingsMap.minZoom);
-        } else {
-          _map.fitCamera(fit);
-        }
-        setState(() {});
-      });
+    if (!_ready) return;
+    final refilter = oldWidget.fitKey != widget.fitKey;
+    final newer =
+        widget.closeUp &&
+        !_moved &&
+        _newest(widget.dots)?.sighting.event.id !=
+            _newest(oldWidget.dots)?.sighting.event.id;
+    if (refilter || newer) {
+      if (refilter) _moved = false;
+      _refitAfterBuild();
     }
   }
 
-  /// Centered on the newest dot, out far enough for all of them; null
-  /// without any (the whole world).
-  static CameraFit? _fit(List<_MapPoint> dots) {
-    if (dots.isEmpty) return null;
-    final points = [for (final d in dots) _SightingsMap._at(d.sighting)];
-    var newest = 0;
-    for (var i = 1; i < dots.length; i++) {
-      if (dots[i].sighting.event.time.isAfter(
-        dots[newest].sighting.event.time,
-      )) {
-        newest = i;
+  /// Fits the current dots, after this build (once the map has them).
+  void _refitAfterBuild() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final fit = _fit(widget.dots, closeUp: widget.closeUp);
+      if (fit == null) {
+        _map.move(const LatLng(20, 0), _SightingsMap.minZoom);
+      } else {
+        _map.fitCamera(fit);
+      }
+      setState(() {});
+    });
+  }
+
+  /// The map is ready: if the dots changed since [_initialFit] was worked
+  /// out (events loaded in the meantime), fit them as [didUpdateWidget]
+  /// would have.
+  void _onReady() {
+    setState(() => _ready = true);
+    final refilter = widget.fitKey != _initialFitKey;
+    final newer =
+        widget.closeUp &&
+        !_moved &&
+        _newest(widget.dots)?.sighting.event.id != _initialNewest;
+    if (refilter || newer) _refitAfterBuild();
+  }
+
+  /// The newest of [dots]; null without any.
+  static _MapPoint? _newest(List<_MapPoint> dots) {
+    _MapPoint? newest;
+    for (final d in dots) {
+      if (newest == null ||
+          d.sighting.event.time.isAfter(newest.sighting.event.time)) {
+        newest = d;
       }
     }
+    return newest;
+  }
+
+  /// Centered on the newest dot, out far enough for all of them; null
+  /// without any (the whole world). With [closeUp], at street level, out
+  /// only as far as the dots within [_SightingsMap.nearbyMeters].
+  static CameraFit? _fit(List<_MapPoint> dots, {bool closeUp = false}) {
+    final newest = _newest(dots);
+    if (newest == null) return null;
+    final center = _SightingsMap._at(newest.sighting);
+    var points = [for (final d in dots) _SightingsMap._at(d.sighting)];
+    if (closeUp) {
+      // Haversine: Vincenty fails to converge for nearly antipodal points.
+      const distance = DistanceHaversine();
+      points = [
+        for (final p in points)
+          if (distance(center, p) <= _SightingsMap.nearbyMeters) p,
+      ];
+    }
     return CameraFit.coordinates(
-      coordinates: framedAround(points[newest], points),
+      coordinates: framedAround(center, points),
       padding: const EdgeInsets.all(48),
-      maxZoom: 17,
+      minZoom: closeUp ? _SightingsMap.closeUpMinZoom : 0,
+      maxZoom: _SightingsMap.closeUpZoom,
     );
   }
 
@@ -653,7 +736,7 @@ class _SightingsMapState extends State<_SightingsMap> {
         FlutterMap(
           mapController: _map,
           options: MapOptions(
-            initialCameraFit: _fit(dots),
+            initialCameraFit: _initialFit,
             initialCenter: const LatLng(20, 0),
             initialZoom: 2,
             minZoom: _SightingsMap.minZoom,
@@ -662,11 +745,11 @@ class _SightingsMapState extends State<_SightingsMap> {
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
             ),
-            onMapReady: () => setState(() => _ready = true),
+            onMapReady: _onReady,
             // Pinches and wheels change the zoom too: keep the buttons'
             // limits current.
             onPositionChanged: (_, hasGesture) {
-              if (hasGesture) setState(() {});
+              if (hasGesture) setState(() => _moved = true);
             },
           ),
           children: [

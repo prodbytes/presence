@@ -19,6 +19,7 @@ import 'package:presence_app/recognition/vision.dart';
 import 'package:presence_app/settings.dart';
 
 import 'fakes.dart';
+import 'motion_test.dart' show frame;
 
 const media = ClipMedia(
   url: 'blob:fake',
@@ -35,6 +36,7 @@ void main() {
     late AppEventBus bus;
     late List<ClipRequested> clips;
     late CameraRig rig;
+    late FakeCameraSource camera;
 
     Future<void> start(WidgetTester tester, {ScheduleConfig? schedule}) async {
       now = DateTime(2026, 10, 1, 12);
@@ -48,7 +50,9 @@ void main() {
         if (e is ClipRequested) clips.add(e);
       });
       rig = CameraRig(
-        backend: openFakes([FakeCameraSource('Main', immediatePast: media)]),
+        backend: openFakes([
+          camera = FakeCameraSource('Main', immediatePast: media),
+        ]),
         config: config,
         bus: bus,
         now: () => now,
@@ -163,6 +167,106 @@ void main() {
       ]);
       await advance(tester, const Duration(minutes: 30));
       expect(clips, hasLength(3));
+      await stop();
+    });
+
+    testWidgets('one due during the cooldown is taken when it ends', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        schedule: const ScheduleConfig(every: Duration(minutes: 30)),
+      );
+      await advance(tester, const Duration(seconds: 5));
+      expect(clips.map((c) => c.trigger), [ClipTrigger.startup]);
+      final due = rig.nextScheduledClip!;
+
+      // A Clip press 2 minutes before it's due: its 5-minute cooldown
+      // holds the scheduled clip back until 3 minutes after.
+      now = due.subtract(const Duration(minutes: 2));
+      await rig.requestClips(bus);
+      await tester.pump();
+      final pressed = now;
+      expect(clips, hasLength(2));
+      expect(rig.untilScheduledClip, const Duration(minutes: 5));
+
+      await advance(tester, const Duration(minutes: 4, seconds: 55));
+      expect(clips, hasLength(2), reason: 'still in the cooldown');
+      await advance(tester, const Duration(seconds: 5));
+      expect(clips.map((c) => c.trigger).last, ClipTrigger.scheduled);
+      expect(clips.last.time, pressed.add(const Duration(minutes: 5)));
+      // Not lost, and the next one counts from when it was taken.
+      expect(
+        rig.nextScheduledClip,
+        clips.last.time.add(const Duration(minutes: 30)),
+      );
+      await stop();
+    });
+
+    testWidgets('one held back by the cooldown is taken the moment it ends, '
+        'not at the next check', (tester) async {
+      await start(
+        tester,
+        schedule: const ScheduleConfig(every: Duration(minutes: 30)),
+      );
+      await advance(tester, const Duration(seconds: 5));
+      final due = rig.nextScheduledClip!;
+      // Off the 5 s check grid: the checks fall 2 s before and 3 s after
+      // the end of the press's cooldown.
+      await tester.pump(const Duration(seconds: 2));
+      now = due.subtract(const Duration(minutes: 2));
+      await rig.requestClips(bus);
+      await tester.pump();
+      final pressed = now;
+
+      for (var i = 0; i < 300; i++) {
+        now = now.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(clips.map((c) => c.trigger).last, ClipTrigger.scheduled);
+      expect(clips.last.time, pressed.add(const Duration(minutes: 5)));
+      await stop();
+    });
+
+    testWidgets('steady motion through the cooldown does not starve it', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        schedule: const ScheduleConfig(every: Duration(minutes: 30)),
+      );
+      await advance(tester, const Duration(seconds: 5));
+      final due = rig.nextScheduledClip!;
+      now = due.subtract(const Duration(minutes: 2));
+      await rig.requestClips(bus);
+      await tester.pump();
+      final pressed = now;
+      expect(clips, hasLength(2));
+
+      // Movement all along, 5 frames a second, until just past the end of
+      // the press's cooldown.
+      for (
+        var i = 0;
+        now.isBefore(pressed.add(const Duration(minutes: 5, seconds: 1)));
+        i++
+      ) {
+        now = now.add(const Duration(milliseconds: 200));
+        camera.motion.add(frame(x: (i % 2) * 30 + 5, y: 10, size: 24));
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      final after = clips.skip(2).toList();
+      expect(
+        after.map((c) => c.trigger),
+        [ClipTrigger.scheduled],
+        reason:
+            'the scheduled clip, not a motion one; it starts the '
+            'cooldown in turn',
+      );
+      expect(after.single.time, pressed.add(const Duration(minutes: 5)));
+      expect(
+        rig.cooldownEnds,
+        after.single.time.add(const Duration(minutes: 5)),
+      );
       await stop();
     });
 

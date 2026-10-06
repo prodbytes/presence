@@ -51,6 +51,8 @@ dependencies:
   app_links: ^7.2.1
   tflite_flutter: ^0.12.1
   url_launcher: ^6.3.3
+  # Live sync: MQTT over WebSockets to AWS IoT Core (pinned).
+  mqtt_client: 10.11.11
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -109,4 +109,60 @@ void main() {
     expect(notified, 1);
     expect(controller.motion.threshold, 20);
   });
+
+  group('Connect to live sync', () {
+    test('every minute by default; older configs get it too', () {
+      expect(const PresenceConfig().live, const LiveConfig());
+      expect(const LiveConfig().mode, LiveMode.scheduled);
+      expect(const LiveConfig().every, const Duration(minutes: 1));
+      // Saved before the setting: the default.
+      expect(
+        PresenceConfig.fromJson({'version': 1, 'clip': {}}).live,
+        const LiveConfig(),
+      );
+      expect(LiveConfig.fromJson({'mode': 'sometimes'}), const LiveConfig());
+    });
+
+    test('the steps: Never first, then 1 to 60 min, Always last', () {
+      expect(LiveConfig.steps, 9);
+      expect(
+        [for (var i = 0; i < LiveConfig.steps; i++) LiveConfig.ofStep(i).label],
+        [
+          'Never',
+          'Every 1 min',
+          'Every 2 min',
+          'Every 5 min',
+          'Every 10 min',
+          'Every 15 min',
+          'Every 30 min',
+          'Every 60 min',
+          'Always',
+        ],
+      );
+      expect(LiveConfig.ofStep(0), LiveConfig.never);
+      expect(LiveConfig.ofStep(8), LiveConfig.always);
+      expect(LiveConfig.ofStep(-3), LiveConfig.never);
+      expect(LiveConfig.ofStep(42), LiveConfig.always);
+      for (var i = 0; i < LiveConfig.steps; i++) {
+        expect(LiveConfig.ofStep(i).step, i);
+      }
+      expect(const LiveConfig().step, 1);
+    });
+
+    test('round-trips through storage; odd intervals snap to a step', () {
+      for (var i = 0; i < LiveConfig.steps; i++) {
+        final live = LiveConfig.ofStep(i);
+        final config = PresenceConfig(live: live);
+        expect(PresenceConfig.fromJson(config.toJson()).live, live);
+      }
+      expect(
+        LiveConfig.fromJson({'mode': 'scheduled', 'everyMs': 7 * 60000}).every,
+        const Duration(minutes: 5),
+      );
+      expect(
+        LiveConfig.fromJson({'mode': 'scheduled', 'everyMs': 9e9}).every,
+        const Duration(minutes: 60),
+      );
+    });
+  });
 }

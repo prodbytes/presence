@@ -23,4 +23,16 @@ abstract final class CloudConfig {
 
   static bool get enabled =>
       identityPoolId.isNotEmpty && userDataBucket.isNotEmpty;
+
+  /// The account's AWS IoT Core data endpoint (`aws iot describe-endpoint
+  /// --endpoint-type iot:Data-ATS`, set by `scripts/deploy.sh`), for live
+  /// sync. Public, like the rest. Empty means live sync is off: events
+  /// still reach the profile's other devices through the bucket.
+  static const String iotEndpoint = String.fromEnvironment('IOT_ENDPOINT');
+
+  /// The stage in live sync's topics (`presence/<stage>/...`): `rc` for
+  /// the release candidate's build, `prod` for every other build (local
+  /// builds sync with production's bucket and pool).
+  static const String liveStage =
+      String.fromEnvironment('PRESENCE_STAGE') == 'rc' ? 'rc' : 'prod';
 }

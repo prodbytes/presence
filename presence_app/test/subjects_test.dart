@@ -24,6 +24,7 @@ ClipRequested clipWith(
   List<String> names, {
   required int minutesAgo,
   double? lat,
+  double lng = 2.29,
   String id = '',
 }) {
   final annotations = ClipAnnotations();
@@ -48,7 +49,7 @@ ClipRequested clipWith(
   if (lat != null) {
     event.location = DeviceLocation(
       latitude: lat,
-      longitude: 2.29,
+      longitude: lng,
       source: LocationSource.map,
       time: event.time,
     );
@@ -345,12 +346,18 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('the map centers on the newest event, out far enough for '
-        'all, and has zoom buttons', (tester) async {
+    MapCamera cameraOf(WidgetTester tester) => MapCamera.of(
+      tester.element(find.byType(MarkerLayer, skipOffstage: false)),
+    );
+
+    testWidgets('the map opens on the newest event close up, with the ones '
+        'nearby, and has zoom buttons', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
-        clipWith(['Ana'], minutesAgo: 2, lat: 48.4),
-        clipWith(['Rex'], minutesAgo: 3, lat: 49.2),
+        // About 90 m north: nearby.
+        clipWith(['Ana'], minutesAgo: 2, lat: 48.1008),
+        // About 30 km north: left out of the fit.
+        clipWith(['Rex'], minutesAgo: 3, lat: 48.4),
       ]);
       await show(tester);
       await tester.pumpAndSettle();
@@ -358,40 +365,106 @@ void main() {
       final map = tester.getRect(find.byKey(const Key('subjects-map')));
       Offset dot(String id) => tester.getCenter(find.byKey(Key(id)));
       final newest = dot('subjects-dot-rex-event-1');
-      final others = [
-        dot('subjects-dot-ana-event-2'),
-        dot('subjects-dot-rex-event-3'),
-      ];
-      // The newest in the middle, not the middle of the three.
+      // The newest in the middle, at street level.
       expect(newest.dx, closeTo(map.center.dx, 1));
       expect(newest.dy, closeTo(map.center.dy, 1));
-      // All of them in view, the farthest near the edge (48 px padding).
-      for (final o in others) {
-        expect(map.deflate(40).contains(o), isTrue, reason: '$o in $map');
-      }
-      expect(others.last.dy - map.top, lessThan(map.height / 4));
+      final zoom = cameraOf(tester).zoom;
+      expect(zoom, inInclusiveRange(16, 17));
+      // The nearby one in view, the far one not.
+      final near = dot('subjects-dot-ana-event-2');
+      expect(map.deflate(40).contains(near), isTrue, reason: '$near in $map');
+      expect(
+        cameraOf(tester).visibleBounds.contains(const LatLng(48.4, 2.29)),
+        isFalse,
+      );
 
       // Zoom in spreads the dots (around the center), zoom out brings
       // them back.
       final zoomIn = find.byKey(const Key('sightings-zoom-in'));
       final zoomOut = find.byKey(const Key('sightings-zoom-out'));
       expect(zoomIn, findsOneWidget);
-      // The nearer dot: the farther one leaves the view zoomed in.
-      final near = (others.first - newest).distance;
+      final apart = (near - newest).distance;
       await tester.tap(zoomIn);
       await tester.pumpAndSettle();
       expect(
         (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
             .distance,
-        closeTo(near * 2, 2),
+        closeTo(apart * 2, 2),
       );
       await tester.tap(zoomOut);
       await tester.pumpAndSettle();
       expect(
         (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
             .distance,
-        closeTo(near, 2),
+        closeTo(apart, 2),
       );
+    });
+
+    testWidgets('a lone newest event is shown at zoom 17', (tester) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
+        clipWith(['Rex'], minutesAgo: 2, lat: 49.2),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+      final camera = cameraOf(tester);
+      expect(camera.zoom, 17);
+      expect(camera.center.latitude, closeTo(48.1, 1e-6));
+    });
+
+    testWidgets('the map follows the newest event as events load and arrive, '
+        'until it is moved', (tester) async {
+      await show(tester);
+      await tester.pumpAndSettle();
+      // Nothing yet: the whole world.
+      expect(cameraOf(tester).zoom, 2);
+
+      // The events load: the newest close up.
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 5, lat: 48.1),
+        clipWith(['Rex'], minutesAgo: 6, lat: 48.3),
+      ]);
+      await tester.pumpAndSettle();
+      expect(cameraOf(tester).center.latitude, closeTo(48.1, 1e-6));
+      expect(cameraOf(tester).zoom, 17);
+
+      // A newer one arrives: the map moves to it.
+      bus.add(clipWith(['Ana'], minutesAgo: 4, lat: 48.2));
+      await tester.pumpAndSettle();
+      expect(cameraOf(tester).center.latitude, closeTo(48.2, 1e-6));
+
+      // Moved by hand, it stays put when the next one arrives.
+      final map = tester.getRect(find.byKey(const Key('subjects-map')));
+      await tester.dragFrom(map.center, const Offset(-120, 80));
+      await tester.pumpAndSettle();
+      final moved = cameraOf(tester).center;
+      expect(moved.latitude, isNot(closeTo(48.2, 1e-6)));
+      bus.add(clipWith(['Rex'], minutesAgo: 3, lat: 48.25));
+      await tester.pumpAndSettle();
+      expect(log.events.first.id, 'event-3');
+      expect(cameraOf(tester).center, moved);
+      expect(cameraOf(tester).zoom, 17);
+
+      // A resize (rotation, keyboard, window) doesn't snap it back either.
+      tester.view.physicalSize = const Size(1280, 600);
+      await tester.pumpAndSettle();
+      expect(cameraOf(tester).center, moved);
+      expect(cameraOf(tester).zoom, 17);
+    });
+
+    testWidgets('a dot on the far side of the world is no trouble', (
+      tester,
+    ) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 0),
+        // Nearly antipodal: Vincenty's formula doesn't converge there.
+        clipWith(['Ana'], minutesAgo: 2, lat: 0, lng: -177.6),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(cameraOf(tester).center.longitude, closeTo(2.29, 1e-6));
+      expect(cameraOf(tester).zoom, 17);
     });
 
     testWidgets('without located events, the whole world, zoomed out', (
@@ -411,8 +484,9 @@ void main() {
     testWidgets("the map shows every device until an event's device is "
         'tapped, with the events', (tester) async {
       log.addHistory([
+        // Close together: both in view at street level.
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
-        clipWith(['Ana'], minutesAgo: 2, lat: 48.2)..deviceId = 'there',
+        clipWith(['Ana'], minutesAgo: 2, lat: 48.1005)..deviceId = 'there',
       ]);
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
@@ -462,9 +536,10 @@ void main() {
     testWidgets('on top, a map of every subject, each in its color, and a '
         'matching square on each row', (tester) async {
       log.addHistory([
+        // Close together: all in view at street level.
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
-        clipWith(['Rex', 'Ana'], minutesAgo: 2, lat: 48.2),
-        clipWith(['Ana'], minutesAgo: 3, lat: 48.3),
+        clipWith(['Rex', 'Ana'], minutesAgo: 2, lat: 48.1005),
+        clipWith(['Ana'], minutesAgo: 3, lat: 48.101),
         clipWith(['Ana'], minutesAgo: 4),
       ]);
       AppEvent? opened;
@@ -552,7 +627,7 @@ void main() {
         ],
         unorderedEquals([
           ('subjects-label-rex', 48.1),
-          ('subjects-label-ana', 48.2),
+          ('subjects-label-ana', 48.1005),
         ]),
       );
       expect(

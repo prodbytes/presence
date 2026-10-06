@@ -33,10 +33,12 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   events: for each subject, a dot per event among their latest
   `mapEvents` that has a location, in **the subject's color**, the newest
   solid and older ones fading, as on a subject's own map. A clip tagged
-  with several subjects gets a dot for each. It **opens centered on the
-  newest event** (of any subject) and **zoomed out just enough to show
-  every dot** (the whole world without any; see [the map's
-  view](#the-maps-view)), has the tiles' credit and **zoom buttons**, and
+  with several subjects gets a dot for each. It **opens on the newest
+  event** (of any subject) **close up, at street level** (zoom 16–17,
+  with the dots within 300 m of it), and follows the newest as events
+  load and arrive until it's moved by hand (the whole world without any;
+  see [the map's view](#the-maps-view)), has the tiles' credit and
+  **zoom buttons**, and
   tapping a dot opens its event in the Monitoring tab's events list.
 - **Devices:** the map shows every device's events, or only those of
   the device picked by tapping an event's device in the Monitoring tab
@@ -67,25 +69,37 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
 
 ## The map's view
 
-Both maps, the subjects map and a subject's own, open and zoom the same
-way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
+Both maps, the subjects map and a subject's own, are the same map
+(`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart));
+a subject's own map catches all its dots, and the subjects map (on
+Monitoring) is a close-up (`closeUp`):
 
 - **Centered on the newest event:** the newest dot shown, by event time,
   is in the middle of the map, not the middle of all the dots.
-- **Zoomed out to catch them all:** as close as it can be with every dot
-  in view, 48 px from the edges, at most zoom 17. Each dot's mirror image
+- **A subject's map, zoomed out to catch them all:** as close as it can
+  be with every dot in view, 48 px from the edges, at most zoom 17. Each dot's mirror image
   through the newest one, in the map's Web Mercator projection, is fitted
   along with the dots (`framedAround`), so the fit is centered exactly on
   the newest. The farthest dot from it sets the zoom.
+- **The subjects map, close up:** only the dots within 300 m of the newest
+  are fitted (the same way), between zoom 16 and 17: a lone newest dot
+  shows at zoom 17. Farther dots are off the view until zoomed out.
 - **Without a located event:** the whole world, at zoom 2.
 - **Zoom in (+) over zoom out (−)** in the bottom-right corner
   (`MapZoomButtons`, shared with the Settings [location
   map](device-location.md); keys `sightings-zoom-in`, `sightings-zoom-out`).
   Each steps the zoom by one around the map's center, between zoom 2 and
   19; a button turns off at its limit. Pinch, wheel and drag still work.
-- The view is set when the map opens; new events don't move it. On the
-  subjects map, checking or unchecking a device fits it again
-  (`fitKey`).
+- A subject's map is set when it opens; new events don't move it. The
+  subjects map is fitted again whenever its newest dot changes (the
+  first one once the events load, or a newer one arriving) **until the
+  map is moved by hand** (a drag, pinch, wheel or the zoom buttons);
+  from then on it stays where it was put, through resizes too (a
+  rotation, the keyboard, a window resized): the fit it opens on is worked
+  out once, from the dots it opened with. Picking or clearing a device
+  fits it again (`fitKey`) and lets it follow the newest once more.
+- "Within 300 m" is measured with the haversine formula, so a dot on the
+  far side of the world is no trouble.
 
 ## A subject's screen
 
@@ -148,7 +162,9 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
   in view, the farthest near the edge, and the zoom buttons double and
   halve the spacing of the dots; without located events, zoom out is off;
   `framedAround` centers the fit on the newest, and stops mirrors at the
-  date line.
+  date line; the subjects map follows the newest as events load and
+  arrive, stays put once dragged, also through a resize, and a nearly
+  antipodal dot doesn't break it.
   `widget_test.dart`: the four tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
@@ -157,8 +173,8 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
 
 - Near the date line, a mirror image is cut back to it, so the map may
   not be exactly centered on the newest event there.
-- The view is set when a map opens: events added while it's open don't
-  recenter it.
+- A subject's own map is set when it opens: events added while it's open
+  don't recenter it.
 
 - Removing a subject from an event can't be undone, short of tagging
   them again under the player.
