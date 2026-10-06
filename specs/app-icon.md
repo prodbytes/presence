@@ -21,6 +21,17 @@ dot on the ring.
     manifest colors.
 - Verified on the S40: the adaptive icon shows in Recents, next to the app
   name "Presence".
+- **The RC site's icons are different:** a huge dark **"RC"** on Gruvbox
+  red (`#fb4934`), so an rc.presence.nu01.com tab or home-screen icon never
+  passes for production's. Masters `icon_rc.svg` and
+  `icon_rc_maskable.svg` (letters inside the safe zone) in
+  [presence_app/assets/icon/](../presence_app/assets/icon), rendered to
+  1024 px with headless Chrome and resized with `sips` into
+  [presence_app/web_rc/](../presence_app/web_rc): `favicon.png` (64 px)
+  and `icons/Icon-192/512` and their maskable variants.
+  `scripts/deploy.sh` copies `web_rc/` over the web build only for
+  `STAGE=rc` (see [Production deploy](deploy.md)); production and every
+  other build keep the lens.
 
 ## Name
 

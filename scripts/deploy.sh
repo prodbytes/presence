@@ -145,6 +145,12 @@ if [[ "${SKIP_BUILD:-}" != 1 ]]; then
   echo "==> building the web app for /app/"
   WEB_BASE_HREF=/app/ bash scripts/make.sh web
 fi
+# The RC's own icons (a huge "RC" on red), so its tabs never pass for
+# production's: presence_app/web_rc/ over the build's favicon and icons.
+if [[ "$STAGE" == rc ]]; then
+  cp -R presence_app/web_rc/. presence_app/build/web/
+  echo "    RC icons in place"
+fi
 test -f presence_app/build/web/index.html
 built="$(python3 -c 'import json; print(json.load(open("presence_app/build/web/version.json"))["version"])')"
 if [[ "$built" != "$VERSION" ]]; then
