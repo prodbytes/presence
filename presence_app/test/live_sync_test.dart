@@ -317,7 +317,7 @@ void main() {
       expect(message, containsPair('etag', 'b' * 32));
       expect(message, containsPair('key', 'events/year=1970/day=001/e-1.json'));
       expect(message['event'], {'id': 'e-1', 'time': 5, 'clipId': 'c-1'});
-      expect(live.published, 1);
+      expect(live.sent, 1);
     });
 
     test('hands over other devices\' events, in order; not its own, nor '
@@ -399,6 +399,43 @@ void main() {
       expect(live.state, LiveSyncState.off);
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(broker.urls, hasLength(1));
+    });
+
+    test('a hung attempt times out into the back-off', () async {
+      // Credentials that never come, then a broker that never answers.
+      var credentialCalls = 0;
+      var connects = 0;
+      final hung = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: (url, clientId, {persistent = false}) {
+          connects++;
+          return Completer<LiveConnection>().future;
+        },
+        minRetry: const Duration(milliseconds: 5),
+        maxRetry: const Duration(milliseconds: 10),
+        connectTimeout: const Duration(milliseconds: 20),
+      );
+      addTearDown(hung.dispose);
+      hung.start(
+        LiveLink(
+          identityId: identity,
+          deviceId: 'this_device_one',
+          credentials: () {
+            if (++credentialCalls == 1) {
+              return Completer<AwsCredentials>().future;
+            }
+            return Future.value(credentials);
+          },
+          onEvent: (_) async {},
+        ),
+      );
+      await until(() => hung.state == LiveSyncState.error);
+      expect(hung.error, contains('credentials took too long'));
+      // It tries again: the connection hangs, and times out too.
+      await until(() => connects >= 2, reason: 'retried after a hung connect');
+      expect(hung.state, isNot(LiveSyncState.connected));
+      expect(credentialCalls, greaterThanOrEqualTo(3));
     });
   });
 
@@ -524,7 +561,7 @@ void main() {
       expect(broker.connections, hasLength(2));
       expect(broker.last.sent.single['event'], {'id': 'e-1', 'time': 5});
       expect(broker.persistent, [true, true]);
-      expect(live.published, 1);
+      expect(live.sent, 1);
       await until(() => live.state == LiveSyncState.idle);
       expect(broker.last.closed, isTrue);
     });
@@ -847,6 +884,203 @@ void main() {
       );
       await live.drained;
       expect(remote.where((r) => r.updated.isNotEmpty), isEmpty);
+    });
+
+    test('a pass doesn\'t put back an event live sync updated while it '
+        'uploaded clips', () async {
+      final time = now();
+      final old = <String, Object?>{
+        'id': 'raced',
+        'profileId': '1',
+        'type': 'clip_requested',
+        'time': time,
+        'clipId': 'raced-clip',
+      };
+      await store.putEvent(old);
+      changes.add({'raced'});
+      await sync.idle();
+      final key = CloudSync.eventKey(old);
+      expect(backend.uploads['$identity/$key'], isNotNull);
+      final sentBefore = broker.last.sent.length;
+
+      // Its clip completes here: the next pass uploads the recording
+      // first, and that takes a while.
+      await IdbMediaStore(store).saveBytes('raced-full', Uint8List(4));
+      await store.putClip({
+        'id': 'raced-clip',
+        'eventId': 'raced',
+        'cameraId': 'cam',
+        'requestedAt': time,
+        'state': 'complete',
+        'full': {'mediaId': 'raced-full', 'mimeType': 'video/webm'},
+      });
+      final recording = Completer<void>();
+      var uploading = false;
+      backend.beforePut = (k) async {
+        if (k == 'media/raced-clip.webm') {
+          uploading = true;
+          await recording.future;
+        }
+      };
+      changes.add({'raced'});
+      await until(() => uploading);
+
+      // Meanwhile another device tags it, uploads it and publishes it.
+      final tagged = {
+        ...old,
+        'annotations': [
+          {'name': 'Rex'},
+        ],
+      };
+      final bytes = Uint8List.fromList(utf8.encode(jsonEncode(tagged)));
+      backend.uploads['$identity/$key'] = (
+        bytes: bytes,
+        contentType: 'application/json',
+      );
+      broker.last.deliver(
+        eventsTopic,
+        messageOf(tagged, etag: CloudSync.etagOf(bytes)),
+      );
+      await until(() => remote.any((r) => r.updated.isNotEmpty));
+      await live.drained;
+
+      recording.complete();
+      await sync.idle();
+      expect(
+        backend.uploads['$identity/$key']!.bytes,
+        bytes,
+        reason: 'the older version not put back',
+      );
+      expect((await store.getEvent('raced'))!['annotations'], isNotEmpty);
+      expect(
+        broker.last.sent.skip(sentBefore),
+        isEmpty,
+        reason: 'the older version not published',
+      );
+      expect(backend.uploads.keys, contains('$identity/media/raced-clip.webm'));
+    });
+
+    test('an event received while signing out is not taken', () async {
+      backend.holdConnect = Completer<void>();
+      // Its tagged frame is fetched from the bucket: held up.
+      broker.last.deliver(
+        eventsTopic,
+        messageOf({
+          'id': 'late',
+          'profileId': '1',
+          'type': 'clip_requested',
+          'time': now(),
+          'clipId': 'late-clip',
+          'annotations': [
+            {'name': 'Rex', 'frameId': 'f1'},
+          ],
+        }),
+      );
+      await until(() => backend.held > 0);
+      final drained = live.drained;
+      await auth.signOut();
+      backend.holdConnect!.complete();
+      backend.holdConnect = null;
+      await drained;
+      expect(remote, isEmpty);
+      expect(await store.getEvent('late'), isNull);
+    });
+
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+
+    /// Puts clip [clipId] (of event [eventId] at [time]) in the bucket:
+    /// record, thumbnail and recording.
+    void clipInBucket(String clipId, String eventId, int time) {
+      backend.uploads['$identity/${CloudSync.clipRecordKey(clipId, time)}'] = (
+        bytes: json({
+          'id': clipId,
+          'eventId': eventId,
+          'cameraId': 'cam',
+          'state': 'complete',
+          'full': {'mediaId': '$clipId-full', 'mimeType': 'video/webm'},
+        }),
+        contentType: 'application/json',
+      );
+      backend.uploads['$identity/media/$clipId.jpg'] = (
+        bytes: Uint8List.fromList([9, 9]),
+        contentType: 'image/jpeg',
+      );
+      backend.uploads['$identity/media/$clipId.webm'] = (
+        bytes: Uint8List.fromList([1]),
+        contentType: 'video/webm',
+      );
+    }
+
+    test(
+      'a wanted clip whose fetch fails is fetched at the next pass',
+      () async {
+        final time = now();
+        clipInBucket('flaky-clip', 'flaky', time);
+        final recordKey = CloudSync.clipRecordKey('flaky-clip', time);
+        backend.failGets.add(recordKey);
+        broker.last.deliver(
+          eventsTopic,
+          messageOf({
+            'id': 'flaky',
+            'profileId': '1',
+            'type': 'clip_requested',
+            'time': time,
+            'clipId': 'flaky-clip',
+            'clipState': 'complete',
+          }),
+        );
+        await until(() => remote.isNotEmpty);
+        await sync.idle();
+        expect(backend.downloads, contains(recordKey), reason: 'tried');
+        expect(remote.where((r) => r.clips.isNotEmpty), isEmpty);
+
+        // The network is back: the next pass gets it.
+        backend.failGets.clear();
+        changes.add(<String>{});
+        await sync.idle();
+        final clips = remote.firstWhere((r) => r.clips.isNotEmpty);
+        expect(clips.clips.single['id'], 'flaky-clip');
+        expect(await store.clipIds(), contains('flaky-clip'));
+      },
+    );
+
+    test('after a restart, the first pass fetches the clips of events whose '
+        'clips never came', () async {
+      final time = now();
+      // Taken over live sync before the app closed; its clip is in the
+      // bucket now, but the device has no record of it.
+      await store.putEvent({
+        'id': 'restarted',
+        'profileId': '1',
+        'type': 'clip_requested',
+        'time': time,
+        'clipId': 'restarted-clip',
+        'clipState': 'complete',
+      });
+      clipInBucket('restarted-clip', 'restarted', time);
+      final arrived = <RemoteRecords>[];
+      final restarted = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: const Stream.empty(),
+        debounce: Duration.zero,
+        prefetchRecordings: false,
+        onRemote: (r) async {
+          arrived.add(r);
+          for (final c in r.clips) {
+            await store.putClip(c);
+          }
+        },
+      );
+      addTearDown(restarted.dispose);
+      await restarted.idle();
+      expect(arrived.expand((r) => r.clips).map((c) => c['id']), [
+        'restarted-clip',
+      ]);
+      expect(await store.clipIds(), contains('restarted-clip'));
     });
 
     test('signing out disconnects', () async {

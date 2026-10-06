@@ -100,7 +100,7 @@ class SystemHealth extends StatelessWidget {
     if (live.config.mode == LiveMode.never) {
       return ('⚪', 'Live: off (Never); events arrive with each sync (15 s)');
     }
-    final counts = '${live.received} received, ${live.published} sent';
+    final counts = '${live.received} received, ${live.sent} sent';
     return switch (live.state) {
       LiveSyncState.connected => ('✅', 'Live: connected ($counts)'),
       LiveSyncState.connecting => ('⏳', 'Live: connecting'),

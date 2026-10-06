@@ -37,7 +37,10 @@ owned by `CloudSync`:
     messages may come first.
   - **Reconnects** (always connected) after a drop at once (1 s), and after a refused
     connection with a back-off that doubles up to 2 min; each attempt asks
-    for credentials again and signs a new URL.
+    for credentials again and signs a new URL. Getting the credentials and
+    connecting may each take **15 s** (`LiveSync.connectTimeout`): an
+    attempt that hangs (a stalled network) fails then, into the same
+    back-off, and a connection that opens after its timeout is closed.
   - **Renews** the connection (new credentials, new URL) 2 min before the
     credentials expire (always connected; a scheduled connection is brief
     and signs a new URL each time).
@@ -46,7 +49,12 @@ owned by `CloudSync`:
     sync stops), and when the app closes.
 - **Publishes** each event a pass uploads, right after its `PUT` to the
   bucket succeeds (so the bucket already holds it, and its tagged frames,
-  clip record and thumbnail, which go up first), at QoS 1. Only events
+  clip record and thumbnail, which go up first), at QoS 1. The pass
+  uploads (and publishes) each event **as stored when its turn comes**,
+  read again then, not as listed when the pass started: its clips'
+  recordings go up first and take a while, and live sync may meanwhile
+  have taken a newer version from another device (marked as synced, so
+  it isn't uploaded at all). Only events
   from within the restore window (two weeks), not a reconciliation's old
   ones. Always connected, nothing while disconnected (the bucket carries
   it); on a schedule, between connections it **connects at once to send
@@ -55,7 +63,12 @@ owned by `CloudSync`:
 - **Receives** the profile's other devices' events: a message from this
   device's own ID is ignored; anything malformed, too big or not for this
   identity is dropped (see **Validation**). Messages are handed to cloud
-  sync one at a time, in order (`CloudSync._onLive`):
+  sync one at a time, in order (`CloudSync._onLive`). One for an event a
+  pass is uploading right now (its frames and JSON, `_eventUploads`)
+  waits for that upload, so the two can't cross: the pass never puts the
+  older version back over the newer one. If the profile changes, the user
+  signs out or sync stops while a message is being taken (its frames
+  downloading), it's dropped: nothing is stored or marked as synced.
   - **A new event** is handed to `onRemote` at once, as
     `RemoteRecords(events: […], live: true)`: the app stores it
     (`Persistence.importRemote`) and adds it to the event log, so
@@ -75,8 +88,18 @@ owned by `CloudSync`:
     may repeat one) and changes nothing.
   - **Its clip comes from the bucket:** when the event's clip isn't here, a
     pass starts at once and looks for the clip's record and thumbnail
-    (`CloudSync._fetchWanted`). While the clip is still recording on the
-    other device, there's none yet; when it completes there, its recording,
+    (`CloudSync._fetchWanted`). The clip stays **wanted** until it's here
+    or the bucket is found not to have it: a fetch that fails (a network
+    error) is tried again at the next pass, at most 5 times in a row, and
+    doesn't fail the pass (rejected credentials do: the pass renews them).
+    Wanting a clip again while a pass looks for it isn't undone by that
+    pass. Each full fetch (the first pass after a sign-in or a restart,
+    then hourly) wants again the clips of the profile's events in the
+    window that the device has no record of (the newest 100;
+    `_rewantClips`), so a clip that hadn't come when the app closed, or
+    whose fetches all failed, still comes. While the clip is still
+    recording on the other device, there's none yet; when it completes
+    there, its recording,
     thumbnail and record go up, then the event (now `clipState: complete`)
     is uploaded and published again, and this device fetches the clip
     then. The app shows the event again with it
@@ -227,7 +250,11 @@ The health line and the Log tab's health panel have a fourth check,
 endpoint) or off (Never), ✅ connected (with the events received and sent)
 or set and waiting for the first sync, ⏳ connecting, 💤 **idle** between
 scheduled connections ("Idle · next in 0:42 (every 1 min; …)", the panel's
-card counting down each second), ❌ failed (with the error). Only ❌ is a
+card counting down each second), ❌ failed (with the error). "Sent"
+(`LiveSync.sent`) counts events handed to the connection to publish at
+QoS 1, not the broker's acknowledgements (PUBACK), which aren't waited
+for: one sent just before a drop may not have arrived (the bucket still
+has it). Only ❌ is a
 failure: idle and off don't turn a run of the timeline red. Connections,
 reconnections, renewals, failures (the first of a streak and every tenth),
 dropped messages and publish failures are logged like cloud sync's
@@ -251,7 +278,8 @@ query holds the session token.
   (`LiveMode`, the steps).
 - [lib/cloud/sigv4.dart](../presence_app/lib/cloud/sigv4.dart):
   `presignWebSocket`.
-- `CloudSync` (`live`, `_startLive`, `_onLive`, `_fetchWanted`) and
+- `CloudSync` (`live`, `_startLive`, `_onLive`, `_eventUploads`,
+  `_fetchWanted`, `_rewantClips`) and
   `CloudConfig.iotEndpoint` / `liveStage`.
 
 ## Verified
@@ -267,7 +295,9 @@ query holds the session token.
     the events topic; publishes an event's metadata; hands over other
     devices' events in order, not its own, nor other topics'; reconnects
     after a drop and backs off while refused (up to the maximum); renews
-    before the credentials expire, once; stops for good;
+    before the credentials expire, once; stops for good; a hung
+    credentials request, then a hung connection, each time out into the
+    back-off;
   - the setting: Never connects and publishes nothing; on a schedule, a
     persistent session with the stable client ID, disconnected once quiet
     and connected again on time; it stays while queued messages come, at
@@ -282,8 +312,13 @@ query holds the session token.
     nor downloaded again when the bucket lists it, nor echoed; a received
     clip event gets its clip and thumbnail (not its recording) from the
     bucket when its completion arrives; a change here not uploaded yet
-    wins; signing out disconnects; without an endpoint, events still go
-    up through the bucket.
+    wins; an update received while a pass uploads the event's recording
+    isn't put back (nor published) by the pass; an event received while
+    signing out (its frame still downloading) isn't taken; a wanted clip
+    whose fetch fails comes at the next pass; after a restart, the first
+    pass fetches the clip of an event whose clip never came; signing out
+    disconnects; without an endpoint, events still go up through the
+    bucket.
 - `system_health_test.dart`: the Live check is ⚪ without live sync or with
   Never, 💤 idle with its countdown between scheduled connections, ✅
   connected, ❌ failed; only ❌ fails a run.
@@ -320,7 +355,10 @@ query holds the session token.
   gets the clip at the next listing that sees the event changed (within
   15 s for today's and yesterday's events). After a restart before the
   clip arrives, the event shows as a clip whose recording is missing
-  until the clip comes down, and then with it.
+  until the first pass fetches the clip (`_rewantClips`), and then with
+  it.
+- The **sent** count doesn't wait for the broker's acknowledgement, so it
+  can count a message that a drop lost (the bucket still carries it).
 - Out-of-order or repeated deliveries (QoS 1) are taken as they come: a
   repeated message changes nothing, but an older version arriving after a
   newer one would be taken on until the next change.

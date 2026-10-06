@@ -19,7 +19,8 @@ abstract class LiveConnection {
   /// Subscribes to [topic] (QoS 1).
   Future<void> subscribe(String topic);
 
-  /// Publishes [payload] on [topic] (QoS 1).
+  /// Publishes [payload] on [topic] (QoS 1): completes once it's sent,
+  /// without waiting for the broker's acknowledgement (PUBACK).
   Future<void> publish(String topic, Uint8List payload);
 
   /// Disconnects.
@@ -136,6 +137,7 @@ class LiveSync extends ChangeNotifier {
     this.maxJitter = const Duration(seconds: 10),
     this.sessionExpiry = const Duration(hours: 1),
     this.publishWait = const Duration(seconds: 20),
+    this.connectTimeout = const Duration(seconds: 15),
   }) : _now = now ?? DateTime.now,
        _random = random ?? Random.secure();
 
@@ -177,6 +179,11 @@ class LiveSync extends ChangeNotifier {
   /// How long a scheduled-mode publish waits for its connection.
   final Duration publishWait;
 
+  /// How long getting credentials, and then connecting, may each take: an
+  /// attempt that hangs (a stalled network) fails after it, into the usual
+  /// back-off.
+  final Duration connectTimeout;
+
   /// The largest message accepted or sent. AWS IoT allows 128 KB; events'
   /// metadata is a few KB.
   static const int maxMessageBytes = 64 * 1024;
@@ -214,11 +221,14 @@ class LiveSync extends ChangeNotifier {
   /// Why the last connection failed, when [state] is [LiveSyncState.error].
   String? get error => _error;
 
-  int _published = 0;
+  int _sent = 0;
   int _received = 0;
 
-  /// Events published since the app started.
-  int get published => _published;
+  /// Events sent since the app started: handed to the connection to
+  /// publish (QoS 1). Not a count of the broker's acknowledgements
+  /// (PUBACK), which aren't waited for: one sent just before the
+  /// connection drops may not have reached it (the bucket still has it).
+  int get sent => _sent;
 
   /// Events received from other devices since the app started.
   int get received => _received;
@@ -349,7 +359,13 @@ class LiveSync extends ChangeNotifier {
       LiveConnection? connection;
       var renewing = false;
       try {
-        final credentials = await link.credentials();
+        final credentials = await link.credentials().timeout(
+          connectTimeout,
+          onTimeout: () => throw TimeoutException(
+            'credentials took too long',
+            connectTimeout,
+          ),
+        );
         if (!current()) return;
         final url = SigV4Signer(region: region, service: 'iotdevicegateway')
             .presignWebSocket(
@@ -357,10 +373,21 @@ class LiveSync extends ChangeNotifier {
               credentials: credentials,
               now: _now(),
             );
-        connection = await _connect!(
+        final connecting = _connect!(
           url,
           scheduled ? stableClientIdOf(link) : clientIdOf(link),
           persistent: scheduled,
+        );
+        connection = await connecting.timeout(
+          connectTimeout,
+          onTimeout: () {
+            // One that connects after all is closed at once.
+            connecting
+                .then((c) => c.close())
+                .catchError((Object _) {})
+                .ignore();
+            throw TimeoutException('connecting took too long', connectTimeout);
+          },
         );
         if (!current()) {
           await connection.close();
@@ -592,7 +619,7 @@ class LiveSync extends ChangeNotifier {
         topicOf(stage, link.identityId, 'events'),
         payload,
       );
-      _published++;
+      _sent++;
       _activity++;
       notifyListeners();
       return true;

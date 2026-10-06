@@ -96,6 +96,9 @@ class MqttLiveConnection implements LiveConnection {
     return acked.future.timeout(const Duration(seconds: 10));
   }
 
+  /// Hands the message to the client, which sends it at QoS 1 (and, if
+  /// the connection lasts, resends it until the broker acknowledges it);
+  /// doesn't wait for the acknowledgement. [LiveSync.sent] counts these.
   @override
   Future<void> publish(String topic, Uint8List payload) async {
     final builder = MqttClientPayloadBuilder();

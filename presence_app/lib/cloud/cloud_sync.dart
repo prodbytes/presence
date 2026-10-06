@@ -395,9 +395,22 @@ class CloudSync extends ChangeNotifier {
       'device-${Random().nextInt(1 << 30).toRadixString(36)}';
 
   /// Clips of events that arrived over live sync (or changed in the
-  /// bucket) that the device doesn't have, by ID, with their events' times:
-  /// the next pass looks for them in the bucket, once.
-  final Map<String, int> _wantedClips = {};
+  /// bucket) that the device doesn't have, by ID, with their events' times
+  /// and a serial number ([_want]): the next pass looks for them in the
+  /// bucket. One stays wanted until it's fetched or found missing there
+  /// (it's wanted again when its event changes, and at each full fetch);
+  /// one whose fetch fails is tried again at the next pass, up to
+  /// [_maxWantedTries] times.
+  final Map<String, ({int time, int serial})> _wantedClips = {};
+  int _wantSerial = 0;
+
+  /// Failed fetches of wanted clips, by clip ID, since they were wanted.
+  final Map<String, int> _wantedFailures = {};
+  static const int _maxWantedTries = 5;
+
+  /// Events whose upload (frames and JSON) runs now, by ID: an event
+  /// arriving over live sync meanwhile waits for it ([_onLive]).
+  final Map<String, Future<void>> _eventUploads = {};
 
   /// The IDs of the latest new events handed to [onRemote], so one that
   /// arrives both over live sync and from the bucket is handed over once.
@@ -482,6 +495,7 @@ class CloudSync extends ChangeNotifier {
     _ticksToSkip = 0;
     _prefetchFailed.clear();
     _wantedClips.clear();
+    _wantedFailures.clear();
     _handedOver.clear();
   }
 
@@ -523,8 +537,14 @@ class CloudSync extends ChangeNotifier {
   /// marked as synced, with the ETag the sender uploaded, so it's neither
   /// uploaded back nor downloaded again. Its clip and tagged frames come
   /// from the bucket: a pass starts for them.
+  ///
+  /// It waits for an upload of the same event a pass is making
+  /// ([_eventUploads]), so the pass can't put this device's older version
+  /// back over it; and once the profile changes, or syncing stops, while
+  /// it waits on storage or the network, it takes nothing.
   Future<void> _onLive(LiveEvent message, String owner) async {
-    if (_disposed || _owner != owner || stopped) return;
+    bool current() => !_disposed && _owner == owner && !stopped;
+    if (!current()) return;
     final event = Map.of(message.event);
     // Another profile's: not for this folder.
     if (event['profileId'] case final String profile when profile != owner) {
@@ -543,12 +563,17 @@ class CloudSync extends ChangeNotifier {
     final store = await _store;
     final key = eventKey(event);
     final objectKey = '${message.identityId}/$key';
+    for (var up = _eventUploads[id]; up != null; up = _eventUploads[id]) {
+      await up;
+    }
+    if (!current()) return;
     final synced = _synced ??= await store.syncedKeys();
     final local = await store.getEvent(id);
 
     Future<void> settle() async {
+      if (!current()) return;
       final stored = await store.getEvent(id);
-      if (stored == null || eventKey(stored) != key) return;
+      if (stored == null || eventKey(stored) != key || !current()) return;
       await _markSynced(store, objectKey, _fingerprint(_eventJson(stored)));
       if (message.etag case final etag?) {
         await _markSynced(store, _etagKey(objectKey), etag);
@@ -563,6 +588,7 @@ class CloudSync extends ChangeNotifier {
       // The frames its tags use, if it has any yet.
       final frames = await _liveFrames(event, const {});
       if (frames.isNotEmpty) event['frames'] = frames;
+      if (!current()) return;
       await _deliver(RemoteRecords(events: [event], live: true));
       await settle();
     } else {
@@ -573,12 +599,13 @@ class CloudSync extends ChangeNotifier {
         if (synced[objectKey] != _fingerprint(localJson)) return;
         final frames = await _liveFrames(event, local);
         if (frames.isNotEmpty) event['frames'] = frames;
+        if (!current()) return;
         await _deliver(RemoteRecords(updated: [event], live: true));
       }
       await settle();
     }
-    if (clipId is String && wantsClip) {
-      _wantedClips[clipId] = time;
+    if (clipId is String && wantsClip && current()) {
+      _want(clipId, time);
       _schedule(immediately: true);
     }
   }
@@ -730,7 +757,10 @@ class CloudSync extends ChangeNotifier {
         session,
         _fetchPrefixes(now, first: last == null, full: full),
       );
-      if (full) _lastFullFetch = now;
+      if (full) {
+        _lastFullFetch = now;
+        await _rewantClips(owner);
+      }
       await _fetchWanted(session);
       await _syncAll(session, reconcile ? null : dirty);
     }
@@ -951,7 +981,7 @@ class CloudSync extends ChangeNotifier {
         // Its clip, if it has completed since.
         if ((clipId, event['time']) case (final String id, final int time)
             when !localClips.contains(id)) {
-          _wantedClips[id] = time;
+          _want(id, time);
         }
       }
       if (updated.isEmpty || _disposed) continue;
@@ -1114,39 +1144,119 @@ class CloudSync extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Fetches the clips live sync (or a changed event) asked for
-  /// ([_wantedClips]), once: those not in the bucket yet are asked for
-  /// again when their events change.
+  /// Wants clip [clipId] (of an event at [time]): the next pass looks for
+  /// it ([_fetchWanted]). Wanting it again gives it a new serial, so a pass
+  /// that found it missing meanwhile doesn't drop the new want.
+  void _want(String clipId, int time) {
+    _wantedClips[clipId] = (time: time, serial: ++_wantSerial);
+    _wantedFailures.remove(clipId);
+  }
+
+  /// At a full fetch (the first pass for a user, after a restart, and
+  /// every [fullFetchEvery]): wants the clips of the profile's events from
+  /// the window that the device has no record of (another device's, whose
+  /// clip hadn't come when the app closed or a fetch failed), the newest
+  /// [maxRewanted]. The device stores its own clips' records as soon as
+  /// they're requested, so these are other devices'.
+  Future<void> _rewantClips(String owner) async {
+    final store = await _store;
+    final localClips = await store.clipIds();
+    final since = _now().toUtc().subtract(_window).millisecondsSinceEpoch;
+    final found = <(int, String)>[];
+    for (final record in await store.allEvents()) {
+      await _breathe(200);
+      final clipId = record['clipId'];
+      final time = record['time'];
+      if (clipId is! String || time is! int || time < since) continue;
+      if (localClips.contains(clipId) || _wantedClips.containsKey(clipId)) {
+        continue;
+      }
+      if (AppEvent.profileOf(record) != owner) continue;
+      found.add((time, clipId));
+    }
+    found.sort((a, b) => b.$1.compareTo(a.$1));
+    for (final (time, clipId) in found.take(maxRewanted)) {
+      _want(clipId, time);
+    }
+  }
+
+  /// The most clips a full fetch wants again ([_rewantClips]).
+  static const int maxRewanted = 100;
+
+  /// Fetches the clips live sync (or a changed event, or a full fetch)
+  /// asked for ([_wantedClips]). One stays wanted until it's here: fetched
+  /// now, or found missing in the bucket (still recording on its device;
+  /// it's wanted again when its event changes). One whose fetch fails is
+  /// tried again at the next pass, at most [_maxWantedTries] times (then at
+  /// the next full fetch); its failure doesn't fail the pass, unless the
+  /// credentials were rejected (the pass renews them and tries again).
   Future<void> _fetchWanted(CloudSession session) async {
     if (_wantedClips.isEmpty || _disposed) return;
     final wanted = Map.of(_wantedClips);
-    _wantedClips.clear();
     final store = await _store;
     final localClips = await store.clipIds();
+    // Done with one: unless it was wanted again meanwhile.
+    void done(String id) {
+      if (_wantedClips[id]?.serial == wanted[id]?.serial) {
+        _wantedClips.remove(id);
+        _wantedFailures.remove(id);
+      }
+    }
+
+    for (final id in wanted.keys) {
+      if (localClips.contains(id)) done(id);
+    }
     wanted.removeWhere((id, _) => localClips.contains(id));
     if (wanted.isEmpty) return;
     Future<void> synced(String key, String fingerprint) =>
         _markSynced(store, '${session.prefix}/$key', fingerprint);
-    final clips = await _fetchClips(
-      session,
-      wanted,
-      localClips: localClips,
-      mediaKeys: (clipId) async => {
-        for (final k in await session.list('media/$clipId'))
-          if (k.startsWith('media/$clipId.') || k.startsWith('media/$clipId/'))
-            k,
-      },
-      synced: synced,
-      pending: (key, mediaId, time) async {
-        await synced(key, mediaId);
-        await _markSynced(
-          store,
-          _fetchKey('${session.prefix}/$key'),
-          '$time:$mediaId',
+    final clips = <Map<String, Object?>>[];
+    final fetched = <String>[];
+    for (final MapEntry(key: id, value: (:time, serial: _)) in wanted.entries) {
+      if (_disposed) return;
+      try {
+        clips.addAll(
+          await _fetchClips(
+            session,
+            {id: time},
+            localClips: localClips,
+            mediaKeys: (clipId) async => {
+              for (final k in await session.list('media/$clipId'))
+                if (k.startsWith('media/$clipId.') ||
+                    k.startsWith('media/$clipId/'))
+                  k,
+            },
+            synced: synced,
+            pending: (key, mediaId, time) async {
+              await synced(key, mediaId);
+              await _markSynced(
+                store,
+                _fetchKey('${session.prefix}/$key'),
+                '$time:$mediaId',
+              );
+            },
+          ),
         );
-      },
-    );
+        // Here now, or not in the bucket (yet).
+        fetched.add(id);
+      } on S3Exception catch (e) {
+        if (e.credentialsRejected) rethrow;
+        _wantedFailed(id, e);
+      } catch (e) {
+        _wantedFailed(id, e);
+      }
+    }
     await _deliver(RemoteRecords(clips: clips, live: true));
+    fetched.forEach(done);
+  }
+
+  void _wantedFailed(String id, Object e) {
+    final failures = _wantedFailures[id] = (_wantedFailures[id] ?? 0) + 1;
+    debugPrint('Presence: could not fetch clip $id ($failures tries): $e');
+    if (failures >= _maxWantedTries) {
+      _wantedClips.remove(id);
+      _wantedFailures.remove(id);
+    }
   }
 
   /// A recording's file extension in the cloud, from its MIME type.
@@ -1490,47 +1600,75 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
-    for (final record in events) {
+    for (final snapshot in events) {
       await _breathe();
-      // Tagged frames go up as images next to the clip; the event's JSON
-      // keeps the tags (name, position, frame id and time) without them.
-      final frames = record['frames'];
-      if (frames is Map) {
-        for (final MapEntry(:key, :value) in frames.entries) {
-          final jpeg = value is Uint8List
-              ? value
-              : (value is List ? Uint8List.fromList(value.cast<int>()) : null);
-          if (jpeg == null) continue;
-          await upload(
-            frameKeyOf('${record['clipId']}', '$key'),
-            '$key',
-            () async => jpeg,
-            'image/jpeg',
-            was: 'clips/${record['clipId']}/frames/$key.jpg',
-          );
+      final id = snapshot['id']! as String;
+      // While it goes up, an event arriving over live sync waits for it.
+      final uploading = Completer<void>();
+      _eventUploads[id] = uploading.future;
+      Map<String, Object?>? published;
+      String? publishedKey;
+      String? etag;
+      try {
+        // As stored now, not as listed when the pass started: the clips
+        // took time, and live sync may have taken a newer version from
+        // another device meanwhile (and marked it as synced). Uploading
+        // the listed one would put the older version back.
+        final record = await store.getEvent(id);
+        if (record == null || AppEvent.profileOf(record) != _owner) continue;
+        // Tagged frames go up as images next to the clip; the event's
+        // JSON keeps the tags (name, position, frame id and time) without
+        // them.
+        final frames = record['frames'];
+        if (frames is Map) {
+          for (final MapEntry(:key, :value) in frames.entries) {
+            final jpeg = value is Uint8List
+                ? value
+                : (value is List
+                      ? Uint8List.fromList(value.cast<int>())
+                      : null);
+            if (jpeg == null) continue;
+            await upload(
+              frameKeyOf('${record['clipId']}', '$key'),
+              '$key',
+              () async => jpeg,
+              'image/jpeg',
+              was: 'clips/${record['clipId']}/frames/$key.jpg',
+            );
+          }
         }
-      }
-      final json = _eventJson(record);
-      final key = eventKey(record);
-      final etag = await upload(
-        key,
-        _fingerprint(json),
-        () async => json,
-        'application/json',
-        keepETag: true,
-      );
-      // Then the profile's other devices hear of it at once (live sync):
-      // recent events only, not a reconciliation's old ones.
-      final time = record['time'];
-      if (etag != null &&
-          live != null &&
-          time is int &&
-          _now().millisecondsSinceEpoch - time < _window.inMilliseconds) {
-        await live!.publishEvent(
-          (jsonDecode(utf8.decode(json)) as Map).cast<String, Object?>(),
-          key: key,
-          etag: etag,
+        final json = _eventJson(record);
+        final key = eventKey(record);
+        etag = await upload(
+          key,
+          _fingerprint(json),
+          () async => json,
+          'application/json',
+          keepETag: true,
         );
+        // Then the profile's other devices hear of it at once (live
+        // sync): recent events only, not a reconciliation's old ones.
+        final time = record['time'];
+        if (etag != null &&
+            time is int &&
+            _now().millisecondsSinceEpoch - time < _window.inMilliseconds) {
+          published = (jsonDecode(utf8.decode(json)) as Map)
+              .cast<String, Object?>();
+          publishedKey = key;
+        }
+      } finally {
+        if (_eventUploads[id] == uploading.future) _eventUploads.remove(id);
+        uploading.complete();
+      }
+      // Not holding up received events: a scheduled connection may take
+      // a while to send it.
+      if ((live, published, publishedKey, etag) case (
+        final live?,
+        final event?,
+        final key?,
+        final etag?,
+      )) {
+        await live.publishEvent(event, key: key, etag: etag);
       }
     }
   }

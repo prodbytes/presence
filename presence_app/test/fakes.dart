@@ -286,9 +286,21 @@ class FakeCloudBackend implements CloudBackend {
   /// The keys uploaded as streams (recordings), in order.
   final streamed = <String>[];
 
+  /// While set, connect() waits for it (counting the waits in [held]).
+  Completer<void>? holdConnect;
+  int held = 0;
+
+  /// Awaited by each put() before it stores (relative key): to hold one
+  /// up.
+  Future<void> Function(String key)? beforePut;
+
   @override
   Future<CloudSession> connect(String idToken) async {
     tokens.add(idToken);
+    if (holdConnect case final hold?) {
+      held++;
+      await hold.future;
+    }
     if (offline case final e?) throw e;
     if (failConnect case final e?) {
       failConnect = null;
@@ -318,6 +330,7 @@ class FakeCloudSession implements CloudSession {
       backend.failPut = null;
       throw e;
     }
+    await backend.beforePut?.call(key);
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
   }
 

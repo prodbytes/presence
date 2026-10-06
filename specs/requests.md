@@ -3235,3 +3235,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        pass.
      - Specs: [Live sync](live-sync.md), [Settings](settings.md),
        [Configuration](configuration.md), [Log](log.md).
+     - Review fixes (2026-10-06), asked: fix the review findings on the
+       PR: a pass could put an older version of an event back over one
+       live sync had just taken from another device; a wanted clip whose
+       fetch failed (or the app closing) was never fetched; a hung
+       credentials request or connection stalled live sync; an event
+       arriving while signing out was still stored; and the health line's
+       "sent" count wasn't a broker acknowledgement.
+     - Changed: `_syncAll` reads each event again from storage just before
+       uploading it (after the clips), and marks it as uploading
+       (`_eventUploads`), which `_onLive` waits for, so the pass never
+       uploads or publishes a stale version. `_onLive` checks that the
+       profile is still the one syncing (and not stopped or disposed)
+       after each wait, before storing or marking anything. Wanted clips
+       (`_wantedClips`, with a serial per want) stay wanted until fetched
+       or found missing; a failed fetch is retried at the next pass (at
+       most 5 times) without failing the pass; each full fetch re-wants
+       the clips of the window's events that have no clip record here
+       (`_rewantClips`, the newest 100), so they come after a restart.
+       `LiveSync` times out credentials and connecting after 15 s each
+       (`connectTimeout`) into the usual back-off. The count is renamed
+       `LiveSync.sent` and documented as handed to the connection, not
+       acknowledged (PUBACK isn't awaited).
+     - Tests: `live_sync_test.dart` (a hung credentials request and a hung
+       connection time out and retry; an update received while a pass
+       uploads the recording isn't put back nor published; an event
+       received while signing out isn't taken; a failed wanted clip comes
+       at the next pass; after a restart the first pass fetches a missing
+       clip; the four `CloudSync` ones fail on the code before the fix).
+       `flutter analyze`, `flutter test` (514) and `flutter build web`
+       pass.
+     - Specs: [Live sync](live-sync.md).
