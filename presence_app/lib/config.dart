@@ -21,6 +21,7 @@ class PresenceConfig {
     this.recognition = const RecognitionConfig(),
     this.history = const HistoryConfig(),
     this.log = const LogConfig(),
+    this.live = const LiveConfig(),
   });
 
   static const int version = 1;
@@ -33,6 +34,7 @@ class PresenceConfig {
   final RecognitionConfig recognition;
   final HistoryConfig history;
   final LogConfig log;
+  final LiveConfig live;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -43,6 +45,7 @@ class PresenceConfig {
     RecognitionConfig? recognition,
     HistoryConfig? history,
     LogConfig? log,
+    LiveConfig? live,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
@@ -52,6 +55,7 @@ class PresenceConfig {
     recognition: recognition ?? this.recognition,
     history: history ?? this.history,
     log: log ?? this.log,
+    live: live ?? this.live,
   );
 
   Map<String, Object?> toJson() => {
@@ -64,6 +68,7 @@ class PresenceConfig {
     'recognition': recognition.toJson(),
     'history': history.toJson(),
     'log': log.toJson(),
+    'live': live.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -78,6 +83,7 @@ class PresenceConfig {
     recognition: RecognitionConfig.fromJson(_map(json['recognition'])),
     history: HistoryConfig.fromJson(_map(json['history'])),
     log: LogConfig.fromJson(_map(json['log'])),
+    live: LiveConfig.fromJson(_map(json['live'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -103,7 +109,8 @@ class PresenceConfig {
       other.subjects == subjects &&
       other.recognition == recognition &&
       other.history == history &&
-      other.log == log;
+      other.log == log &&
+      other.live == live;
 
   @override
   int get hashCode => Object.hash(
@@ -115,6 +122,7 @@ class PresenceConfig {
     recognition,
     history,
     log,
+    live,
   );
 }
 
@@ -432,6 +440,105 @@ class LogConfig {
   int get hashCode => show.hashCode;
 }
 
+/// How live sync (MQTT, see `cloud/live_sync.dart`) connects.
+enum LiveMode {
+  /// Never: events arrive with each sync of the bucket only.
+  never,
+
+  /// Every [LiveConfig.every]: connects, takes what the broker kept for
+  /// this device while it was away, and disconnects; and connects at once
+  /// to send this device's new events.
+  scheduled,
+
+  /// Always connected (reconnecting after a drop).
+  always,
+}
+
+/// The **Connect to live sync** setting: [LiveMode.never], every
+/// [LiveConfig.every] ([LiveMode.scheduled]), or [LiveMode.always]. Kept per
+/// device. The slider's steps are [steps]: Never, then [intervals], then
+/// Always.
+@immutable
+class LiveConfig {
+  /// Not clamped (tests use short intervals); [fromJson] and [ofStep]
+  /// snap to [intervals].
+  const LiveConfig({this.mode = LiveMode.scheduled, this.every = defaultEvery});
+
+  static const LiveConfig never = LiveConfig(mode: LiveMode.never);
+  static const LiveConfig always = LiveConfig(mode: LiveMode.always);
+
+  /// The scheduled intervals, in order: all within AWS IoT's default
+  /// persistent session expiry (1 h), so the broker still holds what
+  /// arrived while the device was away.
+  static const List<Duration> intervals = [
+    Duration(minutes: 1),
+    Duration(minutes: 2),
+    Duration(minutes: 5),
+    Duration(minutes: 10),
+    Duration(minutes: 15),
+    Duration(minutes: 30),
+    Duration(minutes: 60),
+  ];
+
+  static const Duration defaultEvery = Duration(minutes: 1);
+
+  /// How many steps the slider has: Never, the [intervals], Always.
+  static const int steps = 2 + 7;
+
+  final LiveMode mode;
+
+  /// Between scheduled connections ([LiveMode.scheduled] only).
+  final Duration every;
+
+  /// This setting's step on the slider: 0 is Never, the last is Always.
+  int get step => switch (mode) {
+    LiveMode.never => 0,
+    LiveMode.always => steps - 1,
+    LiveMode.scheduled => 1 + intervals.indexOf(_snap(every)),
+  };
+
+  /// The setting at [step] of the slider (clamped).
+  static LiveConfig ofStep(int step) {
+    if (step <= 0) return never;
+    if (step >= steps - 1) return always;
+    return LiveConfig(every: intervals[step - 1]);
+  }
+
+  /// The step's label: "Never", "1 min", "60 min", "Always".
+  String get label => switch (mode) {
+    LiveMode.never => 'Never',
+    LiveMode.always => 'Always',
+    LiveMode.scheduled => 'Every ${_snap(every).inMinutes} min',
+  };
+
+  /// [d] as the nearest of [intervals].
+  static Duration _snap(Duration d) =>
+      intervals.reduce((a, b) => (a - d).abs() <= (b - d).abs() ? a : b);
+
+  Map<String, Object?> toJson() => {
+    'mode': mode.name,
+    'everyMs': every.inMilliseconds,
+  };
+
+  /// Missing or unknown values fall back to the default (every minute);
+  /// an interval snaps to the nearest of [intervals].
+  factory LiveConfig.fromJson(Map<String, Object?> json) {
+    final mode = LiveMode.values.asNameMap()[json['mode']];
+    final every = _ms(json['everyMs']);
+    return LiveConfig(
+      mode: mode ?? LiveMode.scheduled,
+      every: every == null ? defaultEvery : _snap(every),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is LiveConfig && other.mode == mode && other.every == every;
+
+  @override
+  int get hashCode => Object.hash(mode, every);
+}
+
 /// The Subjects screens.
 @immutable
 class SubjectsConfig {
@@ -560,6 +667,7 @@ class ConfigController extends ChangeNotifier {
   RecognitionConfig get recognition => _config.recognition;
   HistoryConfig get history => _config.history;
   LogConfig get log => _config.log;
+  LiveConfig get live => _config.live;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

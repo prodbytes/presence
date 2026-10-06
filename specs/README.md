@@ -91,12 +91,16 @@ their data.
   S3, and each device's settings per profile (restored at sign-in), with
   credentials for their profile (the auth API, then a Cognito identity
   pool).
+- [Live sync](live-sync.md): new and changed events reach the profile's
+  other devices within a second over MQTT (AWS IoT Core, WebSockets signed
+  with the profile's credentials), metadata only; S3 keeps everything, and
+  clips and thumbnails still come from it.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
 - [Log](log.md): the admins' Log tab, shown by default only in DEV and
   otherwise turned on in Settings: a health panel (a
-  card per check, API, AWS, OIDC, checked every 15 s in DEV and 60 s in RBAC, a card with the
+  card per check, API, AWS, OIDC, Live, checked every 15 s in DEV and 60 s in RBAC, a card with the
   devices in the events, and a scrolling timeline of the runs with their
   times), then the app's latest 500 log messages and errors, such as why
   the AWS sync failed.

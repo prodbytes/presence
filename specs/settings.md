@@ -2,7 +2,8 @@
 
 - The **Settings** tab, **full width** (no 560 px readable width).
 - Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
-  Recognition, History, Advanced (admins only), Subjects; then the
+  Recognition, History, Live sync (with live sync in the build),
+  Advanced (admins only), Subjects; then the
   version, IDs, health line and Add a device.
 - **Location** section, first: a map with a center pin and, to its right,
   this device's position (labeled, with where it came from), so a drag
@@ -67,6 +68,14 @@
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older
   events and their clips are deleted from this device when the app starts
   and every 3 hours. Stored as `history: {keepMs}`.
+- **Live sync** section, for everyone, shown when the build has
+  [live sync](live-sync.md) (an IoT endpoint and cloud sync): **Connect to
+  live sync**, a slider of nine steps, **Never**, every **1, 2, 5, 10, 15,
+  30, 60 min**, **Always**, default **every 1 min**, shown as "Never",
+  "Every 1 min" … "Always", with a note on what it does. A change applies
+  at once. Stored as `live: {mode, everyMs}`. It's here, not in Advanced
+  (admins only), because it's about every user's devices and their data
+  use.
 - **Advanced** section, for admins only (everyone in DEV): **Show the Log
   tab**, on by default in DEV and off otherwise. Stored as `log: {show}`,
   unset until flipped (see [Log](log.md)).
@@ -91,7 +100,7 @@
     in* signed out, in DEV, and until the auth API answers a sign-in.
 - **Health line**, under the IDs, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
-  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip. For AWS and
+  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅ · 📡 Live ⚪`, each with a tooltip. For AWS and
   OIDC, the [auth API](auth-api.md)'s start check says whether its
   expected settings are set (`settings` in `GET /api/auth/anonymous`), and
   the app checks that against its own build:
@@ -103,6 +112,14 @@
     sync failed;
   - OIDC (the Google client ID): ✅ set on both sides, ⚪ on neither
     (sign-in is off), ⚠️ on one only;
+  - Live ([live sync](live-sync.md), MQTT): ⚪ the build has no IoT
+    endpoint (or no cloud sync), or **Connect to live sync** is Never, so
+    events arrive with each sync; ✅ connected (the tooltip counts the
+    events received and sent), or set and waiting for the first sync; ⏳
+    connecting; 💤 idle between scheduled connections (the tooltip: "idle
+    · next in 0:42 (every 1 min; …)"); ❌ the connection failed (the
+    error; it retries, and the bucket still syncs everything). Idle and
+    off aren't failures;
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
   - Here it shows the start check's answer; the [Log](log.md) tab's

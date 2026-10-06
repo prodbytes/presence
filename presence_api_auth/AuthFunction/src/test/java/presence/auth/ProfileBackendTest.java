@@ -5,6 +5,10 @@ import software.amazon.awssdk.services.cognitoidentity.CognitoIdentityClient;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityResponse;
 import software.amazon.awssdk.services.cognitoidentity.model.NotAuthorizedException;
+import software.amazon.awssdk.services.iot.IotClient;
+import software.amazon.awssdk.services.iot.model.AttachPolicyRequest;
+import software.amazon.awssdk.services.iot.model.AttachPolicyResponse;
+import software.amazon.awssdk.services.iot.model.IotException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,6 +66,60 @@ class ProfileBackendTest {
         cognito.calls.clear();
         assertEquals("token", backend.openIdToken("us-east-1:id", "savvy_plaice", "member-token"));
         assertEquals(List.of(Map.of(DEV, "savvy_plaice")), cognito.calls);
+    }
+
+    /** AWS IoT's control plane: records AttachPolicy calls, or fails them. */
+    private static final class Iot implements IotClient {
+        final List<String> attached = new ArrayList<>();
+        RuntimeException fails;
+
+        @Override
+        public AttachPolicyResponse attachPolicy(AttachPolicyRequest request) {
+            if (fails != null) {
+                throw fails;
+            }
+            attached.add(request.policyName() + " -> " + request.target());
+            return AttachPolicyResponse.builder().build();
+        }
+
+        @Override
+        public String serviceName() {
+            return "iot";
+        }
+
+        @Override
+        public void close() {
+        }
+    }
+
+    @Test
+    void liveSyncAttachesThePolicyToTheIdentityOncePerInstance() {
+        var iot = new Iot();
+        var live = new ProfileBackend(null, cognito, null, "codes", "pool", DEV, "bucket", iot, "presence-live-sync");
+        live.allowLiveSync("us-east-1:id");
+        live.allowLiveSync("us-east-1:id");
+        live.allowLiveSync("us-east-1:other");
+        assertEquals(List.of("presence-live-sync -> us-east-1:id", "presence-live-sync -> us-east-1:other"),
+                iot.attached);
+    }
+
+    @Test
+    void aFailedAttachDoesntFailCredentialsAndIsTriedAgain() {
+        var iot = new Iot();
+        var live = new ProfileBackend(null, cognito, null, "codes", "pool", DEV, "bucket", iot, "presence-live-sync");
+        iot.fails = IotException.builder().message("throttled").statusCode(429).build();
+        live.allowLiveSync("us-east-1:id");
+        iot.fails = null;
+        live.allowLiveSync("us-east-1:id");
+        assertEquals(List.of("presence-live-sync -> us-east-1:id"), iot.attached);
+    }
+
+    @Test
+    void withoutAPolicyNothingIsAttached() {
+        var iot = new Iot();
+        new ProfileBackend(null, cognito, null, "codes", "pool", DEV, "bucket", iot, "").allowLiveSync("us-east-1:id");
+        backend.allowLiveSync("us-east-1:id");
+        assertEquals(List.of(), iot.attached);
     }
 
     @Test

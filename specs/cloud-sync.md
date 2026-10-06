@@ -12,6 +12,11 @@ token for their [profile](profiles.md), and that for temporary AWS
 credentials through a **Cognito identity pool**. It then makes signed S3
 uploads itself ([lib/cloud/](../presence_app/lib/cloud)).
 
+With [live sync](live-sync.md) (a build with `IOT_ENDPOINT`), the profile's
+devices also hear of each event as soon as it's uploaded, over MQTT, and
+show it within a second; the bucket stays where everything is kept, and
+the passes below run as before.
+
 ## What's uploaded, and where
 
 Everything goes under the user's profile's **Cognito identity ID**
@@ -141,6 +146,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
     event (its clip, location…) stays as it is here.
   - Then that version counts as synced: it isn't uploaded back, nor
     downloaded again until it changes once more.
+  - If its clip isn't on the device (it was still recording when the
+    event came down, or over [live sync](live-sync.md)), the same pass
+    looks for the clip's record and thumbnail, and the app shows the event
+    with them (`Persistence.showArrivedClips`).
   - **How soon:** within 15 s for events of today and yesterday (UTC),
     the partitions every pass lists; within an hour for older ones in
     the window, at the hourly full listing (see below).
@@ -225,6 +234,15 @@ an Athena table are in [Recording and data formats](data-formats.md).
   another isolate (`compute`). The status notifies listeners only when
   it changes.
 - One pass runs at a time. A change during a pass queues one more pass.
+- **Live sync** ([live-sync.md](live-sync.md)): after a successful pass,
+  `CloudSync` starts `LiveSync` with the session's identity and
+  credentials. Each event a pass uploads (from the last two weeks) is then
+  published, metadata only, right after its `PUT`; each event another
+  device publishes is handed to `onRemote` at once (`RemoteRecords.live`),
+  marked as synced with the sender's ETag, and its clip and thumbnail are
+  fetched from the bucket by a pass started for them
+  (`CloudSync._fetchWanted`) once the clip is there. An event that arrives
+  both ways is handed over once.
 
 ## How
 
@@ -264,12 +282,14 @@ an Athena table are in [Recording and data formats](data-formats.md).
   is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
   IDs): `AWS_REGION` (default `us-east-1`), `COGNITO_IDENTITY_POOL_ID` and
-  `USER_DATA_BUCKET`. The app doesn't call the pool by ID any more (the
+  `USER_DATA_BUCKET`, and for [live sync](live-sync.md) `IOT_ENDPOINT`
+  (the account's AWS IoT data endpoint; empty, live sync is off). The app doesn't call the pool by ID any more (the
   auth API does), but sync is still off when either ID is empty: no cloud
   backend is created, so Cognito and S3 are never called and everything
   stays on the device. It's also off in DEV ([execution
   mode](execution-mode.md)). In production,
-  `scripts/deploy.sh` sets them from the stack outputs; locally they come
+  `scripts/deploy.sh` sets them from the stack outputs (and
+  `IOT_ENDPOINT` from `aws iot describe-endpoint`); locally they come
   from `.env`.
 - The Google ID token is issued for the web client on every platform: web
   directly, and Android and iOS through `serverClientId`. So the auth API
@@ -325,6 +345,11 @@ In [presence_infra/](../presence_infra):
     `<bucket>/${cognito-identity.amazonaws.com:sub}/*`, and `ListBucket` on
     that prefix. No deletes. That `sub` is the profile's identity, the same
     for all its linked accounts.
+  - For [live sync](live-sync.md), the role may also connect to AWS IoT
+    with client IDs starting with that identity and publish, receive and
+    subscribe on `presence/<Stage>/<identity>/*`; the `presence-live-sync`
+    IoT policy (output `LivePolicyName`) grants the same, and the auth API
+    attaches it to each identity.
 
 ## Verified
 
@@ -401,7 +426,8 @@ In [presence_infra/](../presence_infra):
 - A clip deleted on one device isn't deleted elsewhere (nothing is
   deleted yet).
 - Of a changed event, only its tags, suggestions and object tags are taken
-  on: other fields another device changes (such as `clipState`) aren't.
+  on: other fields another device changes (such as `clipState`) aren't,
+  though a clip that completed since comes down with it.
 - Two devices changing the same event between passes: the last upload
   wins, whole. A device holding an unsynced change uploads it over the
   other's, so the other's edit to that event is lost.

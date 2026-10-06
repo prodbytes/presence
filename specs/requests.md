@@ -3167,3 +3167,144 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        - 488 Flutter tests pass. Specs: [Navigation](navigation.md),
          [Motion clips](motion-clips.md), [Scheduled
          clips](scheduled-clips.md).
+
+283. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
+     - Asked: when a device creates or updates an event, push it to S3 as
+       today and also publish it over MQTT (AWS IoT Core over WebSockets,
+       approved), so the profile's other devices get it within about a
+       second instead of the 15 s poll; S3 stays the durable store and
+       nothing is deleted. Messages carry only the event's metadata, never
+       frames, thumbnails or video; a receiving device loads a new event at
+       once (Monitoring, the All grid) and its thumbnail and recording
+       still come from S3. Designed for a phase 2 (acks, deleting S3
+       records after three acks, asking online peers at start), not built.
+     - Changed: `LiveSync` (`lib/cloud/live_sync.dart`) connects once a
+       cloud sync pass has a session, to `wss://<IOT_ENDPOINT>/mqtt`
+       presigned with the profile's Cognito credentials
+       (`SigV4Signer.presignWebSocket`, `iotdevicegateway`), client ID
+       `<identityId>-<deviceId>-<session>`, topic
+       `presence/<stage>/<identityId>/events` (QoS 1); it reconnects with
+       back-off, renews before the credentials expire, and stops on
+       sign-out, a profile change or a credentials failure.
+       `MqttLiveConnection` (`mqtt_client` 10.11.11, pinned:
+       `MqttServerClient` over WebSockets off the web, `MqttBrowserClient`
+       on it). `CloudSync` publishes each event it uploads (last two
+       weeks), right after its `PUT`, as `{v, kind, deviceId, identityId,
+       sentAt, key, etag, event}` with inline media stripped
+       (`LiveSync.metadataOf`); takes other devices' events at once
+       (`RemoteRecords.live`), marked synced with the sender's ETag so
+       they're neither uploaded back nor downloaded again, and handed over
+       once; and fetches a received (or changed) event's clip and
+       thumbnail from S3 in a pass started for it (`_fetchWanted`).
+       Inbound messages are validated (64 KB, version, identity, safe IDs,
+       no inline media). Until its clip comes, a received clip event shows
+       "Recording on another device…" (`VideoClip.awaitingRemote`), then is
+       shown again with it (`Persistence.showArrivedClips`,
+       `EventLog.replace`). Health line and panel: a fourth check,
+       📡 Live. Errors are logged without the presigned URL's query.
+       Infra: `identity.yaml` gets `Stage`, the role's `own-live-sync`
+       statements and the `presence-live-sync` IoT policy (output
+       `LivePolicyName`); the auth API attaches it to each identity at
+       `POST /api/auth/credentials` (`iot:AttachPolicy`, parameter
+       `IotPolicyName`, `IOT_POLICY_NAME`; failures logged, not fatal);
+       `deploy.sh` passes `Stage`, looks up the `iot:Data-ATS` endpoint
+       and passes `IOT_ENDPOINT` (a new allowed dart-define, in
+       `.env.example` for Android and local builds) and `IotPolicyName`;
+       both deploy roles in `github-deploy.yaml` may manage their IoT
+       policies and call `iot:DescribeEndpoint` (an administrator must
+       update that stack by hand before the next deploy).
+     - Tests: `live_sync_test.dart` (the presigned URL against an
+       independent implementation; parsing, stripping, dropping
+       malformed, foreign or oversized messages; redaction; off without
+       an endpoint; connect, publish, receive in order and ignore its own;
+       reconnect, back-off, renewal, stop; with `CloudSync`: publish on
+       save without frames, received once and neither re-uploaded nor
+       re-downloaded, the clip from S3 on completion, a local change wins,
+       sign-out disconnects), `persistence_test.dart` (an event published
+       by another device shows at once, then with its clip and thumbnail),
+       `system_health_test.dart` (five cards, two across on a phone),
+       `ProfileTest` and `ProfileBackendTest` (credentials attach the
+       policy to the identity, once per instance; failures don't fail
+       credentials). `flutter analyze`, `flutter test` (492),
+       `flutter build web`, the Java tests, `sam validate --lint`,
+       `aws cloudformation validate-template` and `bash -n` pass. Not
+       verified against AWS IoT (needs a deploy).
+     - Specs: [Live sync](live-sync.md) (new), [Cloud sync](cloud-sync.md),
+       [Deploy](deploy.md), [Profiles](profiles.md),
+       [Auth API](auth-api.md), [Settings](settings.md), [Log](log.md).
+     - Then asked (same PR): show on the Log tab's health check whether
+       the device is connected to the MQTT channel, and add a setting for
+       how often it connects, every minute by default, from Never (never
+       connects) to Always (always connected); and randomize the scheduled
+       connections a little (each wait the interval plus up to ~10 s,
+       picked anew each time).
+     - Changed: **Connect to live sync** (`LiveConfig` in `config.dart`,
+       stored per device as `live: {mode, everyMs}`, older records get the
+       default), in a new **Live sync** Settings section for everyone (not
+       the admin-only Advanced), shown when the build has live sync: nine
+       steps, Never, 1, 2, 5, 10, 15, 30, 60 min, Always; default every
+       1 min; a change applies at once (`LiveSync.config`, set by the app
+       from the setting). Never: no connection, nothing published.
+       Scheduled: a persistent session (cleanSession off,
+       `MqttLiveConnection.connect(persistent:)`) as the stable
+       `<identityId>-<deviceId>`, QoS 1, so AWS IoT queues messages while
+       the device is away (1 h by default; the 60 min step waits 59 min
+       plus jitter); it stays until 3 s without messages (at most 30 s),
+       then disconnects; waits the interval plus a random 0–10 s each
+       time (`LiveSync.nextWait`, injectable `Random`); a new local event
+       connects at once to send it. Always: as before, with the per-run
+       client ID and a clean session. Two tabs sharing the stable ID: the
+       older connection is dropped, rarely, and that tab gets the events
+       from S3 (documented). Messages are listened to before subscribing,
+       and `MqttLiveConnection` buffers them, so a session's queued
+       messages aren't lost. Health: 📡 Live gains 💤 **Idle** ("Idle ·
+       next in 0:42", counting down on the panel) and ⚪ off for Never;
+       only a failed connection fails a timeline run. The IoT policy
+       already allows both client IDs (`<identityId>-*`); only its comment
+       changed.
+     - Tests: `live_sync_test.dart` (Never connects and publishes nothing;
+       scheduled: persistent session, stable client ID, disconnects once
+       quiet, connects again on time, stays while queued messages come up
+       to its maximum, connects at once to publish then disconnects;
+       waits within [interval, interval + 10 s], seeded, the 60 min step
+       within the hour; setting changes apply at once; Always keeps a
+       clean session), `system_health_test.dart` (Live states; idle and
+       Never aren't failures, an error is), `config_test.dart` (steps,
+       default, round-trip, older records), `settings_test.dart` (the
+       slider, Never to Always, only with live sync),
+       `persistence_test.dart` (the app applies the setting).
+       `flutter analyze`, `flutter test` (509) and `flutter build web`
+       pass.
+     - Specs: [Live sync](live-sync.md), [Settings](settings.md),
+       [Configuration](configuration.md), [Log](log.md).
+     - Review fixes (2026-10-06), asked: fix the review findings on the
+       PR: a pass could put an older version of an event back over one
+       live sync had just taken from another device; a wanted clip whose
+       fetch failed (or the app closing) was never fetched; a hung
+       credentials request or connection stalled live sync; an event
+       arriving while signing out was still stored; and the health line's
+       "sent" count wasn't a broker acknowledgement.
+     - Changed: `_syncAll` reads each event again from storage just before
+       uploading it (after the clips), and marks it as uploading
+       (`_eventUploads`), which `_onLive` waits for, so the pass never
+       uploads or publishes a stale version. `_onLive` checks that the
+       profile is still the one syncing (and not stopped or disposed)
+       after each wait, before storing or marking anything. Wanted clips
+       (`_wantedClips`, with a serial per want) stay wanted until fetched
+       or found missing; a failed fetch is retried at the next pass (at
+       most 5 times) without failing the pass; each full fetch re-wants
+       the clips of the window's events that have no clip record here
+       (`_rewantClips`, the newest 100), so they come after a restart.
+       `LiveSync` times out credentials and connecting after 15 s each
+       (`connectTimeout`) into the usual back-off. The count is renamed
+       `LiveSync.sent` and documented as handed to the connection, not
+       acknowledged (PUBACK isn't awaited).
+     - Tests: `live_sync_test.dart` (a hung credentials request and a hung
+       connection time out and retry; an update received while a pass
+       uploads the recording isn't put back nor published; an event
+       received while signing out isn't taken; a failed wanted clip comes
+       at the next pass; after a restart the first pass fetches a missing
+       clip; the four `CloudSync` ones fail on the code before the fix).
+       `flutter analyze`, `flutter test` (514) and `flutter build web`
+       pass.
+     - Specs: [Live sync](live-sync.md).

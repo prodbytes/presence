@@ -49,8 +49,9 @@ site (`/api/*` in the CloudFront distribution; see
   [Membership](membership.md#voucher-codes);
 - **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
   (`ProfileHandler`): a Cognito developer-identity token for the user's
-  profile, and listing, linking and unlinking its Google accounts. See
-  [Profiles](profiles.md).
+  profile (and, with `IotPolicyName` set, the [live-sync](live-sync.md) IoT
+  policy attached to its identity), and listing, linking and unlinking its
+  Google accounts. See [Profiles](profiles.md).
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
