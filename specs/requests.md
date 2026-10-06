@@ -2857,3 +2857,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter analyze` and `flutter build web` are clean.
      - Specs: [Cloud sync](cloud-sync.md), [Camera](camera.md#all-devices),
        [Event retention](event-retention.md).
+270. **Android: a failed silent sign-in retries quietly instead of asking.**
+     (2026-10-06)
+     - Asked: the phone asked to sign in again; only ask when the tokens
+       are expired and really needed.
+     - Found: the app hadn't restarted. At an hourly refresh (13:52) Play
+       services' silent sign-in failed once with status 8
+       (`INTERNAL_ERROR`), and the code fell back to Credential Manager's
+       quiet check, which showed the account chooser; nobody answered it,
+       the token expired and cloud sync stopped at 14:43.
+     - Changed: the native channel returns the failure's status code.
+       `SIGN_IN_REQUIRED` (4) throws `SilentSignInRequired` and is the only
+       case that still asks Google's check; any other failure, at launch or
+       at a refresh, is retried quietly in 1, 2, 4, 8 and then every 15
+       minutes (`GoogleAuthService.retryUnit`), keeping the session.
+     - Tests: `silent_sign_in_test.dart` (a launch failure retried without
+       the chooser; a refresh failure kept and retried; SIGN_IN_REQUIRED
+       asks Google's check; the channel's failure codes). 434 Flutter tests
+       pass. On the phone: installed, force-stopped and relaunched, it
+       signed in silently. Specs: [Sign-in](sign-in.md).

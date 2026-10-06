@@ -49,9 +49,19 @@ there's no separate sign-in screen:
     first, for the signed-in account. Play services returns its cached
     token until shortly before expiry, so getting the same token back
     retries a minute later;
-  - when it fails (no remembered account, the account removed from the
-    phone or its access revoked), the app falls back to Credential
-    Manager's quiet check, as before;
+  - **a failure is retried quietly, never with the chooser**: when the
+    silent sign-in fails for a reason that may pass (Play services'
+    status 8, `INTERNAL_ERROR`, seen once on the phone at an hourly
+    refresh; offline), the app tries again in 1, 2, 4, 8 and then every
+    15 minutes, keeping the session (the user stays signed in; cloud sync
+    pauses if the token expires, and resumes on the new token). The log
+    says `silent sign-in of <email> failed (N in a row); trying again in
+    <s> s`. Before this, one such failure opened Credential Manager's
+    chooser, which sat unanswered on the phone and cloud sync stopped;
+  - only when the account **must** sign in with UI (Play services'
+    `SIGN_IN_REQUIRED`, status 4: the account removed from the phone or
+    its access revoked, `SilentSignInRequired`), or there's no remembered
+    account, does the app fall back to Credential Manager's quiet check;
   - **Sign out** forgets the account (and signs Play services' sign-in
     out), so a restart doesn't sign it back in.
 
@@ -152,8 +162,8 @@ there's no separate sign-in screen:
   before expiry finds nothing (no FedCM auto sign-in), a reload after
   that signs out. The refresh itself may briefly show Google's FedCM
   prompt (web), or Credential Manager's chooser on Android when the
-  silent sign-in of the remembered account fails and several accounts
-  have signed in to the app.
+  remembered account must sign in with UI and several accounts have
+  signed in to the app.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -31,6 +32,7 @@ class GoogleAuthService extends AuthService {
     DateTime Function()? now,
     SilentSignIn? silent,
     @visibleForTesting ({String? clientId, String? serverClientId})? ids,
+    @visibleForTesting this.retryUnit = const Duration(minutes: 1),
   }) : _now = now ?? DateTime.now,
        _ids = ids ?? _platformIds,
        _silent =
@@ -149,8 +151,19 @@ class GoogleAuthService extends AuthService {
       // signed back in with no UI; Google's check only if that fails.
       if (_idToken case final token?) {
         _scheduleRefresh(token);
-      } else if (!await _signInSilently(await _silent?.remembered())) {
-        await GoogleSignIn.instance.attemptLightweightAuthentication();
+      } else {
+        final email = await _silent?.remembered();
+        switch (await _signInSilently(email)) {
+          case _Silent.signedIn:
+            break;
+          // Offline or Play services busy at launch: tried again quietly,
+          // never with Google's account chooser, which nobody may be there
+          // to tap.
+          case _Silent.failed when email != null:
+            _retrySilently(email);
+          case _Silent.failed || _Silent.needsUi:
+            await GoogleSignIn.instance.attemptLightweightAuthentication();
+        }
       }
     } on GoogleSignInException catch (e) {
       // Usually also reported as an authentication event: logged once.
@@ -203,17 +216,28 @@ class GoogleAuthService extends AuthService {
   }
 
   /// Signs [email] back in with no UI ([SilentSignIn], Android), as a
-  /// Google sign-in would. False when there's no such path, no [email], or
-  /// it failed (the caller then asks Google's library); also when the
-  /// session changed meanwhile (signed out, or someone else signed in).
-  Future<bool> _signInSilently(String? email) async {
+  /// Google sign-in would. [_Silent.needsUi] when there's no such path, no
+  /// [email], or the account must sign in with UI (the caller then asks
+  /// Google's library); [_Silent.failed] when it failed this time (worth
+  /// retrying quietly) or the session changed meanwhile (signed out, or
+  /// someone else signed in).
+  Future<_Silent> _signInSilently(String? email) async {
     final silent = _silent;
     final server = _ids.serverClientId;
-    if (silent == null || server == null || email == null) return false;
+    if (silent == null || server == null || email == null) {
+      return _Silent.needsUi;
+    }
     final before = _user?.email;
     final previous = _idToken;
-    final account = await silent.signIn(email: email, serverClientId: server);
-    if (account == null || _user?.email != before) return false;
+    final SilentAccount? account;
+    try {
+      account = await silent.signIn(email: email, serverClientId: server);
+    } on SilentSignInRequired {
+      debugPrint('Presence: $email must sign in again');
+      return _Silent.needsUi;
+    }
+    if (account == null || _user?.email != before) return _Silent.failed;
+    _silentFailures = 0;
     // Play services hands back a cached token until shortly before it
     // expires: if it's the same one, try again in a minute rather than at
     // once.
@@ -225,7 +249,38 @@ class GoogleAuthService extends AuthService {
     );
     if (!same) debugPrint('Presence: signed in again as $email, silently');
     notifyListeners();
-    return true;
+    return _Silent.signedIn;
+  }
+
+  /// Silent sign-ins that failed in a row, for [_retrySilently]'s backoff.
+  int _silentFailures = 0;
+
+  /// The first wait before a silent retry; then 2, 4, 8 and 15 times it.
+  final Duration retryUnit;
+
+  /// After a failed silent sign-in of [email]: tries again quietly in 1, 2,
+  /// 4, 8 and then every 15 minutes ([retryUnit]s), until it signs in, the account must
+  /// sign in with UI, or the session changes (signed out, someone else).
+  void _retrySilently(String email) {
+    _refresh?.cancel();
+    final wait = retryUnit * min(1 << min(_silentFailures, 4), 15);
+    _silentFailures++;
+    debugPrint(
+      'Presence: silent sign-in of $email failed '
+      '($_silentFailures in a row); trying again in ${wait.inSeconds} s',
+    );
+    final user = _user?.email;
+    _refresh = Timer(wait, () async {
+      if (_user?.email != user) return;
+      switch (await _signInSilently(email)) {
+        case _Silent.signedIn:
+          break;
+        case _Silent.failed:
+          if (_user?.email == user) _retrySilently(email);
+        case _Silent.needsUi:
+          GoogleSignIn.instance.attemptLightweightAuthentication()?.ignore();
+      }
+    });
   }
 
   @override
@@ -263,8 +318,10 @@ class GoogleAuthService extends AuthService {
 
   /// Refreshes [token] quietly shortly before it expires, so a signed-in
   /// user isn't asked to sign in while their token is still good, not
-  /// before [atLeast]. On Android the same account is first signed in
-  /// again with no UI. Finding nothing leaves the session as it is.
+  /// before [atLeast]. On Android the same account is signed in again with
+  /// no UI, retried quietly when that fails ([_retrySilently]); Google's
+  /// prompt only when the account must sign in with UI. Finding nothing
+  /// leaves the session as it is.
   void _scheduleRefresh(String token, {Duration atLeast = Duration.zero}) {
     _refresh?.cancel();
     final delay = SavedSession.refreshIn(token, now: _now());
@@ -272,9 +329,16 @@ class GoogleAuthService extends AuthService {
     _refresh = Timer(delay < atLeast ? atLeast : delay, () async {
       final email = _user?.email;
       if (email == null) return;
-      if (await _signInSilently(email)) return;
-      if (_user?.email != email) return;
-      GoogleSignIn.instance.attemptLightweightAuthentication()?.ignore();
+      switch (await _signInSilently(email)) {
+        case _Silent.signedIn:
+          return;
+        case _Silent.failed when _silent != null:
+          if (_user?.email == email) _retrySilently(email);
+          return;
+        case _Silent.failed || _Silent.needsUi:
+          if (_user?.email != email) return;
+          GoogleSignIn.instance.attemptLightweightAuthentication()?.ignore();
+      }
     });
   }
 
@@ -329,3 +393,6 @@ class GoogleAuthService extends AuthService {
     super.dispose();
   }
 }
+
+/// How a silent sign-in went ([GoogleAuthService._signInSilently]).
+enum _Silent { signedIn, failed, needsUi }

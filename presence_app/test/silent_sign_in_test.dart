@@ -52,11 +52,14 @@ class FakeGooglePlatform extends GoogleSignInPlatform {
 
 /// The native silent sign-in, in memory.
 class FakeSilentSignIn implements SilentSignIn {
-  FakeSilentSignIn({this.email, List<SilentAccount?>? results})
+  FakeSilentSignIn({this.email, List<Object?>? results})
     : results = results ?? [];
 
   String? email;
-  final List<SilentAccount?> results;
+
+  /// What each sign-in gives, in turn: an account, null (a failure worth
+  /// retrying) or a [SilentSignInRequired] to throw.
+  final List<Object?> results;
   final List<String> asked = [];
 
   @override
@@ -74,7 +77,9 @@ class FakeSilentSignIn implements SilentSignIn {
     required String serverClientId,
   }) async {
     asked.add(email);
-    return results.isEmpty ? null : results.removeAt(0);
+    final result = results.isEmpty ? null : results.removeAt(0);
+    if (result is SilentSignInRequired) throw result;
+    return result as SilentAccount?;
   }
 }
 
@@ -101,11 +106,7 @@ void main() {
         email: 'ana@example.com',
         results: [(user: ana, idToken: fresh)],
       );
-      final auth = GoogleAuthService(
-        silent: silent,
-        ids: ids,
-        now: () => now,
-      );
+      final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
       await auth.init();
       expect(silent.asked, ['ana@example.com']);
       expect(google.lightweight, 0);
@@ -137,13 +138,71 @@ void main() {
     auth.dispose();
   });
 
-  test('a failed silent sign-in falls back to the quiet check', () async {
-    final silent = FakeSilentSignIn(email: 'ana@example.com');
+  test('a failed silent sign-in at launch is retried quietly, never with '
+      'the chooser', () async {
+    final fresh = token(now.add(const Duration(hours: 1)));
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      results: [null, null, (user: ana, idToken: fresh)],
+    );
+    final auth = GoogleAuthService(
+      silent: silent,
+      ids: ids,
+      now: () => now,
+      retryUnit: const Duration(milliseconds: 5),
+    );
+    await auth.init();
+    expect(silent.asked, ['ana@example.com']);
+    expect(auth.user, isNull);
+    // 5 ms, then 10 ms later.
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await settle();
+    expect(silent.asked, hasLength(3));
+    expect(auth.idToken, fresh);
+    expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('an account that must sign in again gets Google\'s check', () async {
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      results: [const SilentSignInRequired('ana@example.com')],
+    );
     final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
     await auth.init();
     expect(silent.asked, ['ana@example.com']);
     expect(google.lightweight, 1);
     expect(auth.user, isNull);
+    auth.dispose();
+  });
+
+  test('a failed refresh keeps the session and retries quietly', () async {
+    final old = token(now.add(const Duration(minutes: 2)));
+    final fresh = token(now.add(const Duration(hours: 1)));
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      // Launch, then the refresh fails twice (status 8), then works.
+      results: [
+        (user: ana, idToken: old),
+        null,
+        null,
+        (user: ana, idToken: fresh),
+      ],
+    );
+    final auth = GoogleAuthService(
+      silent: silent,
+      ids: ids,
+      now: () => now,
+      retryUnit: const Duration(milliseconds: 5),
+    );
+    await auth.init();
+    await settle();
+    expect(auth.user?.email, 'ana@example.com', reason: 'still signed in');
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    await settle();
+    expect(silent.asked, hasLength(4));
+    expect(auth.idToken, fresh);
+    expect(google.lightweight, 0);
     auth.dispose();
   });
 
@@ -167,10 +226,7 @@ void main() {
     final fresh = token(now.add(const Duration(hours: 1)));
     final silent = FakeSilentSignIn(
       email: 'ana@example.com',
-      results: [
-        (user: ana, idToken: old),
-        (user: ana, idToken: fresh),
-      ],
+      results: [(user: ana, idToken: old), (user: ana, idToken: fresh)],
     );
     final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
     await auth.init();
@@ -238,18 +294,30 @@ void main() {
     test('a failure or a missing channel is no account', () async {
       const native = NativeSilentSignIn();
       expect(await native.remembered(), isNull);
-      expect(
-        await native.signIn(email: 'a@b.c', serverClientId: 'x'),
-        isNull,
-      );
+      expect(await native.signIn(email: 'a@b.c', serverClientId: 'x'), isNull);
       messenger.setMockMethodCallHandler(
         channel,
         (call) async => throw PlatformException(code: 'x'),
       );
-      expect(
-        await native.signIn(email: 'a@b.c', serverClientId: 'x'),
-        isNull,
+      expect(await native.signIn(email: 'a@b.c', serverClientId: 'x'), isNull);
+    });
+
+    test('SIGN_IN_REQUIRED from the channel throws; other failures are '
+        'null', () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => {'failure': '4'},
       );
+      const native = NativeSilentSignIn();
+      await expectLater(
+        native.signIn(email: 'a@b.c', serverClientId: 'x'),
+        throwsA(isA<SilentSignInRequired>()),
+      );
+      messenger.setMockMethodCallHandler(
+        channel,
+        (call) async => {'failure': '8'},
+      );
+      expect(await native.signIn(email: 'a@b.c', serverClientId: 'x'), isNull);
     });
 
     test('an incomplete reply is no account', () {
