@@ -83,11 +83,27 @@ recorders (`RecorderPool` in
 - Clips (thumbnails and recordings) are saved to local storage and survive a
   page refresh. See [Storage](storage.md).
 
-## Naming people and pets
+## Subjects and Tags, under the player
 
-Under the player, the clip's **People and pets** list names whoever is in
-the video, as many as needed. Each name is on a frame of the clip, at the
-spot clicked
+The player is the event's details screen. Under it are two sections, each
+with its own heading and icon so they read apart at any width (320 dp
+phones to wide screens): **Subjects** (a face icon), the named people and
+pets, and below a divider, **Tags** (a tag icon), the things seen on the
+clip, such as "bottle" or "bicycle". The cards use the same words: the
+x after a subject's name says "Remove subject Rex from this event", the x
+on a tag's chip "Remove tag bicycle from this event".
+
+- **Tags** lists the clip's [object tags](recognition.md) as the card's
+  outlined chips (keys `player-object-<label>`), each with its x to remove
+  it. With none it says "No tags yet. Things seen on the clip, like bottle
+  or bicycle, show here once it has been searched (try Auto)." ("(try
+  Auto)" only where Auto can run), or, once searched with nothing found,
+  "No tags: nothing was seen on this clip."
+
+## Naming subjects
+
+The **Subjects** section names whoever is in the video, as many as
+needed. Each name is on a frame of the clip, at the spot clicked
 ([lib/annotations.dart](../presence_app/lib/annotations.dart),
 `ClipPlayerDialog` in `lib/clips.dart`):
 
@@ -103,16 +119,19 @@ spot clicked
   player starts paused where the first person or pet was seen and says
   "Unidentified subject: click them on the video to name them, or try
   Auto." until everyone's named (see [Event flags](event-flags.md)).
-- **Tag this frame** grabs the frame the same way, without a first name.
+- **Name subject** grabs the frame the same way, without a first name;
+  the frame then says "Click each person or pet on the video to name them
+  as a subject".
   This is also how tagging works with a screen reader, whose layer covers
   the `<video>`.
-- **Auto**, beside it, tags whoever it recognizes among the people and
-  pets tagged before, on this device, and the clip's object tags if it has
-  none yet: the clip is searched as new clips are, and it says who it
+- **Auto**, beside it, tags whoever it recognizes among the subjects
+  named before, on this device, and the clip's tags if it has none yet
+  (tooltip "Find the subjects named before, and tag the things seen, on
+  this device"): the clip is searched as new clips are, and it says who it
   tagged or asked about, and what objects it saw (see
   [Subject recognition](recognition.md), "Auto, in the player"). Disabled
   where recognition can't run yet (Android, iOS). On a narrow dialog the
-  two buttons go under the "People and pets" title.
+  two buttons go under the "Subjects" heading.
 - The frame is grabbed as a JPEG at most 960 px wide
   (`ClipPlayerController.captureFrame`):
   - **web:** the `<video>` is drawn onto a canvas (`toBlob`, JPEG 0.85), at
@@ -130,9 +149,11 @@ spot clicked
 - **Positions** are fractions (0 to 1) of the video frame itself
   (letterboxing excluded), so they land on the same spot on any screen.
   Markers (a dot with the name) are drawn on the frame.
-- Tags are listed by frame: the frame's thumbnail and time (click it to tag
-  more on that frame), then a chip per name: click to **rename**, × to
-  **remove**. A frame is dropped once its last tag is removed.
+- Subjects are listed by frame: the frame's thumbnail and time (tooltip
+  "Name more subjects on this frame"), then a chip per name: click to
+  **rename** ("Rename subject"), × to **remove** ("Remove subject"). A
+  frame is dropped once its last tag is removed. With none: "No subjects
+  yet. Click a person or pet on the video to name them."
 - **Where a tag came from** (`source`): someone's click (`manual`, the
   default, not stored), [recognition](recognition.md) (`detected`, with its
   `confidence`), a recognition **suggestion** waiting for an answer
@@ -162,6 +183,9 @@ spot clicked
   and clicked twice, restored after a refresh with its image, positions and
   names, and stored in the event record; a click on the video tagging that
   frame (and a cancelled one tagging nothing); the letterbox mapping.
+  `recognition_test.dart` checks the player's Subjects and Tags headings,
+  their empty texts, Tags below Subjects and a tag removed from the
+  player, at 320 and 1000 dp without overflow.
   Tried in headless Chrome with a fake camera: a click on the playing
   video froze the frame over the player and tagged the spot, and tags
   were still there after a reload. The Android and iOS

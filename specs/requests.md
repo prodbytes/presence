@@ -3054,3 +3054,33 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md),
        [Recognition](recognition.md), [Subjects](subjects.md),
        [Log](log.md).
+279. **Event details: "Subjects" for named animals and persons, "Tags"
+     for things.** (2026-10-06)
+     - Asked: in the event details screen (the clip player, where people,
+       subjects and tags are named), call the named animals and persons
+       **Subjects** and the names of things like "bottle" **Tags**.
+     - Changed (user-visible text only; keys, JSON fields and data formats
+       unchanged): the player's "People and pets" heading is now
+       **Subjects** (with a face icon), "Tag this frame" is **Name
+       subject**, its frame tooltip "Name more subjects on this frame",
+       chips "Rename subject" / "Remove subject", the rename dialog
+       "Rename subject", "Nobody tagged yet…" is "No subjects yet. Click a
+       person or pet on the video to name them.", and the frame's prompt
+       and screen-reader label speak of naming subjects. A new **Tags**
+       section (tag icon, below a divider) lists the clip's object tags
+       with their x, or says none yet / none seen. Auto's tooltip and
+       messages: "Found Rex.", "No subjects recognized.", "Every subject
+       named before is already on this clip.", "No subjects to look for
+       yet: name someone on another clip first.", "… Tags: cat.". On
+       cards, the x tooltips say "Remove subject Rex from this event" and
+       "Remove tag bicycle from this event". `RemoveLabelButton` takes a
+       `kind`; `ClipObjectTags` a `keyPrefix` (`player-object` in the
+       player).
+     - Tests: `recognition_test.dart` (Subjects and Tags headings apart,
+       empty texts, a tag removed in the player, at 320 and 1000 dp; the
+       new Auto messages), `persistence_test.dart`,
+       `label_remove_test.dart` and `event_flags_test.dart` updated for
+       the new texts. 474 Flutter tests pass; `flutter analyze` and
+       `flutter build web` are clean.
+     - Specs: [Clips](clips.md), [Subject recognition](recognition.md),
+       [Subjects](subjects.md), [Event flags](event-flags.md).

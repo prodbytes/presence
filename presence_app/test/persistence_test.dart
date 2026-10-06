@@ -725,7 +725,7 @@ void main() {
 
       await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Nobody tagged yet'), findsOneWidget);
+      expect(find.textContaining('No subjects yet'), findsOneWidget);
 
       // Grab the frame, then click two people on it.
       await tester.tap(find.byKey(const Key('tag-frame')));
@@ -805,7 +805,7 @@ void main() {
         await tester.tap(
           find.descendant(
             of: find.widgetWithText(InputChip, name),
-            matching: find.byTooltip('Remove'),
+            matching: find.byTooltip('Remove subject'),
           ),
         );
         await tester.pumpAndSettle();

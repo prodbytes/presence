@@ -35,7 +35,7 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
 - Only on a platform that has the runtime: **web** and **Android**. iOS
   comes next, with the same models (see [Platforms](platforms.md)).
 - **On request, on any clip:** the player's **Auto** button (see
-  [Clips](clips.md), "Naming people and pets") runs the same search on the
+  [Clips](clips.md), "Naming subjects") runs the same search on the
   clip it shows: restored and synced clips too, and even with **Recognize
   subjects in new clips** off. It runs on the device, after any clip
   already being searched, and waits for the full recording if it isn't
@@ -114,13 +114,17 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   `objectTags: [{label, ms, score}]`, and synced in the event JSON like its
   subject tags. No `objectTags` means not searched yet; `[]` means
   searched, nothing seen. Malformed entries are skipped on restore.
+- They're the clip's **Tags**, the user-facing name, as opposed to its
+  **Subjects** (named people and pets). The player lists them under a
+  "Tags" heading (see [Clips](clips.md), "Subjects and Tags").
 - The clip's card shows them as small outlined chips under its subjects
   ("human", "bicycle"), in order of first sighting. Each keeps where it was
   first seen (`ms`, in the recording's time, like a tag's `frameMs`), and
   clicking it opens the player paused on that frame (see
   [Clips](clips.md)). Only the time is kept, not the frame's image.
 - **Removing one:** the **x** inside each chip (key
-  `clip-object-remove-<label>`, tooltip "Remove bicycle from this event")
+  `clip-object-remove-<label>`, tooltip "Remove tag bicycle from this
+  event")
   removes that label from the clip (`ClipAnnotations.removeObject`), at
   once and without asking. The search and the Events count update, and
   the record is saved and synced; with none left it keeps `[]` (searched),
@@ -136,23 +140,24 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
 
 ## Auto, in the player
 
-- **Auto** (✨) sits beside **Tag this frame** under the player. While it
-  runs it shows a spinner and "Looking for the people and pets tagged
-  before…" ("Waiting for the clip to finish recording…" first, if
+- **Auto** (✨) sits beside **Name subject** under the player's
+  "Subjects" heading. While it runs it shows a spinner and "Looking for
+  the subjects named before…" ("Waiting for the clip to finish recording…" first, if
   needed). Then it says what it did:
-  - "Tagged Rex and Ana." for the recognized tags, which appear in the
+  - "Found Rex and Ana." for the recognized subjects, which appear in the
     list at once;
   - "Not sure about Bo: answer "Is this Bo?" in the events." for the
     suggestions (each with its question event, as for new clips);
-  - "Nobody recognized.", "Everyone tagged before is already on this
-    clip." (subjects already on it, suggestions included, are skipped), or
-    "Nobody to look for yet: tag someone on another clip first." (no
+  - "No subjects recognized.", "Every subject named before is already on
+    this clip." (subjects already on it, suggestions included, are
+    skipped), or "No subjects to look for yet: name someone on another
+    clip first." (no
     reference shows anyone where it was clicked);
   - "Couldn't run recognition; try again." if the models didn't load;
   - "The phone is low on memory: try again in a moment." when memory is
     tight (Android);
-  - followed by "Also saw: cat, bicycle." when it tagged objects (only on
-    a clip without object tags yet).
+  - followed by "Tags: cat, bicycle." when it tagged objects (only on a
+    clip without tags yet); they show in the Tags section at once.
 - Where recognition can't run (Android and iOS for now) the button is
   disabled, with the tooltip "Not available on this device yet".
 - Each run returns a `RecognitionResult` (`SubjectRecognizer.recognizeNow`):

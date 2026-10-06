@@ -192,8 +192,8 @@ class ClipRequested extends AppEvent {
   final VideoClip clip;
   final ClipTrigger trigger;
 
-  /// The people and pets named in this clip (edited under the player), and
-  /// the objects recognition saw on it.
+  /// The subjects (people and pets) named in this clip, edited under the
+  /// player, and its tags: the objects recognition saw on it.
   final ClipAnnotations annotations;
 
   /// `partial` while only the "before" part exists, `complete` once the
@@ -381,9 +381,11 @@ Future<void> showClipPlayer(
   );
 }
 
-/// The clip player, with the people and pets named in it. "Tag this frame"
-/// pauses the clip and grabs the frame it shows; clicking the frame names a
-/// person or pet at that spot (as many as needed). Each tag keeps its
+/// The clip player (the event's details), with two sections under it:
+/// **Subjects**, the people and pets named in it, and **Tags**, the things
+/// recognition saw on it (`bottle`, `bicycle`…). "Name subject" pauses the
+/// clip and grabs the frame it shows; clicking the frame names a person or
+/// pet at that spot (as many as needed). Each subject's tag keeps its
 /// frame, the clicked position and the name, stored with the event.
 class ClipPlayerDialog extends StatefulWidget {
   const ClipPlayerDialog({
@@ -492,7 +494,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   Future<void> _rename(Annotation annotation) async {
     final name = await _askName(
       context,
-      title: 'Rename',
+      title: 'Rename subject',
       initial: annotation.name,
     );
     if (name != null) _annotations.rename(annotation.id, name);
@@ -577,7 +579,11 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       runSpacing: 8,
                       children: [
-                        Text('People and pets', style: textTheme.titleSmall),
+                        _SectionHeading(
+                          key: const Key('subjects-heading'),
+                          icon: Icons.face,
+                          title: 'Subjects',
+                        ),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
@@ -585,8 +591,8 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                             if (frame == null && recognizer != null)
                               Tooltip(
                                 message: recognizer.supported
-                                    ? 'Tag the people and pets tagged before, '
-                                          'recognized on this device'
+                                    ? 'Find the subjects named before, and tag '
+                                          'the things seen, on this device'
                                     : 'Not available on this device yet',
                                 child: FilledButton.tonalIcon(
                                   key: const Key('auto-tag'),
@@ -616,7 +622,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                                         ),
                                       )
                                     : const Icon(Icons.crop_free),
-                                label: const Text('Tag this frame'),
+                                label: const Text('Name subject'),
                                 onPressed: _grabbing ? null : _grabFrame,
                               )
                             else
@@ -632,14 +638,14 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                     if (frame != null)
                       Text(
                         'Click each person or pet on the video to name '
-                        'them (frame at ${formatClipTime(frame.ms)}).',
+                        'them as a subject (frame at '
+                        '${formatClipTime(frame.ms)}).',
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                     if (_recognizing)
                       Text(
                         _event.clip.fullDone
-                            ? 'Looking for the people and pets tagged '
-                                  'before…'
+                            ? 'Looking for the subjects named before…'
                             : 'Waiting for the clip to finish recording…',
                         key: const Key('auto-tag-status'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
@@ -672,8 +678,8 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                         ),
                     if (_annotations.tags.isEmpty && frame == null)
                       Text(
-                        'Nobody tagged yet. Click someone on the video to '
-                        'name them.',
+                        'No subjects yet. Click a person or pet on the '
+                        'video to name them.',
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                     for (final f in frames)
@@ -682,7 +688,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                         spacing: 12,
                         children: [
                           Tooltip(
-                            message: 'Tag more on this frame',
+                            message: 'Name more subjects on this frame',
                             child: InkWell(
                               key: Key('frame-${f.id}'),
                               onTap: () => setState(() => _frame = f),
@@ -729,9 +735,10 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                                                 '${(a.confidence! * 100).round()} %'
                                           : a.name,
                                     ),
-                                    tooltip: 'Rename',
+                                    tooltip: 'Rename subject',
                                     onPressed: () => _rename(a),
-                                    deleteButtonTooltipMessage: 'Remove',
+                                    deleteButtonTooltipMessage:
+                                        'Remove subject',
                                     onDeleted: () {
                                       _annotations.remove(a.id);
                                       if (_frame?.id == f.id &&
@@ -745,12 +752,60 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                           ),
                         ],
                       ),
+                    // Tags: the things seen, apart from the subjects.
+                    const Divider(height: 16),
+                    _SectionHeading(
+                      key: const Key('tags-heading'),
+                      icon: Icons.sell_outlined,
+                      title: 'Tags',
+                    ),
+                    if (_annotations.objects?.isNotEmpty ?? false)
+                      ClipObjectTags(
+                        annotations: _annotations,
+                        keyPrefix: 'player-object',
+                      )
+                    else
+                      Text(
+                        _annotations.objects == null
+                            ? 'No tags yet. Things seen on the clip, like '
+                                  'bottle or bicycle, show here once it has '
+                                  'been searched'
+                                  '${(recognizer?.supported ?? false) ? ' (try Auto)' : ''}.'
+                            : 'No tags: nothing was seen on this clip.',
+                        key: const Key('tags-empty'),
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
                   ],
                 ),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// A section's heading under the player: an icon and a title, so Subjects
+/// and Tags read apart.
+class _SectionHeading extends StatelessWidget {
+  const _SectionHeading({super.key, required this.icon, required this.title});
+
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Semantics(
+      header: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 6,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.primary),
+          Text(title, style: theme.textTheme.titleSmall),
+        ],
       ),
     );
   }
@@ -765,14 +820,14 @@ String autoTagMessage(RecognitionResult result) {
     RecognitionResult(outcome: RecognitionOutcome.unsupported) =>
       'Recognition is not available on this device yet.',
     RecognitionResult(outcome: RecognitionOutcome.noReferences) =>
-      'Nobody to look for yet: tag someone on another clip first.',
+      'No subjects to look for yet: name someone on another clip first.',
     RecognitionResult(outcome: RecognitionOutcome.allTagged) =>
-      'Everyone tagged before is already on this clip.',
+      'Every subject named before is already on this clip.',
     RecognitionResult(outcome: RecognitionOutcome.deferred) =>
       'The phone is low on memory: try again in a moment.',
-    RecognitionResult(tagged: [], asked: []) => 'Nobody recognized.',
+    RecognitionResult(tagged: [], asked: []) => 'No subjects recognized.',
     RecognitionResult(:final tagged, :final asked) => [
-      if (tagged.isNotEmpty) 'Tagged ${names(tagged)}.',
+      if (tagged.isNotEmpty) 'Found ${names(tagged)}.',
       if (asked.isNotEmpty)
         'Not sure about ${names(asked)}: answer '
             '${asked.length == 1 ? '"Is this ${asked.single}?"' : 'the questions'}'
@@ -780,18 +835,27 @@ String autoTagMessage(RecognitionResult result) {
     ].join(' '),
   };
   if (result.objects.isEmpty) return subjects;
-  return '$subjects Also saw: ${result.objects.join(', ')}.';
+  return '$subjects Tags: ${result.objects.join(', ')}.';
 }
 
-/// A clip's object tags (`human`, `cat`, `bicycle`…), as small chips, by
-/// first sighting; nothing until it's been searched, or if nothing was seen.
-/// A click on one calls [onOpenAt] with where it was first seen; its x
-/// removes it from the clip.
+/// A clip's **Tags**: the things recognition saw on it (`human`, `cat`,
+/// `bicycle`, `bottle`…), as small outlined chips, by first sighting;
+/// nothing until it's been searched, or if nothing was seen. A click on one
+/// calls [onOpenAt] with where it was first seen; its x removes it from the
+/// clip.
 class ClipObjectTags extends StatelessWidget {
-  const ClipObjectTags({super.key, required this.annotations, this.onOpenAt});
+  const ClipObjectTags({
+    super.key,
+    required this.annotations,
+    this.onOpenAt,
+    this.keyPrefix = 'clip-object',
+  });
 
   final ClipAnnotations annotations;
   final void Function(Duration? at)? onOpenAt;
+
+  /// Starts the chips' keys, so the player's and the card's differ.
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -804,7 +868,7 @@ class ClipObjectTags extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Wrap(
-          key: const Key('clip-objects'),
+          key: Key('${keyPrefix}s'),
           spacing: 6,
           runSpacing: 4,
           children: [
@@ -818,7 +882,7 @@ class ClipObjectTags extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     OpenAtLabel(
-                      key: Key('clip-object-${o.label}'),
+                      key: Key('$keyPrefix-${o.label}'),
                       ms: o.ms,
                       onOpenAt: onOpenAt,
                       borderRadius: const BorderRadius.horizontal(
@@ -835,8 +899,9 @@ class ClipObjectTags extends StatelessWidget {
                       ),
                     ),
                     RemoveLabelButton(
-                      key: Key('clip-object-remove-${o.label}'),
+                      key: Key('$keyPrefix-remove-${o.label}'),
                       label: o.label,
+                      kind: 'tag',
                       onRemove: () => annotations.removeObject(o.label),
                     ),
                   ],
@@ -884,24 +949,28 @@ class OpenAtLabel extends StatelessWidget {
   }
 }
 
-/// The small x beside a label on a clip's card: removes [label] from the
-/// clip ([onRemove]).
+/// The small x beside a label on a clip's card: removes the [kind]
+/// (`subject` or `tag`) [label] from the clip ([onRemove]).
 class RemoveLabelButton extends StatelessWidget {
   const RemoveLabelButton({
     super.key,
     required this.label,
+    required this.kind,
     required this.onRemove,
   });
 
   final String label;
+  final String kind;
   final VoidCallback onRemove;
+
+  String get _message => 'Remove $kind $label from this event';
 
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: 'Remove $label from this event',
+    message: _message,
     child: Semantics(
       button: true,
-      label: 'Remove $label from this event',
+      label: _message,
       excludeSemantics: true,
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -946,7 +1015,9 @@ class _FrameTagger extends StatelessWidget {
           aspectRatio: ratio,
           child: LayoutBuilder(
             builder: (context, box) => Semantics(
-              label: 'Frame to tag: click a person or pet to name them',
+              label:
+                  'Frame to name subjects on: click a person or pet to '
+                  'name them',
               child: GestureDetector(
                 key: const Key('tag-surface'),
                 behavior: HitTestBehavior.opaque,

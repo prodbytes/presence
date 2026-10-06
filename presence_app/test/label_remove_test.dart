@@ -199,7 +199,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('clip-object-cat')), findsNothing);
       expect(find.byKey(const Key('clip-object-bicycle')), findsOneWidget);
-      expect(find.byTooltip('Remove bicycle from this event'), findsOneWidget);
+      expect(
+        find.byTooltip('Remove tag bicycle from this event'),
+        findsOneWidget,
+      );
     });
   });
 }

@@ -206,9 +206,9 @@ class SubjectsMap extends StatelessWidget {
   );
 }
 
-/// The subjects tagged on [event], once each, in tag order: a square of
-/// each one's color and their name (on the event's card), and an x that
-/// removes the subject's tags from the clip.
+/// The **Subjects** (named people and pets) tagged on [event], once each,
+/// in tag order: a square of each one's color and their name (on the
+/// event's card), and an x that removes the subject's tags from the clip.
 class EventSubjects extends StatelessWidget {
   const EventSubjects({super.key, required this.event, this.onOpenAt});
 
@@ -286,6 +286,7 @@ class EventSubjects extends StatelessWidget {
                   RemoveLabelButton(
                     key: Key('event-subject-remove-${t.id}'),
                     label: t.name,
+                    kind: 'subject',
                     onRemove: () => event.annotations.removeName(t.name),
                   ),
                 ],

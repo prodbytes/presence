@@ -955,7 +955,7 @@ void main() {
       expect(result.tagged, ['Rex']);
       expect(result.asked, ['Ana']);
       expect(event.annotations.tags.single.source, TagSource.detected);
-      expect(autoTagMessage(result), contains('Tagged Rex.'));
+      expect(autoTagMessage(result), contains('Found Rex.'));
       expect(autoTagMessage(result), contains('"Is this Ana?"'));
 
       // Again: everyone known is on the clip now (Ana as a suggestion).
@@ -969,7 +969,7 @@ void main() {
       final r = recognizer(vision, FakeSampler(2));
       final noOne = await r.recognizeNow(ClipRequested(clip(), id: 'a'));
       expect(noOne.outcome, RecognitionOutcome.noReferences);
-      expect(autoTagMessage(noOne), contains('tag someone'));
+      expect(autoTagMessage(noOne), contains('name someone'));
 
       log.addHistory([
         tagged(1, ['Rex']),
@@ -986,7 +986,7 @@ void main() {
       ]);
       final none = await r.recognizeNow(ClipRequested(clip(), id: 'c'));
       expect(none.outcome, RecognitionOutcome.searched);
-      expect(autoTagMessage(none), 'Nobody recognized.');
+      expect(autoTagMessage(none), 'No subjects recognized.');
     });
 
     test('a failed run on request leaves the queue working', () async {
@@ -1250,7 +1250,7 @@ void main() {
       // Recognition yields to the app between frames.
       await tester.pump(const Duration(milliseconds: 1));
     }
-    expect(find.text('Tagged Rex. Also saw: cat.'), findsOneWidget);
+    expect(find.text('Found Rex. Tags: cat.'), findsOneWidget);
     expect(find.textContaining('Rex · 100 %'), findsOneWidget);
     expect(event.annotations.tags.single.source, TagSource.detected);
     expect(event.annotations.objects!.single.label, 'cat');
@@ -1331,6 +1331,46 @@ void main() {
       const Duration(seconds: 10),
     );
   });
+
+  for (final width in [320.0, 1000.0]) {
+    testWidgets('the player shows Subjects and Tags apart at $width dp', (
+      tester,
+    ) async {
+      tester.view
+        ..physicalSize = Size(width, 1400)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final event = ClipRequested(clip(), id: 'c');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: ClipPlayerDialog(event: event)),
+        ),
+      );
+      expect(find.text('Subjects'), findsOneWidget);
+      expect(find.text('Tags'), findsOneWidget);
+      expect(find.text('Name subject'), findsOneWidget);
+      expect(find.textContaining('No subjects yet'), findsOneWidget);
+      expect(find.textContaining('No tags yet'), findsOneWidget);
+      // Tags come after the subjects, under a divider.
+      final subjects = tester.getTopLeft(
+        find.byKey(const Key('subjects-heading')),
+      );
+      final tags = tester.getTopLeft(find.byKey(const Key('tags-heading')));
+      expect(tags.dy, greaterThan(subjects.dy));
+
+      event.annotations.setObjects(const [
+        ObjectTag(label: 'bottle', ms: 0, score: 0.9),
+      ]);
+      await tester.pump();
+      expect(find.byKey(const Key('player-object-bottle')), findsOneWidget);
+      expect(find.byKey(const Key('tags-empty')), findsNothing);
+      await tester.tap(find.byKey(const Key('player-object-remove-bottle')));
+      await tester.pump();
+      expect(event.annotations.objects, isEmpty);
+      expect(find.text('No tags: nothing was seen on this clip.'), findsOne);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('Auto is off where recognition cannot run', (tester) async {
     // The player in a dialog on a 320 dp phone: the buttons must fit.
