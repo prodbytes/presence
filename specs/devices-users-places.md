@@ -87,7 +87,7 @@ not built yet.
 | `deviceId` | the recording device's ID, set when the event is saved |
 | `userId` | the signed-in user's Google ID when it's saved, or `anonymous` until a user signs in |
 | `profileId` | the profile it belongs to: the signed-in account's when it's saved, or absent until a sign-in gives it one |
-| `location` | where the device was when it was published (`lat`, `lng`, `accuracy`, `source`, `time`; see [Device location](device-location.md)), or absent while unknown |
+| `location` | where the device was when it was published (`lat`, `lng`, `accuracy`, `source`, `time`, and `pinned: true` for a pinned position; see [Device location](device-location.md)), or absent while unknown |
 
 All four are in the stored record, in the cloud JSON, and on `AppEvent`
 ([lib/events.dart](../presence_app/lib/events.dart)).

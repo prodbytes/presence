@@ -3447,3 +3447,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        grid's spinners. 556 Flutter tests pass. Specs:
        [Camera screen](camera.md), [Navigation](navigation.md),
        [Live sync](live-sync.md).
+
+
+290. **Pin this device's position.** (2026-10-06)
+     - Asked: in Settings, let a position be pinned: fixed for this
+       device, which then always sends that position as the location in
+       its events.
+     - Changed: the Location section has a **Pin position** button under
+       the position (from the detected position, a pasted one, or where
+       the map was moved); pinned, it's **Unpin**. While pinned, the
+       label reads "Pinned: Position (latitude, longitude)" with a pin
+       icon, the status "Pinned · used for every event", a push-pin
+       marker sits on the place (the map only looks around), My location
+       is off, and a pasted position moves the pin. Every event carries
+       the pinned position (`source: map`, new `pinned: true`, absent
+       otherwise, so older readers see a map location), and the device's
+       GPS or browser geolocation is never asked, so no permission prompt.
+       Unpin goes back to the automatic location. Saved in the settings
+       store and synced in this device's settings record (per device).
+       Positions must be finite, latitude -90..90, longitude -180..180;
+       stored or synced records out of range read as none. New tests in
+       `device_location_test.dart` and `persistence_test.dart`. Specs:
+       [Device location](device-location.md#pinning-the-position),
+       [Settings screen](settings.md), [Configuration](configuration.md),
+       [Devices, users and places](devices-users-places.md).
