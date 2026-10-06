@@ -193,7 +193,11 @@ class Persistence implements DeviceSettings {
     }
 
     final records = await store.allEvents();
-    final history = await _loadHistory(store, records);
+    // Deleted events (`deleteDevice`) stay stored, shown nowhere.
+    final history = await _loadHistory(store, [
+      for (final r in records)
+        if (!AppEvent.isDeletedRecord(r)) r,
+    ]);
     if (_disposed) return;
     log.addHistory(history);
 
@@ -373,8 +377,14 @@ class Persistence implements DeviceSettings {
     for (final event in events) {
       await store.putEvent(event);
     }
-    if (events.isEmpty) return const [];
-    return _loadHistory(store, events, awaitClips: awaitClips);
+    // Deleted ones (`deleteDevice`) are kept, so they aren't fetched
+    // again, but not shown.
+    final shown = [
+      for (final e in events)
+        if (!AppEvent.isDeletedRecord(e)) e,
+    ];
+    if (shown.isEmpty) return const [];
+    return _loadHistory(store, shown, awaitClips: awaitClips);
   }
 
   /// Shows again, with their clips, the events in [log] that are among
@@ -413,7 +423,10 @@ class Persistence implements DeviceSettings {
   /// Takes on events another device changed ([records], fetched again by
   /// cloud sync): their tags, suggestions, object tags and the frames they
   /// use replace the ones here, on screen ([shown], the app's events) and
-  /// in storage. The rest of the event stays as it is here.
+  /// in storage. The rest of the event stays as it is here, except that a
+  /// deletion ([AppEvent.deletedAt]) is taken on too, and sticks: an event
+  /// deleted on another device is hidden here, and one deleted here stays
+  /// deleted whatever copy comes back.
   Future<void> updateFromRemote(
     List<Map<String, Object?>> records,
     Iterable<AppEvent> shown,
@@ -421,10 +434,20 @@ class Persistence implements DeviceSettings {
     if (records.isEmpty) return;
     final store = await _store;
     final byId = {for (final e in shown) e.id: e};
+    final hidden = <String>{};
+    final hiddenClips = <String>{};
     for (final record in records) {
       final id = record['id'];
       final local = id is String ? await store.getEvent(id) : null;
       if (local == null) continue;
+      // Deleted here, or there: deleted from now on.
+      final deletedAt =
+          AppEvent.deletedAtOf(local) ?? AppEvent.deletedAtOf(record);
+      if (deletedAt != null && !AppEvent.isDeletedRecord(local)) {
+        hidden.add(id! as String);
+        if (local['clipId'] case final String clipId) hiddenClips.add(clipId);
+        byId[id]?.deletedAt = deletedAt;
+      }
       final frames = {
         if (local['frames'] case final Map frames) ...frames,
         if (record['frames'] case final Map frames) ...frames,
@@ -452,9 +475,91 @@ class Persistence implements DeviceSettings {
           if (!remote.isEmpty) 'frames': remote.framesToRecord(),
           if (remote.objects case final objects?)
             'objectTags': [for (final o in objects) o.toJson()],
+          AppEvent.deletedAtField: ?deletedAt?.millisecondsSinceEpoch,
         });
       }
     }
+    if (hidden.isNotEmpty) await _hide(store, hidden, hiddenClips);
+  }
+
+  /// Deletes every event of the device [device] in [profileId] (soft:
+  /// [AppEvent.deletedAt] set, the records kept), with the suggestions
+  /// about its clips: they're taken out of the event log, so nothing shows
+  /// them, and saved, so cloud sync uploads them deleted and the profile's
+  /// other devices hide them too. Clips and recordings stay, here and in
+  /// the cloud, until the History setting (here) or the bucket deletes
+  /// them. A device that records again shows again, with its new events.
+  ///
+  /// Not this device ([deviceId]): its next event would bring it back.
+  /// Runs after the history is restored and pending saves are done.
+  /// Returns how many events were deleted.
+  Future<int> deleteDevice(String device, {required String profileId}) {
+    final pending = List.of(_pending);
+    final restoring = _restoring;
+    final delete = () async {
+      await restoring?.then((_) {}, onError: (Object _) {});
+      await Future.wait(pending);
+      if (_disposed || device == await _deviceId) return 0;
+      final store = await _store;
+      final records = [
+        for (final r in await store.allEvents())
+          if (!AppEvent.isDeletedRecord(r) &&
+              AppEvent.profileOf(r) == profileId)
+            r,
+      ];
+      final ofDevice = {
+        for (final r in records)
+          if (r['deviceId'] == device) r['id']! as String,
+      };
+      if (ofDevice.isEmpty) return 0;
+      // A suggestion goes with the clip it asks about.
+      final ids = {
+        ...ofDevice,
+        for (final r in records)
+          if (r['type'] == SubjectSuggestion.suggestionType &&
+              ofDevice.contains(r['clipEventId']))
+            r['id']! as String,
+      };
+      final at = _now();
+      final clipIds = <String>{};
+      // The events in memory too, so a later save of one keeps it deleted.
+      final inLog = {
+        for (final e in _log?.events ?? const <AppEvent>[]) e.id: e,
+      };
+      for (final r in records) {
+        final id = r['id']! as String;
+        if (!ids.contains(id)) continue;
+        if (r['clipId'] case final String clipId) clipIds.add(clipId);
+        inLog[id]?.deletedAt = at;
+        await store.putEvent({
+          ...r,
+          AppEvent.deletedAtField: at.millisecondsSinceEpoch,
+        });
+      }
+      await _hide(store, ids, clipIds);
+      _changed(ids);
+      return ids.length;
+    }();
+    _track(delete);
+    return delete;
+  }
+
+  /// Takes the deleted events [ids] out of the event log, stops saving
+  /// their tags, and drops the downloads of their clips' ([clipIds])
+  /// recordings still pending (`CloudSync`): nothing will play them.
+  Future<void> _hide(
+    EventStore store,
+    Set<String> ids,
+    Set<String> clipIds,
+  ) async {
+    _watched.removeAll(ids);
+    _log?.remove(ids);
+    if (clipIds.isEmpty) return;
+    await store.deleteSynced(
+      (key) =>
+          key.startsWith('fetch:') &&
+          CloudSync.isSyncedKeyOf(key, const {}, clipIds),
+    );
   }
 
   /// Completes when all writes issued so far have finished (for tests).
@@ -678,7 +783,8 @@ class Persistence implements DeviceSettings {
   ) => _restoreEventOnly(record, clips)
     ..location ??= DeviceLocation.fromJson(record['location'])
     ..profileId ??= AppEvent.profileOf(record)
-    ..os ??= AppEvent.osOf(record);
+    ..os ??= AppEvent.osOf(record)
+    ..deletedAt ??= AppEvent.deletedAtOf(record);
 
   AppEvent _restoreEventOnly(
     Map<String, Object?> record,

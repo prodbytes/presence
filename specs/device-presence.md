@@ -33,6 +33,10 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   through to the cell's clip, the dot takes them for its tooltip. **In the
   devices list** it sits before the device ID, on the ID's line (which
   wraps at 320 dp with a 2x font). Both fit a 320 dp phone.
+- **A deleted device** ([Device deletion](device-deletion.md)) has no
+  dot: the list and the grid show only devices with events, and its last
+  ping or pong is forgotten (`LiveSync.forget`). It shows again only once
+  it posts new events.
 
 ## Pings and pongs
 

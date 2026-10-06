@@ -3481,3 +3481,38 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        presence](device-presence.md), [Camera screen](camera.md),
        [Live sync](live-sync.md), [Sign-in](sign-in.md),
        [Navigation](navigation.md), [index](README.md).
+
+291. **Delete a device: its events move to a deleted state.** (2026-10-06)
+     - Asked: in the profile's devices list, let a user delete a device,
+       moving all its events to a "deleted" state where they're no longer
+       shown anywhere; and on the Camera tab's All grid, let devices be
+       deleted too (all their events emptied).
+     - Changed: every other device in the account sheet's device list and
+       each other device's cell in the All grid has a delete button; a
+       dialog confirms ("Delete device X? Its N events will be hidden on
+       every device."). `Persistence.deleteDevice` soft-deletes: each of
+       the device's events in the profile, and the "Is this Rex?"
+       suggestions about its clips, get `deletedAt` (new optional field of
+       the event record and JSON), leave the event log (so the timeline,
+       count, search, subjects, maps, grid and device list drop them), and
+       upload deleted through cloud sync, published over live sync, so
+       the profile's other devices hide them too. Deleted stays deleted:
+       not restored at launch, stored but not shown when fetched, a
+       deleted copy wins over a local change not uploaded yet, and a copy
+       that isn't deleted (the deleted device still running) doesn't bring
+       it back and is uploaded over, deleted. This device can't be deleted
+       (its next event would bring it back); a device that keeps recording
+       reappears with its new events. Clips and recordings stay (on the
+       devices until retention, in the bucket until it expires them); no
+       hard delete. Merged with 290 (device presence): a deleted device
+       has no presence dot and its last ping or pong is forgotten
+       (`LiveSync.forget`); in a grid cell the delete button sits top left,
+       clear of the spinner (top right) and the label with its dot
+       (bottom), and a cell under 96 x 84 dp leaves it out. New tests in
+       `device_delete_test.dart` and `device_presence_test.dart`. 599
+       Flutter tests pass. Specs: [Device deletion](device-deletion.md)
+       (new), [Device presence](device-presence.md),
+       [Sign-in](sign-in.md), [Devices, users and places](devices-users-places.md),
+       [Camera screen](camera.md), [Events](events.md),
+       [Cloud sync](cloud-sync.md), [Data formats](data-formats.md),
+       [Event retention](event-retention.md).

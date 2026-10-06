@@ -756,6 +756,13 @@ class LiveSync extends ChangeNotifier {
   /// later than now). Null: not heard from since the app started.
   DateTime? seenOf(String deviceId) => _seen[deviceId];
 
+  /// Forgets that [deviceId] was heard from (it was deleted, see
+  /// `Persistence.deleteDevice`): no presence for it until it pings or
+  /// answers again.
+  void forget(String deviceId) {
+    if (_seen.remove(deviceId) != null) notifyListeners();
+  }
+
   /// Asks the profile's connected devices to say they're there: a `ping`
   /// on the requests topic, which each answers with a `pong` on the acks
   /// topic ([seenOf]). At most one every [pingEvery]; returns whether it

@@ -752,9 +752,15 @@ class CameraFeedsView extends StatefulWidget {
     this.profileId,
     this.showAll = false,
     this.refreshingSince,
+    this.onDeleteDevice,
     this.live,
     this.active = true,
   });
+
+  /// Asks to delete another device (the delete button on its cell in the
+  /// grid, top left): its events are hidden on every device, and its cell
+  /// goes. None: no delete buttons.
+  final ValueChanged<String>? onDeleteDevice;
 
   final CameraRig rig;
 
@@ -924,6 +930,12 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                             null => false,
                           },
                           refreshingKey: Key('refreshing-${latest.deviceId}'),
+                          onDelete: switch (widget.onDeleteDevice) {
+                            final delete? => () => delete(latest.deviceId),
+                            null => null,
+                          },
+                          deleteTooltip: 'Delete ${latest.deviceId}',
+                          deleteKey: Key('device-delete-${latest.deviceId}'),
                           presence: PresenceDot(
                             key: Key('presence-${latest.deviceId}'),
                             presence: DevicePresence.of(
@@ -1065,8 +1077,16 @@ class _Cell extends StatelessWidget {
     this.onTap,
     this.refreshing = false,
     this.refreshingKey,
+    this.onDelete,
+    this.deleteTooltip,
+    this.deleteKey,
     this.presence,
   });
+
+  /// Deletes the device shown: a small button, top left.
+  final VoidCallback? onDelete;
+  final String? deleteTooltip;
+  final Key? deleteKey;
 
   /// The device's presence dot, before the label.
   final Widget? presence;
@@ -1081,8 +1101,22 @@ class _Cell extends StatelessWidget {
   final bool refreshing;
   final Key? refreshingKey;
 
+  /// The smallest cell that shows the delete button: room for it (top
+  /// left) beside the spinner (top right) and above the label. A smaller
+  /// cell leaves it out; the account sheet's device list still deletes.
+  static const Size deleteRoom = Size(96, 84);
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _build(
+      context,
+      roomy:
+          constraints.maxWidth >= deleteRoom.width &&
+          constraints.maxHeight >= deleteRoom.height,
+    ),
+  );
+
+  Widget _build(BuildContext context, {required bool roomy}) {
     final scheme = Theme.of(context).colorScheme;
     return ClipRect(
       child: Stack(
@@ -1093,6 +1127,24 @@ class _Cell extends StatelessWidget {
             Material(
               type: MaterialType.transparency,
               child: InkWell(onTap: onTap),
+            ),
+          if (onDelete case final onDelete? when roomy)
+            Positioned(
+              top: 2,
+              left: 2,
+              child: IconButton(
+                key: deleteKey,
+                tooltip: deleteTooltip,
+                visualDensity: VisualDensity.compact,
+                iconSize: 18,
+                style: IconButton.styleFrom(
+                  backgroundColor: scheme.surfaceContainerHigh.withValues(
+                    alpha: 0.85,
+                  ),
+                ),
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onDelete,
+              ),
             ),
           if (refreshing)
             Positioned(

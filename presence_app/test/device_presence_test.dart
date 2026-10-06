@@ -129,6 +129,11 @@ void main() {
       );
       await until(() => live.seenOf('other_device_one') != null);
       expect(live.seenOf('other_device_one'), clock);
+
+      // Deleted (Persistence.deleteDevice): forgotten, until it's heard
+      // from again.
+      live.forget('other_device_one');
+      expect(live.seenOf('other_device_one'), isNull);
       // Pongs aren't events.
       expect(live.received, 0);
       expect(live.sent, 0);
