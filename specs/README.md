@@ -95,6 +95,10 @@ their data.
   other devices within a second over MQTT (AWS IoT Core, WebSockets signed
   with the profile's credentials), metadata only; S3 keeps everything, and
   clips and thumbnails still come from it.
+- [Device presence](device-presence.md): devices ping each other over
+  live sync; a green (answered within 90 s), yellow (heard from or an
+  event within 24 h) or red dot by each device in the All grid and the
+  account sheet's devices list.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.

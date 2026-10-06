@@ -3447,3 +3447,37 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        grid's spinners. 556 Flutter tests pass. Specs:
        [Camera screen](camera.md), [Navigation](navigation.md),
        [Live sync](live-sync.md).
+
+290. **Grab in All asks every device; device presence dots.** (2026-10-06)
+     - Asked: when "grab" is clicked in All mode, trigger a grab in all
+       devices; also ping all devices on MQTT and show a green indicator
+       if a device is live and responding, yellow if it is recently
+       known, red if it is old.
+     - Changed: **Clip in the All grid always asks** every device for a
+       grab (`CameraRig.askAll(pressed: true)`), even within the minute
+       that opening the grid keeps (`askAllEvery`), unless a request went
+       out in the last 5 s (`pressAllEvery`, a double tap); answering
+       devices now make one Capture all clip per **10 s** (was 30 s,
+       `answerAllEvery`), so a press soon after opening still gets new
+       clips. **Device presence** ([device-presence.md](device-presence.md)):
+       live sync subscribes to the profile's `requests` and `acks` topics;
+       `LiveSync.ping` publishes a ping with a random nonce (at most every
+       25 s), each other connected device answers a pong on `acks` (at
+       most every 5 s, not to pings over 2 min old), own messages are
+       ignored and messages validated (`parsePresence`: version, kind per
+       topic, identity, safe device ID, integer `sentAt`, nonce, 1 KB).
+       A dot by each device in the All grid's cells and the account
+       sheet's devices list: green answered within 90 s (this device:
+       connected to live sync), yellow heard from or an event within
+       24 h, red older or never; tooltip and screen-reader reason; no
+       green without live sync, and the reason says so. The grid pings
+       when shown and every 30 s while on screen; the devices list when
+       the sheet opens and every 30 s. No IoT policy change: the
+       policies already allow `presence/<stage>/<identity>/*`. New tests
+       in `device_presence_test.dart` (ping/pong round trip, own and
+       invalid messages, rate limits, thresholds, dots in the grid and
+       list at 320 dp) and `capture_all_test.dart` (a press asks within
+       the minute, not within 5 s). Specs: [Device
+       presence](device-presence.md), [Camera screen](camera.md),
+       [Live sync](live-sync.md), [Sign-in](sign-in.md),
+       [Navigation](navigation.md), [index](README.md).

@@ -61,6 +61,12 @@ profile (`CameraFeedsView.showAll`,
 
 - **Top left:** this device's camera, live, labeled "<device ID> · live".
   Its loading, error and no-camera states show in that cell.
+- **A presence dot** leads each cell's label: green (live: answered a
+  ping within 90 s, or this device connected to live sync), yellow
+  (heard from or an event within 24 h), red (older, or never), with the
+  reason as tooltip and screen-reader label. The grid pings the devices
+  when it shows and every 30 s while it does (see [Device
+  presence](device-presence.md)).
 - **Then one cell per other device**, sorted by device ID so cells don't
   move (`latestByDevice`): the thumbnail of its newest clip, shown whole,
   labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
@@ -91,7 +97,8 @@ profile (`CameraFeedsView.showAll`,
   until a newer image arrives, for at most **90 s**
   (`CameraFeedsView.refreshingSince`, `HomeScreen.refreshingFor`).
   Only signed in with cloud sync (none in DEV), which carries it, and at
-  most **once a minute** (see Capture all).
+  most **once a minute** (see Capture all). **Clip** (the grab button)
+  in the grid always asks again (see Capture all).
 - The grid and the camera alone are the same widget tree, so switching
   never rebuilds or reopens the camera's preview, and recording goes on.
 - Tests: `camera_all_test.dart` (which devices and images, the grid's
@@ -112,10 +119,14 @@ everywhere.
 - **The request:** a **Capture all** event (`AppEvent.captureAll`, type
   `capture_all`, grid icon), published on the device's event bus by
   `CameraRig.askAll` when the grid opens (signed in with cloud sync) or
-  Clip is pressed with it showing. **At most one a minute** per device
-  (`CameraRig.askAllEvery`): opening the grid again, or pressing Clip in
-  it, within a minute of the last request asks nothing more (Clip still
-  takes this camera's clip).
+  Clip is pressed with it showing. **Opening the grid asks at most once
+  a minute** per device (`CameraRig.askAllEvery`): opening it again
+  within a minute of the last request asks nothing more. **Pressing Clip
+  in the grid always asks** (`askAll(pressed: true)`), within that
+  minute too, unless a request went out in the last **5 s**
+  (`CameraRig.pressAllEvery`: a double tap, or the grid just opened);
+  Clip still takes this camera's clip either way, and each press that
+  asks shows the message pill and the cells' spinners again.
 - **On this device:** opening the grid takes no clip (this camera's cell
   is live). Clip takes this camera's clip with trigger `all` (title
   "Capture all"; the message pill says "Capture all · saving the next
@@ -136,9 +147,10 @@ everywhere.
   live event over once and doesn't download it again from the bucket,
   and the rig also remembers the request IDs it has seen (the latest
   200). Several requests make one clip: those in one fetch, and any
-  within **30 s** of the device's last Capture all clip
+  within **10 s** of the device's last Capture all clip
   (`CameraRig.answerAllEvery`), which is fresh enough (two devices
-  opening their grids together). A device without an open camera (off,
+  opening their grids together). Short, so a press of Clip in a grid
+  soon after it opened still gets a new clip from each device. A device without an open camera (off,
   or none) skips it. Received requests were validated as any live or
   bucket event is (the profile's own folder or topic, safe IDs, size).
 - Like any clip, a Capture all clip (asked here or answered) isn't held
@@ -161,8 +173,10 @@ everywhere.
   here; another device's fetched request takes one clip here; one over
   live sync, delivered twice, takes one clip, and its copy in the bucket
   no other; not this device's own, an old or far-future one, or other
-  events; the same request twice makes one clip; requests within 30 s
-  make one, a later one another; `askAll`'s minute; the request survives
+  events; the same request twice makes one clip; requests within 10 s
+  make one, a later one another; `askAll`'s minute; a press asks within
+  the minute but not within 5 s of the last request; in the app, Clip
+  20 s after opening All uploads a second request; the request survives
   storage and counts as a grab).
 
 ## Known limitations
@@ -182,5 +196,6 @@ everywhere.
   other device's clip time with this device's request time.
 - Each answer is a full clip (with its recording uploaded) and starts the
   answering device's cooldown, so opening the grid often costs clips:
-  once a minute per asking device at most, and once per 30 s per
-  answering device.
+  once a minute per asking device at most (each Clip press in the grid
+  asks again, at most every 5 s), and once per 10 s per answering
+  device.
