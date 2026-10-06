@@ -3447,3 +3447,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        grid's spinners. 556 Flutter tests pass. Specs:
        [Camera screen](camera.md), [Navigation](navigation.md),
        [Live sync](live-sync.md).
+
+290. **Delete a device: its events move to a deleted state.** (2026-10-06)
+     - Asked: in the profile's devices list, let a user delete a device,
+       moving all its events to a "deleted" state where they're no longer
+       shown anywhere; and on the Camera tab's All grid, let devices be
+       deleted too (all their events emptied).
+     - Changed: every other device in the account sheet's device list and
+       each other device's cell in the All grid has a delete button; a
+       dialog confirms ("Delete device X? Its N events will be hidden on
+       every device."). `Persistence.deleteDevice` soft-deletes: each of
+       the device's events in the profile, and the "Is this Rex?"
+       suggestions about its clips, get `deletedAt` (new optional field of
+       the event record and JSON), leave the event log (so the timeline,
+       count, search, subjects, maps, grid and device list drop them), and
+       upload deleted through cloud sync, published over live sync, so
+       the profile's other devices hide them too. Deleted stays deleted:
+       not restored at launch, stored but not shown when fetched, a
+       deleted copy wins over a local change not uploaded yet, and a copy
+       that isn't deleted (the deleted device still running) doesn't bring
+       it back and is uploaded over, deleted. This device can't be deleted
+       (its next event would bring it back); a device that keeps recording
+       reappears with its new events. Clips and recordings stay (on the
+       devices until retention, in the bucket until it expires them); no
+       hard delete. New tests in `device_delete_test.dart`. 581 Flutter
+       tests pass. Specs: [Device deletion](device-deletion.md) (new),
+       [Sign-in](sign-in.md), [Devices, users and places](devices-users-places.md),
+       [Camera screen](camera.md), [Events](events.md),
+       [Cloud sync](cloud-sync.md), [Data formats](data-formats.md),
+       [Event retention](event-retention.md).

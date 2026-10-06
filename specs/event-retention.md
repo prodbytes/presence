@@ -41,6 +41,10 @@ than the **History** setting, **two weeks** by default
 
 ## Cloud sync
 
+- Events deleted with their device ([Device deletion](device-deletion.md))
+  stay stored, hidden, and retention deletes them like any other, with
+  their clips and recordings.
+
 - A fetch never brings back what retention deletes: its window
   ([Cloud sync](cloud-sync.md), two weeks) shrinks to the History setting
   when that's shorter (`CloudSync.keep`). With History at 3 days, a new

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
+import '../delete_device.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
 import 'auth_service.dart';
@@ -22,10 +23,14 @@ class AccountButton extends StatelessWidget {
     this.profiles,
     this.log,
     this.deviceId,
+    this.deleteDevice,
   });
 
   final AuthService auth;
   final CloudSync? sync;
+
+  /// Deletes another of the profile's devices from the sheet's list.
+  final DeleteDevice? deleteDevice;
 
   /// With [profiles], the sheet offers Linked accounts.
   final RolesService? roles;
@@ -59,6 +64,7 @@ class AccountButton extends StatelessWidget {
               profiles: profiles,
               log: log,
               deviceId: deviceId,
+              deleteDevice: deleteDevice,
             ),
           ),
         );
@@ -103,9 +109,15 @@ class AccountSheet extends StatelessWidget {
     this.profiles,
     this.log,
     this.deviceId,
+    this.deleteDevice,
     this.openLink,
     this.now,
   });
+
+  /// Deletes another of the profile's devices (each one's delete button in
+  /// the list, after a confirmation): its events are hidden on every
+  /// device. None: no delete buttons.
+  final DeleteDevice? deleteDevice;
 
   final AuthService auth;
 
@@ -194,6 +206,19 @@ class AccountSheet extends StatelessWidget {
                         ),
                         thisDevice: deviceId,
                         now: now,
+                        onDelete: switch (deleteDevice) {
+                          final delete? => (id) => deleteDeviceAfterConfirming(
+                            context,
+                            deviceId: id,
+                            events: deviceEventCount(
+                              log?.events ?? const [],
+                              deviceId: id,
+                              profileId: profile,
+                            ),
+                            delete: delete,
+                          ),
+                          null => null,
+                        },
                       ),
                     ],
                     if ((roles, profiles) case (
@@ -319,10 +344,16 @@ class ProfileDevices extends StatelessWidget {
     required this.devices,
     this.thisDevice,
     this.now,
+    this.onDelete,
   });
 
   final String profile;
   final List<ProfileDevice> devices;
+
+  /// Asks to delete a device (its delete button). Every device but
+  /// [thisDevice] has one, when set: this device's next event would bring
+  /// it back.
+  final ValueChanged<String>? onDelete;
 
   /// Labelled "this device" in the list.
   final String? thisDevice;
@@ -412,6 +443,14 @@ class ProfileDevices extends StatelessWidget {
                   ],
                 ),
               ),
+              if (onDelete case final onDelete? when device.id != thisDevice)
+                IconButton(
+                  key: Key('profile-device-delete-${device.id}'),
+                  tooltip: 'Delete ${device.id}',
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  onPressed: () => onDelete(device.id),
+                ),
             ],
           ),
       ],

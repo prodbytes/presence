@@ -135,8 +135,16 @@ an Athena table are in [Recording and data formats](data-formats.md).
     device last uploaded or downloaded it. A listed event whose ETag
     differs, at the key this device uploads it to, has changed elsewhere.
   - **A change here not uploaded yet wins:** if the device's own copy
-    changed since its last sync, it isn't downloaded, and the upload that
-    follows writes it over the other device's version.
+    changed since its last sync, the upload that follows writes it over
+    the other device's version. It's downloaded only to see whether the
+    other version is **deleted** (`deletedAt`,
+    [Device deletion](device-deletion.md)): a deletion wins, and is taken
+    on instead.
+  - **Deleted stays deleted:** a changed copy that isn't deleted, of an
+    event deleted here, has its tags taken on but the event stays deleted,
+    and its synced fingerprint is forgotten so the next pass uploads it
+    deleted again. Live sync follows the same two rules. The clips of
+    deleted events aren't fetched or wanted.
   - Downloaded with the tagged frames the device lacks, and handed over as
     `RemoteRecords.updated`. The app (`Persistence.updateFromRemote`)
     replaces the clip's **tags, suggestions, object tags and the frames
@@ -423,8 +431,9 @@ In [presence_infra/](../presence_infra):
   notification goes up only at the next reconciliation, within the hour.
 - A reconciliation still encodes and hashes every stored event and clip
   record (letting frames through as it goes), once an hour.
-- A clip deleted on one device isn't deleted elsewhere (nothing is
-  deleted yet).
+- A clip deleted on one device isn't deleted elsewhere: retention deletes
+  per device, and [device deletion](device-deletion.md) only hides events
+  (`deletedAt`), synced, without deleting anything.
 - Of a changed event, only its tags, suggestions and object tags are taken
   on: other fields another device changes (such as `clipState`) aren't,
   though a clip that completed since comes down with it.

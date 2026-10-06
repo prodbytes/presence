@@ -140,7 +140,12 @@ there's no separate sign-in screen:
     sits beside it, or under it when they don't fit on one line (at 320
     dp with a 2x system font). A device shows only once one of its
     events has synced here, and drops off when its events age out of
-    [event retention](event-retention.md).
+    [event retention](event-retention.md) or it's deleted.
+    - **Delete:** every device but this one has a delete button at the
+      end of its row (tooltip "Delete <device ID>"); after a confirmation
+      naming the device and its number of events, its events are hidden
+      on every device and it leaves the list. See
+      [Device deletion](device-deletion.md).
     - Each device shows its **operating system** (`profileDeviceDetails`):
       an icon before the ID (Android `Icons.android`, iOS
       `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,

@@ -27,6 +27,7 @@ import 'cloud/live_sync.dart';
 import 'cloud/s3.dart';
 import 'config.dart';
 import 'consent/consent_screen.dart';
+import 'delete_device.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'identity/add_device.dart';
@@ -311,6 +312,14 @@ class _PresenceAppState extends State<PresenceApp> {
   /// it's handled or dismissed.
   JoinLink? _join;
 
+  /// Deletes another of the signed-in profile's devices
+  /// (`Persistence.deleteDevice`); nothing without a profile.
+  Future<int> _deleteDevice(String deviceId) async {
+    final profile = _roles.profile;
+    if (profile == null) return 0;
+    return _persistence.deleteDevice(deviceId, profileId: profile);
+  }
+
   void _joinHandled() {
     clearLaunchQuery();
     setState(() => _join = null);
@@ -480,6 +489,7 @@ class _PresenceAppState extends State<PresenceApp> {
               join: _join,
               onJoinHandled: _joinHandled,
               tabMemory: widget.tabMemory,
+              deleteDevice: _deleteDevice,
             ),
           },
         ),
@@ -540,7 +550,12 @@ class HomeScreen extends StatefulWidget {
     this.join,
     this.onJoinHandled,
     this.tabMemory,
+    this.deleteDevice,
   });
+
+  /// Deletes another of the profile's devices: from the account sheet's
+  /// device list and the Camera tab's All grid, after a confirmation.
+  final DeleteDevice? deleteDevice;
 
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
@@ -1045,6 +1060,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               profiles: widget.profiles,
               log: widget.log,
               deviceId: widget.deviceId,
+              deleteDevice: widget.deleteDevice,
             ),
             const SizedBox(width: 4),
           ] else ...[
@@ -1076,6 +1092,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 profiles: widget.profiles,
                 log: widget.log,
                 deviceId: widget.deviceId,
+                deleteDevice: widget.deleteDevice,
               ),
             const SizedBox(width: 4),
           ],
@@ -1100,6 +1117,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
                   refreshingSince: _showAll ? _refreshingSince : null,
+                  // Signed in with a profile only (not in DEV).
+                  onDeleteDevice: switch ((
+                    widget.deleteDevice,
+                    widget.roles.profile,
+                  )) {
+                    (final delete?, final profile?) =>
+                      (id) => deleteDeviceAfterConfirming(
+                        context,
+                        deviceId: id,
+                        events: deviceEventCount(
+                          widget.log.events,
+                          deviceId: id,
+                          profileId: profile,
+                        ),
+                        delete: delete,
+                      ),
+                    _ => null,
+                  },
                 ),
               ),
               SafeArea(
