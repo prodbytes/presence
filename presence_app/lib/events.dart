@@ -351,8 +351,8 @@ class EventTimeline extends StatefulWidget {
   /// Whether system events show (the [ShowSystemEvents] toggle): on, every
   /// event, such as "Application started" and sign-ins; off, only grabs
   /// ([isGrab]: clips, by hand, on motion, at start, on a schedule or for
-  /// Capture all, the Capture all requests, and the suggestions about
-  /// clips). Kept by the caller; defaults to an own one, on.
+  /// Capture all, and the suggestions about clips). Kept by the caller;
+  /// defaults to an own one, on.
   final ValueNotifier<bool>? showSystemEvents;
 
   /// The [EventSearch] text: only the events it matches ([eventMatches])
@@ -361,12 +361,11 @@ class EventTimeline extends StatefulWidget {
   final ValueNotifier<String>? search;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
-  /// clip, a Capture all request, or a suggestion about a clip ("Is this
-  /// Rex?"), which waits for an answer.
+  /// clip (Capture all's too) or a suggestion about a clip ("Is this
+  /// Rex?"), which waits for an answer. A Capture all request has no
+  /// video of its own: it's a system event.
   static bool isGrab(AppEvent event) =>
-      event is ClipRequested ||
-      event is SubjectSuggestion ||
-      event.type == AppEvent.captureAllType;
+      event is ClipRequested || event is SubjectSuggestion;
 
   /// [events] of [profileId], the signed-in account's profile (null
   /// signed out): its own, and those without a profile (recorded signed

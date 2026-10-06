@@ -3540,3 +3540,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md#pinning-the-position),
        [Settings screen](settings.md), [Configuration](configuration.md),
        [Devices, users and places](devices-users-places.md).
+
+293. **Capture all requests are system events.** (2026-10-06)
+     - Asked: consider "Capture all" a system event: the one without
+       video; the clips taken for it can stay marked as Capture all.
+     - Changed: the Capture all request (`capture_all`, no video) is no
+       longer a grab (`EventTimeline.isGrab`), so Monitoring hides it
+       while system events are hidden. The clips each device takes for it
+       (`ClipRequested`, trigger `all`) are still grabs, titled "Capture
+       all" with the grid icon. Test: `capture_all_test.dart` (a restored
+       request isn't a grab). Specs: [Events](events.md),
+       [Camera screen](camera.md#capture-all).
