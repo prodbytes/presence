@@ -7,7 +7,8 @@ there's no separate sign-in screen:
 - **At launch** the app checks for a session quietly
   (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
   Manager's authorized accounts on Android, the saved session on iOS). The
-  camera opens right away either way.
+  camera opens right away either way. On Android, a remembered account is
+  signed back in first, with no UI (below).
 - **Reloads keep you signed in (web).** Google Identity Services keeps no
   session on web, so the app remembers it itself:
   - on each sign-in, the user (ID, email, name, photo) and their Google ID
@@ -25,7 +26,39 @@ there's no separate sign-in screen:
   - an expired or malformed session is dropped;
   - **Sign out** forgets it.
 
-  Android and iOS don't need this: their Google SDKs keep the session.
+  iOS doesn't need this: its Google SDK keeps the session.
+- **Restarts keep the same account signed in, with no UI (Android).**
+  Credential Manager's quiet check auto-selects only when exactly one
+  Google account on the phone has signed in to the app; with two or more
+  it shows Google's "Choose an account" sheet, which nobody answers on the
+  unattended phone. So:
+  - each sign-in remembers the account's email in the app's preferences
+    (`SilentSignIn.remember`; `googleAccount` in the `presence` shared
+    preferences, through `presence/device` `rememberGoogleAccount`);
+  - at launch (after a restart, force-stop, crash or watchdog relaunch),
+    the app asks Play services' sign-in for **that account only**
+    (`GoogleSilentSignIn.kt`: the legacy `GoogleSignInClient.silentSignIn`
+    with `setAccountName(<email>)` and `requestIdToken(<web client>)`,
+    `presence/device` `silentGoogleSignIn`). While the account still grants
+    the app, it returns the account and a fresh ID token without UI, and
+    the user is signed in as by any sign-in (same user ID, the Google
+    `sub`; roles and cloud sync follow). The reply must be the account
+    asked for. The log says `silent Google sign-in of <email> succeeded`
+    or `failed (status <code>)`; the token is never logged;
+  - the hourly token refresh (five minutes before expiry) also tries this
+    first, for the signed-in account. Play services returns its cached
+    token until shortly before expiry, so getting the same token back
+    retries a minute later;
+  - when it fails (no remembered account, the account removed from the
+    phone or its access revoked), the app falls back to Credential
+    Manager's quiet check, as before;
+  - **Sign out** forgets the account (and signs Play services' sign-in
+    out), so a restart doesn't sign it back in.
+
+  The first launch after updating from a version without this has no
+  remembered account, so it still takes one tap on the chooser if several
+  accounts have signed in; after that, restarts are silent. Web and iOS
+  are unchanged.
 - **Before anything shows**, the app asks the auth API for the
   [execution mode](execution-mode.md). In DEV (no OIDC client) there's no
   sign-in at all, and everything below about signing in doesn't apply.
@@ -118,7 +151,9 @@ there's no separate sign-in screen:
 - Known limitation: Google ID tokens last about an hour. If the refresh
   before expiry finds nothing (no FedCM auto sign-in), a reload after
   that signs out. The refresh itself may briefly show Google's FedCM
-  prompt.
+  prompt (web), or Credential Manager's chooser on Android when the
+  silent sign-in of the remembered account fails and several accounts
+  have signed in to the app.
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with

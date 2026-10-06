@@ -9,6 +9,7 @@ import 'google_button.dart';
 import 'google_config.dart';
 import 'saved_session.dart';
 import 'session_store.dart';
+import 'silent_sign_in.dart';
 
 /// Sign in with Google (`google_sign_in`), following Google's current
 /// guidance on each platform:
@@ -18,17 +19,34 @@ import 'session_store.dart';
 ///   own rendered button.
 /// - **Android:** **Credential Manager**: a silent check against
 ///   previously authorized accounts at launch, and the "Sign in with Google"
-///   flow for the button.
+///   flow for the button. Once an account has signed in, the app remembers
+///   it ([SilentSignIn]) and signs that account back in after a restart,
+///   and refreshes its token, with no UI: Credential Manager's check shows
+///   an account chooser when several accounts on the phone have signed in
+///   to the app, and the unattended phone has nobody to answer it.
 /// - **iOS:** the Google Sign-In SDK, restoring the previous sign-in.
 class GoogleAuthService extends AuthService {
   GoogleAuthService({
     this._store = const SessionStore(),
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+    SilentSignIn? silent,
+    @visibleForTesting ({String? clientId, String? serverClientId})? ids,
+  }) : _now = now ?? DateTime.now,
+       _ids = ids ?? _platformIds,
+       _silent =
+           silent ??
+           NativeSilentSignIn.forPlatform(
+             serverClientId: (ids ?? _platformIds).serverClientId,
+           );
 
   /// Remembers the session across reloads (web; a no-op elsewhere).
   final SessionStore _store;
   final DateTime Function() _now;
+  final ({String? clientId, String? serverClientId}) _ids;
+
+  /// Signs the remembered account back in with no UI (Android; null
+  /// elsewhere).
+  final SilentSignIn? _silent;
 
   AuthUser? _user;
   String? _idToken;
@@ -59,7 +77,7 @@ class GoogleAuthService extends AuthService {
   /// The client ID this platform needs, and the server client ID: the web
   /// client, so every platform's ID token is issued for it (the one client
   /// Cognito trusts). Android has no client ID of its own in the app.
-  static ({String? clientId, String? serverClientId}) get _ids {
+  static ({String? clientId, String? serverClientId}) get _platformIds {
     const web = GoogleConfig.webClientId;
     const ios = GoogleConfig.iosClientId;
     String? orNull(String s) => s.isEmpty ? null : s;
@@ -127,10 +145,11 @@ class GoogleAuthService extends AuthService {
       // arrives as an event. A failure (e.g. Android's "[28473] Caller
       // could not be verified", when the prompt is answered long after it
       // opened) is a failed sign-in, not an unavailable one: the sign-in
-      // button stays.
+      // button stays. On Android, the account that signed in last is first
+      // signed back in with no UI; Google's check only if that fails.
       if (_idToken case final token?) {
         _scheduleRefresh(token);
-      } else {
+      } else if (!await _signInSilently(await _silent?.remembered())) {
         await GoogleSignIn.instance.attemptLightweightAuthentication();
       }
     } on GoogleSignInException catch (e) {
@@ -149,22 +168,64 @@ class GoogleAuthService extends AuthService {
     _error = null;
     switch (event) {
       case GoogleSignInAuthenticationEventSignIn(:final user):
-        _user = AuthUser(
-          id: user.id,
-          email: user.email,
-          name: user.displayName,
-          photoUrl: user.photoUrl,
+        _signedIn(
+          AuthUser(
+            id: user.id,
+            email: user.email,
+            name: user.displayName,
+            photoUrl: user.photoUrl,
+          ),
+          user.authentication.idToken,
         );
-        _idToken = user.authentication.idToken;
-        _remember();
-        if (_idToken case final token?) _scheduleRefresh(token);
+        _silent?.remember(user.email).ignore();
       case GoogleSignInAuthenticationEventSignOut():
         _user = null;
         _idToken = null;
         _refresh?.cancel();
         _store.clear();
+        _silent?.forget().ignore();
     }
     notifyListeners();
+  }
+
+  /// Signed in as [user], with [token]: remembered, and refreshed before it
+  /// expires (not before [atLeast]).
+  void _signedIn(
+    AuthUser user,
+    String? token, {
+    Duration atLeast = Duration.zero,
+  }) {
+    _error = null;
+    _user = user;
+    _idToken = token;
+    _remember();
+    if (token != null) _scheduleRefresh(token, atLeast: atLeast);
+  }
+
+  /// Signs [email] back in with no UI ([SilentSignIn], Android), as a
+  /// Google sign-in would. False when there's no such path, no [email], or
+  /// it failed (the caller then asks Google's library); also when the
+  /// session changed meanwhile (signed out, or someone else signed in).
+  Future<bool> _signInSilently(String? email) async {
+    final silent = _silent;
+    final server = _ids.serverClientId;
+    if (silent == null || server == null || email == null) return false;
+    final before = _user?.email;
+    final previous = _idToken;
+    final account = await silent.signIn(email: email, serverClientId: server);
+    if (account == null || _user?.email != before) return false;
+    // Play services hands back a cached token until shortly before it
+    // expires: if it's the same one, try again in a minute rather than at
+    // once.
+    final same = account.idToken == previous;
+    _signedIn(
+      account.user,
+      account.idToken,
+      atLeast: same ? const Duration(minutes: 1) : Duration.zero,
+    );
+    if (!same) debugPrint('Presence: signed in again as $email, silently');
+    notifyListeners();
+    return true;
   }
 
   @override
@@ -185,8 +246,10 @@ class GoogleAuthService extends AuthService {
   @override
   Future<void> signOut() async {
     // Forget the session here too: a restored session may not be one the
-    // library knows about, so it might not send a sign-out event.
+    // library knows about, so it might not send a sign-out event. The
+    // account is forgotten, so a restart doesn't sign it back in.
     _store.clear();
+    await _silent?.forget();
     _refresh?.cancel();
     _user = null;
     _idToken = null;
@@ -199,14 +262,18 @@ class GoogleAuthService extends AuthService {
   }
 
   /// Refreshes [token] quietly shortly before it expires, so a signed-in
-  /// user isn't asked to sign in while their token is still good. Finding
-  /// nothing leaves the session as it is.
-  void _scheduleRefresh(String token) {
+  /// user isn't asked to sign in while their token is still good, not
+  /// before [atLeast]. On Android the same account is first signed in
+  /// again with no UI. Finding nothing leaves the session as it is.
+  void _scheduleRefresh(String token, {Duration atLeast = Duration.zero}) {
     _refresh?.cancel();
     final delay = SavedSession.refreshIn(token, now: _now());
     if (delay == null) return;
-    _refresh = Timer(delay, () {
-      if (_user == null) return;
+    _refresh = Timer(delay < atLeast ? atLeast : delay, () async {
+      final email = _user?.email;
+      if (email == null) return;
+      if (await _signInSilently(email)) return;
+      if (_user?.email != email) return;
       GoogleSignIn.instance.attemptLightweightAuthentication()?.ignore();
     });
   }
