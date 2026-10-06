@@ -20,6 +20,7 @@ class PresenceConfig {
     this.subjects = const SubjectsConfig(),
     this.recognition = const RecognitionConfig(),
     this.history = const HistoryConfig(),
+    this.log = const LogConfig(),
   });
 
   static const int version = 1;
@@ -31,6 +32,7 @@ class PresenceConfig {
   final SubjectsConfig subjects;
   final RecognitionConfig recognition;
   final HistoryConfig history;
+  final LogConfig log;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -40,6 +42,7 @@ class PresenceConfig {
     SubjectsConfig? subjects,
     RecognitionConfig? recognition,
     HistoryConfig? history,
+    LogConfig? log,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
@@ -48,6 +51,7 @@ class PresenceConfig {
     subjects: subjects ?? this.subjects,
     recognition: recognition ?? this.recognition,
     history: history ?? this.history,
+    log: log ?? this.log,
   );
 
   Map<String, Object?> toJson() => {
@@ -59,6 +63,7 @@ class PresenceConfig {
     'subjects': subjects.toJson(),
     'recognition': recognition.toJson(),
     'history': history.toJson(),
+    'log': log.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -72,6 +77,7 @@ class PresenceConfig {
     subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
     recognition: RecognitionConfig.fromJson(_map(json['recognition'])),
     history: HistoryConfig.fromJson(_map(json['history'])),
+    log: LogConfig.fromJson(_map(json['log'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -96,7 +102,8 @@ class PresenceConfig {
       other.schedule == schedule &&
       other.subjects == subjects &&
       other.recognition == recognition &&
-      other.history == history;
+      other.history == history &&
+      other.log == log;
 
   @override
   int get hashCode => Object.hash(
@@ -107,6 +114,7 @@ class PresenceConfig {
     subjects,
     recognition,
     history,
+    log,
   );
 }
 
@@ -338,6 +346,32 @@ class HistoryConfig {
   int get hashCode => keep.hashCode;
 }
 
+/// The Log tab (admins only): shown or not. Unset, it follows the
+/// execution mode: shown in DEV, hidden otherwise ([showIn]).
+@immutable
+class LogConfig {
+  const LogConfig({this.show});
+
+  /// Set by the Settings switch; null until then.
+  final bool? show;
+
+  /// Whether the Log tab shows, [dev] being the execution mode.
+  bool showIn({required bool dev}) => show ?? dev;
+
+  LogConfig copyWith({bool? show}) => LogConfig(show: show ?? this.show);
+
+  Map<String, Object?> toJson() => {'show': ?show};
+
+  factory LogConfig.fromJson(Map<String, Object?> json) =>
+      LogConfig(show: json['show'] is bool ? json['show'] as bool : null);
+
+  @override
+  bool operator ==(Object other) => other is LogConfig && other.show == show;
+
+  @override
+  int get hashCode => show.hashCode;
+}
+
 /// The Subjects screens.
 @immutable
 class SubjectsConfig {
@@ -474,6 +508,7 @@ class ConfigController extends ChangeNotifier {
   SubjectsConfig get subjects => _config.subjects;
   RecognitionConfig get recognition => _config.recognition;
   HistoryConfig get history => _config.history;
+  LogConfig get log => _config.log;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

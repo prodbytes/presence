@@ -476,17 +476,51 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      testWidgets('OIDC: an admin sees it, with the log', (tester) async {
-        AppLog.instance.add(message);
-        await open(tester, FakeRolesClient([userRole, adminRole]));
-        await tester.tap(logTab);
-        await tester.pumpAndSettle();
-        expect(find.byKey(const Key('log-view')), findsOneWidget);
-        expect(find.text(message), findsOneWidget);
-      });
+      final logSwitch = find.byKey(const Key('show-log-switch'));
 
-      testWidgets('OIDC: a root sees it', (tester) async {
+      /// Flips Settings' "Show the Log tab" switch.
+      Future<void> toggleLog(WidgetTester tester) async {
+        await tester.tap(find.byTooltip('Settings'));
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          logSwitch,
+          300,
+          scrollable: find.descendant(
+            of: find.byKey(const Key('settings-page')),
+            matching: find.byType(Scrollable),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(logSwitch);
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets(
+        'OIDC: an admin sees it once Settings shows it, with the log',
+        (tester) async {
+          AppLog.instance.add(message);
+          await open(tester, FakeRolesClient([userRole, adminRole]));
+          expect(logTab, findsNothing, reason: 'hidden by default');
+          await toggleLog(tester);
+          expect(logTab, findsOneWidget);
+          await tester.tap(logTab);
+          await tester.pumpAndSettle();
+          expect(find.byKey(const Key('log-view')), findsOneWidget);
+          expect(find.text(message), findsOneWidget);
+
+          // Turned off again: gone, staying on Settings.
+          await toggleLog(tester);
+          expect(logTab, findsNothing);
+          expect(find.byKey(const Key('settings-page')), findsOneWidget);
+        },
+      );
+
+      testWidgets('OIDC: a root sees it once Settings shows it', (
+        tester,
+      ) async {
         await open(tester, FakeRolesClient([userRole, adminRole, rootRole]));
+        expect(logTab, findsNothing);
+        await toggleLog(tester);
         expect(logTab, findsOneWidget);
       });
 
@@ -514,6 +548,7 @@ void main() {
         for (final MapEntry(key: who, value: (roles, auth)) in cases.entries) {
           await open(tester, roles, auth: auth);
           expect(logTab, findsNothing, reason: who);
+          expect(logSwitch, findsNothing, reason: who);
           expect(find.byKey(const Key('log-view')), findsNothing, reason: who);
           await tester.pumpWidget(const SizedBox());
         }
@@ -534,6 +569,7 @@ void main() {
         final roles = FakeRolesClient([userRole, adminRole]);
         final auth = FakeAuthService.signedIn();
         await open(tester, roles, auth: auth);
+        await toggleLog(tester);
         await tester.tap(logTab);
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('log-view')), findsOneWidget);
@@ -560,7 +596,7 @@ void main() {
         expect(find.byKey(const Key('log-view')), findsNothing);
       });
 
-      testWidgets("DEV: the anonymous user is root, so sees it", (
+      testWidgets("DEV: the anonymous user is root, so sees it; it can go", (
         tester,
       ) async {
         await open(
@@ -568,7 +604,9 @@ void main() {
           FakeRolesClient()..mode = ExecutionMode.dev,
           auth: FakeAuthService(),
         );
-        expect(logTab, findsOneWidget);
+        expect(logTab, findsOneWidget, reason: 'on by default in DEV');
+        await toggleLog(tester);
+        expect(logTab, findsNothing);
       });
     });
 

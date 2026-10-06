@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../about.dart';
 import '../cloud/cloud_sync.dart';
 import '../events.dart';
 import 'auth_service.dart';
@@ -90,7 +91,7 @@ class SignInAction extends StatelessWidget {
 }
 
 /// Sign in with Google, or show who is signed in, their profile and its
-/// devices, and offer sign-out.
+/// devices, and offer sign-out; then what Presence is ([AboutParagraph]).
 class AccountSheet extends StatelessWidget {
   const AccountSheet({
     super.key,
@@ -100,9 +101,13 @@ class AccountSheet extends StatelessWidget {
     this.profiles,
     this.log,
     this.deviceId,
+    this.openLink,
   });
 
   final AuthService auth;
+
+  /// Opens the about paragraph's link (tests); defaults to the browser.
+  final LinkOpener? openLink;
 
   /// Cloud uploads, when configured: their status shows under the email.
   final CloudSync? sync;
@@ -216,6 +221,10 @@ class AccountSheet extends StatelessWidget {
                       style: TextStyle(color: scheme.error),
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  AboutParagraph(openLink: openLink),
                 ],
               ),
             ),

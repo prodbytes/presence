@@ -4,25 +4,26 @@ The app is a Flutter app ([presence_app/](../presence_app)). The same UI
 runs on Android and web. It follows Material 3 top-level navigation: **tabs
 in the app bar**, which flip between full screens.
 
-- **App bar:** the title **Presence** (accent color, plain text) on the left.
+- **App bar:** **no title** (in DEV, only the "dev" label on the left; see
+  [Execution mode](execution-mode.md)).
   In the top right are three icon tabs, in order **Camera**,
   **Monitoring** and **Settings**, and for admins (`presence_admin`, so
-  everyone in DEV, where the anonymous user is a root) a fourth, **Log**;
-  then a **Login** icon button. The Log tab comes and goes as the roles
-  change (the tab controller is rebuilt, staying on the open tab, or on
-  Settings if it was the Log). (The
+  everyone in DEV, where the anonymous user is a root) a fourth, **Log**,
+  when Settings' **Show the Log tab** switch is on: on by default in DEV,
+  off otherwise (see [Log](log.md)); then a **Login** icon button. The
+  Log tab comes and goes as the roles or the switch change (the tab
+  controller is rebuilt, staying on the open tab, or on Settings if it
+  was the Log). (The
   Device tab is gone: its map is a section of Settings, and the battery
   shows over the camera.)
-  On 320 dp phones the title shortens to make room.
   - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its Log tab, Admin
-    and About buttons, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
-    overflows.
+    Where that doesn't fit (an admin's app bar, with its Log tab and
+    Admin button, on a 320 dp phone), the tabs narrow, down to 40 dp, so
+    nothing overflows.
     An indicator marks the selected tab.
-  - **About** (`info_outline`), just before Account (or before Sign in
-    when signed out), is **always shown**: signed out, signed in without
-    access, with access, and in DEV. It opens the [About](about.md)
-    screen.
+  - There's **no About button**: what Presence is, with a link to its
+    code, is a paragraph at the end of the account sheet (see
+    [About](about.md)).
   - **Account** (the last icon; your Google avatar when signed in) is an
     action, not a tab. It opens the [account sheet](sign-in.md).
 - **Flipping:** tapping a tab or swiping sideways moves between screens
@@ -38,7 +39,7 @@ in the app bar**, which flip between full screens.
   Android and iOS apps don't refresh, so they always start on the Camera.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
-  the camera, with a dark gradient scrim to keep the title and tabs
+  the camera, with a dark gradient scrim to keep the tabs
   readable. There are **no overlays** on the video: no camera name, and no
   list of other cameras (except in the **All** grid, below).
   - It opens the **default camera**: the first back camera, or else the
@@ -90,8 +91,8 @@ in the app bar**, which flip between full screens.
     as they stand now (the auth API's start check and its retries, the
     Log tab's checks, the cloud sync). Its tooltip and screen-reader label
     say "Health check failed" and each failed check's explanation.
-    **Tapping it** opens the Log tab's health panel for admins, Settings'
-    health line for everyone else. Gone once every check passes.
+    **Tapping it** opens the Log tab's health panel when the Log tab is
+    shown, Settings' health line otherwise. Gone once every check passes.
   - **Readiness indicator:** shows whether a clip taken now would be
     complete:
     - **"Ready"** (green dot): shown as soon as a camera is open, including
@@ -141,8 +142,9 @@ in the app bar**, which flip between full screens.
 - **Settings:** the settings as a normal screen (no longer a drawer),
   **full width**, with this device's location map as a section (see
   [Settings screen](settings.md)).
-- **Log** (admins only): the app's latest log messages (see [Log](log.md)).
-- The title no longer links to presence.nu01.com. On a full-screen camera,
-  an accidental tap would open a browser. The links are on the
-  [About](about.md) screen instead (`url_launcher`).
+- **Log** (admins only, when turned on): the app's latest log messages
+  (see [Log](log.md)).
+- Nothing in the app bar links out: on a full-screen camera, an accidental
+  tap would open a browser. The source code link is at the end of the
+  account sheet ([About](about.md)).
 - The Flutter demo UI was removed entirely.
