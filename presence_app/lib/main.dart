@@ -412,20 +412,26 @@ class _PresenceAppState extends State<PresenceApp> {
     _openCameras();
   }
 
-  /// The profile whose events were last claimed; null signed out.
+  /// The profile whose events were last claimed, and for whom; null
+  /// signed out.
   String? _claimedFor;
+  String? _claimedBy;
 
   /// Once the auth API answers a sign-in (or a session restored at launch)
   /// with the account's profile, the events recorded here without one
-  /// become that profile's.
+  /// become that profile's. When the same account moves to another profile
+  /// (linked or moved while signed in), its events not yet uploaded to the
+  /// one before come along.
   void _onProfileChanged() {
     final profile = _roles.profile;
     final user = _auth.user;
     if (profile == _claimedFor) return;
+    final previous = _claimedBy == user?.id ? _claimedFor : null;
     _claimedFor = profile;
+    _claimedBy = user?.id;
     if (profile == null || user == null) return;
     _persistence
-        .claimForProfile(profile, user.id)
+        .claimForProfile(profile, user.id, from: previous)
         .catchError(
           (Object e) => debugPrint('Presence: could not claim events: $e'),
         );

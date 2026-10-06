@@ -224,12 +224,30 @@ deleted, and the contents live only in AWS.
   (`AppEvent.profileId`). When the profile arrives, the events without one
   become its (`Persistence.claimForProfile`); see [Devices, users and
   places](devices-users-places.md#users).
+- **Moving to another profile** (the signed-in account linked to, or
+  moved into, another profile while signed in): the events this device
+  recorded for that account in the profile before, and that **never went
+  up** to the cloud (no upload of their JSON in the `synced` store), become
+  the new profile's too, so they aren't stranded where the account no
+  longer looks (the Events tab shows only the current profile's). Those
+  already uploaded stay the old profile's: its folder and its other
+  members have them, and the app doesn't copy one profile's data into
+  another's folder. Other devices' and other accounts' events stay too.
+  Signing out and in again isn't a move: nothing of another profile's
+  comes along then. The app passes the profile before only when the same
+  account's profile changes ([main.dart](../presence_app/lib/main.dart),
+  `_onProfileChanged`).
+- **Cloud sync follows the profile at once:** a pass under way when the
+  account signs out or moves stops at its next step; it never stamps,
+  stores or uploads one profile's events as another's (see [Cloud
+  sync](cloud-sync.md#when)).
 - **Settings shows it**, as **Profile** `huge_wavy_darter` under the
   device ID, or *none until signed in*; see [Settings screen](settings.md).
   The [account sheet](sign-in.md) shows it with the profile's devices.
 - `CognitoCredentials` ([lib/cloud/cognito.dart](../presence_app/lib/cloud/cognito.dart))
   asks `POST /api/auth/credentials`, then `GetCredentialsForIdentity`.
-  A 401 from the API shows as "Sign in again to resume uploads".
+  A 401 from the API shows as "Sign in again to resume uploads". Callers
+  asking at once share one fetch.
 - `ProfileClient` ([lib/auth/profile_client.dart](../presence_app/lib/auth/profile_client.dart))
   and `LinkedAccountsSheet` ([lib/auth/linked_accounts_sheet.dart](../presence_app/lib/auth/linked_accounts_sheet.dart))
   handle linking. After a link or unlink, `RolesService.refresh()` checks

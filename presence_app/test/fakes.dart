@@ -277,6 +277,16 @@ class FakeCloudBackend implements CloudBackend {
   /// Thrown by the next put(), once.
   Object? failPut;
 
+  /// Thrown by every put() while set.
+  Object? failEveryPut;
+
+  /// Thrown by the next get() of each key (relative to the folder), once.
+  final failGetsOnce = <String, Object>{};
+
+  /// Awaited by each get() before it reads (relative key): to act while a
+  /// pass downloads.
+  Future<void> Function(String key)? beforeGet;
+
   /// Thrown by every connect() while set (the network is down).
   Object? offline;
 
@@ -330,6 +340,7 @@ class FakeCloudSession implements CloudSession {
       backend.failPut = null;
       throw e;
     }
+    if (backend.failEveryPut case final e?) throw e;
     await backend.beforePut?.call(key);
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
   }
@@ -367,6 +378,8 @@ class FakeCloudSession implements CloudSession {
   @override
   Future<Uint8List> get(String key) async {
     backend.downloads.add(key);
+    await backend.beforeGet?.call(key);
+    if (backend.failGetsOnce.remove(key) case final e?) throw e;
     if (backend.failGets.contains(key)) throw StateError('Failed $key');
     final object = backend.uploads['$prefix/$key'];
     if (object == null) throw StateError('No $key');

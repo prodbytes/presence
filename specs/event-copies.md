@@ -82,7 +82,11 @@ On `presence/<stage>/<identityId>/acks`, shared with
   1000 IDs wait (`maxAckQueue`; the oldest go). Only events of the
   signed-in profile, recorded on another device, are acked, and each once
   (`acked`, kept across restarts); one whose ack didn't go out (live sync
-  off, disconnected, or failed) is acked at the next full fetch.
+  off, disconnected, or failed) is acked at the next full fetch. A flush
+  belongs to one run of the connection loop: a stop, a new start, or a
+  change of the **Connect to live sync** setting (which starts over with
+  the same link) ends it, and the acks it hadn't sent count as not sent,
+  so two flushes never share the queue.
 - **Validated** (`LiveSync.parseCopied`): dropped when over 1 KB, not
   JSON, not version 1 or `kind: copied`, of another identity, with a
   `deviceId` or any event ID outside `[A-Za-z0-9_.:-]{1,128}` or

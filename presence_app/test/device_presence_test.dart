@@ -503,4 +503,34 @@ void main() {
       );
     });
   });
+
+  testWidgets('the pinger takes on another live sync or interval', (
+    tester,
+  ) async {
+    final first = FakePresenceLive();
+    final second = FakePresenceLive();
+    addTearDown(first.dispose);
+    addTearDown(second.dispose);
+    Widget pinger(LiveSync live, Duration every) => MaterialApp(
+      home: PresencePinger(
+        live: live,
+        every: every,
+        builder: (_) => const SizedBox(),
+      ),
+    );
+    await tester.pumpWidget(pinger(first, const Duration(seconds: 30)));
+    expect(first.pings, 1);
+    // Another live sync: pinged at once, and every 30 s from then on.
+    await tester.pumpWidget(pinger(second, const Duration(seconds: 30)));
+    expect(second.pings, 1);
+    await tester.pump(const Duration(seconds: 30));
+    expect(second.pings, 2);
+    expect(first.pings, 1, reason: 'the old one is no longer pinged');
+    // A shorter interval applies at once.
+    await tester.pumpWidget(pinger(second, const Duration(seconds: 5)));
+    expect(second.pings, 3);
+    await tester.pump(const Duration(seconds: 5));
+    expect(second.pings, 4);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

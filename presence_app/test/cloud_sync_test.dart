@@ -1202,6 +1202,22 @@ void main() {
         );
       });
 
+      test('a recording whose download meets expired credentials comes down '
+          'with new ones, in the same run', () async {
+        remoteClip('r1', 1);
+        backend.failGetsOnce['media/r1.mp4'] = S3Exception(
+          403,
+          '<Code>ExpiredToken</Code>',
+        );
+        await start(prefetch: true);
+        expect(backend.resets, greaterThan(0));
+        expect(await store.getMedia('r1-full'), [1, 1]);
+        expect(
+          (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
+          isEmpty,
+        );
+      });
+
       test('on the web, recordings come down only when played', () async {
         remoteClip('r1', 1);
         await start(prefetch: false);
@@ -1229,6 +1245,212 @@ void main() {
         await sync.idle();
         expect(await sync.fetchRecording('r1', 'r1-full'), isFalse);
       });
+    });
+  });
+
+  group('integrity', () {
+    const prefix = 'us-east-1:identity';
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    void put(String key, Uint8List bytes) => backend.uploads['$prefix/$key'] = (
+      bytes: bytes,
+      contentType: 'application/json',
+    );
+    const day = 'events/year=1970/day=001';
+
+    test('signing out mid-pass uploads nothing more', () async {
+      var first = true;
+      backend.beforePut = (key) async {
+        if (!first) return;
+        first = false;
+        await auth.signOut();
+      };
+      await auth.signIn();
+      await sync.idle();
+      expect(backend.uploads, hasLength(1), reason: 'only the one under way');
+      expect(sync.state, CloudSyncState.off);
+    });
+
+    test('a pass that outlives its profile stamps, hands over and uploads '
+        'nothing for the next one', () async {
+      sync.dispose();
+      final client = FakeRolesClient()..profile = 'pa';
+      final roles = RolesService(auth: auth, client: client);
+      addTearDown(roles.dispose);
+      for (final p in ['pa', 'pb']) {
+        await store.putEvent({
+          'id': '${p}1',
+          'type': 'x',
+          'title': p,
+          'time': 3,
+          'userId': '1',
+          'profileId': p,
+        });
+      }
+      put('$day/r1.json', json({'id': 'r1', 'type': 'x', 'time': 4}));
+      var switched = false;
+      backend.beforeGet = (key) async {
+        if (switched || !key.endsWith('r1.json')) return;
+        switched = true;
+        // The account moves to profile pb, whose folder is another.
+        client.profile = 'pb';
+        backend.prefix = 'us-east-1:other';
+        await roles.refresh();
+      };
+      final fetched = <RemoteRecords>[];
+      sync = CloudSync(
+        auth: auth,
+        roles: roles,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        onRemote: (r) async => fetched.add(r),
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+      );
+      await auth.signIn();
+      await Future<void>.delayed(Duration.zero);
+      await sync.idle();
+
+      expect(switched, isTrue);
+      expect(
+        fetched.expand((r) => r.events),
+        isEmpty,
+        reason: "pa's event isn't handed over as pb's",
+      );
+      final keys = backend.uploads.keys;
+      expect(
+        keys.where((k) => k.startsWith('$prefix/') && k.contains('pb1')),
+        isEmpty,
+        reason: "pb's event doesn't go up to pa's folder",
+      );
+      expect(keys, contains('us-east-1:other/$day/pb1.json'));
+      expect(
+        keys.where(
+          (k) => k.startsWith('us-east-1:other/') && k.contains('pa1'),
+        ),
+        isEmpty,
+      );
+      expect(sync.state, CloudSyncState.synced);
+    });
+
+    test('damaged or unsafe objects in the bucket are skipped, not read '
+        'again, and the rest syncs', () async {
+      sync.dispose();
+      put('$day/bad.json', Uint8List.fromList(utf8.encode('not json{')));
+      put('$day/wrong.json', json({'id': 'other', 'time': 5}));
+      put('$day/notime.json', json({'id': 'notime', 'time': 'yesterday'}));
+      put(
+        '$day/badclip.json',
+        json({'id': 'badclip', 'time': 7, 'clipId': '../../x'}),
+      );
+      // Integral doubles (JSON from another runtime) are fine.
+      put(
+        '$day/good.json',
+        json({
+          'id': 'good',
+          'type': 'clipRequested',
+          'title': 'Good',
+          'time': 6.0,
+          'clipId': 'cg',
+          'annotations': [
+            {'name': 'Ana', 'frameId': '../evil'},
+          ],
+        }),
+      );
+      put('media/cg/frames/../evil.jpg', Uint8List.fromList([6]));
+      // Its clip's recording reference has no media ID: the clip comes
+      // without it.
+      put(
+        CloudSync.clipRecordKey('cg', 6),
+        json({
+          'id': 'cg',
+          'eventId': 'good',
+          'state': 'complete',
+          'beforeMs': 5000.0,
+          'full': {'startMs': 0, 'endMs': 1000},
+        }),
+      );
+      final fetched = <RemoteRecords>[];
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        onRemote: (r) async => fetched.add(r),
+        now: () => DateTime.fromMillisecondsSinceEpoch(1000, isUtc: true),
+      );
+      await auth.signIn();
+      await sync.idle();
+
+      expect(sync.state, CloudSyncState.synced);
+      final events = fetched.expand((r) => r.events).toList();
+      expect(events.map((e) => e['id']), ['good']);
+      expect(events.single['time'], 6);
+      final clip = fetched.expand((r) => r.clips).single;
+      expect(clip['beforeMs'], 5000);
+      expect(clip.containsKey('full'), isFalse);
+      expect(backend.downloads, isNot(contains('media/cg/frames/../evil.jpg')));
+      expect(
+        (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
+        isEmpty,
+      );
+      // This device's events still went up.
+      expect(backend.uploads.keys, contains('$prefix/$day/e1.json'));
+
+      // The damaged ones aren't downloaded again until they change.
+      backend.downloads.clear();
+      changes.add(null);
+      await sync.idle();
+      expect(sync.state, CloudSyncState.synced);
+      expect(
+        backend.downloads.where(
+          (k) => ['bad', 'wrong', 'notime', 'badclip'].any(k.contains),
+        ),
+        isEmpty,
+      );
+      put('$day/bad.json', json({'id': 'bad', 'type': 'x', 'time': 8}));
+      changes.add(null);
+      await sync.idle();
+      expect(
+        fetched.expand((r) => r.events).map((e) => e['id']),
+        contains('bad'),
+        reason: 'fixed since: read again',
+      );
+    });
+
+    test('a request signed at the wrong time is made again, and one that '
+        'keeps failing says the clock is off', () async {
+      backend.failPut = S3Exception(
+        403,
+        '<Code>RequestTimeTooSkewed</Code>',
+        clockOffset: const Duration(minutes: 20),
+      );
+      await auth.signIn();
+      await sync.idle();
+      expect(sync.state, CloudSyncState.synced);
+      expect(backend.uploads, hasLength(5));
+
+      backend.failEveryPut = S3Exception(
+        403,
+        '<Code>RequestTimeTooSkewed</Code>',
+        clockOffset: const Duration(minutes: -20),
+      );
+      await store.putEvent({
+        'userId': '1',
+        'profileId': '1',
+        'id': 'e9',
+        'type': 'x',
+        'title': 'Later',
+        'time': 9,
+      });
+      changes.add({'e9'});
+      await sync.idle();
+      expect(sync.state, CloudSyncState.error);
+      expect(sync.error, contains("This device's clock is off by 20 min"));
     });
   });
 
@@ -1466,7 +1688,12 @@ void main() {
         'profileId': 'other',
         'updatedAt': 9,
       };
-      putRemote({'deviceId': 'dev-1', 'profileId': '1', 'updatedAt': 5});
+      putRemote({
+        'deviceId': 'dev-1',
+        'profileId': '1',
+        'updatedAt': 5,
+        'config': <String, Object?>{},
+      });
       await auth.signIn();
       await withSettings.idle();
       expect(settings.applied.single['updatedAt'], 5);
@@ -1489,6 +1716,23 @@ void main() {
       await withSettings.idle();
       expect(settings.applied, isEmpty);
       expect(settings.claimed, ['1', '1']);
+    });
+
+    test('settings in the cloud that aren\'t JSON count as none: the '
+        'local ones go up over them', () async {
+      backend.uploads[key] = (
+        bytes: Uint8List.fromList(utf8.encode('{broken')),
+        contentType: 'application/json',
+      );
+      await auth.signIn();
+      await withSettings.idle();
+      expect(withSettings.state, CloudSyncState.synced);
+      expect(settings.applied, isEmpty);
+      expect(settings.claimed, ['1']);
+      expect(
+        jsonDecode(utf8.decode(backend.uploads[key]!.bytes)),
+        containsPair('deviceId', 'dev-1'),
+      );
     });
 
     test("another device's record, or a damaged one, is ignored", () async {

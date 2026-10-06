@@ -77,6 +77,52 @@ void main() {
       },
     );
 
+    test('callers asking at once share one fetch; one cleared meanwhile '
+        'isn\'t kept', () async {
+      var authCalls = 0;
+      final gate = Completer<void>();
+      final cognito = CognitoCredentials(
+        region: 'us-east-1',
+        api: api,
+        now: () => DateTime.utc(2026, 10, 4),
+        client: MockClient((request) async {
+          if (request.url.host == 'presence.example') {
+            authCalls++;
+            await gate.future;
+            return http.Response(
+              jsonEncode({'identityId': 'us-east-1:p', 'token': 'oidc'}),
+              200,
+            );
+          }
+          return http.Response(
+            jsonEncode({
+              'IdentityId': 'us-east-1:p',
+              'Credentials': {
+                'AccessKeyId': 'AKIA$authCalls',
+                'SecretKey': 'secret',
+                'Expiration': 4102444800,
+              },
+            }),
+            200,
+          );
+        }),
+      );
+      final a = cognito.session('t');
+      final b = cognito.session('t');
+      await Future<void>.delayed(Duration.zero);
+      expect(authCalls, 1);
+      // Signed out meanwhile: what comes back isn't kept.
+      cognito.clear();
+      gate.complete();
+      expect((await a).credentials.accessKeyId, 'AKIA1');
+      expect(identical(await a, await b), isTrue);
+      final c = await cognito.session('t');
+      expect(authCalls, 2, reason: 'fetched again after the clear');
+      expect(c.credentials.accessKeyId, 'AKIA2');
+      await cognito.session('t');
+      expect(authCalls, 2, reason: 'kept this time');
+    });
+
     test(
       'a rejected Google token needs a new sign-in; no access does not',
       () async {

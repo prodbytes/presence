@@ -27,7 +27,9 @@ owned by `CloudSync`:
   `wss://<IOT_ENDPOINT>/mqtt`, presigned with AWS Signature Version 4
   (`SigV4Signer.presignWebSocket`, service `iotdevicegateway`, only `host`
   signed, valid 1 h; the session token is appended after signing, as AWS IoT
-  requires).
+  requires). It's signed at AWS's time as best known (`AwsClock.shared`,
+  corrected when S3 finds the device's clock off; see [Cloud
+  sync](cloud-sync.md#how)), and the renewal below is timed by it too.
   - **Client ID**: the identity first, which the IoT policy requires, then
     the [device ID](devices-users-places.md). Always connected,
     `<identityId>-<deviceId>-<session>`, with six random characters per
@@ -39,7 +41,8 @@ owned by `CloudSync`:
     messages may come first; then to its `requests` and `acks` topics for
     [device presence](device-presence.md) (a refusal there is logged and
     doesn't drop the connection).
-  - **Reconnects** (always connected) after a drop at once (1 s), and after a refused
+  - **Reconnects** (always connected) after a drop at once (1 s), closing
+    the dropped connection first (its socket and timers go), and after a refused
     connection with a back-off that doubles up to 2 min; each attempt asks
     for credentials again and signs a new URL. Getting the credentials and
     connecting may each take **15 s** (`LiveSync.connectTimeout`): an
@@ -307,7 +310,8 @@ query holds the session token.
     the events topic (and the presence topics, `requests` and `acks`;
     their pings and pongs are in `device_presence_test.dart`); publishes an event's metadata; hands over other
     devices' events in order, not its own, nor other topics'; reconnects
-    after a drop and backs off while refused (up to the maximum); renews
+    after a drop (closing the dropped connection) and backs off while
+    refused (up to the maximum); renews
     before the credentials expire, once; stops for good; a hung
     credentials request, then a hung connection, each time out into the
     back-off;
@@ -363,11 +367,12 @@ query holds the session token.
   expiry other than the 1 h default would change which intervals keep
   their queue (the bucket still carries everything).
 
-- **Not yet verified against AWS:** a real connection with a profile's
-  Cognito credentials (the presigned URL, the client ID and topic
-  policies, `AttachPolicy` from the auth API's role, and the
-  `mqtt_client` transports on Android, desktop and the web). That needs a
-  deploy with the updated `github-deploy.yaml`.
+- The automated tests use a fake broker. Live sync has been deployed to
+  prod and RC since `0.6.202610061801` (2026-10-06, with the updated
+  `github-deploy.yaml`, see **Infrastructure**); its real connections
+  (the presigned URL, client ID and topic policies, `AttachPolicy` from
+  the auth API's role, the `mqtt_client` transports on Android, desktop
+  and the web) are checked by hand on the deployed apps, not by a test.
 - A device whose clip is recording shows "Recording on another device…"
   until the clip completes there; one that misses the completion message
   gets the clip at the next listing that sees the event changed (within

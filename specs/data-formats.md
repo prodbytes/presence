@@ -50,6 +50,17 @@ Everything else is JSON, written so a query engine can read it as is:
   and confidences from 0 to 1.
 - **Optional fields** are left out or `null`; queries read both as null.
   New fields may be added; existing ones keep their name, type and meaning.
+- **Reading them** (the app, from storage or the bucket) goes through one
+  codec, `Records` ([records.dart](../presence_app/lib/storage/records.dart)),
+  that tolerates damage rather than trusting it: an event needs a string
+  `id` and an integer `time`, a clip record a string `id`; an integral
+  double (`6.0`) counts as the integer; a text field of another type is
+  dropped; a recording reference (`past`, `full`) needs a `mediaId` of
+  `[A-Za-z0-9_-]` (it names a file on Android) or it's dropped;
+  durations default to 0. From the bucket, event, clip and frame IDs must
+  also match `[A-Za-z0-9_.:-]{1,128}` without `..` (they go into keys).
+  A record that fails is skipped and logged, never the whole history or
+  sync pass with it. Settings need `deviceId` and `config`.
 
 ### Event record — `events/year=YYYY/day=DDD/<id>.json`
 
@@ -104,7 +115,9 @@ folder: `config` as in [Configuration](configuration.md), `profileId` the
 profile they were synced with, and `location` the location set on the map
 (`{lat, lng, source: "map", time}`, as in [Device
 location](device-location.md)) or null. Older records have no
-`profileId` or `location`.
+`profileId` or `location`. A `config` whose `version` is newer than the
+app's (`PresenceConfig.version`, 1) isn't applied: the app would drop what
+it doesn't know, so the local settings stay and go up over it.
 
 ### Not on S3: copies
 
