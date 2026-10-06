@@ -40,14 +40,21 @@ class Match {
 }
 
 /// How sure two faces are the same person, from their cosine similarity
-/// (MobileFaceNet): 0 at 0.30 or less, 1 at 0.80 or more. Different people
-/// mostly score under 0.45, the same person mostly over 0.6.
-double faceConfidence(double cosine) => ((cosine - 0.30) / 0.50).clamp(0, 1);
+/// (MobileFaceNet, aligned faces): 0 at 0.30 or less, 1 at 0.65 or more.
+/// On LFW's pairs (faces 10 px or more between the eyes) different people
+/// score under 0.44 (99.9 %), the same person 0.62 to 0.75 typically.
+double faceConfidence(double cosine) => ((cosine - 0.30) / 0.35).clamp(0, 1);
 
-/// How sure two looks are the same subject (MobileNetV3 embeddings): 0 at
-/// 0.45 or less, 1 at 0.90 or more. Looks change with clothes and light,
-/// so they're the fallback when faces can't be compared.
-double lookConfidence(double cosine) => ((cosine - 0.45) / 0.45).clamp(0, 1);
+/// How sure two looks are the same subject, from their cosine similarity:
+/// for people (OSNet), 0 at 0.53 or less, 1 at 0.82 or more (on
+/// Market-1501, 1 % of different people's pairs score over 0.60, 0.1 %
+/// over 0.72; the same person 0.80 typically); for pets (MobileNetV3, a
+/// generic embedder), 0 at 0.45, 1 at 0.90. Looks change with clothes and
+/// light, so faces are compared first when they can be.
+double lookConfidence(double cosine, {SeenKind kind = SeenKind.person}) =>
+    kind == SeenKind.person
+    ? ((cosine - 0.53) / 0.29).clamp(0, 1)
+    : ((cosine - 0.45) / 0.45).clamp(0, 1);
 
 /// How sure [seen] is the subject of [entry]: by face when both show one,
 /// otherwise by look. Null when they can't be the same (a person and a
@@ -69,7 +76,7 @@ Match? compare(Seen seen, GalleryEntry entry) {
   return Match(
     entry,
     seen,
-    lookConfidence(cosine(look, entry.look)),
+    lookConfidence(cosine(look, entry.look), kind: entry.kind),
     byFace: false,
   );
 }
