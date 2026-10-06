@@ -25,10 +25,10 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar, tabs (Log for admins), and the full-screen Camera tab
+- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on), and the full-screen Camera tab
   with its view (One / All / None), Clip, Flip and readiness controls.
-- [About](about.md): what Presence is, made with love by prodbytes, its
-  links, and a call to become a member; its icon is always in the app bar.
+- [About](about.md): what Presence is, in a short paragraph with a link
+  to its source code, at the end of the account sheet.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states;
   the view button (One / All / None: this camera, the All grid, or the
@@ -91,7 +91,8 @@ their data.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.
-- [Log](log.md): the admins' Log tab (DEV's too): a health panel (a
+- [Log](log.md): the admins' Log tab, shown by default only in DEV and
+  otherwise turned on in Settings: a health panel (a
   card per check, API, AWS, OIDC, checked every 15 s in DEV and 60 s in RBAC, a card with the
   devices in the events, and a scrolling timeline of the runs with their
   times), then the app's latest 500 log messages and errors, such as why

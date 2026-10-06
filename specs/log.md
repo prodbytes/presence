@@ -1,8 +1,9 @@
 # Log
 
 The app's latest log messages, in their own **Log** tab in the nav bar,
-which only admins see (and everyone in DEV, where the anonymous user is a
-root). Use it to see why something failed, such as the AWS sync
+which only admins can see (and everyone in DEV, where the anonymous user
+is a root), and only while Settings' **Show the Log tab** switch is on:
+**on by default in DEV, off by default otherwise**. Use it to see why something failed, such as the AWS sync
 the Settings health line marks ❌, without a browser console or `adb`.
 
 ## What's captured
@@ -65,9 +66,15 @@ On Android, `devbox run android-log` reads these from the phone (see
 [lib/log_view.dart](../presence_app/lib/log_view.dart):
 
 - The fourth tab (receipt icon), after Settings, shown when
-  `RolesService.isAdmin`: `presence_admin` users, and DEV, whose anonymous
-  user has every role up to `presence_root` (see [Execution
-  mode](execution-mode.md)). See [Navigation](navigation.md).
+  `RolesService.isAdmin` (`presence_admin` users, and DEV, whose anonymous
+  user has every role up to `presence_root`; see [Execution
+  mode](execution-mode.md)) **and** the switch is on. See
+  [Navigation](navigation.md).
+- **The switch:** Settings' **Log** section, **Show the Log tab** ("The
+  app's latest messages and health"), shown only to admins. Stored in the
+  config as `log: {show}`; until it's flipped, `show` is unset and follows
+  the execution mode (`LogConfig.showIn`): shown in DEV, hidden in RBAC.
+  Flipping it adds or removes the tab at once, staying on Settings.
 - At the top, the **health panel** (see below), then a header, "Log · N
   latest", with **Copy** and **Clear**, then the
   entries, newest first, each entry with its time (`HH:MM:SS`), in monospace; errors
@@ -85,9 +92,11 @@ On Android, `devbox run android-log` reads these from the phone (see
 - Tests: `system_health_test.dart` (the health panel: statuses, the
   timeline's red and green blocks and times, scrolling to the oldest run, the cards in
   one row when wide and two by two on a 320 dp phone without overflow), `app_log_test.dart` (capacity, the tab's order and Clear) and
-  `roles_test.dart` ("the Log tab": an admin and a root see it with the
-  log; nobody else does; no return to it after a refresh; it goes with the
-  admin role or on sign-out; DEV's anonymous root sees it).
+  `roles_test.dart` ("the Log tab": an admin and a root see it only after
+  turning on the switch, and it goes when it's turned off; nobody else
+  sees it or the switch; no return to it after a refresh; it goes with the
+  admin role or on sign-out; DEV's anonymous root sees it by default and
+  can turn it off) and `config_test.dart` (the switch's default by mode).
 
 ## Health panel
 

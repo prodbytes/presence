@@ -24,7 +24,12 @@ class SettingsView extends StatefulWidget {
     this.tiles,
     this.onMapHeld,
     this.nextClip,
+    this.logTabDefault,
   });
+
+  /// For admins, a **Show the Log tab** switch, on by default when this is
+  /// true (DEV); null hides the switch.
+  final bool? logTabDefault;
 
   /// Under the scheduled clips' interval while they're on: when the next
   /// one is taken ([ScheduledClipCountdown]).
@@ -328,6 +333,20 @@ class _SettingsViewState extends State<SettingsView> {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (widget.logTabDefault case final dev?) ...[
+              const SizedBox(height: 16),
+              Text('Log', style: theme.textTheme.titleMedium),
+              SwitchListTile(
+                key: const Key('show-log-switch'),
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show the Log tab'),
+                subtitle: const Text('The app\'s latest messages and health'),
+                value: config.log.showIn(dev: dev),
+                onChanged: (v) => config.update(
+                  (x) => x.copyWith(log: x.log.copyWith(show: v)),
+                ),
+              ),
+            ],
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),

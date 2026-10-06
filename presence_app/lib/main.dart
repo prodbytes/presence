@@ -4,7 +4,6 @@ import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
-import 'about.dart';
 import 'app_log.dart';
 import 'app_version.dart';
 import 'auth/account_sheet.dart';
@@ -437,8 +436,8 @@ enum HomeTab {
   monitoring('Monitoring', Icons.monitor_heart),
   settings('Settings', Icons.settings),
 
-  /// Admins only (so DEV's anonymous root too); last, so the others keep
-  /// their index.
+  /// Admins only, when Settings' switch shows it (on by default in DEV,
+  /// whose anonymous user is a root); last, so the others keep their index.
   log('Log', Icons.receipt_long);
 
   const HomeTab(this.label, this.icon);
@@ -450,11 +449,11 @@ enum HomeTab {
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), monitoring (the subjects'
 /// map, the subjects and the event stream), the settings (with the device's
-/// location map) and, for admins, the log. Swiping sideways flips too,
+/// location map) and, for admins who turned it on, the log. Swiping sideways flips too,
 /// except on Monitoring (its map) and while a finger is on the Settings map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
-/// app bar has only the title and a sign-in button, and the screen stays on
+/// app bar has only a sign-in button, and the screen stays on
 /// the camera.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -519,8 +518,7 @@ class HomeScreen extends StatefulWidget {
   /// sheet).
   final CloudSync? sync;
 
-  /// Width of each icon tab: Material's 48 dp minimum touch target, which
-  /// leaves room for the title on 320 dp phones.
+  /// Width of each icon tab: Material's 48 dp minimum touch target.
   static const double tabWidth = 48;
 
   /// How narrow tabs get when the app bar can't fit them at [tabWidth]
@@ -537,9 +535,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late TabController _tabs = _newTabs(0);
 
-  /// The Log tab shows for admins, so in DEV too (the anonymous user is a
-  /// root there).
-  bool get _showLog => widget.roles.isAdmin;
+  /// The Log tab shows for admins (so in DEV too: the anonymous user is a
+  /// root there) when Settings' switch is on: by default in DEV only.
+  bool get _showLog =>
+      widget.roles.isAdmin && widget.config.log.showIn(dev: _dev);
 
   /// The tabs shown: [HomeTab.log] last, so each tab's index is its
   /// [HomeTab.index].
@@ -557,8 +556,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     )..addListener(_onTabChanged);
   }
 
-  /// Adds or removes the Log tab when the roles change, staying on the
-  /// same tab (or the last one, if the Log tab goes).
+  /// Adds or removes the Log tab when the roles or its switch change,
+  /// staying on the same tab (or the last one, if the Log tab goes).
   void _syncTabs() {
     if (_tabs.length == _shownTabs.length) return;
     final old = _tabs..removeListener(_onTabChanged);
@@ -668,6 +667,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     super.initState();
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
+    widget.config.addListener(_onConfigChanged);
     _restoreTab = HomeTab.values.asNameMap()[_tabMemory.read()];
     _restore();
   }
@@ -676,6 +676,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _onAccessChanged() {
     _syncTabs();
     if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    _restore();
+    if (mounted) setState(() {});
+  }
+
+  /// Settings' Log switch adds or removes the Log tab.
+  void _onConfigChanged() {
+    if (_tabs.length == _shownTabs.length) return;
+    _syncTabs();
     _restore();
     if (mounted) setState(() {});
   }
@@ -765,6 +773,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     widget.auth.removeListener(_onAuthChanged);
     widget.roles.removeListener(_onAccessChanged);
+    widget.config.removeListener(_onConfigChanged);
     _clipEvents?.cancel();
     _messageTimer?.cancel();
     _focusedEvent.dispose();
@@ -808,11 +817,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
-  /// when the tabs, the buttons after them and a sliver of the title don't
+  /// when the tabs, the buttons after them and the dev label's edge don't
   /// fit the screen.
   double _tabWidth(BuildContext context) {
     final buttons =
-        (!_dev && widget.roles.isAdmin ? 48 : 0) + 48 + (_dev ? 0 : 48) + 4;
+        (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
     const titleRoom = 12 + 16;
     final fit =
         (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
@@ -840,39 +849,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     final joinStatus = _joinStatus();
-    // Always shown: signed out, signed in without access, and with it.
-    final about = AboutButton(
-      auth: widget.auth,
-      roles: widget.roles,
-      membership: widget.membership,
-      profiles: widget.profiles,
-    );
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
       backgroundColor: _onCamera ? Colors.black : scheme.surface,
       appBar: AppBar(
+        // No title: only the "dev" label, in DEV.
         titleSpacing: 12,
-        title: Row(
-          spacing: 8,
-          children: [
-            Flexible(
-              child: Text(
-                'Presence',
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: scheme.primary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (_dev) const Flexible(child: DevModeLabel()),
-          ],
-        ),
+        title: _dev
+            ? const Row(children: [Flexible(child: DevModeLabel())])
+            : null,
         backgroundColor: _onCamera ? Colors.transparent : scheme.surface,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
-        // Over the camera, a scrim keeps the title and tabs readable.
+        // Over the camera, a scrim keeps the tabs readable.
         flexibleSpace: _onCamera
             ? const DecoratedBox(
                 decoration: BoxDecoration(
@@ -886,7 +876,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             : null,
         actions: [
           if (!_hasAccess && !_signedIn) ...[
-            about,
             SignInAction(auth: widget.auth),
             const SizedBox(width: 12),
           ] else if (!_hasAccess) ...[
@@ -907,7 +896,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 membership: widget.membership,
                 profiles: widget.profiles,
               ),
-            about,
             AccountButton(
               auth: widget.auth,
               roles: widget.roles,
@@ -952,8 +940,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-            about,
-            // Account (who's signed in, sign out): an action, not a tab.
+            // Account (who's signed in, sign out, about): an action, not a
+            // tab.
             if (!_dev)
               AccountButton(
                 auth: widget.auth,
@@ -1023,6 +1011,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   location: widget.location,
                   tiles: widget.mapTiles,
                   onMapHeld: (held) => setState(() => _mapHeld = held),
+                  logTabDefault: widget.roles.isAdmin ? _dev : null,
                 ),
               ),
               if (_showLog)

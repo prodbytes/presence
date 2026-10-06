@@ -58,10 +58,8 @@ void main() {
         tester.getRect(find.byKey(const Key('camera-page'))),
         Offset.zero & size,
       );
-      // The title overlays the camera, top left.
-      final title = tester.getRect(find.text('Presence'));
-      expect(title.top, lessThan(kToolbarHeight));
-      expect(title.left, lessThan(size.width / 2));
+      // No title over the camera.
+      expect(find.text('Presence'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -72,12 +70,11 @@ void main() {
       final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
       final login = tester.getCenter(find.byKey(const Key('account-button')));
-      final title = tester.getRect(find.text('Presence'));
       for (final c in [camera, monitoring, settings, login]) {
         expect(c.dy, lessThan(kToolbarHeight));
-        // Right of the title, which shrinks to make room on small phones.
-        expect(c.dx, greaterThan(title.right));
       }
+      // No About button: what Presence is, is in the account sheet.
+      expect(find.byTooltip('About'), findsNothing);
       expect(camera.dx, lessThan(monitoring.dx));
       expect(monitoring.dx, lessThan(settings.dx));
       expect(find.byTooltip('Device'), findsNothing);

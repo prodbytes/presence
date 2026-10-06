@@ -2754,3 +2754,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: it starts the app without `-W` and then checks the process,
        as before. Specs: none changed ([Android](android.md) already says
        it starts the app and checks it runs).
+265. **A simpler UI: no title, no About screen, Log tab on demand.**
+     (2026-10-06)
+     - Asked: remove the title; replace the About screen with a paragraph
+       in the profile (account) sheet, ending with a simple message and a
+       link to the repo, less on the nose; show the Log tab by default
+       only in DEV, and elsewhere hide it with a setting to show it.
+     - Changed: the app bar has no "Presence" title (DEV keeps its "dev"
+       label). The About button and screen are gone, with the membership
+       pitch, "made with ♥" and the links list; the account sheet ends with
+       `AboutParagraph`: what Presence is, and "Presence X.Y.Z is open
+       source:" with a link to `github.com/prodbytes/presence`. Settings
+       has a **Log** section for admins with **Show the Log tab**, stored
+       as `log: {show}` and, until flipped, on in DEV and off in RBAC.
+     - Tests: `about_test.dart` rewritten; `roles_test.dart`'s Log tab
+       tests turn the switch on (and off); `config_test.dart` covers the
+       default; `widget_test.dart` expects no title. 409 Flutter tests
+       pass; `flutter analyze` and `flutter build web` are clean.
+     - Specs: [About](about.md), [Navigation](navigation.md),
+       [Log](log.md), [Settings](settings.md), [Sign-in](sign-in.md),
+       [Execution mode](execution-mode.md), [README](README.md).

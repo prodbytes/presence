@@ -59,6 +59,9 @@
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older
   events and their clips are deleted from this device when the app starts
   and every 3 hours. Stored as `history: {keepMs}`.
+- **Log** section, for admins only (everyone in DEV): **Show the Log tab**,
+  on by default in DEV and off otherwise. Stored as `log: {show}`, unset
+  until flipped (see [Log](log.md)).
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

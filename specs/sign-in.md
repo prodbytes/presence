@@ -32,7 +32,7 @@ there's no separate sign-in screen:
 - **Signed out (RBAC):** the anonymous user (`presence_anonymous`) may only
   sign in. The camera shows full screen, always recording as
   usual, with **no buttons on it** (no Flip, Clip or readiness), and the
-  **navigation is hidden**: the app bar has only the "Presence" title and
+  **navigation is hidden**: the app bar has only
   **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
   `renderButton` with FedCM, medium size to fit the app bar), as Google
@@ -98,6 +98,8 @@ there's no separate sign-in screen:
     [event retention](event-retention.md).
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
+  - The account sheet ends with a short paragraph on what Presence is and
+    a link to its source code (see [About](about.md)).
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email).
 - Signing in also turns on [cloud sync](cloud-sync.md): the user's Google

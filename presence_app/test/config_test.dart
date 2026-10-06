@@ -28,6 +28,19 @@ void main() {
     expect(c.history.keep, const Duration(days: 14));
   });
 
+  test('the Log tab follows the mode until its switch is set', () {
+    const unset = LogConfig();
+    expect(unset.showIn(dev: true), isTrue);
+    expect(unset.showIn(dev: false), isFalse);
+    expect(const LogConfig(show: false).showIn(dev: true), isFalse);
+    expect(const LogConfig(show: true).showIn(dev: false), isTrue);
+    // Unset stays unset in storage, and junk reads as unset.
+    expect(unset.toJson(), isEmpty);
+    expect(LogConfig.fromJson({'show': 'yes'}), unset);
+    const on = PresenceConfig(log: LogConfig(show: true));
+    expect(PresenceConfig.fromJson(on.toJson()), on);
+  });
+
   test('round-trips through JSON', () {
     final json = custom.toJson();
     expect(json['version'], PresenceConfig.version);
