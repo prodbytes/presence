@@ -158,4 +158,62 @@ void main() {
       contains('Stays connected'),
     );
   });
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('the device and profile IDs are bodyMedium, larger than the '
+        'version, and fit 320 dp at ${scale}x text', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(320, 640),
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: Scaffold(
+              body: SettingsView(
+                config: config,
+                deviceId: 'automatic_paranoid_gadget',
+                profileId: 'automatic_paranoid_axolotl',
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('profile-id')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      // At 2x, other rows scrolled past overflow already (not the IDs,
+      // which wrap); at 1x nothing does.
+      final error = tester.takeException();
+      if (scale == 1) expect(error, isNull);
+
+      final body = Theme.of(tester.element(find.byType(SettingsView)))
+          .textTheme;
+      for (final key in ['device-id', 'profile-id']) {
+        final id = find.byKey(Key(key));
+        final style = tester.widget<SelectableText>(id).style!;
+        expect(style.fontSize, body.bodyMedium!.fontSize);
+        expect(style.fontSize, greaterThan(body.bodySmall!.fontSize!));
+        // Inside the screen, not cut off.
+        expect(tester.getTopLeft(id).dx, greaterThanOrEqualTo(0));
+        expect(tester.getTopRight(id).dx, lessThanOrEqualTo(320));
+      }
+      expect(
+        tester.widget<SelectableText>(find.byKey(const Key('device-id'))).data,
+        'automatic_paranoid_gadget',
+      );
+      // The labels are the same size as the IDs.
+      expect(
+        tester.widget<Text>(find.text('Device ')).style!.fontSize,
+        body.bodyMedium!.fontSize,
+      );
+    });
+  }
 }
