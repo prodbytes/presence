@@ -19,7 +19,7 @@ enum EventFlag {
 
   /// Its tooltip and screen-reader label.
   String get tooltip => switch (this) {
-    unidentified => 'Unidentified person/pet — identify',
+    unidentified => 'Unidentified subject — identify',
   };
 }
 
@@ -56,19 +56,9 @@ class Unidentified {
   final int named;
   final int ms;
 
-  /// "Unidentified person", "Unidentified pet", "Unidentified person and
-  /// pet", or "Unidentified person or pet" when one of the two is named
-  /// but it isn't known which.
-  String get label {
-    if (sorts.length == 1) {
-      return sorts.single == SubjectSort.person
-          ? 'Unidentified person'
-          : 'Unidentified pet';
-    }
-    return named == 0
-        ? 'Unidentified person and pet'
-        : 'Unidentified person or pet';
-  }
+  /// "Unidentified subject": people and pets are both subjects, which is
+  /// how the Monitoring screen calls them.
+  String get label => 'Unidentified subject';
 }
 
 /// Whether [annotations] leave a person or pet unidentified, and about

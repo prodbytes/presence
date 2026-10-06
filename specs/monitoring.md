@@ -22,7 +22,7 @@ the separate Events and Subjects tabs.
 - **Above each event's card,** the **device it was taken on**, small and
   quiet; tapping it shows only that device's events, on both the map and
   the events list (every device by default). See [Events](events.md).
-- **At the bottom right,** under the events, a small **system events
+- **In the same top row,** after the count, a small **system events
   toggle**: an icon with no label (tooltip "Show system events" / "Hide
   system events"), on by default in DEV only; off, only grabs show.
 - It fits a 320 dp phone without overflowing: the open search field gets
@@ -90,8 +90,8 @@ the separate Events and Subjects tabs.
   unfocused it folds back; a search kept from before shows open, and
   folds when cleared elsewhere; a clip given object tags after the search
   was typed shows up; the x clears and folds it; it combines with the
-  system events toggle; the toggle is a small icon at the bottom right,
-  under the events, with no label, and toggles; at 320 and 390 dp the top
+  system events toggle; the toggle is a small icon in the top row,
+  with the other filters, with no label, and toggles; at 320 and 390 dp the top
   row fits (one row, with the device chip and a long search) without
   overflow; the matching / all count follows the search, the filters, new
   events and late object tags; *all* leaves out other users' events and

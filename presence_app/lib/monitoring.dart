@@ -14,8 +14,8 @@ import 'subjects.dart';
 /// matching / all events count ([EventCount]) and, while the events show
 /// only one device's (picked by tapping an event's device,
 /// [EventDeviceTag]), a chip to show every device again
-/// ([DeviceFilterChip]). The small "Show system events" toggle
-/// ([ShowSystemEvents]) sits at the bottom right. Tapping a dot on the map
+/// ([DeviceFilterChip]), with the small "Show system events" toggle
+/// ([ShowSystemEvents]) in the same row. Tapping a dot on the map
 /// scrolls the events to its event; tapping a subject's name opens the
 /// subject.
 class MonitoringView extends StatefulWidget {
@@ -142,7 +142,8 @@ class _MonitoringViewState extends State<MonitoringView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // One compact row: the search (an icon until tapped),
-                  // the count and the device filter, if any. The open
+                  // the count, the system events toggle and the device
+                  // filter, if any. The open
                   // field gives up room on a narrow phone.
                   SizedBox(
                     height: 40,
@@ -159,7 +160,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                           showSystemEvents: _system,
                           search: _search,
                         ),
-                        const SizedBox(width: 8),
+                        ShowSystemEvents(value: _system),
                         Flexible(child: DeviceFilterChip(value: _filter)),
                       ],
                     ),
@@ -197,11 +198,6 @@ class _MonitoringViewState extends State<MonitoringView> {
                               ),
                             ],
                           ),
-                  ),
-                  // Small and out of the way, at the bottom right.
-                  Align(
-                    alignment: AlignmentDirectional.centerEnd,
-                    child: ShowSystemEvents(value: _system),
                   ),
                 ],
               ),

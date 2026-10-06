@@ -356,15 +356,21 @@ void main() {
     expect(count(tester), '5 / 7');
   });
 
-  testWidgets('the system events toggle is a small icon at the bottom '
-      'right, under the events', (tester) async {
+  testWidgets('the system events toggle is a small icon in the top row, '
+      'with the other filters', (tester) async {
     await show(tester, width: 390);
     final toggle = tester.getRect(system());
-    final page = tester.getRect(find.byKey(const Key('monitoring-page')));
+    final row = tester.getRect(find.byKey(const Key('monitoring-filters')));
     final events = tester.getRect(find.byKey(const Key('events-page')));
-    expect(toggle.right, closeTo(page.right - 12, 0.5));
-    expect(toggle.top, greaterThanOrEqualTo(events.bottom));
-    expect(page.bottom - toggle.bottom, lessThan(1));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('monitoring-filters')),
+        matching: system(),
+      ),
+      findsOneWidget,
+    );
+    expect(toggle.center.dy, closeTo(row.center.dy, 1));
+    expect(toggle.bottom, lessThanOrEqualTo(events.top));
     expect(toggle.height, lessThanOrEqualTo(48));
     expect(toggle.height, greaterThanOrEqualTo(40));
     // No label; its tooltip names it, and says what a tap does.

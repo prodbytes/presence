@@ -101,7 +101,7 @@ spot clicked
   **Done** brings the video back.
 - Opened from a card's yellow **unidentified** flag (**Identify**), the
   player starts paused where the first person or pet was seen and says
-  "Unidentified person: click them on the video to name them, or try
+  "Unidentified subject: click them on the video to name them, or try
   Auto." until everyone's named (see [Event flags](event-flags.md)).
 - **Tag this frame** grabs the frame the same way, without a first name.
   This is also how tagging works with a screen reader, whose layer covers

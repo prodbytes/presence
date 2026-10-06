@@ -159,8 +159,8 @@ in the app bar**, which flip between full screens.
       the error color. On another tab it's still a snackbar.
 - **Monitoring:** the map of every subject's events, with their names,
   beside the event stream (above it on phones), a compact search and
-  count at the top, each event's device (tap it to see only that device),
-  and a small system events toggle at the bottom (see
+  count and a small system events toggle at the top, each event's device
+  (tap it to see only that device) (see
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
