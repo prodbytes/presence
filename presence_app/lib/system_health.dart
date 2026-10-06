@@ -10,6 +10,7 @@ import 'config.dart';
 import 'events.dart';
 import 'status_pill.dart';
 import 'theme.dart';
+import 'time_format.dart';
 
 /// One check's status: its emoji and what it means (the tooltip).
 typedef HealthPart = (String, String);
@@ -121,7 +122,7 @@ class SystemHealth extends StatelessWidget {
   /// [left] as "0:42" or "12:05" (minutes and seconds, rounded up).
   static String formatNextIn(Duration? left) {
     final seconds = ((left?.inMilliseconds ?? 0) + 999) ~/ 1000;
-    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    return formatMinutesSeconds(seconds);
   }
 
   @override
@@ -207,23 +208,22 @@ class HealthWarningPill extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final pill = StatusPill(
-      key: const Key('health-warning'),
-      leading: Icon(
-        Icons.warning_amber_rounded,
-        size: 18,
-        color: Theme.of(context).colorScheme.error,
-      ),
-      semantics: [
-        'Health check failed',
-        ...failed,
-        if (onTap != null) 'Tap for details.',
-      ].join('\n'),
-    );
-    if (onTap == null) return pill;
-    return GestureDetector(onTap: onTap, child: pill);
-  }
+  Widget build(BuildContext context) => StatusPill(
+    key: const Key('health-warning'),
+    // News: read out when a check starts failing.
+    liveRegion: true,
+    onTap: onTap,
+    leading: Icon(
+      Icons.warning_amber_rounded,
+      size: 18,
+      color: Theme.of(context).colorScheme.error,
+    ),
+    semantics: [
+      'Health check failed',
+      ...failed,
+      if (onTap != null) 'Tap for details.',
+    ].join('\n'),
+  );
 }
 
 /// One run of the health panel's checks.
@@ -261,11 +261,6 @@ class HealthHistory extends ChangeNotifier {
     }
     notifyListeners();
   }
-}
-
-String _time(DateTime t) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
 }
 
 /// What a check's emoji means, short, for its pill, and the pill's color.
@@ -438,7 +433,7 @@ class _HealthPanelState extends State<HealthPanel> {
                 listenable: widget.roles,
                 builder: (context, _) => Text(
                   switch (widget.roles.apiCheckedAt) {
-                    final at? => 'Last update ${_time(at)}',
+                    final at? => 'Last update ${formatEventTime(at)}',
                     null => 'Checking…',
                   },
                   key: const Key('health-checked'),
@@ -532,7 +527,7 @@ class _HealthPanelState extends State<HealthPanel> {
     required bool pillBeside,
   }) {
     final n = HealthPanel.devicesIn(
-      EventTimeline.ofProfile(events.events, widget.profileId),
+      events.eventsOf(widget.profileId),
       deviceId: widget.deviceId,
     );
     final what = widget.profileId == null
@@ -626,7 +621,7 @@ class _HealthPanelState extends State<HealthPanel> {
                 padding: const EdgeInsets.only(top: 8),
                 child: SelectableText(
                   [
-                    '${_time(selected.time)} · '
+                    '${formatEventTime(selected.time)} · '
                         '${selected.failed ? 'failed' : 'all passed'}',
                     for (final (_, _, _, part) in _checks)
                       '${part(selected.status).$1} ${part(selected.status).$2}',
@@ -659,10 +654,9 @@ class _HealthPanelState extends State<HealthPanel> {
     const block = HealthPanel.blockSize;
     const width = HealthPanel.runWidth;
     final t = check.time;
-    String two(int n) => n.toString().padLeft(2, '0');
     return Semantics(
       button: true,
-      label: '${_time(t)}: ${check.failed ? 'failed' : 'all passed'}',
+      label: '${formatEventTime(t)}: ${check.failed ? 'failed' : 'all passed'}',
       child: GestureDetector(
         key: Key('health-brick-$i'),
         behavior: HitTestBehavior.opaque,
@@ -701,7 +695,7 @@ class _HealthPanelState extends State<HealthPanel> {
                         color: theme.colorScheme.outline,
                       ),
                       Text(
-                        '${two(t.hour)}:${two(t.minute)}',
+                        formatHourMinute(t),
                         style: small?.copyWith(fontSize: 10, height: 1.2),
                         maxLines: 1,
                         softWrap: false,

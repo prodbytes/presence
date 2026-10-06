@@ -143,9 +143,17 @@ class _SettingsViewState extends State<SettingsView> {
             ],
             Text('Camera', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            _BrightnessSlider(
+            _LabeledSlider(
               key: const Key('brightness-slider'),
+              label: 'Brightness',
+              format: _formatBrightness,
               value: camera.brightness,
+              min: CameraConfig.minBrightness,
+              max: CameraConfig.maxBrightness,
+              divisions:
+                  ((CameraConfig.maxBrightness - CameraConfig.minBrightness) /
+                          CameraConfig.brightnessStep)
+                      .round(),
               onChanged: (ev) => setCamera((c) => c.copyWith(brightness: ev)),
             ),
             const SizedBox(height: 16),
@@ -161,7 +169,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('motion-threshold-slider'),
               label: 'Motion threshold',
-              valueLabel: '${motion.threshold.round()} % of the picture',
+              format: (v) => '${v.round()} % of the picture',
               value: motion.threshold,
               min: MotionConfig.minThreshold,
               max: MotionConfig.maxThreshold,
@@ -177,7 +185,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('motion-cooldown-slider'),
               label: 'At most one automatic clip every',
-              valueLabel: '${motion.cooldown.inMinutes} min',
+              format: (v) => '${v.round()} min',
               value: motion.cooldown.inMinutes.toDouble(),
               min: MotionConfig.minCooldown.inMinutes.toDouble(),
               max: MotionConfig.maxCooldown.inMinutes.toDouble(),
@@ -200,19 +208,35 @@ class _SettingsViewState extends State<SettingsView> {
               spacing: 8,
               children: [
                 Expanded(
-                  child: _DurationSlider(
+                  child: _LabeledSlider(
                     key: const Key('clip-before-slider'),
                     label: 'Before press',
-                    value: clip.before,
-                    onChanged: (d) => setClip((c) => c.copyWith(before: d)),
+                    format: (v) => '${v.round()} s',
+                    value: clip.before.inSeconds.toDouble(),
+                    min: ClipConfig.min.inSeconds.toDouble(),
+                    max: ClipConfig.max.inSeconds.toDouble(),
+                    divisions:
+                        (ClipConfig.max - ClipConfig.min).inSeconds ~/
+                        ClipConfig.step.inSeconds,
+                    onChanged: (v) => setClip(
+                      (c) => c.copyWith(before: Duration(seconds: v.round())),
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: _DurationSlider(
+                  child: _LabeledSlider(
                     key: const Key('clip-after-slider'),
                     label: 'After press',
-                    value: clip.after,
-                    onChanged: (d) => setClip((c) => c.copyWith(after: d)),
+                    format: (v) => '${v.round()} s',
+                    value: clip.after.inSeconds.toDouble(),
+                    min: ClipConfig.min.inSeconds.toDouble(),
+                    max: ClipConfig.max.inSeconds.toDouble(),
+                    divisions:
+                        (ClipConfig.max - ClipConfig.min).inSeconds ~/
+                        ClipConfig.step.inSeconds,
+                    onChanged: (v) => setClip(
+                      (c) => c.copyWith(after: Duration(seconds: v.round())),
+                    ),
                   ),
                 ),
               ],
@@ -239,7 +263,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('schedule-every-slider'),
               label: 'One clip every',
-              valueLabel: formatEvery(schedule.every),
+              format: (v) => formatEvery(Duration(minutes: v.round())),
               value: schedule.every.inMinutes.toDouble(),
               min: ScheduleConfig.minEvery.inMinutes.toDouble(),
               max: ScheduleConfig.maxEvery.inMinutes.toDouble(),
@@ -288,7 +312,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('recognition-auto-slider'),
               label: 'Tag automatically when at least',
-              valueLabel: '${percent(recognition.autoTag)} sure',
+              format: (v) => '${percent(_toStep(v))} sure',
               value: recognition.autoTag,
               min: RecognitionConfig.minConfidence,
               max: RecognitionConfig.maxConfidence,
@@ -311,7 +335,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('history-keep-slider'),
               label: 'Keep events for',
-              valueLabel: formatKeep(config.history.keep),
+              format: (v) => formatKeep(Duration(days: v.round())),
               value: config.history.keep.inDays.toDouble(),
               min: HistoryConfig.minKeep.inDays.toDouble(),
               max: HistoryConfig.maxKeep.inDays.toDouble(),
@@ -337,7 +361,7 @@ class _SettingsViewState extends State<SettingsView> {
               _LabeledSlider(
                 key: const Key('live-connect-slider'),
                 label: 'Connect to live sync',
-                valueLabel: config.live.label,
+                format: (v) => LiveConfig.ofStep(v.round()).label,
                 value: config.live.step.toDouble(),
                 min: 0,
                 max: (LiveConfig.steps - 1).toDouble(),
@@ -387,7 +411,7 @@ class _SettingsViewState extends State<SettingsView> {
             _LabeledSlider(
               key: const Key('subject-events-slider'),
               label: 'How many events to load at once',
-              valueLabel: '${subjects.mapEvents}',
+              format: (v) => '${v.round()}',
               value: subjects.mapEvents.toDouble(),
               min: SubjectsConfig.minMapEvents.toDouble(),
               max: SubjectsConfig.maxMapEvents.toDouble(),
@@ -530,11 +554,15 @@ final bool _recognitionSupported = TfliteRuntime().supported;
 double _toStep(double v) =>
     (v / RecognitionConfig.step).round() * RecognitionConfig.step;
 
-class _LabeledSlider extends StatelessWidget {
+/// A setting's slider, with its name and value above it. While it's
+/// dragged, only the slider and its value follow the finger; the setting
+/// changes ([onChanged]) once it's let go, so a drag saves (and syncs) the
+/// settings once, not on every frame.
+class _LabeledSlider extends StatefulWidget {
   const _LabeledSlider({
     super.key,
     required this.label,
-    required this.valueLabel,
+    required this.format,
     required this.value,
     required this.min,
     required this.max,
@@ -543,31 +571,54 @@ class _LabeledSlider extends StatelessWidget {
   });
 
   final String label;
-  final String valueLabel;
+
+  /// The value as shown beside the label and over the thumb.
+  final String Function(double value) format;
   final double value;
   final double min;
   final double max;
   final int divisions;
+
+  /// The new value, once the slider is let go; null disables it.
   final ValueChanged<double>? onChanged;
 
   @override
+  State<_LabeledSlider> createState() => _LabeledSliderState();
+}
+
+class _LabeledSliderState extends State<_LabeledSlider> {
+  /// Where the thumb is while it's dragged; null otherwise.
+  double? _dragged;
+
+  @override
   Widget build(BuildContext context) {
+    final value = _dragged ?? widget.value;
+    final valueLabel = widget.format(value);
+    final commit = widget.onChanged;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Expanded(child: Text(label)),
+            Expanded(child: Text(widget.label)),
             Text(valueLabel),
           ],
         ),
         Slider(
           value: value,
-          min: min,
-          max: max,
-          divisions: divisions,
+          min: widget.min,
+          max: widget.max,
+          divisions: widget.divisions,
           label: valueLabel,
-          onChanged: onChanged,
+          onChanged: commit == null
+              ? null
+              : (v) => setState(() => _dragged = v),
+          onChangeEnd: commit == null
+              ? null
+              : (v) {
+                  commit(v);
+                  if (mounted) setState(() => _dragged = null);
+                },
         ),
       ],
     );
@@ -639,84 +690,9 @@ class _MotionMeter extends StatelessWidget {
   }
 }
 
-class _BrightnessSlider extends StatelessWidget {
-  const _BrightnessSlider({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  static String format(double ev) =>
-      ev == 0 ? '0 EV' : '${ev > 0 ? '+' : ''}${ev.toStringAsFixed(1)} EV';
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(child: Text('Brightness')),
-            Text(format(value)),
-          ],
-        ),
-        Slider(
-          value: value,
-          min: CameraConfig.minBrightness,
-          max: CameraConfig.maxBrightness,
-          divisions:
-              ((CameraConfig.maxBrightness - CameraConfig.minBrightness) /
-                      CameraConfig.brightnessStep)
-                  .round(),
-          label: format(value),
-          onChanged: onChanged,
-        ),
-      ],
-    );
-  }
-}
-
-class _DurationSlider extends StatelessWidget {
-  const _DurationSlider({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final String label;
-  final Duration value;
-  final ValueChanged<Duration> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final seconds = value.inSeconds;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text(label)),
-            Text('$seconds s'),
-          ],
-        ),
-        Slider(
-          value: seconds.toDouble(),
-          min: ClipConfig.min.inSeconds.toDouble(),
-          max: ClipConfig.max.inSeconds.toDouble(),
-          divisions:
-              (ClipConfig.max - ClipConfig.min).inSeconds ~/
-              ClipConfig.step.inSeconds,
-          label: '$seconds s',
-          onChanged: (v) => onChanged(Duration(seconds: v.round())),
-        ),
-      ],
-    );
-  }
-}
+/// The brightness as "+0.5 EV", "0 EV" or "-1.0 EV".
+String _formatBrightness(double ev) =>
+    ev == 0 ? '0 EV' : '${ev > 0 ? '+' : ''}${ev.toStringAsFixed(1)} EV';
 
 /// "Device automatic_paranoid_gadget": a label and a selectable ID
 /// (keyed [idKey]), or [missing] in italics while there's no ID.

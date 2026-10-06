@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
+import '../storage/records.dart';
 import 'sigv4.dart';
 
 /// One MQTT connection to AWS IoT Core: [MqttLiveConnection] in the app
@@ -167,6 +168,7 @@ class LiveSync extends ChangeNotifier {
     this._connect,
     this._config = LiveConfig.always,
     DateTime Function()? now,
+    AwsClock? clock,
     Random? random,
     this.minRetry = const Duration(seconds: 1),
     this.maxRetry = const Duration(minutes: 2),
@@ -180,6 +182,7 @@ class LiveSync extends ChangeNotifier {
     this.ackDelay = const Duration(seconds: 1),
     this.ackEvery = const Duration(seconds: 1),
   }) : _now = now ?? DateTime.now,
+       _clock = clock ?? (now == null ? AwsClock.shared : AwsClock(now: now)),
        _random = random ?? Random.secure();
 
   /// The AWS IoT data endpoint (`<id>-ats.iot.<region>.amazonaws.com`).
@@ -190,6 +193,10 @@ class LiveSync extends ChangeNotifier {
   final String stage;
   final LiveConnect? _connect;
   final DateTime Function() _now;
+
+  /// AWS's time, which the connection's URL is signed with and the
+  /// credentials expire by (corrected when S3 finds the clock off).
+  final AwsClock _clock;
   final Random _random;
 
   /// The wait before reconnecting after the first failure; it doubles
@@ -315,8 +322,11 @@ class LiveSync extends ChangeNotifier {
   }
 
   /// This run of the app's part of the client ID.
-  late final String _session = List.generate(
-    6,
+  late final String _session = _randomId(6);
+
+  /// [length] random lowercase letters and digits.
+  String _randomId(int length) => List.generate(
+    length,
     (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
   ).join();
 
@@ -435,7 +445,7 @@ class LiveSync extends ChangeNotifier {
             .presignWebSocket(
               host: endpoint,
               credentials: credentials,
-              now: _now(),
+              now: _clock.now(),
             );
         final connecting = _connect!(
           url,
@@ -519,7 +529,7 @@ class LiveSync extends ChangeNotifier {
         // Not when they're about to already: that would only loop.
         Timer? renew;
         if (credentials.expiration case final expiration?) {
-          final left = expiration.difference(_now()) - renewBefore;
+          final left = expiration.difference(_clock.now()) - renewBefore;
           if (left > Duration.zero) {
             renew = Timer(left, () {
               renewing = true;
@@ -538,8 +548,11 @@ class LiveSync extends ChangeNotifier {
           await connection.close().catchError((Object _) {});
           continue;
         }
-        // Dropped: reconnect soon.
+        // Dropped: reconnect soon. Closed all the same, so the client's
+        // socket and timers go.
         debugPrint('Presence: live sync disconnected; reconnecting');
+        await connection.close().catchError((Object _) {});
+        if (!current()) return;
         _failures = 1;
       } catch (e) {
         if (connection != null) {
@@ -821,10 +834,7 @@ class LiveSync extends ChangeNotifier {
     }
     _lastPing = now;
     _pings.removeWhere((_, at) => now.difference(at) > pingsKept);
-    final nonce = List.generate(
-      16,
-      (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
-    ).join();
+    final nonce = _randomId(16);
     _pings[nonce] = now;
     return _publish(
       link,
@@ -940,15 +950,25 @@ class LiveSync extends ChangeNotifier {
     final done = _acksDone ??= Completer<bool>();
     if (!_acking) {
       _acking = true;
-      Timer(ackDelay, () => _flushAcks(link, done));
+      final generation = _generation;
+      Timer(ackDelay, () => _flushAcks(link, done, generation));
     }
     return done.future;
   }
 
-  Future<void> _flushAcks(LiveLink link, Completer<bool> done) async {
+  /// Sends the queued acks, while the connection loop is still the one of
+  /// [generation]: a [stop] or a new [start] (or a change of [config],
+  /// which starts over with the same link) ends it, so two flushes never
+  /// share the queue.
+  Future<void> _flushAcks(
+    LiveLink link,
+    Completer<bool> done,
+    int generation,
+  ) async {
+    bool current() => generation == _generation && link == _link;
     var ok = true;
     try {
-      while (_ackQueue.isNotEmpty && link == _link) {
+      while (_ackQueue.isNotEmpty && current()) {
         final now = _now();
         final batch = <String>[];
         for (final id in _ackQueue) {
@@ -968,7 +988,7 @@ class LiveSync extends ChangeNotifier {
         _acksDone = null;
         _acking = false;
       }
-      done.complete(ok && link == _link);
+      done.complete(ok && current());
     }
   }
 
@@ -1011,22 +1031,17 @@ class LiveSync extends ChangeNotifier {
     Uint8List payload, {
     required String identityId,
   }) {
-    if (payload.length > maxPresenceBytes) return null;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(utf8.decode(payload));
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
+    final decoded = _envelope(
+      payload,
+      maxBytes: maxPresenceBytes,
+      kind: 'copied',
+      identityId: identityId,
+    );
+    if (decoded == null) return null;
     final deviceId = decoded['deviceId'];
     final sentAt = decoded['sentAt'];
     final eventIds = decoded['eventIds'];
-    if (decoded['v'] != version ||
-        decoded['kind'] != 'copied' ||
-        decoded['identityId'] != identityId ||
-        !isSafeId(deviceId) ||
-        sentAt is! int ||
+    if (sentAt is! int ||
         eventIds is! List ||
         eventIds.isEmpty ||
         eventIds.length > maxAckIds ||
@@ -1034,7 +1049,7 @@ class LiveSync extends ChangeNotifier {
       return null;
     }
     return CopiedMessage(
-      deviceId: deviceId as String,
+      deviceId: deviceId! as String,
       sentAt: sentAt,
       eventIds: eventIds.cast<String>().toSet().toList(),
     );
@@ -1051,29 +1066,24 @@ class LiveSync extends ChangeNotifier {
     required String identityId,
     required String kind,
   }) {
-    if (payload.length > maxPresenceBytes) return null;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(utf8.decode(payload));
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
+    final decoded = _envelope(
+      payload,
+      maxBytes: maxPresenceBytes,
+      kind: kind,
+      identityId: identityId,
+    );
+    if (decoded == null) return null;
     final deviceId = decoded['deviceId'];
     final sentAt = decoded['sentAt'];
     final nonce = decoded['nonce'];
-    if (decoded['v'] != version ||
-        decoded['kind'] != kind ||
-        decoded['identityId'] != identityId ||
-        !isSafeId(deviceId) ||
-        sentAt is! int ||
+    if (sentAt is! int ||
         (nonce != null &&
             (nonce is! String || !_noncePattern.hasMatch(nonce))) ||
         (kind == 'ping' && nonce == null)) {
       return null;
     }
     return PresenceMessage(
-      deviceId: deviceId as String,
+      deviceId: deviceId! as String,
       sentAt: sentAt,
       nonce: nonce as String?,
     );
@@ -1094,12 +1104,9 @@ class LiveSync extends ChangeNotifier {
     'data',
   };
 
-  static final RegExp _idPattern = RegExp(r'^[A-Za-z0-9_.:-]{1,128}$');
-
   /// Whether [id] is safe as an event, clip, frame or device ID: it goes
-  /// into object keys in the bucket.
-  static bool isSafeId(Object? id) =>
-      id is String && _idPattern.hasMatch(id) && !id.contains('..');
+  /// into object keys in the bucket ([Records.isSafeId]).
+  static bool isSafeId(Object? id) => Records.isSafeId(id);
   static final RegExp _etagPattern = RegExp(r'^[0-9a-f]{32}$');
 
   /// [event] without inline media: no [inlineFields], and no value that is
@@ -1118,25 +1125,18 @@ class LiveSync extends ChangeNotifier {
   /// identity's, or without an event ID and time. Inline media is dropped
   /// ([metadataOf]).
   static LiveEvent? parse(Uint8List payload, {required String identityId}) {
-    if (payload.length > maxMessageBytes) return null;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(utf8.decode(payload));
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
-    final message = decoded.cast<String, Object?>();
-    final deviceId = message['deviceId'];
+    final message = _envelope(
+      payload,
+      maxBytes: maxMessageBytes,
+      kind: 'event',
+      identityId: identityId,
+    );
+    if (message == null) return null;
+    final deviceId = message['deviceId']! as String;
     final event = message['event'];
     final etag = message['etag'];
     final sentAt = message['sentAt'];
-    if (message['v'] != version ||
-        message['kind'] != 'event' ||
-        message['identityId'] != identityId ||
-        deviceId is! String ||
-        !isSafeId(deviceId) ||
-        event is! Map ||
+    if (event is! Map ||
         (etag != null && (etag is! String || !_etagPattern.hasMatch(etag))) ||
         (sentAt != null && sentAt is! int)) {
       return null;
@@ -1159,6 +1159,32 @@ class LiveSync extends ChangeNotifier {
       sentAt: sentAt as int?,
       etag: etag as String?,
     );
+  }
+
+  /// The message in [payload] when its envelope is right: at most
+  /// [maxBytes], a JSON object of this [version], of [kind], for
+  /// [identityId], from a device with a safe ID ([isSafeId]); else null.
+  static Map<String, Object?>? _envelope(
+    Uint8List payload, {
+    required int maxBytes,
+    required String kind,
+    required String identityId,
+  }) {
+    if (payload.length > maxBytes) return null;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(payload));
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map ||
+        decoded['v'] != version ||
+        decoded['kind'] != kind ||
+        decoded['identityId'] != identityId ||
+        !isSafeId(decoded['deviceId'])) {
+      return null;
+    }
+    return decoded.cast<String, Object?>();
   }
 
   void _set(LiveSyncState state, [String? error]) {

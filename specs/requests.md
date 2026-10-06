@@ -3636,7 +3636,110 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Auth API](auth-api.md), [Membership](membership.md),
        [Profiles](profiles.md), [Sign-in](sign-in.md).
 
-296. **Reliability fixes from a code review.** (2026-10-06)
+296. **UI review fixes: Monitoring focus, timeline scroll, filters and
+     pills.** (2026-10-06)
+     - Asked: fix everything a code review found in the UI (Monitoring,
+       events, subjects, status pills, settings sliders), with tests.
+     - Changed:
+       - Opening an event (a dot on a subject's map) is a **one-shot
+         request** (`EventFilters.focus`, taken once): coming back to
+         Monitoring no longer re-opens it, which cleared a search typed
+         since, reset the device filter and system events toggle, and
+         threw "setState() called during build". Filter resets happen
+         after the frame, never during a build.
+       - The timeline no longer **jumps to the top** on every change of
+         the log: `EventLog.addHistory` notifies only when it added
+         something, and the list scrolls up only for a new newest event
+         while it's within 200 dp of the top.
+       - **One filter model**, `EventFilters` (device, system events,
+         search, focus) with `viewOf`, whose steps are kept until their
+         inputs change; it replaces the home screen's four loose
+         notifiers and the fallback copies in `MonitoringView`,
+         `EventTimeline` and `EventCount`. `EventLog.events` is a snapshot
+         made once per change (`version`), `eventsOf(profile)` is kept the
+         same way, and `EventLog.annotations` reports clips' tag changes
+         (no more merged listenable over every clip per rebuild); the
+         subjects are worked out again only on a change.
+       - The timeline, the subjects map and a subject's screen show only
+         the **signed-in profile's events**, like the count (which read
+         "5 / 5" over 6 cards); the known limitation is gone.
+       - **Status pills** are live regions only for the camera message
+         and the health warning (the readiness countdown was read out
+         every second); tappable pills are buttons to screen readers.
+       - **Settings sliders** change (save and sync) their setting once,
+         when let go, not on every drag frame.
+       - The battery reader and the filters are made only when used (the
+         battery was started in `dispose`); the timeline's card keys are
+         pruned to the cards shown; subject frames decode at display
+         size; the subject chips' always-matching pattern is a field.
+       - Refactors: one time-format helper (`lib/time_format.dart`), one
+         `Dot` widget, `HomeTabs` (`lib/home_tabs.dart`) for the tabs,
+         `_HomeAppBar` and `_CameraButtons` out of `HomeScreen`.
+       - Docs: the system events toggle is in the top row, cards are
+         4 px apart.
+     - Tests: `event_log_test.dart`, `status_pill_test.dart`, and new
+       cases in `events_search_test.dart`, `subjects_test.dart` (the
+       focus repro in the app), `widget_test.dart` (scroll kept) and
+       `settings_test.dart` (slider commits on release). Specs:
+       [Events](events.md), [Monitoring](monitoring.md),
+       [Navigation](navigation.md), [Subjects](subjects.md),
+       [Settings](settings.md), [Devices, users and
+       places](devices-users-places.md).
+
+297. **Sync and storage integrity fixes from a code review.** (2026-10-06)
+     - Asked: fix everything a code review found in cloud sync, live
+       sync and local storage (one of five fix PRs from the review).
+     - Changed:
+       - **A pass belongs to one profile** (`CloudSync._Pass`): it keeps
+         the session, store and profile it started with, stamps, hands
+         over and uploads for that profile only, and checks before each
+         step; signing out, moving to another profile or reconnecting
+         ends it at its next step (`_epoch`).
+       - **One damaged record no longer stops syncing or the history:**
+         a new codec, `Records` (`lib/storage/records.dart`), reads
+         events, clips and settings tolerantly (required fields, integral
+         doubles as ints, wrong-typed text dropped, damaged recording
+         references dropped) for `Persistence` (restore, `importRemote`)
+         and `CloudSync`; a damaged bucket object is skipped, logged and
+         not downloaded again until its ETag changes; damaged settings in
+         the cloud count as none and are replaced; a 404 between listing
+         and download is skipped.
+       - **IDs from the bucket are validated** like live sync's (event,
+         clip, frame IDs safe; an event's `id` must be its key's); media
+         IDs must be `[A-Za-z0-9_-]` (Android file names).
+       - **Clock skew:** S3's `RequestTimeTooSkewed` corrects a shared
+         `AwsClock` from the answer's `ServerTime` or `Date`, used to sign
+         S3 and live sync and to judge credential expiry; the pass runs
+         again, and a persistent one says "This device's clock is off by N
+         min".
+       - Live sync closes a dropped connection; the ack flush is tied to
+         the connection loop's generation; one envelope parser and one
+         random-ID helper. Cognito credential fetches are single-flight,
+         and one cleared meanwhile isn't kept. A recording download that
+         meets expired credentials is retried with new ones at once.
+         `PresencePinger` takes on a new live sync or interval.
+       - Storage: restores read only the clips the events show (live
+         imports no longer reread every clip); unreadable saved settings
+         no longer stop settings from saving; a cloud settings record of a
+         newer config version isn't applied; each retention run deletes
+         recordings no clip uses and settles clips left `recording` by a
+         crash; moving the signed-in account to another profile brings
+         its events not yet uploaded from the profile before.
+       - `cloud_sync.dart` helpers deduplicated (record decoding, event
+         key and recording key patterns, media listing, pending marks).
+       - Deferred: streaming recording downloads into the media store
+         (documented in Cloud sync's limitations); AWS IoT's own clock
+         refusal isn't recognized.
+       - Tests: `record_integrity_test.dart` (new), and new cases in
+         `cloud_sync_test.dart`, `s3_test.dart`, `live_sync_test.dart`,
+         `profile_test.dart` and `device_presence_test.dart`.
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Profiles](profiles.md), [Event copies](event-copies.md),
+       [Device presence](device-presence.md), [Event
+       retention](event-retention.md), [Storage](storage.md).
+
+298. **Reliability fixes from a code review.** (2026-10-06)
      - Asked: fix everything a code review found in the app's sign-in,
        camera, clips and recognition code.
      - Changed:

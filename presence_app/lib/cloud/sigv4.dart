@@ -23,6 +23,42 @@ class AwsCredentials {
   }) => expiration != null && !now.add(margin).isBefore(expiration!);
 }
 
+/// The time AWS requests are signed with, and credentials' expiry is
+/// judged by: the device's clock, corrected by the offset an AWS answer
+/// showed it has ([correct], after S3's `RequestTimeTooSkewed`). AWS
+/// refuses requests signed more than 15 min off its time, so a device
+/// whose clock is wrong would otherwise never sync.
+///
+/// [shared] in the app: S3, Cognito and live sync all sign with it, so a
+/// correction S3 found applies to live sync's connection too.
+class AwsClock {
+  AwsClock({DateTime Function()? now}) : _now = now ?? DateTime.now;
+
+  /// The app's clock for AWS.
+  static final AwsClock shared = AwsClock();
+
+  final DateTime Function() _now;
+
+  /// How far AWS's time is ahead of the device's (negative: behind).
+  Duration offset = Duration.zero;
+
+  /// AWS's time, as best known.
+  DateTime now() => _now().add(offset);
+
+  /// Takes [serverTime], AWS's time in an answer just received: from now
+  /// on [now] is that far from the device's clock.
+  void correct(DateTime serverTime) {
+    offset = serverTime.toUtc().difference(_now().toUtc());
+  }
+
+  /// [offset] for people: "This device's clock is off by 17 min".
+  static String describe(Duration offset) {
+    final minutes = (offset.inSeconds.abs() / 60).ceil();
+    return "This device's clock is off by $minutes min: "
+        'set it to the right time to sync';
+  }
+}
+
 /// AWS Signature Version 4 for S3 requests: the headers to add so AWS
 /// accepts a request made with [AwsCredentials]. See
 /// https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html

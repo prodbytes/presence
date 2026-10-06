@@ -52,7 +52,16 @@ site until its data is cleared. They aren't the app's device ID
    saved" with the reason. The clip still plays for the rest of the session.
 
 **On launch**, events are restored newest first, below the new launch's
-"Application started" event. Stored clips are playable. Their recordings load
+"Application started" event. Records are read through one tolerant codec
+(`Records`, see [Recording and data formats](data-formats.md)): a
+damaged event or clip (a missing ID or time, a field of the wrong type) is
+skipped and logged, and the rest of the history comes back; a clip whose
+recording reference is damaged shows without it. Saved settings that
+can't be read leave the defaults, and changes are saved from then on.
+Recordings are stored under IDs of `[A-Za-z0-9_-]` only (on Android they
+name the file, `<id>.mp4`); any other is refused. Events imported from
+the cloud (`Persistence.importRemote`) are checked the same way before
+they're stored, and only the clips they show are read to show them. Stored clips are playable. Their recordings load
 from IndexedDB the first time they're played, not all at startup. A clip
 whose after part was cut short by a refresh keeps its before part and says
 so. Clip settings are restored too.

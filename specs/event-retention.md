@@ -38,6 +38,15 @@ than the **History** setting, **two weeks** by default
   (`Persistence.deleteEventsBefore`, `EventLog.remove`).
 - **Only on the device.** Nothing is deleted from the cloud: S3 keeps
   what was uploaded until the bucket expires it.
+- **Tidying up after a crash**, every run (`Persistence._sweep`), even
+  with nothing old to delete: recordings that no clip record uses (one
+  saved just before its clip was committed, when the app was killed) are
+  deleted (`MediaStore.ids`, then `MediaStore.delete`), and clips an
+  earlier run left `recording` are settled as their writer would have:
+  `complete` with their before part, else `failed`. What this run is
+  recording now is never touched (`Persistence._writing`), nor a clip
+  requested less than an hour ago and its recordings (another tab of the
+  browser, sharing IndexedDB, may be recording it).
 
 ## Cloud sync
 

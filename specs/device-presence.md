@@ -56,7 +56,9 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   to the Camera tab with it on) and every 30 s while it does and the
   Camera tab is on screen (`CameraFeedsView.live` / `active`); the
   account sheet's devices list when it opens and every 30 s while it's
-  open (`PresencePinger`). Nothing pings otherwise.
+  open (`PresencePinger`; given another live sync or interval while it
+  shows, it pings that at once and keeps its interval from then on).
+  Nothing pings otherwise.
 - **Answering:** a device that receives another device's ping answers on
   `acks` with `{"v":1,"kind":"pong",…,"nonce":"<the ping's>"}`; at most
   one pong every **5 s** (`answerEvery`: pings from several devices at

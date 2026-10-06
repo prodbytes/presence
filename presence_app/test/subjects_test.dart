@@ -766,6 +766,34 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     expect(highlight, findsNothing);
     expect(tester.takeException(), isNull);
+
+    // Opened once: a search that hides it, then Settings and back, keeps
+    // the search and the toggle, and doesn't open the event again.
+    await tester.tap(find.byKey(const Key('event-search-open')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('event-search')), 'nobody');
+    // Submitted: the keyboard goes, so nothing keeps the tab alive.
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    bool systemShown() => tester
+        .widget<IconButton>(find.byKey(const Key('show-system-events')))
+        .isSelected!;
+    final system = systemShown();
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('event-search')))
+          .controller!
+          .text,
+      'nobody',
+    );
+    expect(find.text('No events match "nobody"'), findsOneWidget);
+    expect(systemShown(), system);
+    expect(highlight, findsNothing);
   });
 }
 

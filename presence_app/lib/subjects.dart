@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,9 +6,11 @@ import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'config.dart';
+import 'dot.dart';
 import 'events.dart';
 import 'location/map_parts.dart';
 import 'theme.dart';
+import 'time_format.dart';
 
 /// One event a subject was tagged in: the clip, the tag and the frame it
 /// was clicked on.
@@ -93,39 +94,68 @@ List<Subject> subjectsOf(Iterable<AppEvent> events) {
 }
 
 /// Rebuilds [builder] with the current subjects whenever an event is added
-/// or a clip's tags change.
-class _SubjectsBuilder extends StatelessWidget {
+/// or a clip's tags change. The subjects are worked out again only when
+/// [events] gives another list or a clip's tags changed.
+class _SubjectsBuilder extends StatefulWidget {
   const _SubjectsBuilder({
     required this.log,
+    required this.events,
     required this.builder,
-    this.where,
   });
 
   final EventLog log;
   final Widget Function(BuildContext context, List<Subject> subjects) builder;
 
-  /// The events the subjects are taken from; every one when null.
-  final List<AppEvent> Function(List<AppEvent> events)? where;
+  /// The events the subjects are taken from: a list that's kept (such as
+  /// [EventLog.eventsOf]) while they're the same.
+  final List<AppEvent> Function() events;
+
+  @override
+  State<_SubjectsBuilder> createState() => _SubjectsBuilderState();
+}
+
+class _SubjectsBuilderState extends State<_SubjectsBuilder> {
+  late Listenable _changes = _changesOf(widget.log);
+
+  static Listenable _changesOf(EventLog log) =>
+      Listenable.merge([log, log.annotations]);
+
+  List<AppEvent>? _from;
+  int _tags = -1;
+  List<Subject> _subjects = const [];
+
+  @override
+  void didUpdateWidget(_SubjectsBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.log != widget.log) {
+      _changes = _changesOf(widget.log);
+      _from = null;
+    }
+  }
+
+  List<Subject> get _current {
+    final events = widget.events();
+    final tags = widget.log.annotationsVersion;
+    if (!identical(events, _from) || tags != _tags) {
+      _from = events;
+      _tags = tags;
+      _subjects = subjectsOf(events);
+    }
+    return _subjects;
+  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: log,
-    builder: (context, _) {
-      final events = where?.call(log.events) ?? log.events;
-      return ListenableBuilder(
-        listenable: Listenable.merge([
-          for (final e in events.whereType<ClipRequested>()) e.annotations,
-        ]),
-        builder: (context, _) => builder(context, subjectsOf(events)),
-      );
-    },
+    listenable: _changes,
+    builder: (context, _) => widget.builder(context, _current),
   );
 }
 
 /// A map merging every subject's latest events, each subject in its own
 /// color (on the Monitoring tab), with the subject's name beside its newest
 /// dot. Tapping a dot opens its event; tapping a name opens the subject.
-/// With [onlyDevice] set, only that device's events show.
+/// Only [profileId]'s events show, and with a device picked
+/// ([EventFilters.onlyDevice]) only that device's.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -134,7 +164,8 @@ class SubjectsMap extends StatelessWidget {
     this.tiles,
     this.onOpenEvent,
     this.deviceId,
-    this.onlyDevice,
+    this.profileId,
+    this.filters,
   });
 
   final EventLog log;
@@ -143,9 +174,13 @@ class SubjectsMap extends StatelessWidget {
   /// This device's ID: events without a device ID (not saved yet) are its.
   final String? deviceId;
 
-  /// The one device whose events show ([EventTimeline.onlyDevice]), like
-  /// the timeline. Every device shows when null or holding null.
-  final ValueListenable<String?>? onlyDevice;
+  /// The signed-in account's profile (null signed out): only its events
+  /// show, as in the timeline ([EventTimeline.ofProfile]).
+  final String? profileId;
+
+  /// The timeline's filters: the map follows its device filter
+  /// ([EventFilters.onlyDevice]). Every device shows without them.
+  final EventFilters? filters;
 
   /// Opens an event (a dot tapped on the map).
   final ValueChanged<AppEvent>? onOpenEvent;
@@ -155,14 +190,17 @@ class SubjectsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([config, onlyDevice]),
+    // Not the search nor the system events: they don't change the map.
+    listenable: Listenable.merge([config, filters?.onlyDevice]),
     builder: (context, _) => _SubjectsBuilder(
       log: log,
-      where: (events) => EventTimeline.ofDevices(
-        events,
-        deviceId: deviceId,
-        onlyDevice: onlyDevice?.value,
-      ),
+      events: () => switch (filters) {
+        final filters? =>
+          filters
+              .viewOf(log, deviceId: deviceId, profileId: profileId)
+              .ofDevices,
+        null => log.eventsOf(profileId),
+      },
       builder: (context, subjects) {
         final limit = config.subjects.mapEvents;
         final dots = <_MapPoint>[];
@@ -183,6 +221,7 @@ class SubjectsMap extends StatelessWidget {
                   builder: (_) => SubjectScreen(
                     subjectId: subject.id,
                     log: log,
+                    profileId: profileId,
                     config: config,
                     tiles: tiles,
                     onOpenEvent: onOpenEvent,
@@ -195,7 +234,7 @@ class SubjectsMap extends StatelessWidget {
         return _SightingsMap(
           key: const Key('subjects-map'),
           // Fitted again to the dots shown when the device filter changes.
-          fitKey: onlyDevice?.value,
+          fitKey: filters?.onlyDevice.value,
           closeUp: true,
           dots: dots,
           labels: labels,
@@ -229,6 +268,7 @@ class EventSubjects extends StatelessWidget {
     builder: (context, _) {
       final theme = Theme.of(context);
       final seen = <String>{};
+      final search = EventSearchScope.maybeOf(context);
       // Each subject's earliest tagged frame.
       final firstMs = <String, int>{};
       for (final tag in event.annotations.tags) {
@@ -245,11 +285,14 @@ class EventSubjects extends StatelessWidget {
               name: tag.name.trim(),
               detected: tag.source == TagSource.detected,
               ms: firstMs[id],
+              // Whether it's the search: highlighted.
+              active:
+                  search != null &&
+                  EventSearchScope.isActive(search.value, tag.name),
             ),
       ];
       if (tags.isEmpty) return const SizedBox.shrink();
       final scheme = theme.colorScheme;
-      final search = EventSearchScope.maybeOf(context);
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Wrap(
@@ -258,70 +301,66 @@ class EventSubjects extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final t in tags)
-              if (search != null &&
-                      EventSearchScope.isActive(search.value, t.name)
-                      // Whether it's the search: highlighted.
-                      case final active)
-                Semantics(
-                  key: Key('event-subject-chip-${t.id}'),
-                  selected: search == null ? null : active,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: active ? scheme.primaryContainer : null,
-                      border: active ? Border.all(color: scheme.primary) : null,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        OpenAtLabel(
-                          key: Key('event-subject-${t.id}'),
-                          ms: t.ms,
-                          onOpenAt: onOpenAt,
-                          filter: t.name,
-                          borderRadius: BorderRadius.circular(4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: 6,
-                            children: [
-                              SubjectSwatch(
-                                key: Key('event-subject-color-${t.id}'),
-                                color: Subject.colorOf(t.id),
-                                size: 12,
+              Semantics(
+                key: Key('event-subject-chip-${t.id}'),
+                selected: search == null ? null : t.active,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: t.active ? scheme.primaryContainer : null,
+                    border: t.active ? Border.all(color: scheme.primary) : null,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OpenAtLabel(
+                        key: Key('event-subject-${t.id}'),
+                        ms: t.ms,
+                        onOpenAt: onOpenAt,
+                        filter: t.name,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          spacing: 6,
+                          children: [
+                            SubjectSwatch(
+                              key: Key('event-subject-color-${t.id}'),
+                              color: Subject.colorOf(t.id),
+                              size: 12,
+                            ),
+                            Text(
+                              t.name,
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: t.active
+                                    ? scheme.onPrimaryContainer
+                                    : null,
+                                fontWeight: t.active ? FontWeight.bold : null,
                               ),
-                              Text(
-                                t.name,
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: active
-                                      ? scheme.onPrimaryContainer
-                                      : null,
-                                  fontWeight: active ? FontWeight.bold : null,
+                            ),
+                            // Found by recognition, not tagged by someone.
+                            if (t.detected)
+                              Tooltip(
+                                message: 'Recognized automatically',
+                                child: Icon(
+                                  Icons.auto_awesome,
+                                  key: Key('event-subject-detected-${t.id}'),
+                                  size: 14,
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              // Found by recognition, not tagged by someone.
-                              if (t.detected)
-                                Tooltip(
-                                  message: 'Recognized automatically',
-                                  child: Icon(
-                                    Icons.auto_awesome,
-                                    key: Key('event-subject-detected-${t.id}'),
-                                    size: 14,
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                            ],
-                          ),
+                          ],
                         ),
-                        RemoveLabelButton(
-                          key: Key('event-subject-remove-${t.id}'),
-                          label: t.name,
-                          kind: 'subject',
-                          onRemove: () => event.annotations.removeName(t.name),
-                        ),
-                      ],
-                    ),
+                      ),
+                      RemoveLabelButton(
+                        key: Key('event-subject-remove-${t.id}'),
+                        label: t.name,
+                        kind: 'subject',
+                        onRemove: () => event.annotations.removeName(t.name),
+                      ),
+                    ],
                   ),
                 ),
+              ),
           ],
         ),
       );
@@ -420,6 +459,9 @@ class SightingFrame extends StatelessWidget {
             image,
             key: const Key('subject-frame'),
             width: width,
+            // Decoded at the size it's shown, not the frame's full size.
+            cacheWidth: (width * MediaQuery.devicePixelRatioOf(context))
+                .round(),
             gaplessPlayback: true,
           ),
           if (frame != null)
@@ -463,9 +505,14 @@ class SubjectScreen extends StatelessWidget {
     required this.subjectId,
     required this.log,
     required this.config,
+    this.profileId,
     this.tiles,
     this.onOpenEvent,
   });
+
+  /// The signed-in account's profile: only its events count, as on the
+  /// Monitoring tab ([EventTimeline.ofProfile]).
+  final String? profileId;
 
   /// Opens a dot's event on the Monitoring tab.
   final ValueChanged<AppEvent>? onOpenEvent;
@@ -490,6 +537,7 @@ class SubjectScreen extends StatelessWidget {
     listenable: config,
     builder: (context, _) => _SubjectsBuilder(
       log: log,
+      events: () => log.eventsOf(profileId),
       builder: (context, subjects) {
         final subject = subjects.where((s) => s.id == subjectId).firstOrNull;
         if (subject == null) {
@@ -862,7 +910,12 @@ class _MapDot extends StatelessWidget {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: open == null ? null : () => open(event),
-            child: _Dot(color: color, opacity: opacity),
+            child: Dot(
+              color: color,
+              opacity: opacity,
+              size: 18,
+              outlined: true,
+            ),
           ),
         ),
       ),
@@ -917,28 +970,6 @@ class _MapName extends StatelessWidget {
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color, required this.opacity, this.size = 18});
-
-  final Color color;
-  final double opacity;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => Opacity(
-    opacity: opacity,
-    child: Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 2),
-      ),
-    ),
-  );
-}
-
 /// The events on the map, newest first; tapping one plays its clip.
 class _SightingList extends StatelessWidget {
   const _SightingList({
@@ -986,7 +1017,8 @@ class _SightingList extends StatelessWidget {
             }, style: small),
             // The same dot as on the map, to match them up.
             trailing: located.contains(s)
-                ? _Dot(
+                ? Dot(
+                    outlined: true,
                     color: color,
                     opacity: SubjectScreen.opacityOf(
                       located.indexOf(s),
@@ -1010,6 +1042,5 @@ String formatSeen(DateTime t, [DateTime? now]) {
   if (t.year == today.year && t.month == today.month && t.day == today.day) {
     return formatEventTime(t);
   }
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${t.year}-${two(t.month)}-${two(t.day)} ${formatEventTime(t)}';
+  return '${formatDate(t)} ${formatEventTime(t)}';
 }
