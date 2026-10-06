@@ -222,8 +222,25 @@ void main() {
       expect((pill.dy - clip.dy).abs(), lessThan(1));
       // No countdown on load (e.g. a page reload): countdowns start with a
       // clip.
-      expect(find.text('Ready'), findsOneWidget);
+      expect(find.byTooltip('Ready to clip'), findsOneWidget);
       expect(find.textContaining(' s'), findsNothing);
+    });
+
+    testWidgets('the readiness pill is only its dot; the tooltip names it', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+
+      final pill = find.byKey(const Key('readiness'));
+      expect(
+        find.descendant(of: pill, matching: find.byType(Text)),
+        findsNothing,
+      );
+      expect(find.text('Ready'), findsNothing);
+      expect(find.byTooltip('Ready to clip'), findsOneWidget);
+      expect(find.bySemanticsLabel('Ready to clip'), findsOneWidget);
+      // A round pill around the dot.
+      expect(tester.getSize(pill), const Size(40, 40));
     });
 
     testWidgets('fits on a 320 dp phone with the widest label', (tester) async {
@@ -283,11 +300,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('Clip started · saving the next 10 s'), findsOneWidget);
-      expect(find.text('Ready'), findsOneWidget);
+      expect(find.byTooltip('Ready to clip'), findsOneWidget);
       expect(find.text('10 s'), findsNothing, reason: 'no countdown');
 
       await advance(tester, const Duration(seconds: 10));
-      expect(find.text('Ready'), findsOneWidget);
+      expect(find.byTooltip('Ready to clip'), findsOneWidget);
 
       // The message was brief (4 s).
       await tester.pump(const Duration(seconds: 5));
@@ -300,7 +317,7 @@ void main() {
       camera.fullCompleters.last.complete(media);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Ready'), findsOneWidget);
+      expect(find.byTooltip('Ready to clip'), findsOneWidget);
       await settleStorage(tester);
     });
 

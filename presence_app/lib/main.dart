@@ -1113,7 +1113,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   // Shows what's on screen (One, All, None); a tap moves
                   // on to the next. Highlighted for All, and for None, the
                   // camera off.
-                  FloatingActionButton.extended(
+                  // Icon only: the tooltip and screen readers name it.
+                  FloatingActionButton(
                     key: const Key('show-all'),
                     heroTag: 'show-all',
                     tooltip: switch (_viewMode) {
@@ -1131,17 +1132,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       CameraViewMode.all => scheme.onSecondaryContainer,
                       CameraViewMode.none => scheme.onErrorContainer,
                     },
-                    icon: Icon(switch (_viewMode) {
+                    onPressed: _nextViewMode,
+                    child: Icon(switch (_viewMode) {
                       CameraViewMode.one => Icons.crop_square,
                       CameraViewMode.all => Icons.grid_view,
                       CameraViewMode.none => Icons.videocam_off,
                     }),
-                    label: Text(switch (_viewMode) {
-                      CameraViewMode.one => 'One',
-                      CameraViewMode.all => 'All',
-                      CameraViewMode.none => 'None',
-                    }),
-                    onPressed: _nextViewMode,
                   ),
                   if (widget.rig.devices.length > 1 && !widget.rig.paused)
                     FloatingActionButton(
@@ -1210,14 +1206,16 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
     final countdown = seconds >= 60
         ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
         : '$seconds s';
+    // Only the dot, and the countdown while there is one: the tooltip and
+    // screen readers spell the state out.
     final (
       Widget leading,
-      String label,
+      String? label,
       String semantics,
     ) = switch (readiness.state) {
       ClipReadinessState.ready => (
         _Dot(color: Gruvbox.green),
-        'Ready',
+        null,
         'Ready to clip',
       ),
       ClipReadinessState.cooldown => (
@@ -1230,12 +1228,12 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
       ),
       ClipReadinessState.unavailable => (
         _Dot(color: scheme.outline),
-        'Not ready',
+        null,
         'Camera not ready',
       ),
       ClipReadinessState.paused => (
         _Dot(color: scheme.outline),
-        'Off',
+        null,
         'Camera off: nothing is recorded',
       ),
     };
@@ -1333,9 +1331,9 @@ class _CameraStatus extends StatelessWidget {
   /// The pill saying a clip just started, if one did.
   final Widget? message;
 
-  /// Room kept on the right for All, Flip and Clip when the pills are in a
-  /// row.
-  static const double buttonsRoom = 16 + 100 + 12 + 56 + 12 + 120;
+  /// Room kept on the right for the view button, Flip and Clip when the
+  /// pills are in a row.
+  static const double buttonsRoom = 16 + 56 + 12 + 56 + 12 + 120;
 
   /// Narrower than this, the pills stack.
   static const double stackBelow = 600;

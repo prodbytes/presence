@@ -6,15 +6,16 @@
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
-- **The view button** (One / All / None, see [Navigation](navigation.md))
-  chooses what the Camera tab shows: **One**, this camera full screen;
+- **The view button** (One / All / None, an icon-only button, see
+  [Navigation](navigation.md)) chooses what the Camera tab shows: **One**, this camera full screen;
   **All**, the grid ([All devices](#all-devices) below); **None**, the
   camera off.
   - **None** closes the camera (`CameraRig.setPaused`): nothing is
     recorded, no motion, scheduled or Capture all clips are taken, and
     Flip and Clip are hidden. The camera shows "Camera off / Nothing is
     recorded until you turn it on." with **Turn on**, and the readiness
-    pill says **Off**.
+    pill is a gray dot whose tooltip says "Camera off: nothing is
+    recorded".
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
     camera's retries) but the button (None → One) or Turn on.
   - It's a camera setting (`camera.paused`), saved with the device's

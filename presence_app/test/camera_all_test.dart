@@ -216,6 +216,7 @@ void main() {
     await tester.tap(find.byTooltip('Turn the camera on'));
     await tester.pump();
     expect(find.byKey(const Key('camera-paused')), findsNothing);
-    expect(find.text('One'), findsOneWidget);
+    expect(find.byTooltip('Show all devices'), findsOneWidget);
+    expect(find.text('One'), findsNothing);
   });
 }

@@ -91,32 +91,47 @@ void main() {
       await tester.tap(find.byKey(const Key('google-sign-in')));
       await tester.pumpAndSettle();
       final button = find.byKey(const Key('show-all'));
-      String label() => tester
-          .widget<Text>(
-            find.descendant(of: button, matching: find.byType(Text)),
+      // Icon only: no text, the tooltip says what a tap does.
+      IconData? label() => tester
+          .widget<Icon>(
+            find.descendant(of: button, matching: find.byType(Icon)),
           )
-          .data!;
+          .icon;
+      expect(
+        find.descendant(of: button, matching: find.byType(Text)),
+        findsNothing,
+      );
+      for (final text in ['One', 'All', 'None']) {
+        expect(find.text(text), findsNothing);
+      }
+      expect(find.byTooltip('Show all devices'), findsOneWidget);
 
-      expect(label(), 'One');
+      expect(label(), Icons.crop_square);
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(label(), 'All');
+      expect(label(), Icons.grid_view);
+      expect(find.byTooltip('Turn the camera off'), findsOneWidget);
       expect(find.textContaining('· live'), findsOneWidget);
 
       // None: the camera off, the single view, no Clip.
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(label(), 'None');
+      expect(label(), Icons.videocam_off);
+      expect(find.byTooltip('Turn the camera on'), findsOneWidget);
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
       expect(find.textContaining('· live'), findsNothing);
       expect(find.byTooltip('Clip'), findsNothing);
-      expect(find.text('Off'), findsOneWidget);
+      expect(
+        find.byTooltip('Camera off: nothing is recorded'),
+        findsOneWidget,
+      );
+      expect(find.text('Off'), findsNothing);
 
       // Back to One: the camera reopens.
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(label(), 'One');
+      expect(label(), Icons.crop_square);
       expect(find.byKey(const Key('camera-paused')), findsNothing);
       expect(find.byTooltip('Clip'), findsOneWidget);
       expect(backend.opened, hasLength(2));

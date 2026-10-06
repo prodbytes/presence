@@ -63,8 +63,10 @@ in the app bar**, which flip between full screens.
     the profile takes a clip (see
     [Camera screen](camera.md#capture-all)); otherwise only this camera.
   - **The view button** sits left of Flip, shown with access whether or
-    not a camera is open. Its label and icon say what the tab shows, and a
-    tap moves on, One → All → None → One:
+    not a camera is open. A round floating action button with only an
+    icon, no text label: its icon and colors say what the tab shows, its
+    tooltip and screen-reader label what a tap does, and a tap moves on,
+    One → All → None → One:
     - **One** (a square; quiet): this camera, full screen. Tooltip "Show
       all devices". It's the state at launch, unless the camera was left
       off.
@@ -107,8 +109,11 @@ in the app bar**, which flip between full screens.
     **Tapping it** opens the Log tab's health panel when the Log tab is
     shown, Settings' health line otherwise. Gone once every check passes.
   - **Readiness indicator:** shows whether a clip taken now would be
-    complete:
-    - **"Ready"** (green dot): shown as soon as a camera is open, including
+    complete. It's only the colored dot, in a round 40 dp pill, with no
+    text label; during the motion cooldown the countdown number shows
+    beside the dot, since it's information rather than a label. The
+    tooltip and screen-reader label spell each state out:
+    - **Ready** (green dot only; "Ready to clip"): shown as soon as a camera is open, including
       right after a page reload or a flip. Only **automatic (motion)
       clips** start a countdown. A **Clip button press doesn't**: the pill
       stays Ready while its *after* part records, and the clip message
@@ -123,6 +128,10 @@ in the app bar**, which flip between full screens.
       press during the cooldown leaves the countdown as it is; the Clip
       button is never blocked. With motion clips turned off there's no
       cooldown.
+
+    - **Not ready** (gray dot only; "Camera not ready") and **Off** (gray
+      dot only; "Camera off: nothing is recorded", the view button's
+      None).
 
     The countdown shows only the number, to keep the pill short. The
     pill refreshes twice a second, and its tooltip and screen-reader label
