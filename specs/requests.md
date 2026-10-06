@@ -3540,3 +3540,39 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md#pinning-the-position),
        [Settings screen](settings.md), [Configuration](configuration.md),
        [Devices, users and places](devices-users-places.md).
+
+293. **Copies count on events; copy on capture over S3 and MQTT.** (2026-10-06)
+     - Asked: "I still don't see the copies count on events. When an
+       event is taken, copy to S3 and send an MQTT message to other
+       devices to copy."
+     - Checked: the flow already worked as asked: a saved event is
+       uploaded to S3 by the next pass and then published on `events`
+       (at capture, and again when its clip completes, after the
+       recording, thumbnail and clip record are up); receivers store it
+       at once and fetch the clip, thumbnail and recording from S3. A
+       new end-to-end test covers it.
+     - Changed: **copy acks** ([Event copies](event-copies.md)): a device
+       that holds a full copy of another device's event (record, tagged
+       frames, clip with its recording; the record alone without a clip)
+       publishes `{v:1, kind:"copied", deviceId, identityId, sentAt,
+       eventIds}` on `acks`, batched (1 s, up to 32 IDs and 1 KB per
+       message, one per second, at most 1000 waiting), once per event,
+       retried at the next full fetch if it didn't go;
+       `LiveSync.parseCopied` validates them (version, kind, identity,
+       safe IDs, integer `sentAt`, 1 KB), own ones are ignored, repeats
+       change nothing. **`EventCopies`** keeps per event whether this
+       device and the cloud hold it (`CloudSync.copyOf`) and which devices
+       acked it, saved in the `settings` store (`copies`, the 2000 most
+       recent events). **A copies count** on every event card (beside the
+       device tag) and in the clip player: "3 copies", "1 copy — not
+       uploaded yet", with the holders in the tooltip; with live sync
+       off, what's known, and a note that other devices' copies are
+       unknown. Holders are not written into the event JSON in S3 (each
+       ack would change its ETag and loop uploads between devices):
+       MQTT only. Deleted events are neither counted nor acked nor
+       shown with a count, and a deleted device is dropped as a holder. No IoT
+       policy change. New `event_copies_test.dart`. Specs: [Event
+       copies](event-copies.md), [Live sync](live-sync.md),
+       [Events](events.md), [Cloud sync](cloud-sync.md), [Device
+       presence](device-presence.md), [Recording and data
+       formats](data-formats.md), [index](README.md).

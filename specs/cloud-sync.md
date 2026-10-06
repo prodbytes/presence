@@ -251,6 +251,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   fetched from the bucket by a pass started for them
   (`CloudSync._fetchWanted`) once the clip is there. An event that arrives
   both ways is handed over once.
+- **Copies** ([Event copies](event-copies.md)): `CloudSync.copies`
+  (`EventCopies`, the app's instance) records whether this device and the
+  cloud hold each event (`copyOf`), checked when an event is saved here,
+  uploaded, handed over by a fetch or live sync, when its clip arrives or
+  its recording downloads, and for the whole window at each full fetch;
+  another device's event held here in full is acked over live sync
+  (`LiveSync.ackCopied`), once. Other devices' acks add them as holders.
 
 ## How
 

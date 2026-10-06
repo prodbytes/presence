@@ -7,10 +7,12 @@ import 'package:flutter/foundation.dart';
 
 import '../auth/auth_service.dart';
 import '../auth/roles_service.dart';
+import '../config.dart' show LiveMode;
 import '../events.dart';
 import '../storage/event_store.dart';
 import '../storage/media_store.dart';
 import 'cognito.dart';
+import 'event_copies.dart';
 import 'live_sync.dart';
 import 's3.dart';
 import 'sigv4.dart';
@@ -264,13 +266,20 @@ class CloudSync extends ChangeNotifier {
     this.fullFetchEvery = const Duration(hours: 1),
     this.maxBackoff = 16,
     this.live,
+    EventCopies? copies,
     bool? prefetchRecordings,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
+       _ownsCopies = copies == null,
        prefetchRecordings = prefetchRecordings ?? !kIsWeb {
+    this.copies = copies ?? EventCopies(store: _store);
     auth.addListener(_onAuthChanged);
     roles?.addListener(_onAuthChanged);
-    live?.addListener(notifyListeners);
+    live?.addListener(_onLiveChanged);
+    _onLiveChanged();
+    _deviceId.then((id) {
+      if (!_disposed) this.copies.deviceId ??= id;
+    }).ignore();
     _changes = changes.listen(_onChanged);
     _onAuthChanged();
   }
@@ -279,6 +288,12 @@ class CloudSync extends ChangeNotifier {
 
   /// Live sync over MQTT, when given and enabled (see the class comment).
   final LiveSync? live;
+
+  /// Who holds a copy of each event (see [EventCopies]): this device and
+  /// the cloud, as this sync finds them, and other devices, from their
+  /// `copied` acks over [live].
+  late final EventCopies copies;
+  final bool _ownsCopies;
 
   /// When given, this device's settings sync too: fetched on the first pass
   /// for a user (taken on when newer than the local ones), and uploaded
@@ -394,6 +409,21 @@ class CloudSync extends ChangeNotifier {
   late final String _fallbackDeviceId =
       'device-${Random().nextInt(1 << 30).toRadixString(36)}';
 
+  /// This device's ID.
+  late final Future<String> _deviceId = () async {
+    try {
+      return await settings?.deviceId ?? _fallbackDeviceId;
+    } catch (_) {
+      return _fallbackDeviceId;
+    }
+  }();
+
+  /// The folder (identity ID) of the last pass's session.
+  String? _identity;
+
+  /// Copy checks ([_noteCopies]), one after another.
+  Future<void> _copyChecks = Future.value();
+
   /// Clips of events that arrived over live sync (or changed in the
   /// bucket) that the device doesn't have, by ID, with their events' times
   /// and a serial number ([_want]): the next pass looks for them in the
@@ -435,7 +465,7 @@ class CloudSync extends ChangeNotifier {
   int get downloaded => _downloaded;
 
   /// Completes when the current sync (if any) has finished (for tests),
-  /// background downloads of recordings included.
+  /// background downloads of recordings and copy checks included.
   Future<void> idle() async {
     // Let pending change notifications reach the listener first.
     await Future<void>.delayed(Duration.zero);
@@ -448,8 +478,11 @@ class CloudSync extends ChangeNotifier {
       }
       await _running;
       await _prefetching;
+      await _copyChecks;
       await Future<void>.delayed(Duration.zero);
     }
+    // And the copy checks the last pass started.
+    await _copyChecks;
   }
 
   /// The profile whose data syncs: the signed-in account's, once the auth
@@ -510,7 +543,7 @@ class CloudSync extends ChangeNotifier {
     if (live == null || !live.enabled || _liveFor == session.prefix) return;
     if (session.credentials == null) return;
     _liveFor = session.prefix;
-    final deviceId = await settings?.deviceId ?? _fallbackDeviceId;
+    final deviceId = await _deviceId;
     if (_disposed || _owner != owner || _liveFor != session.prefix) return;
     live.start(
       LiveLink(
@@ -526,8 +559,183 @@ class CloudSync extends ChangeNotifier {
           return credentials;
         },
         onEvent: (event) => _onLive(event, owner),
+        onCopied: _onCopied,
       ),
     );
+  }
+
+  /// Live sync's state changed: so may whether other devices' copies are
+  /// heard of.
+  void _onLiveChanged() {
+    final live = this.live;
+    copies.liveOn =
+        live != null &&
+        live.enabled &&
+        live.config.mode != LiveMode.never &&
+        live.state != LiveSyncState.off;
+    notifyListeners();
+  }
+
+  /// Another device holds copies of events.
+  void _onCopied(CopiedMessage ack) {
+    for (final id in ack.eventIds) {
+      copies.addDevice(id, ack.deviceId, ack.sentAt);
+    }
+  }
+
+  /// Finds out again whether this device and the cloud hold the events
+  /// [ids] ([_checkCopies]; all of the window's with null), after the ones
+  /// asked before.
+  Future<void> _noteCopies(Iterable<String>? ids) {
+    final todo = ids == null
+        ? null
+        : {
+            for (final id in ids)
+              if (LiveSync.isSafeId(id)) id,
+          };
+    if ((todo != null && todo.isEmpty) || _disposed) return _copyChecks;
+    return _copyChecks = _copyChecks.then((_) => _checkCopies(todo)).catchError(
+      (Object e) {
+        debugPrint('Presence: could not check event copies: $e');
+      },
+    );
+  }
+
+  /// Records whether this device and the cloud hold each of the events
+  /// [ids] ([copyOf]), or with [ids] null each of the profile's events
+  /// from the window (at a full fetch). Events this device now holds that
+  /// another device recorded, and that it hasn't said so of yet, are acked
+  /// over [live] ([LiveSync.ackCopied]).
+  Future<void> _checkCopies(Set<String>? ids) async {
+    if (_disposed) return;
+    final store = await _store;
+    final synced = _synced ??= await store.syncedKeys();
+    final me = await _deviceId;
+    final prefix = _identity;
+    final owner = _owner;
+    final records = <Map<String, Object?>>[];
+    if (ids == null) {
+      final since = _now().toUtc().subtract(_window).millisecondsSinceEpoch;
+      for (final record in await store.allEvents()) {
+        final time = record['time'];
+        if (time is! int || time < since) continue;
+        // Settled already: held here and in the cloud, and acked (or
+        // recorded here). Its clip isn't read again.
+        final known = copies.of('${record['id']}');
+        if (known != null &&
+            known.self &&
+            known.cloud &&
+            (known.acked || record['deviceId'] == me) &&
+            !AppEvent.isDeletedRecord(record)) {
+          continue;
+        }
+        records.add(record);
+      }
+    } else {
+      for (final id in ids) {
+        if (await store.getEvent(id) case final record?) records.add(record);
+      }
+    }
+    final toAck = <String>[];
+    for (final record in records) {
+      await _breathe(50);
+      if (_disposed) return;
+      final id = record['id'];
+      if (id is! String) continue;
+      // Deleted (hidden): neither counted nor acked.
+      if (AppEvent.isDeletedRecord(record)) {
+        copies.forget(id);
+        continue;
+      }
+      final clipId = record['clipId'];
+      final clip = clipId is String ? await store.getClip(clipId) : null;
+      final (:self, :cloud) = copyOf(
+        record,
+        clip: clip,
+        synced: synced,
+        prefix: prefix,
+        deviceId: me,
+      );
+      copies.setLocal(id, self: self, cloud: cloud);
+      final origin = record['deviceId'];
+      if (self &&
+          origin is String &&
+          origin != me &&
+          owner != null &&
+          AppEvent.profileOf(record) == owner &&
+          !(copies.of(id)?.acked ?? false)) {
+        toAck.add(id);
+      }
+    }
+    final live = this.live;
+    if (toAck.isEmpty || live == null) return;
+    // Not holding up the next checks: a scheduled connection may take a
+    // while to send them.
+    live.ackCopied(toAck).then((sent) {
+      if (sent && !_disposed) copies.markAcked(toAck);
+    }).ignore();
+  }
+
+  /// Whether this device ([self]) and the cloud hold a full copy of the
+  /// event [record]: the event, the frames its tags use, and its clip
+  /// ([clip], its record here) with the recording. An event without a clip
+  /// is held with its record (and frames). [synced] is the synced-keys
+  /// store, [prefix] the profile's folder, [deviceId] this device's.
+  ///
+  /// - This device: an event it recorded is always held here (its clip,
+  ///   even while recording, is all there is of it). Another device's is
+  ///   held once its frames are here and its clip's record is, with the
+  ///   recording downloaded (not pending, `fetch:`), unless the clip failed
+  ///   there (then there's no recording to have).
+  /// - The cloud: the event's JSON is in the bucket (uploaded or fetched),
+  ///   with its frames and, for a clip, its recording (uploaded, or seen
+  ///   there by a fetch). Not while the clip is still recording.
+  @visibleForTesting
+  static ({bool self, bool cloud}) copyOf(
+    Map<String, Object?> record, {
+    Map<String, Object?>? clip,
+    required Map<String, String> synced,
+    required String? prefix,
+    required String deviceId,
+  }) {
+    final mine = record['deviceId'] == deviceId;
+    final clipId = record['clipId'];
+    final frames = record['frames'];
+    final frameIds = _frameIds(record).toList();
+    bool inCloud(String key) =>
+        prefix != null && synced.containsKey('$prefix/$key');
+    final framesHere = frameIds.every(
+      (f) => frames is Map && frames.containsKey(f),
+    );
+    final framesUp =
+        clipId is! String ||
+        frameIds.every((f) => inCloud(frameKeyOf(clipId, f)));
+    final eventUp = inCloud(eventKey(record));
+    if (clipId is! String) {
+      return (self: mine || framesHere, cloud: eventUp && framesUp);
+    }
+    final recordings = ['media/$clipId.webm', 'media/$clipId.mp4'];
+    final recordingUp = recordings.any(inCloud);
+    final state = clip?['state'];
+    if (state == 'failed') {
+      return (self: mine || framesHere, cloud: eventUp && framesUp);
+    }
+    if (mine) {
+      return (
+        self: true,
+        cloud: state == 'complete' && eventUp && framesUp && recordingUp,
+      );
+    }
+    final cloud = eventUp && framesUp && recordingUp;
+    if (clip == null || state != 'complete') return (self: false, cloud: cloud);
+    final ref = clip['full'] ?? clip['past'];
+    final recordingHere =
+        ref is! Map ||
+        (recordingUp &&
+            !recordings.any(
+              (k) => prefix != null && synced.containsKey('fetch:$prefix/$k'),
+            ));
+    return (self: framesHere && recordingHere, cloud: cloud);
   }
 
   /// Takes an event another device of [owner]'s profile published (live
@@ -626,6 +834,7 @@ class CloudSync extends ChangeNotifier {
       _want(clipId, time);
       _schedule(immediately: true);
     }
+    if (current()) _noteCopies({id}).ignore();
   }
 
   /// Whether [remote], a copy of the event [local] stored here, deletes it.
@@ -690,6 +899,8 @@ class CloudSync extends ChangeNotifier {
       _reconcile = true;
     } else {
       _dirty.addAll(ids);
+      // Saved here: held here (an event recorded here, or its clip done).
+      _noteCopies(ids);
     }
     // While backing off, the timer's next try takes them.
     if (_ticksToSkip == 0) _schedule();
@@ -777,6 +988,7 @@ class CloudSync extends ChangeNotifier {
     CloudSession? used;
     Future<void> pass(CloudSession session) async {
       used = session;
+      _identity = session.prefix;
       final now = _now().toUtc();
       final last = _lastFullFetch;
       final full = last == null || now.difference(last) >= fullFetchEvery;
@@ -801,6 +1013,9 @@ class CloudSync extends ChangeNotifier {
       }
       await _fetchWanted(session);
       await _syncAll(session, reconcile ? null : dirty);
+      // Who holds what, for every event of the window (and acks not sent
+      // before, such as while live sync was off).
+      if (full) _noteCopies(null).ignore();
     }
 
     void giveBack() {
@@ -970,8 +1185,15 @@ class CloudSync extends ChangeNotifier {
     }
     changed.sort((a, b) => b.compareTo(a));
 
-    // Hands a batch over, and counts it.
-    Future<void> deliver(RemoteRecords records) => _deliver(records);
+    // Hands a batch over, and counts it; who holds them is checked once
+    // they're all in (and marked as synced).
+    final delivered = <String>{};
+    Future<void> deliver(RemoteRecords records) {
+      for (final e in [...records.events, ...records.updated]) {
+        if (e['id'] case final String id) delivered.add(id);
+      }
+      return _deliver(records);
+    }
 
     // The new events, a batch at a time, newest first.
     var kept = 0;
@@ -1053,6 +1275,7 @@ class CloudSync extends ChangeNotifier {
         await synced(key, _fingerprint(_eventJson(record)));
       }
     }
+    _noteCopies(delivered).ignore();
   }
 
   /// Downloads the events at [keys] (missing here) that are from [since]
@@ -1307,6 +1530,11 @@ class CloudSync extends ChangeNotifier {
     }
     await _deliver(RemoteRecords(clips: clips, live: true));
     fetched.forEach(done);
+    // Their events may be held here now (or once their recordings come).
+    _noteCopies([
+      for (final c in clips)
+        if (c['eventId'] case final String id) id,
+    ]).ignore();
   }
 
   void _wantedFailed(String id, Object e) {
@@ -1422,6 +1650,13 @@ class CloudSync extends ChangeNotifier {
         await _markSynced(store, objectKey, mediaId);
         await store.unmarkSynced(_fetchKey(objectKey));
         _synced?.remove(_fetchKey(objectKey));
+        // Its event is held here now.
+        if (RegExp(r'^media/(.+)\.(?:webm|mp4)$').firstMatch(key)?[1]
+            case final clipId?) {
+          if ((await store.getClip(clipId))?['eventId'] case final String id) {
+            _noteCopies({id}).ignore();
+          }
+        }
         return true;
       } finally {
         _inFlight.remove(objectKey);
@@ -1659,6 +1894,8 @@ class CloudSync extends ChangeNotifier {
       );
     }
 
+    // Events uploaded now: the cloud holds them.
+    final uploadedEvents = <String>{};
     for (final snapshot in events) {
       await _breathe();
       final id = snapshot['id']! as String;
@@ -1705,6 +1942,7 @@ class CloudSync extends ChangeNotifier {
           'application/json',
           keepETag: true,
         );
+        if (etag != null) uploadedEvents.add(id);
         // Then the profile's other devices hear of it at once (live
         // sync): recent events only, not a reconciliation's old ones.
         final time = record['time'];
@@ -1730,6 +1968,7 @@ class CloudSync extends ChangeNotifier {
         await live.publishEvent(event, key: key, etag: etag);
       }
     }
+    _noteCopies(uploadedEvents).ignore();
   }
 
   static Iterable<String> _frameIds(Map<String, Object?> event) sync* {
@@ -1854,7 +2093,8 @@ class CloudSync extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    live?.removeListener(notifyListeners);
+    live?.removeListener(_onLiveChanged);
+    if (_ownsCopies) copies.dispose();
     live?.stop();
     _timer?.cancel();
     _periodic?.cancel();
