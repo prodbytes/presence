@@ -80,6 +80,10 @@
     profile ID as the user identifier);
   - the app trades that token for AWS credentials
     (`GetCredentialsForIdentity`; see [Cloud sync](cloud-sync.md#how));
+  - the API also attaches the live-sync IoT policy to the identity
+    (`iot:AttachPolicy`, idempotent; a failure is logged and doesn't fail
+    the call), so its devices can use [live sync](live-sync.md) on their
+    profile's own MQTT topics;
   - every subject of the profile gets the same identity, so the same
     folder;
   - the bucket policy is unchanged:

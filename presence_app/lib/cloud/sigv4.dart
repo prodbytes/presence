@@ -100,6 +100,61 @@ class SigV4Signer {
     };
   }
 
+  /// A presigned WebSocket URL for AWS IoT Core's MQTT endpoint ([host],
+  /// its `iot:Data-ATS` endpoint): `wss://<host><path>?X-Amz-...`, signed
+  /// with [credentials] for this signer's [service] (`iotdevicegateway`),
+  /// valid for [expires] from [now]. Only `host` is signed and the payload
+  /// is empty; the session token is appended after signing, as AWS IoT
+  /// requires. See
+  /// https://docs.aws.amazon.com/iot/latest/developerguide/protocols.html
+  String presignWebSocket({
+    required String host,
+    String path = '/mqtt',
+    required AwsCredentials credentials,
+    required DateTime now,
+    Duration expires = const Duration(hours: 1),
+  }) {
+    final time = now.toUtc();
+    final amzDate = _amzDate(time);
+    final date = amzDate.substring(0, 8);
+    final scope = '$date/$region/$service/aws4_request';
+    final query = {
+      'X-Amz-Algorithm': ['AWS4-HMAC-SHA256'],
+      'X-Amz-Credential': ['${credentials.accessKeyId}/$scope'],
+      'X-Amz-Date': [amzDate],
+      'X-Amz-Expires': ['${expires.inSeconds}'],
+      'X-Amz-SignedHeaders': ['host'],
+    };
+    final canonicalQueryString = canonicalQuery(query);
+    final canonicalRequest = [
+      'GET',
+      canonicalPath(path),
+      canonicalQueryString,
+      'host:$host',
+      '',
+      'host',
+      emptyPayloadHash,
+    ].join('\n');
+    final stringToSign = [
+      'AWS4-HMAC-SHA256',
+      amzDate,
+      scope,
+      sha256.convert(utf8.encode(canonicalRequest)).toString(),
+    ].join('\n');
+    var key = _hmac(utf8.encode('AWS4${credentials.secretAccessKey}'), date);
+    key = _hmac(key, region);
+    key = _hmac(key, service);
+    key = _hmac(key, 'aws4_request');
+    final signature = Hmac(
+      sha256,
+      key,
+    ).convert(utf8.encode(stringToSign)).toString();
+    final token = credentials.sessionToken;
+    return 'wss://$host$path?$canonicalQueryString'
+        '&X-Amz-Signature=$signature'
+        '${token == null ? '' : '&X-Amz-Security-Token=${_uriEncode(token)}'}';
+  }
+
   /// The URI path as S3 signs it: each segment URI-encoded once.
   static String canonicalPath(String path) {
     if (path.isEmpty) return '/';

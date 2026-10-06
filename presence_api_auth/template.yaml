@@ -45,6 +45,15 @@ Parameters:
     Description: >
       The bucket cloud sync uploads to (presence-user-data's
       UserDataBucketName). Only reported as set or not, for the app's health line.
+  IotPolicyName:
+    Type: String
+    Default: ''
+    Description: >
+      Live sync's AWS IoT policy (presence-identity's LivePolicyName), which
+      POST /api/auth/credentials attaches to each profile's Cognito identity
+      (AWS IoT requires one for authenticated identities). Empty: live sync
+      is off, and nothing is attached.
+    AllowedPattern: '[A-Za-z0-9_+=,.@-]*'
   Architecture:
     Type: String
     Default: arm64
@@ -70,6 +79,7 @@ Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
+  HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
 
 Globals:
   Function:
@@ -456,6 +466,8 @@ Resources:
           USER_DATA_BUCKET: !Ref UserDataBucket
           # The identity pool's DeveloperProviderName (presence_infra/identity.yaml).
           DEVELOPER_PROVIDER: login.presence.profiles
+          # Live sync's IoT policy, attached to each identity (empty: off).
+          IOT_POLICY_NAME: !Ref IotPolicyName
       Policies:
         - DynamoDBReadPolicy:
             TableName: !Ref UserRolesTable
@@ -497,6 +509,17 @@ Resources:
               Resource: !Sub
                 - "arn:${AWS::Partition}:s3:::${Bucket}"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+            # Live sync: attaches the IoT policy to the caller's identity.
+            # AttachPolicy can only be scoped to certificates and thing
+            # groups, not to a Cognito identity target or a policy, so it's
+            # any resource; the function only ever attaches IotPolicyName.
+            # Without one, a certificate that doesn't exist ("none").
+            - Effect: Allow
+              Action: iot:AttachPolicy
+              Resource: !If
+                - HasIotPolicy
+                - '*'
+                - !Sub "arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:cert/none"
       Events:
         Credentials:
           Type: HttpApi
