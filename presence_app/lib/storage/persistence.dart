@@ -190,18 +190,19 @@ class Persistence implements DeviceSettings {
     if (_disposed) return;
     log.addHistory(history);
 
-    // Keep the motion cooldown across restarts: it runs from the last
-    // automatic clip (records are newest first).
-    final lastMotion = records.firstWhere(
+    // Keep the clip cooldown across restarts: it runs from this device's
+    // last clip, whatever took it (records are newest first). Clips other
+    // devices took, fetched from the cloud, don't count.
+    final device = await _deviceId;
+    if (_disposed) return;
+    final lastClip = records.firstWhere(
       (r) =>
           r['type'] == ClipRequested.clipRequestedType &&
-          r['trigger'] == ClipTrigger.motion.name,
+          (r['deviceId'] == null || r['deviceId'] == device),
       orElse: () => const {},
     )['time'];
-    if (lastMotion is int) {
-      _rig?.restoreMotionCooldown(
-        DateTime.fromMillisecondsSinceEpoch(lastMotion),
-      );
+    if (lastClip is int) {
+      _rig?.restoreCooldown(DateTime.fromMillisecondsSinceEpoch(lastClip));
     }
   }
 
@@ -349,9 +350,14 @@ class Persistence implements DeviceSettings {
   /// events) without publishing them, and returns their events, ready for
   /// `EventLog.addHistory`. Their recordings are already stored (cloud
   /// sync saves each as it's downloaded).
+  ///
+  /// With [awaitClips] (events that just arrived over live sync), a clip
+  /// event whose clip isn't here yet shows as recording on another device
+  /// ([VideoClip.awaitingRemote]) until it arrives ([showArrivedClips]).
   Future<List<AppEvent>> importRemote({
     required List<Map<String, Object?>> events,
     required List<Map<String, Object?>> clips,
+    bool awaitClips = false,
   }) async {
     final store = await _store;
     for (final clip in clips) {
@@ -361,7 +367,40 @@ class Persistence implements DeviceSettings {
       await store.putEvent(event);
     }
     if (events.isEmpty) return const [];
-    return _loadHistory(store, events);
+    return _loadHistory(store, events, awaitClips: awaitClips);
+  }
+
+  /// Shows again, with their clips, the events in [log] that are among
+  /// [clips]' (just stored) and were shown without them: awaited from
+  /// another device ([VideoClip.awaitingRemote]), or restored before their
+  /// clip came (a clip whose recording is missing). Their thumbnails
+  /// appear (in the Events tab and the All grid), and they play.
+  Future<void> showArrivedClips(
+    List<Map<String, Object?>> clips,
+    EventLog log,
+  ) async {
+    if (clips.isEmpty) return;
+    final clipIds = {for (final c in clips) c['id']};
+    final eventIds = {for (final c in clips) c['eventId']};
+    final store = await _store;
+    final records = <Map<String, Object?>>[];
+    for (final e in log.events) {
+      final waiting = switch (e) {
+        ClipRequested(:final clip) =>
+          clip.awaitingRemote && clipIds.contains(clip.id),
+        _ => e.type == AppEvent.genericType && eventIds.contains(e.id),
+      };
+      if (!waiting) continue;
+      final record = await store.getEvent(e.id);
+      if (record == null ||
+          record['type'] != ClipRequested.clipRequestedType ||
+          !clipIds.contains(record['clipId'])) {
+        continue;
+      }
+      records.add(record);
+    }
+    if (records.isEmpty) return;
+    log.replace(await _loadHistory(store, records));
   }
 
   /// Takes on events another device changed ([records], fetched again by
@@ -586,8 +625,9 @@ class Persistence implements DeviceSettings {
 
   Future<List<AppEvent>> _loadHistory(
     EventStore store,
-    List<Map<String, Object?>> records,
-  ) async {
+    List<Map<String, Object?>> records, {
+    bool awaitClips = false,
+  }) async {
     final media = await _media;
     final cameraLabels = {
       for (final c in await store.allCameras())
@@ -597,6 +637,20 @@ class Persistence implements DeviceSettings {
       for (final c in await store.allClips())
         c['id']! as String: _restoreClip(media, c, cameraLabels),
     };
+    if (awaitClips) {
+      for (final r in records) {
+        if (r['type'] != ClipRequested.clipRequestedType) continue;
+        final clipId = r['clipId'];
+        if (clipId is! String || clips.containsKey(clipId)) continue;
+        final cameraId = r['cameraId'] as String? ?? '';
+        clips[clipId] = VideoClip.awaitingRemote(
+          id: clipId,
+          cameraId: cameraId,
+          cameraLabel:
+              cameraLabels[cameraId] ?? r['detail'] as String? ?? 'Camera',
+        );
+      }
+    }
 
     final events = [for (final record in records) _restoreEvent(record, clips)];
     // Suggestions point at their clips' events.

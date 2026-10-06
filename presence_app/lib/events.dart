@@ -249,6 +249,22 @@ class EventLog extends ChangeNotifier {
     if (_events.length != before) notifyListeners();
   }
 
+  /// Puts [events] in place of the ones in the log with their IDs (shown
+  /// again, such as an event whose clip has arrived from the cloud). Events
+  /// not in the log are left out.
+  void replace(Iterable<AppEvent> events) {
+    final byId = {for (final e in events) e.id: e};
+    var changed = false;
+    for (var i = 0; i < _events.length; i++) {
+      final replacement = byId[_events[i].id];
+      if (replacement != null && !identical(replacement, _events[i])) {
+        _events[i] = replacement;
+        changed = true;
+      }
+    }
+    if (changed) notifyListeners();
+  }
+
   /// Adds events restored from storage, keeping the timeline newest first.
   /// Events already in the log (published since launch) are kept.
   void addHistory(Iterable<AppEvent> history) {

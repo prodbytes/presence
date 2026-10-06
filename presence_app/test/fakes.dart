@@ -11,6 +11,7 @@ import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
+import 'package:presence_app/cloud/sigv4.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -263,6 +264,13 @@ class FakeCloudBackend implements CloudBackend {
   /// The folder sessions use (the profile's identity); a link changes it.
   String prefix = 'us-east-1:identity';
 
+  /// The credentials sessions give live sync.
+  AwsCredentials? credentials = const AwsCredentials(
+    accessKeyId: 'AKIDEXAMPLE',
+    secretAccessKey: 'secret',
+    sessionToken: 'token',
+  );
+
   /// Thrown by the next connect(), once.
   Object? failConnect;
 
@@ -278,9 +286,21 @@ class FakeCloudBackend implements CloudBackend {
   /// The keys uploaded as streams (recordings), in order.
   final streamed = <String>[];
 
+  /// While set, connect() waits for it (counting the waits in [held]).
+  Completer<void>? holdConnect;
+  int held = 0;
+
+  /// Awaited by each put() before it stores (relative key): to hold one
+  /// up.
+  Future<void> Function(String key)? beforePut;
+
   @override
   Future<CloudSession> connect(String idToken) async {
     tokens.add(idToken);
+    if (holdConnect case final hold?) {
+      held++;
+      await hold.future;
+    }
     if (offline case final e?) throw e;
     if (failConnect case final e?) {
       failConnect = null;
@@ -302,11 +322,15 @@ class FakeCloudSession implements CloudSession {
   late final String prefix = backend.prefix;
 
   @override
+  AwsCredentials? get credentials => backend.credentials;
+
+  @override
   Future<void> put(String key, Uint8List bytes, String contentType) async {
     if (backend.failPut case final e?) {
       backend.failPut = null;
       throw e;
     }
+    await backend.beforePut?.call(key);
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
   }
 

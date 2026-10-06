@@ -10,6 +10,7 @@ import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
+import 'package:presence_app/cloud/live_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/location/device_location.dart';
@@ -18,6 +19,7 @@ import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'fakes.dart';
+import 'live_sync_test.dart' show FakeBroker, eventsTopic, messageOf;
 import 'motion_test.dart' show frame;
 
 void main() {
@@ -33,6 +35,7 @@ void main() {
     WidgetTester tester, {
     List<FakeCameraSource> cameras = const [],
     CloudBackend? cloud,
+    LiveSync? live,
     FakeAuthService? auth,
     String profile = 'automatic_paranoid_axolotl',
   }) async {
@@ -51,6 +54,7 @@ void main() {
         auth: auth ?? FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient()..profile = profile,
         cloud: cloud,
+        live: live,
         mapTiles: const SizedBox(),
         locator: NoLocation(),
       ),
@@ -466,6 +470,128 @@ void main() {
     await showEvents(tester);
     await revealSystemEvents(tester);
     expect(find.text('From the phone'), findsOneWidget);
+  });
+
+  testWidgets('live sync follows the setting: every minute by default, with '
+      'a persistent session', (tester) async {
+    final broker = FakeBroker();
+    final live = LiveSync(
+      endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+      region: 'us-east-1',
+      connect: broker.connect,
+    );
+    await launch(tester, cloud: FakeCloudBackend(), live: live);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(live.config, const LiveConfig());
+    expect(broker.persistent, isNotEmpty);
+    expect(broker.persistent, everyElement(isTrue));
+    live.stop();
+  });
+
+  testWidgets('an event another device publishes shows at once; its clip '
+      'and thumbnail follow from the cloud', (tester) async {
+    final cloud = FakeCloudBackend();
+    final broker = FakeBroker();
+    final live = LiveSync(
+      endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+      region: 'us-east-1',
+      connect: broker.connect,
+    );
+    // Connect to live sync: Always (the default connects every minute).
+    final seed = await run(tester, EventStore.open(storage));
+    await run(
+      tester,
+      seed.putSettings(
+        'config',
+        const PresenceConfig(live: LiveConfig.always).toJson(),
+      ),
+    );
+    seed.close();
+    await launch(tester, cloud: cloud, live: live);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(live.config, LiveConfig.always);
+    expect(live.state, LiveSyncState.connected);
+    await showEvents(tester);
+    expect(inEvents(find.text('Garage')), findsNothing);
+
+    // Another device starts a clip: its event arrives over MQTT, with an
+    // inline thumbnail that is dropped (media only come from the cloud).
+    final time = clock.millisecondsSinceEpoch;
+    final event = <String, Object?>{
+      'id': 'live-event',
+      'type': ClipRequested.clipRequestedType,
+      'title': 'Clip requested',
+      'detail': 'Garage',
+      'time': time,
+      'cameraId': 'garage-cam',
+      'deviceId': 'other_device_one',
+      'clipId': 'live-clip',
+      'clipState': 'partial',
+      'trigger': 'manual',
+    };
+    broker.last.deliver(
+      eventsTopic,
+      messageOf({...event, 'thumbnail': List.filled(64, 1)}),
+    );
+    await tester.pump();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+
+    // In the event log at once, before any listing of the bucket.
+    expect(inEvents(find.text('Garage')), findsOneWidget);
+    expect(clipEvent(tester).clip.awaitingRemote, isTrue);
+    expect(clipEvent(tester).clip.thumbnail, isNull);
+    expect(inEvents(find.text('Recording on another device…')), findsOneWidget);
+
+    // It completes there: the clip goes up, then its event is published
+    // again; the clip comes down with its thumbnail.
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    const prefix = 'us-east-1:identity';
+    cloud.uploads['$prefix/${CloudSync.clipRecordKey('live-clip', time)}'] = (
+      bytes: json({
+        'id': 'live-clip',
+        'eventId': 'live-event',
+        'cameraId': 'garage-cam',
+        'cameraLabel': 'Garage',
+        'requestedAt': time,
+        'beforeMs': 15000,
+        'afterMs': 15000,
+        'supported': true,
+        'state': 'complete',
+        'full': {
+          'mediaId': 'live-clip-full',
+          'startMs': 0,
+          'endMs': 30000,
+          'mimeType': 'video/webm',
+        },
+      }),
+      contentType: 'application/json',
+    );
+    cloud.uploads['$prefix/media/live-clip.jpg'] = (
+      bytes: onePixelPng,
+      contentType: 'image/jpeg',
+    );
+    cloud.uploads['$prefix/media/live-clip.webm'] = (
+      bytes: Uint8List.fromList('live-video'.codeUnits),
+      contentType: 'video/webm',
+    );
+    broker.last.deliver(
+      eventsTopic,
+      messageOf({...event, 'clipState': 'complete'}),
+    );
+    await tester.pump();
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+
+    final shown = clipEvent(tester).clip;
+    expect(shown.awaitingRemote, isFalse);
+    expect(shown.id, 'live-clip');
+    expect(shown.thumbnail, onePixelPng);
+    expect(inEvents(find.text('Garage')), findsOneWidget);
   });
 
   testWidgets('after sign-in, clips from the cloud join the history', (
@@ -1208,59 +1334,107 @@ void main() {
     expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
   });
 
-  testWidgets(
-    'the motion cooldown survives a restart, with its exact countdown',
-    (tester) async {
-      Future<void> frames(FakeCameraSource camera, List<dynamic> list) async {
-        for (final f in list) {
-          clock = clock.add(const Duration(milliseconds: 200));
-          camera.motion.add(f);
-          await tester.pump();
-        }
-        await tester.pump(const Duration(milliseconds: 600));
+  testWidgets('the cooldown survives a restart, with its exact countdown', (
+    tester,
+  ) async {
+    Future<void> frames(FakeCameraSource camera, List<dynamic> list) async {
+      for (final f in list) {
+        clock = clock.add(const Duration(milliseconds: 200));
+        camera.motion.add(f);
+        await tester.pump();
       }
-
-      var step = 0;
-      List<dynamic> movement() => [
-        for (var i = 0; i < 4; i++)
-          frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
-      ];
-      const media = ClipMedia(
-        url: 'blob:m',
-        start: Duration.zero,
-        end: Duration(seconds: 15),
-      );
-
-      var camera = FakeCameraSource('Main', immediatePast: media);
-      await launch(tester, cameras: [camera]);
-      await frames(camera, List.filled(20, frame())); // warm-up
-      await frames(camera, movement());
-      final triggeredAt = clock.subtract(const Duration(milliseconds: 200));
-      expect(camera.fullCompleters, hasLength(1), reason: 'motion clip taken');
-      camera.fullCompleters.single.complete(media);
-      await settleStorage(tester);
-
-      // Two minutes later, the app restarts.
-      clock = triggeredAt.add(const Duration(minutes: 2));
-      camera = FakeCameraSource('Main', immediatePast: media);
-      await refresh(tester, cameras: [camera]);
       await tester.pump(const Duration(milliseconds: 600));
+    }
 
-      // The pill shows exactly what's left of the 5-minute cooldown.
-      expect(find.text('3:00'), findsOneWidget);
+    var step = 0;
+    List<dynamic> movement() => [
+      for (var i = 0; i < 4; i++)
+        frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
+    ];
+    const media = ClipMedia(
+      url: 'blob:m',
+      start: Duration.zero,
+      end: Duration(seconds: 15),
+    );
 
-      // Motion stays blocked until the cooldown ends…
-      await frames(camera, List.filled(20, frame()));
-      await frames(camera, movement());
-      expect(camera.fullCompleters, isEmpty);
+    var camera = FakeCameraSource('Main', immediatePast: media);
+    await launch(tester, cameras: [camera]);
+    await frames(camera, List.filled(20, frame())); // warm-up
+    await frames(camera, movement());
+    final triggeredAt = clock.subtract(const Duration(milliseconds: 200));
+    expect(camera.fullCompleters, hasLength(1), reason: 'motion clip taken');
+    camera.fullCompleters.single.complete(media);
+    await settleStorage(tester);
 
-      // …and clips again once it has.
-      clock = triggeredAt.add(const Duration(minutes: 5));
-      await frames(camera, movement());
-      expect(camera.fullCompleters, hasLength(1));
-      await settleStorage(tester);
-    },
-  );
+    // Two minutes later, the app restarts.
+    clock = triggeredAt.add(const Duration(minutes: 2));
+    camera = FakeCameraSource('Main', immediatePast: media);
+    await refresh(tester, cameras: [camera]);
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // The pill shows exactly what's left of the 5-minute cooldown.
+    expect(find.text('3:00'), findsOneWidget);
+
+    // Motion stays blocked until the cooldown ends…
+    await frames(camera, List.filled(20, frame()));
+    await frames(camera, movement());
+    expect(camera.fullCompleters, isEmpty);
+
+    // …and clips again once it has.
+    clock = triggeredAt.add(const Duration(minutes: 5));
+    await frames(camera, movement());
+    expect(camera.fullCompleters, hasLength(1));
+    await settleStorage(tester);
+  });
+
+  testWidgets('after a restart the cooldown runs from this device\'s latest '
+      'clip of any trigger, not from other devices\' clips', (tester) async {
+    const media = ClipMedia(
+      url: 'blob:m',
+      start: Duration.zero,
+      end: Duration(seconds: 15),
+    );
+    var camera = FakeCameraSource('Main', immediatePast: media);
+    await launch(tester, cameras: [camera]);
+
+    // A Clip press (not motion).
+    clock = clock.add(const Duration(seconds: 2));
+    final pressedAt = clock;
+    await tester.tap(find.byTooltip('Clip'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('5:00'), findsOneWidget);
+    camera.fullCompleters.last.complete(media);
+    await settleStorage(tester);
+
+    // A later clip by another device of the profile, fetched from the
+    // cloud: it doesn't hold this device back.
+    final store = await run(tester, EventStore.open(storage));
+    await run(
+      tester,
+      store.putEvent({
+        'id': 'other-device-clip',
+        'type': ClipRequested.clipRequestedType,
+        'title': 'Motion detected',
+        'trigger': ClipTrigger.motion.name,
+        'time': pressedAt
+            .add(const Duration(minutes: 1))
+            .millisecondsSinceEpoch,
+        'deviceId': 'other_quiet_heron',
+        'userId': '1',
+        'profileId': 'automatic_paranoid_axolotl',
+      }),
+    );
+    store.close();
+
+    // Two minutes after the press, the app restarts.
+    clock = pressedAt.add(const Duration(minutes: 2));
+    camera = FakeCameraSource('Main', immediatePast: media);
+    await refresh(tester, cameras: [camera]);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('3:00'), findsOneWidget);
+    await settleStorage(tester);
+  });
 
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);

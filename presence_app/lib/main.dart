@@ -22,6 +22,8 @@ import 'clips.dart';
 import 'cloud/cloud_config.dart';
 import 'cloud/cloud_sync.dart';
 import 'cloud/cognito.dart';
+import 'cloud/live_mqtt.dart';
+import 'cloud/live_sync.dart';
 import 'cloud/s3.dart';
 import 'config.dart';
 import 'consent/consent_screen.dart';
@@ -64,6 +66,7 @@ class PresenceApp extends StatefulWidget {
     this.tabMemory,
     this.auth,
     this.cloud,
+    this.live,
     this.rolesClient,
     this.membershipClient,
     this.profileClient,
@@ -115,6 +118,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides cloud uploads (used by tests); defaults to Cognito + S3
   /// when `CloudConfig` is set, and none otherwise.
   final CloudBackend? cloud;
+
+  /// Overrides live sync (used by tests); defaults to AWS IoT Core when the
+  /// build has its endpoint (`IOT_ENDPOINT`), and none otherwise.
+  final LiveSync? live;
 
   /// Overrides the clock (used by tests).
   final DateTime Function()? now;
@@ -233,6 +240,18 @@ class _PresenceAppState extends State<PresenceApp> {
             keep: () => _config.config.history.keep,
             // And this device's settings, kept per device.
             settings: _persistence,
+            // Events reach the profile's other devices within a second
+            // (AWS IoT Core), when this build has its endpoint.
+            live:
+                widget.live ??
+                (CloudConfig.iotEndpoint.isEmpty
+                    ? null
+                    : LiveSync(
+                        endpoint: CloudConfig.iotEndpoint,
+                        region: CloudConfig.region,
+                        stage: CloudConfig.liveStage,
+                        connect: MqttLiveConnection.connect,
+                      )),
             // Clips and events fetched from the cloud after sign-in join the
             // local history, like a restore from IndexedDB.
             // A Capture all request from another device takes a clip here.
@@ -240,14 +259,24 @@ class _PresenceAppState extends State<PresenceApp> {
               final events = await _persistence.importRemote(
                 events: remote.events,
                 clips: remote.clips,
+                awaitClips: remote.live,
               );
               _log.addHistory(events);
+              // Clips that events from live sync were waiting for.
+              await _persistence.showArrivedClips(remote.clips, _log);
               // Events changed on another device: their tags as they are
               // there now, on screen too.
               await _persistence.updateFromRemote(remote.updated, _log.events);
               _rig.answerCaptureAll(events, deviceId: _deviceId);
             },
           );
+    // How live sync connects (the Connect to live sync setting): now, and
+    // at once whenever it changes (or is restored).
+    if (_sync?.live case final live?) {
+      void applyLive() => live.config = _config.config.live;
+      applyLive();
+      _config.addListener(applyLive);
+    }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;
@@ -872,7 +901,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ClipTrigger.manual => 'Clip started',
       ClipTrigger.all => 'Capture all',
     };
-    // For motion clips, the readiness pill carries the cooldown after it.
+    // After any clip, the readiness pill carries the cooldown.
     _showMessage(
       CameraMessage(
         icon: event.icon,
@@ -1061,6 +1090,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   tiles: widget.mapTiles,
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
+                  liveSync: widget.sync?.live?.enabled ?? false,
                 ),
               ),
               if (_tabList.contains(HomeTab.log))
@@ -1200,8 +1230,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-/// Whether a clip now would be complete: buffering the "before" history,
-/// ready, or counting down while a clip's "after" part is being saved.
+/// Whether an automatic clip can be taken now: ready, or counting down the
+/// cooldown after the latest clip (red while its "after" part is still
+/// being saved). The Clip button works either way.
 class ReadinessIndicator extends StatefulWidget {
   const ReadinessIndicator({super.key, required this.rig});
 
@@ -1236,7 +1267,7 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
     final scheme = theme.colorScheme;
     final readiness = widget.rig.readiness;
     final seconds = (readiness.remaining.inMilliseconds / 1000).ceil();
-    // Minutes and seconds for the motion cooldown ("4:59"), seconds below
+    // Minutes and seconds for the cooldown ("4:59"), seconds below
     // a minute ("45 s").
     final countdown = seconds >= 60
         ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
@@ -1254,12 +1285,12 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         'Ready to clip',
       ),
       ClipReadinessState.cooldown => (
-        // Red while the motion clip is still saving, then amber.
+        // Red while the latest clip is still saving, then amber.
         _Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
         countdown,
         readiness.recording
-            ? 'Motion clip saving; motion can clip again in $countdown'
-            : 'Motion can clip again in $countdown',
+            ? 'Clip saving; next automatic clip in $countdown'
+            : 'Next automatic clip in $countdown',
       ),
       ClipReadinessState.unavailable => (
         _Dot(color: scheme.outline),

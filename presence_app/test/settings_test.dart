@@ -13,6 +13,7 @@ void main() {
     WidgetTester tester, {
     double width = 320,
     bool? logTabDefault = false,
+    bool liveSync = false,
   }) async {
     tester.view.physicalSize = Size(width, 640);
     tester.view.devicePixelRatio = 1;
@@ -20,7 +21,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SettingsView(config: config, logTabDefault: logTabDefault),
+          body: SettingsView(
+            config: config,
+            logTabDefault: logTabDefault,
+            liveSync: liveSync,
+          ),
         ),
       ),
     );
@@ -124,5 +129,33 @@ void main() {
     await show(tester, logTabDefault: null);
     await scrollTo(tester, find.byKey(const Key('subject-events-slider')));
     expect(find.text('Advanced', skipOffstage: false), findsNothing);
+  });
+
+  testWidgets('Connect to live sync: a slider from Never to Always, every '
+      'minute by default; only with live sync', (tester) async {
+    await show(tester);
+    expect(find.byKey(const Key('live-connect-slider')), findsNothing);
+
+    await show(tester, liveSync: true, logTabDefault: null);
+    final slider = find.byKey(const Key('live-connect-slider'));
+    await scrollTo(tester, slider);
+    expect(find.text('Connect to live sync'), findsOneWidget);
+    expect(find.text('Every 1 min'), findsOneWidget);
+    final bar = find.descendant(of: slider, matching: find.byType(Slider));
+    expect(tester.widget<Slider>(bar).divisions, LiveConfig.steps - 1);
+
+    // All the way left: Never; all the way right: Always.
+    await tester.drag(bar, const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    expect(config.live, LiveConfig.never);
+    expect(find.text('Never'), findsOneWidget);
+    await tester.drag(bar, const Offset(1000, 0));
+    await tester.pumpAndSettle();
+    expect(config.live, LiveConfig.always);
+    expect(find.text('Always'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
+      contains('Stays connected'),
+    );
   });
 }

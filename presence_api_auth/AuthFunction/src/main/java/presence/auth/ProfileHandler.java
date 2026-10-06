@@ -31,7 +31,8 @@ import static presence.auth.AuthHandler.response;
  *       {"identityId", "token"}}, which the app trades for AWS credentials
  *       ({@code GetCredentialsForIdentity}). A profile's first call gives it
  *       the identity the caller's Google sign-in already had, so data
- *       uploaded before profiles stays where it is;</li>
+ *       uploaded before profiles stays where it is. The identity also gets
+ *       the live-sync IoT policy ({@link Backend#allowLiveSync});</li>
  *   <li>{@code GET /api/auth/profile}: the profile's subjects, as {@code
  *       {"profile", "accounts": [{email, owner, current}]}}, the owner first;</li>
  *   <li>{@code POST /api/auth/profile/link-code} ({@code presence_user}
@@ -85,6 +86,14 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
         /** Whether the identity's folder in the bucket holds nothing. */
         boolean folderEmpty(String identityId);
+
+        /**
+         * Lets the identity use live sync: attaches the IoT policy to it
+         * ({@code iot:AttachPolicy}, idempotent), which AWS IoT requires of
+         * authenticated Cognito identities besides their role's permissions.
+         * Never fails: without it, the app still syncs through the bucket.
+         */
+        void allowLiveSync(String identityId);
     }
 
     private final Roles roles;
@@ -205,6 +214,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         }
         profile = withIdentity(caller, profile);
         var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
+        backend.allowLiveSync(profile.identityId());
         return response(200, "{\"identityId\":" + Json.string(profile.identityId())
                 + ",\"token\":" + Json.string(token) + "}");
     }
