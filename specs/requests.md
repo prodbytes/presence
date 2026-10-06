@@ -3126,3 +3126,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the box ("Paste position", compact, bodySmall text) moved
        into the position's column right of the map, under the position.
        474 Flutter tests pass. Specs: [Device location](device-location.md).
+282. **Each event's operating system; the devices list shows OS and latest
+     event.** (2026-10-06)
+     - Asked: add the operating system name to each event, and in the
+       account sheet's devices list show each device's OS with a fitting
+       icon and the time of its latest event.
+     - Changed: every event records its device's OS (`AppEvent.os`, set
+       when published from `DeviceOs.current`: `Android`, `iOS`, `macOS`,
+       `Windows`, `Linux`, or `Web (<browser>, <system>)` from the user
+       agent), saved and synced in the event JSON as `os` (left out when
+       unknown; older events have none). The event's device tag shows the
+       OS icon and ` · <OS>` after the ID. The account sheet's devices show
+       the OS icon (tooltip with the name), and under the ID the OS name
+       and how long ago the device's latest event was (exact time in a
+       tooltip), or "No events". Fits 320 dp. New tests: record
+       round-trip with and without `os`, user-agent parsing, icons, the
+       device tag at 320 dp, the devices list at 320 dp, and an event's OS
+       uploading and a cloud event keeping its own (or none).
+       484 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md), [Data formats](data-formats.md),
+       [Devices, users and places](devices-users-places.md).

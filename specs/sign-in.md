@@ -139,6 +139,20 @@ there's no separate sign-in screen:
     long. Each ID is selectable. A device shows only once one of its
     events has synced here, and drops off when its events age out of
     [event retention](event-retention.md).
+    - Each device shows its **operating system** (`profileDeviceDetails`):
+      an icon before the ID (Android `Icons.android`, iOS
+      `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,
+      Linux `computer`, web `language`; `devices_other` when unknown,
+      with the name in its tooltip) and, under the ID, the name and **how
+      long ago its latest event was**: `Android · 5 min ago` ("just
+      now", "5 min ago", "3 h ago", "2 d ago"), with the exact time
+      (`2026-10-06 14:05:09`) in a tooltip, or `No events`. The OS is the
+      one on the device's latest event that records one
+      ([`os`](events.md)); this device without one shows its own. A
+      device whose events are all from before events recorded an OS gets
+      the generic icon and just the time.
+    - It fits a 320 dp phone: long IDs wrap and the second line ends with
+      an ellipsis.
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
   - The account sheet ends with a short paragraph on what Presence is and

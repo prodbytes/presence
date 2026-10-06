@@ -8,6 +8,7 @@ import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'event_flags.dart';
+import 'identity/device_os.dart';
 import 'location/device_location.dart';
 import 'recognition/suggestion.dart';
 
@@ -111,6 +112,11 @@ class AppEvent {
   /// or the one set on the Device screen's map. Null while it's unknown.
   DeviceLocation? location;
 
+  /// The operating system of the device that recorded the event
+  /// (`DeviceOs.current`, such as `Android` or `Web (Chrome, macOS)`). Set
+  /// when it's saved; null on events saved before events had one.
+  String? os;
+
   /// The stored form of this event. Subclasses keep their extra data in
   /// their own records (a clip's recordings live in the clips store).
   Map<String, Object?> toRecord() => {
@@ -124,6 +130,7 @@ class AppEvent {
     'userId': userId,
     'profileId': profileId,
     'location': location?.toJson(),
+    if (os != null) 'os': os,
   };
 
   /// Rebuilds a stored event of a plain type. Returns null for types that
@@ -163,7 +170,15 @@ class AppEvent {
     };
     return event
       ?..location = DeviceLocation.fromJson(record['location'])
-      ..profileId = profileOf(record);
+      ..profileId = profileOf(record)
+      ..os = osOf(record);
+  }
+
+  /// The operating system a stored event was recorded on; null if it
+  /// doesn't say.
+  static String? osOf(Map<String, Object?> record) {
+    final os = record['os'];
+    return os is String && os.isNotEmpty ? os : null;
   }
 
   /// Who was signed in when a stored event was recorded. Events saved
@@ -577,6 +592,7 @@ class _EventTimelineState extends State<EventTimeline> {
                         key: Key('event-device-${event.id}'),
                         device: device,
                         thisDevice: device == widget.deviceId,
+                        os: event.os,
                         value: _filter,
                       ),
                     ),
@@ -828,7 +844,9 @@ class EventCount extends StatelessWidget {
 }
 
 /// The device an event was taken on, small and quiet above its card in the
-/// timeline: a device icon and its ID, this device's in bold. Tapping it
+/// timeline: its operating system's icon ([DeviceOs.iconOf]), its ID, this
+/// device's in bold, and the operating system's name ([os], left out on
+/// events recorded before events had one). Tapping it
 /// shows only that device's events ([value], the timeline's
 /// [EventTimeline.onlyDevice]); tapped again, every device's.
 class EventDeviceTag extends StatelessWidget {
@@ -837,9 +855,13 @@ class EventDeviceTag extends StatelessWidget {
     required this.device,
     required this.thisDevice,
     required this.value,
+    this.os,
   });
 
   final String device;
+
+  /// The operating system the event was recorded on, if it says.
+  final String? os;
 
   /// Whether [device] is this device.
   final bool thisDevice;
@@ -867,9 +889,10 @@ class EventDeviceTag extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.devices_other, size: 14, color: color),
+                Icon(DeviceOs.iconOf(os), size: 14, color: color),
                 const SizedBox(width: 4),
                 Flexible(
+                  flex: 3,
                   child: Text(
                     device,
                     overflow: TextOverflow.ellipsis,
@@ -879,6 +902,16 @@ class EventDeviceTag extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (os case final os?)
+                  Flexible(
+                    flex: 2,
+                    child: Text(
+                      ' · $os',
+                      key: const Key('event-device-os'),
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(color: color),
+                    ),
+                  ),
               ],
             ),
           ),

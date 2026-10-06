@@ -12,6 +12,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_id.dart';
+import 'package:presence_app/identity/device_os.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/recognition/suggestion.dart';
@@ -434,6 +435,81 @@ void main() {
           .map((e) => e['deviceId'])
           .toList(),
       [first, first],
+    );
+  });
+
+  testWidgets("events record this device's OS, which syncs; a cloud "
+      "event keeps its own, or none", (tester) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    AppEventBusScope.of(tester.element(find.byType(Scaffold)))
+        .publish(AppEvent(icon: Icons.circle, title: 'Door opened'));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+
+    // Uploaded with this device's OS.
+    final prefix = 'us-east-1:identity';
+    final uploaded = [
+      for (final MapEntry(:key, :value) in cloud.uploads.entries)
+        if (key.startsWith('$prefix/events/'))
+          jsonDecode(utf8.decode(value.bytes)) as Map<String, Object?>,
+    ];
+    expect(
+      uploaded.singleWhere((r) => r['title'] == 'Door opened')['os'],
+      DeviceOs.current,
+    );
+
+    // Another device's events: one from an Android phone, and an older one
+    // saved before events had an OS.
+    for (final (id, title, os) in [
+      ('phone-event', 'From the phone', 'Android'),
+      ('old-event', 'From the past', null),
+    ]) {
+      final record = <String, Object?>{
+        'id': id,
+        'type': AppEvent.genericType,
+        'title': title,
+        'time': clock.millisecondsSinceEpoch,
+        'deviceId': 'brave_quiet_lamp',
+        'userId': '1',
+        'profileId': 'automatic_paranoid_axolotl',
+        'os': ?os,
+      };
+      cloud.uploads['$prefix/${CloudSync.eventKey(record)}'] = (
+        bytes: Uint8List.fromList(utf8.encode(jsonEncode(record))),
+        contentType: 'application/json',
+      );
+    }
+    clock = clock.add(const Duration(seconds: 15));
+    await tester.pump(const Duration(seconds: 15));
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+    await revealSystemEvents(tester);
+
+    final log = [
+      for (final e in find.byType(EventTimeline).evaluate())
+        ...(e.widget as EventTimeline).log.events,
+    ];
+    expect(log.firstWhere((e) => e.id == 'phone-event').os, 'Android');
+    expect(log.firstWhere((e) => e.id == 'old-event').os, isNull);
+    expect(
+      log.firstWhere((e) => e.title == 'Door opened').os,
+      DeviceOs.current,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('event-device-phone-event')),
+        matching: find.text(' · Android'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('event-device-old-event')),
+        matching: find.byKey(const Key('event-device-os')),
+      ),
+      findsNothing,
     );
   });
 
