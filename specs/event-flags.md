@@ -56,8 +56,8 @@ should be named.
   **paused where the first person or pet was seen**, with a yellow-flagged
   line "Unidentified subject: click them on the video to name them, or try
   Auto." There the usual tagging works (see [Clips](clips.md), "Naming
-  people and pets"): click them on the video and type a name ("Who is
-  this?"), use **Tag this frame**, or **Auto**. A name typed as an
+  subjects"): click them on the video and type a name ("Who is
+  this?"), use **Name subject**, or **Auto**. A name typed as an
   existing subject's is that subject; a new one makes a new subject.
   Either way it's a vouched tag, so recognition learns them from it for
   the next clips, as before. Once everyone's named the line goes, and the
@@ -76,7 +76,7 @@ should be named.
   removing the tag brings it back; the search finds flagged clips. The
   card shows the yellow flag with its text, tooltip and semantic label and
   drops it once tagged; none without a person or pet; Identify opens the
-  player paused at the sighting with the hint and Tag this frame, and a
+  player paused at the sighting with the hint and Name subject, and a
   name added there clears hint and flag; a clip that can't play shows it
   without Identify; it fits at 320 dp and 1400 dp.
 

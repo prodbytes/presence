@@ -1,7 +1,8 @@
 # Subjects
 
-The people and pets tagged on clips (see [Clips](clips.md), "Naming people
-and pets"), each with where the device was when they were seen
+The named people and pets tagged on clips, called **Subjects** in the
+app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
+[Clips](clips.md), "Subjects and Tags" and "Naming subjects"), each with where the device was when they were seen
 ([lib/subjects.dart](../presence_app/lib/subjects.dart)).
 
 ## Who is a subject
@@ -57,7 +58,7 @@ and pets"), each with where the device was when they were seen
   subject (or tags a known one). See [Event flags](event-flags.md).
 - **Removing a subject from an event:** a small **x** after each name
   (`RemoveLabelButton`, key `event-subject-remove-<id>`, tooltip "Remove
-  Rex from this event") removes, at once and without asking, every tag of
+  subject Rex from this event") removes, at once and without asking, every tag of
   that name on that clip (`ClipAnnotations.removeName`, ignoring case and
   surrounding spaces) and the frames no entry uses any more. A pending
   "Is this Rex?" suggestion on the clip stays, for its own Yes / No. The

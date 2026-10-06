@@ -193,7 +193,7 @@ void main() {
       expect(find.byKey(const Key('identify-hint')), findsOneWidget);
       expect(find.byKey(const Key('tag-frame')), findsOneWidget);
 
-      // Naming them in the player (as under "Tag this frame") clears it.
+      // Naming them in the player (as under "Name subject") clears it.
       final a = event.annotations;
       a.add('Rex', 0.5, 0.5, frame: a.newFrame(onePixelPng, 2000));
       await tester.pump();
