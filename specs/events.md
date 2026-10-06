@@ -2,8 +2,30 @@
 
 - Events appear on the [Monitoring](monitoring.md) tab, beside the subjects'
   map (under it on phones), in a vertically scrolling timeline, newest at the top. Each
-  entry is just a card, with no dot or rail beside it, and cards are 8 px
+  entry is just a card, with no dot or rail beside it, and cards are 4 px
   apart.
+- **Only the signed-in profile's events show** (`EventTimeline.ofProfile`):
+  its own and those without a profile (recorded signed out, or not saved
+  yet). Another profile's events left on the device don't show in the
+  timeline, the count, the [subjects map](monitoring.md) or a
+  [subject's screen](subjects.md), and aren't synced (see
+  [Devices, users and places](devices-users-places.md)).
+- **One filter model.** What the timeline shows is worked out in one
+  place, `EventFilters` ([lib/event_filters.dart](../presence_app/lib/event_filters.dart)):
+  it holds the device picked (`onlyDevice`), the system events toggle
+  (`showSystemEvents`) and the search (`search`), and `viewOf` gives each
+  step's events (the profile's, of the device, of the kinds, matching the
+  search). Each step's list is kept until its inputs change (a new event,
+  a filter, a clip's tags while searching), so the timeline, the count and
+  the map share one pass instead of filtering the whole history on every
+  rebuild. The home screen keeps one, so the choices survive the tab
+  being rebuilt.
+- `EventLog.events` is a read-only snapshot, made once per change of the
+  log and shared until the next (`EventLog.version` counts the changes);
+  `EventLog.eventsOf(profile)` keeps the profile's events the same way.
+  `EventLog.annotations` notifies when any clip's tags or object tags
+  change, so what depends on them (the search, the subjects) is worked
+  out again without each widget listening to every clip.
 - Each event card shows an icon, a title, an optional detail line and the time
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
   `ClipRequested` does, and so does `SubjectSuggestion`, the **"Is this
@@ -66,9 +88,10 @@
       yet) count too, since the next sign-in gives them its profile. Other
       profiles' events left on the
       device don't count.
-    - *Matching* is those events left after the search and both filters,
-      using the timeline's own filter steps (`EventTimeline.ofDevices`,
-      `ofKinds`, `matching`).
+    - *Matching* is those events left after the search and both filters:
+      the same `EventFilters.viewOf` the timeline shows, so the count is
+      always the number of cards (`EventTimeline.ofDevices`, `ofKinds`,
+      `matching`).
     - Both numbers update with new events, sync, the filters, the
       search, tags recognition adds later, labels removed with their x on
       a card, and sign-in or sign-out. On a narrow phone the open field
@@ -101,7 +124,7 @@
     before events recorded an OS show the generic device icon and no
     name.
   - **Tapping it** shows only that device's events
-    (`EventTimeline.onlyDevice`, `EventTimeline.ofDevices`) on the
+    (`EventFilters.onlyDevice`, `EventTimeline.ofDevices`) on the
     timeline, the [subjects map](subjects.md) and the count; the tag of
     the device shown turns the accent color, and tapping it again shows
     every device.
@@ -140,13 +163,24 @@
   - **Opening a hidden system event** from elsewhere turns it on, so the
     event can show.
   - It only filters the timeline: every event is still saved and synced.
-- When a new event arrives, the timeline scrolls back to the top to show it.
+- When a new event arrives at the top, the timeline scrolls back up to
+  show it, but only when it's scrolled less than 200 dp down
+  (`EventTimeline.followNewWithin`): further down, the user is reading
+  older events and the list stays where it is. Changes that bring no new
+  newest event (a sync of only older events, or of changes to known ones,
+  a tag, a deletion) never move it; a sync with nothing new doesn't even
+  notify the log's listeners (`EventLog.addHistory`).
 - **Opening an event from elsewhere** (a dot on a [subject's](subjects.md)
   map) switches to the Monitoring tab, scrolls the timeline to that event and
-  outlines its card in the accent color for 4 s (`EventTimeline.focus`).
+  outlines its card in the accent color for 4 s (`EventFilters.focus`).
   Cards far down the list aren't built yet, so the timeline first jumps to
   where the card should be, from the average card height, until it's
   built (up to 8 tries), then scrolls it into view.
+  - It's a **one-shot request**: handled once, by the timeline on screen
+    or, if the tab isn't built yet, by the next one built, after its first
+    frame. Coming back to the tab later doesn't open it again, so a
+    search, device or system events choice made since is kept. Asking
+    again, even for the same event, opens it again.
 - On launch, the app pushes an **Application started** event.
 - Every event carries the **device** it was recorded on (`deviceId`) and
   the **profile** it belongs to (`profileId`, none until a sign-in gives

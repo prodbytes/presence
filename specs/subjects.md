@@ -15,8 +15,11 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
 - A subject's **events** are the clip events (`ClipRequested`) with that
   name tagged, one per event even when tagged twice on it, newest first.
 - They're worked out from the event history in memory (`subjectsOf`):
-  restored, synced from the cloud and new events alike. Nothing extra is
-  stored. Adding, renaming or removing a tag (under the player, or with a
+  restored, synced from the cloud and new events alike, of the signed-in
+  profile only (and events without a profile), as in the timeline
+  ([Events](events.md)). Nothing extra is stored. They're worked out again
+  only when the events or a clip's tags change (`EventLog.annotations`),
+  not on every rebuild. Adding, renaming or removing a tag (under the player, or with a
   label's **x** on a clip's card) updates every screen at once: the cards,
   the subjects map and its names, a subject's screen, and the Events
   search and count.
@@ -128,7 +131,8 @@ Monitoring) is a close-up (`closeUp`):
 - **The list** (below the map): "Latest 20 of 26 events" (or "26 events"
   when all are shown), then each event, newest first: its frame, time and
   camera, the coordinates (5 decimals) or "No location", and the same
-  dot, in the same color and opacity, as on the map. Tapping an event in the list plays its clip.
+  dot, in the same color and opacity, as on the map. The frames are
+  decoded at the size they're shown (64 dp wide), not at the camera's. Tapping an event in the list plays its clip.
 - **It shows the latest 100 events by default**, set at the bottom of the
   Settings screen (**How many events to load at once**, 10–500 in steps
   of 10; `SubjectsConfig.mapEvents`, see [Configuration](configuration.md)).

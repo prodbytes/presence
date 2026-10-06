@@ -740,7 +740,6 @@ void main() {
               body: EventTimeline(
                 log: log,
                 deviceId: 'automatic_paranoid_gadget',
-                showSystemEvents: ValueNotifier(true),
               ),
             ),
           ),

@@ -3635,3 +3635,53 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        (which stores `ownerHd`).
      - Specs: [Auth API](auth-api.md), [Membership](membership.md),
        [Profiles](profiles.md), [Sign-in](sign-in.md).
+
+296. **UI review fixes: Monitoring focus, timeline scroll, filters and
+     pills.** (2026-10-06)
+     - Asked: fix everything a code review found in the UI (Monitoring,
+       events, subjects, status pills, settings sliders), with tests.
+     - Changed:
+       - Opening an event (a dot on a subject's map) is a **one-shot
+         request** (`EventFilters.focus`, taken once): coming back to
+         Monitoring no longer re-opens it, which cleared a search typed
+         since, reset the device filter and system events toggle, and
+         threw "setState() called during build". Filter resets happen
+         after the frame, never during a build.
+       - The timeline no longer **jumps to the top** on every change of
+         the log: `EventLog.addHistory` notifies only when it added
+         something, and the list scrolls up only for a new newest event
+         while it's within 200 dp of the top.
+       - **One filter model**, `EventFilters` (device, system events,
+         search, focus) with `viewOf`, whose steps are kept until their
+         inputs change; it replaces the home screen's four loose
+         notifiers and the fallback copies in `MonitoringView`,
+         `EventTimeline` and `EventCount`. `EventLog.events` is a snapshot
+         made once per change (`version`), `eventsOf(profile)` is kept the
+         same way, and `EventLog.annotations` reports clips' tag changes
+         (no more merged listenable over every clip per rebuild); the
+         subjects are worked out again only on a change.
+       - The timeline, the subjects map and a subject's screen show only
+         the **signed-in profile's events**, like the count (which read
+         "5 / 5" over 6 cards); the known limitation is gone.
+       - **Status pills** are live regions only for the camera message
+         and the health warning (the readiness countdown was read out
+         every second); tappable pills are buttons to screen readers.
+       - **Settings sliders** change (save and sync) their setting once,
+         when let go, not on every drag frame.
+       - The battery reader and the filters are made only when used (the
+         battery was started in `dispose`); the timeline's card keys are
+         pruned to the cards shown; subject frames decode at display
+         size; the subject chips' always-matching pattern is a field.
+       - Refactors: one time-format helper (`lib/time_format.dart`), one
+         `Dot` widget, `HomeTabs` (`lib/home_tabs.dart`) for the tabs,
+         `_HomeAppBar` and `_CameraButtons` out of `HomeScreen`.
+       - Docs: the system events toggle is in the top row, cards are
+         4 px apart.
+     - Tests: `event_log_test.dart`, `status_pill_test.dart`, and new
+       cases in `events_search_test.dart`, `subjects_test.dart` (the
+       focus repro in the app), `widget_test.dart` (scroll kept) and
+       `settings_test.dart` (slider commits on release). Specs:
+       [Events](events.md), [Monitoring](monitoring.md),
+       [Navigation](navigation.md), [Subjects](subjects.md),
+       [Settings](settings.md), [Devices, users and
+       places](devices-users-places.md).

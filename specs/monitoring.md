@@ -28,8 +28,8 @@ the separate Events and Subjects tabs.
 - It fits a 320 dp phone without overflowing: the open search field gets
   narrower, and a long device ID is cut short in its chip.
 - **Wide screens (720 dp and up), two columns:**
-  - **left:** the **map of every subject's events** (only the device
-    picked, if one is), in a rounded,
+  - **left:** the **map of every subject's events** (the signed-in
+    profile's only, and only the device picked, if one is), in a rounded,
     outlined frame: each subject in its own color, the newest dot solid
     and older ones fading, and **the subject's name beside their newest
     dot**, in a pill edged in their color. It opens **on the newest
@@ -49,8 +49,8 @@ the separate Events and Subjects tabs.
   least 160 dp unless that's over half of it) above the events; a very
   short page (a landscape phone with the keyboard open) doesn't overflow.
 - The page is padded 16 dp (12 dp on phones) at the top and sides, with
-  the same gap between the map and the events, the system events toggle
-  closing it at the bottom, and stops growing at 1600 dp, centered.
+  the same gap between the map and the events, and stops growing at
+  1600 dp, centered.
 - There is no subjects list: subjects are reached through their names on
   the map, and seen on each event's card.
 - With nobody tagged yet, the map shows the whole world without dots.
@@ -62,6 +62,9 @@ the separate Events and Subjects tabs.
   shows, and the list scrolls to the event and outlines it for 4 s. An
   event of a device other than the one picked shows every device again
   so it can show.
+- It's opened once (`EventFilters.focus`, a one-shot request): leaving
+  the tab and coming back keeps the search and filters as they were
+  left, and doesn't open the event again.
 - Tapping the clip message pill over the camera opens this tab.
 
 ## Verified
@@ -84,7 +87,10 @@ the separate Events and Subjects tabs.
   on a resize; a nearly antipodal dot is no trouble; tapping a name opens the
   subject's screen; on a 360 dp phone the map sits above the events; a dot
   tapped on a subject's screen closes it and outlines the event in this
-  tab's list. `events_filter_test.dart`: each event shows its device,
+  tab's list; opened once, a search typed since, Settings and back:
+  the search and the system events toggle are kept, the event isn't
+  outlined again, and nothing is changed during a build.
+  `events_filter_test.dart`: each event shows its device,
   this device's in bold, and no chip at first; tapping another device's
   tag shows only its events (and the count drops), with its chip at the
   top, kept across tabs; the chip's x shows every device again; this
@@ -108,7 +114,17 @@ the separate Events and Subjects tabs.
   row fits (one row, with the device chip and a long search) without
   overflow; the matching / all count follows the search, the filters, new
   events and late object tags; *all* leaves out other users' events and
-  grows as events arrive from the cloud.
+  grows as events arrive from the cloud, and the timeline shows as many
+  cards as the count (not another profile's event). Opening an event
+  (`EventFilters.focus`) clears what hides it once: the tab rebuilt keeps
+  the search, device and toggle set since; asked for before the tab is
+  built it applies after the first frame; asked again it applies again.
+  `widget_test.dart`: a new event scrolls the timeline up only when near
+  the top; a sync with nothing new doesn't notify, and older or replaced
+  events leave the list where it was scrolled. `event_log_test.dart`: the
+  events snapshot, `eventsOf`, tag changes notifying `annotations` (not
+  the log), the filter steps reused until a change, and the one-shot
+  focus.
   `tag_filter_test.dart`: tapping a tag or a subject on a card sets the
   search to it, shows only the events with it, highlights it on every
   card shown, and doesn't open the player; tapping it again, or the
