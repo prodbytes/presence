@@ -380,31 +380,26 @@ class ProfileDevices extends StatelessWidget {
                           Text('this device', style: muted),
                       ],
                     ),
-                    Text.rich(
-                      key: Key('profile-device-last-${device.id}'),
-                      TextSpan(
-                        children: [
-                          if (device.os case final os?)
-                            TextSpan(text: '$os · '),
-                          switch (device.lastEvent) {
-                            null => const TextSpan(text: 'No events'),
-                            final last => WidgetSpan(
-                              alignment: PlaceholderAlignment.baseline,
-                              baseline: TextBaseline.alphabetic,
-                              child: Tooltip(
-                                message: exactTime(last),
-                                child: Text(
-                                  describeAge(at.difference(last)),
-                                  style: small,
-                                ),
-                              ),
+                    _withExactTime(
+                      device.lastEvent,
+                      Text.rich(
+                        key: Key('profile-device-last-${device.id}'),
+                        TextSpan(
+                          children: [
+                            if (device.os case final os?)
+                              TextSpan(text: '$os · '),
+                            TextSpan(
+                              text: switch (device.lastEvent) {
+                                null => 'No events',
+                                final last => describeAge(at.difference(last)),
+                              },
                             ),
-                          },
-                        ],
+                          ],
+                        ),
+                        style: small,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      style: small,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -414,6 +409,12 @@ class ProfileDevices extends StatelessWidget {
       ],
     );
   }
+
+  /// [child] with the exact time of [last] in a tooltip, when there is one.
+  /// The whole line carries it: a [WidgetSpan] around just the age would
+  /// scale its text twice at a large system font size.
+  static Widget _withExactTime(DateTime? last, Widget child) =>
+      last == null ? child : Tooltip(message: exactTime(last), child: child);
 }
 
 /// Opens [LinkedAccountsSheet].

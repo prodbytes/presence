@@ -77,6 +77,66 @@ void main() {
       expect(DeviceOs.ofUserAgent('curl/8.0'), 'Web');
     });
 
+    test('names browsers on iOS by their own token, not as Safari', () {
+      const webkit =
+          'AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 '
+          'Mobile/15E148 Safari/604.1';
+      const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) ';
+      expect(
+        DeviceOs.ofUserAgent('$iphone$webkit EdgiOS/129.0.2792.84'),
+        'Web (Edge, iOS)',
+      );
+      expect(
+        DeviceOs.ofUserAgent('$iphone$webkit OPT/5.0.5'),
+        'Web (Opera, iOS)',
+      );
+      expect(
+        DeviceOs.ofUserAgent('$iphone$webkit FxiOS/131.0'),
+        'Web (Firefox, iOS)',
+      );
+      expect(
+        DeviceOs.ofUserAgent('$iphone$webkit CriOS/129.0.6668.69'),
+        'Web (Chrome, iOS)',
+      );
+      // Opera and Edge on Android carry Chrome's token too.
+      expect(
+        DeviceOs.ofUserAgent(
+          'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, '
+          'like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 OPR/85.0.0',
+        ),
+        'Web (Opera, Android)',
+      );
+      expect(
+        DeviceOs.ofUserAgent(
+          'Mozilla/5.0 (Linux; Android 14; K) AppleWebKit/537.36 (KHTML, '
+          'like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 EdgA/129.0.0.0',
+        ),
+        'Web (Edge, Android)',
+      );
+    });
+
+    test('takes a touch-screen Mac user agent for an iPad', () {
+      const mac =
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 '
+          '(KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+      expect(DeviceOs.ofUserAgent(mac, maxTouchPoints: 5), 'Web (Safari, iOS)');
+      expect(DeviceOs.ofUserAgent(mac), 'Web (Safari, macOS)');
+      // A single touch point (some Mac browsers report one) is still a Mac.
+      expect(
+        DeviceOs.ofUserAgent(mac, maxTouchPoints: 1),
+        'Web (Safari, macOS)',
+      );
+      // Touch points don't make other systems iOS.
+      expect(
+        DeviceOs.ofUserAgent(
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+          maxTouchPoints: 10,
+        ),
+        'Web (Chrome, Windows)',
+      );
+    });
+
     test('has an icon for each system', () {
       expect(DeviceOs.iconOf('Android'), Icons.android);
       expect(DeviceOs.iconOf('iOS'), Icons.phone_iphone);

@@ -128,7 +128,12 @@
   `Android`, `iOS`, `macOS`, `Windows` or `Linux` in the apps (from
   `Platform.operatingSystem`), and on the web the browser and the system
   under it from the user agent, such as `Web (Chrome, macOS)`
-  (`Web` alone when neither is recognized). No version is recorded. It
+  (`Web` alone when neither is recognized). Browsers on iOS are named by
+  their own token, not as Safari (`CriOS` Chrome, `FxiOS` Firefox,
+  `EdgiOS` Edge, `OPT` Opera), and Edge and Opera elsewhere not as
+  Chrome. iPadOS Safari presents itself as a Mac, so a Mac user agent on
+  a touch screen (`navigator.maxTouchPoints` above 1) is taken for iOS.
+  No version is recorded. It
   is saved with the event and syncs in its [JSON](data-formats.md), so
   other devices show it too; events saved before it have none, and keep
   none.

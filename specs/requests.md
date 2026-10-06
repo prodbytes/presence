@@ -3146,3 +3146,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        484 Flutter tests pass. Specs: [Events](events.md),
        [Sign-in](sign-in.md), [Data formats](data-formats.md),
        [Devices, users and places](devices-users-places.md).
+     - Review fixes (2026-10-06): the devices list's age ("5 min ago")
+       was a `Text` in a `WidgetSpan`, scaled twice at a large system font;
+       it's now plain text in the line, with the exact-time tooltip on the
+       whole line. The user agent parser takes a Mac user agent on a touch
+       screen (`navigator.maxTouchPoints` above 1) for iOS, since iPadOS
+       Safari presents itself as a Mac, and names Edge (`EdgiOS`) and
+       Opera (`OPT`) on iOS instead of Safari. New tests: the devices list
+       at 320 dp with text scaled 2x (no overflow, no widget inside the
+       line), iOS browsers, Edge and Opera on Android, and the touch-screen
+       Mac. 487 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md).

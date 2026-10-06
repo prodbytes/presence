@@ -29,21 +29,40 @@ abstract final class DeviceOs {
 
   /// The browser in a web [userAgent], and the system it runs on, as
   /// `Web (Chrome, macOS)`; `Web` alone when neither is recognized.
-  static String ofUserAgent(String userAgent) {
+  ///
+  /// iPadOS 13 and later Safari presents itself as a Mac; a Mac user agent
+  /// with more than one touch point ([maxTouchPoints], the browser's
+  /// `navigator.maxTouchPoints`) is taken to be an iPad, so iOS.
+  ///
+  /// Browsers on iOS name themselves with their own token (`CriOS/`,
+  /// `FxiOS/`, `EdgiOS/`, `OPT/`) beside Safari's, so those are checked
+  /// before `Safari/`; Edge and Opera elsewhere also carry `Chrome/`, so
+  /// they are checked before Chrome.
+  static String ofUserAgent(String userAgent, {int maxTouchPoints = 0}) {
     final ua = userAgent;
     final browser = switch (ua) {
-      _ when ua.contains('Edg/') || ua.contains('EdgA/') => 'Edge',
-      _ when ua.contains('OPR/') => 'Opera',
+      _
+          when ua.contains('Edg/') ||
+              ua.contains('EdgA/') ||
+              ua.contains('EdgiOS/') =>
+        'Edge',
+      _ when ua.contains('OPR/') || ua.contains('OPT/') => 'Opera',
       _ when ua.contains('Firefox/') || ua.contains('FxiOS/') => 'Firefox',
       _ when ua.contains('Chrome/') || ua.contains('CriOS/') => 'Chrome',
       _ when ua.contains('Safari/') => 'Safari',
       _ => null,
     };
+    final mac = ua.contains('Mac OS X') || ua.contains('Macintosh');
     final system = switch (ua) {
       _ when ua.contains('Android') => 'Android',
-      _ when ua.contains('iPhone') || ua.contains('iPad') => 'iOS',
+      _
+          when ua.contains('iPhone') ||
+              ua.contains('iPad') ||
+              ua.contains('iPod') =>
+        'iOS',
       _ when ua.contains('CrOS') => 'ChromeOS',
-      _ when ua.contains('Mac OS X') || ua.contains('Macintosh') => 'macOS',
+      _ when mac && maxTouchPoints > 1 => 'iOS',
+      _ when mac => 'macOS',
       _ when ua.contains('Windows') => 'Windows',
       _ when ua.contains('Linux') => 'Linux',
       _ => null,

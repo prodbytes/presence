@@ -157,12 +157,15 @@ void main() {
 
     expect(icon('brave_quiet_lamp'), Icons.android);
     expect(last('brave_quiet_lamp'), contains('Android · '));
-    expect(find.text('5 min ago'), findsOneWidget);
+    expect(last('brave_quiet_lamp'), 'Android · 5 min ago');
     expect(icon('calm_sunny_radio_with_a_long_name'), Icons.language);
-    expect(find.text('just now'), findsOneWidget);
+    expect(
+      last('calm_sunny_radio_with_a_long_name'),
+      'Web (Firefox, Windows) · just now',
+    );
     // Older events without an OS: a generic icon, and just the time.
     expect(icon('zesty_calm_kettle'), Icons.devices_other);
-    expect(find.text('1 d ago'), findsOneWidget);
+    expect(last('zesty_calm_kettle'), '1 d ago');
     // This device, without events: its own OS, and none yet.
     expect(icon('happy_tidy_gadget'), DeviceOs.iconOf(DeviceOs.current));
     expect(last('happy_tidy_gadget'), '${DeviceOs.current} · No events');
@@ -171,6 +174,61 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (w) => w is Tooltip && w.message == '2026-10-05 11:55:00',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('at a large system font the device list fits 320 dp, and the '
+      'age is scaled once, like the rest of its line', (tester) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final now = DateTime(2026, 10, 5, 12);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 800),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: ProfileDevices(
+                profile: 'automatic_paranoid_axolotl',
+                now: () => now,
+                devices: [
+                  (
+                    id: 'calm_sunny_radio_with_a_long_name',
+                    os: 'Web (Firefox, Windows)',
+                    lastEvent: now.subtract(const Duration(minutes: 5)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final line = find.byKey(
+      const Key('profile-device-last-calm_sunny_radio_with_a_long_name'),
+    );
+    // One plain line of text: no widget inside it to scale its part again.
+    expect(
+      find.descendant(of: line, matching: find.byType(Text)),
+      findsNothing,
+    );
+    final span = tester.widget<Text>(line).textSpan! as TextSpan;
+    expect(span.children!.whereType<WidgetSpan>(), isEmpty);
+    expect(span.toPlainText(), 'Web (Firefox, Windows) · 5 min ago');
+    // The exact time is on the whole line.
+    expect(
+      find.ancestor(
+        of: line,
+        matching: find.byWidgetPredicate(
+          (w) => w is Tooltip && w.message == '2026-10-05 11:55:00',
+        ),
       ),
       findsOneWidget,
     );

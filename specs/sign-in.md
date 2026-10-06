@@ -146,7 +146,9 @@ there's no separate sign-in screen:
       with the name in its tooltip) and, under the ID, the name and **how
       long ago its latest event was**: `Android · 5 min ago` ("just
       now", "5 min ago", "3 h ago", "2 d ago"), with the exact time
-      (`2026-10-06 14:05:09`) in a tooltip, or `No events`. The OS is the
+      (`2026-10-06 14:05:09`) in a tooltip on that line, or `No events`.
+      The line is plain text, so a large system font scales it once and
+      it still fits 320 dp. The OS is the
       one on the device's latest event that records one
       ([`os`](events.md)); this device without one shows its own. A
       device whose events are all from before events recorded an OS gets
