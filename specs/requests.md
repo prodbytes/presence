@@ -2950,3 +2950,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        also rewrites the built `index.html` `<title>` and the manifest's
        names. Verified the rewrite on a copy of `web/`; 451 Flutter tests
        pass. Specs: [App icon](app-icon.md), [Production deploy](deploy.md).
+275. **Icon-only readiness pill and view button on the Camera tab.** (2026-10-06)
+     - Asked: the "Ready to clip" indicator and the view button on the
+       camera screen can drop their text and be only the indicator.
+     - Changed: the readiness pill (`ReadinessIndicator` in
+       `lib/main.dart`) is only its colored dot, no "Ready", "Not ready"
+       or "Off" label, in a round 40 dp pill (`StatusPill` keeps a 40 dp
+       minimum width, centered). The motion cooldown's countdown ("4:28")
+       still shows beside the dot: it's information, not a label. The
+       tooltip and screen-reader label still spell the state out ("Ready
+       to clip", "Motion can clip again in 4:28"). The view button (One /
+       All / None) is a regular round `FloatingActionButton` with only its
+       icon (square / grid / crossed-out camera), same colors and
+       tooltips; `_CameraStatus.buttonsRoom` shrank to match. Clip keeps
+       its label.
+     - Tests: `readiness_test.dart` (new: the pill has no text, is 40×40,
+       and keeps its tooltip and semantics label; the rest look for the
+       "Ready to clip" tooltip), `camera_pause_test.dart` (the button's
+       icon per state, no "One"/"All"/"None" text, tooltips; the paused
+       pill by tooltip), `camera_all_test.dart`. 452 Flutter tests pass;
+       `flutter analyze` and `flutter build web` are clean.
+     - Specs: [Navigation](navigation.md), [Camera screen](camera.md).

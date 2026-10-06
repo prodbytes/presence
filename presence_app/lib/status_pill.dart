@@ -30,6 +30,8 @@ class StatusPill extends StatelessWidget {
         liveRegion: true,
         child: Container(
           height: 40,
+          // Without a label, a 40 dp circle around [leading].
+          constraints: const BoxConstraints(minWidth: 40),
           padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHigh.withValues(alpha: 0.9),
@@ -37,6 +39,7 @@ class StatusPill extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             spacing: 8,
             children: [
               leading,
