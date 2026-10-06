@@ -47,3 +47,10 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Play services' sign-in, for the silent re-sign-in of the remembered
+    // account (GoogleSilentSignIn). google_sign_in_android uses the same
+    // version, but doesn't expose it to the app.
+    implementation("com.google.android.gms:play-services-auth:21.6.0")
+}

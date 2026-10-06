@@ -170,6 +170,12 @@ Android uses the standard dashcam technique instead
 - **`memoryStatus`** (`presence/device`): `ActivityManager`'s
   `{lowMemory, availMem, threshold, totalMem, lowRamDevice}`; recognition
   waits while memory is tight.
+- **`googleAccount`, `rememberGoogleAccount`, `forgetGoogleAccount`,
+  `silentGoogleSignIn`** (`presence/device`, `GoogleSilentSignIn.kt`): the
+  signed-in Google account's email, kept in the app's preferences, and
+  its silent re-sign-in through Play services (`play-services-auth`,
+  a direct dependency of the app), so a restart doesn't stop at Google's
+  account chooser. See [Sign-in](sign-in.md).
 - **Build:** `tflite_flutter` compiles its Java for JVM 11 but leaves its
   Kotlin on the toolchain default (21), which Kotlin rejects; the root
   `build.gradle.kts` pins that plugin's Kotlin to JVM 11.

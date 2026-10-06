@@ -2785,3 +2785,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Tests: `HealthTest.reportsTheDeployedVersion` (passing and
        failing); all 78 auth API tests pass; `sam validate --lint` passes.
      - Specs: [Health check](health-check.md), [Deploy](deploy.md).
+267. **Android: restarts sign the same Google account back in silently.**
+     (2026-10-06)
+     - Asked: after the app restarts on the unattended phone (force-stop,
+       crash, watchdog), Google sign-in showed "Choose an account for
+       Presence", because two accounts on the phone had authorized the app
+       and Credential Manager only auto-selects with one. A restart, and
+       the hourly token refresh, must sign the same account back in with
+       no UI while it hasn't signed out.
+     - Changed: on Android, each sign-in remembers the account's email
+       (native shared preferences); at launch and at each token refresh,
+       `GoogleAuthService` first asks the new native
+       `GoogleSilentSignIn` (Play services' `silentSignIn` with
+       `setAccountName`, on `presence/device`) for that account's fresh ID
+       token, and falls back to `attemptLightweightAuthentication` when it
+       fails. Sign-out forgets the account. The app now depends on
+       `play-services-auth` 21.6.0 directly. Web and iOS are unchanged.
+     - Tests: `silent_sign_in_test.dart` (remembered account → silent,
+       no quiet check; none or failed → quiet check, and the sign-in is
+       remembered; sign-out forgets; refresh silently, same token retried
+       later; the channel); `flutter analyze` clean, the full Flutter
+       suite passes, `flutter build apk --release` builds. Not yet tried
+       on the phone.
+     - Specs: [Sign-in](sign-in.md), [Android](android.md).

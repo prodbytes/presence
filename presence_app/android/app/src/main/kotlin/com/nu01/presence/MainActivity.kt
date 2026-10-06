@@ -96,6 +96,31 @@ class MainActivity : FlutterActivity() {
                     }
                     "logDirectory" -> result.success(FileLog.directory?.path)
                     "memoryStatus" -> result.success(memoryStatus())
+                    "googleAccount" -> result.success(GoogleSilentSignIn.remembered(this))
+                    "rememberGoogleAccount" -> {
+                        val email = call.argument<String>("email")
+                        if (email.isNullOrEmpty()) {
+                            result.error("bad_args", "email is required", null)
+                        } else {
+                            GoogleSilentSignIn.remember(this, email)
+                            result.success(null)
+                        }
+                    }
+                    "forgetGoogleAccount" ->
+                        GoogleSilentSignIn.forget(this, call.argument<String>("serverClientId")) {
+                            result.success(null)
+                        }
+                    "silentGoogleSignIn" -> {
+                        val email = call.argument<String>("email")
+                        val serverClientId = call.argument<String>("serverClientId")
+                        if (email.isNullOrEmpty() || serverClientId.isNullOrEmpty()) {
+                            result.error("bad_args", "email and serverClientId are required", null)
+                        } else {
+                            GoogleSilentSignIn.signIn(this, email, serverClientId) {
+                                result.success(it)
+                            }
+                        }
+                    }
                     else -> result.notImplemented()
                 }
             }
@@ -127,7 +152,8 @@ class MainActivity : FlutterActivity() {
 
     companion object {
         /// Device readings beyond the cameras (the battery's temperature,
-        /// free memory).
+        /// free memory), the app's log, and the silent Google sign-in of
+        /// the remembered account ([GoogleSilentSignIn]).
         const val DEVICE_CHANNEL = "presence/device"
 
         /** Whether the app's screen exists (the watchdog opens it if not). */
