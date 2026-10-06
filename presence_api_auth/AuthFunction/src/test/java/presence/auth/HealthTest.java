@@ -40,6 +40,21 @@ class HealthTest {
     }
 
     @Test
+    void reportsTheDeployedVersion() {
+        var health = new HealthHandler(List.of(ok("settings")), Clock.fixed(NOW, ZoneOffset.UTC),
+                Duration.ofMillis(500), "0.6.202610061200");
+        var response = health.handleRequest(null, null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("{\"status\":\"ok\",\"checks\":{\"settings\":\"ok\"},\"version\":\"0.6.202610061200\"}",
+                response.getBody());
+        // Failing too, so a broken release still says which it is.
+        health = new HealthHandler(List.of(failing("s3")), Clock.fixed(NOW, ZoneOffset.UTC),
+                Duration.ofMillis(500), "0.6.202610061200");
+        assertEquals("{\"status\":\"fail\",\"checks\":{\"s3\":\"fail\"},\"version\":\"0.6.202610061200\"}",
+                health.handleRequest(null, null).getBody());
+    }
+
+    @Test
     void oneFailingWithoutSayingWhy() {
         var response = handler(List.of(ok("settings"), failing("dynamodb"), ok("s3"))).handleRequest(null, null);
         assertEquals(503, response.getStatusCode());

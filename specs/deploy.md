@@ -51,7 +51,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
   token (401), and `/api/auth/anonymous` must answer RBAC with only
   `presence_anonymous`, and report the OIDC client and AWS settings set,
-  and `/health` must answer `"status":"ok"`. It retries for up to 10 minutes.
+  and `/health` must answer `"status":"ok"` with this release's
+  `"version"` (see [Health check](health-check.md)). It retries for up to 10 minutes.
 
 ## Release candidates (rc.presence.nu01.com)
 

@@ -24,9 +24,15 @@ and emails when it fails or recovers.
   - **`google`**: Google's token signing keys
     (`https://www.googleapis.com/oauth2/v3/certs`) load. The HTTP API's
     JWT authorizer needs them to check every sign-in.
-- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok"}}`
+- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok"},"version":"0.6.202610061200"}`
   when every check passes. Otherwise **503**, with `"status":"fail"` and
   the failing checks as `"fail"`.
+- **`version`** is the release deployed (`X.Y.Z`, as in
+  `/app/version.json`), passed by `scripts/deploy.sh` as the auth API
+  stack's `Version` parameter (`PRESENCE_VERSION` on `HealthFunction`). It's
+  there failing or not, so `curl https://rc.presence.nu01.com/health` (or
+  prod's) shows which release the API runs. Left out when the stack has
+  none (a local or manual deploy).
 - The response only names each check and says ok or fail. Why a check
   failed goes to the function's CloudWatch log ("health check failed:
   …"), never to the public response.

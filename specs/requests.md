@@ -2774,3 +2774,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [About](about.md), [Navigation](navigation.md),
        [Log](log.md), [Settings](settings.md), [Sign-in](sign-in.md),
        [Execution mode](execution-mode.md), [README](README.md).
+266. **Expose the deployed version from the auth module.** (2026-10-06)
+     - Asked: a way, perhaps in the auth module, to see when a version is
+       published.
+     - Changed: the auth API's public `GET /health` adds `"version":
+       "X.Y.Z"`, from the stack's new `Version` parameter, which
+       `scripts/deploy.sh` sets from the tag; the deploy's smoke test now
+       also requires `/health` to report the release it deployed. Check
+       with `curl https://rc.presence.nu01.com/health`.
+     - Tests: `HealthTest.reportsTheDeployedVersion` (passing and
+       failing); all 78 auth API tests pass; `sam validate --lint` passes.
+     - Specs: [Health check](health-check.md), [Deploy](deploy.md).

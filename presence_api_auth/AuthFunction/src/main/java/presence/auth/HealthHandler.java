@@ -47,9 +47,11 @@ import static presence.auth.AuthHandler.response;
  *   <li>{@code google}: Google's token signing keys load (the JWT
  *       authorizer needs them).</li>
  * </ul>
- * 200 {@code {"status":"ok","checks":{"settings":"ok",...}}} when all pass,
- * else 503 with {@code "status":"fail"} and the failing checks as
- * {@code "fail"}. Only names and ok/fail are public; why a check failed goes
+ * 200 {@code {"status":"ok","checks":{"settings":"ok",...},"version":"0.6.…"}}
+ * when all pass, else 503 with {@code "status":"fail"} and the failing checks
+ * as {@code "fail"}. {@code version} is the release deployed
+ * ({@code PRESENCE_VERSION}), left out when unset, so anyone can see when a
+ * release is live. Only names and ok/fail are public; why a check failed goes
  * to the function's log. A result is reused for {@link #CACHE_FOR}, so Route
  * 53's checkers don't each call every service.
  */
@@ -76,18 +78,24 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
     private final List<Check> checks;
     private final Clock clock;
     private final Duration budget;
+    private final String version;
     private APIGatewayV2HTTPResponse last;
     private Instant lastAt;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public HealthHandler() {
-        this(fromEnvironment(), Clock.systemUTC(), BUDGET);
+        this(fromEnvironment(), Clock.systemUTC(), BUDGET, System.getenv("PRESENCE_VERSION"));
     }
 
     HealthHandler(List<Check> checks, Clock clock, Duration budget) {
+        this(checks, clock, budget, null);
+    }
+
+    HealthHandler(List<Check> checks, Clock clock, Duration budget, String version) {
         this.checks = checks;
         this.clock = clock;
         this.budget = budget;
+        this.version = version == null || version.isBlank() ? null : version.strip();
     }
 
     @Override
@@ -105,7 +113,11 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
                     .append(result.getValue() ? "\"ok\"" : "\"fail\"");
             first = false;
         }
-        json.append("}}");
+        json.append('}');
+        if (version != null) {
+            json.append(",\"version\":").append(Json.string(version));
+        }
+        json.append('}');
         last = response(healthy ? 200 : 503, json.toString());
         lastAt = now;
         return last;
