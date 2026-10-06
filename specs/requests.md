@@ -3151,3 +3151,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Motion clips](motion-clips.md), [Scheduled
        clips](scheduled-clips.md), [Camera](camera.md),
        [Settings](settings.md).
+     - Review fixes (2026-10-06):
+       - Steady motion no longer starves a scheduled or startup clip due
+         during the cooldown: when the cooldown ends, a due one goes ahead
+         of a motion clip, and a one-shot timer wakes the schedule check
+         at the cooldown's end (it used to wait for the next 5 s check,
+         which motion within 200 ms usually beat, restarting the
+         cooldown).
+       - A last-clip time later than now (restored, or a clock set back)
+         counts as now, so the cooldown never runs longer than its
+         length.
+       - With motion and scheduled clips both off, there's no cooldown:
+         the pill stays Ready instead of counting down to an automatic
+         clip that won't come.
+       - 488 Flutter tests pass. Specs: [Navigation](navigation.md),
+         [Motion clips](motion-clips.md), [Scheduled
+         clips](scheduled-clips.md).

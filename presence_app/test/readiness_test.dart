@@ -210,6 +210,43 @@ void main() {
       expect(rig.readiness.remaining, const Duration(minutes: 4));
     });
 
+    test('a stored clip time later than now counts as now', () {
+      rig.restoreCooldown(now.add(const Duration(hours: 2)));
+      expect(rig.cooldownEnds, now.add(const Duration(minutes: 5)));
+      expect(rig.readiness.remaining, const Duration(minutes: 5));
+      now = now.add(const Duration(minutes: 5));
+      expect(rig.readiness.state, ClipReadinessState.ready);
+    });
+
+    test('a clock set back never stretches the cooldown', () async {
+      now = now.add(const Duration(seconds: 20));
+      await rig.requestClips(bus);
+      now = now.subtract(const Duration(hours: 1));
+      expect(rig.cooldownEnds, now.add(const Duration(minutes: 5)));
+      now = now.add(const Duration(minutes: 5));
+      expect(rig.cooldownEnds, isNull);
+    });
+
+    test('motion and scheduled clips both off: no cooldown', () async {
+      rig.config.update(
+        (c) => c.copyWith(
+          motion: c.motion.copyWith(enabled: false),
+          schedule: c.schedule.copyWith(enabled: false),
+        ),
+      );
+      now = now.add(const Duration(seconds: 20));
+      await rig.requestClips(bus);
+      expect(back.fullCompleters, hasLength(1), reason: 'Clip still works');
+      expect(rig.cooldownEnds, isNull);
+      expect(rig.readiness.state, ClipReadinessState.ready);
+      // Either one switched back on: the cooldown from that clip shows.
+      rig.config.update(
+        (c) => c.copyWith(schedule: c.schedule.copyWith(enabled: true)),
+      );
+      expect(rig.readiness.state, ClipReadinessState.cooldown);
+      expect(rig.readiness.remaining, const Duration(minutes: 5));
+    });
+
     test('is still ready right after a flip', () async {
       await rig.flip();
       expect(rig.readiness.state, ClipReadinessState.ready);

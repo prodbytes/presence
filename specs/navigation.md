@@ -132,11 +132,19 @@ in the app bar**, which flip between full screens.
       4:28"). Below a minute it shows "45 s". The countdown and the
       automatic triggers use the same end time (`CameraRig.cooldownEnds`):
       - **motion** is ignored until it reaches zero;
-      - a **scheduled (or startup) clip** due during it is taken when it
-        ends, and the next one counts from then;
+      - a **scheduled (or startup) clip** due during it is taken the
+        moment it ends (a one-shot timer wakes the schedule then), ahead
+        of a motion clip, so steady motion can't hold it back; the next
+        one counts from then;
       - the **Clip button is never blocked**: a press during the cooldown
         takes the clip and restarts the countdown from the press.
-      It applies with motion clips turned off too.
+      It applies with motion clips turned off too, as long as scheduled
+      clips are on. With **both motion and scheduled clips off** there's
+      no automatic clip to wait for: no cooldown and no countdown, the
+      pill stays Ready (the Clip button works as always).
+      A clip time later than now (a clock set back, or a stored time from
+      a clock ahead) counts as now, so the cooldown never runs longer
+      than its length.
     - **Not ready** (gray dot only; "Camera not ready") and **Off** (gray
       dot only; "Camera off: nothing is recorded", the view button's
       None).
@@ -148,7 +156,8 @@ in the app bar**, which flip between full screens.
       events (clips other devices took, fetched from the cloud, don't
       count), so the countdown continues exactly where it was and nothing
       automatic re-fires early just because the app restarted. If a clip
-      was taken since launch, the later of the two wins.
+      was taken since launch, the later of the two wins. A stored time
+      later than now counts as now.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
     `CameraMessagePill`), never a snackbar: at the bottom, to the right of
     the readiness pill, for 4 s, so nothing over the camera moves (a

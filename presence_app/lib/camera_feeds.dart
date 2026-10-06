@@ -128,8 +128,10 @@ class CameraRig extends ChangeNotifier {
   /// Takes the startup clip, then a scheduled clip whenever one is due,
   /// once the camera is open and its "before" history is full: the same
   /// path as the Clip button. One due during the cooldown is taken when the
-  /// cooldown ends (and the next one counts from then).
-  void _checkSchedule() {
+  /// cooldown ends (and the next one counts from then): a one-shot timer
+  /// wakes this check then, and it goes before a motion clip. Returns
+  /// whether it took a clip.
+  bool _checkSchedule() {
     final due = nextScheduledClip;
     final target = bus;
     final opened = _openedAt;
@@ -139,13 +141,13 @@ class CameraRig extends ChangeNotifier {
         !canClip ||
         _scheduledClipStarting ||
         cooldownEnds != null) {
-      return;
+      return false;
     }
     final now = _now();
     final startup = !_startupClipTaken;
     if ((!startup && now.isBefore(due)) ||
         now.difference(opened) < config.clip.before) {
-      return;
+      return false;
     }
     _startupClipTaken = true;
     _lastScheduledClip = now;
@@ -154,6 +156,30 @@ class CameraRig extends ChangeNotifier {
       target,
       trigger: startup ? ClipTrigger.startup : ClipTrigger.scheduled,
     ).whenComplete(() => _scheduledClipStarting = false);
+    return true;
+  }
+
+  /// Wakes [_checkSchedule] when the cooldown ends, so a scheduled or
+  /// startup clip held back by it is taken then, not up to [scheduleCheck]
+  /// later (when steady motion would take a motion clip first).
+  Timer? _cooldownWake;
+
+  /// (Re)arms [_cooldownWake] for the current cooldown, if scheduled clips
+  /// are on.
+  void _armCooldownWake() {
+    _cooldownWake?.cancel();
+    _cooldownWake = null;
+    final ends = cooldownEnds;
+    if (_disposed || ends == null || !config.schedule.enabled) return;
+    _cooldownWake = Timer(ends.difference(_now()), () {
+      _cooldownWake = null;
+      // A clock a little behind the timer: wait for the rest.
+      if (cooldownEnds != null) {
+        _armCooldownWake();
+      } else {
+        _checkSchedule();
+      }
+    });
   }
 
   /// Whether a clip taken now would be complete. It changes with time, so
@@ -179,22 +205,34 @@ class CameraRig extends ChangeNotifier {
   /// Restores the cooldown after a restart, from this device's last clip
   /// (any trigger) in the stored history, so a relaunch doesn't reset it
   /// (keeps the later of this and any clip taken since launch).
+  /// A stored time later than now (another clock, or this one set back)
+  /// counts as now, so the cooldown never runs longer than its length.
   void restoreCooldown(DateTime lastClip) {
+    final now = _now();
+    if (lastClip.isAfter(now)) lastClip = now;
     final current = _lastClip;
     if (current != null && !lastClip.isAfter(current)) return;
     _lastClip = lastClip;
+    _armCooldownWake();
     notifyListeners();
   }
 
   /// When automatic clips (motion, scheduled, startup) may be taken again,
   /// or null if they may now: [MotionConfig.cooldown] after the latest
-  /// clip, whatever took it. The readiness countdown and the automatic
-  /// triggers use this; the Clip button ignores it.
+  /// clip, whatever took it. Null too when motion and scheduled clips are
+  /// both off: there's no automatic clip to wait for. The readiness
+  /// countdown and the automatic triggers use this; the Clip button
+  /// ignores it.
   DateTime? get cooldownEnds {
-    final last = _lastClip;
+    var last = _lastClip;
     if (last == null) return null;
+    if (!config.motion.enabled && !config.schedule.enabled) return null;
+    final now = _now();
+    // The clock was set back past the latest clip: it counts as now, so
+    // the cooldown never runs longer than its length.
+    if (last.isAfter(now)) _lastClip = last = now;
     final ends = last.add(config.motion.cooldown);
-    return _now().isBefore(ends) ? ends : null;
+    return now.isBefore(ends) ? ends : null;
   }
 
   /// The latest motion score of the open camera (0–100 % of the picture
@@ -436,6 +474,9 @@ class CameraRig extends ChangeNotifier {
   /// A new brightness setting restarts the open camera with it (after
   /// [brightnessRestartDelay]); it's applied live meanwhile.
   void _onConfigChanged() {
+    // The cooldown's length, or whether scheduled clips are on, may have
+    // changed.
+    _armCooldownWake();
     _applyPaused();
     // While a camera opens, [load] or [flip] applies it once it's open.
     if (!_busy) _applyChosen();
@@ -492,6 +533,9 @@ class CameraRig extends ChangeNotifier {
     if (target == null || !canClip || _motionClipStarting) return;
 
     _framesOverThreshold = 0;
+    // A scheduled or startup clip that's due goes first (it starts the
+    // cooldown like any clip), so steady motion can't hold it back.
+    if (_checkSchedule()) return;
     _motionClipStarting = true;
     requestClips(
       target,
@@ -542,6 +586,7 @@ class CameraRig extends ChangeNotifier {
     // The cooldown runs from when the clip is grabbed, before the awaits
     // below, so motion in the meantime doesn't take a second one.
     _lastClip = requestedAt;
+    _armCooldownWake();
     notifyListeners();
     final capture = camera.requestClip(before: before, after: after);
     final (thumbnail, past) = await (
@@ -610,6 +655,7 @@ class CameraRig extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _scheduleTimer?.cancel();
+    _cooldownWake?.cancel();
     _brightnessRestart?.cancel();
     _lostRetry?.cancel();
     _latestClip?.removeListener(notifyListeners);
