@@ -233,9 +233,9 @@ already keeps other profiles off the topic.
   from `.env` (`IOT_ENDPOINT`, see `.env.example`).
 - **The deploy roles** (`github-deploy.yaml`) may manage `presence-*` (RC:
   `presence-rc-*`) IoT policies and their versions, and call
-  `iot:DescribeEndpoint`. An administrator must update that stack by hand
-  before the first deploy with live sync (see
-  [presence_infra/README.md](../presence_infra/README.md)).
+  `iot:DescribeEndpoint`. An administrator updates that stack by hand (see
+  [presence_infra/README.md](../presence_infra/README.md)); it was updated
+  on 2026-10-06, and `0.6.202610061801` deployed live sync to prod and RC.
 
 ## Off
 

@@ -3376,3 +3376,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        out of order (three 283s); they are back in merge order: 282 live
        sync, 283 the cooldown after any clip, 284 the Monitoring map, 285
        each event's OS.
+     - Deploy: the `0.6.202610061801` Deploy and Deploy RC runs failed
+       (`presence-identity` / `presence-rc-identity`: `LivePolicy` create,
+       `iot:CreatePolicy` access denied; both stacks rolled back). With the
+       user's go-ahead the `presence-github-deploy` stack was updated with
+       admin credentials (adding the IoT rights from #213), the runs were
+       re-run and both sites serve `0.6.202610061801`. Specs:
+       [Deploy](deploy.md), [Live sync](live-sync.md).
