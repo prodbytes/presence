@@ -6,6 +6,18 @@ import 'auth_service.dart';
 /// A silent sign-in's result: who, and their fresh Google ID token.
 typedef SilentAccount = ({AuthUser user, String idToken});
 
+/// The remembered account can't sign in without UI (Play services'
+/// SIGN_IN_REQUIRED: removed from the phone, or no longer granting the
+/// app). Any other failure may pass on a retry, and is a null instead.
+class SilentSignInRequired implements Exception {
+  const SilentSignInRequired(this.email);
+
+  final String email;
+
+  @override
+  String toString() => 'SilentSignInRequired($email)';
+}
+
 /// Signs the account that signed in last back in, with no UI: on Android,
 /// after a restart and to refresh the ID token. Credential Manager's quiet
 /// check shows Google's account chooser when more than one account on the
@@ -22,7 +34,8 @@ abstract class SilentSignIn {
   Future<void> forget();
 
   /// Signs [email] in quietly, with an ID token for [serverClientId]; null
-  /// when it can't without UI.
+  /// when it failed this time (offline, Play services busy), and throws
+  /// [SilentSignInRequired] when it can't without UI.
   Future<SilentAccount?> signIn({
     required String email,
     required String serverClientId,
@@ -90,12 +103,26 @@ class NativeSilentSignIn implements SilentSignIn {
         'silentGoogleSignIn',
         {'email': email, 'serverClientId': serverClientId},
       );
+      if (m != null && failureOf(m) == signInRequired) {
+        throw SilentSignInRequired(email);
+      }
       return m == null ? null : parse(m);
+    } on SilentSignInRequired {
+      rethrow;
     } catch (e) {
       debugPrint('Presence: silent Google sign-in of $email failed: $e');
       return null;
     }
   }
+
+  /// Play services' SIGN_IN_REQUIRED status code.
+  static const signInRequired = 4;
+
+  /// The failure's status code in the channel's reply, or null when it has
+  /// none (an account).
+  @visibleForTesting
+  static int? failureOf(Map<String, Object?> m) =>
+      int.tryParse('${m['failure'] ?? ''}');
 
   /// The account in the channel's reply, or null if it's incomplete.
   @visibleForTesting

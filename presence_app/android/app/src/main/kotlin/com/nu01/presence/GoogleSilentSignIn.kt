@@ -20,6 +20,9 @@ import com.google.android.gms.common.api.ApiException
  */
 @Suppress("DEPRECATION") // The legacy client is the only one that can name the account.
 object GoogleSilentSignIn {
+    /** Play services' CommonStatusCodes.SIGN_IN_REQUIRED. */
+    const val SIGN_IN_REQUIRED = 4
+
     private const val PREFS = "presence"
     private const val ACCOUNT = "googleAccount"
 
@@ -47,8 +50,10 @@ object GoogleSilentSignIn {
     /**
      * Signs [email] in without UI, with an ID token for [serverClientId];
      * [done] gets the account (id, email, displayName, photoUrl, idToken),
-     * or null when it can't (the account was removed, or no longer grants
-     * the app). Never logs the token.
+     * or, when it can't, `{failure: <Play services status code>}` (-1 when
+     * there's none): 4 (SIGN_IN_REQUIRED) means the account must sign in
+     * with UI; anything else (a network or internal error) may pass on a
+     * retry. Never logs the token.
      */
     fun signIn(
         context: Context,
@@ -60,7 +65,7 @@ object GoogleSilentSignIn {
             client(context, email, serverClientId).silentSignIn()
         } catch (e: Exception) {
             FileLog.w("silent Google sign-in of $email could not start", e)
-            done(null)
+            done(mapOf("failure" to "-1"))
             return
         }
         task.addOnCompleteListener { t ->
@@ -69,13 +74,13 @@ object GoogleSilentSignIn {
             if (account == null || token == null || account.id == null) {
                 val code = (t.exception as? ApiException)?.statusCode
                 FileLog.w("silent Google sign-in of $email failed (status $code)")
-                done(null)
+                done(mapOf("failure" to "${code ?: -1}"))
                 return@addOnCompleteListener
             }
             if (!account.email.equals(email, ignoreCase = true)) {
                 // Never sign in as anyone else than the account asked for.
                 FileLog.w("silent Google sign-in of $email returned another account")
-                done(null)
+                done(mapOf("failure" to "$SIGN_IN_REQUIRED"))
                 return@addOnCompleteListener
             }
             FileLog.i("silent Google sign-in of $email succeeded")
