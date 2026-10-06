@@ -9,14 +9,12 @@ Description: >
   manage vouchers; /api/auth/credentials and /api/auth/profile/* give a
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
-  returns the execution mode (DEV without GoogleWebClientId, else RBAC),
-  the anonymous roles and which settings are set; GET /health (no token)
-  checks the dependencies for Route 53. Roles: the root
-  allowlist (RootDomains, for accounts of that Google Workspace; RootEmails)
-  gets presence_root, presence_admin and presence_user; the UserRoles table
-  adds more (never presence_root); a linked account shares its profile
-  owner's presence_user, never its admin roles. Served under /api/* by the
-  site's CloudFront distribution, with /health.
+  returns the execution mode and which settings are set; GET /health (no
+  token) checks the dependencies. Roles: the root allowlist (RootDomains
+  for that Google Workspace, RootEmails) gets every role; the UserRoles
+  table adds more (never presence_root); a linked account shares only its
+  owner's presence_user. Served under /api/* by the site's CloudFront.
+  (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
   Version:

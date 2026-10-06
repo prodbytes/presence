@@ -3635,6 +3635,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        (which stores `ownerHd`).
      - Specs: [Auth API](auth-api.md), [Membership](membership.md),
        [Profiles](profiles.md), [Sign-in](sign-in.md).
+     - Deploy fix: the `0.6.202610061950` deploys failed creating the
+       auth API's change set ("Template format error: 'Description' length
+       is greater than 1024": this change made the template's description
+       1081 characters). It was shortened to 960, with a note of the limit.
 
 296. **UI review fixes: Monitoring focus, timeline scroll, filters and
      pills.** (2026-10-06)
