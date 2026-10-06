@@ -3126,107 +3126,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the box ("Paste position", compact, bodySmall text) moved
        into the position's column right of the map, under the position.
        474 Flutter tests pass. Specs: [Device location](device-location.md).
-282. **Each event's operating system; the devices list shows OS and latest
-     event.** (2026-10-06)
-     - Asked: add the operating system name to each event, and in the
-       account sheet's devices list show each device's OS with a fitting
-       icon and the time of its latest event.
-     - Changed: every event records its device's OS (`AppEvent.os`, set
-       when published from `DeviceOs.current`: `Android`, `iOS`, `macOS`,
-       `Windows`, `Linux`, or `Web (<browser>, <system>)` from the user
-       agent), saved and synced in the event JSON as `os` (left out when
-       unknown; older events have none). The event's device tag shows the
-       OS icon and ` · <OS>` after the ID. The account sheet's devices show
-       the OS icon (tooltip with the name), and under the ID the OS name
-       and how long ago the device's latest event was (exact time in a
-       tooltip), or "No events". Fits 320 dp. New tests: record
-       round-trip with and without `os`, user-agent parsing, icons, the
-       device tag at 320 dp, the devices list at 320 dp, and an event's OS
-       uploading and a cloud event keeping its own (or none).
-       484 Flutter tests pass. Specs: [Events](events.md),
-       [Sign-in](sign-in.md), [Data formats](data-formats.md),
-       [Devices, users and places](devices-users-places.md).
-     - Review fixes (2026-10-06): the devices list's age ("5 min ago")
-       was a `Text` in a `WidgetSpan`, scaled twice at a large system font;
-       it's now plain text in the line, with the exact-time tooltip on the
-       whole line. The user agent parser takes a Mac user agent on a touch
-       screen (`navigator.maxTouchPoints` above 1) for iOS, since iPadOS
-       Safari presents itself as a Mac, and names Edge (`EdgiOS`) and
-       Opera (`OPT`) on iOS instead of Safari. New tests: the devices list
-       at 320 dp with text scaled 2x (no overflow, no widget inside the
-       line), iOS browsers, Edge and Opera on Android, and the touch-screen
-       Mac. 487 Flutter tests pass. Specs: [Events](events.md),
-       [Sign-in](sign-in.md).
-
-283. **The Monitoring map close up on the latest event; more room for
-     events.** (2026-10-06)
-     - Asked: on the Monitoring page, zoom the map to the latest event,
-       and closer; less space for the map and more for the events.
-     - Changed: the subjects map shows only the located events of tagged
-       subjects; it opens on the newest of those at street level (zoom
-       16–17, fitting only dots within 300 m; was zoomed out to show every
-       dot, up to 17), also once the events load, and follows each newer
-       one until the map is moved by hand.
-       Phones: the map takes 30% of the room under the filters (was 35%
-       of the page), at least 160 dp.
-       Wide: the events column is 55% of the width, 360–880 dp (was 40%,
-       360–520 dp). A subject's own map is unchanged. 481 Flutter tests
-       pass; web build compiles. Specs: [Monitoring](monitoring.md),
-       [Subjects](subjects.md).
-     - Review fixes: the fit the map opens on is worked out once, so a
-       resize (rotation, keyboard, window) after the map was moved no
-       longer snaps it back to the newest event (flutter_map applies the
-       initial fit at the first real size, which could come late); the
-       300 m check uses the haversine distance, as Vincenty's throws for
-       nearly antipodal dots; the stacked map's height comes from the room
-       under the filters, not the whole page, so a page under ~116 dp tall
-       (640x100) no longer overflows. Tests: a resize after a drag, an
-       antipodal dot, a 640x100 page. 483 Flutter tests pass; web
-       build compiles.
-
-283. **The cooldown after any clip, in the readiness pill.** (2026-10-06)
-     - Asked: the readiness indicator / clip "doesn't seem to be working":
-       after grabbing any event, wait for the timeout (5 minutes by
-       default) before taking another, and show it in the same pill.
-     - Why it seemed broken: only motion clips started the cooldown. A
-       Clip press, a scheduled or startup clip, or Capture all left the
-       pill on Ready, scheduled clips ignored the cooldown, and with
-       motion clips off there was no cooldown at all (its slider was
-       disabled too). After a restart it was restored only from the last
-       motion clip, and from any device's, so a clip another device of the
-       profile took (fetched from the cloud) could hold this one back.
-     - Changed: every clip, whatever took it, starts the cooldown
-       (`CameraRig.cooldownEnds`, Settings' cooldown) when it's grabbed.
-       During it, motion is ignored and a scheduled or startup clip due is
-       taken when it ends (the next one counts from then; the Settings
-       countdown shows that moment). The Clip button is never blocked; a
-       press restarts the countdown. The pill counts down after any clip
-       (red while the clip saves, then amber; "Next automatic clip in
-       4:28"), with motion clips off too, and the cooldown slider stays
-       adjustable. On launch the cooldown is restored from this device's
-       latest clip of any trigger.
-     - 483 Flutter tests pass. Specs: [Navigation](navigation.md),
-       [Motion clips](motion-clips.md), [Scheduled
-       clips](scheduled-clips.md), [Camera](camera.md),
-       [Settings](settings.md).
-     - Review fixes (2026-10-06):
-       - Steady motion no longer starves a scheduled or startup clip due
-         during the cooldown: when the cooldown ends, a due one goes ahead
-         of a motion clip, and a one-shot timer wakes the schedule check
-         at the cooldown's end (it used to wait for the next 5 s check,
-         which motion within 200 ms usually beat, restarting the
-         cooldown).
-       - A last-clip time later than now (restored, or a clock set back)
-         counts as now, so the cooldown never runs longer than its
-         length.
-       - With motion and scheduled clips both off, there's no cooldown:
-         the pill stays Ready instead of counting down to an automatic
-         clip that won't come.
-       - 488 Flutter tests pass. Specs: [Navigation](navigation.md),
-         [Motion clips](motion-clips.md), [Scheduled
-         clips](scheduled-clips.md).
-
-283. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
+282. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
      - Asked: when a device creates or updates an event, push it to S3 as
        today and also publish it over MQTT (AWS IoT Core over WebSockets,
        approved), so the profile's other devices get it within about a
@@ -3366,3 +3266,113 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter analyze`, `flutter test` (514) and `flutter build web`
        pass.
      - Specs: [Live sync](live-sync.md).
+
+283. **The cooldown after any clip, in the readiness pill.** (2026-10-06)
+     - Asked: the readiness indicator / clip "doesn't seem to be working":
+       after grabbing any event, wait for the timeout (5 minutes by
+       default) before taking another, and show it in the same pill.
+     - Why it seemed broken: only motion clips started the cooldown. A
+       Clip press, a scheduled or startup clip, or Capture all left the
+       pill on Ready, scheduled clips ignored the cooldown, and with
+       motion clips off there was no cooldown at all (its slider was
+       disabled too). After a restart it was restored only from the last
+       motion clip, and from any device's, so a clip another device of the
+       profile took (fetched from the cloud) could hold this one back.
+     - Changed: every clip, whatever took it, starts the cooldown
+       (`CameraRig.cooldownEnds`, Settings' cooldown) when it's grabbed.
+       During it, motion is ignored and a scheduled or startup clip due is
+       taken when it ends (the next one counts from then; the Settings
+       countdown shows that moment). The Clip button is never blocked; a
+       press restarts the countdown. The pill counts down after any clip
+       (red while the clip saves, then amber; "Next automatic clip in
+       4:28"), with motion clips off too, and the cooldown slider stays
+       adjustable. On launch the cooldown is restored from this device's
+       latest clip of any trigger.
+     - 483 Flutter tests pass. Specs: [Navigation](navigation.md),
+       [Motion clips](motion-clips.md), [Scheduled
+       clips](scheduled-clips.md), [Camera](camera.md),
+       [Settings](settings.md).
+     - Review fixes (2026-10-06):
+       - Steady motion no longer starves a scheduled or startup clip due
+         during the cooldown: when the cooldown ends, a due one goes ahead
+         of a motion clip, and a one-shot timer wakes the schedule check
+         at the cooldown's end (it used to wait for the next 5 s check,
+         which motion within 200 ms usually beat, restarting the
+         cooldown).
+       - A last-clip time later than now (restored, or a clock set back)
+         counts as now, so the cooldown never runs longer than its
+         length.
+       - With motion and scheduled clips both off, there's no cooldown:
+         the pill stays Ready instead of counting down to an automatic
+         clip that won't come.
+       - 488 Flutter tests pass. Specs: [Navigation](navigation.md),
+         [Motion clips](motion-clips.md), [Scheduled
+         clips](scheduled-clips.md).
+
+284. **The Monitoring map close up on the latest event; more room for
+     events.** (2026-10-06)
+     - Asked: on the Monitoring page, zoom the map to the latest event,
+       and closer; less space for the map and more for the events.
+     - Changed: the subjects map shows only the located events of tagged
+       subjects; it opens on the newest of those at street level (zoom
+       16–17, fitting only dots within 300 m; was zoomed out to show every
+       dot, up to 17), also once the events load, and follows each newer
+       one until the map is moved by hand.
+       Phones: the map takes 30% of the room under the filters (was 35%
+       of the page), at least 160 dp.
+       Wide: the events column is 55% of the width, 360–880 dp (was 40%,
+       360–520 dp). A subject's own map is unchanged. 481 Flutter tests
+       pass; web build compiles. Specs: [Monitoring](monitoring.md),
+       [Subjects](subjects.md).
+     - Review fixes: the fit the map opens on is worked out once, so a
+       resize (rotation, keyboard, window) after the map was moved no
+       longer snaps it back to the newest event (flutter_map applies the
+       initial fit at the first real size, which could come late); the
+       300 m check uses the haversine distance, as Vincenty's throws for
+       nearly antipodal dots; the stacked map's height comes from the room
+       under the filters, not the whole page, so a page under ~116 dp tall
+       (640x100) no longer overflows. Tests: a resize after a drag, an
+       antipodal dot, a 640x100 page. 483 Flutter tests pass; web
+       build compiles.
+
+285. **Each event's operating system; the devices list shows OS and latest
+     event.** (2026-10-06)
+     - Asked: add the operating system name to each event, and in the
+       account sheet's devices list show each device's OS with a fitting
+       icon and the time of its latest event.
+     - Changed: every event records its device's OS (`AppEvent.os`, set
+       when published from `DeviceOs.current`: `Android`, `iOS`, `macOS`,
+       `Windows`, `Linux`, or `Web (<browser>, <system>)` from the user
+       agent), saved and synced in the event JSON as `os` (left out when
+       unknown; older events have none). The event's device tag shows the
+       OS icon and ` · <OS>` after the ID. The account sheet's devices show
+       the OS icon (tooltip with the name), and under the ID the OS name
+       and how long ago the device's latest event was (exact time in a
+       tooltip), or "No events". Fits 320 dp. New tests: record
+       round-trip with and without `os`, user-agent parsing, icons, the
+       device tag at 320 dp, the devices list at 320 dp, and an event's OS
+       uploading and a cloud event keeping its own (or none).
+       484 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md), [Data formats](data-formats.md),
+       [Devices, users and places](devices-users-places.md).
+     - Review fixes (2026-10-06): the devices list's age ("5 min ago")
+       was a `Text` in a `WidgetSpan`, scaled twice at a large system font;
+       it's now plain text in the line, with the exact-time tooltip on the
+       whole line. The user agent parser takes a Mac user agent on a touch
+       screen (`navigator.maxTouchPoints` above 1) for iOS, since iPadOS
+       Safari presents itself as a Mac, and names Edge (`EdgiOS`) and
+       Opera (`OPT`) on iOS instead of Safari. New tests: the devices list
+       at 320 dp with text scaled 2x (no overflow, no widget inside the
+       line), iOS browsers, Edge and Opera on Android, and the touch-screen
+       Mac. 487 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md).
+
+286. **Review, merge it all, barrel roll, restart on the S40.** (2026-10-06)
+     - Asked: review the code and specs of the open PRs for correctness,
+       merge them all, do a barrel roll and restart the app on the S40.
+     - Changed: reviews of #213, #215, #216 and #217 found issues that were
+       fixed in each PR before merging (see their "Review fixes" notes).
+       Merging main into each PR in turn renumbered the request entries
+       out of order (three 283s); they are back in merge order: 282 live
+       sync, 283 the cooldown after any clip, 284 the Monitoring map, 285
+       each event's OS.
