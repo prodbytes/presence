@@ -46,9 +46,10 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location asks the device for its position again; it spins while
   waiting, and the map moves to the answer (zoom 17, or closer if already
   zoomed in).
-- **Paste a position**, under the map and its column, full width
+- **Paste position**, a compact box in the position's column, right of
+  the map and under the position, not a full row
   ([lib/location/coordinates.dart](../presence_app/lib/location/coordinates.dart)):
-  a text box (hint "38.7223, -9.1393") with a check button; the button or
+  a small text box (hint "38.72, -9.13") with a check button; the button or
   the keyboard's Done sets the location to the pasted latitude and
   longitude exactly as moving the map does (`setOnMap`: "Set on the map",
   saved, kept until My location), and the map moves there even if the
