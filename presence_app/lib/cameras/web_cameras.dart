@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
-import 'dart:ui_web' as ui_web;
 
 import 'package:flutter/material.dart' show CircularProgressIndicator;
 import 'package:flutter/widgets.dart';
@@ -13,6 +12,7 @@ import '../motion.dart';
 import 'camera_source.dart';
 import 'clip_player_controller.dart';
 import 'recorder_pool.dart';
+import 'web_dom.dart';
 import 'webm_trim.dart';
 
 /// The browser's cameras, one open at a time, each always recording.
@@ -190,15 +190,6 @@ String? _mimeTypeFor(web.MediaStream stream) {
   ].where((m) => web.MediaRecorder.isTypeSupported(m)).firstOrNull;
 }
 
-int _nextViewId = 0;
-
-/// Registers [element] as a platform view and returns its view type.
-String _registerView(web.HTMLElement element) {
-  final viewType = 'presence-view-${_nextViewId++}';
-  ui_web.platformViewRegistry.registerViewFactory(viewType, (int _) => element);
-  return viewType;
-}
-
 class WebCameraSource implements CameraSource {
   WebCameraSource(
     this.id,
@@ -216,7 +207,21 @@ class WebCameraSource implements CameraSource {
       ..width = '100%'
       ..height = '100%'
       ..objectFit = 'contain';
-    _viewType = _registerView(_video);
+    _view = ElementView(_video);
+
+    // Browsers end a track rather than report a lost camera: unplugged,
+    // taken by another app, or the permission revoked. Our own dispose
+    // stops the tracks without an `ended` event.
+    for (final track in _stream.getVideoTracks().toDart) {
+      track.addEventListener(
+        'ended',
+        (web.Event _) {
+          if (!_lost.isCompleted && !_disposed) {
+            _lost.complete('The camera stopped (unplugged or taken away)');
+          }
+        }.toJS,
+      );
+    }
 
     _pool = RecorderPool(
       startRecorder: () => _WebRecorder(_stream, _mimeType!),
@@ -236,8 +241,10 @@ class WebCameraSource implements CameraSource {
   final web.MediaStream _stream;
   final String? _mimeType;
   final _video = web.HTMLVideoElement();
-  late final String _viewType;
+  late final ElementView _view;
   late final RecorderPool _pool;
+  final _lost = Completer<String>();
+  bool _disposed = false;
   late final Timer _ticker;
   final List<Timer> _releaseTimers = [];
 
@@ -245,37 +252,13 @@ class WebCameraSource implements CameraSource {
   bool get supportsVideo => _mimeType != null;
 
   @override
-  Widget buildPreview(BuildContext context) =>
-      HtmlElementView(viewType: _viewType);
+  Widget buildPreview(BuildContext context) => _view.build();
 
   @override
   Future<Uint8List?> captureFrame() async {
-    final width = _video.videoWidth;
-    final height = _video.videoHeight;
-    if (width == 0 || height == 0) return null;
-
     // Thumbnails don't need full resolution.
-    final scale = width > 480 ? 480 / width : 1.0;
-    final canvas = web.HTMLCanvasElement()
-      ..width = (width * scale).round()
-      ..height = (height * scale).round();
-    (canvas.getContext('2d')! as web.CanvasRenderingContext2D).drawImage(
-      _video,
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    );
-
-    final blob = Completer<web.Blob?>();
-    canvas.toBlob(
-      ((web.Blob? b) => blob.complete(b)).toJS,
-      'image/jpeg',
-      0.8.toJS,
-    );
-    final result = await blob.future;
-    if (result == null) return null;
-    return (await result.arrayBuffer().toDart).toDart.asUint8List();
+    final canvas = videoFrameCanvas(_video, maxWidth: 480);
+    return canvas == null ? null : canvasJpeg(canvas, quality: 0.8);
   }
 
   late final StreamController<Uint8List> _motion =
@@ -343,13 +326,13 @@ class WebCameraSource implements CameraSource {
     return capture;
   }
 
+  /// Completes when the video track ends (see the constructor).
   @override
-  // Browsers end tracks rather than report a lost camera.
-  @override
-  Future<String> get lost => Completer<String>().future;
+  Future<String> get lost => _lost.future;
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     _motionTimer?.cancel();
     _motion.close();
     _ticker.cancel();
@@ -360,40 +343,46 @@ class WebCameraSource implements CameraSource {
     for (final track in _stream.getTracks().toDart) {
       track.stop();
     }
+    _video.srcObject = null;
+    _view.release();
   }
 }
 
 /// Cuts finished WebM recordings down to their clips' windows (`cutWebm`):
-/// one download of the shared file, then a new file per clip. The shared
-/// file is released once every clip has its own; one that can't be cut
-/// keeps it.
+/// one download of the shared file, then a new file per clip. Each clip
+/// that has its own lets go of the shared file ([ClipMedia.discard]),
+/// which is freed once none holds it; one that can't be cut keeps it.
 Future<List<ClipMedia>> _trimWebm(List<ClipMedia> media) async {
   final source = media.firstOrNull?.liveUrl;
   if (source == null || !media.first.mimeType.contains('webm')) return media;
   final response = await web.window.fetch(source.toJS).toDart;
   final bytes = (await response.arrayBuffer().toDart).toDart.asUint8List();
-  var allCut = true;
-  final out = [
-    for (final m in media)
-      if (cutWebm(bytes, m.start, m.end) case final cut?)
-        ClipMedia(
-          url: web.URL.createObjectURL(
-            web.Blob(
-              [cut.bytes.toJS].toJS,
-              web.BlobPropertyBag(type: m.mimeType),
-            ),
+  final out = <ClipMedia>[];
+  final replaced = <ClipMedia>[];
+  for (final m in media) {
+    final cut = cutWebm(bytes, m.start, m.end);
+    if (cut == null) {
+      out.add(m);
+      continue;
+    }
+    out.add(
+      ClipMedia(
+        url: web.URL.createObjectURL(
+          web.Blob(
+            [cut.bytes.toJS].toJS,
+            web.BlobPropertyBag(type: m.mimeType),
           ),
-          start: cut.start,
-          end: cut.end,
-          mimeType: m.mimeType,
-        )
-      else
-        (() {
-          allCut = false;
-          return m;
-        })(),
-  ];
-  if (allCut) web.URL.revokeObjectURL(source);
+        ),
+        start: cut.start,
+        end: cut.end,
+        mimeType: m.mimeType,
+      ),
+    );
+    replaced.add(m);
+  }
+  for (final m in replaced) {
+    m.discard();
+  }
   return out;
 }
 
@@ -487,10 +476,14 @@ class ClipPlayerView extends StatefulWidget {
 
 class _ClipPlayerViewState extends State<ClipPlayerView> {
   final _video = web.HTMLVideoElement();
-  late final String _viewType;
+  late final ElementView _view;
   final List<(String, JSFunction)> _listeners = [];
 
   ClipMedia? _current;
+
+  /// The URL the video plays, held ([ClipMedia.acquireUrl]) until another
+  /// replaces it or the player closes, and the media it's from.
+  (ClipMedia, String)? _held;
   bool _onFull = false;
   bool _waiting = false;
   bool _loadFailed = false;
@@ -519,7 +512,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       ..height = '100%'
       ..objectFit = 'contain'
       ..backgroundColor = 'black';
-    _viewType = _registerView(_video);
+    _view = ElementView(_video);
 
     _listen('timeupdate', (_) => _checkEnd());
     // timeupdate only fires every 250 ms or so; also schedule a check for
@@ -572,34 +565,15 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   /// Pauses, then draws the shown frame onto a canvas and encodes it.
   Future<CapturedFrame?> _captureFrame() async {
     _video.pause();
-    final width = _video.videoWidth;
-    final height = _video.videoHeight;
-    if (width == 0 || height == 0) return null;
-    final scale = width > ClipPlayerController.maxFrameWidth
-        ? ClipPlayerController.maxFrameWidth / width
-        : 1.0;
-    final canvas = web.HTMLCanvasElement()
-      ..width = (width * scale).round()
-      ..height = (height * scale).round();
-    (canvas.getContext('2d')! as web.CanvasRenderingContext2D).drawImage(
+    final position = Duration(microseconds: (_video.currentTime * 1e6).round());
+    final canvas = videoFrameCanvas(
       _video,
-      0,
-      0,
-      canvas.width,
-      canvas.height,
+      maxWidth: ClipPlayerController.maxFrameWidth,
     );
-    final blob = Completer<web.Blob?>();
-    canvas.toBlob(
-      ((web.Blob? b) => blob.complete(b)).toJS,
-      'image/jpeg',
-      0.85.toJS,
-    );
-    final result = await blob.future;
-    if (result == null) return null;
-    return CapturedFrame(
-      jpeg: (await result.arrayBuffer().toDart).toDart.asUint8List(),
-      position: Duration(microseconds: (_video.currentTime * 1e6).round()),
-    );
+    if (canvas == null) return null;
+    final jpeg = await canvasJpeg(canvas);
+    if (jpeg == null) return null;
+    return CapturedFrame(jpeg: jpeg, position: position);
   }
 
   void _checkEnd() {
@@ -665,7 +639,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     // the cloud first if they aren't there yet).
     final String url;
     try {
-      url = await media.resolveUrl();
+      url = await media.acquireUrl();
     } catch (_) {
       if (mounted && _current == media) {
         setState(() {
@@ -675,8 +649,13 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       }
       return;
     }
-    if (!mounted || _current != media) return;
+    if (!mounted || _current != media) {
+      media.releaseUrl(url);
+      return;
+    }
     setState(() => _loading = false);
+    _releaseHeld();
+    _held = (media, url);
     late final JSFunction onMetadata;
     onMetadata = ((web.Event _) {
       _video.removeEventListener('loadedmetadata', onMetadata);
@@ -740,7 +719,15 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       ..pause()
       ..removeAttribute('src')
       ..load();
+    _releaseHeld();
+    _view.release();
     super.dispose();
+  }
+
+  void _releaseHeld() {
+    final held = _held;
+    _held = null;
+    if (held case (final media, final url)) media.releaseUrl(url);
   }
 
   @override
@@ -748,7 +735,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        HtmlElementView(viewType: _viewType),
+        _view.build(),
         if (_loading && !_loadFailed)
           const Center(
             key: Key('clip-loading'),

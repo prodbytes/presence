@@ -165,6 +165,68 @@ void main() {
       expect(client.tokens, ['id-token-1', 'id-token-1-r1']);
     });
 
+    test('a failed roles check is retried on its own, sooner then less '
+        'often, until it answers', () async {
+      // An unattended phone that rebooted offline: the start check and
+      // the roles check both fail, and nobody presses "Check again".
+      final auth = FakeAuthService.signedIn();
+      final client = FakeRolesClient()
+        ..anonymousError = RolesException(502)
+        ..error = RolesException(502);
+      final roles = RolesService(
+        auth: auth,
+        client: client,
+        oidcClient: true,
+        retryDelays: const [
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 20),
+        ],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(roles.state, AccessState.denied);
+      final states = <AccessState>[];
+      roles.addListener(() => states.add(roles.state));
+
+      // Still offline: checked again, without flashing "checking".
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(client.tokens.length, greaterThanOrEqualTo(3));
+      expect(states, isNot(contains(AccessState.checking)));
+      expect(roles.state, AccessState.denied);
+
+      // Back online, the same token: access comes back by itself.
+      client
+        ..anonymousError = null
+        ..error = null;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(roles.state, AccessState.granted);
+      expect(roles.error, isNull);
+      expect(client.tokens.toSet(), {'id-token-1'});
+
+      // Answered: the retries stop.
+      final calls = client.tokens.length;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(client.tokens.length, calls);
+    });
+
+    test('a failed roles check stops retrying once signed out', () async {
+      final auth = FakeAuthService.signedIn();
+      final client = FakeRolesClient()..error = RolesException(502);
+      final roles = RolesService(
+        auth: auth,
+        client: client,
+        retryDelays: const [Duration(milliseconds: 10)],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(roles.state, AccessState.denied);
+      await auth.signOut();
+      final calls = client.tokens.length;
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(client.tokens.length, calls);
+      expect(roles.state, AccessState.signedOut);
+    });
+
     test('dev mode: the anonymous user gets every role', () async {
       final auth = FakeAuthService();
       final client = FakeRolesClient()..mode = ExecutionMode.dev;

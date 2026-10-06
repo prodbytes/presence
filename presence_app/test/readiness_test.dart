@@ -11,7 +11,7 @@ import 'package:presence_app/config.dart';
 import 'fakes.dart';
 import 'motion_test.dart' show frame;
 
-const media = ClipMedia(
+final media = ClipMedia(
   url: 'blob:fake',
   start: Duration.zero,
   end: Duration(seconds: 15),

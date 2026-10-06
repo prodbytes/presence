@@ -43,8 +43,11 @@ there's no separate sign-in screen:
     the app, it returns the account and a fresh ID token without UI, and
     the user is signed in as by any sign-in (same user ID, the Google
     `sub`; roles and cloud sync follow). The reply must be the account
-    asked for. The log says `silent Google sign-in of <email> succeeded`
-    or `failed (status <code>)`; the token is never logged;
+    asked for. The log says `silent Google sign-in of a***@example.com
+    succeeded` or `failed (status <code>)`: emails in the log, which is
+    kept in files on the phone and may be shared, are masked to their
+    first character and domain (`maskEmail`; `GoogleSilentSignIn.masked`
+    on the Kotlin side); the token is never logged;
   - the hourly token refresh (five minutes before expiry) also tries this
     first, for the signed-in account. Play services returns its cached
     token until shortly before expiry, so getting the same token back
@@ -55,8 +58,9 @@ there's no separate sign-in screen:
     refresh; offline), the app tries again in 1, 2, 4, 8 and then every
     15 minutes, keeping the session (the user stays signed in; cloud sync
     pauses if the token expires, and resumes on the new token). The log
-    says `silent sign-in of <email> failed (N in a row); trying again in
-    <s> s`. Before this, one such failure opened Credential Manager's
+    says `silent sign-in of a***@example.com failed (N in a row); trying
+    again in <s> s`. The backoff starts over at a sign-in with UI and at
+    sign-out. Before this, one such failure opened Credential Manager's
     chooser, which sat unanswered on the phone and cloud sync stopped;
   - only when the account **must** sign in with UI (Play services'
     `SIGN_IN_REQUIRED`, status 4: the account removed from the phone or
@@ -121,6 +125,13 @@ there's no separate sign-in screen:
     launch, sign-out). A check that failed also runs again when a silent
     sign-in brings a new ID token, so a stale restored token or an API
     still starting doesn't leave a member on the sign-up screen.
+  - **A check that failed is retried on its own**, after 5 s, 15 s, 30 s
+    and then every minute, until it answers (and at once when the auth
+    API's health check answers again after failing), so an unattended
+    phone that rebooted offline gets its access back without anyone
+    pressing Check again. These retries keep the sign-up screen up
+    rather than flash the spinner; a sign-out or another account stops
+    them.
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
 - **Signed in as a `presence_user`:** all the buttons: the camera's Flip, Clip and

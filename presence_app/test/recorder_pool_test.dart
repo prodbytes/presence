@@ -244,4 +244,33 @@ void main() {
       expect(full.length, preRoll + after);
     });
   });
+
+  test('a recorder that fails to start is tried again at the next interval, '
+      'not every tick', () async {
+    var fail = true;
+    var attempts = 0;
+    final failing = RecorderPool(
+      startRecorder: () {
+        attempts++;
+        if (fail) throw StateError('NotSupportedError: track ended');
+        final r = FakeRecorder(recorders.length, now);
+        recorders.add(r);
+        return r;
+      },
+      preRoll: () => preRoll,
+      now: () => now,
+    );
+    failing.tick();
+    expect(failing.activeCount, 0);
+    for (var i = 0; i < 3; i++) {
+      now = now.add(const Duration(seconds: 1));
+      failing.tick();
+    }
+    expect(attempts, 1, reason: 'not once a second');
+    fail = false;
+    now = now.add(preRoll ~/ 2);
+    failing.tick();
+    expect(failing.activeCount, 1);
+    failing.close();
+  });
 }

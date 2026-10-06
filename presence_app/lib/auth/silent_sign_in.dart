@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../app_log.dart';
 import 'auth_service.dart';
 
 /// A silent sign-in's result: who, and their fresh Google ID token.
@@ -15,7 +16,7 @@ class SilentSignInRequired implements Exception {
   final String email;
 
   @override
-  String toString() => 'SilentSignInRequired($email)';
+  String toString() => 'SilentSignInRequired(${maskEmail(email)})';
 }
 
 /// Signs the account that signed in last back in, with no UI: on Android,
@@ -110,7 +111,9 @@ class NativeSilentSignIn implements SilentSignIn {
     } on SilentSignInRequired {
       rethrow;
     } catch (e) {
-      debugPrint('Presence: silent Google sign-in of $email failed: $e');
+      debugPrint(
+        'Presence: silent Google sign-in of ${maskEmail(email)} failed: $e',
+      );
       return null;
     }
   }
