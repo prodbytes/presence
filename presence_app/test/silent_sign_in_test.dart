@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
@@ -203,6 +204,31 @@ void main() {
     expect(silent.asked, hasLength(4));
     expect(auth.idToken, fresh);
     expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('signing out starts the silent backoff over, and the log masks '
+      'the email', () async {
+    final printed = <String>[];
+    final print = debugPrint;
+    debugPrint = (message, {wrapWidth}) => printed.add('$message');
+    addTearDown(() => debugPrint = print);
+    final silent = FakeSilentSignIn(email: 'ana@example.com');
+    final auth = GoogleAuthService(
+      silent: silent,
+      ids: ids,
+      now: () => now,
+      retryUnit: const Duration(milliseconds: 5),
+    );
+    await auth.init();
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    await settle();
+    expect(auth.silentFailures, greaterThanOrEqualTo(2));
+    await auth.signOut();
+    expect(auth.silentFailures, 0);
+    expect(printed, isNotEmpty);
+    expect(printed.join('\n'), isNot(contains('ana@example.com')));
+    expect(printed.join('\n'), contains('a***@example.com'));
     auth.dispose();
   });
 

@@ -3584,3 +3584,43 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        0.6.…") went from `bodySmall` (12 sp) to `bodyMedium` (14 sp), the
        IDs' size under it. The About text and the dev-mode label in the
        title bar are unchanged. Specs: [Settings](settings.md).
+
+295. **Reliability fixes from a code review.** (2026-10-06)
+     - Asked: fix everything a code review found in the app's sign-in,
+       camera, clips and recognition code.
+     - Changed:
+       - Sign-in: a failed roles check retries on its own (5 s, 15 s,
+         30 s, then every minute, and at once when the auth API answers
+         again), so an unattended phone that rebooted offline gets its
+         access back; the silent sign-in backoff starts over at a UI
+         sign-in and at sign-out; emails in the log (Dart and Kotlin, kept
+         in files on the phone) are masked (`maskEmail`).
+       - Camera: on web an ended video track reports the camera lost and
+         it's reopened every 10 s like Android's; a recorder that can't
+         start is retried at the next interval and logged once instead of
+         throwing every second; pausing and resuming are serialized, and
+         an open overtaken by a pause, resume or flip releases its camera
+         (no leaked camera, no stale error); unhandled clip futures are
+         logged.
+       - Web memory: live and loaded recording Blob URLs are revoked once
+         nothing uses them (`MediaUrls`, `ClipMedia.persisted`,
+         `acquireUrl`/`releaseUrl`); platform views reuse one factory and
+         release their elements; the canvas-to-JPEG code is one helper
+         (`web_dom.dart`); the TFLite model gets only its own bytes.
+       - Clips: the WebM cutter copies slices once instead of spreading
+         bytes into lists (output byte-identical); a failed frame grab
+         no longer leaves Name subject stuck; the Android player disposes
+         a controller that failed or was overtaken by a newer load.
+       - Recognition: Auto goes ahead of waiting new clips, and a new clip
+         waiting for memory steps out of the queue instead of holding it
+         (and Auto) for up to 5 min; searched clips and reference
+         embeddings no longer in the log are dropped; checking for
+         references no longer sorts the whole log.
+       - Kept: the cooldown's clamp of a clock set back stays where the
+         cooldown is read (only there can it see the clock went back).
+       - Tests: roles retry, silent backoff reset and masked log, masking,
+         `MediaUrls`, recorder start failure, pause/resume/flip during an
+         open, a throwing frame grab, Auto ahead of a memory wait.
+       - Specs: [Sign-in](sign-in.md), [Camera screen](camera.md),
+         [Clips](clips.md), [Subject recognition](recognition.md),
+         [Android](android.md).

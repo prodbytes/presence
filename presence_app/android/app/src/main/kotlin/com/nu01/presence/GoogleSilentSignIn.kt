@@ -64,7 +64,7 @@ object GoogleSilentSignIn {
         val task = try {
             client(context, email, serverClientId).silentSignIn()
         } catch (e: Exception) {
-            FileLog.w("silent Google sign-in of $email could not start", e)
+            FileLog.w("silent Google sign-in of ${masked(email)} could not start", e)
             done(mapOf("failure" to "-1"))
             return
         }
@@ -73,17 +73,17 @@ object GoogleSilentSignIn {
             val token = account?.idToken
             if (account == null || token == null || account.id == null) {
                 val code = (t.exception as? ApiException)?.statusCode
-                FileLog.w("silent Google sign-in of $email failed (status $code)")
+                FileLog.w("silent Google sign-in of ${masked(email)} failed (status $code)")
                 done(mapOf("failure" to "${code ?: -1}"))
                 return@addOnCompleteListener
             }
             if (!account.email.equals(email, ignoreCase = true)) {
                 // Never sign in as anyone else than the account asked for.
-                FileLog.w("silent Google sign-in of $email returned another account")
+                FileLog.w("silent Google sign-in of ${masked(email)} returned another account")
                 done(mapOf("failure" to "$SIGN_IN_REQUIRED"))
                 return@addOnCompleteListener
             }
-            FileLog.i("silent Google sign-in of $email succeeded")
+            FileLog.i("silent Google sign-in of ${masked(email)} succeeded")
             done(
                 mapOf(
                     "id" to account.id,
@@ -94,6 +94,16 @@ object GoogleSilentSignIn {
                 ),
             )
         }
+    }
+
+    /**
+     * [email] masked for the log files, which may be shared: its first
+     * character and its domain (`a***@example.com`), as the app's log
+     * does (`maskEmail`).
+     */
+    internal fun masked(email: String): String {
+        val at = email.lastIndexOf('@')
+        return if (at <= 0) "***" else "${email[0]}***${email.substring(at)}"
     }
 
     private fun client(context: Context, email: String, serverClientId: String) =

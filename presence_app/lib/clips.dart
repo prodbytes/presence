@@ -179,8 +179,9 @@ enum ClipTrigger {
   all,
 }
 
-/// Published when a clip starts: from the Clip button, or automatically on
-/// motion. Both behave the same; only the title differs.
+/// Published when a clip starts: from the Clip button, or automatically
+/// (motion, the schedule, the app's start, or Capture all; see
+/// [ClipTrigger]). All behave the same; only the title and icon differ.
 class ClipRequested extends AppEvent {
   ClipRequested(
     this.clip, {
@@ -473,7 +474,13 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   Future<TagFrame?> _grabFrame() async {
     if (_grabbing) return null;
     setState(() => _grabbing = true);
-    final captured = await _player.captureFrame();
+    CapturedFrame? captured;
+    try {
+      captured = await _player.captureFrame();
+    } catch (e) {
+      // A failed grab is no frame: the button must come back either way.
+      debugPrint('Presence: could not grab the frame: $e');
+    }
     if (!mounted) return null;
     setState(() {
       _grabbing = false;

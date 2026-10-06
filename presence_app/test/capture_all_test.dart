@@ -195,7 +195,7 @@ void main() {
     Future<void> finishRecording(WidgetTester tester) async {
       for (final past in camera.pastCompleters.where((c) => !c.isCompleted)) {
         past.complete(
-          const ClipMedia(
+          ClipMedia(
             url: 'blob:past',
             start: Duration.zero,
             end: Duration(seconds: 5),
@@ -205,7 +205,7 @@ void main() {
       await settleStorage(tester);
       for (final full in camera.fullCompleters.where((c) => !c.isCompleted)) {
         full.complete(
-          const ClipMedia(
+          ClipMedia(
             url: 'blob:full',
             start: Duration.zero,
             end: Duration(seconds: 15),

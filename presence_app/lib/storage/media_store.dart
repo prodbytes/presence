@@ -59,6 +59,9 @@ class IdbMediaStore implements MediaStore {
     final url = media.liveUrl;
     if (url == null) return;
     await _store.putMedia(id, await _io.readBytes(url));
+    // Saved: played from IndexedDB from now on, and the in-memory copy is
+    // freed once nothing plays it.
+    media.persisted(() => load(id, media.mimeType));
   }
 
   @override
