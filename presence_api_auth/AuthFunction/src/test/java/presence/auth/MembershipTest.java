@@ -193,7 +193,7 @@ class MembershipTest {
     }
 
     private static APIGatewayV2HTTPEvent route(String routeKey, String email, String body) {
-        var event = RolesTest.event(new HashMap<>(Map.of("email", email, "email_verified", "true", "name", "Ana")));
+        var event = RolesTest.event(RolesTest.verified(email));
         event.setRouteKey(routeKey);
         event.setBody(body);
         return event;

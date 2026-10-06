@@ -1,6 +1,5 @@
 package presence.auth;
 
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.services.cognitoidentity.CognitoIdentityClient;
 import software.amazon.awssdk.services.cognitoidentity.model.GetIdRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityRequest;
@@ -10,6 +9,7 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
 import software.amazon.awssdk.services.iot.IotClient;
@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static presence.auth.Attrs.text;
 
 /**
  * {@link ProfileHandler.Backend} in AWS: the link-codes table (DynamoDB),
@@ -77,10 +79,10 @@ final class ProfileBackend implements ProfileHandler.Backend {
     }
 
     static ProfileBackend fromEnvironment() {
-        var http = UrlConnectionHttpClient.create();
+        var http = Aws.http();
         var iotPolicy = System.getenv("IOT_POLICY_NAME");
         return new ProfileBackend(
-                DynamoDbClient.builder().httpClient(http).build(),
+                Aws.dynamo(),
                 CognitoIdentityClient.builder().httpClient(http).build(),
                 S3Client.builder().httpClient(http).build(),
                 System.getenv("LINK_CODES_TABLE"),
@@ -105,6 +107,21 @@ final class ProfileBackend implements ProfileHandler.Backend {
     }
 
     @Override
+    public Optional<ProfileHandler.LinkCode> peekCode(String hash, Instant now) {
+        var item = dynamo.getItem(GetItemRequest.builder()
+                .tableName(codesTable)
+                .key(Map.of("code", AttributeValue.fromS(hash)))
+                .consistentRead(true)
+                .build()).item();
+        if (item == null || item.isEmpty()) {
+            return Optional.empty();
+        }
+        var code = linkCode(item);
+        // TTL deletion lags: an expired one may still be there.
+        return code.expiresAt().getEpochSecond() > now.getEpochSecond() ? Optional.of(code) : Optional.empty();
+    }
+
+    @Override
     public Optional<ProfileHandler.LinkCode> takeCode(String hash, Instant now) {
         try {
             // One use: deleted as it's read. TTL deletion lags, hence the check.
@@ -115,8 +132,7 @@ final class ProfileBackend implements ProfileHandler.Backend {
                     .expressionAttributeValues(Map.of(":now", AttributeValue.fromN(Long.toString(now.getEpochSecond()))))
                     .returnValues(ReturnValue.ALL_OLD)
                     .build()).attributes();
-            return Optional.of(new ProfileHandler.LinkCode(text(old, "profileId"), text(old, "createdBy"),
-                    Instant.ofEpochSecond(Long.parseLong(old.get("expiresAt").n()))));
+            return Optional.of(linkCode(old));
         } catch (ConditionalCheckFailedException e) {
             return Optional.empty();
         }
@@ -185,12 +201,17 @@ final class ProfileBackend implements ProfileHandler.Backend {
         } catch (RuntimeException e) {
             // Live sync is extra: the bucket still syncs everything.
             System.err.println("presence: could not attach the live-sync policy: "
-                    + ProfileHandler.cause(e) + ": " + e);
+                    + Aws.cause(e) + ": " + e);
         }
     }
 
-    private static String text(Map<String, AttributeValue> item, String name) {
-        var value = item.get(name);
-        return value == null || value.s() == null ? "" : value.s();
+    private static ProfileHandler.LinkCode linkCode(Map<String, AttributeValue> item) {
+        Instant expiresAt;
+        try {
+            expiresAt = Instant.ofEpochSecond(Long.parseLong(item.get("expiresAt").n()));
+        } catch (NumberFormatException | NullPointerException e) {
+            expiresAt = Instant.EPOCH;
+        }
+        return new ProfileHandler.LinkCode(text(item, "profileId"), text(item, "createdBy"), expiresAt);
     }
 }

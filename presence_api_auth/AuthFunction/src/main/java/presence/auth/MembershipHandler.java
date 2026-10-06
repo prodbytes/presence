@@ -4,22 +4,17 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
-import static presence.auth.AuthHandler.response;
+import static presence.auth.Http.response;
 
 /**
  * {@code POST /api/auth/membership}: a signed-in user without access asks for
@@ -27,7 +22,7 @@ import static presence.auth.AuthHandler.response;
  * membership table (one per email; a new one replaces the last only after
  * {@link #COOLDOWN}, even if the last was dismissed), where the Admin
  * screen lists it. The HTTP API's JWT authorizer has already verified the
- * Google ID token.
+ * Google ID token ({@link Caller}).
  */
 public class MembershipHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -61,13 +56,12 @@ public class MembershipHandler implements RequestHandler<APIGatewayV2HTTPEvent, 
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
-        var claims = AuthHandler.claims(event);
-        var email = claims.get("email");
-        var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        if (email == null || email.isBlank() || !verified) {
+        var caller = Caller.from(event);
+        var email = caller.verifiedEmail();
+        if (email == null) {
             return response(403, "{\"error\":\"a verified email is required\"}");
         }
-        var message = bodyText(event, MAX_MESSAGE);
+        var message = Http.bodyText(event, MAX_MESSAGE);
         if (message == null) {
             return response(400, "{\"error\":\"the message is longer than " + MAX_MESSAGE + " characters\"}");
         }
@@ -75,36 +69,16 @@ public class MembershipHandler implements RequestHandler<APIGatewayV2HTTPEvent, 
             return response(400, "{\"error\":\"the message is empty\"}");
         }
         var now = clock.instant();
-        var request = new Request(email.strip().toLowerCase(Locale.ROOT), cleanName(claims.get("name")), message, now);
-        if (!store.save(request, now.minus(COOLDOWN))) {
-            // 409, not 429: API Gateway's throttling answers 429.
-            return response(409, "{\"error\":\"a request was already sent; try again later\"}");
+        var request = new Request(email, cleanName(caller.claims().get("name")), message, now);
+        try {
+            if (!store.save(request, now.minus(COOLDOWN))) {
+                // 409, not 429: API Gateway's throttling answers 429.
+                return response(409, "{\"error\":\"a request was already sent; try again later\"}");
+            }
+        } catch (RuntimeException e) {
+            return Aws.failed("membership", Http.route(event), e, context);
         }
         return response(202, "{\"requestedAt\":" + Json.string(now.toString()) + "}");
-    }
-
-    /**
-     * The body as text, trimmed; null if it's longer than {@code max}
-     * characters.
-     */
-    static String bodyText(APIGatewayV2HTTPEvent event, int max) {
-        var body = event == null ? null : event.getBody();
-        if (body == null) {
-            return "";
-        }
-        // Base64 and UTF-8 never shrink below a quarter of the text; skip decoding floods.
-        if (body.length() > 8L * max) {
-            return null;
-        }
-        if (event.getIsBase64Encoded()) {
-            try {
-                body = new String(Base64.getDecoder().decode(body), StandardCharsets.UTF_8);
-            } catch (IllegalArgumentException e) {
-                return "";
-            }
-        }
-        body = body.strip();
-        return body.length() > max ? null : body;
     }
 
     /** The Google profile name, which its owner chooses: one line, no control characters, 100 at most. */
@@ -118,7 +92,7 @@ public class MembershipHandler implements RequestHandler<APIGatewayV2HTTPEvent, 
 
     /** One item per email; a new request replaces the last only once the cooldown has passed. */
     static Store dynamoStore(String table) {
-        var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
+        var dynamo = Aws.dynamo();
         return (request, cutoff) -> {
             var item = new HashMap<String, AttributeValue>();
             item.put("email", AttributeValue.fromS(request.email()));

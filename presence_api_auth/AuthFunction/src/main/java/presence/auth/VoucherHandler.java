@@ -4,8 +4,6 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
@@ -19,6 +17,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,17 +30,31 @@ import java.util.TreeSet;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-import static presence.auth.AuthHandler.response;
+import static presence.auth.Attrs.instant;
+import static presence.auth.Attrs.millis;
+import static presence.auth.Attrs.number;
+import static presence.auth.Attrs.text;
+import static presence.auth.Http.response;
 
 /**
  * {@code POST /api/auth/voucher}: a signed-in user redeems a voucher code
  * (the plain-text body). A valid code (it exists, its validity has started
- * and hasn't ended, it has uses left, and this email hasn't used it) with a full (100%) discount counts a
- * use and grants its role. A valid code with a smaller discount gets 402
- * with its discount, and grants nothing and counts no use: the user would
- * pay the rest, which isn't built yet. Every other code gets the same 404,
- * so an answer tells nothing about which codes exist. Admins create vouchers on the Admin screen (see
- * {@link AdminHandler}), with a random code or one they choose, a start and
+ * and hasn't ended, it has uses left, and this email hasn't used it) with a
+ * full (100%) discount counts a use and grants its role. A valid code with
+ * a smaller discount gets 402 with its discount, and grants nothing and
+ * counts no use: the user would pay the rest, which isn't built yet. So a
+ * 402 does tell that a partial-discount code exists and is redeemable now
+ * (the price of saying what's left to pay). Every other code (unknown,
+ * malformed, not yet or no longer valid, used up, or used by this email)
+ * gets the same 404, which tells nothing about which of those it is.
+ *
+ * <p>Guessing is slowed per email as well as by the route's throttle: after
+ * {@link #MAX_MISSES} 404s within {@link #MISS_WINDOW} of the first, the
+ * email gets 429 until the window ends ({@link Lockout}, kept in the
+ * UserRoles table).
+ *
+ * <p>Admins create vouchers on the Admin screen (see {@link AdminHandler}),
+ * with a random code or (Member vouchers only) one they choose, a start and
  * an end of validity, and a discount (a percentage, 100 by default).
  */
 public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
@@ -55,9 +68,23 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** Random codes are three groups of four, from 32 characters without 0/O or 1/I: 60 random bits. */
     static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-    /** The length of a chosen code, dashes included. */
+    /**
+     * The length of a code as typed to redeem or delete, dashes included:
+     * vouchers made before {@link #MIN_CHOSEN} may be this short.
+     */
     static final int MIN_CODE = 6;
     static final int MAX_CODE = 40;
+
+    /**
+     * The fewest letters and digits (dashes aside) a new chosen code may
+     * have. A chosen code is the voucher's only secret, so it must not be
+     * short; presence_admin vouchers can't have one at all.
+     */
+    static final int MIN_CHOSEN = 10;
+
+    /** How many wrong codes an email may try within {@link #MISS_WINDOW} of its first. */
+    static final int MAX_MISSES = 10;
+    static final Duration MISS_WINDOW = Duration.ofHours(1);
 
     /** A voucher's discount, in percent, when none is given. */
     static final int FULL_DISCOUNT = 100;
@@ -69,7 +96,16 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                    Set<String> redeemedBy, String createdBy, Instant createdAt, int discount) {
 
         String toJson() {
-            return "{\"code\":" + Json.string(code)
+            return toJson(true);
+        }
+
+        /**
+         * As listed; without {@code reveal}, the code is null and
+         * {@code "hidden": true} (presence_admin vouchers, for non-roots).
+         */
+        String toJson(boolean reveal) {
+            return "{\"code\":" + (reveal ? Json.string(code) : "null")
+                    + (reveal ? "" : ",\"hidden\":true")
                     + ",\"role\":" + Json.string(role)
                     + ",\"startsAt\":" + Json.string(startsAt.toString())
                     + ",\"expiresAt\":" + Json.string(expiresAt.toString())
@@ -96,8 +132,13 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /** Every voucher, used up and expired ones too. */
         List<Voucher> all();
 
-        /** Deletes the voucher, if there is one. */
-        void delete(String code);
+        /**
+         * Deletes the voucher, if there is one; a presence_admin one only
+         * with {@code admins}.
+         *
+         * @return false if it's a presence_admin voucher and {@code admins} is false (nothing deleted)
+         */
+        boolean delete(String code, boolean admins);
 
         /** The voucher, or null if there's none. */
         Voucher find(String code);
@@ -115,39 +156,61 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         void release(String code, String email);
     }
 
+    /** Each email's recent wrong codes. */
+    interface Lockout {
+        /** Whether {@code email} had {@link #MAX_MISSES} wrong codes in the window still open at {@code now}. */
+        boolean locked(String email, Instant now);
+
+        /** Counts a wrong code by {@code email}. */
+        void miss(String email, Instant now);
+    }
+
     private final Store store;
     private final BiConsumer<String, Set<String>> grant;
+    private final Lockout lockout;
     private final Clock clock;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public VoucherHandler() {
         this(dynamoStore(System.getenv("VOUCHER_TABLE")),
-                AdminHandler.dynamoGrant(System.getenv("USER_ROLES_TABLE")),
+                UserRoles.grant(Aws.dynamo(), System.getenv("USER_ROLES_TABLE")),
+                UserRoles.lockout(Aws.dynamo(), System.getenv("USER_ROLES_TABLE"), MAX_MISSES, MISS_WINDOW),
                 Clock.systemUTC());
     }
 
-    /** @param grant adds roles to an email's roles in the UserRoles table */
-    VoucherHandler(Store store, BiConsumer<String, Set<String>> grant, Clock clock) {
+    /**
+     * @param grant   adds roles to an email's roles in the UserRoles table
+     * @param lockout each email's wrong codes
+     */
+    VoucherHandler(Store store, BiConsumer<String, Set<String>> grant, Lockout lockout, Clock clock) {
         this.store = store;
         this.grant = grant;
+        this.lockout = lockout;
         this.clock = clock;
     }
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
-        var claims = AuthHandler.claims(event);
-        var rawEmail = claims.get("email");
-        var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        if (rawEmail == null || rawEmail.isBlank() || !verified) {
+        var email = Caller.from(event).verifiedEmail();
+        if (email == null) {
             return response(403, "{\"error\":\"a verified email is required\"}");
         }
-        var email = rawEmail.strip().toLowerCase(Locale.ROOT);
-        var body = MembershipHandler.bodyText(event, 64);
+        var body = Http.bodyText(event, 64);
         if (body == null || body.isEmpty()) {
             return response(400, "{\"error\":\"the body must be a voucher code\"}");
         }
-        var code = normalize(body);
+        try {
+            return redeem(email, normalize(body));
+        } catch (RuntimeException e) {
+            return Aws.failed("voucher", Http.route(event), e, context);
+        }
+    }
+
+    private APIGatewayV2HTTPResponse redeem(String email, String code) {
         var now = clock.instant();
+        if (lockout.locked(email, now)) {
+            return response(429, "{\"error\":\"too many wrong codes; try again later\"}");
+        }
         var voucher = code == null ? null : store.claim(code, email, now);
         if (voucher == null) {
             var partial = code == null ? null : store.find(code);
@@ -156,6 +219,7 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 return response(402, "{\"error\":\"the rest must be paid\",\"discount\":"
                         + partial.discount() + "}");
             }
+            lockout.miss(email, now);
             return response(404, "{\"error\":\"the code is invalid, expired or used up\"}");
         }
         var role = voucher.role();
@@ -219,6 +283,15 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         return code;
     }
 
+    /**
+     * A code an admin chose for a new voucher, {@link #normalize normalized};
+     * null unless it has at least {@link #MIN_CHOSEN} letters and digits.
+     */
+    static String chosen(String typed) {
+        var code = normalize(typed);
+        return code == null || code.replace("-", "").length() < MIN_CHOSEN ? null : code;
+    }
+
     /** An {@code application/x-www-form-urlencoded} body's fields (the last of repeated ones). */
     static Map<String, String> form(String body) {
         var fields = new HashMap<String, String>();
@@ -245,7 +318,7 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
      * dates have no {@code startsAt}: they're valid from their creation.
      */
     static Store dynamoStore(String table) {
-        var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
+        var dynamo = Aws.dynamo();
         return new Store() {
             @Override
             public boolean create(Voucher voucher) {
@@ -292,11 +365,22 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             }
 
             @Override
-            public void delete(String code) {
-                dynamo.deleteItem(DeleteItemRequest.builder()
+            public boolean delete(String code, boolean admins) {
+                var delete = DeleteItemRequest.builder()
                         .tableName(table)
-                        .key(Map.of("code", AttributeValue.fromS(code)))
-                        .build());
+                        .key(Map.of("code", AttributeValue.fromS(code)));
+                if (!admins) {
+                    // Checked in the same write: the role can't change in between.
+                    delete.conditionExpression("attribute_not_exists(code) OR #role <> :admin")
+                            .expressionAttributeNames(Map.of("#role", "role"))
+                            .expressionAttributeValues(Map.of(":admin", AttributeValue.fromS(Roles.ADMIN)));
+                }
+                try {
+                    dynamo.deleteItem(delete.build());
+                    return true;
+                } catch (ConditionalCheckFailedException e) {
+                    return false;
+                }
             }
 
             @Override
@@ -363,31 +447,5 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 text(item, "createdBy"), createdAt,
                 // Vouchers from before discounts were full ones.
                 discount == null ? FULL_DISCOUNT : number(discount));
-    }
-
-    private static AttributeValue millis(Instant instant) {
-        return AttributeValue.fromN(Long.toString(instant.toEpochMilli()));
-    }
-
-    /** Epoch milliseconds (as stored), or the epoch if missing or malformed. */
-    private static Instant instant(AttributeValue value) {
-        try {
-            return Instant.ofEpochMilli(Long.parseLong(value.n()));
-        } catch (NumberFormatException | NullPointerException e) {
-            return Instant.EPOCH;
-        }
-    }
-
-    private static int number(AttributeValue value) {
-        try {
-            return Integer.parseInt(value.n());
-        } catch (NumberFormatException | NullPointerException e) {
-            return 0;
-        }
-    }
-
-    private static String text(Map<String, AttributeValue> item, String name) {
-        var value = item.get(name);
-        return value == null || value.s() == null ? "" : value.s();
     }
 }
