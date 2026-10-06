@@ -107,7 +107,8 @@ Monitoring) is a close-up (`closeUp`):
 ## A subject's screen
 
 - A full screen pushed over the tabs (back returns to Monitoring), titled
-  with the subject's name.
+  with the subject's name. It slides in sideways, as the tabs flip (see
+  [Navigation](navigation.md)).
 - **The map** (top three fifths): OpenStreetMap tiles with the credit, as on
   the Settings [location map](device-location.md), north up. **One dot per event**
   at the location the event recorded.
