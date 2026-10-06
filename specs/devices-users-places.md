@@ -35,6 +35,11 @@ not built yet.
   and above the profile ID (see
   [Settings screen](settings.md)), above the Location section with where
   the device is (see [Device location and battery](device-location.md)).
+- **Deleting a device:** another device of the profile can be deleted
+  from the account sheet's device list or its All grid cell: its events
+  are marked deleted (`deletedAt`), synced, and hidden everywhere; it
+  reappears if it records again. This device can't be. See
+  [Device deletion](device-deletion.md).
 - **Adding a device:** Settings' **Add a device** shows a QR code and a
   link that open Presence on another device. That device keeps its own
   device ID (the link's is the sharing device's, never copied) and, after a
@@ -88,8 +93,9 @@ not built yet.
 | `userId` | the signed-in user's Google ID when it's saved, or `anonymous` until a user signs in |
 | `profileId` | the profile it belongs to: the signed-in account's when it's saved, or absent until a sign-in gives it one |
 | `location` | where the device was when it was published (`lat`, `lng`, `accuracy`, `source`, `time`, and `pinned: true` for a pinned position; see [Device location](device-location.md)), or absent while unknown |
+| `deletedAt` | when its device was deleted ([Device deletion](device-deletion.md)), ms since the epoch; absent on events that aren't deleted |
 
-All four are in the stored record, in the cloud JSON, and on `AppEvent`
+All of them are in the stored record, in the cloud JSON, and on `AppEvent`
 ([lib/events.dart](../presence_app/lib/events.dart)).
 
 ## Verified

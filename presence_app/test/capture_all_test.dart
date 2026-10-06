@@ -84,10 +84,10 @@ void main() {
       expect(clips, hasLength(1));
     });
 
-    test('requests arriving apart make one clip within 30 s, another after '
+    test('requests arriving apart make one clip within 10 s, another after '
         'it', () async {
       await answer([request('brave_fox')]);
-      clock = clock.add(const Duration(seconds: 20));
+      clock = clock.add(const Duration(seconds: 9));
       await answer([request('zesty_owl')]);
       expect(clips, hasLength(1));
 
@@ -111,6 +111,29 @@ void main() {
       expect(requests, hasLength(2));
       // Asking takes no clip here: this camera's cell is live.
       expect(clips, isEmpty);
+    });
+
+    test('askAll pressed (Clip in the grid): asks within the minute, but '
+        'not within a few seconds of the last request', () async {
+      final requests = <AppEvent>[];
+      bus.stream
+          .where((e) => e.type == AppEvent.captureAllType)
+          .listen(requests.add);
+      // The grid opens: asked.
+      expect(rig.askAll(bus), isNotNull);
+      // A press at once (or a double tap): nothing more.
+      clock = clock.add(const Duration(seconds: 2));
+      expect(rig.askAll(bus, pressed: true), isNull);
+      // A press a few seconds on: asks, though the minute isn't over.
+      clock = clock.add(CameraRig.pressAllEvery);
+      expect(rig.askAll(bus, pressed: true), isNotNull);
+      clock = clock.add(CameraRig.pressAllEvery);
+      expect(rig.askAll(bus, pressed: true), isNotNull);
+      // Reopening the grid still waits for its minute.
+      clock = clock.add(const Duration(seconds: 10));
+      expect(rig.askAll(bus), isNull);
+      await Future<void>.delayed(Duration.zero);
+      expect(requests, hasLength(3));
     });
   });
 
@@ -311,6 +334,22 @@ void main() {
       // A minute after the first: asks again.
       clock = clock.add(const Duration(seconds: 31));
       await reopenAll(tester);
+      await settleStorage(tester);
+      await settleStorage(tester);
+      expect(requestsUploaded(cloud), 2);
+    });
+
+    testWidgets('in All, pressing Clip always asks every device again, '
+        'within the minute of opening', (tester) async {
+      final cloud = await launch(tester);
+      await tester.tap(find.byTooltip('Show all devices'));
+      await tester.pump();
+      await settleStorage(tester);
+      await settleStorage(tester);
+      expect(requestsUploaded(cloud), 1);
+
+      clock = clock.add(const Duration(seconds: 20));
+      await clip(tester);
       await settleStorage(tester);
       await settleStorage(tester);
       expect(requestsUploaded(cloud), 2);

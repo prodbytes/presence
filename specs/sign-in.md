@@ -140,7 +140,12 @@ there's no separate sign-in screen:
     sits beside it, or under it when they don't fit on one line (at 320
     dp with a 2x system font). A device shows only once one of its
     events has synced here, and drops off when its events age out of
-    [event retention](event-retention.md).
+    [event retention](event-retention.md) or it's deleted.
+    - **Delete:** every device but this one has a delete button at the
+      end of its row (tooltip "Delete <device ID>"); after a confirmation
+      naming the device and its number of events, its events are hidden
+      on every device and it leaves the list. See
+      [Device deletion](device-deletion.md).
     - Each device shows its **operating system** (`profileDeviceDetails`):
       an icon before the ID (Android `Icons.android`, iOS
       `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,
@@ -155,6 +160,14 @@ there's no separate sign-in screen:
       ([`os`](events.md)); this device without one shows its own. A
       device whose events are all from before events recorded an OS gets
       the generic icon and just the time.
+    - A **presence dot** before each ID ([Device
+      presence](device-presence.md)): green (answered a ping within 90 s;
+      this device while connected to live sync), yellow (heard from or an
+      event within 24 h), red (older, or never), with the reason ("Live —
+      answered 5 s ago", "Last seen 3 h ago") as tooltip and screen-reader
+      label; without live sync, yellow or red from the latest event, and
+      the reason says live status is unavailable. The list pings the
+      devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with
       an ellipsis.
   - The account sheet for a signed-in user without access shows the same

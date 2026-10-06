@@ -27,6 +27,7 @@ import 'cloud/live_sync.dart';
 import 'cloud/s3.dart';
 import 'config.dart';
 import 'consent/consent_screen.dart';
+import 'delete_device.dart';
 import 'cameras/cameras.dart';
 import 'events.dart';
 import 'identity/add_device.dart';
@@ -311,6 +312,21 @@ class _PresenceAppState extends State<PresenceApp> {
   /// it's handled or dismissed.
   JoinLink? _join;
 
+  /// Deletes another of the signed-in profile's devices
+  /// (`Persistence.deleteDevice`); nothing without a profile.
+  Future<int> _deleteDevice(String deviceId) async {
+    final profile = _roles.profile;
+    if (profile == null) return 0;
+    final deleted = await _persistence.deleteDevice(
+      deviceId,
+      profileId: profile,
+    );
+    // No presence dot from before: it shows again only if it pings or
+    // answers again, with new events.
+    _sync?.live?.forget(deviceId);
+    return deleted;
+  }
+
   void _joinHandled() {
     clearLaunchQuery();
     setState(() => _join = null);
@@ -480,6 +496,7 @@ class _PresenceAppState extends State<PresenceApp> {
               join: _join,
               onJoinHandled: _joinHandled,
               tabMemory: widget.tabMemory,
+              deleteDevice: _deleteDevice,
             ),
           },
         ),
@@ -540,7 +557,12 @@ class HomeScreen extends StatefulWidget {
     this.join,
     this.onJoinHandled,
     this.tabMemory,
+    this.deleteDevice,
   });
+
+  /// Deletes another of the profile's devices: from the account sheet's
+  /// device list and the Camera tab's All grid, after a confirmation.
+  final DeleteDevice? deleteDevice;
 
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
@@ -975,9 +997,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _clip() {
     final bus = AppEventBusScope.of(context);
     if (!(_showAll && _hasAccess)) return widget.rig.requestClips(bus);
-    // Not again within a minute of the last request (opening the grid
-    // asked already).
-    if (widget.rig.askAll(bus) case final request?) _asked(request);
+    // A press always asks (opening the grid's minute doesn't hold it back),
+    // unless a request went out within the last few seconds (a double tap,
+    // or the grid just opened).
+    if (widget.rig.askAll(bus, pressed: true) case final request?) {
+      _asked(request);
+    }
     return widget.rig.requestClips(bus, trigger: ClipTrigger.all);
   }
 
@@ -1045,6 +1070,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               profiles: widget.profiles,
               log: widget.log,
               deviceId: widget.deviceId,
+              deleteDevice: widget.deleteDevice,
             ),
             const SizedBox(width: 4),
           ] else ...[
@@ -1076,6 +1102,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 profiles: widget.profiles,
                 log: widget.log,
                 deviceId: widget.deviceId,
+                deleteDevice: widget.deleteDevice,
               ),
             const SizedBox(width: 4),
           ],
@@ -1100,6 +1127,26 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
                   refreshingSince: _showAll ? _refreshingSince : null,
+                  // Signed in with a profile only (not in DEV).
+                  onDeleteDevice: switch ((
+                    widget.deleteDevice,
+                    widget.roles.profile,
+                  )) {
+                    (final delete?, final profile?) =>
+                      (id) => deleteDeviceAfterConfirming(
+                        context,
+                        deviceId: id,
+                        events: deviceEventCount(
+                          widget.log.events,
+                          deviceId: id,
+                          profileId: profile,
+                        ),
+                        delete: delete,
+                      ),
+                    _ => null,
+                  },
+                  live: widget.sync?.live,
+                  active: _onCamera,
                 ),
               ),
               SafeArea(

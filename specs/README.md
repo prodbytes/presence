@@ -44,6 +44,11 @@ their data.
 - [Recording consent](consent.md): asked once per device, before anything
   shows or records: the right to record, and faces as biometric data under
   the GDPR, in plain terms, with a verification hash.
+- [Device deletion](device-deletion.md): delete another device of the
+  profile from the account sheet's device list or its All grid cell, after
+  a confirmation: its events move to a deleted state (`deletedAt`), synced,
+  and are hidden on every device; media stay; this device can't be
+  deleted, and a device that records again reappears.
 - [Devices, users and places](devices-users-places.md): the device ID
   (`automatic_paranoid_gadget`) and user ID on every event, and a sign-in
   taking over the events recorded signed out; places (device groups) are
@@ -95,6 +100,10 @@ their data.
   other devices within a second over MQTT (AWS IoT Core, WebSockets signed
   with the profile's credentials), metadata only; S3 keeps everything, and
   clips and thumbnails still come from it.
+- [Device presence](device-presence.md): devices ping each other over
+  live sync; a green (answered within 90 s), yellow (heard from or an
+  event within 24 h) or red dot by each device in the All grid and the
+  account sheet's devices list.
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.

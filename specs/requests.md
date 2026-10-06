@@ -3448,8 +3448,77 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera screen](camera.md), [Navigation](navigation.md),
        [Live sync](live-sync.md).
 
+290. **Grab in All asks every device; device presence dots.** (2026-10-06)
+     - Asked: when "grab" is clicked in All mode, trigger a grab in all
+       devices; also ping all devices on MQTT and show a green indicator
+       if a device is live and responding, yellow if it is recently
+       known, red if it is old.
+     - Changed: **Clip in the All grid always asks** every device for a
+       grab (`CameraRig.askAll(pressed: true)`), even within the minute
+       that opening the grid keeps (`askAllEvery`), unless a request went
+       out in the last 5 s (`pressAllEvery`, a double tap); answering
+       devices now make one Capture all clip per **10 s** (was 30 s,
+       `answerAllEvery`), so a press soon after opening still gets new
+       clips. **Device presence** ([device-presence.md](device-presence.md)):
+       live sync subscribes to the profile's `requests` and `acks` topics;
+       `LiveSync.ping` publishes a ping with a random nonce (at most every
+       25 s), each other connected device answers a pong on `acks` (at
+       most every 5 s, not to pings over 2 min old), own messages are
+       ignored and messages validated (`parsePresence`: version, kind per
+       topic, identity, safe device ID, integer `sentAt`, nonce, 1 KB).
+       A dot by each device in the All grid's cells and the account
+       sheet's devices list: green answered within 90 s (this device:
+       connected to live sync), yellow heard from or an event within
+       24 h, red older or never; tooltip and screen-reader reason; no
+       green without live sync, and the reason says so. The grid pings
+       when shown and every 30 s while on screen; the devices list when
+       the sheet opens and every 30 s. No IoT policy change: the
+       policies already allow `presence/<stage>/<identity>/*`. New tests
+       in `device_presence_test.dart` (ping/pong round trip, own and
+       invalid messages, rate limits, thresholds, dots in the grid and
+       list at 320 dp) and `capture_all_test.dart` (a press asks within
+       the minute, not within 5 s). Specs: [Device
+       presence](device-presence.md), [Camera screen](camera.md),
+       [Live sync](live-sync.md), [Sign-in](sign-in.md),
+       [Navigation](navigation.md), [index](README.md).
 
-290. **Pin this device's position.** (2026-10-06)
+291. **Delete a device: its events move to a deleted state.** (2026-10-06)
+     - Asked: in the profile's devices list, let a user delete a device,
+       moving all its events to a "deleted" state where they're no longer
+       shown anywhere; and on the Camera tab's All grid, let devices be
+       deleted too (all their events emptied).
+     - Changed: every other device in the account sheet's device list and
+       each other device's cell in the All grid has a delete button; a
+       dialog confirms ("Delete device X? Its N events will be hidden on
+       every device."). `Persistence.deleteDevice` soft-deletes: each of
+       the device's events in the profile, and the "Is this Rex?"
+       suggestions about its clips, get `deletedAt` (new optional field of
+       the event record and JSON), leave the event log (so the timeline,
+       count, search, subjects, maps, grid and device list drop them), and
+       upload deleted through cloud sync, published over live sync, so
+       the profile's other devices hide them too. Deleted stays deleted:
+       not restored at launch, stored but not shown when fetched, a
+       deleted copy wins over a local change not uploaded yet, and a copy
+       that isn't deleted (the deleted device still running) doesn't bring
+       it back and is uploaded over, deleted. This device can't be deleted
+       (its next event would bring it back); a device that keeps recording
+       reappears with its new events. Clips and recordings stay (on the
+       devices until retention, in the bucket until it expires them); no
+       hard delete. Merged with 290 (device presence): a deleted device
+       has no presence dot and its last ping or pong is forgotten
+       (`LiveSync.forget`); in a grid cell the delete button sits top left,
+       clear of the spinner (top right) and the label with its dot
+       (bottom), and a cell under 96 x 84 dp leaves it out. New tests in
+       `device_delete_test.dart` and `device_presence_test.dart`. 599
+       Flutter tests pass. Specs: [Device deletion](device-deletion.md)
+       (new), [Device presence](device-presence.md),
+       [Sign-in](sign-in.md), [Devices, users and places](devices-users-places.md),
+       [Camera screen](camera.md), [Events](events.md),
+       [Cloud sync](cloud-sync.md), [Data formats](data-formats.md),
+       [Event retention](event-retention.md).
+
+
+292. **Pin this device's position.** (2026-10-06)
      - Asked: in Settings, let a position be pinned: fixed for this
        device, which then always sends that position as the location in
        its events.

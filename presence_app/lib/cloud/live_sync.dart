@@ -86,14 +86,31 @@ class LiveEvent {
   final String? etag;
 }
 
+/// A ping or pong ([LiveSync.parsePresence]): who sent it, when (ms since
+/// the epoch, by its clock), and the ping's nonce (a pong's: the ping it
+/// answers, if any).
+class PresenceMessage {
+  const PresenceMessage({
+    required this.deviceId,
+    required this.sentAt,
+    this.nonce,
+  });
+
+  final String deviceId;
+  final int sentAt;
+  final String? nonce;
+}
+
 /// Live sync: the profile's devices tell each other about new and changed
 /// events over MQTT (AWS IoT Core, over WebSockets signed with the profile's
 /// Cognito credentials), so they arrive within a second instead of at the
 /// next 15 s listing of the bucket. The bucket stays where events (and all
 /// their media) are kept: a message carries only an event's metadata.
 ///
-/// Topics are per profile: `presence/<stage>/<identityId>/events` (and,
-/// later, `.../acks` and `.../requests`).
+/// Topics are per profile: `presence/<stage>/<identityId>/events`, and
+/// `.../requests` and `.../acks` for device presence: a [ping] on
+/// requests, which each connected device answers with a pong on acks, so
+/// each knows which of the profile's devices are live ([seenOf]).
 ///
 /// How it connects is the **Connect to live sync** setting ([config]):
 ///
@@ -247,8 +264,9 @@ class LiveSync extends ChangeNotifier {
   /// Events received, handed over one at a time, in order.
   Future<void> _inbox = Future.value();
 
-  /// Events waiting for a scheduled connection to be sent.
-  final _outbox = <(Uint8List, Completer<bool>)>[];
+  /// Messages (events, pings) waiting for a scheduled connection to be
+  /// sent: their topic's kind, the payload, and whether it went.
+  final _outbox = <(String, Uint8List, Completer<bool>)>[];
 
   /// Bumped by each message received or sent: a scheduled connection
   /// stays while it moves.
@@ -271,10 +289,16 @@ class LiveSync extends ChangeNotifier {
     (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
   ).join();
 
-  /// The topic of [kind] (`events`, and later `acks`, `requests`) for
+  /// The topic of [kind] (`events`, `requests` or `acks`) for
   /// [identityId].
   static String topicOf(String stage, String identityId, String kind) =>
       'presence/$stage/$identityId/$kind';
+
+  /// The topics' kinds: events, pings ([requestsKind]) and pongs
+  /// ([acksKind]).
+  static const String eventsKind = 'events';
+  static const String requestsKind = 'requests';
+  static const String acksKind = 'acks';
 
   /// This device's client ID for [link] while always connected: unique to
   /// this run of the app.
@@ -302,6 +326,11 @@ class LiveSync extends ChangeNotifier {
 
   void _run(LiveLink link) {
     stop();
+    if (_seenIdentity != link.identityId) {
+      _seen.clear();
+      _pings.clear();
+      _seenIdentity = link.identityId;
+    }
     _link = link;
     final generation = ++_generation;
     _failures = 0;
@@ -322,7 +351,7 @@ class LiveSync extends ChangeNotifier {
   }
 
   void _failOutbox() {
-    for (final (_, sent) in _outbox) {
+    for (final (_, _, sent) in _outbox) {
       if (!sent.isCompleted) sent.complete(false);
     }
     _outbox.clear();
@@ -394,7 +423,7 @@ class LiveSync extends ChangeNotifier {
           return;
         }
         _connection = connection;
-        final topic = topicOf(stage, link.identityId, 'events');
+        final topic = topicOf(stage, link.identityId, eventsKind);
         // Listening first: a persistent session's queued messages may come
         // before the subscription is acknowledged.
         final subscription = connection.messages.listen((m) {
@@ -406,6 +435,18 @@ class LiveSync extends ChangeNotifier {
         } catch (_) {
           await subscription.cancel();
           rethrow;
+        }
+        // Device presence: pings and pongs. Not needed for events, so one
+        // refused leaves the connection up (presence just isn't known).
+        for (final kind in const [requestsKind, acksKind]) {
+          try {
+            await connection.subscribe(topicOf(stage, link.identityId, kind));
+          } catch (e) {
+            debugPrint(
+              'Presence: live sync could not subscribe to $kind: '
+              '${redact(e)}',
+            );
+          }
         }
         if (!current()) {
           await subscription.cancel();
@@ -516,8 +557,8 @@ class LiveSync extends ChangeNotifier {
   /// Sends what waited for this connection.
   Future<void> _flushOutbox(LiveLink link, LiveConnection connection) async {
     while (_outbox.isNotEmpty) {
-      final (payload, sent) = _outbox.removeAt(0);
-      final ok = await _send(link, connection, payload);
+      final (kind, payload, sent) = _outbox.removeAt(0);
+      final ok = await _send(link, connection, payload, kind: kind);
       if (!sent.isCompleted) sent.complete(ok);
     }
   }
@@ -566,16 +607,7 @@ class LiveSync extends ChangeNotifier {
     String? etag,
   }) async {
     final link = _link;
-    if (link == null) return false;
-    final connection = _connection;
-    final connected = connection != null && _state == LiveSyncState.connected;
-    final scheduled = _config.mode == LiveMode.scheduled;
-    final waits =
-        scheduled &&
-        // Connected too: a scheduled connection closing sends it next.
-        _state != LiveSyncState.off &&
-        _state != LiveSyncState.error;
-    if (!connected && !waits) return false;
+    if (link == null || !_canSend) return false;
     final payload = Uint8List.fromList(
       utf8.encode(
         jsonEncode({
@@ -597,11 +629,33 @@ class LiveSync extends ChangeNotifier {
       );
       return false;
     }
-    if (connected) return _send(link, connection, payload);
+    return _publish(link, eventsKind, payload);
+  }
+
+  /// Whether a message can go now ([connected]) or, on a schedule, with
+  /// the next connection.
+  bool get _canSend {
+    final connected = _connection != null && _state == LiveSyncState.connected;
+    final waits =
+        _config.mode == LiveMode.scheduled &&
+        // Connected too: a scheduled connection closing sends it next.
+        _state != LiveSyncState.off &&
+        _state != LiveSyncState.error;
+    return connected || waits;
+  }
+
+  /// Sends [payload] on [link]'s [kind] topic: now when connected; on a
+  /// schedule, with the next connection, which it starts at once (waiting
+  /// up to [publishWait]).
+  Future<bool> _publish(LiveLink link, String kind, Uint8List payload) {
+    final connection = _connection;
+    if (connection != null && _state == LiveSyncState.connected) {
+      return _send(link, connection, payload, kind: kind);
+    }
     final sent = Completer<bool>();
-    _outbox.add((payload, sent));
+    _outbox.add((kind, payload, sent));
     if (_outbox.length > maxOutbox) {
-      final (_, dropped) = _outbox.removeAt(0);
+      final (_, _, dropped) = _outbox.removeAt(0);
       if (!dropped.isCompleted) dropped.complete(false);
     }
     // Between scheduled connections: connect now.
@@ -612,14 +666,13 @@ class LiveSync extends ChangeNotifier {
   Future<bool> _send(
     LiveLink link,
     LiveConnection connection,
-    Uint8List payload,
-  ) async {
+    Uint8List payload, {
+    String kind = eventsKind,
+  }) async {
     try {
-      await connection.publish(
-        topicOf(stage, link.identityId, 'events'),
-        payload,
-      );
-      _sent++;
+      await connection.publish(topicOf(stage, link.identityId, kind), payload);
+      // [sent] counts events only.
+      if (kind == eventsKind) _sent++;
       _activity++;
       notifyListeners();
       return true;
@@ -631,7 +684,12 @@ class LiveSync extends ChangeNotifier {
 
   void _onMessage(LiveLink link, String topic, Uint8List payload) {
     if (link != _link) return;
-    if (topic != topicOf(stage, link.identityId, 'events')) return;
+    if (topic == topicOf(stage, link.identityId, requestsKind) ||
+        topic == topicOf(stage, link.identityId, acksKind)) {
+      _onPresence(link, topic, payload);
+      return;
+    }
+    if (topic != topicOf(stage, link.identityId, eventsKind)) return;
     final event = parse(payload, identityId: link.identityId);
     if (event == null) {
       debugPrint(
@@ -652,6 +710,196 @@ class LiveSync extends ChangeNotifier {
       }
     });
     notifyListeners();
+  }
+
+  // Device presence ------------------------------------------------------
+
+  /// The least time between two of this device's pings ([ping]): the All
+  /// grid and the account sheet's devices ping every 30 s while they show.
+  static const Duration pingEvery = Duration(seconds: 25);
+
+  /// The least time between two of this device's pongs: pings from several
+  /// devices at once get one answer (it's on the shared acks topic, so
+  /// every pinger hears it).
+  static const Duration answerEvery = Duration(seconds: 5);
+
+  /// A ping older than this (by its `sentAt`; one a persistent session
+  /// kept while this device was away) isn't answered: its sender has moved
+  /// on. Its sender is still recorded as seen then.
+  static const Duration pingFresh = Duration(minutes: 2);
+
+  /// How long this device's pings are remembered: a pong that answers one
+  /// of them proves its sender live now, whatever its clock says.
+  static const Duration pingsKept = Duration(minutes: 2);
+
+  /// The largest presence message accepted.
+  static const int maxPresenceBytes = 1024;
+
+  /// At most this many devices are remembered ([seenOf]).
+  static const int maxSeen = 64;
+
+  /// When each of the profile's other devices was last heard from over
+  /// live sync (a ping or a pong), by device ID.
+  final _seen = <String, DateTime>{};
+
+  /// The identity [_seen] is about: it's cleared for another one.
+  String? _seenIdentity;
+
+  /// This device's recent pings: nonce → when sent.
+  final _pings = <String, DateTime>{};
+  DateTime? _lastPing;
+  DateTime? _lastPong;
+
+  /// When [deviceId] (another device of the profile) last showed it's
+  /// running: it answered a ping of this device (the time the answer
+  /// came), or sent a ping or answered another's (the time it sent it, no
+  /// later than now). Null: not heard from since the app started.
+  DateTime? seenOf(String deviceId) => _seen[deviceId];
+
+  /// Forgets that [deviceId] was heard from (it was deleted, see
+  /// `Persistence.deleteDevice`): no presence for it until it pings or
+  /// answers again.
+  void forget(String deviceId) {
+    if (_seen.remove(deviceId) != null) notifyListeners();
+  }
+
+  /// Asks the profile's connected devices to say they're there: a `ping`
+  /// on the requests topic, which each answers with a `pong` on the acks
+  /// topic ([seenOf]). At most one every [pingEvery]; returns whether it
+  /// was sent (not with live sync off or failing, nor while disconnected
+  /// when always connected; on a schedule it connects to send it).
+  Future<bool> ping() async {
+    final link = _link;
+    if (link == null || !_canSend) return false;
+    final now = _now();
+    final last = _lastPing;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < pingEvery) {
+      return false;
+    }
+    _lastPing = now;
+    _pings.removeWhere((_, at) => now.difference(at) > pingsKept);
+    final nonce = List.generate(
+      16,
+      (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
+    ).join();
+    _pings[nonce] = now;
+    return _publish(
+      link,
+      requestsKind,
+      _presencePayload(link, 'ping', nonce: nonce, now: now),
+    );
+  }
+
+  Uint8List _presencePayload(
+    LiveLink link,
+    String kind, {
+    String? nonce,
+    required DateTime now,
+  }) => Uint8List.fromList(
+    utf8.encode(
+      jsonEncode({
+        'v': version,
+        'kind': kind,
+        'deviceId': link.deviceId,
+        'identityId': link.identityId,
+        'sentAt': now.millisecondsSinceEpoch,
+        'nonce': ?nonce,
+      }),
+    ),
+  );
+
+  void _onPresence(LiveLink link, String topic, Uint8List payload) {
+    final isPing = topic == topicOf(stage, link.identityId, requestsKind);
+    final message = parsePresence(
+      payload,
+      identityId: link.identityId,
+      kind: isPing ? 'ping' : 'pong',
+    );
+    if (message == null) {
+      debugPrint(
+        'Presence: live sync dropped a malformed presence message '
+        '(${payload.length} bytes)',
+      );
+      return;
+    }
+    // This device's own (or another tab's on it).
+    if (message.deviceId == link.deviceId) return;
+    final now = _now();
+    final sentAt = DateTime.fromMillisecondsSinceEpoch(message.sentAt);
+    // An answer to this device's recent ping is live now; anything else is
+    // as old as its sender says (a persistent session may have kept it),
+    // and never from the future.
+    final answered =
+        !isPing && message.nonce != null && _pings.containsKey(message.nonce);
+    _see(message.deviceId, answered || sentAt.isAfter(now) ? now : sentAt);
+    if (!isPing) return;
+    final age = now.difference(sentAt);
+    if (age > pingFresh) return;
+    final last = _lastPong;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < answerEvery) {
+      return;
+    }
+    _lastPong = now;
+    final connection = _connection;
+    if (connection == null) return;
+    _send(
+      link,
+      connection,
+      _presencePayload(link, 'pong', nonce: message.nonce, now: now),
+      kind: acksKind,
+    ).ignore();
+  }
+
+  void _see(String deviceId, DateTime at) {
+    final known = _seen[deviceId];
+    if (known != null && !at.isAfter(known)) return;
+    _seen.remove(deviceId);
+    _seen[deviceId] = at;
+    if (_seen.length > maxSeen) _seen.remove(_seen.keys.first);
+    notifyListeners();
+  }
+
+  static final RegExp _noncePattern = RegExp(r'^[A-Za-z0-9]{8,64}$');
+
+  /// The presence message in [payload], a [kind] (`ping` or `pong`) on
+  /// [identityId]'s requests or acks topic; null when it isn't one: too
+  /// big, not JSON, another version, kind or identity, an unsafe device
+  /// ID, no integer `sentAt`, or a bad nonce (required on a ping).
+  static PresenceMessage? parsePresence(
+    Uint8List payload, {
+    required String identityId,
+    required String kind,
+  }) {
+    if (payload.length > maxPresenceBytes) return null;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(payload));
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map) return null;
+    final deviceId = decoded['deviceId'];
+    final sentAt = decoded['sentAt'];
+    final nonce = decoded['nonce'];
+    if (decoded['v'] != version ||
+        decoded['kind'] != kind ||
+        decoded['identityId'] != identityId ||
+        !isSafeId(deviceId) ||
+        sentAt is! int ||
+        (nonce != null &&
+            (nonce is! String || !_noncePattern.hasMatch(nonce))) ||
+        (kind == 'ping' && nonce == null)) {
+      return null;
+    }
+    return PresenceMessage(
+      deviceId: deviceId as String,
+      sentAt: sentAt,
+      nonce: nonce as String?,
+    );
   }
 
   /// Completes when the events received so far have been handed over (for

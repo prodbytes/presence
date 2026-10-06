@@ -581,8 +581,11 @@ class CloudSync extends ChangeNotifier {
     }
 
     final clipId = event['clipId'];
+    // A deleted event's clip isn't shown: not wanted.
     final wantsClip =
-        clipId is String && !(await store.clipIds()).contains(clipId);
+        clipId is String &&
+        !AppEvent.isDeletedRecord(event) &&
+        !(await store.clipIds()).contains(clipId);
     if (local == null) {
       if (_handedOver.contains(id)) return;
       // The frames its tags use, if it has any yet.
@@ -595,20 +598,48 @@ class CloudSync extends ChangeNotifier {
       if (eventKey(local) != key) return;
       final localJson = _eventJson(local);
       if (_fingerprint(localJson) != _fingerprint(_eventJson(event))) {
-        // Changed here, and not uploaded yet: this version goes up.
-        if (synced[objectKey] != _fingerprint(localJson)) return;
+        // Changed here, and not uploaded yet: this version goes up; unless
+        // the other deletes it, which wins.
+        if (synced[objectKey] != _fingerprint(localJson) &&
+            !_deletes(event, local)) {
+          return;
+        }
         final frames = await _liveFrames(event, local);
         if (frames.isNotEmpty) event['frames'] = frames;
         if (!current()) return;
         await _deliver(RemoteRecords(updated: [event], live: true));
       }
-      await settle();
+      if (_undeletes(event, local)) {
+        // A copy that isn't deleted, of an event deleted here: it stays
+        // deleted ([Persistence.updateFromRemote]), and goes up again so.
+        if (message.etag case final etag?) {
+          await _markSynced(store, _etagKey(objectKey), etag);
+        }
+        await _forgetSynced(store, objectKey);
+        _dirty.add(id);
+        _schedule();
+      } else {
+        await settle();
+      }
     }
     if (clipId is String && wantsClip && current()) {
       _want(clipId, time);
       _schedule(immediately: true);
     }
   }
+
+  /// Whether [remote], a copy of the event [local] stored here, deletes it.
+  static bool _deletes(
+    Map<String, Object?> remote,
+    Map<String, Object?> local,
+  ) => AppEvent.isDeletedRecord(remote) && !AppEvent.isDeletedRecord(local);
+
+  /// Whether [remote] is a copy that isn't deleted of the event [local],
+  /// deleted here.
+  static bool _undeletes(
+    Map<String, Object?> remote,
+    Map<String, Object?> local,
+  ) => _deletes(local, remote);
 
   /// The frames [event]'s tags use that [local] (its record here) lacks,
   /// from the bucket; none that aren't there yet.
@@ -706,6 +737,13 @@ class CloudSync extends ChangeNotifier {
   Future<void> _markSynced(EventStore store, String key, String value) async {
     await store.markSynced(key, value);
     _synced?[key] = value;
+  }
+
+  /// Forgets what was uploaded to [key]: the cloud holds something else
+  /// now, so the next upload sends it again.
+  Future<void> _forgetSynced(EventStore store, String key) async {
+    await store.unmarkSynced(key);
+    _synced?.remove(key);
   }
 
   void _startNow() {
@@ -904,6 +942,9 @@ class CloudSync extends ChangeNotifier {
     // Changed elsewhere: only at the key this device uploads the event to
     // (not a copy left under the layout from before partitioning).
     final changed = <String>[];
+    // Of those, the ones changed here too and not uploaded yet: taken only
+    // if the other copy deletes them (deletion wins).
+    final changedHereToo = <String>{};
     for (final MapEntry(:key, value: etag) in listed.entries) {
       await _breathe(200);
       final id = idOf.firstMatch(key)?[1];
@@ -919,8 +960,12 @@ class CloudSync extends ChangeNotifier {
         await keepETag(key, etag);
         continue;
       }
-      // Changed here and not uploaded yet: this version wins.
-      if (syncedKeys[objectKey] != _fingerprint(json)) continue;
+      // Changed here and not uploaded yet: this version wins, unless the
+      // other deletes it (an event deleted here needs nothing from it).
+      if (syncedKeys[objectKey] != _fingerprint(json)) {
+        if (AppEvent.isDeletedRecord(local)) continue;
+        changedHereToo.add(key);
+      }
       changed.add(key);
     }
     changed.sort((a, b) => b.compareTo(a));
@@ -953,6 +998,8 @@ class CloudSync extends ChangeNotifier {
     for (var i = 0; i < changedTodo.length && !_disposed; i += fetchBatch) {
       final updated = <Map<String, Object?>>[];
       final updatedETags = <String, String>{};
+      // Those that aren't deleted there.
+      final notDeleted = <String>{};
       for (final key in changedTodo.sublist(
         i,
         min(i + fetchBatch, changedTodo.length),
@@ -960,6 +1007,9 @@ class CloudSync extends ChangeNotifier {
         if (_disposed) break;
         final bytes = await session.get(key);
         final event = decode(bytes);
+        final deleted = AppEvent.isDeletedRecord(event);
+        if (changedHereToo.contains(key) && !deleted) continue;
+        if (!deleted) notDeleted.add(key);
         event['profileId'] = _owner;
         final local = await store.getEvent('${event['id']}');
         final have = local?['frames'] is Map ? local!['frames']! as Map : {};
@@ -978,9 +1028,9 @@ class CloudSync extends ChangeNotifier {
         if (frames.isNotEmpty) event['frames'] = frames;
         updated.add(event);
         updatedETags[key] = etagOf(bytes);
-        // Its clip, if it has completed since.
+        // Its clip, if it has completed since (not a deleted event's).
         if ((clipId, event['time']) case (final String id, final int time)
-            when !localClips.contains(id)) {
+            when !localClips.contains(id) && !deleted) {
           _want(id, time);
         }
       }
@@ -992,8 +1042,15 @@ class CloudSync extends ChangeNotifier {
         final id = idOf.firstMatch(key)?[1];
         final record = id == null ? null : await store.getEvent(id);
         if (record == null || eventKey(record) != key) continue;
-        await synced(key, _fingerprint(_eventJson(record)));
         await keepETag(key, etag);
+        if (AppEvent.isDeletedRecord(record) && notDeleted.contains(key)) {
+          // Deleted here, not there: it stays deleted
+          // (`Persistence.updateFromRemote`), and goes up again so.
+          await _forgetSynced(store, '${session.prefix}/$key');
+          _dirty.add(id!);
+          continue;
+        }
+        await synced(key, _fingerprint(_eventJson(record)));
       }
     }
   }
@@ -1059,7 +1116,8 @@ class CloudSync extends ChangeNotifier {
     // event's day partition (both are timed when the clip was requested).
     final clipTimes = <String, int>{
       for (final e in events)
-        if ((e['clipId'], e['time']) case (final String id, final int time))
+        if ((e['clipId'], e['time']) case (final String id, final int time)
+            when !AppEvent.isDeletedRecord(e))
           id: time,
     };
     final clips = await _fetchClips(
@@ -1172,6 +1230,7 @@ class CloudSync extends ChangeNotifier {
         continue;
       }
       if (AppEvent.profileOf(record) != owner) continue;
+      if (AppEvent.isDeletedRecord(record)) continue;
       found.add((time, clipId));
     }
     found.sort((a, b) => b.$1.compareTo(a.$1));

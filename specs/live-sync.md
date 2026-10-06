@@ -34,7 +34,9 @@ owned by `CloudSync`:
     so AWS IoT finds the device's persistent session again (see below).
   - **Subscribes** to the profile's events topic (QoS 1), listening before
     the subscription is acknowledged: a persistent session's queued
-    messages may come first.
+    messages may come first; then to its `requests` and `acks` topics for
+    [device presence](device-presence.md) (a refusal there is logged and
+    doesn't drop the connection).
   - **Reconnects** (always connected) after a drop at once (1 s), and after a refused
     connection with a back-off that doubles up to 2 min; each attempt asks
     for credentials again and signs a new URL. Getting the credentials and
@@ -162,8 +164,11 @@ change).
   where `<stage>` is `prod` or `rc` (the build's `PRESENCE_STAGE`; any
   other build is `prod`, as local builds use production's pool) and
   `<identityId>` the profile's Cognito identity (its folder in the
-  bucket). Phase 1 uses `events`; `acks` and `requests` are reserved for
-  phase 2, and the policies already allow `presence/<stage>/<identityId>/*`.
+  bucket). Events go on `events`; `requests` and `acks` carry [device
+  presence](device-presence.md)'s pings and pongs (small messages of
+  their own, validated by `LiveSync.parsePresence`), and leave room for
+  phase 2's requests and acknowledgements. The policies allow
+  `presence/<stage>/<identityId>/*`, which covers all three.
 - **An event message** (JSON, UTF-8, at most 64 KB; AWS IoT allows
   128 KB):
 
@@ -292,7 +297,8 @@ query holds the session token.
     are dropped;
   - off without an endpoint (nothing connects, nothing is published);
     connects with a signed URL, a client ID starting with the identity, to
-    the events topic; publishes an event's metadata; hands over other
+    the events topic (and the presence topics, `requests` and `acks`;
+    their pings and pongs are in `device_presence_test.dart`); publishes an event's metadata; hands over other
     devices' events in order, not its own, nor other topics'; reconnects
     after a drop and backs off while refused (up to the maximum); renews
     before the credentials expire, once; stops for good; a hung
@@ -366,5 +372,6 @@ query holds the session token.
   see [Camera screen](camera.md#capture-all)) reaches the other devices
   within a second as an ordinary event, so they answer sooner; one that
   then also comes from the bucket isn't answered again. It doesn't use
-  the reserved `requests` topic.
-- No acknowledgements, deletion or start-up requests yet (phase 2).
+  the `requests` topic, which carries only presence pings.
+- No event acknowledgements, deletion or start-up requests yet (phase 2);
+  `requests` and `acks` carry only presence pings and pongs so far.
