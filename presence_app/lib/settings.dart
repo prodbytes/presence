@@ -184,11 +184,11 @@ class _SettingsViewState extends State<SettingsView> {
               divisions:
                   MotionConfig.maxCooldown.inMinutes -
                   MotionConfig.minCooldown.inMinutes,
-              onChanged: motion.enabled
-                  ? (v) => setMotion(
-                      (m) => m.copyWith(cooldown: Duration(minutes: v.round())),
-                    )
-                  : null,
+              // After any clip, motion's or not: it holds scheduled clips
+              // back too, so it's set even with motion off.
+              onChanged: (v) => setMotion(
+                (m) => m.copyWith(cooldown: Duration(minutes: v.round())),
+              ),
             ),
             const SizedBox(height: 16),
             Text('Clips', style: theme.textTheme.titleMedium),

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
+import 'package:presence_app/clips.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/config.dart';
@@ -54,21 +55,37 @@ void main() {
       expect(r.remaining, Duration.zero);
     });
 
-    test('a Clip press starts no countdown: still ready', () async {
+    test('a Clip press starts the cooldown countdown too', () async {
       now = now.add(const Duration(seconds: 20));
+      final pressed = now;
       await rig.requestClips(bus);
       expect(back.fullCompleters, hasLength(1), reason: 'the clip was taken');
 
       var r = rig.readiness;
-      expect(r.state, ClipReadinessState.ready);
-      expect(r.remaining, Duration.zero);
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.remaining, const Duration(minutes: 5));
+      expect(r.recording, isTrue, reason: 'still saving the after part');
 
       now = now.add(const Duration(seconds: 12));
-      expect(rig.readiness.state, ClipReadinessState.ready);
       back.fullCompleters.single.complete(media);
       await Future<void>.delayed(Duration.zero);
+      r = rig.readiness;
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.recording, isFalse);
+      expect(r.remaining, const Duration(minutes: 4, seconds: 48));
+
+      now = pressed.add(const Duration(minutes: 5));
       expect(rig.readiness.state, ClipReadinessState.ready);
     });
+
+    for (final trigger in ClipTrigger.values) {
+      test('a ${trigger.name} clip starts the cooldown', () async {
+        now = now.add(const Duration(seconds: 20));
+        await rig.requestClips(bus, trigger: trigger);
+        expect(rig.readiness.state, ClipReadinessState.cooldown);
+        expect(rig.cooldownEnds, now.add(const Duration(minutes: 5)));
+      });
+    }
 
     var warmedUp = false;
     var step = 0; // Keeps the square alternating across bursts.
@@ -136,38 +153,98 @@ void main() {
       // At zero: ready, and motion clips again.
       now = start.add(const Duration(minutes: 5));
       expect(rig.readiness.state, ClipReadinessState.ready);
-      expect(rig.motionCooldownEnds, isNull);
+      expect(rig.cooldownEnds, isNull);
       now = now.subtract(const Duration(milliseconds: 600));
       await motionClip();
       expect(back.fullCompleters, hasLength(2));
       expect(rig.readiness.state, ClipReadinessState.cooldown);
     });
 
+    test('a Clip press during the cooldown clips and restarts it', () async {
+      now = now.add(const Duration(seconds: 20));
+      final triggered = await motionClip();
+      back.fullCompleters.single.complete(media);
+      await Future<void>.delayed(Duration.zero);
+      now = triggered.add(const Duration(minutes: 1));
+
+      await rig.requestClips(bus);
+      expect(back.fullCompleters, hasLength(2), reason: 'never blocked');
+      final r = rig.readiness;
+      expect(r.state, ClipReadinessState.cooldown);
+      expect(r.remaining, const Duration(minutes: 5));
+      expect(r.recording, isTrue, reason: "the press's clip is saving");
+    });
+
     test(
-      'a Clip press during the cooldown leaves the countdown as is',
+      'motion during the cooldown after a Clip press takes no clip',
       () async {
         now = now.add(const Duration(seconds: 20));
-        final triggered = await motionClip();
-        back.fullCompleters.single.complete(media);
-        now = triggered.add(const Duration(minutes: 1));
-
+        final pressed = now;
         await rig.requestClips(bus);
-        final r = rig.readiness;
-        expect(r.state, ClipReadinessState.cooldown);
-        expect(r.remaining, const Duration(minutes: 4));
-        expect(r.recording, isFalse, reason: "only the motion clip's saving");
+        expect(back.fullCompleters, hasLength(1));
+
+        now = pressed.add(const Duration(minutes: 2));
+        await motionClip();
+        expect(back.fullCompleters, hasLength(1), reason: 'motion ignored');
+
+        now = pressed.add(const Duration(minutes: 5));
+        await motionClip();
+        expect(back.fullCompleters, hasLength(2), reason: 'clips again');
       },
     );
 
-    test('with motion clips off, there is no cooldown', () async {
-      now = now.add(const Duration(seconds: 20));
-      await motionClip();
-      back.fullCompleters.single.complete(media);
-      await Future<void>.delayed(Duration.zero);
+    test('with motion clips off, a clip still starts the cooldown', () async {
       rig.config.update(
         (c) => c.copyWith(motion: c.motion.copyWith(enabled: false)),
       );
+      now = now.add(const Duration(seconds: 20));
+      await rig.requestClips(bus);
+      expect(rig.readiness.state, ClipReadinessState.cooldown);
+    });
+
+    test('restoring keeps the later of the stored and the latest clip', () {
+      final restored = now.subtract(const Duration(minutes: 1));
+      rig.restoreCooldown(restored);
+      expect(rig.readiness.remaining, const Duration(minutes: 4));
+      rig.restoreCooldown(restored.subtract(const Duration(minutes: 1)));
+      expect(rig.readiness.remaining, const Duration(minutes: 4));
+    });
+
+    test('a stored clip time later than now counts as now', () {
+      rig.restoreCooldown(now.add(const Duration(hours: 2)));
+      expect(rig.cooldownEnds, now.add(const Duration(minutes: 5)));
+      expect(rig.readiness.remaining, const Duration(minutes: 5));
+      now = now.add(const Duration(minutes: 5));
       expect(rig.readiness.state, ClipReadinessState.ready);
+    });
+
+    test('a clock set back never stretches the cooldown', () async {
+      now = now.add(const Duration(seconds: 20));
+      await rig.requestClips(bus);
+      now = now.subtract(const Duration(hours: 1));
+      expect(rig.cooldownEnds, now.add(const Duration(minutes: 5)));
+      now = now.add(const Duration(minutes: 5));
+      expect(rig.cooldownEnds, isNull);
+    });
+
+    test('motion and scheduled clips both off: no cooldown', () async {
+      rig.config.update(
+        (c) => c.copyWith(
+          motion: c.motion.copyWith(enabled: false),
+          schedule: c.schedule.copyWith(enabled: false),
+        ),
+      );
+      now = now.add(const Duration(seconds: 20));
+      await rig.requestClips(bus);
+      expect(back.fullCompleters, hasLength(1), reason: 'Clip still works');
+      expect(rig.cooldownEnds, isNull);
+      expect(rig.readiness.state, ClipReadinessState.ready);
+      // Either one switched back on: the cooldown from that clip shows.
+      rig.config.update(
+        (c) => c.copyWith(schedule: c.schedule.copyWith(enabled: true)),
+      );
+      expect(rig.readiness.state, ClipReadinessState.cooldown);
+      expect(rig.readiness.remaining, const Duration(minutes: 5));
     });
 
     test('is still ready right after a flip', () async {
@@ -290,7 +367,7 @@ void main() {
       );
     });
 
-    testWidgets('a Clip press pops a message; the pill stays Ready', (
+    testWidgets('a Clip press pops a message; the pill counts down', (
       tester,
     ) async {
       final camera = await pumpApp(tester);
@@ -300,24 +377,45 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('Clip started · saving the next 10 s'), findsOneWidget);
-      expect(find.byTooltip('Ready to clip'), findsOneWidget);
-      expect(find.text('10 s'), findsNothing, reason: 'no countdown');
+      // The cooldown, red while the clip's after part is still saving.
+      expect(find.text('5:00'), findsOneWidget);
+      expect(
+        find.byTooltip('Clip saving; next automatic clip in 5:00'),
+        findsOneWidget,
+      );
 
       await advance(tester, const Duration(seconds: 10));
-      expect(find.byTooltip('Ready to clip'), findsOneWidget);
+      expect(find.text('4:50'), findsOneWidget);
 
       // The message was brief (4 s).
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(seconds: 1));
       expect(find.text('Clip started · saving the next 10 s'), findsNothing);
 
-      // The press's clip (the startup clip came first, 5 s after the
-      // camera opened).
-      expect(camera.fullCompleters, hasLength(2));
+      // Only the press's clip: the startup clip, due 5 s after the camera
+      // opened, waits for the end of the press's cooldown.
+      expect(camera.fullCompleters, hasLength(1));
       camera.fullCompleters.last.complete(media);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byTooltip('Next automatic clip in 4:50'), findsOneWidget);
+      expect(find.bySemanticsLabel('Next automatic clip in 4:50'), findsOne);
+
+      // Once the cooldown is over, the held-back startup clip is taken
+      // (the schedule checks every 5 s), and counts down in turn.
+      now = now.add(const Duration(minutes: 5));
+      await tester.pump(CameraRig.scheduleCheck);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(camera.fullCompleters, hasLength(2));
+      expect(find.text('5:00'), findsOneWidget);
+      camera.fullCompleters.last.complete(media);
+
+      // Ready (the dot alone) once that one's is over too.
+      now = now.add(const Duration(minutes: 5));
+      await tester.pump(const Duration(milliseconds: 600));
       expect(find.byTooltip('Ready to clip'), findsOneWidget);
+      expect(find.text('0 s'), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
       await settleStorage(tester);
     });
 
@@ -398,7 +496,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byKey(const Key('camera-message')), findsOneWidget);
-      expect(tester.getRect(find.byKey(const Key('readiness'))), readiness);
+      // The readiness pill only widens for its countdown.
+      final after = tester.getRect(find.byKey(const Key('readiness')));
+      expect(after.topLeft, readiness.topLeft);
+      expect(after.height, readiness.height);
       expect(tester.getRect(find.byTooltip('Clip')), clip);
       await settleStorage(tester);
     });

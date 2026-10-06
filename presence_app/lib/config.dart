@@ -296,7 +296,9 @@ class MotionConfig {
   /// How much of the picture (percent of pixels) must change.
   final double threshold;
 
-  /// At most one automatic clip per this period.
+  /// The cooldown: after any clip (whatever took it), no automatic clip
+  /// (motion, scheduled, startup) for this long. The Clip button ignores
+  /// it.
   final Duration cooldown;
 
   MotionConfig copyWith({

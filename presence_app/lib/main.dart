@@ -901,7 +901,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ClipTrigger.manual => 'Clip started',
       ClipTrigger.all => 'Capture all',
     };
-    // For motion clips, the readiness pill carries the cooldown after it.
+    // After any clip, the readiness pill carries the cooldown.
     _showMessage(
       CameraMessage(
         icon: event.icon,
@@ -1230,8 +1230,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 }
 
-/// Whether a clip now would be complete: buffering the "before" history,
-/// ready, or counting down while a clip's "after" part is being saved.
+/// Whether an automatic clip can be taken now: ready, or counting down the
+/// cooldown after the latest clip (red while its "after" part is still
+/// being saved). The Clip button works either way.
 class ReadinessIndicator extends StatefulWidget {
   const ReadinessIndicator({super.key, required this.rig});
 
@@ -1266,7 +1267,7 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
     final scheme = theme.colorScheme;
     final readiness = widget.rig.readiness;
     final seconds = (readiness.remaining.inMilliseconds / 1000).ceil();
-    // Minutes and seconds for the motion cooldown ("4:59"), seconds below
+    // Minutes and seconds for the cooldown ("4:59"), seconds below
     // a minute ("45 s").
     final countdown = seconds >= 60
         ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
@@ -1284,12 +1285,12 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
         'Ready to clip',
       ),
       ClipReadinessState.cooldown => (
-        // Red while the motion clip is still saving, then amber.
+        // Red while the latest clip is still saving, then amber.
         _Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
         countdown,
         readiness.recording
-            ? 'Motion clip saving; motion can clip again in $countdown'
-            : 'Motion can clip again in $countdown',
+            ? 'Clip saving; next automatic clip in $countdown'
+            : 'Next automatic clip in $countdown',
       ),
       ClipReadinessState.unavailable => (
         _Dot(color: scheme.outline),

@@ -3126,7 +3126,49 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the box ("Paste position", compact, bodySmall text) moved
        into the position's column right of the map, under the position.
        474 Flutter tests pass. Specs: [Device location](device-location.md).
-282. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
+282. **The cooldown after any clip, in the readiness pill.** (2026-10-06)
+     - Asked: the readiness indicator / clip "doesn't seem to be working":
+       after grabbing any event, wait for the timeout (5 minutes by
+       default) before taking another, and show it in the same pill.
+     - Why it seemed broken: only motion clips started the cooldown. A
+       Clip press, a scheduled or startup clip, or Capture all left the
+       pill on Ready, scheduled clips ignored the cooldown, and with
+       motion clips off there was no cooldown at all (its slider was
+       disabled too). After a restart it was restored only from the last
+       motion clip, and from any device's, so a clip another device of the
+       profile took (fetched from the cloud) could hold this one back.
+     - Changed: every clip, whatever took it, starts the cooldown
+       (`CameraRig.cooldownEnds`, Settings' cooldown) when it's grabbed.
+       During it, motion is ignored and a scheduled or startup clip due is
+       taken when it ends (the next one counts from then; the Settings
+       countdown shows that moment). The Clip button is never blocked; a
+       press restarts the countdown. The pill counts down after any clip
+       (red while the clip saves, then amber; "Next automatic clip in
+       4:28"), with motion clips off too, and the cooldown slider stays
+       adjustable. On launch the cooldown is restored from this device's
+       latest clip of any trigger.
+     - 483 Flutter tests pass. Specs: [Navigation](navigation.md),
+       [Motion clips](motion-clips.md), [Scheduled
+       clips](scheduled-clips.md), [Camera](camera.md),
+       [Settings](settings.md).
+     - Review fixes (2026-10-06):
+       - Steady motion no longer starves a scheduled or startup clip due
+         during the cooldown: when the cooldown ends, a due one goes ahead
+         of a motion clip, and a one-shot timer wakes the schedule check
+         at the cooldown's end (it used to wait for the next 5 s check,
+         which motion within 200 ms usually beat, restarting the
+         cooldown).
+       - A last-clip time later than now (restored, or a clock set back)
+         counts as now, so the cooldown never runs longer than its
+         length.
+       - With motion and scheduled clips both off, there's no cooldown:
+         the pill stays Ready instead of counting down to an automatic
+         clip that won't come.
+       - 488 Flutter tests pass. Specs: [Navigation](navigation.md),
+         [Motion clips](motion-clips.md), [Scheduled
+         clips](scheduled-clips.md).
+
+283. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
      - Asked: when a device creates or updates an event, push it to S3 as
        today and also publish it over MQTT (AWS IoT Core over WebSockets,
        approved), so the profile's other devices get it within about a

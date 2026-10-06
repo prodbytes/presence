@@ -104,6 +104,10 @@ grid soon shows each one's current picture, not its last clip:
   (`CameraRig.captureAllWithin`), takes a clip of its own on its open
   camera, trigger `all` (`CameraRig.answerCaptureAll`). Several requests
   in one fetch make one clip. A device without an open camera skips it.
+- Like any clip, a Capture all clip (asked here or answered) isn't held
+  back by the cooldown but starts it on that device: its readiness pill
+  counts down, and its motion and scheduled clips wait for the end
+  ([Navigation](navigation.md)).
 - That clip uploads with the device's next pass, and the asking device's
   All grid shows its thumbnail once its own pass fetches it: about 30 s
   in all.

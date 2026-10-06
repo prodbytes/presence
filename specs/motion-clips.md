@@ -21,10 +21,15 @@ requested", and its stored event has `trigger: "motion"`.
 - **Triggering:** the score must be at or above the threshold for **3
   consecutive frames** (0.6 s). A one-frame glitch changes only two frames
   (appearing, then disappearing), so it doesn't count.
-- **Cooldown:** at most **one automatic clip per 5 minutes** (configurable),
-  counted from the moment motion grabs a clip. The readiness indicator
-  shows it as a countdown, and motion retriggers only once it reaches zero.
-  Manual clips are never limited.
+- **Cooldown:** after **any clip** (motion's, a Clip press, a scheduled,
+  startup or Capture all clip), **no automatic clip for 5 minutes**
+  (configurable), counted from the moment the clip is grabbed. The
+  readiness indicator shows it as a countdown, and motion is ignored until
+  it reaches zero. A scheduled or startup clip due when it ends goes
+  first (motion then waits for its cooldown). Manual clips are never
+  limited (a press restarts the countdown). With motion and scheduled
+  clips both off there's no cooldown. See
+  [Navigation](navigation.md#readiness-indicator).
 - **Frames per platform:**
   - **Web:** the live `<video>` is drawn into a 64×48 canvas every 200 ms,
     and converted to luma.
