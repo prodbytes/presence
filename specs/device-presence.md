@@ -83,6 +83,10 @@ outside `[A-Za-z0-9_.:-]{1,128}` or containing `..`, without an integer
 nonce. Each dropped one is logged ("Presence: live sync dropped a
 malformed presence message").
 
+`acks` also carries [event copies](event-copies.md)' `copied` acks
+(`LiveSync.parseCopied`, checked first); a valid one counts as hearing
+from its sender too (at its `sentAt`, never later than now).
+
 ## Permissions
 
 Nothing new: the identity role's `own-live-sync` statements and the IoT

@@ -19,9 +19,11 @@ import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'copies_badge.dart';
 import 'cloud/cloud_config.dart';
 import 'cloud/cloud_sync.dart';
 import 'cloud/cognito.dart';
+import 'cloud/event_copies.dart';
 import 'cloud/live_mqtt.dart';
 import 'cloud/live_sync.dart';
 import 'cloud/s3.dart';
@@ -153,6 +155,10 @@ class _PresenceAppState extends State<PresenceApp> {
   final _config = ConfigController();
   late final EventLog _log;
   late final Persistence _persistence;
+
+  /// Who holds a copy of each event (this device, the cloud, the profile's
+  /// other devices), for the copies count on event cards.
+  late final EventCopies _copies = EventCopies(store: _persistence.store);
   late final EventRetention _retention;
   late final CameraRig _rig;
   late final LocationController _location;
@@ -240,6 +246,7 @@ class _PresenceAppState extends State<PresenceApp> {
             keep: () => _config.config.history.keep,
             // And this device's settings, kept per device.
             settings: _persistence,
+            copies: _copies,
             // Events reach the profile's other devices within a second
             // (AWS IoT Core), when this build has its endpoint.
             live:
@@ -293,6 +300,7 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     )..start();
     _persistence.deviceId.then((id) {
+      _copies.deviceId = id;
       if (mounted) setState(() => _deviceId = id);
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
     _checkConsent();
@@ -433,6 +441,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();
     _sync?.dispose();
+    _copies.dispose();
     _roles.dispose();
     _location.dispose();
     _recognizer.dispose();
@@ -452,36 +461,41 @@ class _PresenceAppState extends State<PresenceApp> {
       bus: _bus,
       child: SubjectRecognizerScope(
         recognizer: _recognizer,
-        child: MaterialApp(
-          title: AppVersion.title,
-          debugShowCheckedModeBanner: false,
-          theme: gruvboxSoftDarkTheme(),
-          home: switch (_consented) {
-            // Nothing shows until the device's consent is known.
-            null => const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(key: Key('checking-consent')),
+        child: EventCopiesScope(
+          copies: _copies,
+          child: MaterialApp(
+            title: AppVersion.title,
+            debugShowCheckedModeBanner: false,
+            theme: gruvboxSoftDarkTheme(),
+            home: switch (_consented) {
+              // Nothing shows until the device's consent is known.
+              null => const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(
+                    key: Key('checking-consent'),
+                  ),
+                ),
               ),
-            ),
-            false => ConsentScreen(onAgree: _agree),
-            true => HomeScreen(
-              log: _log,
-              rig: _rig,
-              config: _config,
-              auth: _auth,
-              roles: _roles,
-              membership: _membership,
-              profiles: _profiles,
-              sync: _sync,
-              deviceId: _deviceId,
-              location: _location,
-              mapTiles: widget.mapTiles,
-              battery: widget.battery,
-              join: _join,
-              onJoinHandled: _joinHandled,
-              tabMemory: widget.tabMemory,
-            ),
-          },
+              false => ConsentScreen(onAgree: _agree),
+              true => HomeScreen(
+                log: _log,
+                rig: _rig,
+                config: _config,
+                auth: _auth,
+                roles: _roles,
+                membership: _membership,
+                profiles: _profiles,
+                sync: _sync,
+                deviceId: _deviceId,
+                location: _location,
+                mapTiles: widget.mapTiles,
+                battery: widget.battery,
+                join: _join,
+                onJoinHandled: _joinHandled,
+                tabMemory: widget.tabMemory,
+              ),
+            },
+          ),
         ),
       ),
     );

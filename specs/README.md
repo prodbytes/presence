@@ -99,6 +99,10 @@ their data.
   live sync; a green (answered within 90 s), yellow (heard from or an
   event within 24 h) or red dot by each device in the All grid and the
   account sheet's devices list.
+- [Event copies](event-copies.md): each event card and the event's
+  details count the copies of the event (this device, the cloud, other
+  devices) with the holders in a tooltip; devices ack copies over live
+  sync (`copied` on `acks`).
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.

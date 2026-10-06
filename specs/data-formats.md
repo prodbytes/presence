@@ -105,6 +105,16 @@ profile they were synced with, and `location` the location set on the map
 location](device-location.md)) or null. Older records have no
 `profileId` or `location`.
 
+### Not on S3: copies
+
+Who holds a copy of each event ([Event copies](event-copies.md)) is
+**not** written into the event record: it travels only as live sync's
+`copied` acks (`{v, kind: "copied", deviceId, identityId, sentAt,
+eventIds}`, at most 1 KB) and is kept on each device (the local
+`settings` store's `copies` record). Writing it into the record would
+change the record's ETag with each ack, and devices would upload and
+fetch it back and forth.
+
 ## On S3
 
 All under the user's Cognito identity ID (`us-east-1:<uuid>`), in the

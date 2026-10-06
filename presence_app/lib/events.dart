@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'copies_badge.dart';
 import 'event_flags.dart';
 import 'identity/device_os.dart';
 import 'location/device_location.dart';
@@ -599,15 +600,17 @@ class _EventTimelineState extends State<EventTimeline> {
           final device = EventTimeline.deviceOf(event, widget.deviceId);
           final card = KeyedSubtree(
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
-            child: device == null
-                ? event.buildCard(context)
-                // The device it was taken on, above the card: tapping it
-                // shows only that device's events.
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
+            // Above the card, the device it was taken on (tapping it
+            // shows only that device's events) and how many copies of it
+            // there are.
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (device != null)
+                      Flexible(
                         child: EventDeviceTag(
                           key: Key('event-device-${event.id}'),
                           device: device,
@@ -616,9 +619,18 @@ class _EventTimelineState extends State<EventTimeline> {
                           value: _filter,
                         ),
                       ),
-                      event.buildCard(context),
-                    ],
-                  ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: EventCopiesBadge(
+                        key: Key('event-copies-${event.id}'),
+                        event: event,
+                      ),
+                    ),
+                  ],
+                ),
+                event.buildCard(context),
+              ],
+            ),
           );
           if (event.id != _highlighted) return card;
           return DecoratedBox(
