@@ -17,6 +17,10 @@ import 'map_parts.dart';
 /// Moving the map moves the pin, and sets the device's location by hand;
 /// so does a position pasted in the box under the position
 /// ([parseCoordinates]); **My location** asks the device again.
+/// **Pin position** fixes the position shown ([LocationController.pin]):
+/// while pinned, a pin marks it on the map, moving the map only looks
+/// around, a pasted position moves the pin, and My location is off until
+/// **Unpin**.
 class LocationSettings extends StatefulWidget {
   const LocationSettings({
     super.key,
@@ -142,7 +146,8 @@ class _LocationSettingsState extends State<LocationSettings> {
   /// The user moved the map: once it settles, its center is the device's
   /// location. Moves made by the app (recentering) don't count.
   void _onMoved(MapCamera camera, bool hasGesture) {
-    if (!hasGesture) return;
+    // Pinned: the map only looks around.
+    if (!hasGesture || _location.pinned) return;
     _moved = true;
     _commit?.cancel();
     _commit = Timer(const Duration(milliseconds: 400), () {
@@ -175,7 +180,12 @@ class _LocationSettingsState extends State<LocationSettings> {
       _commit?.cancel();
       // The map follows the new location, wherever the user had put it.
       _moved = false;
-      _location.setOnMap(at.latitude, at.longitude);
+      if (_location.pinned) {
+        // Pinned: the pin moves there.
+        _location.pin(at.latitude, at.longitude);
+      } else {
+        _location.setOnMap(at.latitude, at.longitude);
+      }
       _pasted.clear();
       setState(() => _pasteError = null);
     } on FormatException catch (e) {
@@ -189,6 +199,30 @@ class _LocationSettingsState extends State<LocationSettings> {
     _location.locate();
   }
 
+  /// Pins the position shown: the location in force, or the map's center
+  /// if the user just moved it (not yet committed).
+  void _pin() {
+    final pending = _commit?.isActive ?? false;
+    _commit?.cancel();
+    if (pending && _ready) {
+      final center = _map.camera.center;
+      _location.pin(center.latitude, _wrap(center.longitude));
+    } else if (_location.location != null) {
+      _location.pin();
+    } else {
+      return;
+    }
+    // The map shows the pin.
+    _moved = false;
+    _follow();
+  }
+
+  /// Unpin: back to the automatic location; the map follows the device.
+  void _unpin() {
+    _moved = false;
+    _location.unpin();
+  }
+
   /// The map's zoom, once it's ready.
   double get _zoomLevel => _ready ? _map.camera.zoom : LocationSettings.minZoom;
 
@@ -198,6 +232,7 @@ class _LocationSettingsState extends State<LocationSettings> {
   @override
   Widget build(BuildContext context) {
     final location = _location.location;
+    final pinned = location != null && location.pinned;
     final map = Listener(
       onPointerDown: (_) => _hold(1),
       onPointerUp: (_) => _hold(-1),
@@ -234,24 +269,44 @@ class _LocationSettingsState extends State<LocationSettings> {
                 ),
                 children: [
                   widget.tiles ?? openStreetMapTiles(),
+                  // Pinned: the pin stays on its place as the map moves.
+                  if (pinned)
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: LatLng(location.latitude, location.longitude),
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.topCenter,
+                          child: const Icon(
+                            Icons.push_pin,
+                            key: Key('pinned-marker'),
+                            size: 40,
+                            color: Gruvbox.red,
+                            shadows: [Shadow(blurRadius: 4)],
+                          ),
+                        ),
+                      ],
+                    ),
                   const MapAttribution(),
                 ],
               ),
               // The pin's tip marks the center of the map.
-              const IgnorePointer(
-                child: Center(
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 40),
-                    child: Icon(
-                      Icons.place,
-                      key: Key('device-pin'),
-                      size: 40,
-                      color: Gruvbox.red,
-                      shadows: [Shadow(blurRadius: 4)],
+              if (!pinned)
+                const IgnorePointer(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: 40),
+                      child: Icon(
+                        Icons.place,
+                        key: Key('device-pin'),
+                        size: 40,
+                        color: Gruvbox.red,
+                        shadows: [Shadow(blurRadius: 4)],
+                      ),
                     ),
                   ),
                 ),
-              ),
               Positioned(
                 right: 12,
                 bottom: 12,
@@ -271,8 +326,10 @@ class _LocationSettingsState extends State<LocationSettings> {
                     ),
                     FloatingActionButton.small(
                       heroTag: 'my-location',
-                      tooltip: 'My location',
-                      onPressed: _location.locating ? null : _locate,
+                      tooltip: pinned
+                          ? 'Unpin to use my location'
+                          : 'My location',
+                      onPressed: _location.locating || pinned ? null : _locate,
                       child: _location.locating
                           ? const SizedBox.square(
                               dimension: 18,
@@ -311,7 +368,7 @@ class _LocationSettingsState extends State<LocationSettings> {
         ),
         suffixIcon: IconButton(
           key: const Key('location-paste-set'),
-          tooltip: 'Set this position',
+          tooltip: pinned ? 'Pin this position' : 'Set this position',
           iconSize: 18,
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.check),
@@ -338,6 +395,20 @@ class _LocationSettingsState extends State<LocationSettings> {
               spacing: 12,
               children: [
                 _Position(location: _location),
+                pinned
+                    ? OutlinedButton.icon(
+                        key: const Key('location-unpin'),
+                        onPressed: _unpin,
+                        icon: const Icon(Icons.push_pin_outlined, size: 18),
+                        label: const Text('Unpin'),
+                      )
+                    : FilledButton.tonalIcon(
+                        key: const Key('location-pin'),
+                        // Events then always use this position.
+                        onPressed: location != null || _moved ? _pin : null,
+                        icon: const Icon(Icons.push_pin, size: 18),
+                        label: const Text('Pin position'),
+                      ),
                 paste,
               ],
             ),
@@ -365,6 +436,8 @@ class _Position extends StatelessWidget {
       status = location.locating
           ? 'Finding this device…'
           : '${error ?? 'Location unknown'}. Move the map to set it.';
+    } else if (at.pinned) {
+      status = 'Pinned · used for every event';
     } else {
       status = switch (at.source) {
         LocationSource.device => [
@@ -381,8 +454,24 @@ class _Position extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (at != null) ...[
-          Text(
-            'Position (latitude, longitude)',
+          Text.rich(
+            TextSpan(
+              children: [
+                if (at.pinned) ...[
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Icon(
+                      Icons.push_pin,
+                      key: const Key('pinned-icon'),
+                      size: 12,
+                      color: scheme.primary,
+                    ),
+                  ),
+                  const TextSpan(text: ' Pinned: '),
+                ],
+                const TextSpan(text: 'Position (latitude, longitude)'),
+              ],
+            ),
             style: theme.textTheme.labelSmall?.copyWith(
               color: scheme.onSurfaceVariant,
             ),

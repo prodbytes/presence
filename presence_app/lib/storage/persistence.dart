@@ -698,10 +698,15 @@ class Persistence implements DeviceSettings {
     } else if (local?.source == LocationSource.map) {
       // None on the map there: until the device answers, the last point
       // stands as a reading, not a setting.
-      await store.putSettings(_locationKey, {
-        ...local!.toJson(),
-        'source': LocationSource.device.name,
-      });
+      await store.putSettings(
+        _locationKey,
+        DeviceLocation(
+          latitude: local!.latitude,
+          longitude: local.longitude,
+          source: LocationSource.device,
+          time: local.time,
+        ).toJson(),
+      );
     } else {
       return;
     }

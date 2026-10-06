@@ -11,8 +11,12 @@
   zoom and My location buttons on the map. Under the map, a **Paste a
   position** box takes a latitude and longitude copied from elsewhere
   ("38.7223, -9.1393", or Google Maps' `38°43'20.3"N 9°08'21.5"W`) and
-  sets the location to it, as moving the map does. See
-  [Device location and battery](device-location.md).
+  sets the location to it, as moving the map does. **Pin position**,
+  between them, fixes this device's position to the one shown: every
+  event then uses it, the device's GPS or browser geolocation isn't asked,
+  and moving the map only looks around; **Unpin** goes back to the
+  automatic location. See
+  [Device location and battery](device-location.md#pinning-the-position).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its
   recordings, as auto-exposure compensation; then, once the slider has

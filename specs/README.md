@@ -82,7 +82,7 @@ their data.
   (tagged when sure, "Is this Rex?" when unsure), and object tags (human,
   cat, bicycle, bottle…) for search.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
-  the location by moving it, and the location on every event.
+  the location by moving it, pinning it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule,
   subject, recognition and history settings.
 - [Add a device](add-device.md): a QR code, the link and a Share button,
