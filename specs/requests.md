@@ -3119,3 +3119,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Raspberry Pi camera](raspberry-pi.md) (new),
        [Release builds](release.md), [Platforms](platforms.md),
        [Install script](install-script.md).
+281. **The paste-position box beside the map, under the position.**
+     (2026-10-06)
+     - Asked: put the position paste box only on the right side below the
+       position, not a full row.
+     - Changed: the box ("Paste position", compact, bodySmall text) moved
+       into the position's column right of the map, under the position.
+       474 Flutter tests pass. Specs: [Device location](device-location.md).
