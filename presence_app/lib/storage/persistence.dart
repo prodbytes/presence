@@ -13,6 +13,7 @@ import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
 import '../identity/device_id.dart';
+import '../identity/device_os.dart';
 import '../location/device_location.dart';
 import '../recognition/suggestion.dart';
 import 'event_store.dart';
@@ -34,8 +35,8 @@ import 'media_store.dart';
 /// Every event it saves gets this device's ID ([deviceId]), who's signed
 /// in (the [currentUser] when it's published, or
 /// [AppEvent.anonymousUserId]), the profile it belongs to (the
-/// [currentProfile], or none signed out) and the [currentLocation] when
-/// it's published.
+/// [currentProfile], or none signed out), the [currentLocation] when
+/// it's published and this device's operating system ([os]).
 class Persistence implements DeviceSettings {
   Persistence({
     required Future<IdbFactory> factory,
@@ -44,10 +45,12 @@ class Persistence implements DeviceSettings {
     this.currentUser,
     this.currentProfile,
     this.currentLocation,
+    String? os,
     DateTime Function()? now,
     MediaStore Function(EventStore store)? mediaStore,
   }) : _store = factory.then(EventStore.open),
-       _now = now ?? DateTime.now {
+       _now = now ?? DateTime.now,
+       os = os ?? DeviceOs.current {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
     _media.ignore();
     _deviceId = _store.then((store) => store.deviceId(DeviceId.generate));
@@ -101,6 +104,10 @@ class Persistence implements DeviceSettings {
 
   /// This device's location, or null while it's unknown.
   final DeviceLocation? Function()? currentLocation;
+
+  /// This device's operating system ([DeviceOs.current]), recorded on
+  /// every event it saves.
+  final String os;
 
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
@@ -476,6 +483,7 @@ class Persistence implements DeviceSettings {
     event.userId ??= currentUser?.call() ?? AppEvent.anonymousUserId;
     event.profileId ??= currentProfile?.call();
     event.location ??= currentLocation?.call();
+    event.os ??= os;
     _track(() async {
       final store = await _store;
       try {
@@ -669,7 +677,8 @@ class Persistence implements DeviceSettings {
     Map<String, VideoClip> clips,
   ) => _restoreEventOnly(record, clips)
     ..location ??= DeviceLocation.fromJson(record['location'])
-    ..profileId ??= AppEvent.profileOf(record);
+    ..profileId ??= AppEvent.profileOf(record)
+    ..os ??= AppEvent.osOf(record);
 
   AppEvent _restoreEventOnly(
     Map<String, Object?> record,

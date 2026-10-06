@@ -3126,7 +3126,39 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the box ("Paste position", compact, bodySmall text) moved
        into the position's column right of the map, under the position.
        474 Flutter tests pass. Specs: [Device location](device-location.md).
-282. **The Monitoring map close up on the latest event; more room for
+282. **Each event's operating system; the devices list shows OS and latest
+     event.** (2026-10-06)
+     - Asked: add the operating system name to each event, and in the
+       account sheet's devices list show each device's OS with a fitting
+       icon and the time of its latest event.
+     - Changed: every event records its device's OS (`AppEvent.os`, set
+       when published from `DeviceOs.current`: `Android`, `iOS`, `macOS`,
+       `Windows`, `Linux`, or `Web (<browser>, <system>)` from the user
+       agent), saved and synced in the event JSON as `os` (left out when
+       unknown; older events have none). The event's device tag shows the
+       OS icon and ` · <OS>` after the ID. The account sheet's devices show
+       the OS icon (tooltip with the name), and under the ID the OS name
+       and how long ago the device's latest event was (exact time in a
+       tooltip), or "No events". Fits 320 dp. New tests: record
+       round-trip with and without `os`, user-agent parsing, icons, the
+       device tag at 320 dp, the devices list at 320 dp, and an event's OS
+       uploading and a cloud event keeping its own (or none).
+       484 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md), [Data formats](data-formats.md),
+       [Devices, users and places](devices-users-places.md).
+     - Review fixes (2026-10-06): the devices list's age ("5 min ago")
+       was a `Text` in a `WidgetSpan`, scaled twice at a large system font;
+       it's now plain text in the line, with the exact-time tooltip on the
+       whole line. The user agent parser takes a Mac user agent on a touch
+       screen (`navigator.maxTouchPoints` above 1) for iOS, since iPadOS
+       Safari presents itself as a Mac, and names Edge (`EdgiOS`) and
+       Opera (`OPT`) on iOS instead of Safari. New tests: the devices list
+       at 320 dp with text scaled 2x (no overflow, no widget inside the
+       line), iOS browsers, Edge and Opera on Android, and the touch-screen
+       Mac. 487 Flutter tests pass. Specs: [Events](events.md),
+       [Sign-in](sign-in.md).
+
+283. **The Monitoring map close up on the latest event; more room for
      events.** (2026-10-06)
      - Asked: on the Monitoring page, zoom the map to the latest event,
        and closer; less space for the map and more for the events.

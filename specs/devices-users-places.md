@@ -27,6 +27,10 @@ not built yet.
 - **Consent:** right after the ID is known, the device must have a
   [recording consent](consent.md), asked once, before anything shows or
   records.
+- **Its operating system** is recorded on every event it publishes
+  (`os`; see [Events](events.md)), so the account sheet's device list can
+  show each device's OS, with its icon, and its latest event (see
+  [Sign-in](sign-in.md)).
 - **Settings always shows it**, small and selectable, under the version
   and above the profile ID (see
   [Settings screen](settings.md)), above the Location section with where

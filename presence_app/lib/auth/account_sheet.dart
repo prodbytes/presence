@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../about.dart';
+import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
 import '../events.dart';
+import '../identity/device_os.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
@@ -102,9 +104,14 @@ class AccountSheet extends StatelessWidget {
     this.log,
     this.deviceId,
     this.openLink,
+    this.now,
   });
 
   final AuthService auth;
+
+  /// The time the devices' last events are counted from (tests); defaults
+  /// to the clock.
+  final DateTime Function()? now;
 
   /// Opens the about paragraph's link (tests); defaults to the browser.
   final LinkOpener? openLink;
@@ -180,12 +187,13 @@ class AccountSheet extends StatelessWidget {
                       const SizedBox(height: 16),
                       ProfileDevices(
                         profile: profile,
-                        devices: profileDevices(
+                        devices: profileDeviceDetails(
                           log?.events ?? const [],
                           profileId: profile,
                           thisDevice: deviceId,
                         ),
                         thisDevice: deviceId,
+                        now: now,
                       ),
                     ],
                     if ((roles, profiles) case (
@@ -250,25 +258,86 @@ List<String> profileDevices(
   return [?thisDevice, ...others.toList()..sort()];
 }
 
-/// The profile's ID and its devices' IDs, each selectable to copy.
+/// One of the profile's devices, as the account sheet lists it: its ID,
+/// its operating system ([AppEvent.os] of its latest event that has one;
+/// [DeviceOs.current] for this device when none does) and the time of its
+/// latest event (null: none yet).
+typedef ProfileDevice = ({String id, String? os, DateTime? lastEvent});
+
+/// [profileDevices], each with its operating system and latest event (see
+/// [ProfileDevice]). Events not saved yet, without a device ID, are
+/// [thisDevice]'s.
+List<ProfileDevice> profileDeviceDetails(
+  Iterable<AppEvent> events, {
+  required String profileId,
+  String? thisDevice,
+}) {
+  final latest = <String, DateTime>{};
+  final os = <String, (DateTime, String)>{};
+  for (final event in events) {
+    if (event.profileId != profileId) continue;
+    final device = EventTimeline.deviceOf(event, thisDevice);
+    if (device == null) continue;
+    final time = event.time;
+    final seen = latest[device];
+    if (seen == null || time.isAfter(seen)) latest[device] = time;
+    final name = event.os;
+    final named = os[device];
+    if (name != null && (named == null || time.isAfter(named.$1))) {
+      os[device] = (time, name);
+    }
+  }
+  return [
+    for (final id in profileDevices(
+      events,
+      profileId: profileId,
+      thisDevice: thisDevice,
+    ))
+      (
+        id: id,
+        os: os[id]?.$2 ?? (id == thisDevice ? DeviceOs.current : null),
+        lastEvent: latest[id],
+      ),
+  ];
+}
+
+/// [time] to the second, as `2026-10-06 14:05:09`, in local time.
+String exactTime(DateTime time) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  final t = time.toLocal();
+  return '${t.year}-${two(t.month)}-${two(t.day)} '
+      '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
+}
+
+/// The profile's ID and its devices, each with its operating system's
+/// icon and name and how long ago its latest event was (the exact time in
+/// a tooltip). IDs are selectable to copy.
 class ProfileDevices extends StatelessWidget {
   const ProfileDevices({
     super.key,
     required this.profile,
     required this.devices,
     this.thisDevice,
+    this.now,
   });
 
   final String profile;
-  final List<String> devices;
+  final List<ProfileDevice> devices;
 
   /// Labelled "this device" in the list.
   final String? thisDevice;
+
+  /// The time latest events are counted from; defaults to the clock.
+  final DateTime Function()? now;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = TextStyle(color: theme.colorScheme.onSurfaceVariant);
+    final small = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final at = (now ?? DateTime.now)();
     return Column(
       key: const Key('profile-devices'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -287,21 +356,65 @@ class ProfileDevices extends StatelessWidget {
         ),
         for (final device in devices)
           Row(
-            key: Key('profile-device-$device'),
+            key: Key('profile-device-${device.id}'),
             spacing: 8,
             children: [
-              Icon(
-                device == thisDevice ? Icons.smartphone : Icons.devices_other,
-                size: 18,
-                color: theme.colorScheme.onSurfaceVariant,
+              Tooltip(
+                message: device.os ?? 'Operating system unknown',
+                child: Icon(
+                  DeviceOs.iconOf(device.os),
+                  key: Key('profile-device-os-${device.id}'),
+                  size: 18,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-              Flexible(child: SelectableText(device)),
-              if (device == thisDevice) Text('this device', style: muted),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      spacing: 8,
+                      children: [
+                        Flexible(child: SelectableText(device.id)),
+                        if (device.id == thisDevice)
+                          Text('this device', style: muted),
+                      ],
+                    ),
+                    _withExactTime(
+                      device.lastEvent,
+                      Text.rich(
+                        key: Key('profile-device-last-${device.id}'),
+                        TextSpan(
+                          children: [
+                            if (device.os case final os?)
+                              TextSpan(text: '$os · '),
+                            TextSpan(
+                              text: switch (device.lastEvent) {
+                                null => 'No events',
+                                final last => describeAge(at.difference(last)),
+                              },
+                            ),
+                          ],
+                        ),
+                        style: small,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
       ],
     );
   }
+
+  /// [child] with the exact time of [last] in a tooltip, when there is one.
+  /// The whole line carries it: a [WidgetSpan] around just the age would
+  /// scale its text twice at a large system font size.
+  static Widget _withExactTime(DateTime? last, Widget child) =>
+      last == null ? child : Tooltip(message: exactTime(last), child: child);
 }
 
 /// Opens [LinkedAccountsSheet].

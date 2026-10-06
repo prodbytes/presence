@@ -63,6 +63,13 @@
   in bold (events not saved yet, which have no device ID, are this
   device's; before the device ID is known they have no tag). Its tooltip
   says "Show only <device>".
+  - The icon is the event's **operating system**'s (`DeviceOs.iconOf`:
+    Android, iPhone, Mac laptop, Windows desktop, a computer for Linux, a
+    globe for the web), and after the ID comes its name, as in
+    `brave_quiet_lamp · Android`. Both shrink with an ellipsis on a
+    narrow phone (the ID gets three fifths of the room). Events saved
+    before events recorded an OS show the generic device icon and no
+    name.
   - **Tapping it** shows only that device's events
     (`EventTimeline.onlyDevice`, `EventTimeline.ofDevices`) on the
     timeline, the [subjects map](subjects.md) and the count; the tag of
@@ -115,6 +122,21 @@
   the **profile** it belongs to (`profileId`, none until a sign-in gives
   it one), and who was signed in (`userId`, or `anonymous`). See
   [Devices, users and places](devices-users-places.md).
+- Every event also records the **operating system** of the device that
+  recorded it (`os`, set when it's published, `DeviceOs.current` in
+  [lib/identity/device_os.dart](../presence_app/lib/identity/device_os.dart)):
+  `Android`, `iOS`, `macOS`, `Windows` or `Linux` in the apps (from
+  `Platform.operatingSystem`), and on the web the browser and the system
+  under it from the user agent, such as `Web (Chrome, macOS)`
+  (`Web` alone when neither is recognized). Browsers on iOS are named by
+  their own token, not as Safari (`CriOS` Chrome, `FxiOS` Firefox,
+  `EdgiOS` Edge, `OPT` Opera), and Edge and Opera elsewhere not as
+  Chrome. iPadOS Safari presents itself as a Mac, so a Mac user agent on
+  a touch screen (`navigator.maxTouchPoints` above 1) is taken for iOS.
+  No version is recorded. It
+  is saved with the event and syncs in its [JSON](data-formats.md), so
+  other devices show it too; events saved before it have none, and keep
+  none.
 - With no events, the panel shows a "No events" empty state.
 - Events flow through an app-wide **event bus**: a plain Dart broadcast
   `StreamController` (`AppEventBus` in
