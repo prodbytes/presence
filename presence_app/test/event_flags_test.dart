@@ -52,7 +52,7 @@ void main() {
     test('an unknown person is flagged', () {
       final event = clipWith(['human', 'bicycle']);
       expect(event.flags, [EventFlag.unidentified]);
-      expect(unidentifiedOf(event.annotations)!.label, 'Unidentified person');
+      expect(unidentifiedOf(event.annotations)!.label, 'Unidentified subject');
       expect(unidentifiedOf(event.annotations)!.ms, 1000);
     });
 
@@ -60,7 +60,7 @@ void main() {
       expect(clipWith(['cat']).flags, [EventFlag.unidentified]);
       final dog = clipWith(['car', 'dog']);
       expect(dog.flags, [EventFlag.unidentified]);
-      expect(unidentifiedOf(dog.annotations)!.label, 'Unidentified pet');
+      expect(unidentifiedOf(dog.annotations)!.label, 'Unidentified subject');
       // Where the dog was first seen, not the car.
       expect(unidentifiedOf(dog.annotations)!.ms, 2000);
     });
@@ -103,16 +103,10 @@ void main() {
 
     test('a person and a pet need a name each', () {
       final both = clipWith(['dog', 'human']);
-      expect(
-        unidentifiedOf(both.annotations)!.label,
-        'Unidentified person and pet',
-      );
+      expect(unidentifiedOf(both.annotations)!.label, 'Unidentified subject');
       both.annotations.add('Ana', 0.5, 0.5);
       expect(both.flags, [EventFlag.unidentified]);
-      expect(
-        unidentifiedOf(both.annotations)!.label,
-        'Unidentified person or pet',
-      );
+      expect(unidentifiedOf(both.annotations)!.label, 'Unidentified subject');
       // The same subject twice is still one.
       both.annotations.add(' ana ', 0.4, 0.4);
       expect(both.flags, [EventFlag.unidentified]);
@@ -163,17 +157,14 @@ void main() {
       final event = clipWith(['human']);
       await pumpCard(tester, event);
       expect(flag, findsOneWidget);
-      expect(find.text('Unidentified person · Identify'), findsOneWidget);
-      expect(
-        find.byTooltip('Unidentified person/pet — identify'),
-        findsOneWidget,
-      );
+      expect(find.text('Unidentified subject · Identify'), findsOneWidget);
+      expect(find.byTooltip('Unidentified subject — identify'), findsOneWidget);
       final icon = tester.widget<Icon>(
         find.descendant(of: flag, matching: find.byIcon(Icons.flag)),
       );
       expect(icon.color, EventFlag.unidentified.color);
       expect(
-        find.bySemanticsLabel('Unidentified person/pet — identify'),
+        find.bySemanticsLabel('Unidentified subject — identify'),
         findsOneWidget,
       );
 
@@ -217,7 +208,7 @@ void main() {
     ) async {
       await pumpCard(tester, clipWith(['human'], playable: false));
       expect(flag, findsOneWidget);
-      expect(find.text('Unidentified person'), findsOneWidget);
+      expect(find.text('Unidentified subject'), findsOneWidget);
     });
 
     testWidgets('fits a 320 dp phone', (tester) async {

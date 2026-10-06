@@ -2971,3 +2971,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        pill by tooltip), `camera_all_test.dart`. 452 Flutter tests pass;
        `flutter analyze` and `flutter build web` are clean.
      - Specs: [Navigation](navigation.md), [Camera screen](camera.md).
+276. **Monitoring: "subject" wording, system events toggle on top.**
+     (2026-10-06)
+     - Asked: say "subjects" rather than people or pets; put the system
+       events filter at the top with the other filters, concise and
+       discreet.
+     - Changed: the yellow flag reads "Unidentified subject · Identify"
+       (tooltip "Unidentified subject — identify"; the player's hint
+       "Unidentified subject: …"). The `ShowSystemEvents` icon moved from
+       the bottom right into the top filters row, after the count.
+     - Tests: `event_flags_test.dart` and `events_search_test.dart`
+       updated; 452 Flutter tests pass. Specs:
+       [Monitoring](monitoring.md), [Events](events.md),
+       [Event flags](event-flags.md), [Clips](clips.md),
+       [Navigation](navigation.md).

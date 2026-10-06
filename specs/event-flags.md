@@ -47,15 +47,14 @@ should be named.
     flagged: nothing says who's there.
 - **On the card** (`EventFlags`, key `event-flag-unidentified`), under the
   object tags: a small pill edged in **Gruvbox yellow** with a yellow
-  **flag** icon and, in yellow, what's unidentified ("Unidentified
-  person", "Unidentified pet", "Unidentified person and pet", or
-  "Unidentified person or pet" when one of two is named) followed by
-  "· Identify". Its tooltip and screen-reader label: "Unidentified
-  person/pet — identify". Long text is cut with an ellipsis, so it fits a
+  **flag** icon and, in yellow, **"Unidentified subject · Identify"**
+  (people and pets are both subjects, as the Monitoring screen calls
+  them). Its tooltip and screen-reader label: "Unidentified subject —
+  identify". Long text is cut with an ellipsis, so it fits a
   320 dp phone and stays one line on wide screens.
 - **Identify.** Tapping it opens the clip's player (as a label does)
   **paused where the first person or pet was seen**, with a yellow-flagged
-  line "Unidentified person: click them on the video to name them, or try
+  line "Unidentified subject: click them on the video to name them, or try
   Auto." There the usual tagging works (see [Clips](clips.md), "Naming
   people and pets"): click them on the video and type a name ("Who is
   this?"), use **Tag this frame**, or **Auto**. A name typed as an

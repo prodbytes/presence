@@ -84,8 +84,8 @@
 - **Show system events: on in DEV, off otherwise.** A small, discreet
   **toggle icon** (`ShowSystemEvents`, a dimmed gear outline, the accent
   color filled while on; no label, its tooltip says "Show system events"
-  or "Hide system events"; a 40 dp target) at the **bottom right of the
-  Monitoring tab**, under the events, decides which events show:
+  or "Hide system events"; a 40 dp target) in the Monitoring tab's
+  **top row**, after the count, with the other filters, decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
