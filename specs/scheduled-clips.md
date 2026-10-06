@@ -20,8 +20,12 @@ on its own: **one when it starts, then one every 3 hours** by default
   once one is, with a full "before" part.
 - Each launch takes its own startup clip and starts counting again; the
   count isn't kept across restarts.
-- Scheduled clips don't touch the motion cooldown or the readiness pill,
-  and motion doesn't delay them.
+- **The cooldown** (Settings' Motion section, 5 min by default) applies:
+  a scheduled or startup clip starts it like any clip (the readiness pill
+  counts it down), and one that falls due during a cooldown, after any
+  clip (a Clip press, motion, Capture all), is taken when the cooldown
+  ends; the next one counts from then. The Settings countdown shows the
+  time to that later moment.
 
 ## Same as any clip
 
@@ -69,5 +73,7 @@ with the rest of the config (`schedule` in `PresenceConfig`):
   getting the default; the labels and the countdown's format; the
   countdown's four states, ticking every second; the Settings slider's
   ends, the switch disabling it and hiding the countdown.
-- `readiness_test.dart`: a Clip press after 16 s comes after the startup
-  clip, and the pill stays Ready.
+- `readiness_test.dart`: a Clip press counts down in the pill, and the
+  startup clip due during its cooldown is taken when it ends.
+- `scheduled_clips_test.dart`: a scheduled clip due during a Clip press's
+  cooldown is taken when it ends, and the next counts from then.

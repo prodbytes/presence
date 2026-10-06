@@ -114,40 +114,41 @@ in the app bar**, which flip between full screens.
     say "Health check failed" and each failed check's explanation.
     **Tapping it** opens the Log tab's health panel when the Log tab is
     shown, Settings' health line otherwise. Gone once every check passes.
-  - **Readiness indicator:** shows whether a clip taken now would be
-    complete. It's only the colored dot, in a round 40 dp pill, with no
-    text label; during the motion cooldown the countdown number shows
-    beside the dot, since it's information rather than a label. The
-    tooltip and screen-reader label spell each state out:
-    - **Ready** (green dot only; "Ready to clip"): shown as soon as a camera is open, including
-      right after a page reload or a flip. Only **automatic (motion)
-      clips** start a countdown. A **Clip button press doesn't**: the pill
-      stays Ready while its *after* part records, and the clip message
-      beside it says it's saving. A clip in the first seconds after opening simply has less
-      *before* history.
-    - **"4:59"** after a **motion** clip: the **motion cooldown** countdown
-      (5 minutes by default), starting when motion grabs the clip. The dot
-      is red while that clip's *after* part is still saving, then amber.
-      Motion can take another clip **only once this reaches zero**: the
-      countdown and the trigger use the same end time
-      (`CameraRig.motionCooldownEnds`). Below a minute it shows "45 s". A Clip
-      press during the cooldown leaves the countdown as it is; the Clip
-      button is never blocked. With motion clips turned off there's no
-      cooldown.
-
+  - **Readiness indicator:** shows whether an automatic clip (motion,
+    the schedule) can be taken now. It's only the colored dot, in a round
+    40 dp pill, with no text label; during the cooldown the countdown
+    number shows beside the dot, since it's information rather than a
+    label. The tooltip and screen-reader label spell each state out:
+    - **Ready** (green dot only; "Ready to clip"): shown as soon as a
+      camera is open, including right after a page reload or a flip, when
+      no cooldown is running. A clip in the first seconds after opening
+      simply has less *before* history.
+    - **"4:59"** after **any clip**, whatever took it (the Clip button,
+      motion, the schedule, the startup clip, Capture all or a remote
+      capture request): the **cooldown** countdown (Settings' cooldown, 5
+      minutes by default), starting when the clip is grabbed. The dot is
+      red while that clip's *after* part is still saving ("Clip saving;
+      next automatic clip in 4:59"), then amber ("Next automatic clip in
+      4:28"). Below a minute it shows "45 s". The countdown and the
+      automatic triggers use the same end time (`CameraRig.cooldownEnds`):
+      - **motion** is ignored until it reaches zero;
+      - a **scheduled (or startup) clip** due during it is taken when it
+        ends, and the next one counts from then;
+      - the **Clip button is never blocked**: a press during the cooldown
+        takes the clip and restarts the countdown from the press.
+      It applies with motion clips turned off too.
     - **Not ready** (gray dot only; "Camera not ready") and **Off** (gray
       dot only; "Camera off: nothing is recorded", the view button's
       None).
 
     The countdown shows only the number, to keep the pill short. The
-    pill refreshes twice a second, and its tooltip and screen-reader label
-    spell the state out ("Motion can clip again in 4:28").
-    - **The motion cooldown survives restarts and page reloads.** On
-      launch, it's restored from the last motion clip in the stored events,
-      so the countdown continues exactly where it was, and motion doesn't
-      re-fire early just because the app restarted. Verified in Chrome: a
-      reload 6 s after "4:28" showed "4:22", matching the stored event
-      time.
+    pill refreshes twice a second.
+    - **The cooldown survives restarts and page reloads.** On launch, it's
+      restored from this device's latest clip of any trigger in the stored
+      events (clips other devices took, fetched from the cloud, don't
+      count), so the countdown continues exactly where it was and nothing
+      automatic re-fires early just because the app restarted. If a clip
+      was taken since launch, the later of the two wins.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
     `CameraMessagePill`), never a snackbar: at the bottom, to the right of
     the readiness pill, for 4 s, so nothing over the camera moves (a
@@ -159,8 +160,8 @@ in the app bar**, which flip between full screens.
       start), with the clip's icon: "Clip started · saving the next 10 s",
       "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".
       **Tapping it** opens Monitoring, where the clip's event is (with
-      access). On the other tabs it doesn't show. For motion clips, the
-      indicator carries the cooldown after it;
+      access). On the other tabs it doesn't show. After any clip, the
+      indicator carries the cooldown;
     - **a sign-in fails**: "Sign-in failed: <reason>", with the icon in
       the error color. On another tab it's still a snackbar.
 - **Monitoring:** the map of every subject's events, with their names,

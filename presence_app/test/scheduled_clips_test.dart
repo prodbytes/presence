@@ -166,6 +166,39 @@ void main() {
       await stop();
     });
 
+    testWidgets('one due during the cooldown is taken when it ends', (
+      tester,
+    ) async {
+      await start(
+        tester,
+        schedule: const ScheduleConfig(every: Duration(minutes: 30)),
+      );
+      await advance(tester, const Duration(seconds: 5));
+      expect(clips.map((c) => c.trigger), [ClipTrigger.startup]);
+      final due = rig.nextScheduledClip!;
+
+      // A Clip press 2 minutes before it's due: its 5-minute cooldown
+      // holds the scheduled clip back until 3 minutes after.
+      now = due.subtract(const Duration(minutes: 2));
+      await rig.requestClips(bus);
+      await tester.pump();
+      final pressed = now;
+      expect(clips, hasLength(2));
+      expect(rig.untilScheduledClip, const Duration(minutes: 5));
+
+      await advance(tester, const Duration(minutes: 4, seconds: 55));
+      expect(clips, hasLength(2), reason: 'still in the cooldown');
+      await advance(tester, const Duration(seconds: 5));
+      expect(clips.map((c) => c.trigger).last, ClipTrigger.scheduled);
+      expect(clips.last.time, pressed.add(const Duration(minutes: 5)));
+      // Not lost, and the next one counts from when it was taken.
+      expect(
+        rig.nextScheduledClip,
+        clips.last.time.add(const Duration(minutes: 30)),
+      );
+      await stop();
+    });
+
     testWidgets('switched off: no startup clip and no schedule', (
       tester,
     ) async {

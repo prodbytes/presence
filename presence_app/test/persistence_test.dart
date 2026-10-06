@@ -1208,59 +1208,107 @@ void main() {
     expect(find.textContaining('Clips play 40 s in total'), findsOneWidget);
   });
 
-  testWidgets(
-    'the motion cooldown survives a restart, with its exact countdown',
-    (tester) async {
-      Future<void> frames(FakeCameraSource camera, List<dynamic> list) async {
-        for (final f in list) {
-          clock = clock.add(const Duration(milliseconds: 200));
-          camera.motion.add(f);
-          await tester.pump();
-        }
-        await tester.pump(const Duration(milliseconds: 600));
+  testWidgets('the cooldown survives a restart, with its exact countdown', (
+    tester,
+  ) async {
+    Future<void> frames(FakeCameraSource camera, List<dynamic> list) async {
+      for (final f in list) {
+        clock = clock.add(const Duration(milliseconds: 200));
+        camera.motion.add(f);
+        await tester.pump();
       }
-
-      var step = 0;
-      List<dynamic> movement() => [
-        for (var i = 0; i < 4; i++)
-          frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
-      ];
-      const media = ClipMedia(
-        url: 'blob:m',
-        start: Duration.zero,
-        end: Duration(seconds: 15),
-      );
-
-      var camera = FakeCameraSource('Main', immediatePast: media);
-      await launch(tester, cameras: [camera]);
-      await frames(camera, List.filled(20, frame())); // warm-up
-      await frames(camera, movement());
-      final triggeredAt = clock.subtract(const Duration(milliseconds: 200));
-      expect(camera.fullCompleters, hasLength(1), reason: 'motion clip taken');
-      camera.fullCompleters.single.complete(media);
-      await settleStorage(tester);
-
-      // Two minutes later, the app restarts.
-      clock = triggeredAt.add(const Duration(minutes: 2));
-      camera = FakeCameraSource('Main', immediatePast: media);
-      await refresh(tester, cameras: [camera]);
       await tester.pump(const Duration(milliseconds: 600));
+    }
 
-      // The pill shows exactly what's left of the 5-minute cooldown.
-      expect(find.text('3:00'), findsOneWidget);
+    var step = 0;
+    List<dynamic> movement() => [
+      for (var i = 0; i < 4; i++)
+        frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
+    ];
+    const media = ClipMedia(
+      url: 'blob:m',
+      start: Duration.zero,
+      end: Duration(seconds: 15),
+    );
 
-      // Motion stays blocked until the cooldown ends…
-      await frames(camera, List.filled(20, frame()));
-      await frames(camera, movement());
-      expect(camera.fullCompleters, isEmpty);
+    var camera = FakeCameraSource('Main', immediatePast: media);
+    await launch(tester, cameras: [camera]);
+    await frames(camera, List.filled(20, frame())); // warm-up
+    await frames(camera, movement());
+    final triggeredAt = clock.subtract(const Duration(milliseconds: 200));
+    expect(camera.fullCompleters, hasLength(1), reason: 'motion clip taken');
+    camera.fullCompleters.single.complete(media);
+    await settleStorage(tester);
 
-      // …and clips again once it has.
-      clock = triggeredAt.add(const Duration(minutes: 5));
-      await frames(camera, movement());
-      expect(camera.fullCompleters, hasLength(1));
-      await settleStorage(tester);
-    },
-  );
+    // Two minutes later, the app restarts.
+    clock = triggeredAt.add(const Duration(minutes: 2));
+    camera = FakeCameraSource('Main', immediatePast: media);
+    await refresh(tester, cameras: [camera]);
+    await tester.pump(const Duration(milliseconds: 600));
+
+    // The pill shows exactly what's left of the 5-minute cooldown.
+    expect(find.text('3:00'), findsOneWidget);
+
+    // Motion stays blocked until the cooldown ends…
+    await frames(camera, List.filled(20, frame()));
+    await frames(camera, movement());
+    expect(camera.fullCompleters, isEmpty);
+
+    // …and clips again once it has.
+    clock = triggeredAt.add(const Duration(minutes: 5));
+    await frames(camera, movement());
+    expect(camera.fullCompleters, hasLength(1));
+    await settleStorage(tester);
+  });
+
+  testWidgets('after a restart the cooldown runs from this device\'s latest '
+      'clip of any trigger, not from other devices\' clips', (tester) async {
+    const media = ClipMedia(
+      url: 'blob:m',
+      start: Duration.zero,
+      end: Duration(seconds: 15),
+    );
+    var camera = FakeCameraSource('Main', immediatePast: media);
+    await launch(tester, cameras: [camera]);
+
+    // A Clip press (not motion).
+    clock = clock.add(const Duration(seconds: 2));
+    final pressedAt = clock;
+    await tester.tap(find.byTooltip('Clip'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('5:00'), findsOneWidget);
+    camera.fullCompleters.last.complete(media);
+    await settleStorage(tester);
+
+    // A later clip by another device of the profile, fetched from the
+    // cloud: it doesn't hold this device back.
+    final store = await run(tester, EventStore.open(storage));
+    await run(
+      tester,
+      store.putEvent({
+        'id': 'other-device-clip',
+        'type': ClipRequested.clipRequestedType,
+        'title': 'Motion detected',
+        'trigger': ClipTrigger.motion.name,
+        'time': pressedAt
+            .add(const Duration(minutes: 1))
+            .millisecondsSinceEpoch,
+        'deviceId': 'other_quiet_heron',
+        'userId': '1',
+        'profileId': 'automatic_paranoid_axolotl',
+      }),
+    );
+    store.close();
+
+    // Two minutes after the press, the app restarts.
+    clock = pressedAt.add(const Duration(minutes: 2));
+    camera = FakeCameraSource('Main', immediatePast: media);
+    await refresh(tester, cameras: [camera]);
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.text('3:00'), findsOneWidget);
+    await settleStorage(tester);
+  });
 
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);

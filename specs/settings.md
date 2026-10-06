@@ -29,7 +29,10 @@
     default changed (it was 10%).
   - A **live motion meter** showing the open camera's current score, with a
     marker at the threshold, to help calibrate it.
-  - **At most one automatic clip every** 1–60 minutes (default 5).
+  - **At most one automatic clip every** 1–60 minutes (default 5): the
+    cooldown after any clip, during which motion and scheduled clips wait
+    (see [Navigation](navigation.md)). It stays adjustable with motion
+    clips off, since it holds scheduled clips back too.
 - **Clips** section, with two sliders from 5 s to 60 s in 5 s steps,
   **side by side**, each half the width (8 px apart), with compact labels
   so they fit a 320 dp phone:

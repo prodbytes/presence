@@ -190,18 +190,19 @@ class Persistence implements DeviceSettings {
     if (_disposed) return;
     log.addHistory(history);
 
-    // Keep the motion cooldown across restarts: it runs from the last
-    // automatic clip (records are newest first).
-    final lastMotion = records.firstWhere(
+    // Keep the clip cooldown across restarts: it runs from this device's
+    // last clip, whatever took it (records are newest first). Clips other
+    // devices took, fetched from the cloud, don't count.
+    final device = await _deviceId;
+    if (_disposed) return;
+    final lastClip = records.firstWhere(
       (r) =>
           r['type'] == ClipRequested.clipRequestedType &&
-          r['trigger'] == ClipTrigger.motion.name,
+          (r['deviceId'] == null || r['deviceId'] == device),
       orElse: () => const {},
     )['time'];
-    if (lastMotion is int) {
-      _rig?.restoreMotionCooldown(
-        DateTime.fromMillisecondsSinceEpoch(lastMotion),
-      );
+    if (lastClip is int) {
+      _rig?.restoreCooldown(DateTime.fromMillisecondsSinceEpoch(lastClip));
     }
   }
 
