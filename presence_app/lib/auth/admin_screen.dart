@@ -357,8 +357,9 @@ String _roleLabel(String role) => switch (role) {
   _ => role,
 };
 
-/// A new voucher: its code (a suggestion of the season, an animal and a
-/// number, or the admin's own; blank for a random one), role, first and
+/// A new voucher: its code (blank, the default, for the auth API's random
+/// one; or, for Member codes only, the admin's own or a suggestion of the
+/// season, an animal and a number, on request), role, first and
 /// last valid days (from the start of the first, through the end of the
 /// last, local time; the current season's by default), how many people may
 /// redeem it and its discount.
@@ -392,7 +393,8 @@ class _VoucherFormState extends State<_VoucherForm> {
   late DateTime _starts = seasonStart(_today());
   late DateTime _expires = seasonEnd(_today());
   final _uses = TextEditingController(text: '1');
-  final _code = TextEditingController(text: suggestVoucherCode());
+  // Blank: a random code, the hardest to guess.
+  final _code = TextEditingController();
   final _discount = TextEditingController(text: '100');
   bool _creating = false;
 
@@ -411,9 +413,13 @@ class _VoucherFormState extends State<_VoucherForm> {
     return n != null && n >= 1 && n <= 100 ? n : null;
   }
 
-  /// Blank (a random code) or one the auth API takes.
+  /// Admin codes are always random: only Member codes may be chosen.
+  bool get _canChoose => _role != adminRole;
+
+  /// Blank (a random code) or, when it may be chosen, one the auth API takes.
   bool get _codeOk =>
-      _code.text.trim().isEmpty || isValidVoucherCode(_code.text);
+      _code.text.trim().isEmpty ||
+      (_canChoose && isValidVoucherCode(_code.text));
 
   bool get _valid => _maxUses != null && _discountValue != null && _codeOk;
 
@@ -487,7 +493,7 @@ class _VoucherFormState extends State<_VoucherForm> {
       start,
       end,
       uses,
-      _code.text.trim(),
+      _canChoose ? _code.text.trim() : '',
       discount,
     );
     if (!mounted) return;
@@ -495,7 +501,7 @@ class _VoucherFormState extends State<_VoucherForm> {
     if (created) {
       _uses.text = '1';
       _discount.text = '100';
-      _code.text = suggestVoucherCode();
+      _code.clear();
     }
   }
 
@@ -518,23 +524,25 @@ class _VoucherFormState extends State<_VoucherForm> {
               child: TextField(
                 key: const Key('voucher-new-code'),
                 controller: _code,
-                enabled: !_creating,
+                enabled: !_creating && _canChoose,
                 textCapitalization: TextCapitalization.characters,
                 maxLength: maxVoucherCode,
                 decoration: InputDecoration(
                   labelText: 'Code',
                   border: const OutlineInputBorder(),
                   counterText: '',
-                  helperText: 'Blank for a random code',
+                  helperText: _canChoose
+                      ? 'Blank for a random code (the safest)'
+                      : 'Admin codes are always random',
                   errorText: _codeOk
                       ? null
-                      : '$minVoucherCode to $maxVoucherCode letters, digits '
-                            'and dashes',
+                      : 'At least $minVoucherCode letters and digits, '
+                            'up to $maxVoucherCode with dashes',
                   suffixIcon: IconButton(
                     key: const Key('suggest-code'),
-                    tooltip: 'Suggest another',
+                    tooltip: 'Suggest a code (easier to guess)',
                     icon: const Icon(Icons.casino_outlined),
-                    onPressed: _creating
+                    onPressed: _creating || !_canChoose
                         ? null
                         : () => _code.text = suggestVoucherCode(),
                   ),
@@ -559,7 +567,11 @@ class _VoucherFormState extends State<_VoucherForm> {
                 ],
                 onChanged: _creating
                     ? null
-                    : (role) => setState(() => _role = role ?? userRole),
+                    : (role) => setState(() {
+                        _role = role ?? userRole;
+                        // An Admin code is random: drop a chosen one.
+                        if (!_canChoose) _code.clear();
+                      }),
               ),
             ),
             OutlinedButton.icon(
@@ -655,8 +667,12 @@ class _VoucherCard extends StatelessWidget {
         : voucher.isNotYetValid(now)
         ? 'Not yet valid'
         : null;
+    // A hidden (Admin) code: only roots see it; keyed by its creation.
+    final id = voucher.hidden
+        ? 'hidden-${voucher.createdAt.millisecondsSinceEpoch}'
+        : voucher.code;
     return Card(
-      key: Key('voucher-${voucher.code}'),
+      key: Key('voucher-$id'),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
         child: Row(
@@ -670,15 +686,23 @@ class _VoucherCard extends StatelessWidget {
                   Row(
                     spacing: 8,
                     children: [
-                      SelectableText(
-                        voucher.code,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontFamily: 'monospace',
-                          decoration: state == null
-                              ? null
-                              : TextDecoration.lineThrough,
+                      if (voucher.hidden)
+                        Text(
+                          'Hidden code',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        )
+                      else
+                        SelectableText(
+                          voucher.code,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontFamily: 'monospace',
+                            decoration: state == null
+                                ? null
+                                : TextDecoration.lineThrough,
+                          ),
                         ),
-                      ),
                       if (state != null)
                         Text(state, style: TextStyle(color: scheme.error)),
                     ],
@@ -699,28 +723,31 @@ class _VoucherCard extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              key: Key('copy-${voucher.code}'),
-              tooltip: 'Copy code',
-              icon: const Icon(Icons.copy),
-              onPressed: () {
-                Clipboard.setData(ClipboardData(text: voucher.code));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Copied ${voucher.code}')),
-                );
-              },
-            ),
-            busy
-                ? const SizedBox.square(
-                    dimension: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : IconButton(
-                    key: Key('delete-${voucher.code}'),
-                    tooltip: 'Delete',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: onDelete,
-                  ),
+            // A hidden code can't be copied or deleted (only by a root).
+            if (!voucher.hidden) ...[
+              IconButton(
+                key: Key('copy-${voucher.code}'),
+                tooltip: 'Copy code',
+                icon: const Icon(Icons.copy),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: voucher.code));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Copied ${voucher.code}')),
+                  );
+                },
+              ),
+              busy
+                  ? const SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : IconButton(
+                      key: Key('delete-${voucher.code}'),
+                      tooltip: 'Delete',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: onDelete,
+                    ),
+            ],
           ],
         ),
       ),
