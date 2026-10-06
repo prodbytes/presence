@@ -37,7 +37,10 @@ file of *before* + *after* once the *after* seconds have passed.
    (`showClipPlayer(at:)`, `ClipPlayerView.startAt`, kept inside the clip
    window by `startPosition`); the tooltip says where ("Show at 0:02.5").
    A subject opens at the earliest frame they're tagged on; a tag without
-   a frame (older records) plays from the start, like the card.
+   a frame (older records) plays from the start, like the card. In the
+   Monitoring tab's timeline that takes a **long press**: a click there
+   filters the events by the label instead (see [Events](events.md),
+   "Tapping a tag or subject filters by it").
 4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap
    on play starts it with audio.
@@ -95,7 +98,8 @@ on a tag's chip "Remove tag bicycle from this event".
 
 - **Tags** lists the clip's [object tags](recognition.md) as the card's
   outlined chips (keys `player-object-<label>`), each with its x to remove
-  it. With none it says "No tags yet. Things seen on the clip, like bottle
+  it. Opened from the timeline, clicking one filters the events by it and
+  closes the player (see [Events](events.md)). With none it says "No tags yet. Things seen on the clip, like bottle
   or bicycle, show here once it has been searched (try Auto)." ("(try
   Auto)" only where Auto can run), or, once searched with nothing found,
   "No tags: nothing was seen on this clip."
@@ -151,7 +155,10 @@ needed. Each name is on a frame of the clip, at the spot clicked
   Markers (a dot with the name) are drawn on the frame.
 - Subjects are listed by frame: the frame's thumbnail and time (tooltip
   "Name more subjects on this frame"), then a chip per name: click to
-  **rename** ("Rename subject"), × to **remove** ("Remove subject"). A
+  **rename** ("Rename subject"), × to **remove** ("Remove subject"). Opened
+  from the timeline, a click instead filters the events by that subject
+  and closes the player, the chip shows selected while they're the
+  search, and a long press (or right click) renames. A
   frame is dropped once its last tag is removed. With none: "No subjects
   yet. Click a person or pet on the video to name them."
 - **Where a tag came from** (`source`): someone's click (`manual`, the

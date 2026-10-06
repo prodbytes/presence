@@ -121,7 +121,9 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   ("human", "bicycle"), in order of first sighting. Each keeps where it was
   first seen (`ms`, in the recording's time, like a tag's `frameMs`), and
   clicking it opens the player paused on that frame (see
-  [Clips](clips.md)). Only the time is kept, not the frame's image.
+  [Clips](clips.md)); in the Monitoring tab's timeline that's a long
+  press, and a click filters the events by the tag, highlighting it while
+  it's the search (see [Events](events.md)). Only the time is kept, not the frame's image.
 - **Removing one:** the **x** inside each chip (key
   `clip-object-remove-<label>`, tooltip "Remove tag bicycle from this
   event")

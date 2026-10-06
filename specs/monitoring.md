@@ -109,6 +109,15 @@ the separate Events and Subjects tabs.
   overflow; the matching / all count follows the search, the filters, new
   events and late object tags; *all* leaves out other users' events and
   grows as events arrive from the cloud.
+  `tag_filter_test.dart`: tapping a tag or a subject on a card sets the
+  search to it, shows only the events with it, highlights it on every
+  card shown, and doesn't open the player; tapping it again, or the
+  search's x, clears both; tapping another replaces it; tapping one in the
+  player opened from a card closes it on the filtered list, and shows it
+  selected there next time; a long press on a card's label still opens
+  the player where it was seen, a long press on a subject's chip in the
+  player still renames, and the x still removes; it fits 320 dp; outside
+  a timeline a click still opens the player.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations
