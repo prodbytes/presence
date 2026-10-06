@@ -3585,7 +3585,58 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        IDs' size under it. The About text and the dev-mode label in the
        title bar are unchanged. Specs: [Settings](settings.md).
 
-295. **UI review fixes: Monitoring focus, timeline scroll, filters and
+295. **Auth review fixes: roles, vouchers and link codes.** (2026-10-06)
+     - Asked: fix every finding of a code review of the auth API and its
+       client (roles, vouchers, profiles, link codes), with tests.
+     - Changed (security):
+       - **Root domains need `hd`:** a `PRESENCE_ROOT_DOMAINS` match now
+         also needs the ID token's `hd` claim to be that domain (the
+         account is managed by its Google Workspace). A personal Google
+         account registered with a `nu01.com` address, verified once, was
+         root forever. Root emails are unchanged, documented as Gmail or
+         Workspace addresses only. The HTTP API's JWT authorizer passes
+         every claim, `hd` included.
+       - **Admin codes stay with roots:** `GET /api/auth/vouchers` sends a
+         `presence_admin` voucher's code to roots only (`"code": null,
+         "hidden": true` otherwise), and only roots delete one (403, a
+         conditional delete); the Admin tab shows "Hidden code" without
+         buttons.
+       - **Linked accounts share membership only:** a subject linked to
+         another account's profile gets `presence_user` when the owner
+         has it, never `presence_admin` or `presence_root`.
+       - **Only verified owner emails:** the profile keeps `ownerEmail`
+         (and the new `ownerHd`) only from a verified token; an unverified
+         email never replaces it, and one kept unverified before is
+         dropped at the owner's next unverified sign-in.
+       - **Voucher codes:** Admin vouchers always get a random code (a
+         chosen one is 400); chosen Member codes need at least 10 letters
+         and digits; after 10 wrong codes within an hour an email gets 429
+         for the rest of the hour (counted in `UserRolesTable`). The Admin
+         tab's code field is blank (random) by default, the suggestion
+         only on the dice, never for Admin codes; the redeem field takes
+         40 characters.
+       - **Atomic grants:** a role grant is one `ADD` to the roles string
+         set (a list or string written by hand is rewritten as a set,
+         conditionally, with retries), so concurrent grants can't lose
+         roles.
+       - **Link codes:** a link checks the code, then refuses (409) before
+         using it up with a conditional delete, so a refusal leaves it
+         usable.
+     - Changed (code): one `Caller.from(event)` (claims, verified email,
+       `hd`, bearer token) for all five handlers; `Http`, `Aws` (one
+       DynamoDB client per function instance; the sanitized 502 every
+       handler now answers on AWS failures), `Attrs` and `UserRoles`
+       helpers replace the copies in each handler.
+     - Documented: the anonymous route's flood risk and per-IP WAF rules
+       (not deployed), `iot:AttachPolicy` on `*`, profile-ID squatting,
+       and that a 402 reveals a partial-discount code.
+     - Deploy: profiles of root-domain owners share membership with
+       linked accounts again once the owner signs in after the deploy
+       (which stores `ownerHd`).
+     - Specs: [Auth API](auth-api.md), [Membership](membership.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md).
+
+296. **UI review fixes: Monitoring focus, timeline scroll, filters and
      pills.** (2026-10-06)
      - Asked: fix everything a code review found in the UI (Monitoring,
        events, subjects, status pills, settings sliders), with tests.

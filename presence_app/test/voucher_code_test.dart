@@ -41,10 +41,14 @@ void main() {
     }
   });
 
-  test('chosen codes: letters, digits and separators, 6 to 40', () {
+  test('chosen codes: letters, digits and separators, 10 of them to 40', () {
     expect(isValidVoucherCode('autumn otter_4821'), isTrue);
     expect(isValidVoucherCode('FRIENDS-2026'), isTrue);
     expect(isValidVoucherCode('ABCDE'), isFalse);
+    // Nine letters and digits: dashes don't count.
+    expect(isValidVoucherCode('OTTER-4821'), isFalse);
+    expect(isValidVoucherCode('A-B-C-D-E-F-G-H-I'), isFalse);
+    expect(isValidVoucherCode('OTTER-48210'), isTrue);
     expect(isValidVoucherCode('A' * 41), isFalse);
     expect(isValidVoucherCode('CAFÉ-OTTER-12'), isFalse);
     expect(isValidVoucherCode('OTTER;DROP'), isFalse);

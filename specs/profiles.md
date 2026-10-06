@@ -68,7 +68,14 @@
 - **Only the auth API makes profile IDs.** The app no longer makes one or
   sends one. The API still accepts `?profile=<id>` and uses it for a new
   profile if it's valid (`ProfileId.valid`) and free, but the app doesn't
-  send it.
+  send it. **Squatting:** a profile ID is a name, not a secret, and
+  whoever signs in first with a free one claims it. Someone who learns an
+  install's ID before its first sign-in could claim it first; the install
+  then simply gets a fresh ID at its sign-in, and the squatter owns an
+  empty profile (data belongs to a profile only once signed in, and only
+  through its credentials), so it's a nuisance, not a leak. Since the app
+  no longer sends `?profile=`, it doesn't arise today; binding it to a
+  device-held secret wasn't worth it for a parameter nothing sends.
 - The profile ID is also the user identifier Cognito knows the profile by
   (its developer identity).
 
@@ -102,12 +109,25 @@
   profile ID for good. After that the profile ID alone works, for every
   account in the profile. A link code links it too, so accounts that join
   (whose Google logins aren't on the identity) get credentials.
-- **Roles:** a subject has its own roles plus the **owner's**, the subject
-  that made the profile. This applies in `GET /api/auth`, the Admin routes
-  and the profile routes. The owner's email is kept on the profile and
-  updated when the owner signs in with a new one. A `julio@gmail.com`
-  linked to a `julio@nu01.com` profile is a `presence_user`,
-  `presence_admin` and `presence_root`, like the owner.
+- **Roles:** a subject has its own roles plus the owner's **membership**:
+  `presence_user` when the **owner** (the subject that made the profile)
+  has it, never the owner's `presence_admin` or `presence_root`, which
+  each account gets only from its own email. This applies in
+  `GET /api/auth`, the Admin routes and the profile routes. A
+  `julio@gmail.com` linked to a `julio@nu01.com` profile is a
+  `presence_user`; it administers only if its own email does. (A link
+  code is a one-time secret any member can make; administration must not
+  travel with it.)
+- **The owner's email** is kept on the profile (`ownerEmail`, with its
+  Workspace domain `ownerHd`, the token's `hd`) only from a token whose
+  `email_verified` is true, since linked subjects share the owner's
+  membership through it. A verified new email (or `hd`) replaces it when
+  the owner signs in; an unverified one never does, and is never stored
+  for a new profile or a link either. An `ownerEmail` kept before this
+  rule from an unverified token is dropped when the owner signs in with
+  that same email still unverified. An owner on a root domain shares
+  membership only once `ownerHd` says its Workspace manages it (from its
+  next sign-in after the change).
 
 ## Linking
 
@@ -126,7 +146,11 @@
 - **Codes:**
   - 8 characters from 32 that don't look alike (no I, O, 0 or 1), so 40
     bits; typed in any case, with or without the dash;
-  - stored only as their SHA-256, deleted when used;
+  - stored only as their SHA-256, deleted when used: a link checks the
+    code is there (a consistent read), then the refusals below, and only
+    then uses it up with a conditional delete, so a refused link (409)
+    leaves the code for another try, and two links with one code can't
+    both succeed;
   - they expire by DynamoDB TTL, and are checked on use, since TTL
     deletion lags;
   - both code routes are throttled to 1 request a second (burst 5).
@@ -144,7 +168,7 @@
 - **Linked accounts** lists the profile's subjects: the owner first,
   marked **Owner**, then **This account**. Every account but the owner has
   an **Unlink** button, available to any member.
-- An unlinked subject loses the owner's roles. Its next sign-in gives it a
+- An unlinked subject loses the owner's membership. Its next sign-in gives it a
   new profile of its own, whose folder is its own Google identity's.
 
 ## Routes
@@ -181,7 +205,7 @@ deleted, and the contents live only in AWS.
 
 | Table | Key | Attributes |
 |---|---|---|
-| `ProfilesTable` | `id` (the profile ID) | `createdAt`, `lastSignInAt` (epoch ms), `ownerSubject`, `ownerEmail`, `identityId` |
+| `ProfilesTable` | `id` (the profile ID) | `createdAt`, `lastSignInAt` (epoch ms), `ownerSubject`, `ownerEmail` (verified only), `ownerHd`, `identityId` |
 | `ProfileSubjectsTable` | `subject` (`<iss>#<sub>`); index `profile` by `profileId` | `profileId`, `email` (lowercase), `linkedAt` (epoch ms) |
 | `LinkCodesTable` | `code` (its SHA-256) | `profileId`, `createdBy`, `expiresAt` (epoch s, TTL) |
 
@@ -196,10 +220,10 @@ deleted, and the contents live only in AWS.
 - **Least privilege:**
   - the roles function (`AuthFunction`) may get and put links, and get,
     put and update profiles;
-  - the admin function may only get both, to find the owner's roles;
+  - the admin function may only get both, to find the owner's membership;
   - the profile function (`ProfileFunction`) may get, put, delete and
-    query links, get, put and update profiles, and put and delete link
-    codes;
+    query links, get, put and update profiles, and get, put and delete
+    link codes;
   - it may also call `GetId` and `GetOpenIdTokenForDeveloperIdentity` on
     this pool only, and `s3:ListBucket` on the user-data bucket, only to
     see whether a folder is empty.
@@ -238,7 +262,7 @@ deleted, and the contents live only in AWS.
 
 ## Verified
 
-- `ProfilesTest` (JUnit, 11 tests):
+- `ProfilesTest` (JUnit, 13 tests):
   - a first sign-in creates a profile and the next finds it;
   - the subject, not the email, finds it, and a linked subject shares it;
   - a race keeps the first link;
@@ -249,13 +273,20 @@ deleted, and the contents live only in AWS.
   - the ID format and word lists;
   - no subject, no profile;
   - the handler answers with the profile, claims the app's
-    (`?profile=`), and the anonymous route makes none.
-- `ProfileTest` (JUnit, 15 tests):
+    (`?profile=`), and the anonymous route makes none;
+  - only a verified email is kept as the owner's (with its `hd`), an
+    unverified one never replaces it, and one kept unverified before is
+    dropped.
+- `ProfileTest` (JUnit, 20 tests):
   - an existing user keeps the identity Google sign-in gave them;
   - credentials need `presence_user`;
-  - a linked subject gets the same identity and the owner's roles, also
-    in `GET /api/auth` and the Admin lookup, which never makes a profile;
-  - the owner's new email carries its roles;
+  - a linked subject gets the same identity and the owner's membership
+    only, also in `GET /api/auth`, and no admin in the Admin routes, which
+    never make a profile;
+  - only membership is shared, from a verified caller, and not from an
+    owner without its Workspace's `hd`;
+  - the owner's new email is kept;
+  - a refused link leaves the code usable;
   - codes are single-use, expire, are well-formed, and are stored only as
     hashes;
   - only members make codes;
@@ -296,7 +327,8 @@ deleted, and the contents live only in AWS.
   linked. Its data expires with the bucket's 90 days, or it can stay
   unlinked.
 - Roles are still declared per email in `UserRolesTable`, and membership
-  requests are per email. Linked subjects share the owner's roles.
+  requests are per email. Linked subjects share the owner's membership
+  only.
 - Google stays a login provider of the pool. An account can therefore
   still get credentials straight from Cognito for its own Google
   identity's folder, without the roles check, as before profiles. Remove
