@@ -124,6 +124,9 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   **Auto** can find it again.
 - The Events **search** matches them: "bicycle" finds the clips with a
   bicycle (see [Events](events.md)).
+- A `human`, `cat` or `dog` with nobody named on the clip flags it
+  **unidentified** (yellow, with **Identify**; see [Event
+  flags](event-flags.md)).
 - They're labels, not subjects: no names, colors, maps, references or
   questions, and they never make anyone a subject.
 

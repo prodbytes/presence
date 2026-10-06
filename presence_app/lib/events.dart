@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'event_flags.dart';
 import 'location/device_location.dart';
 import 'recognition/suggestion.dart';
 
@@ -186,6 +187,10 @@ class AppEvent {
   }
 
   static final _random = Random();
+
+  /// What about this event wants attention (see [EventFlag]), worked out
+  /// from its data; none for most events.
+  List<EventFlag> get flags => const [];
 
   /// The card shown for this event in the timeline. Event types with richer
   /// content override this.
@@ -604,6 +609,10 @@ Iterable<String> eventSearchFields(AppEvent event) sync* {
         yield object.label;
       }
     }
+  }
+  // "unidentified" finds the events with someone to name.
+  for (final flag in event.flags) {
+    yield flag.name;
   }
 }
 

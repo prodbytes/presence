@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'annotations.dart';
 import 'cameras/cameras.dart';
+import 'event_flags.dart';
 import 'events.dart';
 import 'recognition/recognizer.dart';
 import 'subjects.dart';
@@ -215,6 +216,9 @@ class ClipRequested extends AppEvent {
   };
 
   @override
+  List<EventFlag> get flags => flagsOf(annotations);
+
+  @override
   Widget buildCard(BuildContext context) => ClipEventCard(event: this);
 }
 
@@ -295,6 +299,13 @@ class ClipEventCard extends StatelessWidget {
               ),
               EventSubjects(event: event, onOpenAt: openAt),
               ClipObjectTags(annotations: event.annotations, onOpenAt: openAt),
+              EventFlags(
+                annotations: event.annotations,
+                onIdentify: clip.playable
+                    ? (at) =>
+                          showClipPlayer(context, event, at: at, identify: true)
+                    : null,
+              ),
             ],
           ),
         );
@@ -350,11 +361,13 @@ class _Thumbnail extends StatelessWidget {
 }
 
 /// Opens [event]'s clip in the player: playing from the start, or paused
-/// [at] a point of the recording (a tag's frame).
+/// [at] a point of the recording (a tag's frame). [identify]: opened from
+/// the card's unidentified flag, to name who's there.
 Future<void> showClipPlayer(
   BuildContext context,
   ClipRequested event, {
   Duration? at,
+  bool identify = false,
 }) {
   return showDialog<void>(
     context: context,
@@ -362,7 +375,7 @@ Future<void> showClipPlayer(
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
-        child: ClipPlayerDialog(event: event, startAt: at),
+        child: ClipPlayerDialog(event: event, startAt: at, identify: identify),
       ),
     ),
   );
@@ -373,9 +386,18 @@ Future<void> showClipPlayer(
 /// person or pet at that spot (as many as needed). Each tag keeps its
 /// frame, the clicked position and the name, stored with the event.
 class ClipPlayerDialog extends StatefulWidget {
-  const ClipPlayerDialog({super.key, required this.event, this.startAt});
+  const ClipPlayerDialog({
+    super.key,
+    required this.event,
+    this.startAt,
+    this.identify = false,
+  });
 
   final ClipRequested event;
+
+  /// Opened to identify an unidentified person or pet: says so, while
+  /// they're still unidentified.
+  final bool identify;
 
   /// Opens paused here (a point of the recording), not playing.
   final Duration? startAt;
@@ -628,6 +650,26 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                         key: const Key('auto-tag-result'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
+                    if (widget.identify && frame == null)
+                      if (unidentifiedOf(_annotations) case final u?)
+                        Row(
+                          key: const Key('identify-hint'),
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          spacing: 6,
+                          children: [
+                            Icon(
+                              Icons.flag,
+                              size: 18,
+                              color: EventFlag.unidentified.color,
+                            ),
+                            Expanded(
+                              child: Text(
+                                '${u.label}: click them on the video to '
+                                'name them, or try Auto.',
+                              ),
+                            ),
+                          ],
+                        ),
                     if (_annotations.tags.isEmpty && frame == null)
                       Text(
                         'Nobody tagged yet. Click someone on the video to '

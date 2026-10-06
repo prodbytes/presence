@@ -2884,3 +2884,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `presence_app/web_rc/` (favicon and the manifest's icons);
        `scripts/deploy.sh` copies them over the build for `STAGE=rc`
        only. Specs: [App icon](app-icon.md), [Production deploy](deploy.md).
+272. **Event flags: a yellow "unidentified" flag, with Identify.**
+     (2026-10-06)
+     - Asked: let events have flags besides the detections; any event with
+       a person or a pet (pets only) that isn't recognized gets a yellow
+       flag and an ask to identify them, so every person and pet gets
+       identified.
+     - Changed: `EventFlag` (new `lib/event_flags.dart`) and
+       `AppEvent.flags`, worked out from the event's data, never stored
+       (the event JSON is unchanged). A clip is **unidentified** while it
+       has fewer subjects named (tagged, recognized or a confirmed
+       suggestion) than sorts seen in its object tags: people (`human`)
+       and pets (`cat`, `dog`; not other animals). Its card shows a
+       yellow flag pill ("Unidentified person · Identify", tooltip
+       "Unidentified person/pet — identify") under its object tags;
+       tapping it opens the player paused where they were first seen,
+       with a hint to click them and name them (or Auto). Naming them
+       clears the flag. The Events search matches "unidentified".
+     - Tests: `event_flags_test.dart` (derivation: person, pet, other
+       animals and objects, everyone named, person and pet, suggestions,
+       tagging and untagging, search; the card's flag, Identify opening
+       the player with the hint, no Identify without a recording, 320 dp
+       and wide). 448 Flutter tests pass; `flutter analyze` and
+       `flutter build web` are clean.
+     - Specs: [Event flags](event-flags.md) (new), [Events](events.md),
+       [Subjects](subjects.md), [Subject recognition](recognition.md),
+       [Clips](clips.md), [Data formats](data-formats.md).
