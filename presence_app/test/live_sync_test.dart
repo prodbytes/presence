@@ -98,6 +98,8 @@ Future<void> until(bool Function() condition, {String? reason}) async {
 
 const identity = 'us-east-1:identity';
 const eventsTopic = 'presence/prod/$identity/events';
+const requestsTopic = 'presence/prod/$identity/requests';
+const acksTopic = 'presence/prod/$identity/acks';
 
 const credentials = AwsCredentials(
   accessKeyId: 'AKIDEXAMPLE',
@@ -293,7 +295,11 @@ void main() {
       expect(broker.clientIds.single, startsWith('$identity-this_device_one-'));
       // Always connected: a clean session.
       expect(broker.persistent.single, isFalse);
-      expect(broker.last.subscriptions, [eventsTopic]);
+      expect(broker.last.subscriptions, [
+        eventsTopic,
+        requestsTopic,
+        acksTopic,
+      ]);
     });
 
     test('publishes an event\'s metadata, never its media', () async {
@@ -350,7 +356,11 @@ void main() {
       await until(() => broker.urls.length == 4, reason: 'reconnected');
       await until(() => live.state == LiveSyncState.connected);
       expect(broker.connections, hasLength(2));
-      expect(broker.last.subscriptions, [eventsTopic]);
+      expect(broker.last.subscriptions, [
+        eventsTopic,
+        requestsTopic,
+        acksTopic,
+      ]);
     });
 
     test('the wait doubles with each failure, up to the maximum', () async {
@@ -505,7 +515,11 @@ void main() {
       await until(() => live.state == LiveSyncState.connected);
       expect(broker.persistent.single, isTrue);
       expect(broker.clientIds.single, '$identity-this_device_one');
-      expect(broker.last.subscriptions, [eventsTopic]);
+      expect(broker.last.subscriptions, [
+        eventsTopic,
+        requestsTopic,
+        acksTopic,
+      ]);
       // Quiet: it disconnects until the next.
       await until(() => live.state == LiveSyncState.idle);
       expect(broker.last.closed, isTrue);

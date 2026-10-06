@@ -245,6 +245,46 @@ void main() {
       bus.close();
     });
 
+    testWidgets('a cell too small for the delete button leaves it out', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 300);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      log.addHistory([
+        for (final d in ['a_fox', 'b_owl', 'c_cat', 'd_dog', 'e_elk'])
+          clipOf(d),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CameraFeedsView(
+            rig: rig,
+            log: log,
+            deviceId: 'this_device',
+            profileId: 'user-1',
+            showAll: true,
+            onDeleteDevice: (_) {},
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final cell = tester.getSize(
+        find
+            .ancestor(
+              of: find.byKey(const Key('device-image-a_fox')),
+              matching: find.byType(ClipRect),
+            )
+            .first,
+      );
+      expect(
+        cell.width < 96 || cell.height < 84,
+        isTrue,
+        reason: 'a small cell: $cell',
+      );
+      expect(find.byKey(const Key('device-delete-a_fox')), findsNothing);
+    });
+
     testWidgets('each other device\'s cell deletes it, after a '
         'confirmation; its cell goes', (tester) async {
       tester.view.physicalSize = const Size(320, 640);
@@ -264,6 +304,8 @@ void main() {
                   deviceId: 'this_device',
                   profileId: 'user-1',
                   showAll: true,
+                  // Every image is older: each cell has its spinner.
+                  refreshingSince: DateTime(2026, 10, 4, 12),
                   onDeleteDevice: (id) => deleteDeviceAfterConfirming(
                     context,
                     deviceId: id,
@@ -292,9 +334,20 @@ void main() {
       expect(find.byKey(const Key('device-delete-brave_fox')), findsOneWidget);
       expect(find.byKey(const Key('device-delete-zesty_owl')), findsOneWidget);
       expect(find.byKey(const Key('device-delete-this_device')), findsNothing);
+      // Clear of the spinner (top right), and the label and its presence
+      // dot (bottom).
+      for (final device in ['brave_fox', 'zesty_owl']) {
+        final delete = tester.getRect(find.byKey(Key('device-delete-$device')));
+        final spinner = tester.getRect(find.byKey(Key('refreshing-$device')));
+        final label = tester.getRect(find.textContaining('$device ·'));
+        final dot = tester.getRect(find.byKey(Key('presence-$device')));
+        for (final other in [spinner, label, dot]) {
+          expect(delete.overlaps(other), isFalse, reason: device);
+        }
+      }
 
       await tester.tap(find.byKey(const Key('device-delete-brave_fox')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(
         tester
             .widget<Text>(find.byKey(const Key('delete-device-message')))
@@ -303,7 +356,7 @@ void main() {
         'device.',
       );
       await tester.tap(find.byKey(const Key('delete-device-confirm')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(deleted, ['brave_fox']);
       expect(find.byKey(const Key('device-delete-brave_fox')), findsNothing);
       expect(find.byKey(const Key('device-image-brave_fox')), findsNothing);

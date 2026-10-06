@@ -317,7 +317,14 @@ class _PresenceAppState extends State<PresenceApp> {
   Future<int> _deleteDevice(String deviceId) async {
     final profile = _roles.profile;
     if (profile == null) return 0;
-    return _persistence.deleteDevice(deviceId, profileId: profile);
+    final deleted = await _persistence.deleteDevice(
+      deviceId,
+      profileId: profile,
+    );
+    // No presence dot from before: it shows again only if it pings or
+    // answers again, with new events.
+    _sync?.live?.forget(deviceId);
+    return deleted;
   }
 
   void _joinHandled() {
@@ -990,9 +997,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _clip() {
     final bus = AppEventBusScope.of(context);
     if (!(_showAll && _hasAccess)) return widget.rig.requestClips(bus);
-    // Not again within a minute of the last request (opening the grid
-    // asked already).
-    if (widget.rig.askAll(bus) case final request?) _asked(request);
+    // A press always asks (opening the grid's minute doesn't hold it back),
+    // unless a request went out within the last few seconds (a double tap,
+    // or the grid just opened).
+    if (widget.rig.askAll(bus, pressed: true) case final request?) {
+      _asked(request);
+    }
     return widget.rig.requestClips(bus, trigger: ClipTrigger.all);
   }
 
@@ -1135,6 +1145,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     _ => null,
                   },
+                  live: widget.sync?.live,
+                  active: _onCamera,
                 ),
               ),
               SafeArea(

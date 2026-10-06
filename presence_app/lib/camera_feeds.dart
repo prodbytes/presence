@@ -10,6 +10,8 @@ import 'clips.dart';
 import 'events.dart';
 import 'motion.dart';
 import 'config.dart';
+import 'cloud/live_sync.dart';
+import 'device_presence.dart';
 import 'theme.dart';
 
 /// Whether an automatic clip (motion, the schedule) can be taken now, shown
@@ -621,14 +623,22 @@ class CameraRig extends ChangeNotifier {
   static const Duration captureAllWithin = Duration(minutes: 5);
 
   /// The least time between two Capture all requests from this device
-  /// ([askAll]): opening the All grid again, or pressing Clip in it,
-  /// within it asks nothing more of the other devices.
+  /// when the All grid opens ([askAll]): opening it again within it asks
+  /// nothing more of the other devices.
   static const Duration askAllEvery = Duration(minutes: 1);
 
+  /// The least time between a Capture all request and one from pressing
+  /// Clip in the All grid ([askAll] `pressed`): a press always asks, unless
+  /// a request went out this recently (a double tap, or the grid just
+  /// opened).
+  static const Duration pressAllEvery = Duration(seconds: 5);
+
   /// The least time between two Capture all clips on this device
-  /// ([answerCaptureAll]): requests from several devices (or one that
-  /// arrives both over live sync and from the bucket) make one clip.
-  static const Duration answerAllEvery = Duration(seconds: 30);
+  /// ([answerCaptureAll]): requests from several devices at once make one
+  /// clip (one arriving both over live sync and from the bucket is
+  /// answered once anyway). Short, so a press of Clip in another device's
+  /// All grid soon after it opened still gets a new clip.
+  static const Duration answerAllEvery = Duration(seconds: 10);
 
   /// When this device last asked the others for a grab ([askAll]).
   DateTime? _askedAll;
@@ -645,14 +655,15 @@ class CameraRig extends ChangeNotifier {
   /// Publishes a Capture all request ([AppEvent.captureAll]), which cloud
   /// sync (and live sync, within a second, when connected) takes to the
   /// profile's other devices so each takes a fresh grab
-  /// ([answerCaptureAll]); unless this device asked within [askAllEvery].
-  /// Returns the request, or null when it wasn't sent.
-  AppEvent? askAll(AppEventBus bus) {
+  /// ([answerCaptureAll]); unless this device asked within [askAllEvery]
+  /// (opening the grid), or within [pressAllEvery] when [pressed] (the Clip
+  /// button). Returns the request, or null when it wasn't sent.
+  AppEvent? askAll(AppEventBus bus, {bool pressed = false}) {
     final now = _now();
     final last = _askedAll;
     if (last != null &&
         !now.isBefore(last) &&
-        now.difference(last) < askAllEvery) {
+        now.difference(last) < (pressed ? pressAllEvery : askAllEvery)) {
       return null;
     }
     _askedAll = now;
@@ -742,6 +753,8 @@ class CameraFeedsView extends StatefulWidget {
     this.showAll = false,
     this.refreshingSince,
     this.onDeleteDevice,
+    this.live,
+    this.active = true,
   });
 
   /// Asks to delete another device (the delete button on its cell in the
@@ -768,6 +781,15 @@ class CameraFeedsView extends StatefulWidget {
   /// older shows a small spinner until a newer one arrives. Null: none.
   final DateTime? refreshingSince;
 
+  /// Live sync, for each device's presence dot in the grid
+  /// ([DevicePresence]); the grid pings the devices ([LiveSync.ping]) when
+  /// it shows and every 30 s while it does and [active].
+  final LiveSync? live;
+
+  /// Whether the page is on screen (the Camera tab): the grid pings only
+  /// then.
+  final bool active;
+
   /// Room kept clear under the grid for the status pills, Flip and Clip.
   static const double bottomInset = 88;
 
@@ -791,16 +813,23 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
     _tick();
   }
 
+  /// Whether the grid pinged since it last showed.
+  bool _pinging = false;
+
   void _tick() {
     if (widget.showAll) {
-      _ticker ??= Timer.periodic(
-        const Duration(seconds: 30),
-        (_) => setState(() {}),
-      );
+      _ticker ??= Timer.periodic(const Duration(seconds: 30), (_) {
+        if (widget.active) widget.live?.ping().ignore();
+        setState(() {});
+      });
     } else {
       _ticker?.cancel();
       _ticker = null;
     }
+    // Shown (or back on screen): ask who's there now.
+    final pinging = widget.showAll && widget.active;
+    if (pinging && !_pinging) widget.live?.ping().ignore();
+    _pinging = pinging;
   }
 
   @override
@@ -816,9 +845,17 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
     return ColoredBox(
       color: Gruvbox.bg0Hard,
       child: ListenableBuilder(
-        listenable: Listenable.merge([rig, ?log]),
+        listenable: Listenable.merge([rig, ?log, ?widget.live]),
         builder: (context, _) {
           final all = widget.showAll;
+          final live = widget.live;
+          final available = liveAvailable(live);
+          final lastEvents = all
+              ? lastEventByDevice(
+                  log?.events ?? const [],
+                  profileId: widget.profileId,
+                )
+              : const <String, DateTime>{};
           final others = all
               ? latestByDevice(
                   log?.events ?? const [],
@@ -860,6 +897,18 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                         label: all
                             ? '${widget.deviceId ?? 'This device'} · live'
                             : null,
+                        presence: all
+                            ? PresenceDot(
+                                key: const Key('presence-this-device'),
+                                presence: DevicePresence.of(
+                                  now: now,
+                                  liveAvailable: available,
+                                  thisDevice: true,
+                                  connected:
+                                      live?.state == LiveSyncState.connected,
+                                ),
+                              )
+                            : null,
                         child: _camera(context),
                       ),
                     ),
@@ -887,6 +936,15 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                           },
                           deleteTooltip: 'Delete ${latest.deviceId}',
                           deleteKey: Key('device-delete-${latest.deviceId}'),
+                          presence: PresenceDot(
+                            key: Key('presence-${latest.deviceId}'),
+                            presence: DevicePresence.of(
+                              answeredAt: live?.seenOf(latest.deviceId),
+                              lastEvent: lastEvents[latest.deviceId],
+                              now: now,
+                              liveAvailable: available,
+                            ),
+                          ),
                           child: _DeviceImage(latest: latest),
                         ),
                       ),
@@ -1022,12 +1080,16 @@ class _Cell extends StatelessWidget {
     this.onDelete,
     this.deleteTooltip,
     this.deleteKey,
+    this.presence,
   });
 
   /// Deletes the device shown: a small button, top left.
   final VoidCallback? onDelete;
   final String? deleteTooltip;
   final Key? deleteKey;
+
+  /// The device's presence dot, before the label.
+  final Widget? presence;
 
   /// Null: no label (the camera alone, full screen).
   final String? label;
@@ -1039,8 +1101,22 @@ class _Cell extends StatelessWidget {
   final bool refreshing;
   final Key? refreshingKey;
 
+  /// The smallest cell that shows the delete button: room for it (top
+  /// left) beside the spinner (top right) and above the label. A smaller
+  /// cell leaves it out; the account sheet's device list still deletes.
+  static const Size deleteRoom = Size(96, 84);
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => _build(
+      context,
+      roomy:
+          constraints.maxWidth >= deleteRoom.width &&
+          constraints.maxHeight >= deleteRoom.height,
+    ),
+  );
+
+  Widget _build(BuildContext context, {required bool roomy}) {
     final scheme = Theme.of(context).colorScheme;
     return ClipRect(
       child: Stack(
@@ -1052,7 +1128,7 @@ class _Cell extends StatelessWidget {
               type: MaterialType.transparency,
               child: InkWell(onTap: onTap),
             ),
-          if (onDelete case final onDelete?)
+          if (onDelete case final onDelete? when roomy)
             Positioned(
               top: 2,
               left: 2,
@@ -1097,24 +1173,33 @@ class _Cell extends StatelessWidget {
               bottom: 6,
               child: Align(
                 alignment: Alignment.bottomLeft,
-                child: IgnorePointer(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: scheme.surfaceContainerHigh.withValues(
-                        alpha: 0.85,
+                // The label lets taps through to the cell; the presence
+                // dot takes them, for its tooltip.
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 4,
+                    children: [
+                      ?presence,
+                      Flexible(
+                        child: IgnorePointer(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
+                    ],
                   ),
                 ),
               ),

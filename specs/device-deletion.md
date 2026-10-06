@@ -15,8 +15,12 @@ devices is destroyed by it.
 - **The Camera tab's All grid** ([Camera screen](camera.md#all-devices)):
   each other device's cell has the same button, top left, on a
   translucent round background (`CameraFeedsView.onDeleteDevice`,
-  [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)). Its cell
-  goes once the device is deleted.
+  [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)), clear of
+  the "Asked for a fresh grab" spinner (top right) and the label with its
+  [presence dot](device-presence.md) (bottom). A cell smaller than 96 x
+  84 dp (`_Cell.deleteRoom`, many devices on a small phone) leaves the
+  button out rather than overlap them; the device list still deletes.
+  Its cell goes once the device is deleted.
 - Both ask first, in a dialog ([delete_device.dart](../presence_app/lib/delete_device.dart),
   `DeleteDeviceDialog`): **"Delete device brave_phone? Its 12 events will
   be hidden on every device."** (the count is that device's events in the
@@ -57,6 +61,11 @@ delete it from another device.
   yesterday's), or at the hourly full listing (older ones).
 - Downloads still pending of their clips' recordings are dropped (nothing
   will play them).
+- Its **presence** goes too: the device list and the grid only list
+  devices with events, so it has no [presence dot](device-presence.md),
+  and live sync forgets when it last heard from it (`LiveSync.forget`).
+  Answering pings alone doesn't bring it back; once it posts new events it
+  reappears, its dot from the pings and pongs heard from then on.
 - Returns how many events it deleted.
 
 ## Deleted stays deleted

@@ -4,6 +4,8 @@ import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
+import '../cloud/live_sync.dart';
+import '../device_presence.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
 import 'auth_service.dart';
@@ -197,28 +199,35 @@ class AccountSheet extends StatelessWidget {
                     ],
                     if (roles?.profile case final profile?) ...[
                       const SizedBox(height: 16),
-                      ProfileDevices(
-                        profile: profile,
-                        devices: profileDeviceDetails(
-                          log?.events ?? const [],
-                          profileId: profile,
-                          thisDevice: deviceId,
-                        ),
-                        thisDevice: deviceId,
-                        now: now,
-                        onDelete: switch (deleteDevice) {
-                          final delete? => (id) => deleteDeviceAfterConfirming(
-                            context,
-                            deviceId: id,
-                            events: deviceEventCount(
-                              log?.events ?? const [],
-                              deviceId: id,
-                              profileId: profile,
-                            ),
-                            delete: delete,
+                      // Pings the devices while the list shows, for their
+                      // presence dots.
+                      PresencePinger(
+                        live: sync?.live,
+                        builder: (_) => ProfileDevices(
+                          profile: profile,
+                          devices: profileDeviceDetails(
+                            log?.events ?? const [],
+                            profileId: profile,
+                            thisDevice: deviceId,
                           ),
-                          null => null,
-                        },
+                          thisDevice: deviceId,
+                          now: now,
+                          live: sync?.live,
+                          onDelete: switch (deleteDevice) {
+                            final delete? =>
+                              (id) => deleteDeviceAfterConfirming(
+                                context,
+                                deviceId: id,
+                                events: deviceEventCount(
+                                  log?.events ?? const [],
+                                  deviceId: id,
+                                  profileId: profile,
+                                ),
+                                delete: delete,
+                              ),
+                            null => null,
+                          },
+                        ),
                       ),
                     ],
                     if ((roles, profiles) case (
@@ -345,7 +354,12 @@ class ProfileDevices extends StatelessWidget {
     this.thisDevice,
     this.now,
     this.onDelete,
+    this.live,
   });
+
+  /// Live sync: which devices answer its pings, for each device's
+  /// presence dot ([DevicePresence]).
+  final LiveSync? live;
 
   final String profile;
   final List<ProfileDevice> devices;
@@ -369,6 +383,7 @@ class ProfileDevices extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     final at = (now ?? DateTime.now)();
+    final available = liveAvailable(live);
     return Column(
       key: const Key('profile-devices'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -410,6 +425,17 @@ class ProfileDevices extends StatelessWidget {
                       spacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        PresenceDot(
+                          key: Key('presence-${device.id}'),
+                          presence: DevicePresence.of(
+                            answeredAt: live?.seenOf(device.id),
+                            lastEvent: device.lastEvent,
+                            now: at,
+                            liveAvailable: available,
+                            thisDevice: device.id == thisDevice,
+                            connected: live?.state == LiveSyncState.connected,
+                          ),
+                        ),
                         SelectableText(
                           device.id,
                           key: Key('profile-device-id-${device.id}'),
