@@ -359,6 +359,7 @@ void main() {
             api: i == 100 ? ('❌', 'Auth API: unreachable (x)') : ok.api,
             aws: ok.aws,
             oidc: ok.oidc,
+            live: ok.live,
           )),
         );
       }
@@ -398,7 +399,7 @@ void main() {
       }
     });
 
-    testWidgets('a 320 dp phone: two by two, nothing overflowing', (
+    testWidgets('a 320 dp phone: two across, nothing overflowing', (
       tester,
     ) async {
       await show(tester, 320);
@@ -406,13 +407,16 @@ void main() {
       final api = rect(tester, 'health-api');
       final aws = rect(tester, 'health-aws');
       final oidc = rect(tester, 'health-oidc');
+      final live = rect(tester, 'health-live');
       final devices = rect(tester, 'health-devices');
       expect(aws.top, api.top);
       expect(aws.height, api.height);
       expect(oidc.top, greaterThan(api.bottom));
       expect(oidc.left, api.left);
-      expect(devices.top, oidc.top);
-      expect(devices.right, lessThanOrEqualTo(320));
+      expect(live.top, oidc.top);
+      expect(devices.top, greaterThan(oidc.bottom));
+      expect(devices.left, api.left);
+      expect(live.right, lessThanOrEqualTo(320));
     });
 
     testWidgets('the timeline starts at the newest run and scrolls back', (

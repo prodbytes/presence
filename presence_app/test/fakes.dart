@@ -11,6 +11,7 @@ import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
+import 'package:presence_app/cloud/sigv4.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -263,6 +264,13 @@ class FakeCloudBackend implements CloudBackend {
   /// The folder sessions use (the profile's identity); a link changes it.
   String prefix = 'us-east-1:identity';
 
+  /// The credentials sessions give live sync.
+  AwsCredentials? credentials = const AwsCredentials(
+    accessKeyId: 'AKIDEXAMPLE',
+    secretAccessKey: 'secret',
+    sessionToken: 'token',
+  );
+
   /// Thrown by the next connect(), once.
   Object? failConnect;
 
@@ -300,6 +308,9 @@ class FakeCloudSession implements CloudSession {
 
   @override
   late final String prefix = backend.prefix;
+
+  @override
+  AwsCredentials? get credentials => backend.credentials;
 
   @override
   Future<void> put(String key, Uint8List bytes, String contentType) async {

@@ -26,6 +26,7 @@ class VideoClip extends ChangeNotifier {
     String? id,
   }) : id = id ?? AppEvent.newId(),
        interrupted = false,
+       awaitingRemote = false,
        pastDone = past != null {
     // [past] is passed in when it's already recorded, so the clip is
     // playable from the start; otherwise it arrives later.
@@ -73,7 +74,26 @@ class VideoClip extends ChangeNotifier {
   }) : capture = null,
        pastDone = true,
        fullDone = true,
+       awaitingRemote = false,
        interrupted = supported && full == null && error == null;
+
+  /// The clip of an event another device of the profile has just saved
+  /// (live sync): still recording there, or on its way up to the cloud. Its
+  /// record, thumbnail and recording come from the cloud once it's
+  /// complete, and the event is shown again with them.
+  VideoClip.awaitingRemote({
+    required this.id,
+    required this.cameraId,
+    required this.cameraLabel,
+  }) : before = Duration.zero,
+       after = Duration.zero,
+       capture = null,
+       thumbnail = null,
+       supported = true,
+       pastDone = true,
+       fullDone = true,
+       interrupted = false,
+       awaitingRemote = true;
 
   final String id;
   final String cameraId;
@@ -92,6 +112,9 @@ class VideoClip extends ChangeNotifier {
 
   /// Restored without its "after" part: the app closed while recording it.
   final bool interrupted;
+
+  /// Another device's clip, not here yet ([VideoClip.awaitingRemote]).
+  final bool awaitingRemote;
 
   ClipMedia? past;
   ClipMedia? full;
@@ -116,6 +139,7 @@ class VideoClip extends ChangeNotifier {
 
   String get _recordingStatus {
     if (!supported) return "Video clips aren't supported on this platform";
+    if (awaitingRemote) return 'Recording on another device…';
     if (full != null) return '${(before + after).inSeconds} s clip ready';
     if (interrupted) {
       return past == null

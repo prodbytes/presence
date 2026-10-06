@@ -88,7 +88,7 @@
     in* signed out, in DEV, and until the auth API answers a sign-in.
 - **Health line**, under the IDs, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
-  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅`, each with a tooltip. For AWS and
+  `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅ · 📡 Live ⚪`, each with a tooltip. For AWS and
   OIDC, the [auth API](auth-api.md)'s start check says whether its
   expected settings are set (`settings` in `GET /api/auth/anonymous`), and
   the app checks that against its own build:
@@ -100,6 +100,11 @@
     sync failed;
   - OIDC (the Google client ID): ✅ set on both sides, ⚪ on neither
     (sign-in is off), ⚠️ on one only;
+  - Live ([live sync](live-sync.md), MQTT): ⚪ the build has no IoT
+    endpoint (or no cloud sync), so events arrive with each sync; ✅
+    connected (the tooltip counts the events received and sent), or set
+    and waiting for the first sync; ⏳ connecting; ❌ the connection failed
+    (the error; it retries, and the bucket still syncs everything);
   - when the API didn't answer, or is older and doesn't report settings,
     the build's own settings decide.
   - Here it shows the start check's answer; the [Log](log.md) tab's

@@ -3119,3 +3119,67 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Raspberry Pi camera](raspberry-pi.md) (new),
        [Release builds](release.md), [Platforms](platforms.md),
        [Install script](install-script.md).
+281. **Live sync, phase 1: events over MQTT (AWS IoT Core).** (2026-10-06)
+     - Asked: when a device creates or updates an event, push it to S3 as
+       today and also publish it over MQTT (AWS IoT Core over WebSockets,
+       approved), so the profile's other devices get it within about a
+       second instead of the 15 s poll; S3 stays the durable store and
+       nothing is deleted. Messages carry only the event's metadata, never
+       frames, thumbnails or video; a receiving device loads a new event at
+       once (Monitoring, the All grid) and its thumbnail and recording
+       still come from S3. Designed for a phase 2 (acks, deleting S3
+       records after three acks, asking online peers at start), not built.
+     - Changed: `LiveSync` (`lib/cloud/live_sync.dart`) connects once a
+       cloud sync pass has a session, to `wss://<IOT_ENDPOINT>/mqtt`
+       presigned with the profile's Cognito credentials
+       (`SigV4Signer.presignWebSocket`, `iotdevicegateway`), client ID
+       `<identityId>-<deviceId>-<session>`, topic
+       `presence/<stage>/<identityId>/events` (QoS 1); it reconnects with
+       back-off, renews before the credentials expire, and stops on
+       sign-out, a profile change or a credentials failure.
+       `MqttLiveConnection` (`mqtt_client` 10.11.11, pinned:
+       `MqttServerClient` over WebSockets off the web, `MqttBrowserClient`
+       on it). `CloudSync` publishes each event it uploads (last two
+       weeks), right after its `PUT`, as `{v, kind, deviceId, identityId,
+       sentAt, key, etag, event}` with inline media stripped
+       (`LiveSync.metadataOf`); takes other devices' events at once
+       (`RemoteRecords.live`), marked synced with the sender's ETag so
+       they're neither uploaded back nor downloaded again, and handed over
+       once; and fetches a received (or changed) event's clip and
+       thumbnail from S3 in a pass started for it (`_fetchWanted`).
+       Inbound messages are validated (64 KB, version, identity, safe IDs,
+       no inline media). Until its clip comes, a received clip event shows
+       "Recording on another device…" (`VideoClip.awaitingRemote`), then is
+       shown again with it (`Persistence.showArrivedClips`,
+       `EventLog.replace`). Health line and panel: a fourth check,
+       📡 Live. Errors are logged without the presigned URL's query.
+       Infra: `identity.yaml` gets `Stage`, the role's `own-live-sync`
+       statements and the `presence-live-sync` IoT policy (output
+       `LivePolicyName`); the auth API attaches it to each identity at
+       `POST /api/auth/credentials` (`iot:AttachPolicy`, parameter
+       `IotPolicyName`, `IOT_POLICY_NAME`; failures logged, not fatal);
+       `deploy.sh` passes `Stage`, looks up the `iot:Data-ATS` endpoint
+       and passes `IOT_ENDPOINT` (a new allowed dart-define, in
+       `.env.example` for Android and local builds) and `IotPolicyName`;
+       both deploy roles in `github-deploy.yaml` may manage their IoT
+       policies and call `iot:DescribeEndpoint` (an administrator must
+       update that stack by hand before the next deploy).
+     - Tests: `live_sync_test.dart` (the presigned URL against an
+       independent implementation; parsing, stripping, dropping
+       malformed, foreign or oversized messages; redaction; off without
+       an endpoint; connect, publish, receive in order and ignore its own;
+       reconnect, back-off, renewal, stop; with `CloudSync`: publish on
+       save without frames, received once and neither re-uploaded nor
+       re-downloaded, the clip from S3 on completion, a local change wins,
+       sign-out disconnects), `persistence_test.dart` (an event published
+       by another device shows at once, then with its clip and thumbnail),
+       `system_health_test.dart` (five cards, two across on a phone),
+       `ProfileTest` and `ProfileBackendTest` (credentials attach the
+       policy to the identity, once per instance; failures don't fail
+       credentials). `flutter analyze`, `flutter test` (492),
+       `flutter build web`, the Java tests, `sam validate --lint`,
+       `aws cloudformation validate-template` and `bash -n` pass. Not
+       verified against AWS IoT (needs a deploy).
+     - Specs: [Live sync](live-sync.md) (new), [Cloud sync](cloud-sync.md),
+       [Deploy](deploy.md), [Profiles](profiles.md),
+       [Auth API](auth-api.md), [Settings](settings.md), [Log](log.md).

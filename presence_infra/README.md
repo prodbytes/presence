@@ -7,7 +7,7 @@ templates.
 |---|---|---|
 | [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution and the Route 53 A/AAAA aliases |
 | [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, S3 Intelligent-Tiering, with CORS for the app's origins |
-| [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix. See [specs/cloud-sync.md](../specs/cloud-sync.md) |
+| [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix, and use live sync on their own MQTT topics (`presence/<stage>/<identityId>/*`), with the `presence-live-sync` IoT policy the auth API attaches to each identity. See [specs/cloud-sync.md](../specs/cloud-sync.md) and [specs/live-sync.md](../specs/live-sync.md) |
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`, limited to `presence-rc-*` resources and the `rc.presence.nu01.com` records) |
 
 The install URL, https://sh.presence.nu01.com, is its own component:
@@ -66,7 +66,8 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
 
    The role trusts only tokens for `repo:prodbytes/presence:ref:refs/tags/*GA`.
    Its permissions cover the Presence stacks: CloudFormation, S3, the
-   `presence-*` IAM roles (passed only to Cognito), Cognito identity pools, CloudFront, ACM, the `nu01.com`
+   `presence-*` IAM roles (passed only to Cognito), Cognito identity pools, the
+   `presence-*` IoT policies and the IoT endpoint lookup (live sync), CloudFront, ACM, the `nu01.com`
    zone, and the site's health check (Route 53 health checks, `presence-*`
    alarms and SNS topics, the `LanguageExtensions` transform). Run the
    same command again whenever `github-deploy.yaml` changes.

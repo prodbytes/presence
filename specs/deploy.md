@@ -22,7 +22,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
     [identity.yaml](../presence_infra/identity.yaml), stacks
     `presence-user-data` and `presence-identity`: the bucket and identity
-    pool for [cloud sync](cloud-sync.md).
+    pool for [cloud sync](cloud-sync.md), and the IoT policy for [live
+    sync](live-sync.md) (`presence-live-sync`).
   - [presence_infra/site.yaml](../presence_infra/site.yaml), stack
     `presence-web`: an ACM certificate for `presence.nu01.com`
     (DNS-validated in the `nu01.com` zone), a private S3 bucket readable
@@ -42,10 +43,14 @@ One CloudFront distribution serves the whole site, laid out like the local
   `/*`. Unknown paths return 404 (the bucket policy allows `ListBucket` for
   the distribution).
 - **`scripts/deploy.sh`** first deploys `user-data.yaml` and
-  `identity.yaml` ([cloud sync](cloud-sync.md)). It then builds the web app
-  for `/app/` (`make web` with `WEB_BASE_HREF=/app/`), with the version from
-  the tag and the identity pool and bucket IDs. After that it deploys the
-  [auth API](auth-api.md) with SAM, then `site.yaml` (with the API's
+  `identity.yaml` ([cloud sync](cloud-sync.md), with `Stage` for [live
+  sync](live-sync.md)'s topics), and looks up the account's AWS IoT data
+  endpoint (`aws iot describe-endpoint --endpoint-type iot:Data-ATS`). It
+  then builds the web app for `/app/` (`make web` with
+  `WEB_BASE_HREF=/app/`), with the version from the tag, the identity pool
+  and bucket IDs and the IoT endpoint (`IOT_ENDPOINT`). After that it
+  deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
+  live-sync policy it attaches to each identity), then `site.yaml` (with the API's
   domain), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
@@ -67,7 +72,8 @@ with an optional `tag` input, deploys that version to
   - `presence-rc-user-data` (its own bucket, CORS only for
     `https://rc.presence.nu01.com`);
   - `presence-rc-identity` (its own identity pool, `presence-rc`, trusting
-    the same Google web client);
+    the same Google web client, and its own IoT policy,
+    `presence-rc-live-sync`, on `presence/rc/…` topics);
   - `presence-rc-web` (its own certificate, bucket, distribution and
     `rc.presence.nu01.com` alias records).
 
@@ -92,7 +98,9 @@ with an optional `tag` input, deploys that version to
     `*.rc.presence.nu01.com` (the certificate's validation record), through
     `route53:ChangeResourceRecordSetsNormalizedRecordNames`;
   - CloudFront, ACM and Cognito identity pools can't be scoped by name in
-    advance, so those stay account-wide, as for the prod role.
+    advance, so those stay account-wide, as for the prod role; IoT
+    policies are limited to `presence-rc-*`, and `iot:DescribeEndpoint`
+    is account-wide.
 - **Smoke test:** the same checks against `https://rc.presence.nu01.com/`.
 - Google sign-in on the RC needs `https://rc.presence.nu01.com` among the
   web OAuth client's authorized JavaScript origins.
@@ -107,14 +115,17 @@ with an optional `tag` input, deploys that version to
   job has no `environment:`, which would change that subject. Its
   permissions are limited to the Presence stacks: CloudFormation, S3,
   `presence-*` IAM roles, Lambda functions, HTTP APIs, DynamoDB tables (TTL included),
-  Cognito identity pools,
+  Cognito identity pools, `presence-*` IoT policies (and their versions)
+  and the IoT endpoint lookup ([live sync](live-sync.md)),
   CloudFront, ACM, the `nu01.com` zone, and the
   [health check](health-check.md)'s Route 53 health checks, alarms and SNS
   topics (and the `LanguageExtensions` transform). The RC role gets the same,
   limited to `presence-rc-*`.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).
-  It's deployed.
+  It's deployed, but **not yet with live sync's IoT permissions**: an
+  administrator must run that command again before the next deploy, or it
+  fails creating the IoT policy (or looking up the endpoint).
 - The repository uses GitHub's **immutable OIDC subject claims**
   (`use_immutable_subject`), so tokens identify it as
   `repo:prodbytes@<owner id>/presence@<repo id>:ref:…` rather than

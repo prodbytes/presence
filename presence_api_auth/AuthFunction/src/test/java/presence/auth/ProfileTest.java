@@ -40,6 +40,8 @@ class ProfileTest {
     private final Map<String, String> linked = new HashMap<>();
     private final Set<String> foldersWithData = new HashSet<>();
     private final List<String> tokensIssued = new ArrayList<>();
+    /** Identities the live-sync IoT policy was attached to, in order. */
+    private final List<String> liveSyncAllowed = new ArrayList<>();
     private Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private int ids;
     /** When set, Cognito fails every token request with it. */
@@ -85,6 +87,11 @@ class ProfileTest {
         public boolean folderEmpty(String identityId) {
             return !foldersWithData.contains(identityId);
         }
+
+        @Override
+        public void allowLiveSync(String identityId) {
+            liveSyncAllowed.add(identityId);
+        }
     };
 
     /** nu01.com gets both roles; julio@gmail.com and others none. */
@@ -122,6 +129,8 @@ class ProfileTest {
         profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
         assertEquals(1, store.profiles.size());
         assertEquals(List.of("us-east-1:work|profile_1", "us-east-1:work|profile_1"), tokensIssued);
+        // Each time, the identity may use live sync (AttachPolicy is idempotent).
+        assertEquals(List.of("us-east-1:work", "us-east-1:work"), liveSyncAllowed);
     }
 
     @Test
@@ -129,6 +138,7 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(403, response.getStatusCode());
         assertTrue(tokensIssued.isEmpty());
+        assertTrue(liveSyncAllowed.isEmpty());
         assertFalse(profileOf("home").hasIdentity());
     }
 

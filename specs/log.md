@@ -106,7 +106,8 @@ top of the Log tab:
 
 - **Health**, with "Last update HH:MM:SS" on the right (when the auth API
   was last asked; "Checking…" before the start check is done).
-- **A card per check**: 🔌 **Auth API**, ☁️ **AWS**, 🔑 **OIDC**, each with
+- **A card per check**: 🔌 **Auth API**, ☁️ **AWS**, 🔑 **OIDC**, 📡 **Live**
+  ([live sync](live-sync.md)), each with
   its status in a colored pill on the right and what it means under the
   name (the full text in a tooltip). The statuses are the
   [Settings](settings.md) health line's:
@@ -119,15 +120,15 @@ top of the Log tab:
   | ⏳ / 🔄 | Checking / Syncing | blue |
   | ⚪ | Off | gray |
 
-- **📱 Devices**, a fourth card, with the count in a pill: how many
+- **📱 Devices**, a fifth card, with the count in a pill: how many
   distinct devices recorded the events the profile has
   (`HealthPanel.devicesIn`), the device IDs of the signed-in account's
   profile's events and those without a profile, as the Events tab counts
   them (`EventTimeline.ofProfile`), local and synced from the cloud;
   events not saved yet count as this device. It updates as events arrive
   or are deleted.
-- **Aligned:** the four cards sit in one row when the panel is 720 dp wide
-  or more, otherwise two by two; the cards in a row share their width and
+- **Aligned:** the five cards sit in one row when the panel is 720 dp wide
+  or more, otherwise two across (Devices alone on the third row); the cards in a row share their width and
   height. Under 200 dp a card's pill goes under its name, so a 320 dp
   phone overflows nothing.
 - **Every 15 s in DEV, every 60 s in RBAC** (`HealthPanel.intervalFor`
@@ -149,7 +150,7 @@ top of the Log tab:
     Labels follow the clock, so they stay put as runs are added.
   - It scrolls sideways and opens at the newest run.
   - Tap a run to show its time (HH:MM:SS), whether all passed or it
-    failed (any ❌ or ⚠️), and the three statuses with what they mean
+    failed (any ❌ or ⚠️), and the four statuses with what they mean
     (selectable); tap it again to hide them.
   - `HealthHistory.instance` keeps the latest 120 runs (30 min in DEV, 2 h in RBAC) in
     memory: they outlast closing the tab, not a restart.

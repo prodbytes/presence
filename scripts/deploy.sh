@@ -3,9 +3,11 @@
 # STAGE=rc to the release-candidate site, https://rc.presence.nu01.com
 # (its own stacks, presence-rc-*, and its own bucket and identity pool):
 #   1. deploys the user data stacks (presence_infra/user-data.yaml: the
-#      bucket; presence_infra/identity.yaml: the Cognito identity pool)
+#      bucket; presence_infra/identity.yaml: the Cognito identity pool and
+#      live sync's IoT policy), and looks up the account's AWS IoT data
+#      endpoint (live sync)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
-#      with the pool and bucket from step 1
+#      with the pool, bucket and IoT endpoint from step 1
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
 #      presence-auth-api / presence-rc-auth-api)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
@@ -133,12 +135,23 @@ aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
   --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
     "UserDataStackName=$USER_DATA_STACK" "IdentityPoolName=$stack_prefix" \
+    "Stage=$STAGE" \
   --no-fail-on-empty-changeset
 # The app reads these at build time (scripts/dart-defines.sh).
-export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID
+export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT
 USER_DATA_BUCKET="$(stack_output "$USER_DATA_STACK" UserDataBucketName)"
 COGNITO_IDENTITY_POOL_ID="$(stack_output "$IDENTITY_STACK" IdentityPoolId)"
+# Live sync: the policy the auth API attaches to each identity, and the
+# account's MQTT endpoint (not a CloudFormation attribute). Public values.
+LIVE_POLICY_NAME="$(stack_output "$IDENTITY_STACK" LivePolicyName)"
+IOT_ENDPOINT="$(aws iot describe-endpoint --endpoint-type iot:Data-ATS \
+  --query endpointAddress --output text)"
+if [[ ! "$IOT_ENDPOINT" =~ ^[a-z0-9]+-ats\.iot\.[a-z0-9-]+\.amazonaws\.com$ ]]; then
+  echo "error: unexpected AWS IoT endpoint '$IOT_ENDPOINT'" >&2
+  exit 1
+fi
 echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID"
+echo "    live sync: policy $LIVE_POLICY_NAME, endpoint $IOT_ENDPOINT"
 
 # 2. The web app
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
@@ -183,6 +196,7 @@ echo "==> deploying $AUTH_STACK"
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --parameter-overrides "Version=$VERSION" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
+      "IotPolicyName=$LIVE_POLICY_NAME" \
       "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )

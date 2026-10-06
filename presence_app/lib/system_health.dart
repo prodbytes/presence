@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
+import 'cloud/live_sync.dart';
 import 'events.dart';
 import 'status_pill.dart';
 import 'theme.dart';
@@ -12,14 +13,20 @@ import 'theme.dart';
 /// One check's status: its emoji and what it means (the tooltip).
 typedef HealthPart = (String, String);
 
-/// The three checks at one moment: the auth API, AWS and OIDC.
-typedef HealthStatus = ({HealthPart api, HealthPart aws, HealthPart oidc});
+/// The four checks at one moment: the auth API, AWS, OIDC and live sync.
+typedef HealthStatus = ({
+  HealthPart api,
+  HealthPart aws,
+  HealthPart oidc,
+  HealthPart live,
+});
 
 /// Whether a check failed: ❌, or ⚠️ (set on one side only).
 bool healthPartFailed(HealthPart part) => part.$1 == '❌' || part.$1 == '⚠️';
 
 /// One quiet line for the settings panel: whether the auth API answered,
-/// and whether cloud sync (AWS) and sign-in (OIDC) are set up. For AWS and
+/// whether cloud sync (AWS) and sign-in (OIDC) are set up, and whether live
+/// sync (📡 Live, MQTT) is connected. For AWS and
 /// OIDC, the auth API says whether its expected settings are set
 /// ([RolesService.apiSettings]), and that's checked against this build's
 /// own: ⚠️ when they disagree. Each part explains itself in a tooltip.
@@ -75,7 +82,29 @@ class SystemHealth extends StatelessWidget {
           off: 'sign-in is off',
         ) ??
         ('✅', 'OIDC: Google sign-in set');
-    return (api: api, aws: aws, oidc: oidc);
+    return (api: api, aws: aws, oidc: oidc, live: liveOf(sync));
+  }
+
+  /// Live sync's status: off without an IoT endpoint in this build (or
+  /// without cloud sync), else how its connection is.
+  static HealthPart liveOf(CloudSync? sync) {
+    final live = sync?.live;
+    if (live == null || !live.enabled) {
+      return ('⚪', 'Live: not set; events arrive with each sync (15 s)');
+    }
+    return switch (live.state) {
+      LiveSyncState.connected => (
+        '✅',
+        'Live: connected (${live.received} received, ${live.published} sent)',
+      ),
+      LiveSyncState.connecting => ('⏳', 'Live: connecting'),
+      LiveSyncState.error => (
+        '❌',
+        'Live: failed (${live.error ?? 'unknown error'}); events arrive '
+            'with each sync',
+      ),
+      LiveSyncState.off => ('✅', 'Live: set; connects once synced'),
+    };
   }
 
   @override
@@ -104,6 +133,7 @@ class SystemHealth extends StatelessWidget {
             part('api', '🔌 API', status.api),
             part('aws', '☁️ AWS', status.aws),
             part('oidc', '🔑 OIDC', status.oidc),
+            part('live', '📡 Live', status.live),
           ],
         );
       },
@@ -154,7 +184,7 @@ class HealthWarningPill extends StatelessWidget {
       oidcClient: oidcClient ?? hasOidcClient,
     );
     return [
-      for (final part in [status.api, status.aws, status.oidc])
+      for (final part in [status.api, status.aws, status.oidc, status.live])
         if (healthPartFailed(part)) part.$2,
     ];
   }
@@ -188,7 +218,7 @@ class HealthCheck {
 
   /// Any of the checks failed ([healthPartFailed]).
   bool get failed =>
-      [status.api, status.aws, status.oidc].any(healthPartFailed);
+      [status.api, status.aws, status.oidc, status.live].any(healthPartFailed);
 }
 
 /// The health panel's latest checks, in memory, so they outlast the Log
@@ -246,9 +276,11 @@ _checks = [
   ('api', '🔌', 'Auth API', (s) => s.api),
   ('aws', '☁️', 'AWS', (s) => s.aws),
   ('oidc', '🔑', 'OIDC', (s) => s.oidc),
+  ('live', '📡', 'Live', (s) => s.live),
 ];
 
-/// The Log tab's health panel: a card per check (the auth API, AWS, OIDC)
+/// The Log tab's health panel: a card per check (the auth API, AWS, OIDC,
+/// live sync)
 /// with its status in a colored pill, a card with the number of devices in
 /// the events, and a timeline of the latest checks ([HealthHistory]): a
 /// block per run, red if any check failed and green if all passed, newest
@@ -406,7 +438,7 @@ class _HealthPanelState extends State<HealthPanel> {
     );
   }
 
-  /// A card per check, and one for the devices: four across when there's
+  /// A card per check, and one for the devices: all in a row when there's
   /// room, otherwise two, each row's cards as tall as the tallest.
   Widget _cards(ThemeData theme, TextStyle? small) => LayoutBuilder(
     builder: (context, constraints) {

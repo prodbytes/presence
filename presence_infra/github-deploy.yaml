@@ -170,6 +170,27 @@ Resources:
                   - cognito-identity:UntagResource
                   - cognito-identity:ListTagsForResource
                 Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+              # Live sync (identity.yaml): the IoT policy attached to each
+              # identity, and the account's IoT data endpoint for the app's
+              # build (scripts/deploy.sh).
+              - Effect: Allow
+                Action:
+                  - iot:CreatePolicy
+                  - iot:DeletePolicy
+                  - iot:GetPolicy
+                  - iot:CreatePolicyVersion
+                  - iot:DeletePolicyVersion
+                  - iot:GetPolicyVersion
+                  - iot:ListPolicyVersions
+                  - iot:SetDefaultPolicyVersion
+                  - iot:ListTargetsForPolicy
+                  - iot:TagResource
+                  - iot:UntagResource
+                  - iot:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:policy/presence-*
+              - Effect: Allow
+                Action: iot:DescribeEndpoint
+                Resource: '*'
               - Effect: Allow
                 Action: cloudformation:ListExports
                 Resource: '*'
@@ -368,6 +389,27 @@ Resources:
                   - cognito-identity:UntagResource
                   - cognito-identity:ListTagsForResource
                 Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+              # Live sync (identity.yaml): the IoT policy attached to each
+              # identity, and the account's IoT data endpoint for the app's
+              # build (scripts/deploy.sh).
+              - Effect: Allow
+                Action:
+                  - iot:CreatePolicy
+                  - iot:DeletePolicy
+                  - iot:GetPolicy
+                  - iot:CreatePolicyVersion
+                  - iot:DeletePolicyVersion
+                  - iot:GetPolicyVersion
+                  - iot:ListPolicyVersions
+                  - iot:SetDefaultPolicyVersion
+                  - iot:ListTargetsForPolicy
+                  - iot:TagResource
+                  - iot:UntagResource
+                  - iot:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:policy/presence-rc-*
+              - Effect: Allow
+                Action: iot:DescribeEndpoint
+                Resource: '*'
               - Effect: Allow
                 Action: cloudformation:ListExports
                 Resource: '*'

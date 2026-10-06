@@ -6,8 +6,10 @@ Description: >
   issues a developer-identity token for the profile's identity; the app
   trades it for temporary AWS credentials of the authenticated role, which
   may only read and write that identity's prefix in the user-data bucket
-  (presence-user-data stack). Guests (unauthenticated identities) aren't
-  allowed.
+  (presence-user-data stack), and use live sync: AWS IoT Core MQTT on that
+  identity's own topics, presence/<Stage>/<identity ID>/*, through the
+  LivePolicy IoT policy the auth API attaches to each identity. Guests
+  (unauthenticated identities) aren't allowed.
 
 Parameters:
   GoogleWebClientId:
@@ -24,6 +26,13 @@ Parameters:
     Type: String
     Default: presence
     Description: presence for prod, presence-rc for RC
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, rc]
+    Description: >
+      Live sync's topics are presence/<Stage>/<identity ID>/*: prod, or rc
+      for the release candidate (the app's PRESENCE_STAGE).
 
 Resources:
   IdentityPool:
@@ -82,6 +91,50 @@ Resources:
                     s3:prefix:
                       - ${cognito-identity.amazonaws.com:sub}
                       - ${cognito-identity.amazonaws.com:sub}/*
+        # Live sync (AWS IoT Core, MQTT over WebSockets). AWS IoT checks
+        # this and LivePolicy, attached to the identity: both must allow.
+        - PolicyName: own-live-sync
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Client IDs <identity ID>-<device ID>-<session>.
+              - Effect: Allow
+                Action: iot:Connect
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/${!cognito-identity.amazonaws.com:sub}-*
+              # The profile's own topics: events (and, later, acks and
+              # requests).
+              - Effect: Allow
+                Action:
+                  - iot:Publish
+                  - iot:Receive
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
+              - Effect: Allow
+                Action: iot:Subscribe
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
+
+  # Live sync's IoT policy, attached to each profile's identity by the auth
+  # API (POST /api/auth/credentials: iot:AttachPolicy): AWS IoT requires one
+  # for authenticated Cognito identities, besides their role. The same
+  # permissions as the role's own-live-sync, with the identity as a policy
+  # variable.
+  LivePolicy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyName: !Sub ${IdentityPoolName}-live-sync
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: iot:Connect
+            Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/${!cognito-identity.amazonaws.com:sub}-*
+          - Effect: Allow
+            Action:
+              - iot:Publish
+              - iot:Receive
+            Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
+          - Effect: Allow
+            Action: iot:Subscribe
+            Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
 
   IdentityPoolRoles:
     Type: AWS::Cognito::IdentityPoolRoleAttachment
@@ -96,3 +149,6 @@ Outputs:
     Value: !Ref IdentityPool
   AuthenticatedRoleArn:
     Value: !GetAtt AuthenticatedRole.Arn
+  LivePolicyName:
+    Description: The auth API's IotPolicyName (live sync)
+    Value: !Ref LivePolicy
