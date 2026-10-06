@@ -2941,3 +2941,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter analyze` and `flutter build web` are clean.
      - Specs: [Monitoring](monitoring.md), [Events](events.md),
        [Navigation](navigation.md), [Subjects](subjects.md).
+274. **An RC mark in the RC site's title.** (2026-10-06)
+     - Asked: add an RC tag or emoji to the RC environment's title.
+     - Changed: `PRESENCE_STAGE` is a new public dart-define
+       (`scripts/dart-defines.sh`), set by `scripts/deploy.sh` to the
+       stage; `AppVersion.title` is "🧪 Presence RC" for `rc` and
+       "Presence" otherwise (`MaterialApp.title`, the tab). The RC deploy
+       also rewrites the built `index.html` `<title>` and the manifest's
+       names. Verified the rewrite on a copy of `web/`; 451 Flutter tests
+       pass. Specs: [App icon](app-icon.md), [Production deploy](deploy.md).

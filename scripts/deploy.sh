@@ -143,13 +143,30 @@ echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID"
 # 2. The web app
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
   echo "==> building the web app for /app/"
-  WEB_BASE_HREF=/app/ bash scripts/make.sh web
+  WEB_BASE_HREF=/app/ PRESENCE_STAGE="$STAGE" bash scripts/make.sh web
 fi
 # The RC's own icons (a huge "RC" on red), so its tabs never pass for
 # production's: presence_app/web_rc/ over the build's favicon and icons.
+# Its title too, before the app sets it (AppVersion.title).
 if [[ "$STAGE" == rc ]]; then
   cp -R presence_app/web_rc/. presence_app/build/web/
-  echo "    RC icons in place"
+  python3 - <<'PY'
+import json
+web = "presence_app/build/web"
+with open(f"{web}/index.html", encoding="utf-8") as f:
+    html = f.read()
+html = html.replace("<title>Presence</title>", "<title>🧪 Presence RC</title>")
+with open(f"{web}/index.html", "w", encoding="utf-8") as f:
+    f.write(html)
+with open(f"{web}/manifest.json", encoding="utf-8") as f:
+    manifest = json.load(f)
+manifest["name"] = "🧪 Presence RC"
+manifest["short_name"] = "Presence RC"
+with open(f"{web}/manifest.json", "w", encoding="utf-8") as f:
+    json.dump(manifest, f, ensure_ascii=False, indent=4)
+PY
+  grep -q '<title>🧪 Presence RC</title>' presence_app/build/web/index.html
+  echo "    RC icons and title in place"
 fi
 test -f presence_app/build/web/index.html
 built="$(python3 -c 'import json; print(json.load(open("presence_app/build/web/version.json"))["version"])')"

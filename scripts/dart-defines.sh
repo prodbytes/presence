@@ -6,7 +6,7 @@
 # into the app (readable in the web bundle), so secrets in .env, such as
 # the client secret, must never be listed here. These are all public
 # identifiers.
-_allowed=(GOOGLE_WEB_CLIENT_ID GOOGLE_IOS_CLIENT_ID AWS_REGION COGNITO_IDENTITY_POOL_ID USER_DATA_BUCKET)
+_allowed=(GOOGLE_WEB_CLIENT_ID GOOGLE_IOS_CLIENT_ID AWS_REGION COGNITO_IDENTITY_POOL_ID USER_DATA_BUCKET PRESENCE_STAGE)
 _env="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
 DART_DEFINES=()
 [[ -f "$_env" ]] || echo "note: no .env; Google sign-in will say it isn't set up (see .env.example)" >&2
