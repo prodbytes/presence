@@ -24,6 +24,7 @@ ClipRequested clipWith(
   List<String> names, {
   required int minutesAgo,
   double? lat,
+  double lng = 2.29,
   String id = '',
 }) {
   final annotations = ClipAnnotations();
@@ -48,7 +49,7 @@ ClipRequested clipWith(
   if (lat != null) {
     event.location = DeviceLocation(
       latitude: lat,
-      longitude: 2.29,
+      longitude: lng,
       source: LocationSource.map,
       time: event.time,
     );
@@ -442,6 +443,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(log.events.first.id, 'event-3');
       expect(cameraOf(tester).center, moved);
+      expect(cameraOf(tester).zoom, 17);
+
+      // A resize (rotation, keyboard, window) doesn't snap it back either.
+      tester.view.physicalSize = const Size(1280, 600);
+      await tester.pumpAndSettle();
+      expect(cameraOf(tester).center, moved);
+      expect(cameraOf(tester).zoom, 17);
+    });
+
+    testWidgets('a dot on the far side of the world is no trouble', (
+      tester,
+    ) async {
+      log.addHistory([
+        clipWith(['Rex'], minutesAgo: 1, lat: 0),
+        // Nearly antipodal: Vincenty's formula doesn't converge there.
+        clipWith(['Ana'], minutesAgo: 2, lat: 0, lng: -177.6),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(cameraOf(tester).center.longitude, closeTo(2.29, 1e-6));
       expect(cameraOf(tester).zoom, 17);
     });
 

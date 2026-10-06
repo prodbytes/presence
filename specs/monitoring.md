@@ -45,8 +45,9 @@ the separate Events and Subjects tabs.
     [Clips](clips.md)). The column is 55% of the width, kept between 360
     and 880 dp; the map takes the rest. From 600 dp the clip cards put
     their thumbnail beside the details.
-- **Phones (narrower):** the map (30% of the height, at least 160 dp
-  unless that's over half the page) above the events.
+- **Phones (narrower):** the map (30% of the room under the filters, at
+  least 160 dp unless that's over half of it) above the events; a very
+  short page (a landscape phone with the keyboard open) doesn't overflow.
 - The page is padded 16 dp (12 dp on phones) at the top and sides, with
   the same gap between the map and the events, the system events toggle
   closing it at the bottom, and stops growing at 1600 dp, centered.
@@ -68,8 +69,8 @@ the separate Events and Subjects tabs.
 - `monitoring_test.dart`: at 1500 dp the map is on the left and the
   events (55%, wider than the map) on the right, padded and 16 dp apart,
   from the same top; the events column is 396 dp at 720 dp and 880 dp at
-  1600 dp; at 320, 390 and 1280 dp it fits without overflow, the stacked
-  map 30% of the height; the stacked map's height is 30%, at least 160 dp,
+  1600 dp; at 320, 390 and 1280 dp, and 640x100 dp, it fits without
+  overflow, the stacked map 30% of the room under the filters; the stacked map's height is 30%, at least 160 dp,
   at most half; at 2400 dp the page stops at 1600 dp, centered; a clip card's 16:9
   thumbnail stays inside the events column; at 400 dp the map is above the
   events; a clip card shows its subject.
@@ -79,7 +80,8 @@ the separate Events and Subjects tabs.
   name only beside each subject's newest dot; it opens centered on the
   newest at zoom 16–17 with a dot 90 m away in view and one 30 km away
   out of it (a lone newest at zoom 17); it moves to the events once they
-  load and to a newer one arriving, but not after being dragged; tapping a name opens the
+  load and to a newer one arriving, but not after being dragged, not even
+  on a resize; a nearly antipodal dot is no trouble; tapping a name opens the
   subject's screen; on a 360 dp phone the map sits above the events; a dot
   tapped on a subject's screen closes it and outlines the event in this
   tab's list. `events_filter_test.dart`: each event shows its device,

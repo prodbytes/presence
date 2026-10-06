@@ -94,8 +94,12 @@ Monitoring) is a close-up (`closeUp`):
   subjects map is fitted again whenever its newest dot changes (the
   first one once the events load, or a newer one arriving) **until the
   map is moved by hand** (a drag, pinch, wheel or the zoom buttons);
-  from then on it stays where it was put. Picking or clearing a device
+  from then on it stays where it was put, through resizes too (a
+  rotation, the keyboard, a window resized): the fit it opens on is worked
+  out once, from the dots it opened with. Picking or clearing a device
   fits it again (`fitKey`) and lets it follow the newest once more.
+- "Within 300 m" is measured with the haversine formula, so a dot on the
+  far side of the world is no trouble.
 
 ## A subject's screen
 
@@ -158,7 +162,9 @@ Monitoring) is a close-up (`closeUp`):
   in view, the farthest near the edge, and the zoom buttons double and
   halve the spacing of the dots; without located events, zoom out is off;
   `framedAround` centers the fit on the newest, and stops mirrors at the
-  date line.
+  date line; the subjects map follows the newest as events load and
+  arrive, stays put once dragged, also through a resize, and a nearly
+  antipodal dot doesn't break it.
   `widget_test.dart`: the four tabs in order, and an admin's app bar fits
   on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
@@ -167,8 +173,8 @@ Monitoring) is a close-up (`closeUp`):
 
 - Near the date line, a mirror image is cut back to it, so the map may
   not be exactly centered on the newest event there.
-- The view is set when a map opens: events added while it's open don't
-  recenter it.
+- A subject's own map is set when it opens: events added while it's open
+  don't recenter it.
 
 - Removing a subject from an event can't be undone, short of tagging
   them again under the player.

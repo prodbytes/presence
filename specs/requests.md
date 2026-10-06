@@ -3130,12 +3130,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      events.** (2026-10-06)
      - Asked: on the Monitoring page, zoom the map to the latest event,
        and closer; less space for the map and more for the events.
-     - Changed: the subjects map opens on the newest located event at
-       street level (zoom 16–17, fitting only dots within 300 m; was
-       zoomed out to show every dot, up to 17), also once the events load,
-       and follows each newer event until the map is moved by hand.
-       Phones: the map takes 30% of the height (was 35%), at least 160 dp.
+     - Changed: the subjects map shows only the located events of tagged
+       subjects; it opens on the newest of those at street level (zoom
+       16–17, fitting only dots within 300 m; was zoomed out to show every
+       dot, up to 17), also once the events load, and follows each newer
+       one until the map is moved by hand.
+       Phones: the map takes 30% of the room under the filters (was 35%
+       of the page), at least 160 dp.
        Wide: the events column is 55% of the width, 360–880 dp (was 40%,
        360–520 dp). A subject's own map is unchanged. 481 Flutter tests
        pass; web build compiles. Specs: [Monitoring](monitoring.md),
        [Subjects](subjects.md).
+     - Review fixes: the fit the map opens on is worked out once, so a
+       resize (rotation, keyboard, window) after the map was moved no
+       longer snaps it back to the newest event (flutter_map applies the
+       initial fit at the first real size, which could come late); the
+       300 m check uses the haversine distance, as Vincenty's throws for
+       nearly antipodal dots; the stacked map's height comes from the room
+       under the filters, not the whole page, so a page under ~116 dp tall
+       (640x100) no longer overflows. Tests: a resize after a drag, an
+       antipodal dot, a 640x100 page. 483 Flutter tests pass; web
+       build compiles.

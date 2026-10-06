@@ -49,8 +49,9 @@ class MonitoringView extends StatefulWidget {
   static const double minEventsWidth = 360;
   static const double maxEventsWidth = 880;
 
-  /// The stacked map's height in a page [height] tall: [stackedMapShare]
-  /// of it, at least [minStackedMapHeight] unless that's over half of it.
+  /// The stacked map's height in [height] of room under the filters:
+  /// [stackedMapShare] of it, at least [minStackedMapHeight] unless that's
+  /// over half of it.
   static double stackedMapHeight(double height) => math.max(
     height * stackedMapShare,
     math.min(minStackedMapHeight, height / 2),
@@ -195,19 +196,23 @@ class _MonitoringViewState extends State<MonitoringView> {
                               ),
                             ],
                           )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              SizedBox(
-                                height: MonitoringView.stackedMapHeight(
-                                  box.maxHeight,
+                        // Sized from the room under the filters, not the
+                        // whole page, so a very short one doesn't overflow.
+                        : LayoutBuilder(
+                            builder: (context, room) => Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                SizedBox(
+                                  height: MonitoringView.stackedMapHeight(
+                                    room.maxHeight,
+                                  ),
+                                  child: framedMap,
                                 ),
-                                child: framedMap,
-                              ),
-                              Expanded(
-                                child: events(EdgeInsets.only(top: gap)),
-                              ),
-                            ],
+                                Expanded(
+                                  child: events(EdgeInsets.only(top: gap)),
+                                ),
+                              ],
+                            ),
                           ),
                   ),
                 ],

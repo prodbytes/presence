@@ -133,8 +133,9 @@ void main() {
       expect(map.width, greaterThan(0));
       expect(events.height, greaterThan(map.height / 2));
       if (size.width < MonitoringView.twoColumnWidth) {
-        // A third of the page or less for the map, the rest for events.
-        expect(map.height, closeTo(size.height * 0.3, 0.5));
+        // 30% of the room under the filters for the map, the rest for
+        // events.
+        expect(map.height, closeTo((size.height - map.top) * 0.3, 0.5));
         expect(events.height, greaterThan(map.height * 2));
       } else {
         expect(events.width, greaterThan(map.width));
@@ -142,6 +143,14 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('a very short page (a landscape phone with the keyboard '
+      'open) does not overflow', (tester) async {
+    await show(tester, const Size(640, 100));
+    expect(tester.takeException(), isNull);
+    final map = rectOf(tester, 'subjects-map');
+    expect(map.bottom, lessThanOrEqualTo(100));
+  });
 
   test('the stacked map: 30% of the height, at least 160 dp', () {
     expect(MonitoringView.stackedMapHeight(800), 240);
