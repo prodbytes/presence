@@ -5,6 +5,11 @@
   Recognition, History, Live sync (with live sync in the build),
   Advanced (admins only), Subjects; then the
   version, IDs, health line and Add a device.
+- **Sliders change their setting when let go.** While one is dragged,
+  its thumb and the value beside its name follow the finger; the setting
+  changes once, on release (or on each keyboard or screen-reader step), so
+  a drag saves the settings, and syncs them, once rather than on every
+  frame.
 - **Location** section, first: a map with a center pin and, to its right,
   this device's position (labeled, with where it came from), so a drag
   beside the map scrolls the list; moving the map sets the location, with
@@ -18,9 +23,9 @@
   automatic location. See
   [Device location and battery](device-location.md#pinning-the-position).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
-  steps, default **+1 EV**. It's applied live to the open camera, and to its
-  recordings, as auto-exposure compensation; then, once the slider has
-  stayed put for 0.8 s, the camera view restarts (closes and reopens) with
+  steps, default **+1 EV**. Once the slider is let go, it's applied to the
+  open camera, and to its recordings, as auto-exposure compensation; then,
+  0.8 s later, the camera view restarts (closes and reopens) with
   the new value, so one drag restarts it once. The restart drops the
   camera's rolling "before" history, as a flip does. Cameras opened later,
   after a flip or restart, get the current value. On Android it's clamped to what

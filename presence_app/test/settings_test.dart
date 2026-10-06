@@ -92,6 +92,36 @@ void main() {
     });
   }
 
+  testWidgets('a slider shows its value while dragged, and changes the '
+      'setting (saved and synced) once, when let go', (tester) async {
+    await show(tester);
+    final slider = find.byKey(const Key('motion-threshold-slider'));
+    await scrollTo(tester, slider);
+    var changes = 0;
+    void count() => changes++;
+    config.addListener(count);
+    addTearDown(() => config.removeListener(count));
+
+    final bar = find.descendant(of: slider, matching: find.byType(Slider));
+    final drag = await tester.startGesture(tester.getCenter(bar));
+    for (var i = 0; i < 5; i++) {
+      await drag.moveBy(const Offset(20, 0));
+      await tester.pump();
+    }
+    // Dragging: the label follows, the setting doesn't change yet.
+    expect(changes, 0);
+    expect(config.motion.threshold, 15);
+    final shown = tester.widget<Slider>(bar).value;
+    expect(shown, greaterThan(15));
+    expect(find.text('${shown.round()} % of the picture'), findsOneWidget);
+
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(changes, 1);
+    expect(config.motion.threshold, shown.roundToDouble());
+    expect(find.text('${shown.round()} % of the picture'), findsOneWidget);
+  });
+
   testWidgets('the motion threshold reads 15 % of the picture', (tester) async {
     await show(tester);
     await scrollTo(tester, find.byKey(const Key('motion-threshold-slider')));
