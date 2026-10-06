@@ -43,6 +43,7 @@ class Voucher {
     this.createdBy = '',
     required this.createdAt,
     this.discount = 100,
+    this.hidden = false,
   }) : startsAt = startsAt ?? createdAt;
 
   factory Voucher.fromJson(Map<String, Object?> json) => Voucher(
@@ -60,6 +61,7 @@ class Voucher {
     createdAt: _instant(json['createdAt']),
     // Vouchers from before discounts were full ones.
     discount: (json['discount'] as num?)?.toInt() ?? 100,
+    hidden: json['hidden'] == true,
   );
 
   /// `XXXX-XXXX-XXXX` when random, or the admin's choice
@@ -82,6 +84,11 @@ class Voucher {
 
   /// The discount it gives, in percent (1 to 100).
   final int discount;
+
+  /// Whether the auth API hid its [code] (empty then): an Admin voucher,
+  /// listed for an admin who isn't a root. Only roots see, copy or delete
+  /// Admin codes, so an admin can't pass the role on.
+  final bool hidden;
 
   bool isExpired(DateTime now) => !expiresAt.isAfter(now);
   bool isNotYetValid(DateTime now) => startsAt.isAfter(now);

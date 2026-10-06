@@ -22,17 +22,17 @@ class MemoryProfiles implements Profiles.Store {
     final Map<String, Profiles.Profile> details = new HashMap<>();
 
     @Override
-    public boolean create(String id, String ownerSubject, String ownerEmail, Instant now) {
+    public boolean create(String id, String ownerSubject, String ownerEmail, String ownerHd, Instant now) {
         if (profiles.putIfAbsent(id, now) != null) {
             return false;
         }
-        details.put(id, new Profiles.Profile(id, "", ownerSubject, ownerEmail));
+        details.put(id, new Profiles.Profile(id, "", ownerSubject, ownerEmail, ownerHd));
         return true;
     }
 
     @Override
     public Profiles.Profile profile(String id) {
-        return profiles.containsKey(id) ? details.getOrDefault(id, new Profiles.Profile(id, "", "", null)) : null;
+        return profiles.containsKey(id) ? details.getOrDefault(id, new Profiles.Profile(id, "", "", null, null)) : null;
     }
 
     @Override
@@ -79,16 +79,16 @@ class MemoryProfiles implements Profiles.Store {
     }
 
     @Override
-    public void ownerEmail(String profileId, String email) {
+    public void owner(String profileId, String email, String hd) {
         var p = profile(profileId);
-        details.put(profileId, new Profiles.Profile(profileId, p.identityId(), p.ownerSubject(), email));
+        details.put(profileId, new Profiles.Profile(profileId, p.identityId(), p.ownerSubject(), email, hd));
     }
 
     @Override
     public Profiles.Profile identity(String profileId, String identityId) {
         var p = profile(profileId);
         if (p != null && !p.hasIdentity()) {
-            details.put(profileId, new Profiles.Profile(profileId, identityId, p.ownerSubject(), p.ownerEmail()));
+            details.put(profileId, new Profiles.Profile(profileId, identityId, p.ownerSubject(), p.ownerEmail(), p.ownerHd()));
         }
         return profile(profileId);
     }
