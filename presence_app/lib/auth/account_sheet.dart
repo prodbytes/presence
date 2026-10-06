@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
+import '../cloud/live_sync.dart';
+import '../device_presence.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
 import 'auth_service.dart';
@@ -185,15 +187,21 @@ class AccountSheet extends StatelessWidget {
                     ],
                     if (roles?.profile case final profile?) ...[
                       const SizedBox(height: 16),
-                      ProfileDevices(
-                        profile: profile,
-                        devices: profileDeviceDetails(
-                          log?.events ?? const [],
-                          profileId: profile,
+                      // Pings the devices while the list shows, for their
+                      // presence dots.
+                      PresencePinger(
+                        live: sync?.live,
+                        builder: (_) => ProfileDevices(
+                          profile: profile,
+                          devices: profileDeviceDetails(
+                            log?.events ?? const [],
+                            profileId: profile,
+                            thisDevice: deviceId,
+                          ),
                           thisDevice: deviceId,
+                          now: now,
+                          live: sync?.live,
                         ),
-                        thisDevice: deviceId,
-                        now: now,
                       ),
                     ],
                     if ((roles, profiles) case (
@@ -319,7 +327,12 @@ class ProfileDevices extends StatelessWidget {
     required this.devices,
     this.thisDevice,
     this.now,
+    this.live,
   });
+
+  /// Live sync: which devices answer its pings, for each device's
+  /// presence dot ([DevicePresence]).
+  final LiveSync? live;
 
   final String profile;
   final List<ProfileDevice> devices;
@@ -338,6 +351,7 @@ class ProfileDevices extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
     final at = (now ?? DateTime.now)();
+    final available = liveAvailable(live);
     return Column(
       key: const Key('profile-devices'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -379,6 +393,17 @@ class ProfileDevices extends StatelessWidget {
                       spacing: 8,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
+                        PresenceDot(
+                          key: Key('presence-${device.id}'),
+                          presence: DevicePresence.of(
+                            answeredAt: live?.seenOf(device.id),
+                            lastEvent: device.lastEvent,
+                            now: at,
+                            liveAvailable: available,
+                            thisDevice: device.id == thisDevice,
+                            connected: live?.state == LiveSyncState.connected,
+                          ),
+                        ),
                         SelectableText(
                           device.id,
                           key: Key('profile-device-id-${device.id}'),
