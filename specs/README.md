@@ -38,6 +38,9 @@ their data.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
   subjects and the events.
 - [Events](events.md): the event timeline and the app-wide event bus.
+- [Event flags](event-flags.md): flags on an event's card, worked out from
+  its data; a yellow **unidentified** flag on a clip showing a person or
+  pet (cat, dog) nobody's named, with **Identify** to name them.
 - [Recording consent](consent.md): asked once per device, before anything
   shows or records: the right to record, and faces as biometric data under
   the GDPR, in plain terms, with a verification hash.

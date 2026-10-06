@@ -8,13 +8,18 @@
   (HH:mm:ss). Event types can supply their own card (`AppEvent.buildCard`);
   `ClipRequested` does, and so does `SubjectSuggestion`, the **"Is this
   Rex?"** question [recognition](recognition.md) asks, with Yes / No.
+- An event can carry **[flags](event-flags.md)** (`AppEvent.flags`),
+  worked out from its data and shown on its card: a clip showing a person
+  or pet nobody's named has a yellow **unidentified** flag, with
+  **Identify** to name them.
 - **Search.** A **Search events** field (`EventSearch`) sits at the top
   left of the Monitoring tab, 220 dp wide, on the same row as the filter
   chips (before them); on a narrow phone the chips wrap onto the rows
   below it. Typing filters the timeline live, ignoring case and the spaces
   around the text: an event shows if its **title**, **detail**, **camera
   label** or, for a clip, **the name of someone tagged on it** or **one of
-  its [object tags](recognition.md)** (`cat`, `bicycle`…) contains the
+  its [object tags](recognition.md)** (`cat`, `bicycle`…) or **one of its
+  [flags](event-flags.md)** (`unidentified`) contains the
   text. Suggestions waiting for an answer aren't tags, so they don't
   match a clip; the "Is this Rex?" event matches through its own title,
   and its clip's camera label. An **x** in the field clears it; blank,

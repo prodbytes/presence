@@ -74,6 +74,10 @@ Clip events (`clip_requested`) add:
 | `annotations` | array of objects | the people and pets tagged: `{id, name, x, y, frameId, frameMs, source, confidence}`; `source` is `detected`, `suggested` or `confirmed` (left out: tagged by someone); see [Clips](clips.md) |
 | `objectTags` | array of objects | what recognition saw: `{label, ms, score}`, once per label; left out until searched (see [Subject recognition](recognition.md)) |
 
+[Event flags](event-flags.md) (such as *unidentified*) aren't stored:
+they're worked out from `annotations` and `objectTags` wherever the event
+is read.
+
 "Is this Rex?" events (`subject_suggestion`) add `clipEventId`,
 `annotationId`, `subjectName` and `confidence`.
 

@@ -50,6 +50,11 @@ and pets"), each with where the device was when they were seen
   to match them with their dots on the map. Clicking a name opens the
   player paused at the earliest frame that subject is tagged on (see
   [Clips](clips.md)).
+- **Unidentified people and pets:** a clip that shows a person or pet
+  (object tags `human`, `cat`, `dog`) with fewer subjects named than sorts
+  seen gets a yellow **unidentified** flag under its labels; **Identify**
+  opens the player where they were seen, to name them, which makes them a
+  subject (or tags a known one). See [Event flags](event-flags.md).
 - **Removing a subject from an event:** a small **x** after each name
   (`RemoveLabelButton`, key `event-subject-remove-<id>`, tooltip "Remove
   Rex from this event") removes, at once and without asking, every tag of
