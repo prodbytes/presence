@@ -713,12 +713,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     switch (_viewMode) {
       case CameraViewMode.one:
         setState(() => _showAll = true);
+        _askForGrabs();
       case CameraViewMode.all:
         setState(() => _showAll = false);
         widget.rig.setPaused(true);
       case CameraViewMode.none:
         widget.rig.setPaused(false);
     }
+  }
+
+  /// How long the All grid's cells show that a fresh grab was asked for
+  /// ([CameraFeedsView.refreshingSince]) before giving up on one.
+  static const Duration refreshingFor = Duration(seconds: 90);
+
+  /// When this device last asked the others for a fresh grab, while the
+  /// grid waits for them ([refreshingFor]).
+  DateTime? _refreshingSince;
+  Timer? _refreshingTimer;
+
+  /// Opening the All grid asks every device of the profile for a fresh
+  /// grab (a Capture all request, [CameraRig.askAll]: at most one a
+  /// minute), so the grid shows what they see now; signed in with cloud
+  /// sync only, which carries it (live sync too, within a second).
+  void _askForGrabs() {
+    if (!_hasAccess || widget.sync == null) return;
+    final request = widget.rig.askAll(AppEventBusScope.of(context));
+    if (request != null) _asked(request);
+  }
+
+  /// Says that [request] went out, and marks the grid's cells as waiting
+  /// for a newer grab.
+  void _asked(AppEvent request) {
+    final devices = latestByDevice(
+      widget.log.events,
+      thisDevice: widget.deviceId,
+      profileId: widget.roles.profile,
+    ).length;
+    _showMessage(
+      CameraMessage(
+        icon: Icons.grid_view,
+        label: switch (devices) {
+          0 => 'Asked every device for a fresh grab',
+          1 => 'Asked 1 device for a fresh grab…',
+          _ => 'Asked $devices devices for a fresh grab…',
+        },
+      ),
+    );
+    _refreshingTimer?.cancel();
+    _refreshingTimer = Timer(refreshingFor, () {
+      if (mounted) setState(() => _refreshingSince = null);
+    });
+    setState(() => _refreshingSince = request.time);
   }
 
   /// The one device whose events the Monitoring tab shows, picked by
@@ -871,6 +916,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     widget.config.removeListener(_onConfigChanged);
     _clipEvents?.cancel();
     _messageTimer?.cancel();
+    _refreshingTimer?.cancel();
     _focusedEvent.dispose();
     _onlyDevice.dispose();
     _showSystemEvents.dispose();
@@ -929,7 +975,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _clip() {
     final bus = AppEventBusScope.of(context);
     if (!(_showAll && _hasAccess)) return widget.rig.requestClips(bus);
-    bus.publish(AppEvent.captureAll());
+    // Not again within a minute of the last request (opening the grid
+    // asked already).
+    if (widget.rig.askAll(bus) case final request?) _asked(request);
     return widget.rig.requestClips(bus, trigger: ClipTrigger.all);
   }
 
@@ -1051,6 +1099,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
+                  refreshingSince: _showAll ? _refreshingSince : null,
                 ),
               ),
               SafeArea(

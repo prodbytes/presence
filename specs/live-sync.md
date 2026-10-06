@@ -362,6 +362,9 @@ query holds the session token.
 - Out-of-order or repeated deliveries (QoS 1) are taken as they come: a
   repeated message changes nothing, but an older version arriving after a
   newer one would be taken on until the next change.
-- Each Capture all request now reaches the other devices within a second,
-  so they answer sooner; nothing else about answering changes.
+- Each Capture all request (Clip in the All grid, or opening the grid,
+  see [Camera screen](camera.md#capture-all)) reaches the other devices
+  within a second as an ordinary event, so they answer sooner; one that
+  then also comes from the bucket isn't answered again. It doesn't use
+  the reserved `requests` topic.
 - No acknowledgements, deletion or start-up requests yet (phase 2).
