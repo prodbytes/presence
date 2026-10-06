@@ -42,8 +42,20 @@ in the app bar**, which flip between full screens.
   the camera, with a dark gradient scrim to keep the tabs
   readable. There are **no overlays** on the video: no camera name, and no
   list of other cameras (except in the **All** grid, below).
-  - It opens the **default camera**: the first back camera, or else the
-    first camera (on web, the one the browser picks by default).
+  - It opens **the camera last picked with Flip**, so an unattended
+    phone that restarts (a crash, the watchdog, a reinstall) comes back
+    to the same view. Flip keeps the choice in this device's settings
+    (`camera.chosen` in [Configuration](configuration.md): the camera's
+    ID from the platform, on Android the camera ID and on web the
+    browser's device ID, with its label and facing). At launch the camera
+    is found by its ID, else by its label and facing (an ID that
+    changed), else by its facing where known (another front camera for a
+    lost front one). The cameras wait for the saved settings to load (at
+    most 5 s; if they come later, or from the cloud, the rig switches to
+    the remembered camera then).
+  - With no camera remembered, or none of these matching, it opens the
+    **default camera**: the first back camera, or else the first camera
+    (on web, the one the browser picks by default).
   - The **Clip** trigger is an extended floating action button (bottom
     right), shown only on the Camera tab and only when a camera is open.
     Material says to hide a FAB that can't act, rather than disable it.
@@ -70,7 +82,8 @@ in the app bar**, which flip between full screens.
     The old camera is fully closed before the next one opens, because most
     phones allow only one open camera. The new camera starts its rolling
     recording from scratch, so a clip right after a flip has less "before"
-    history.
+    history. The camera it switches to is remembered for this device and
+    reopened at the next launch (above).
   - **Status pills, bottom left**, across from Flip and Clip
     (`_CameraStatus` in `lib/main.dart`): a **health warning** while a
     health check fails, the **battery**, its **temperature** (Android),

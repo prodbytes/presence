@@ -2808,3 +2808,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        suite passes, `flutter build apk --release` builds. Not yet tried
        on the phone.
      - Specs: [Sign-in](sign-in.md), [Android](android.md).
+268. **Reopen the camera picked with Flip after a restart.** (2026-10-06)
+     - Asked: the unattended phone was flipped to its other camera to
+       watch the cat, but a restart opened the default (back) camera
+       again; remember the camera chosen with Flip and reopen it at
+       launch, on every platform, falling back to the default if it's
+       gone.
+     - Changed: Flip stores the camera in this device's settings
+       (`camera.chosen: {id, label, facing}` in `CameraConfig`; settings
+       are per device, also in the cloud's `devices/<deviceId>/`).
+       `CameraRig.load` opens it (`CameraRig.startCamera`: by ID, else
+       label and facing, else facing; otherwise the default camera), and
+       switches to it if the settings arrive after the camera opened. The
+       app waits for the saved settings (at most 5 s) before opening the
+       cameras, so a restart goes straight to the remembered camera.
+     - Tests: `camera_choice_test.dart` (flip then relaunch on the same
+       storage reopens it, missing falls back to the default, ID change,
+       facing fallback, late settings, JSON); `widget_test.dart` gives its
+       apps in-memory storage. 418 Flutter tests pass; `flutter analyze`
+       is clean.
+     - Specs: [Navigation](navigation.md), [Configuration](configuration.md).

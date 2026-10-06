@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart' show describeCameraError;
@@ -26,6 +27,7 @@ void main() {
     await tester.pumpWidget(
       PresenceApp(
         consentGiven: true,
+        storage: newIdbFactoryMemory(),
         cameras: cameras ?? noCameras,
         auth: FakeAuthService.signedIn(),
         rolesClient: FakeRolesClient(),
@@ -311,6 +313,7 @@ void main() {
       tester,
       PresenceApp(
         consentGiven: true,
+        storage: newIdbFactoryMemory(),
         cameras: backend,
         auth: FakeAuthService(),
         rolesClient: FakeRolesClient(),
