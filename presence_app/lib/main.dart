@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
@@ -465,8 +466,15 @@ enum HomeTab {
   settings('Settings', Icons.settings),
 
   /// Admins only, when Settings' switch shows it (on by default in DEV,
-  /// whose anonymous user is a root); last, so the others keep their index.
-  log('Log', Icons.receipt_long);
+  /// whose anonymous user is a root); after the always-shown tabs, so they
+  /// keep their index.
+  log('Log', Icons.receipt_long),
+
+  /// Signed-in admins only (not DEV: there are no accounts): membership
+  /// requests and voucher codes ([AdminView]). Last; with the Log tab
+  /// hidden it takes the Log's place, so map a tab to its controller index
+  /// through the shown tabs, never by [HomeTab.index] alone.
+  admin('Admin', Icons.admin_panel_settings);
 
   const HomeTab(this.label, this.icon);
 
@@ -477,7 +485,9 @@ enum HomeTab {
 /// The app's one screen: a tab bar in the top right of the app bar flips
 /// between the full-screen camera (the start tab), monitoring (the subjects'
 /// map, the subjects and the event stream), the settings (with the device's
-/// location map) and, for admins who turned it on, the log. Swiping sideways flips too,
+/// location map), for admins who turned it on the log, and for signed-in
+/// admins the Admin page (membership requests and vouchers). Swiping
+/// sideways flips too,
 /// except on Monitoring (its map) and while a finger is on the Settings map.
 ///
 /// Signed out, the camera still shows, but the navigation is hidden: the
@@ -527,11 +537,11 @@ class HomeScreen extends StatefulWidget {
   final String? deviceId;
 
   /// The signed-in user's roles: events and features need `presence_user`,
-  /// the Admin screen `presence_admin`.
+  /// the Admin tab `presence_admin`.
   final RolesService roles;
 
   /// Membership requests: sent from the sign-up sheet, approved on the
-  /// Admin screen.
+  /// Admin tab.
   final MembershipClient membership;
 
   /// The user's linked Google accounts (account and sign-up sheets).
@@ -550,7 +560,7 @@ class HomeScreen extends StatefulWidget {
   static const double tabWidth = 48;
 
   /// How narrow tabs get when the app bar can't fit them at [tabWidth]
-  /// (an admin's, with its extra button, on a 320 dp phone).
+  /// (an admin's, with the Log and Admin tabs, on a 320 dp phone).
   static const double minTabWidth = 40;
 
   /// How long a message over the camera stays.
@@ -561,35 +571,61 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late TabController _tabs = _newTabs(0);
+  late TabController _tabs;
+
+  /// The tabs [_tabs] was made for, in order: what the tab bar and its
+  /// pages show, so they always match the controller's length.
+  late List<HomeTab> _tabList;
 
   /// The Log tab shows for admins (so in DEV too: the anonymous user is a
   /// root there) when Settings' switch is on: by default in DEV only.
   bool get _showLog =>
       widget.roles.isAdmin && widget.config.log.showIn(dev: _dev);
 
-  /// The tabs shown: [HomeTab.log] last, so each tab's index is its
-  /// [HomeTab.index].
+  /// The Admin tab shows for signed-in admins, not in DEV (there are no
+  /// accounts).
+  bool get _showAdmin => !_dev && widget.roles.isAdmin;
+
+  /// The tabs to show, in [HomeTab] order. A tab's controller index is its
+  /// place here ([_indexOf]): the Admin tab's moves when the Log's hides.
   List<HomeTab> get _shownTabs => [
     for (final tab in HomeTab.values)
-      if (tab != HomeTab.log || _showLog) tab,
+      if (switch (tab) {
+        HomeTab.log => _showLog,
+        HomeTab.admin => _showAdmin,
+        _ => true,
+      })
+        tab,
   ];
 
-  TabController _newTabs(int index) {
-    final length = _shownTabs.length;
+  /// [tab]'s index in the tab bar, or -1 when it isn't shown.
+  int _indexOf(HomeTab tab) => _tabList.indexOf(tab);
+
+  /// The open tab.
+  HomeTab get _tab => _tabList[_tabs.index];
+
+  /// A controller for the [_shownTabs], open on [tab] (or the camera, if
+  /// it isn't shown).
+  TabController _newTabs(HomeTab tab) {
+    _tabList = _shownTabs;
     return TabController(
-      length: length,
-      initialIndex: index.clamp(0, length - 1),
+      length: _tabList.length,
+      initialIndex: _indexOf(tab).clamp(0, _tabList.length - 1),
       vsync: this,
     )..addListener(_onTabChanged);
   }
 
-  /// Adds or removes the Log tab when the roles or its switch change,
-  /// staying on the same tab (or the last one, if the Log tab goes).
+  /// Adds or removes the Log and Admin tabs when the roles or the Log
+  /// switch change, staying on the same tab (or, if it goes, the nearest
+  /// one before it).
   void _syncTabs() {
-    if (_tabs.length == _shownTabs.length) return;
+    final shown = _shownTabs;
+    if (listEquals(shown, _tabList)) return;
     final old = _tabs..removeListener(_onTabChanged);
-    _tabs = _newTabs(old.index);
+    final stay = _tabList
+        .take(old.index + 1)
+        .lastWhere(shown.contains, orElse: () => HomeTab.camera);
+    _tabs = _newTabs(stay);
     // The tab bar lets go of it in this frame's build.
     WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
   }
@@ -602,7 +638,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _onTabChanged() {
     if (!_tabs.indexIsChanging) {
-      _tabMemory.write(HomeTab.values[_tabs.index].name);
+      _tabMemory.write(_tab.name);
     }
     setState(() {});
   }
@@ -612,10 +648,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final tab = _restoreTab;
     if (tab == null || !_hasAccess) return;
     _restoreTab = null;
-    if (tab.index < _tabs.length) _tabs.index = tab.index;
+    final index = _indexOf(tab);
+    if (index >= 0) _tabs.index = index;
   }
 
-  bool get _onCamera => _tabs.index == HomeTab.camera.index;
+  bool get _onCamera => _tab == HomeTab.camera;
 
   /// The battery, shown over the camera; read every minute and on
   /// charging changes.
@@ -625,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// so a drag moves the map.
   bool _mapHeld = false;
 
-  bool get _onMonitoring => _tabs.index == HomeTab.monitoring.index;
+  bool get _onMonitoring => _tab == HomeTab.monitoring;
 
   /// The event the Monitoring tab's timeline scrolls to and outlines.
   final _focusedEvent = ValueNotifier<String?>(null);
@@ -673,7 +710,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
     Navigator.of(context).popUntil((route) => route.isFirst);
-    _tabs.animateTo(HomeTab.monitoring.index);
+    _tabs.animateTo(_indexOf(HomeTab.monitoring));
     // Cleared first, so asking for the same event again still scrolls.
     _focusedEvent
       ..value = null
@@ -693,6 +730,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    _tabs = _newTabs(HomeTab.camera);
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
     widget.config.addListener(_onConfigChanged);
@@ -703,14 +741,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
     _syncTabs();
-    if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    if (!_hasAccess) _tabs.index = _indexOf(HomeTab.camera);
     _restore();
     if (mounted) setState(() {});
   }
 
   /// Settings' Log switch adds or removes the Log tab.
   void _onConfigChanged() {
-    if (_tabs.length == _shownTabs.length) return;
+    if (listEquals(_tabList, _shownTabs)) return;
     _syncTabs();
     _restore();
     if (mounted) setState(() {});
@@ -721,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Signing out hides the navigation, so go back to the camera. Sign-in
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
-    if (!_hasAccess) _tabs.index = HomeTab.camera.index;
+    if (!_hasAccess) _tabs.index = _indexOf(HomeTab.camera);
     _restore();
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
@@ -848,8 +886,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// when the tabs, the buttons after them and the dev label's edge don't
   /// fit the screen.
   double _tabWidth(BuildContext context) {
-    final buttons =
-        (!_dev && widget.roles.isAdmin ? 48 : 0) + (_dev ? 0 : 48) + 4;
+    // The account button (none in DEV) and the gap after it.
+    final buttons = (_dev ? 0 : 48) + 4;
     const titleRoom = 12 + 16;
     final fit =
         (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
@@ -941,7 +979,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 indicatorSize: TabBarIndicatorSize.tab,
                 labelPadding: EdgeInsets.zero,
                 tabs: [
-                  for (final tab in _shownTabs)
+                  for (final tab in _tabList)
                     Tooltip(
                       message: tab.label,
                       child: Tab(
@@ -951,23 +989,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
-            // Admins approve membership requests on their own screen (not
-            // in dev mode: there are no accounts).
-            if (!_dev && widget.roles.isAdmin)
-              IconButton(
-                key: const Key('admin'),
-                tooltip: 'Admin',
-                icon: const Icon(Icons.admin_panel_settings),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => AdminScreen(
-                      auth: widget.auth,
-                      membership: widget.membership,
-                      canCreateAdmins: widget.roles.isRoot,
-                    ),
-                  ),
-                ),
-              ),
             // Account (who's signed in, sign out, about): an action, not a
             // tab.
             if (!_dev)
@@ -1042,7 +1063,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
                 ),
               ),
-              if (_showLog)
+              if (_tabList.contains(HomeTab.log))
                 SafeArea(
                   child: LogView(
                     log: AppLog.instance,
@@ -1053,6 +1074,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       profileId: widget.roles.profile,
                       deviceId: widget.deviceId,
                     ),
+                  ),
+                ),
+              // Membership requests and vouchers: a page like the others,
+              // with no back button of its own.
+              if (_tabList.contains(HomeTab.admin))
+                SafeArea(
+                  child: AdminView(
+                    auth: widget.auth,
+                    membership: widget.membership,
+                    canCreateAdmins: widget.roles.isRoot,
                   ),
                 ),
             ],
@@ -1070,14 +1101,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               roles: widget.roles,
               sync: widget.sync,
               onHealthTap: () => _tabs.animateTo(
-                (_showLog ? HomeTab.log : HomeTab.settings).index,
+                _indexOf(
+                  _tabList.contains(HomeTab.log)
+                      ? HomeTab.log
+                      : HomeTab.settings,
+                ),
               ),
               message: switch (_message) {
                 final m? => CameraMessagePill(
                   message: m,
                   // The events tab is only there with access.
                   onView: m.opensEvents && _hasAccess
-                      ? () => _tabs.animateTo(HomeTab.monitoring.index)
+                      ? () => _tabs.animateTo(_indexOf(HomeTab.monitoring))
                       : null,
                 ),
                 null => null,

@@ -32,7 +32,7 @@ site (`/api/*` in the CloudFront distribution; see
 - **`POST /api/auth/membership`** (`MembershipHandler`): a request for
   access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
   **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
-  Admin screen's. See [Membership](membership.md);
+  Admin tab's. See [Membership](membership.md);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
   [...], "discount": 100}` when its discount is 100%; 402 `{"error",
@@ -80,7 +80,7 @@ site (`/api/*` in the CloudFront distribution; see
     lowercase `email`, with `roles` as a string set (a list or a string
     is read too; a grant rewrites them as a set). They're added to any
     allowlist roles, except `presence_root`, which the table can't give.
-    The table starts empty; the Admin screen's grants fill it.
+    The table starts empty; the Admin tab's grants fill it.
   - Unverified emails get nothing. `sub.nu01.com`, `evilnu01.com` and
     `nu01.com.example` don't count as the domain.
   - **A linked subject** also gets the roles of its profile's owner (see

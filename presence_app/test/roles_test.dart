@@ -515,6 +515,50 @@ void main() {
         },
       );
 
+      testWidgets('OIDC: with the Log tab shown, the Admin tab comes after', (
+        tester,
+      ) async {
+        await open(tester, FakeRolesClient([userRole, adminRole]));
+        final adminTab = find.byTooltip('Admin');
+        TabController tabs() =>
+            tester.widget<TabBar>(find.byType(TabBar)).controller!;
+        await toggleLog(tester);
+        expect(tabs().length, 5);
+        expect(
+          tester.getCenter(logTab).dx,
+          lessThan(tester.getCenter(adminTab).dx),
+        );
+        await tester.tap(adminTab);
+        await tester.pumpAndSettle();
+        expect(tabs().index, HomeTab.admin.index);
+        expect(find.byKey(const Key('admin-view')), findsOneWidget);
+        await tester.tap(logTab);
+        await tester.pumpAndSettle();
+        expect(tabs().index, HomeTab.log.index);
+        expect(find.byKey(const Key('log-view')), findsOneWidget);
+
+        // The Log tab hidden again: the Admin tab takes its place.
+        await toggleLog(tester);
+        expect(tabs().length, 4);
+        await tester.tap(adminTab);
+        await tester.pumpAndSettle();
+        expect(tabs().index, 3);
+        expect(find.byKey(const Key('admin-view')), findsOneWidget);
+      });
+
+      testWidgets('DEV: no Admin tab, even with the Log tab', (tester) async {
+        await open(
+          tester,
+          FakeRolesClient()..mode = ExecutionMode.dev,
+          auth: FakeAuthService(),
+          tabMemory: InMemoryTabMemory('admin'),
+        );
+        expect(logTab, findsOneWidget);
+        expect(find.byTooltip('Admin'), findsNothing);
+        expect(find.byKey(const Key('admin-view')), findsNothing);
+        expect(find.byKey(const Key('camera-page')), findsOneWidget);
+      });
+
       testWidgets('OIDC: a root sees it once Settings shows it', (
         tester,
       ) async {
@@ -637,7 +681,7 @@ void main() {
           ),
         );
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      await tester.tap(find.byKey(const Key('admin')));
+      await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
       expect(find.text('No pending requests.'), findsOneWidget);
       expect(find.text('Voucher codes'), findsOneWidget);
@@ -699,7 +743,7 @@ void main() {
     testWidgets('an admin types the code and a discount', (tester) async {
       final membership = FakeMembershipClient();
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      await tester.tap(find.byKey(const Key('admin')));
+      await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
       final create = find.byKey(const Key('create-voucher'));
       final code = find.byKey(const Key('voucher-new-code'));
@@ -724,9 +768,8 @@ void main() {
       expect(find.textContaining('Member · 25% off'), findsOneWidget);
 
       // Taken.
-      ScaffoldMessenger.of(
-        tester.element(find.byKey(const Key('admin-screen'))),
-      ).removeCurrentSnackBar();
+      ScaffoldMessenger.of(tester.element(find.byKey(const Key('admin-view'))))
+          .removeCurrentSnackBar();
       await tester.enterText(code, 'FRIENDS-2026');
       await tester.pump();
       await tester.tap(create);
@@ -750,7 +793,7 @@ void main() {
       FakeMembershipClient membership,
     ) async {
       await launch(tester, FakeRolesClient(granted), membership);
-      await tester.tap(find.byKey(const Key('admin')));
+      await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('voucher-role')));
       await tester.pumpAndSettle();
@@ -790,13 +833,13 @@ void main() {
       expect(find.byType(TabBar), findsOneWidget);
       expect(find.byTooltip('Clip'), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
-      expect(find.byKey(const Key('admin')), findsNothing);
+      expect(find.byTooltip('Admin'), findsNothing);
     });
 
     testWidgets('an admin without presence_user gets nothing', (tester) async {
       await launch(tester, FakeRolesClient([adminRole]));
       expect(find.byType(TabBar), findsNothing);
-      expect(find.byKey(const Key('admin')), findsNothing);
+      expect(find.byTooltip('Admin'), findsNothing);
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
 
@@ -821,9 +864,9 @@ void main() {
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
       expect(find.byType(TabBar), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('admin')));
+      await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('admin-screen')), findsOneWidget);
+      expect(find.byKey(const Key('admin-view')), findsOneWidget);
       expect(find.text('Night shift'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('grant-bob@example.com')));
@@ -837,6 +880,151 @@ void main() {
       expect(membership.granted, ['bob@example.com']);
       expect(membership.requests, isEmpty);
       expect(find.text('No pending requests.'), findsOneWidget);
+    });
+
+    group('the Admin tab', () {
+      final adminTab = find.byTooltip('Admin');
+      TabController tabs(WidgetTester tester) =>
+          tester.widget<TabBar>(find.byType(TabBar)).controller!;
+
+      testWidgets('an admin flips to it like the other tabs: no back button', (
+        tester,
+      ) async {
+        final membership = FakeMembershipClient()
+          ..requests.add(
+            MembershipRequest(
+              email: 'bob@example.com',
+              name: 'Bob',
+              message: 'Night shift',
+              requestedAt: DateTime.utc(2026, 9, 27),
+            ),
+          );
+        await launch(
+          tester,
+          FakeRolesClient([userRole, adminRole]),
+          membership,
+        );
+        // In the tab bar, after Settings and before the account button.
+        expect(adminTab, findsOneWidget);
+        expect(
+          find.descendant(of: find.byType(TabBar), matching: adminTab),
+          findsOneWidget,
+        );
+        expect(tabs(tester).length, 4, reason: 'the Log tab is hidden');
+        final settings = tester.getCenter(find.byTooltip('Settings'));
+        final admin = tester.getCenter(adminTab);
+        final account = tester.getCenter(
+          find.byKey(const Key('account-button')),
+        );
+        expect(settings.dx, lessThan(admin.dx));
+        expect(admin.dx, lessThan(account.dx));
+
+        await tester.tap(adminTab);
+        await tester.pumpAndSettle();
+        // Where the Log tab would be: indices map through the shown tabs.
+        expect(tabs(tester).index, 3);
+        expect(find.byKey(const Key('admin-view')), findsOneWidget);
+        expect(find.text('Night shift'), findsOneWidget);
+        expect(find.text('Voucher codes'), findsOneWidget);
+        // A page of the tabs, not a screen over them.
+        expect(find.byType(BackButton), findsNothing);
+        expect(find.byTooltip('Back'), findsNothing);
+        expect(find.byType(TabBar), findsOneWidget);
+        expect(find.byKey(const Key('account-button')), findsOneWidget);
+
+        // Swiping flips back to Settings, and on to the Admin tab again
+        // (low on the page, off the Settings map, which takes drags).
+        const low = Offset(640, 760);
+        await tester.flingFrom(low, const Offset(300, 0), 1000);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('settings-page')), findsOneWidget);
+        expect(find.byKey(const Key('admin-view')), findsNothing);
+        await tester.flingFrom(low, const Offset(-300, 0), 1000);
+        await tester.pumpAndSettle();
+        expect(tabs(tester).index, 3);
+        expect(find.byKey(const Key('admin-view')), findsOneWidget);
+      });
+
+      testWidgets('reload fetches the requests again', (tester) async {
+        final membership = FakeMembershipClient();
+        await launch(
+          tester,
+          FakeRolesClient([userRole, adminRole]),
+          membership,
+        );
+        await tester.tap(adminTab);
+        await tester.pumpAndSettle();
+        expect(find.text('No pending requests.'), findsOneWidget);
+        membership.requests.add(
+          MembershipRequest(
+            email: 'eve@example.com',
+            name: '',
+            message: 'Late shift',
+            requestedAt: DateTime.utc(2026, 9, 27),
+          ),
+        );
+        await tester.tap(find.byKey(const Key('admin-reload')));
+        await tester.pumpAndSettle();
+        expect(find.text('Late shift'), findsOneWidget);
+      });
+
+      testWidgets('a refresh comes back to it, and it is remembered by name', (
+        tester,
+      ) async {
+        Future<void> open(TabMemory memory) async {
+          tester.view.physicalSize = const Size(1280, 800);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(
+            PresenceApp(
+              key: UniqueKey(),
+              consentGiven: true,
+              cameras: openFakes([FakeCameraSource('Main')]),
+              auth: FakeAuthService.signedIn(),
+              rolesClient: FakeRolesClient([userRole, adminRole]),
+              membershipClient: FakeMembershipClient(),
+              mapTiles: const SizedBox(),
+              locator: NoLocation(),
+              tabMemory: memory,
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+
+        final memory = InMemoryTabMemory();
+        await open(memory);
+        await tester.tap(adminTab);
+        await tester.pumpAndSettle();
+        expect(memory.tab, 'admin', reason: 'not the Log at its index');
+
+        await open(memory);
+        expect(tabs(tester).index, 3);
+        expect(find.byKey(const Key('admin-view')), findsOneWidget);
+      });
+
+      testWidgets('a member never comes back to it after a refresh', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(1280, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          PresenceApp(
+            consentGiven: true,
+            cameras: openFakes([FakeCameraSource('Main')]),
+            auth: FakeAuthService.signedIn(),
+            rolesClient: FakeRolesClient([userRole]),
+            membershipClient: FakeMembershipClient(),
+            mapTiles: const SizedBox(),
+            locator: NoLocation(),
+            tabMemory: InMemoryTabMemory('admin'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(adminTab, findsNothing);
+        expect(find.byKey(const Key('admin-view')), findsNothing);
+        expect(tabs(tester).index, 0);
+      });
     });
 
     testWidgets('a failed roles check shows only the account and sign-up', (

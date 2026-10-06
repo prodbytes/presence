@@ -25,7 +25,7 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on), and the full-screen Camera tab
+- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on, Admin for signed-in admins), and the full-screen Camera tab
   with its view (One / All / None), Clip, Flip and readiness controls.
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
@@ -64,7 +64,7 @@ their data.
   a voucher code; admins grant requests and create voucher codes (their
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
   current season by default), uses, discount)
-  on the Admin screen.
+  on the Admin tab.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.

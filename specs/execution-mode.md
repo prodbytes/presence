@@ -36,7 +36,7 @@ separate setting, so a system with sign-in can't be opened by mistake.
   Log on by default here, and it can be turned off in Settings), and
   the camera's Clip, Flip and readiness controls.
 - What only makes sense with accounts is hidden: **Sign in with Google**,
-  the account button and sheet, the sign-up icon and the **Admin** screen.
+  the account button and sheet, the sign-up icon and the **Admin** tab.
 - An outlined **"dev"** label sits on the left of the app bar (there's no
   title), in 14 sp
   text (`labelLarge`; it was 11 sp, `labelSmall`). When
