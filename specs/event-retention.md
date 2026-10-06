@@ -26,7 +26,8 @@ than the **History** setting, **two weeks** by default
   with it.
 - What [cloud sync](cloud-sync.md) remembers of them goes too: their
   entries in the `synced` store (each uploaded or downloaded object key
-  of the event and its clip, and the event's `etag:` entry, in the
+  of the event and its clip, the event's `etag:` entry and a recording's
+  pending `fetch:` entry, in the
   current layout and the old one; `EventStore.deleteSynced`,
   `CloudSync.isSyncedKeyOf`), so that store doesn't grow forever.
 - The events and clip records go in one transaction

@@ -4,6 +4,7 @@ import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 import 'dart:ui_web' as ui_web;
 
+import 'package:flutter/material.dart' show CircularProgressIndicator;
 import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
@@ -493,6 +494,10 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   bool _onFull = false;
   bool _waiting = false;
   bool _loadFailed = false;
+
+  /// Getting the recording ready: from IndexedDB, or downloading it from
+  /// the cloud when it hasn't come down yet.
+  bool _loading = false;
   Timer? _endTimer;
 
   VideoClip get _clip => widget.clip;
@@ -653,16 +658,25 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       _current = media;
       _onFull = onFull;
       _waiting = false;
+      _loading = true;
+      _loadFailed = false;
     });
-    // Stored recordings load from IndexedDB on first play.
+    // Stored recordings load from IndexedDB on first play (downloaded from
+    // the cloud first if they aren't there yet).
     final String url;
     try {
       url = await media.resolveUrl();
     } catch (_) {
-      if (mounted && _current == media) setState(() => _loadFailed = true);
+      if (mounted && _current == media) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
       return;
     }
     if (!mounted || _current != media) return;
+    setState(() => _loading = false);
     late final JSFunction onMetadata;
     onMetadata = ((web.Event _) {
       _video.removeEventListener('loadedmetadata', onMetadata);
@@ -735,10 +749,15 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       fit: StackFit.expand,
       children: [
         HtmlElementView(viewType: _viewType),
+        if (_loading && !_loadFailed)
+          const Center(
+            key: Key('clip-loading'),
+            child: CircularProgressIndicator(color: Color(0xFFFABD2F)),
+          ),
         if (_loadFailed)
           const Center(
             child: Text(
-              "Couldn't load this clip from storage",
+              "Couldn't load this clip",
               style: TextStyle(color: Color(0xFFFB4934)),
             ),
           ),

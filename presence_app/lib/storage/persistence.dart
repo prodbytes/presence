@@ -86,6 +86,12 @@ class Persistence implements DeviceSettings {
   /// to `LocationController.applyRemote`.
   void Function(DeviceLocation? onMap)? onRemoteLocation;
 
+  /// Downloads the recording [mediaId] of clip [clipId] into the media
+  /// store when a clip is played and it isn't there (a clip fetched from
+  /// the cloud whose recording hasn't come down yet), and says whether it
+  /// did. Set by the app to `CloudSync.fetchRecording`.
+  Future<bool> Function(String clipId, String mediaId)? fetchMissingMedia;
+
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
 
@@ -672,20 +678,29 @@ class Persistence implements DeviceSettings {
           'Camera',
       before: Duration(milliseconds: record['beforeMs']! as int),
       after: Duration(milliseconds: record['afterMs']! as int),
-      past: _restoreMedia(media, record['past']),
-      full: _restoreMedia(media, record['full']),
+      past: _restoreMedia(media, record['id']! as String, record['past']),
+      full: _restoreMedia(media, record['id']! as String, record['full']),
       thumbnail: _bytes(record['thumbnail']),
       supported: record['supported'] as bool? ?? true,
       error: record['state'] == _ClipWriter.failed ? 'Recording failed' : null,
     );
   }
 
-  ClipMedia? _restoreMedia(MediaStore media, Object? ref) {
+  ClipMedia? _restoreMedia(MediaStore media, String clipId, Object? ref) {
     if (ref is! Map) return null;
     final mediaId = ref['mediaId']! as String;
     final mimeType = ref['mimeType'] as String? ?? ClipMedia.defaultMimeType;
     return ClipMedia.stored(
-      load: () => media.load(mediaId, mimeType),
+      // Not here yet (fetched from the cloud without it): downloaded now.
+      load: () async {
+        try {
+          return await media.load(mediaId, mimeType);
+        } catch (_) {
+          final fetch = fetchMissingMedia;
+          if (fetch == null || !await fetch(clipId, mediaId)) rethrow;
+          return media.load(mediaId, mimeType);
+        }
+      },
       start: Duration(milliseconds: ref['startMs']! as int),
       end: Duration(milliseconds: ref['endMs']! as int),
       mimeType: mimeType,

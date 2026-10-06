@@ -231,6 +231,10 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   bool _waiting = false;
   bool _loadFailed = false;
 
+  /// Getting the recording ready: downloading it from the cloud when it
+  /// hasn't come down yet.
+  bool _loading = false;
+
   VideoClip get _clip => widget.clip;
 
   @override
@@ -280,6 +284,8 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       _current = media;
       _onFull = onFull;
       _waiting = false;
+      _loading = true;
+      _loadFailed = false;
     });
     final VideoPlayerController controller;
     try {
@@ -288,9 +294,15 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       await controller.initialize();
       _path = path;
     } catch (_) {
-      if (mounted && _current == media) setState(() => _loadFailed = true);
+      if (mounted && _current == media) {
+        setState(() {
+          _loading = false;
+          _loadFailed = true;
+        });
+      }
       return;
     }
+    if (mounted && _current == media) setState(() => _loading = false);
     if (!mounted || _current != media) {
       controller.dispose();
       return;
@@ -429,6 +441,11 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
                   ),
                 ),
               ),
+            ),
+          if (_loading && !_loadFailed)
+            const Center(
+              key: Key('clip-loading'),
+              child: CircularProgressIndicator(color: Color(0xFFFABD2F)),
             ),
           if (_loadFailed)
             const Center(
