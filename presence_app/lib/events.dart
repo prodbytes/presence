@@ -585,53 +585,93 @@ class _EventTimelineState extends State<EventTimeline> {
             : 'No events match "${_search.value.trim()}"',
       );
     }
-    return ListView.separated(
-      controller: _scroll,
-      padding: widget.padding,
-      itemCount: events.length,
-      separatorBuilder: (context, i) => const SizedBox(height: 4),
-      itemBuilder: (context, i) {
-        final event = events[i];
-        final device = EventTimeline.deviceOf(event, widget.deviceId);
-        final card = KeyedSubtree(
-          key: _cards.putIfAbsent(event.id, GlobalKey.new),
-          child: device == null
-              ? event.buildCard(context)
-              // The device it was taken on, above the card: tapping it
-              // shows only that device's events.
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: EventDeviceTag(
-                        key: Key('event-device-${event.id}'),
-                        device: device,
-                        thisDevice: device == widget.deviceId,
-                        os: event.os,
-                        value: _filter,
+    // The cards' tags and subjects filter the search when tapped
+    // ([EventSearchScope]).
+    return EventSearchScope(
+      search: _search,
+      child: ListView.separated(
+        controller: _scroll,
+        padding: widget.padding,
+        itemCount: events.length,
+        separatorBuilder: (context, i) => const SizedBox(height: 4),
+        itemBuilder: (context, i) {
+          final event = events[i];
+          final device = EventTimeline.deviceOf(event, widget.deviceId);
+          final card = KeyedSubtree(
+            key: _cards.putIfAbsent(event.id, GlobalKey.new),
+            child: device == null
+                ? event.buildCard(context)
+                // The device it was taken on, above the card: tapping it
+                // shows only that device's events.
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: EventDeviceTag(
+                          key: Key('event-device-${event.id}'),
+                          device: device,
+                          thisDevice: device == widget.deviceId,
+                          os: event.os,
+                          value: _filter,
+                        ),
                       ),
-                    ),
-                    event.buildCard(context),
-                  ],
-                ),
-        );
-        if (event.id != _highlighted) return card;
-        return DecoratedBox(
-          key: const Key('event-highlight'),
-          position: DecorationPosition.foreground,
-          decoration: BoxDecoration(
-            border: Border.all(
-              color: Theme.of(context).colorScheme.primary,
-              width: 2,
+                      event.buildCard(context),
+                    ],
+                  ),
+          );
+          if (event.id != _highlighted) return card;
+          return DecoratedBox(
+            key: const Key('event-highlight'),
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary,
+                width: 2,
+              ),
+              borderRadius: BorderRadius.circular(12),
             ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: card,
-        );
-      },
+            child: card,
+          );
+        },
+      ),
     );
   }
+}
+
+/// Makes the Events search ([EventTimeline.search]) reachable from the
+/// cards in the timeline, and from the clip player opened from one, so a
+/// tapped tag or subject filters the events by it ([toggle]) and shows
+/// highlighted while it's the search ([isActive]). Cards shown outside a
+/// timeline have none; their labels keep their other actions.
+class EventSearchScope extends InheritedNotifier<ValueNotifier<String>> {
+  const EventSearchScope({
+    super.key,
+    required ValueNotifier<String> search,
+    required super.child,
+  }) : super(notifier: search);
+
+  /// The search, rebuilding [context] when it changes; null outside a
+  /// timeline.
+  static ValueNotifier<String>? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<EventSearchScope>()?.notifier;
+
+  /// The search, without rebuilding [context] when it changes (for event
+  /// handlers); null outside a timeline.
+  static ValueNotifier<String>? peek(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<EventSearchScope>()?.notifier;
+
+  /// Whether the search [query] is [label]: the tag or subject filtered by,
+  /// ignoring case and the spaces around them.
+  static bool isActive(String query, String label) {
+    final q = query.trim().toLowerCase();
+    return q.isNotEmpty && q == label.trim().toLowerCase();
+  }
+
+  /// A tapped tag or subject: searches for [label], or, already the search,
+  /// clears it.
+  static void toggle(ValueNotifier<String> search, String label) =>
+      search.value = isActive(search.value, label) ? '' : label.trim();
 }
 
 /// The texts the Events search looks in for [event]: its title and detail,

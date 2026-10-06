@@ -34,6 +34,28 @@
   - The text stays while switching tabs, but not across restarts.
   - **Opening an event the search hides** from elsewhere clears it, so the
     event can show (and the field folds back, unless it's focused).
+  - **Tapping a tag or subject filters by it.** In the timeline, tapping
+    a clip card's object tag (`cat`) or subject name (`Rex`), or one of
+    the chips under the player opened from a card (the event's detail),
+    sets the search to it, so only the events with it show; the field
+    opens with the text. From the player, it also closes, back on the
+    filtered list. That tag or subject then shows **highlighted** (filled
+    with the accent container color, accent outline, bold; marked selected
+    for screen readers) on every card shown, and in the player opened from
+    one, while the search is it (same text, ignoring case and spaces
+    around it). Tapping a highlighted one again, or clearing the search,
+    removes the filter and the highlight; tapping another one replaces it.
+    The cards reach the search through `EventSearchScope` (in
+    [lib/events.dart](../presence_app/lib/events.dart)), which the
+    timeline provides and `showClipPlayer` passes on to the player; cards
+    and players shown elsewhere (a subject's screen, the Camera tab) have
+    none and keep their labels' other actions. Their other actions move,
+    in the timeline: a **long press** on a card's label opens the player
+    where it was seen (a tap did before), and a **long press or right
+    click** on a subject's chip in the player renames them (a tap did
+    before); the tooltip, on hover, says "Show only events with cat" or
+    "Show every event" (and "hold to rename" on a subject's chip). Each
+    label's **x** still removes it. It fits a 320 dp phone.
   - **Counts.** Right after the search (icon or field), on its row, the count of events
     (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
     tooltip "2 of 12 events shown".

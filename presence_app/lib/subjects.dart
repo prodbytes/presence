@@ -210,13 +210,17 @@ class SubjectsMap extends StatelessWidget {
 /// The **Subjects** (named people and pets) tagged on [event], once each,
 /// in tag order: a square of each one's color and their name (on the
 /// event's card), and an x that removes the subject's tags from the clip.
+/// In a timeline ([EventSearchScope]) a click on a name filters the events
+/// by it (again, clears the filter), highlighting it while it's the search;
+/// a long press opens the player ([onOpenAt]).
 class EventSubjects extends StatelessWidget {
   const EventSubjects({super.key, required this.event, this.onOpenAt});
 
   final ClipRequested event;
 
-  /// Called when a name is clicked, with the earliest frame that subject is
-  /// tagged on (null for tags without a frame).
+  /// Called when a name is clicked (long pressed in a timeline), with the
+  /// earliest frame that subject is tagged on (null for tags without a
+  /// frame).
   final void Function(Duration? at)? onOpenAt;
 
   @override
@@ -244,6 +248,8 @@ class EventSubjects extends StatelessWidget {
             ),
       ];
       if (tags.isEmpty) return const SizedBox.shrink();
+      final scheme = theme.colorScheme;
+      final search = EventSearchScope.maybeOf(context);
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Wrap(
@@ -252,46 +258,70 @@ class EventSubjects extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final t in tags)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  OpenAtLabel(
-                    key: Key('event-subject-${t.id}'),
-                    ms: t.ms,
-                    onOpenAt: onOpenAt,
-                    borderRadius: BorderRadius.circular(4),
+              if (search != null &&
+                      EventSearchScope.isActive(search.value, t.name)
+                      // Whether it's the search: highlighted.
+                      case final active)
+                Semantics(
+                  key: Key('event-subject-chip-${t.id}'),
+                  selected: search == null ? null : active,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: active ? scheme.primaryContainer : null,
+                      border: active ? Border.all(color: scheme.primary) : null,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      spacing: 6,
                       children: [
-                        SubjectSwatch(
-                          key: Key('event-subject-color-${t.id}'),
-                          color: Subject.colorOf(t.id),
-                          size: 12,
-                        ),
-                        Text(t.name, style: theme.textTheme.labelMedium),
-                        // Found by recognition, not tagged by someone.
-                        if (t.detected)
-                          Tooltip(
-                            message: 'Recognized automatically',
-                            child: Icon(
-                              Icons.auto_awesome,
-                              key: Key('event-subject-detected-${t.id}'),
-                              size: 14,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                        OpenAtLabel(
+                          key: Key('event-subject-${t.id}'),
+                          ms: t.ms,
+                          onOpenAt: onOpenAt,
+                          filter: t.name,
+                          borderRadius: BorderRadius.circular(4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 6,
+                            children: [
+                              SubjectSwatch(
+                                key: Key('event-subject-color-${t.id}'),
+                                color: Subject.colorOf(t.id),
+                                size: 12,
+                              ),
+                              Text(
+                                t.name,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: active
+                                      ? scheme.onPrimaryContainer
+                                      : null,
+                                  fontWeight: active ? FontWeight.bold : null,
+                                ),
+                              ),
+                              // Found by recognition, not tagged by someone.
+                              if (t.detected)
+                                Tooltip(
+                                  message: 'Recognized automatically',
+                                  child: Icon(
+                                    Icons.auto_awesome,
+                                    key: Key('event-subject-detected-${t.id}'),
+                                    size: 14,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
                           ),
+                        ),
+                        RemoveLabelButton(
+                          key: Key('event-subject-remove-${t.id}'),
+                          label: t.name,
+                          kind: 'subject',
+                          onRemove: () => event.annotations.removeName(t.name),
+                        ),
                       ],
                     ),
                   ),
-                  RemoveLabelButton(
-                    key: Key('event-subject-remove-${t.id}'),
-                    label: t.name,
-                    kind: 'subject',
-                    onRemove: () => event.annotations.removeName(t.name),
-                  ),
-                ],
-              ),
+                ),
           ],
         ),
       );

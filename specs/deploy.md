@@ -123,9 +123,11 @@ with an optional `tag` input, deploys that version to
   limited to `presence-rc-*`.
 - An administrator deploys that stack once (it creates IAM resources); the
   commands are in [presence_infra/README.md](../presence_infra/README.md).
-  It's deployed, but **not yet with live sync's IoT permissions**: an
-  administrator must run that command again before the next deploy, or it
-  fails creating the IoT policy (or looking up the endpoint).
+  It's deployed with live sync's IoT permissions (updated 2026-10-06,
+  after the `0.6.202610061801` deploys failed creating the IoT policy with
+  `iot:CreatePolicy` access denied; the re-run deploys passed). Run that
+  command again whenever `github-deploy.yaml` changes, before the next
+  deploy.
 - The repository uses GitHub's **immutable OIDC subject claims**
   (`use_immutable_subject`), so tokens identify it as
   `repo:prodbytes@<owner id>/presence@<repo id>:ref:…` rather than

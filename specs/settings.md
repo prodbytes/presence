@@ -91,8 +91,11 @@
   `flutter-run.sh`) pass it too, with Z the time they started. A bare
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
-- **The device and profile IDs, always**, under the version, as small and
-  quiet, one labelled line each, the IDs selectable to copy:
+- **The device and profile IDs, always**, under the version, quiet
+  (`onSurfaceVariant`) but a step larger than it (`bodyMedium`, 14 sp, the
+  version's `bodySmall` is 12 sp), one labelled line each, the IDs
+  selectable to copy. Each line wraps, so at 320 dp and a 2x system font
+  the ID moves under its label rather than overflowing:
   - **Device** `automatic_paranoid_gadget` (see [Devices, users and
     places](devices-users-places.md)), or *loading…* until it's known;
   - **Profile** `huge_wavy_darter`, the signed-in account's

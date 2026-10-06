@@ -291,4 +291,60 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('3 devices'), findsOneWidget);
   });
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('the profile and device IDs are larger, and fit 320 dp at '
+        '${scale}x text', (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final now = DateTime(2026, 10, 5, 12);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(320, 800),
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: Scaffold(
+              body: SingleChildScrollView(
+                child: ProfileDevices(
+                  profile: 'automatic_paranoid_axolotl',
+                  thisDevice: 'calm_sunny_radio_with_a_long_name',
+                  now: () => now,
+                  devices: [
+                    (
+                      id: 'calm_sunny_radio_with_a_long_name',
+                      os: 'Android',
+                      lastEvent: now,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      final text = Theme.of(tester.element(find.byType(ProfileDevices)))
+          .textTheme;
+      final profile = tester.widget<SelectableText>(
+        find.byKey(const Key('profile-id')),
+      );
+      expect(profile.style!.fontSize, text.titleMedium!.fontSize);
+      expect(profile.style!.fontSize, greaterThan(text.titleSmall!.fontSize!));
+      final device = find.byKey(
+        const Key('profile-device-id-calm_sunny_radio_with_a_long_name'),
+      );
+      final style = tester.widget<SelectableText>(device).style!;
+      expect(style.fontSize, text.bodyLarge!.fontSize);
+      expect(style.fontSize, greaterThan(text.bodyMedium!.fontSize!));
+      expect(tester.getTopRight(device).dx, lessThanOrEqualTo(320));
+      expect(find.text('this device'), findsOneWidget);
+      expect(
+        tester.getTopRight(find.text('this device')).dx,
+        lessThanOrEqualTo(320),
+      );
+    });
+  }
 }

@@ -3376,8 +3376,52 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        out of order (three 283s); they are back in merge order: 282 live
        sync, 283 the cooldown after any clip, 284 the Monitoring map, 285
        each event's OS.
+     - Deploy: the `0.6.202610061801` Deploy and Deploy RC runs failed
+       (`presence-identity` / `presence-rc-identity`: `LivePolicy` create,
+       `iot:CreatePolicy` access denied; both stacks rolled back). With the
+       user's go-ahead the `presence-github-deploy` stack was updated with
+       admin credentials (adding the IoT rights from #213), the runs were
+       re-run and both sites serve `0.6.202610061801`. Specs:
+       [Deploy](deploy.md), [Live sync](live-sync.md).
 
-287. **Opening All asks every device for a fresh grab.** (2026-10-06)
+
+287. **Larger device and profile ID text.** (2026-10-06)
+     - Asked: make the device ID and profile ID font size larger.
+     - Changed: in Settings, the Device and Profile lines under the
+       version went from `bodySmall` (12 sp) to `bodyMedium` (14 sp),
+       labels included. In the account sheet, the profile ID went from
+       `titleSmall` (14 sp) to `titleMedium` (16 sp) and each device ID
+       from the default `bodyMedium` (14 sp) to `bodyLarge` (16 sp). The
+       device ID and its "this device" label are now a `Wrap`, not a
+       `Row`, so at 320 dp with a 2x system font the label moves under
+       the ID instead of overflowing (it overflowed by 25 px before). New
+       tests check the sizes and the fit at 320 dp at 1x and 2x text.
+       Specs: [Settings](settings.md), [Sign-in](sign-in.md).
+
+
+288. **Tap a tag or subject to filter the events by it.** (2026-10-06)
+     - Asked: "When you click a tag or subject, on an event card or event
+       detail, highlight it and filter it on search."
+     - Changed: in the Monitoring tab's timeline, tapping a clip card's
+       object tag or subject name, or a tag or subject chip in the player
+       opened from a card, sets the events search to it (the field opens
+       with it, and only the events with it show); from the player it
+       also closes, back on the filtered list. While it's the search, that
+       tag or subject shows highlighted (accent container fill and
+       outline, bold, selected for screen readers) on every card shown and
+       in the player. Tapping it again, or clearing the search, removes
+       both. The labels' earlier tap actions move: a long press on a
+       card's label opens the player where it was seen, and a long press
+       or right click on a subject's chip in the player renames; the x
+       still removes. Cards and players outside the timeline (a subject's
+       screen, the Camera tab) are unchanged. New `EventSearchScope` in
+       `lib/events.dart`. New `tag_filter_test.dart` (7 tests, including
+       320 dp). 557 Flutter tests pass. Specs: [Events](events.md),
+       [Clips](clips.md), [Subjects](subjects.md),
+       [Subject recognition](recognition.md), [Monitoring](monitoring.md).
+
+
+289. **Opening All asks every device for a fresh grab.** (2026-10-06)
      - Asked: when the All mode starts, fire an event to the profile's
        event bus and get an updated grab on all devices.
      - Changed: the All mode is the Camera tab's view button's **All**
