@@ -1,5 +1,5 @@
-# Builds the app binaries with `make` (web, Android, iOS, Linux) and
-# publishes them as a GitHub release.
+# Builds the app binaries with `make` (web, Android, iOS, Linux, and the
+# Raspberry Pi camera kiosk .deb) and publishes them as a GitHub release.
 #
 # - Tag pushes matching *QA or *RC* (e.g. 1.2.0-QA, 1.2.0-RC1) release that
 #   tag as a prerelease; *GA tags (e.g. 1.2.0-GA) as the latest full
@@ -36,6 +36,8 @@ on:
       - .github/workflows/release.yml
       - Makefile
       - scripts/make.sh
+      - scripts/deb.sh
+      - packaging/**
       - scripts/dart-defines.sh
       - scripts/version.sh
       - version.X.txt
@@ -137,7 +139,9 @@ jobs:
           - target: linux
             name: linux-x64
             os: ubuntu-22.04
-          - target: linux
+          # arm64 also packages the bundle as the Raspberry Pi camera
+          # kiosk .deb (make deb builds the bundle, then packages it).
+          - target: deb
             name: linux-arm64
             os: ubuntu-22.04-arm
           - target: ios
@@ -160,7 +164,7 @@ jobs:
           java-version: "17"
 
       - name: Install Linux desktop build dependencies
-        if: matrix.target == 'linux'
+        if: matrix.target == 'linux' || matrix.target == 'deb'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
@@ -201,10 +205,16 @@ jobs:
             ios)
               ditto -c -k --keepParent ios/iphoneos/Runner.app "$dist/presence-$TAG-ios-unsigned.zip"
               ;;
-            linux)
+            linux | deb)
               bundle=(linux/*/release/bundle)
               arch="$(basename "$(dirname "$(dirname "${bundle[0]}")")")"
               tar -czf "$dist/presence-$TAG-linux-$arch.tar.gz" -C "$(dirname "${bundle[0]}")" bundle
+              if [[ "$TARGET" == deb ]]; then
+                debs=(deb/presence_*_"$arch".deb)
+                dpkg-deb --info "${debs[0]}"
+                dpkg-deb --contents "${debs[0]}" | grep -v '/opt/presence/bundle/data/flutter_assets/'
+                cp "${debs[0]}" "$dist/presence-$TAG-raspberrypi-$arch.deb"
+              fi
               ;;
           esac
           ls -l "$dist"

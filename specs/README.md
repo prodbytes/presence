@@ -110,6 +110,9 @@ their data.
   (watchdog, crash and boot restart) and log files on the phone
   (`devbox run android-pull`).
 - [iOS](ios.md): the native AVFoundation recording layer.
+- [Raspberry Pi camera](raspberry-pi.md): the `.deb` that runs Presence
+  full screen from boot (cage on tty1, the web app in Chromium, since the
+  native Linux app has no camera layer or Google sign-in yet).
 
 **Backend**
 

@@ -1,0 +1,14 @@
+#!/bin/sh
+# presence: on removal (not upgrade), turns the camera kiosk off and gives
+# the screen back to the desktop it replaced, if any.
+set -e
+
+if [ "$1" = remove ]; then
+  if [ -x /usr/sbin/presence-kiosk ]; then
+    /usr/sbin/presence-kiosk disable || true
+  else
+    systemctl disable presence-kiosk.service || true
+  fi
+fi
+
+exit 0

@@ -15,7 +15,12 @@
   - **iOS** uses a native Swift camera layer with the **same channel API**
     (`presence/cameras` + `presence/motion`), so the Dart side is shared
     with Android. See [iOS](ios.md).
-  - macOS and Linux have no camera implementation.
+  - macOS and Linux have no camera implementation: on Linux the
+    `presence/cameras` channel has no implementation (the camera screen
+    fails with a `MissingPluginException`), and `google_sign_in` has no
+    Linux implementation either. The [Raspberry Pi camera](raspberry-pi.md)
+    package therefore runs the **web app** in Chromium, which records from
+    USB webcams.
 
 **Feature parity:**
 

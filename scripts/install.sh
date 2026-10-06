@@ -11,9 +11,16 @@
 # release skip the download. Anywhere else, or if the native app can't be
 # downloaded or run, it opens the web app instead.
 #
+# With PRESENCE_KIOSK=1, on 64-bit Raspberry Pi OS (or Debian arm64) it
+# installs the camera kiosk .deb instead (with sudo), which runs Presence
+# full screen from every boot:
+#
+#   curl -fsSL https://sh.presence.nu01.com | PRESENCE_KIOSK=1 sh
+#
 # Environment:
-#   PRESENCE_TAG  release tag to run (default: the latest GA release)
-#   PRESENCE_WEB  set to 1 to skip the native app and open the web app
+#   PRESENCE_TAG    release tag to run (default: the latest GA release)
+#   PRESENCE_WEB    set to 1 to skip the native app and open the web app
+#   PRESENCE_KIOSK  set to 1 to install the Raspberry Pi camera kiosk .deb
 set -eu
 
 REPO=prodbytes/presence
@@ -68,6 +75,29 @@ sha256_of() {
   fi
 }
 
+# fetch <tag> <asset> <dir> [strict]: downloads the release asset into
+# <dir> and checks its sha256. Without the checksum it carries on, unless
+# strict.
+fetch() {
+  say "downloading $2"
+  if ! curl -fL --progress-bar -o "$3/$2" \
+    "https://github.com/$REPO/releases/download/$1/$2"; then
+    say "release $1 has no $2"
+    return 1
+  fi
+  want=$(asset_sha256 "$1" "$2")
+  if [ -z "$want" ]; then
+    if [ -n "${4:-}" ]; then
+      say "couldn't get the checksum from GitHub to verify $2; try again later"
+      return 1
+    fi
+    say "couldn't get the checksum from GitHub; not verified"
+  elif [ "$(sha256_of "$3/$2")" != "$want" ]; then
+    say "checksum mismatch for $2"
+    return 1
+  fi
+}
+
 # Downloads and extracts the bundle into $1 unless it's already there.
 install_native() {
   dir=$1 tag=$2 arch=$3
@@ -75,21 +105,10 @@ install_native() {
   asset="presence-$tag-linux-$arch.tar.gz"
   mkdir -p "$(dirname "$dir")"
   tmp=$(mktemp -d "$dir.XXXXXX")
-  say "downloading $asset"
-  if ! curl -fL --progress-bar -o "$tmp/$asset" \
-    "https://github.com/$REPO/releases/download/$tag/$asset"; then
+  fetch "$tag" "$asset" "$tmp" || {
     rm -rf "$tmp"
-    say "release $tag has no $asset"
     return 1
-  fi
-  want=$(asset_sha256 "$tag" "$asset")
-  if [ -z "$want" ]; then
-    say "couldn't get the checksum from GitHub; not verified"
-  elif [ "$(sha256_of "$tmp/$asset")" != "$want" ]; then
-    rm -rf "$tmp"
-    say "checksum mismatch for $asset"
-    return 1
-  fi
+  }
   tar -xzf "$tmp/$asset" -C "$tmp" && rm -f "$tmp/$asset" || {
     rm -rf "$tmp"
     return 1
@@ -127,11 +146,57 @@ run_native() {
   }
 }
 
+is_raspberry_pi() {
+  grep -q 'Raspberry Pi' /proc/device-tree/model 2>/dev/null
+}
+
+# Installs the camera kiosk .deb with apt (as root, through sudo): Presence
+# full screen on tty1 from every boot. The checksum must match, since it
+# installs as root.
+install_kiosk() {
+  tag=$1
+  if [ "$(linux_arch)" != arm64 ] || ! command -v apt-get >/dev/null 2>&1; then
+    say "the camera kiosk is for 64-bit Raspberry Pi OS (or Debian arm64) with apt"
+    return 1
+  fi
+  asset="presence-$tag-raspberrypi-arm64.deb"
+  tmp=$(mktemp -d)
+  # apt reads the file as its _apt user.
+  chmod 755 "$tmp"
+  if ! fetch "$tag" "$asset" "$tmp" strict; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  chmod 644 "$tmp/$asset"
+  sudo=
+  [ "$(id -u)" = 0 ] || sudo=sudo
+  say "installing $asset (apt-get install)"
+  status=0
+  $sudo apt-get install -y "$tmp/$asset" || status=$?
+  rm -rf "$tmp"
+  return "$status"
+}
+
 main() {
   arch=$(linux_arch)
   if [ "${PRESENCE_WEB:-}" = 1 ]; then
     open_web
     return
+  fi
+  if [ "${PRESENCE_KIOSK:-}" = 1 ]; then
+    tag=${PRESENCE_TAG:-$(latest_tag)}
+    case "$tag" in
+      "" | *[!A-Za-z0-9._-]*)
+        say "couldn't find the latest release"
+        return 1
+        ;;
+    esac
+    install_kiosk "$tag"
+    return
+  fi
+  if [ "$arch" = arm64 ] && is_raspberry_pi; then
+    say "tip: to make this Raspberry Pi a camera that starts at boot, run"
+    say "  curl -fsSL https://sh.presence.nu01.com | PRESENCE_KIOSK=1 sh"
   fi
   if [ -z "$arch" ]; then
     say "no native build for $(uname -s) $(uname -m)"

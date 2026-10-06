@@ -2,8 +2,9 @@
 # Builds the app binaries. Run through the Makefile (`make`, `make web`, ...)
 # or directly: `bash scripts/make.sh <target>...`.
 #
-# Targets: web, android, ios, linux, all (every platform this host can
-# build), clean. Settings, from the environment or `make VAR=value`:
+# Targets: web, android, ios, linux, deb (the Linux bundle as the camera
+# kiosk .deb for Raspberry Pi OS; Linux only), all (every platform this host
+# can build; not deb), clean. Settings, from the environment or `make VAR=value`:
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
@@ -35,7 +36,7 @@ BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER" "${DART_DEFIN
 can_build() {
   case "$1" in
     ios) [[ "$(uname -s)" == Darwin ]] ;;
-    linux) [[ "$(uname -s)" == Linux ]] ;;
+    linux | deb) [[ "$(uname -s)" == Linux ]] ;;
     *) return 0 ;;
   esac
 }
@@ -68,13 +69,27 @@ build() {
       flutter build linux "--$MODE" "${BUILD_ARGS[@]}"
       echo "==> linux: presence_app/build/linux/*/$MODE/bundle/"
       ;;
+    deb)
+      # The bundle just built, packaged by scripts/deb.sh as
+      # build/deb/presence_<version>_<arch>.deb.
+      flutter build linux "--$MODE" "${BUILD_ARGS[@]}"
+      local bundles=(build/linux/*/"$MODE"/bundle)
+      local arch
+      case "$(basename "$(dirname "$(dirname "${bundles[0]}")")")" in
+        arm64) arch=arm64 ;;
+        x64) arch=amd64 ;;
+        *) echo "error: no Linux bundle in build/linux/" >&2; return 1 ;;
+      esac
+      bash ../scripts/deb.sh "${bundles[0]}" "$VERSION" \
+        "build/deb/presence_${VERSION}_$arch.deb" "$arch"
+      ;;
   esac
 }
 
 [[ $# -gt 0 ]] || set -- all
 for arg in "$@"; do
   case "$arg" in
-    web | android | ios | linux) build "$arg" ;;
+    web | android | ios | linux | deb) build "$arg" ;;
     all)
       for target in web android ios linux; do
         if can_build "$target"; then
@@ -85,6 +100,6 @@ for arg in "$@"; do
       done
       ;;
     clean) flutter clean ;;
-    *) echo "error: unknown target '$arg' (web, android, ios, linux, all, clean)" >&2; exit 2 ;;
+    *) echo "error: unknown target '$arg' (web, android, ios, linux, deb, all, clean)" >&2; exit 2 ;;
   esac
 done

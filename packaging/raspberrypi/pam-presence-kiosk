@@ -1,0 +1,5 @@
+# PAM for presence-kiosk.service: opens a logind session (seat0, tty1) for
+# the presence system user. No authentication: systemd starts the service.
+account  required pam_unix.so
+session  required pam_unix.so
+session  required pam_systemd.so

@@ -3084,3 +3084,38 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter build web` are clean.
      - Specs: [Clips](clips.md), [Subject recognition](recognition.md),
        [Subjects](subjects.md), [Event flags](event-flags.md).
+280. **A Raspberry Pi package that boots into a camera.** (2026-10-06)
+     - Asked: a new build target, a package to install on a Raspberry Pi,
+       after which Presence starts on boot and works as a camera, easily;
+       then, in the same change, a README section on installing and
+       starting it.
+     - Found: the native Linux app can't be a camera. The
+       `presence/cameras` channel has no Linux implementation (the camera
+       screen fails with a `MissingPluginException`), and `google_sign_in`
+       has no Linux implementation (no sign-in, no sync). So the package
+       runs the **web app** in Chromium, which records from USB webcams.
+     - Changed: `make deb` ([scripts/deb.sh](../scripts/deb.sh),
+       [packaging/raspberrypi/](../packaging/raspberrypi)) packages the
+       Linux bundle as a `.deb`; the release workflow's linux-arm64 job
+       runs it and uploads `presence-<tag>-raspberrypi-arm64.deb`. It
+       installs the bundle in `/opt/presence`, a `presence` system user
+       (`video`, `audio`, `render`), and `presence-kiosk.service`: cage on
+       tty1 showing Chromium `--kiosk` (profile in `/var/lib/presence`, so
+       sign-in survives reboots), `Restart=always`, no keyboard needed, a
+       headless output without a screen; a Chromium policy allows the
+       camera and mic for Presence's origins. Fresh installs start it
+       unless a desktop is enabled; `sudo presence-kiosk enable|disable`
+       swaps the desktop out and back. Upgrades keep a disabled kiosk off;
+       purge deletes its data. The install script installs it with
+       `PRESENCE_KIOSK=1` (checksum required) and prints a tip on a Pi.
+       The README's "Raspberry Pi" section covers what you need, install,
+       first setup and sign-in, start/stop/logs and uninstall.
+     - Verified in Debian 12 arm64 containers: build, `apt install`
+       (dependencies resolve), `systemd-analyze verify`, shellcheck, the
+       install/upgrade/remove/purge and desktop paths, and the kiosk
+       itself under headless cage: the web app loads, the camera is
+       granted with no prompt, and after I agree the feed shows. Not yet
+       run on a real Pi.
+     - Specs: [Raspberry Pi camera](raspberry-pi.md) (new),
+       [Release builds](release.md), [Platforms](platforms.md),
+       [Install script](install-script.md).
