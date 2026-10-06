@@ -47,4 +47,10 @@ Dart package name (`presence_app`):
 - **Linux:** the window and header bar titles. The binary (`presence_app`)
   and application ID keep the package name: the install script runs the
   bundle's `presence_app`.
-- **In the app:** `MaterialApp.title`.
+- **In the app:** `MaterialApp.title` (`AppVersion.title`).
+- **On the RC site** (rc.presence.nu01.com) the name is marked: the tab
+  title, `index.html`'s `<title>` and the manifest's `name` are
+  **"🧪 Presence RC"** (`short_name` "Presence RC"). The RC deploy builds
+  with `PRESENCE_STAGE=rc` (compiled in, `AppVersion.stage`) and rewrites
+  the built `index.html` and `manifest.json`, so the tab is marked even
+  before the app starts. Production and other builds keep "Presence".

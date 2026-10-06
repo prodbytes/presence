@@ -423,7 +423,7 @@ class _PresenceAppState extends State<PresenceApp> {
       child: SubjectRecognizerScope(
         recognizer: _recognizer,
         child: MaterialApp(
-          title: 'Presence',
+          title: AppVersion.title,
           debugShowCheckedModeBanner: false,
           theme: gruvboxSoftDarkTheme(),
           home: switch (_consented) {

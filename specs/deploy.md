@@ -76,7 +76,9 @@ with an optional `tag` input, deploys that version to
 - **Its own icons:** after building, the RC deploy copies
   `presence_app/web_rc/` (favicon and app icons with a huge "RC" on red;
   see [App icon](app-icon.md)) over the web build, so its browser tabs
-  look different from production's.
+  look different from production's, and titles the app **"🧪 Presence
+  RC"** (the build's `PRESENCE_STAGE=rc`, and the built `index.html` and
+  `manifest.json` rewritten).
 - **Per-stage templates:** `user-data.yaml` exports
   `${AWS::StackName}-bucket(-arn)`, and `identity.yaml` imports its bucket
   by `UserDataStackName` and names the pool `IdentityPoolName`. The defaults
