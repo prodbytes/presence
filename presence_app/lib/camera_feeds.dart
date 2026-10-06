@@ -251,8 +251,68 @@ class CameraRig extends ChangeNotifier {
     }
   }
 
-  /// Lists the cameras and opens the default one: the first back camera, or
-  /// else the first camera (on web, the browser's default).
+  /// The camera to open at launch: the one last picked with Flip
+  /// ([CameraConfig.chosen]) if the device still has it, else the default
+  /// camera ([defaultCamera]); null with no cameras.
+  ///
+  /// The remembered camera is found by its ID, else (the ID changed, e.g.
+  /// a browser that forgot its device IDs) by its label and facing, else by
+  /// its facing where known (another front camera for a lost front one).
+  static CameraDevice? startCamera(
+    List<CameraDevice> devices,
+    ChosenCamera? chosen,
+  ) {
+    if (devices.isEmpty) return null;
+    if (chosen != null) {
+      final facing = CameraFacing.values.asNameMap()[chosen.facing];
+      for (final match in <bool Function(CameraDevice)>[
+        (d) => d.id == chosen.id,
+        (d) =>
+            chosen.label.isNotEmpty &&
+            d.label == chosen.label &&
+            d.facing == facing,
+        (d) =>
+            facing != null &&
+            facing != CameraFacing.unknown &&
+            d.facing == facing,
+      ]) {
+        for (final d in devices) {
+          if (match(d)) return d;
+        }
+      }
+    }
+    return defaultCamera(devices);
+  }
+
+  /// The first back camera, or else the first camera (on web, the
+  /// browser's default, which it lists first).
+  static CameraDevice defaultCamera(List<CameraDevice> devices) =>
+      devices.firstWhere(
+        (d) => d.facing == CameraFacing.back,
+        orElse: () => devices.first,
+      );
+
+  /// The remembered camera the rig last opened for, so a new one in the
+  /// settings (restored late, or from the cloud) switches to it.
+  ChosenCamera? _appliedChosen;
+
+  /// Opens the remembered camera when the settings name a different one
+  /// than the rig last applied (e.g. restored after the cameras opened).
+  Future<void> _applyChosen() async {
+    final chosen = config.camera.chosen;
+    if (chosen == _appliedChosen || _devices.isEmpty) return;
+    _appliedChosen = chosen;
+    final device = startCamera(_devices, chosen);
+    if (device == null || device == _current) return;
+    debugPrint('Presence: opening the remembered camera ${device.label}');
+    _current = device;
+    await _closeActive();
+    await _openCurrent();
+  }
+
+  /// Lists the cameras and opens the one last picked with Flip, or else the
+  /// default one: the first back camera, or else the first camera (on web,
+  /// the browser's default). See [startCamera].
   Future<void> load() async {
     _scheduleTimer ??= Timer.periodic(scheduleCheck, (_) => _checkSchedule());
     await _closeActive();
@@ -266,17 +326,16 @@ class CameraRig extends ChangeNotifier {
       return;
     }
     if (_disposed) return;
-    _current = _devices.isEmpty
-        ? null
-        : _devices.firstWhere(
-            (d) => d.facing == CameraFacing.back,
-            orElse: () => _devices.first,
-          );
+    _appliedChosen = config.camera.chosen;
+    _current = startCamera(_devices, _appliedChosen);
     await _openCurrent();
+    // The settings named another camera while this one opened.
+    if (!_disposed && !_busy) await _applyChosen();
   }
 
   /// Switches to the next camera: the other facing where the device knows
-  /// it (back ↔ front), otherwise the next one in the list.
+  /// it (back ↔ front), otherwise the next one in the list. The choice is
+  /// kept in the settings ([CameraConfig.chosen]), so a restart reopens it.
   Future<void> flip() async {
     final current = _current;
     if (!canFlip || current == null) return;
@@ -285,14 +344,23 @@ class CameraRig extends ChangeNotifier {
       for (var i = 1; i < _devices.length; i++)
         _devices[(start + i) % _devices.length],
     ];
-    _current = current.facing == CameraFacing.unknown
+    final next = current.facing == CameraFacing.unknown
         ? ordered.first
         : ordered.firstWhere(
             (d) => d.facing != current.facing,
             orElse: () => ordered.first,
           );
+    _current = next;
+    final chosen = ChosenCamera(
+      id: next.id,
+      label: next.label,
+      facing: next.facing.name,
+    );
+    _appliedChosen = chosen;
+    config.update((c) => c.copyWith(camera: c.camera.copyWith(chosen: chosen)));
     await _closeActive();
     await _openCurrent();
+    if (!_disposed && !_busy) await _applyChosen();
   }
 
   Future<void> _openCurrent() async {
@@ -360,6 +428,8 @@ class CameraRig extends ChangeNotifier {
   /// [brightnessRestartDelay]); it's applied live meanwhile.
   void _onConfigChanged() {
     _applyPaused();
+    // While a camera opens, [load] or [flip] applies it once it's open.
+    if (!_busy) _applyChosen();
     final ev = config.camera.brightness;
     if (_active == null || ev == _appliedBrightness) return;
     _applyBrightness();

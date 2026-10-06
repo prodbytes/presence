@@ -164,6 +164,7 @@ class CameraConfig {
   const CameraConfig({
     this.brightness = defaultBrightness,
     this.paused = false,
+    this.chosen,
   });
 
   static const double minBrightness = -2;
@@ -180,32 +181,87 @@ class CameraConfig {
   /// nothing, until they press Play, across restarts too.
   final bool paused;
 
-  CameraConfig copyWith({double? brightness, bool? paused}) => CameraConfig(
+  /// The camera last picked with Flip, reopened at launch (null: the
+  /// default camera). Kept in this device's settings, never another's.
+  final ChosenCamera? chosen;
+
+  CameraConfig copyWith({
+    double? brightness,
+    bool? paused,
+    ChosenCamera? chosen,
+  }) => CameraConfig(
     brightness: (brightness ?? this.brightness)
         .clamp(minBrightness, maxBrightness)
         .toDouble(),
     paused: paused ?? this.paused,
+    chosen: chosen ?? this.chosen,
   );
 
   Map<String, Object?> toJson() => {
     'brightnessEv': brightness,
     'paused': paused,
+    'chosen': ?chosen?.toJson(),
   };
 
   factory CameraConfig.fromJson(Map<String, Object?> json) =>
       const CameraConfig().copyWith(
         brightness: _num(json['brightnessEv']),
         paused: json['paused'] == true,
+        chosen: ChosenCamera.fromJson(json['chosen']),
       );
 
   @override
   bool operator ==(Object other) =>
       other is CameraConfig &&
       other.brightness == brightness &&
-      other.paused == paused;
+      other.paused == paused &&
+      other.chosen == chosen;
 
   @override
-  int get hashCode => Object.hash(brightness, paused);
+  int get hashCode => Object.hash(brightness, paused, chosen);
+}
+
+/// A camera of this device, remembered across restarts: the camera
+/// backend's [id] (on Android the camera's ID, on web the browser's device
+/// ID), with its [label] and [facing] (`back`, `front` or `unknown`) to find
+/// it again if the ID changed.
+@immutable
+class ChosenCamera {
+  const ChosenCamera({
+    required this.id,
+    required this.label,
+    this.facing = 'unknown',
+  });
+
+  final String id;
+  final String label;
+  final String facing;
+
+  Map<String, Object?> toJson() => {'id': id, 'label': label, 'facing': facing};
+
+  /// Null when [json] isn't a camera (missing, or damaged).
+  static ChosenCamera? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'];
+    if (id is! String || id.isEmpty) return null;
+    final label = json['label'];
+    final facing = json['facing'];
+    return ChosenCamera(
+      id: id,
+      label: label is String ? label : '',
+      facing: facing is String ? facing : 'unknown',
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChosenCamera &&
+      other.id == id &&
+      other.label == label &&
+      other.facing == facing;
+
+  @override
+  int get hashCode => Object.hash(id, label, facing);
 }
 
 /// Automatic clips when the picture moves.

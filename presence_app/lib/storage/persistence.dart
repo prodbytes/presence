@@ -68,6 +68,10 @@ class Persistence implements DeviceSettings {
   /// to compare them with the cloud's).
   final _configLoaded = Completer<void>();
 
+  /// Completes once the saved settings are loaded (or failed to load), so
+  /// the cameras open with them: the camera picked last time, paused or not.
+  Future<void> get configLoaded => _configLoaded.future;
+
   /// Set while settings from the cloud are applied, which isn't a change
   /// by the user.
   bool _applyingRemote = false;

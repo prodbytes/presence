@@ -303,8 +303,32 @@ class _PresenceAppState extends State<PresenceApp> {
     }
     if (!mounted) return;
     setState(() => _consented = given);
-    if (given) _rig.load();
+    if (given) _openCameras();
   }
+
+  /// Opens the cameras once the saved settings are loaded, so the camera
+  /// picked with Flip last time opens first, not the default one. Storage
+  /// that never answers mustn't keep the camera closed: after a few seconds
+  /// it opens anyway (and switches when the settings arrive).
+  void _openCameras() {
+    var opened = false;
+    void open() {
+      if (opened || !mounted) return;
+      opened = true;
+      _settingsWait?.cancel();
+      _rig.load();
+    }
+
+    _settingsWait?.cancel();
+    _settingsWait = Timer(const Duration(seconds: 5), () {
+      debugPrint('Presence: settings still loading; opening the camera');
+      open();
+    });
+    _persistence.configLoaded.then((_) => open());
+  }
+
+  /// The longest [_openCameras] waits for the saved settings.
+  Timer? _settingsWait;
 
   /// The user agreed on the consent screen: saved once, never asked again
   /// on this device. If saving fails, this session goes on and the next
@@ -326,7 +350,7 @@ class _PresenceAppState extends State<PresenceApp> {
       ),
     );
     setState(() => _consented = true);
-    _rig.load();
+    _openCameras();
   }
 
   /// The profile whose events were last claimed; null signed out.
@@ -372,6 +396,7 @@ class _PresenceAppState extends State<PresenceApp> {
 
   @override
   void dispose() {
+    _settingsWait?.cancel();
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();
     _sync?.dispose();
