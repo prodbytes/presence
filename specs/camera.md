@@ -2,7 +2,7 @@
 
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
   With the All grid showing, it asks every device for one
-  ([Capture all](#capture-all) below).
+  ([Capture all](#capture-all) below), as opening the grid does.
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`), so they stay open, and keep recording, across rebuilds.
@@ -81,29 +81,66 @@ profile (`CameraFeedsView.showAll`,
 - **Layout:** the columns that give the biggest 16:9 cells
   (`gridColumns`); the cells fill the screen below the app bar and above
   the buttons (88 px kept clear), 1 px apart.
+- **Opening the grid asks for fresh grabs:** entering All (One → All)
+  sends a [Capture all](#capture-all) request, so every other device of
+  the profile takes a clip and the grid soon shows what each sees now,
+  not its last clip. The message pill says "Asked N devices for a fresh
+  grab…" ("Asked every device for a fresh grab" when the grid has no
+  other device yet), and each cell whose image is older than the request
+  shows a small spinner, top right (tooltip "Asked for a fresh grab"),
+  until a newer image arrives, for at most **90 s**
+  (`CameraFeedsView.refreshingSince`, `HomeScreen.refreshingFor`).
+  Only signed in with cloud sync (none in DEV), which carries it, and at
+  most **once a minute** (see Capture all).
 - The grid and the camera alone are the same widget tree, so switching
   never rebuilds or reopens the camera's preview, and recording goes on.
 - Tests: `camera_all_test.dart` (which devices and images, the grid's
-  places, the same preview across switches, the button) and
+  places, the same preview across switches, the button, the spinner on
+  older images while asked for fresh ones) and
   `camera_pause_test.dart` (the view button's cycle, the camera closed and
   no clips while off, Turn on, the setting kept).
 
 ## Capture all
 
-**Clip with the All grid showing takes a clip on every device**, so the
-grid soon shows each one's current picture, not its last clip:
+**Opening the All grid, or Clip with it showing, takes a clip on every
+device**, so the grid soon shows each one's current picture, not its last
+clip. The "grab" each device takes is a clip (its thumbnail is the grid's
+image), the same as for any other clip: the grid, cloud sync and live
+sync all carry clips, and a still-only grab would need its own record
+everywhere.
 
-- **On this device:** the press publishes a **Capture all** event
-  (`AppEvent.captureAll`, type `capture_all`, grid icon) and takes this
-  camera's clip with trigger `all` (title "Capture all"; the message pill
-  says "Capture all · saving the next 10 s").
-- **On the others:** the event uploads with the next [cloud
-  sync](cloud-sync.md) pass (0.5 s later). Each other device of the
-  profile fetches it with its next pass (within 15 s) and, if it came from
-  another device and is under **5 minutes** old
-  (`CameraRig.captureAllWithin`), takes a clip of its own on its open
-  camera, trigger `all` (`CameraRig.answerCaptureAll`). Several requests
-  in one fetch make one clip. A device without an open camera skips it.
+- **The request:** a **Capture all** event (`AppEvent.captureAll`, type
+  `capture_all`, grid icon), published on the device's event bus by
+  `CameraRig.askAll` when the grid opens (signed in with cloud sync) or
+  Clip is pressed with it showing. **At most one a minute** per device
+  (`CameraRig.askAllEvery`): opening the grid again, or pressing Clip in
+  it, within a minute of the last request asks nothing more (Clip still
+  takes this camera's clip).
+- **On this device:** opening the grid takes no clip (this camera's cell
+  is live). Clip takes this camera's clip with trigger `all` (title
+  "Capture all"; the message pill says "Capture all · saving the next
+  10 s").
+- **How it travels:** like any event. It uploads with the next [cloud
+  sync](cloud-sync.md) pass (0.5 s later) and, right after its upload,
+  [live sync](live-sync.md) publishes it on the profile's `events` topic
+  when connected, so the other devices get it **within a second**; with
+  live sync off or disconnected (local Floci, no `IOT_ENDPOINT`, Never,
+  a drop), each gets it from the bucket with its next pass (within
+  15 s). No new topic or permission: the `requests` topic stays reserved
+  for live sync's phase 2.
+- **On the others:** each other device of the profile, if the request
+  came from another device and is within **5 minutes** of its clock
+  either way (`CameraRig.captureAllWithin`), takes a clip of its own on
+  its open camera, trigger `all` (`CameraRig.answerCaptureAll`). A
+  request is answered **once**, however it arrives: cloud sync hands a
+  live event over once and doesn't download it again from the bucket,
+  and the rig also remembers the request IDs it has seen (the latest
+  200). Several requests make one clip: those in one fetch, and any
+  within **30 s** of the device's last Capture all clip
+  (`CameraRig.answerAllEvery`), which is fresh enough (two devices
+  opening their grids together). A device without an open camera (off,
+  or none) skips it. Received requests were validated as any live or
+  bucket event is (the profile's own folder or topic, safe IDs, size).
 - Like any clip, a Capture all clip (asked here or answered) isn't held
   back by the cooldown but starts it on that device: its readiness pill
   counts down, and its motion and scheduled clips wait for the end
@@ -113,14 +150,20 @@ grid soon shows each one's current picture, not its last clip:
   in all.
 - **Without the grid** (the default), Clip only takes this camera's clip,
   trigger `manual`, and nothing is asked of other devices.
-- Requests only travel through cloud sync, so they need a signed-in
-  `presence_user` on both ends; in DEV, or with sync off, Capture all only
-  clips this camera. Requests restored from storage, or fetched when
-  older than 5 minutes (a device that was off), aren't answered.
-- Tests: `capture_all_test.dart` (alone, only a manual clip; with All, the
-  request and an `all` clip upload; another device's fetched request takes
-  one clip here; not this device's own, an old one, or other events; the
-  request survives storage and counts as a grab).
+- Requests only travel through cloud sync (and live sync), so they need a
+  signed-in `presence_user` on both ends; in DEV, or with sync off,
+  Capture all only clips this camera, and opening the grid asks nothing.
+  Requests restored from storage, or fetched when older than 5 minutes (a
+  device that was off), aren't answered.
+- Tests: `capture_all_test.dart` (alone, only a manual clip; with All, one
+  request and an `all` clip upload; opening All asks once, not again
+  within a minute, then again, with live sync off, and takes no clip
+  here; another device's fetched request takes one clip here; one over
+  live sync, delivered twice, takes one clip, and its copy in the bucket
+  no other; not this device's own, an old or far-future one, or other
+  events; the same request twice makes one clip; requests within 30 s
+  make one, a later one another; `askAll`'s minute; the request survives
+  storage and counts as a grab).
 
 ## Known limitations
 
@@ -130,8 +173,14 @@ grid soon shows each one's current picture, not its last clip:
   picture: how old it is depends on its clips (scheduled ones every 180
   minutes by default, motion, Clip presses, or a [Capture
   all](#capture-all)).
-- Capture all reaches devices only through cloud sync, so a device that's
-  closed, offline for over 5 minutes, or signed out never answers it, and
-  the asking device isn't told which devices did. Its 5-minute window
-  compares the device clocks, so a clock far off can make a device answer
-  late or not at all.
+- Capture all reaches devices only through cloud sync (live sync makes it
+  faster), so a device that's closed, offline for over 5 minutes, or
+  signed out never answers it, and the asking device isn't told which
+  devices did: the grid's spinners stop after 90 s either way. Its
+  5-minute window compares the device clocks, so a clock far off can make
+  a device answer late or not at all, and a cell's spinner compares the
+  other device's clip time with this device's request time.
+- Each answer is a full clip (with its recording uploaded) and starts the
+  answering device's cooldown, so opening the grid often costs clips:
+  once a minute per asking device at most, and once per 30 s per
+  answering device.

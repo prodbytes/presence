@@ -3419,3 +3419,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        320 dp). 557 Flutter tests pass. Specs: [Events](events.md),
        [Clips](clips.md), [Subjects](subjects.md),
        [Subject recognition](recognition.md), [Monitoring](monitoring.md).
+
+
+289. **Opening All asks every device for a fresh grab.** (2026-10-06)
+     - Asked: when the All mode starts, fire an event to the profile's
+       event bus and get an updated grab on all devices.
+     - Changed: the All mode is the Camera tab's view button's **All**
+       grid. Entering it (One → All) now sends a Capture all request
+       (`CameraRig.askAll`), as Clip in the grid already did, so each
+       other device of the profile takes a clip (trigger `all`) and the
+       grid shows what it sees now. The request rides the existing paths:
+       it uploads to the bucket and live sync publishes it on the
+       profile's `events` topic when connected (within a second), or the
+       others get it from the bucket (within 15 s) with live sync off; no
+       new topic or IoT permission. At most one request a minute per
+       device (`askAllEvery`; Clip in the grid shares it); an answering
+       device takes one clip per 30 s at most (`answerAllEvery`),
+       answers each request ID once (MQTT and bucket copies), and ignores
+       one dated over 5 min ahead. Opening the grid takes no clip here
+       (the camera's cell is live) and asks nothing in DEV or without
+       cloud sync. The message pill says "Asked N devices for a fresh
+       grab…" and each cell with an older image shows a spinner until a
+       newer one arrives (at most 90 s). New tests: opening All asks once
+       a minute with live sync off; a request over live sync, delivered
+       twice and then listed from the bucket, takes one clip; duplicate,
+       close-together and far-future requests; `askAll`'s minute; the
+       grid's spinners. 556 Flutter tests pass. Specs:
+       [Camera screen](camera.md), [Navigation](navigation.md),
+       [Live sync](live-sync.md).

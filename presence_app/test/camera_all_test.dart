@@ -112,7 +112,11 @@ void main() {
       bus.close();
     });
 
-    Future<void> show(WidgetTester tester, {required bool all}) async {
+    Future<void> show(
+      WidgetTester tester, {
+      required bool all,
+      DateTime? refreshingSince,
+    }) async {
       tester.view.physicalSize = const Size(1280, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -124,10 +128,33 @@ void main() {
             deviceId: 'this_device',
             profileId: 'user-1',
             showAll: all,
+            refreshingSince: refreshingSince,
           ),
         ),
       );
     }
+
+    testWidgets('asked for fresh grabs, a spinner on each older image', (
+      tester,
+    ) async {
+      // Asked 2 min before noon: the fox's image (3 min) is older, the
+      // owl's (1 min) newer.
+      await show(
+        tester,
+        all: true,
+        refreshingSince: DateTime(2026, 10, 4, 11, 58),
+      );
+      expect(find.byKey(const Key('refreshing-brave_fox')), findsOneWidget);
+      expect(find.byKey(const Key('refreshing-zesty_owl')), findsNothing);
+
+      // A newer grab arrives: its spinner goes.
+      log.addHistory([clipOf('brave_fox')]);
+      await tester.pump();
+      expect(find.byKey(const Key('refreshing-brave_fox')), findsNothing);
+
+      await show(tester, all: true);
+      expect(find.byTooltip('Asked for a fresh grab'), findsNothing);
+    });
 
     testWidgets('this camera top left, then each device\'s latest image', (
       tester,

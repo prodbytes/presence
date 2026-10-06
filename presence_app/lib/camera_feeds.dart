@@ -586,6 +586,7 @@ class CameraRig extends ChangeNotifier {
     // The cooldown runs from when the clip is grabbed, before the awaits
     // below, so motion in the meantime doesn't take a second one.
     _lastClip = requestedAt;
+    if (trigger == ClipTrigger.all) _lastAllClip = requestedAt;
     _armCooldownWake();
     notifyListeners();
     final capture = camera.requestClip(before: before, after: after);
@@ -615,14 +616,59 @@ class CameraRig extends ChangeNotifier {
 
   /// How old a Capture all request from another device may be and still be
   /// answered: one fetched later (a device that was off or offline) is
-  /// past, and its clip wouldn't show the moment it asked for.
+  /// past, and its clip wouldn't show the moment it asked for. One dated
+  /// further than this ahead (a clock far off) isn't answered either.
   static const Duration captureAllWithin = Duration(minutes: 5);
 
+  /// The least time between two Capture all requests from this device
+  /// ([askAll]): opening the All grid again, or pressing Clip in it,
+  /// within it asks nothing more of the other devices.
+  static const Duration askAllEvery = Duration(minutes: 1);
+
+  /// The least time between two Capture all clips on this device
+  /// ([answerCaptureAll]): requests from several devices (or one that
+  /// arrives both over live sync and from the bucket) make one clip.
+  static const Duration answerAllEvery = Duration(seconds: 30);
+
+  /// When this device last asked the others for a grab ([askAll]).
+  DateTime? _askedAll;
+
+  /// When this device last took a Capture all clip (asked or answered).
+  DateTime? _lastAllClip;
+
+  /// The Capture all requests already seen ([answerCaptureAll]), by
+  /// event ID, so one is never answered twice; the latest
+  /// [_maxSeenRequests].
+  final _seenRequests = <String>{};
+  static const int _maxSeenRequests = 200;
+
+  /// Publishes a Capture all request ([AppEvent.captureAll]), which cloud
+  /// sync (and live sync, within a second, when connected) takes to the
+  /// profile's other devices so each takes a fresh grab
+  /// ([answerCaptureAll]); unless this device asked within [askAllEvery].
+  /// Returns the request, or null when it wasn't sent.
+  AppEvent? askAll(AppEventBus bus) {
+    final now = _now();
+    final last = _askedAll;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < askAllEvery) {
+      return null;
+    }
+    _askedAll = now;
+    final request = AppEvent.captureAll(time: now);
+    bus.publish(request);
+    return request;
+  }
+
   /// Answers the Capture all requests ([AppEvent.captureAll]) among
-  /// [events], just fetched from the cloud: one clip on the open camera
-  /// however many arrived, if any is from another device than [deviceId]
-  /// and newer than [captureAllWithin]. Its event uploads with the next
-  /// pass, so the asking device's All grid gets this camera's picture.
+  /// [events], just fetched from the cloud or received over live sync:
+  /// one clip on the open camera however many arrived, if any is from
+  /// another device than [deviceId], within [captureAllWithin] of now, and
+  /// not seen before (one that arrives both ways is answered once); and
+  /// not within [answerAllEvery] of this device's last Capture all clip,
+  /// which is fresh enough. Its event uploads with the next pass, so the
+  /// asking device's All grid gets this camera's picture.
   void answerCaptureAll(
     Iterable<AppEvent> events, {
     required String? deviceId,
@@ -630,13 +676,27 @@ class CameraRig extends ChangeNotifier {
     final target = bus;
     if (target == null || deviceId == null) return;
     final now = _now();
-    final asked = events.any(
-      (e) =>
-          e.type == AppEvent.captureAllType &&
-          e.deviceId != deviceId &&
-          now.difference(e.time) < captureAllWithin,
-    );
-    if (asked) requestClips(target, trigger: ClipTrigger.all).ignore();
+    var asked = false;
+    for (final e in events) {
+      if (e.type != AppEvent.captureAllType || e.deviceId == deviceId) {
+        continue;
+      }
+      final age = now.difference(e.time);
+      if (age >= captureAllWithin || age <= -captureAllWithin) continue;
+      if (!_seenRequests.add(e.id)) continue;
+      if (_seenRequests.length > _maxSeenRequests) {
+        _seenRequests.remove(_seenRequests.first);
+      }
+      asked = true;
+    }
+    if (!asked) return;
+    final last = _lastAllClip;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < answerAllEvery) {
+      return;
+    }
+    requestClips(target, trigger: ClipTrigger.all).ignore();
   }
 
   void _retryFailed() {
@@ -680,6 +740,7 @@ class CameraFeedsView extends StatefulWidget {
     this.deviceId,
     this.profileId,
     this.showAll = false,
+    this.refreshingSince,
   });
 
   final CameraRig rig;
@@ -695,6 +756,11 @@ class CameraFeedsView extends StatefulWidget {
 
   /// The grid of every device instead of the camera alone.
   final bool showAll;
+
+  /// When this device asked the others for a fresh grab
+  /// ([CameraRig.askAll]), while it waits for them: a cell whose image is
+  /// older shows a small spinner until a newer one arrives. Null: none.
+  final DateTime? refreshingSince;
 
   /// Room kept clear under the grid for the status pills, Flip and Clip.
   static const double bottomInset = 88;
@@ -804,6 +870,11 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                               () => showClipPlayer(context, clip),
                             _ => null,
                           },
+                          refreshing: switch (widget.refreshingSince) {
+                            final since? => latest.time.isBefore(since),
+                            null => false,
+                          },
+                          refreshingKey: Key('refreshing-${latest.deviceId}'),
                           child: _DeviceImage(latest: latest),
                         ),
                       ),
@@ -930,12 +1001,23 @@ String describeAge(Duration age) {
 
 /// A grid cell: its picture, with a label at the bottom left.
 class _Cell extends StatelessWidget {
-  const _Cell({required this.label, required this.child, this.onTap});
+  const _Cell({
+    required this.label,
+    required this.child,
+    this.onTap,
+    this.refreshing = false,
+    this.refreshingKey,
+  });
 
   /// Null: no label (the camera alone, full screen).
   final String? label;
   final Widget child;
   final VoidCallback? onTap;
+
+  /// A fresh grab was asked for and hasn't come: a small spinner, top
+  /// right.
+  final bool refreshing;
+  final Key? refreshingKey;
 
   @override
   Widget build(BuildContext context) {
@@ -949,6 +1031,26 @@ class _Cell extends StatelessWidget {
             Material(
               type: MaterialType.transparency,
               child: InkWell(onTap: onTap),
+            ),
+          if (refreshing)
+            Positioned(
+              top: 6,
+              right: 6,
+              child: Tooltip(
+                key: refreshingKey,
+                message: 'Asked for a fresh grab',
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh.withValues(alpha: 0.85),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const SizedBox.square(
+                    dimension: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
             ),
           if (label case final label?)
             Positioned(
