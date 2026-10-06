@@ -12,25 +12,29 @@
   worked out from its data and shown on its card: a clip showing a person
   or pet nobody's named has a yellow **unidentified** flag, with
   **Identify** to name them.
-- **Search.** A **Search events** field (`EventSearch`) sits at the top
-  left of the Monitoring tab, 220 dp wide, on the same row as the filter
-  chips (before them); on a narrow phone the chips wrap onto the rows
-  below it. Typing filters the timeline live, ignoring case and the spaces
+- **Search.** The events search (`EventSearch`) sits at the top left of
+  the Monitoring tab, in one compact row with the count and the device
+  filter chip. It's a **search icon button** (tooltip "Search events")
+  until tapped; tapped, it opens into a **Search events** field (up to
+  280 dp, narrower on a small phone), focused so the keyboard comes up.
+  It folds back into the icon when it loses focus empty, when submitted
+  empty, or with the **x** in the field, which clears it first; while it
+  has text it stays open (and shows open when coming back to the tab with
+  a search kept). Typing filters the timeline live, ignoring case and the spaces
   around the text: an event shows if its **title**, **detail**, **camera
   label** or, for a clip, **the name of someone tagged on it** or **one of
   its [object tags](recognition.md)** (`cat`, `bicycle`…) or **one of its
   [flags](event-flags.md)** (`unidentified`) contains the
   text. Suggestions waiting for an answer aren't tags, so they don't
   match a clip; the "Is this Rex?" event matches through its own title,
-  and its clip's camera label. An **x** in the field clears it; blank,
-  every event shows, as before.
-  - The search works together with the chips: an event shows only if it
-    passes both. With nothing matching, the timeline says
+  and its clip's camera label. Blank, every event shows.
+  - The search works together with the device filter and the system
+    events toggle: an event shows only if it passes all three. With nothing matching, the timeline says
     `No events match "<text>"`.
   - The text stays while switching tabs, but not across restarts.
   - **Opening an event the search hides** from elsewhere clears it, so the
-    event can show.
-  - **Counts.** Right after the field, on its row, the count of events
+    event can show (and the field folds back, unless it's focused).
+  - **Counts.** Right after the search (icon or field), on its row, the count of events
     (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
     tooltip "2 of 12 events shown".
     - *All* is every event of the signed-in account's profile on this
@@ -40,46 +44,48 @@
       yet) count too, since the next sign-in gives them its profile. Other
       profiles' events left on the
       device don't count.
-    - *Matching* is those events left after the search and both chips,
+    - *Matching* is those events left after the search and both filters,
       using the timeline's own filter steps (`EventTimeline.ofDevices`,
       `ofKinds`, `matching`).
-    - Both numbers update with new events, sync, the chips, the search,
-      tags recognition adds later, labels removed with their x on a
-      card, and sign-in or sign-out. On a narrow phone
-      the field gets narrower so the count stays beside it.
+    - Both numbers update with new events, sync, the filters, the
+      search, tags recognition adds later, labels removed with their x on
+      a card, and sign-in or sign-out. On a narrow phone the open field
+      gets narrower so the count stays beside it.
   - What's searched is one function, `eventSearchFields` (used by
     `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
     a new searchable field is one more line there.
   - While searching, the list also matches again whenever a clip's tags
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.
-- **Every device, by default.** A **devices dropdown** (`DeviceFilter`)
-  sits at the top of the Monitoring tab: a chip reading **All devices**
-  (or "1 of 3 devices", highlighted, while some are unchecked) that opens
-  a menu with one checkbox line per device with events
-  (`EventTimeline.devicesOf`). The first line is always **This device**,
-  in bold; the other devices follow by ID, sorted. Below them, an **All
-  devices** checkbox (partly checked while some are) checks every device,
-  or, when all are checked, unchecks them all. The menu stays open while
-  checking.
-  - Every device is checked at launch, and so is a device whose events
-    arrive later (the filter keeps the *unchecked* devices,
-    `hiddenDevices`): the timeline and the [subjects map](subjects.md) show
-    every device's events, such as those fetched from the cloud.
-  - Unchecking a device hides its events (`EventTimeline.ofDevices`;
-    events not saved yet, which have no device ID, count as this
-    device's) on both the timeline and the map, and the count; each
-    change filters them all again at once.
-  - The choices stay while switching tabs, but not across restarts. The
-    dropdown appears once the device ID is known; before that, every
-    event shows.
-  - Filtered with nothing left, the timeline says "No events on the
-    devices checked".
-  - **Opening an event of an unchecked device** from elsewhere (see below)
-    checks every device again, so the event can show.
-- **Show system events: on in DEV, off otherwise.** A **Show system
-  events** filter chip (`ShowSystemEvents`), after the devices dropdown,
-  decides which events show:
+- **Every device, by default; tap an event's device to see only it.**
+  Above each event's card, small and quiet, is the **device it was taken
+  on** (`EventDeviceTag`): a device icon and the device ID, this device's
+  in bold (events not saved yet, which have no device ID, are this
+  device's; before the device ID is known they have no tag). Its tooltip
+  says "Show only <device>".
+  - **Tapping it** shows only that device's events
+    (`EventTimeline.onlyDevice`, `EventTimeline.ofDevices`) on the
+    timeline, the [subjects map](subjects.md) and the count; the tag of
+    the device shown turns the accent color, and tapping it again shows
+    every device.
+  - While one device is shown, a small chip with its ID and an **x**
+    (`DeviceFilterChip`, tooltip "Show every device") sits in the top row
+    after the count; tapping it or its x shows every device again. With
+    every device shown there's no chip.
+  - Every device shows at launch, including devices whose events arrive
+    later (such as those fetched from the cloud). The choice stays while
+    switching tabs, but not across restarts.
+  - Filtered with nothing left (say, the search hides that device's
+    events), the timeline says "No events on <device>".
+  - **Opening an event of another device** from elsewhere (see below)
+    shows every device again, so the event can show.
+  - It replaced the devices dropdown (a checkbox per device and an All
+    devices line).
+- **Show system events: on in DEV, off otherwise.** A small, discreet
+  **toggle icon** (`ShowSystemEvents`, a dimmed gear outline, the accent
+  color filled while on; no label, its tooltip says "Show system events"
+  or "Hide system events"; a 40 dp target) at the **bottom right of the
+  Monitoring tab**, under the events, decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
     sign-outs, the recording consent and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip

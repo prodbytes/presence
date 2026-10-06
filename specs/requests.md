@@ -2910,3 +2910,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Event flags](event-flags.md) (new), [Events](events.md),
        [Subjects](subjects.md), [Subject recognition](recognition.md),
        [Clips](clips.md), [Data formats](data-formats.md).
+273. **A compact Monitoring screen: a folding search, each event's
+     device, a discreet system events toggle.** (2026-10-06)
+     - Asked (on a small iPhone, looking at Monitoring on the web): the
+       search field, the "All devices" dropdown and the "Show system
+       events" chip took about 40% of the screen above the map. Make the
+       search smaller, expanding when tapped so the user can type; drop
+       the devices dropdown and show on each event the device it was
+       taken on, tapping it to see only that device; make Show system
+       events small and discreet, without a label, at the bottom.
+     - Changed: the search (`EventSearch`) is a search icon until tapped,
+       then a field (up to 280 dp) focused for typing; it folds back when
+       unfocused empty or with its x, and stays open while it has text.
+       The count beside it is smaller. The devices dropdown
+       (`DeviceFilter`, `hiddenDevices`, `devicesOf`) is gone: each event
+       shows its device above its card (`EventDeviceTag`); tapping it
+       shows only that device's events on the list, the map and the count
+       (`onlyDevice`, kept across tabs), with a small chip with an x at
+       the top (`DeviceFilterChip`) to show every device again.
+       Show system events is a small labelless icon toggle (tooltip only)
+       at the bottom right of the page. The top is now one 40 dp row.
+     - Tests: `events_search_test.dart` (the icon opens a focused field,
+       typing filters, stays open with text, folds back empty; a kept
+       search shows open; the toggle at the bottom; no overflow at 320
+       and 390 dp), `events_filter_test.dart` (device tag, filtering to
+       one device and clearing it, kept across tabs),
+       `subjects_test.dart` (the map follows the device picked),
+       `system_events_test.dart`, `label_remove_test.dart` and the
+       `revealSystemEvents` helper updated. 434 Flutter tests pass;
+       `flutter analyze` and `flutter build web` are clean.
+     - Specs: [Monitoring](monitoring.md), [Events](events.md),
+       [Navigation](navigation.md), [Subjects](subjects.md).

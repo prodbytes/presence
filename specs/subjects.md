@@ -37,10 +37,10 @@ and pets"), each with where the device was when they were seen
   every dot** (the whole world without any; see [the map's
   view](#the-maps-view)), has the tiles' credit and **zoom buttons**, and
   tapping a dot opens its event in the Monitoring tab's events list.
-- **Devices:** the map shows the events of the devices checked in the
-  Monitoring tab's **devices dropdown** (all by default; as the events
-  list, `EventTimeline.ofDevices`). Checking or unchecking a device
-  redraws the dots and fits the view to them again. A
+- **Devices:** the map shows every device's events, or only those of
+  the device picked by tapping an event's device in the Monitoring tab
+  (as the events list, `EventTimeline.ofDevices`). Picking or clearing a
+  device redraws the dots and fits the view to them again. A
   subject's own screen always shows every device.
 - **Names on the map:** beside each subject's newest located dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut

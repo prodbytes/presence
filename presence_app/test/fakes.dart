@@ -159,11 +159,11 @@ Future<void> showEvents(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-/// Turns on the Monitoring tab's "Show system events" chip (off by default
-/// outside DEV), so plain events such as "Application started" show.
+/// Turns on the Monitoring tab's "Show system events" toggle (off by
+/// default outside DEV), so plain events such as "Application started" show.
 Future<void> revealSystemEvents(WidgetTester tester) async {
   final chip = find.byKey(const Key('show-system-events'));
-  if (tester.widget<FilterChip>(chip).selected) return;
+  if (tester.widget<IconButton>(chip).isSelected ?? false) return;
   await tester.tap(chip);
   await tester.pumpAndSettle();
 }

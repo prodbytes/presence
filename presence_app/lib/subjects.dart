@@ -125,7 +125,7 @@ class _SubjectsBuilder extends StatelessWidget {
 /// A map merging every subject's latest events, each subject in its own
 /// color (on the Monitoring tab), with the subject's name beside its newest
 /// dot. Tapping a dot opens its event; tapping a name opens the subject.
-/// The devices in [hiddenDevices] (unchecked) leave their events out.
+/// With [onlyDevice] set, only that device's events show.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -134,7 +134,7 @@ class SubjectsMap extends StatelessWidget {
     this.tiles,
     this.onOpenEvent,
     this.deviceId,
-    this.hiddenDevices,
+    this.onlyDevice,
   });
 
   final EventLog log;
@@ -143,10 +143,9 @@ class SubjectsMap extends StatelessWidget {
   /// This device's ID: events without a device ID (not saved yet) are its.
   final String? deviceId;
 
-  /// The devices unchecked in the [DeviceFilter] dropdown
-  /// ([EventTimeline.hiddenDevices]): the map leaves their events out, like
-  /// the timeline. Every device shows when null.
-  final ValueListenable<Set<String>>? hiddenDevices;
+  /// The one device whose events show ([EventTimeline.onlyDevice]), like
+  /// the timeline. Every device shows when null or holding null.
+  final ValueListenable<String?>? onlyDevice;
 
   /// Opens an event (a dot tapped on the map).
   final ValueChanged<AppEvent>? onOpenEvent;
@@ -156,13 +155,13 @@ class SubjectsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([config, hiddenDevices]),
+    listenable: Listenable.merge([config, onlyDevice]),
     builder: (context, _) => _SubjectsBuilder(
       log: log,
       where: (events) => EventTimeline.ofDevices(
         events,
         deviceId: deviceId,
-        hiddenDevices: hiddenDevices?.value ?? const {},
+        onlyDevice: onlyDevice?.value,
       ),
       builder: (context, subjects) {
         final limit = config.subjects.mapEvents;
@@ -195,8 +194,8 @@ class SubjectsMap extends StatelessWidget {
         }
         return _SightingsMap(
           key: const Key('subjects-map'),
-          // Fitted again to the dots shown when a device is (un)checked.
-          fitKey: hiddenDevices?.value,
+          // Fitted again to the dots shown when the device filter changes.
+          fitKey: onlyDevice?.value,
           dots: dots,
           labels: labels,
           tiles: tiles,

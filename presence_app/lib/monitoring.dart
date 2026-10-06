@@ -9,12 +9,15 @@ import 'subjects.dart';
 ///
 /// Two columns on a wide screen: the map of every subject's events on the
 /// left, all events on the right, each clip's card showing its subjects in
-/// their colors. On a phone the map sits above the events. Once the device
-/// ID is known, the devices dropdown ([DeviceFilter]) sits at the top, next
-/// to the "Show system events" chip, both after the events search field (top
-/// left) and its matching / all events count ([EventCount]). Tapping a
-/// dot on the map scrolls the events to its event; tapping a subject's
-/// name opens the subject.
+/// their colors. On a phone the map sits above the events. One compact row
+/// at the top: the events search ([EventSearch], an icon until tapped), its
+/// matching / all events count ([EventCount]) and, while the events show
+/// only one device's (picked by tapping an event's device,
+/// [EventDeviceTag]), a chip to show every device again
+/// ([DeviceFilterChip]). The small "Show system events" toggle
+/// ([ShowSystemEvents]) sits at the bottom right. Tapping a dot on the map
+/// scrolls the events to its event; tapping a subject's name opens the
+/// subject.
 class MonitoringView extends StatefulWidget {
   const MonitoringView({
     super.key,
@@ -25,7 +28,7 @@ class MonitoringView extends StatefulWidget {
     this.focus,
     this.deviceId,
     this.profileId,
-    this.hiddenDevices,
+    this.onlyDevice,
     this.showSystemEvents,
     this.search,
   });
@@ -57,17 +60,17 @@ class MonitoringView extends StatefulWidget {
   /// The event the timeline scrolls to and outlines.
   final ValueListenable<String?>? focus;
 
-  /// This device's ID, the devices dropdown's first line.
+  /// This device's ID: events without one (not saved yet) are its.
   final String? deviceId;
 
   /// The signed-in account's profile (null signed out): the events count counts
   /// only its own ([EventCount]).
   final String? profileId;
 
-  /// The devices unchecked in the dropdown ([EventTimeline.hiddenDevices]).
-  final ValueNotifier<Set<String>>? hiddenDevices;
+  /// The one device whose events show ([EventTimeline.onlyDevice]).
+  final ValueNotifier<String?>? onlyDevice;
 
-  /// The "Show system events" chip ([EventTimeline.showSystemEvents]).
+  /// The "Show system events" toggle ([EventTimeline.showSystemEvents]).
   final ValueNotifier<bool>? showSystemEvents;
 
   /// The events search field's text ([EventTimeline.search]).
@@ -78,9 +81,9 @@ class MonitoringView extends StatefulWidget {
 }
 
 class _MonitoringViewState extends State<MonitoringView> {
-  ValueNotifier<Set<String>>? _ownFilter;
-  ValueNotifier<Set<String>> get _filter =>
-      widget.hiddenDevices ?? (_ownFilter ??= ValueNotifier(const {}));
+  ValueNotifier<String?>? _ownFilter;
+  ValueNotifier<String?> get _filter =>
+      widget.onlyDevice ?? (_ownFilter ??= ValueNotifier(null));
 
   ValueNotifier<bool>? _ownSystem;
   ValueNotifier<bool> get _system =>
@@ -106,7 +109,7 @@ class _MonitoringViewState extends State<MonitoringView> {
       tiles: widget.tiles,
       onOpenEvent: widget.onOpenEvent,
       deviceId: widget.deviceId,
-      hiddenDevices: _filter,
+      onlyDevice: _filter,
     );
     Widget events(EdgeInsets padding) => KeyedSubtree(
       key: const Key('events-page'),
@@ -114,7 +117,7 @@ class _MonitoringViewState extends State<MonitoringView> {
         log: widget.log,
         focus: widget.focus,
         deviceId: widget.deviceId,
-        hiddenDevices: _filter,
+        onlyDevice: _filter,
         showSystemEvents: _system,
         search: _search,
         padding: padding,
@@ -138,54 +141,36 @@ class _MonitoringViewState extends State<MonitoringView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Align(
-                    alignment: AlignmentDirectional.centerStart,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                  // One compact row: the search (an icon until tapped),
+                  // the count and the device filter, if any. The open
+                  // field gives up room on a narrow phone.
+                  SizedBox(
+                    height: 40,
+                    child: Row(
+                      key: const Key('monitoring-filters'),
                       children: [
-                        // The count stays beside the field: on a narrow
-                        // phone the field gives up the room it needs.
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(child: EventSearch(value: _search)),
-                            const SizedBox(width: 8),
-                            EventCount(
-                              log: widget.log,
-                              profileId: widget.profileId,
-                              deviceId: widget.deviceId,
-                              hiddenDevices: _filter,
-                              showSystemEvents: _system,
-                              search: _search,
-                            ),
-                          ],
+                        Flexible(child: EventSearch(value: _search)),
+                        const SizedBox(width: 8),
+                        EventCount(
+                          log: widget.log,
+                          profileId: widget.profileId,
+                          deviceId: widget.deviceId,
+                          onlyDevice: _filter,
+                          showSystemEvents: _system,
+                          search: _search,
                         ),
-                        // Until the device ID is known there's nothing to
-                        // filter by.
-                        if (widget.deviceId case final deviceId?)
-                          DeviceFilter(
-                            log: widget.log,
-                            deviceId: deviceId,
-                            value: _filter,
-                          ),
-                        ShowSystemEvents(value: _system),
+                        const SizedBox(width: 8),
+                        Flexible(child: DeviceFilterChip(value: _filter)),
                       ],
                     ),
                   ),
-                  SizedBox(height: gap),
+                  SizedBox(height: gap / 2),
                   Expanded(
                     child: wide
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: EdgeInsets.only(bottom: gap),
-                                  child: framedMap,
-                                ),
-                              ),
+                              Expanded(child: framedMap),
                               SizedBox(width: gap),
                               SizedBox(
                                 width:
@@ -194,7 +179,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                                           MonitoringView.minEventsWidth,
                                           MonitoringView.maxEventsWidth,
                                         ),
-                                child: events(EdgeInsets.only(bottom: gap)),
+                                child: events(EdgeInsets.zero),
                               ),
                             ],
                           )
@@ -208,12 +193,15 @@ class _MonitoringViewState extends State<MonitoringView> {
                                 child: framedMap,
                               ),
                               Expanded(
-                                child: events(
-                                  EdgeInsets.only(top: gap, bottom: gap),
-                                ),
+                                child: events(EdgeInsets.only(top: gap)),
                               ),
                             ],
                           ),
+                  ),
+                  // Small and out of the way, at the bottom right.
+                  Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: ShowSystemEvents(value: _system),
                   ),
                 ],
               ),
