@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../cameras/camera_source.dart';
 import 'event_store.dart';
 import 'media_store.dart';
+import 'records.dart';
 
 /// A sembast-backed database in the app's private storage. Recordings are
 /// kept out of it (sembast holds its whole database in memory); see
@@ -36,8 +37,15 @@ class FileMediaStore implements MediaStore {
     return Directory('${base.path}/clips').create(recursive: true);
   }();
 
-  Future<File> _file(String id) async =>
-      File('${(await _clipsDir()).path}/$id.mp4');
+  /// The file of recording [id]. The ID names a file, so one that could
+  /// reach outside the folder (from a damaged or hostile record) is
+  /// refused ([Records.isSafeMediaId]).
+  Future<File> _file(String id) async {
+    if (!Records.isSafeMediaId(id)) {
+      throw ArgumentError.value(id, 'id', 'not a safe recording ID');
+    }
+    return File('${(await _clipsDir()).path}/$id.mp4');
+  }
 
   @override
   Future<void> save(String id, ClipMedia media) async {
@@ -78,9 +86,22 @@ class FileMediaStore implements MediaStore {
   @override
   Future<void> delete(Iterable<String> ids) async {
     for (final id in ids) {
+      if (!Records.isSafeMediaId(id)) continue;
       final file = await _file(id);
       if (await file.exists()) await file.delete();
     }
+  }
+
+  @override
+  Future<List<String>> ids() async {
+    final found = <String>[];
+    await for (final entity in (await _clipsDir()).list()) {
+      final name = entity.uri.pathSegments.last;
+      if (entity is File && name.endsWith('.mp4')) {
+        found.add(name.substring(0, name.length - '.mp4'.length));
+      }
+    }
+    return found;
   }
 }
 

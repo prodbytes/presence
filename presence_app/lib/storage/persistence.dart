@@ -19,6 +19,7 @@ import '../recognition/suggestion.dart';
 import 'event_store.dart';
 import 'media_platform.dart' as platform;
 import 'media_store.dart';
+import 'records.dart';
 
 /// Saves everything the app records to IndexedDB, and restores it on launch
 /// so the app survives a page refresh:
@@ -174,17 +175,25 @@ class Persistence implements DeviceSettings {
     // The whole configuration is one record, with when it last changed.
     // Older versions stored a flat "clip" settings record: read that if
     // there's no config yet. With neither, the defaults stand.
+    // Saved settings that can't be read leave the defaults; changes are
+    // still saved from then on.
     try {
-      final saved = await store.getSettings(_configKey);
-      final legacy = saved == null ? await store.getSettings(_legacyKey) : null;
-      if (!_disposed) {
-        if (saved != null) {
-          config.config = PresenceConfig.fromJson(saved);
-          if (saved['updatedAt'] case final int at) _configUpdatedAt = at;
-          if (saved['profileId'] case final String id) _settingsProfile = id;
-        } else if (legacy != null) {
-          config.config = PresenceConfig.fromLegacy(legacy);
+      try {
+        final saved = await store.getSettings(_configKey);
+        final legacy = saved == null
+            ? await store.getSettings(_legacyKey)
+            : null;
+        if (!_disposed) {
+          if (saved != null) {
+            config.config = PresenceConfig.fromJson(saved);
+            if (saved['updatedAt'] case final int at) _configUpdatedAt = at;
+            if (saved['profileId'] case final String id) _settingsProfile = id;
+          } else if (legacy != null) {
+            config.config = PresenceConfig.fromLegacy(legacy);
+          }
         }
+      } catch (e) {
+        debugPrint('Presence: could not load the saved settings: $e');
       }
       if (_disposed) return;
       config.addListener(_saveConfig);
@@ -252,7 +261,18 @@ class Persistence implements DeviceSettings {
   /// them: they show and sync as the profile's from then on. Another
   /// user's events without a profile stay as they are. Runs after the
   /// history is restored and pending saves are done.
-  Future<void> claimForProfile(String profileId, String userId) {
+  ///
+  /// With [from], the profile [userId]'s account was in just before (it
+  /// was linked to, or moved into, [profileId] while signed in): the
+  /// events this device recorded for [userId] in [from] that never went up
+  /// to the cloud come along too, so they aren't stranded where the account
+  /// no longer looks. Those already uploaded stay [from]'s: its folder,
+  /// and its members, have them.
+  Future<void> claimForProfile(
+    String profileId,
+    String userId, {
+    String? from,
+  }) {
     final pending = List.of(_pending);
     final restoring = _restoring;
     final claim = () async {
@@ -260,15 +280,38 @@ class Persistence implements DeviceSettings {
       await Future.wait(pending);
       if (_disposed) return;
       final store = await _store;
+      final device = await _deviceId;
       bool anonymous(String? user) =>
           user == null || user == AppEvent.anonymousUserId;
-      bool unclaimed(String? profile, String? user) =>
-          profile == null && (anonymous(user) || user == userId);
+      // Events whose JSON went up to any folder (`CloudSync`'s keys).
+      final uploaded = from == null || from == profileId
+          ? const <String>{}
+          : {
+              for (final key in (await store.syncedKeys()).keys)
+                ?_uploadedEvent.firstMatch(key)?[1],
+            };
+      bool stranded(String id, String? profile, String? user, String? dev) =>
+          from != null &&
+          from != profileId &&
+          profile == from &&
+          user == userId &&
+          dev == device &&
+          !uploaded.contains(id);
+      bool unclaimed(String id, String? profile, String? user, String? dev) =>
+          (profile == null && (anonymous(user) || user == userId)) ||
+          stranded(id, profile, user, dev);
       // The events in memory first: their records are the freshest, and
       // later saves of them (a clip completing, a tag) must keep the owner.
       final claimed = <String>{};
       for (final event in _log?.events ?? const <AppEvent>[]) {
-        if (!unclaimed(event.profileId, event.userId)) continue;
+        if (!unclaimed(
+          event.id,
+          event.profileId,
+          event.userId,
+          event.deviceId,
+        )) {
+          continue;
+        }
         event.profileId = profileId;
         if (anonymous(event.userId)) event.userId = userId;
         claimed.add(event.id);
@@ -276,9 +319,17 @@ class Persistence implements DeviceSettings {
       }
       // Then any stored ones that aren't in memory.
       for (final record in await store.allEvents()) {
+        final id = record['id'];
+        if (id is! String) continue;
         final user = AppEvent.ownerOf(record);
-        if (claimed.contains(record['id']) ||
-            !unclaimed(AppEvent.profileOf(record), user)) {
+        final dev = record['deviceId'];
+        if (claimed.contains(id) ||
+            !unclaimed(
+              id,
+              AppEvent.profileOf(record),
+              user,
+              dev is String ? dev : null,
+            )) {
           continue;
         }
         await store.putEvent({
@@ -286,13 +337,20 @@ class Persistence implements DeviceSettings {
           'userId': anonymous(user) ? userId : user,
           'profileId': profileId,
         });
-        claimed.add(record['id']! as String);
+        claimed.add(id);
       }
       _changed(claimed);
     }();
     _track(claim);
     return claim;
   }
+
+  /// A synced-store key of an uploaded event's JSON
+  /// (`<identity>/events/…/<id>.json`, not its `etag:` or `fetch:`
+  /// entry): the event's ID.
+  static final RegExp _uploadedEvent = RegExp(
+    r'^(?!etag:|fetch:)[^/]+/events/(?:.+/)?([^/]+)\.json$',
+  );
 
   /// Deletes every event from before [cutoff] from the device: its record,
   /// its clip (details and recordings), and the suggestions about that
@@ -310,21 +368,25 @@ class Persistence implements DeviceSettings {
       final before = cutoff.millisecondsSinceEpoch;
       final old = {
         for (final r in records)
-          if (r['time'] case final int time when time < before)
-            r['id']! as String,
+          if ((r['time'], r['id']) case (final int time, final String id)
+              when time < before)
+            id,
       };
-      if (old.isEmpty) return 0;
+      if (old.isEmpty) {
+        await _sweep(store);
+        return 0;
+      }
       // A suggestion goes with the clip it asks about.
       final ids = {
         ...old,
         for (final r in records)
           if (r['type'] == SubjectSuggestion.suggestionType &&
               old.contains(r['clipEventId']))
-            r['id']! as String,
+            if (r['id'] case final String id) id,
       };
       final clips = [
         for (final c in await store.allClips())
-          if (ids.contains(c['eventId'])) c,
+          if (ids.contains(c['eventId']) && c['id'] is String) c,
       ];
       final clipIds = {for (final c in clips) c['id']! as String};
       await store.deleteEvents(ids, clipIds);
@@ -341,10 +403,81 @@ class Persistence implements DeviceSettings {
       ]);
       _watched.removeAll(ids);
       _log?.remove(ids);
+      await _sweep(store);
       return ids.length;
     }();
     _track(delete);
     return delete;
+  }
+
+  /// How long a clip may be recording: one requested longer ago that's
+  /// still `recording` was cut off by a crash ([_sweep]).
+  static const Duration _recordingFor = Duration(hours: 1);
+
+  /// Clips being written by this run ([_ClipWriter]): their IDs and their
+  /// recordings' media IDs, which [_sweep] leaves alone.
+  final Set<String> _writing = {};
+
+  /// Tidies up after a crash or a kill mid-write: deletes the recordings no
+  /// clip record uses (one saved just before its clip was committed), and
+  /// settles clips left `recording` by an earlier run (complete with their
+  /// before part, else failed), as their writer would have. Never touches
+  /// what this run is writing, nor a clip requested less than
+  /// [_recordingFor] ago and its recordings (another tab of the browser,
+  /// sharing the database, may be writing it). Runs with each retention
+  /// pass ([deleteEventsBefore]); a failure is logged.
+  Future<void> _sweep(EventStore store) async {
+    try {
+      final media = await _media;
+      // In this order: a recording listed here either belongs to a writer
+      // still running now, or one that committed its clip before.
+      final stored = await media.ids();
+      final writing = Set.of(_writing);
+      final used = <String>{};
+      final recent = <String>{};
+      final since = _now().subtract(_recordingFor).millisecondsSinceEpoch;
+      var settled = 0;
+      for (final clip in await store.allClips()) {
+        for (final part in [clip['past'], clip['full']]) {
+          if (part is Map && part['mediaId'] is String) {
+            used.add(part['mediaId']! as String);
+          }
+        }
+        final id = clip['id'];
+        if (clip['state'] != _ClipWriter.recording || id is! String) continue;
+        final requestedAt = Records.intOf(clip['requestedAt']);
+        if (requestedAt != null && requestedAt >= since) {
+          recent.add(id);
+        } else if (!writing.contains(id) && !_writing.contains(id)) {
+          await store.putClip({
+            ...clip,
+            'state': clip['past'] is Map
+                ? _ClipWriter.complete
+                : _ClipWriter.failed,
+          });
+          settled++;
+        }
+      }
+      // A recording's ID is its clip's, then `-past` or `-full`.
+      bool ofRecent(String mediaId) {
+        final dash = mediaId.lastIndexOf('-');
+        return dash > 0 && recent.contains(mediaId.substring(0, dash));
+      }
+
+      final orphans = [
+        for (final id in stored)
+          if (!used.contains(id) && !writing.contains(id) && !ofRecent(id)) id,
+      ];
+      if (orphans.isNotEmpty) await media.delete(orphans);
+      if (orphans.isNotEmpty || settled > 0) {
+        debugPrint(
+          'Presence: deleted ${orphans.length} recordings no clip uses, '
+          'settled $settled clips left recording',
+        );
+      }
+    } catch (e) {
+      debugPrint('Presence: could not tidy up recordings: $e');
+    }
   }
 
   /// The open database and recordings, for readers such as `CloudSync`.
@@ -365,18 +498,27 @@ class Persistence implements DeviceSettings {
   /// With [awaitClips] (events that just arrived over live sync), a clip
   /// event whose clip isn't here yet shows as recording on another device
   /// ([VideoClip.awaitingRemote]) until it arrives ([showArrivedClips]).
+  ///
+  /// Records that can't be used ([Records.tryParseEvent],
+  /// [Records.tryParseClip]: no ID or time, an unsafe ID, fields of the
+  /// wrong type) are skipped, and the rest stored cleaned up.
   Future<List<AppEvent>> importRemote({
     required List<Map<String, Object?>> events,
     required List<Map<String, Object?>> clips,
     bool awaitClips = false,
   }) async {
     final store = await _store;
-    for (final clip in clips) {
-      await store.putClip(clip);
+    for (final raw in clips) {
+      final clip = Records.tryParseClip(raw, safeIds: true);
+      if (clip != null) await store.putClip(clip);
     }
-    for (final event in events) {
+    final valid = [
+      for (final raw in events) ?Records.tryParseEvent(raw, safeIds: true),
+    ];
+    for (final event in valid) {
       await store.putEvent(event);
     }
+    events = valid;
     // Deleted ones (`deleteDevice`) are kept, so they aren't fetched
     // again, but not shown.
     final shown = [
@@ -509,7 +651,8 @@ class Persistence implements DeviceSettings {
       ];
       final ofDevice = {
         for (final r in records)
-          if (r['deviceId'] == device) r['id']! as String,
+          if (r['deviceId'] == device)
+            if (r['id'] case final String id) id,
       };
       if (ofDevice.isEmpty) return 0;
       // A suggestion goes with the clip it asks about.
@@ -518,7 +661,7 @@ class Persistence implements DeviceSettings {
         for (final r in records)
           if (r['type'] == SubjectSuggestion.suggestionType &&
               ofDevice.contains(r['clipEventId']))
-            r['id']! as String,
+            if (r['id'] case final String id) id,
       };
       final at = _now();
       final clipIds = <String>{};
@@ -527,8 +670,8 @@ class Persistence implements DeviceSettings {
         for (final e in _log?.events ?? const <AppEvent>[]) e.id: e,
       };
       for (final r in records) {
-        final id = r['id']! as String;
-        if (!ids.contains(id)) continue;
+        final id = r['id'];
+        if (id is! String || !ids.contains(id)) continue;
         if (r['clipId'] case final String clipId) clipIds.add(clipId);
         inLog[id]?.deletedAt = at;
         await store.putEvent({
@@ -600,7 +743,7 @@ class Persistence implements DeviceSettings {
       }
       if (event is ClipRequested) _watchAnnotations(event);
       if (event is ClipRequested && event.clip.capture != null) {
-        await _ClipWriter(store, await _media, event).run();
+        await _ClipWriter(store, await _media, event, _writing).run();
         _changed({event.id});
       }
     }());
@@ -670,6 +813,16 @@ class Persistence implements DeviceSettings {
     final json = record['config'];
     final at = record['updatedAt'];
     if (_disposed || json is! Map || at is! int) return;
+    // Written by a newer version of the app: this one would drop what it
+    // doesn't know, so the local settings stay (and go up over them).
+    if (json['version'] case final int version
+        when version > PresenceConfig.version) {
+      debugPrint(
+        'Presence: kept the local settings: the cloud has version '
+        '$version, newer than ${PresenceConfig.version}',
+      );
+      return;
+    }
     _applyingRemote = true;
     try {
       config.config = PresenceConfig.fromJson(json.cast<String, Object?>());
@@ -749,12 +902,37 @@ class Persistence implements DeviceSettings {
     final media = await _media;
     final cameraLabels = {
       for (final c in await store.allCameras())
-        c['id']! as String: c['label']! as String,
+        if (Records.tryParseCamera(c) case (:final id, label: final label?))
+          id: label,
     };
-    final clips = {
-      for (final c in await store.allClips())
-        c['id']! as String: _restoreClip(media, c, cameraLabels),
+    // A damaged record is skipped (logged), not the whole history.
+    records = [for (final r in records) ?Records.tryParseEvent(r)];
+    // Only the clips these events show: a live import of a few events
+    // doesn't read every clip (with its thumbnail) again.
+    final wanted = {
+      for (final r in records)
+        if (r['clipId'] case final String id) id,
     };
+    final clipRecords = wanted.length > _readAllClipsOver
+        ? [
+            for (final c in await store.allClips())
+              if (wanted.contains(c['id'])) c,
+          ]
+        : [for (final id in wanted) ?await store.getClip(id)];
+    final clips = <String, VideoClip>{};
+    for (final raw in clipRecords) {
+      final record = Records.tryParseClip(raw);
+      if (record == null) continue;
+      try {
+        clips[record['id']! as String] = _restoreClip(
+          media,
+          record,
+          cameraLabels,
+        );
+      } catch (e) {
+        debugPrint('Presence: skipped clip ${record['id']}: $e');
+      }
+    }
     if (awaitClips) {
       for (final r in records) {
         if (r['type'] != ClipRequested.clipRequestedType) continue;
@@ -770,7 +948,14 @@ class Persistence implements DeviceSettings {
       }
     }
 
-    final events = [for (final record in records) _restoreEvent(record, clips)];
+    final events = <AppEvent>[];
+    for (final record in records) {
+      try {
+        events.add(_restoreEvent(record, clips));
+      } catch (e) {
+        debugPrint('Presence: skipped event ${record['id']}: $e');
+      }
+    }
     // Suggestions point at their clips' events.
     final clipEvents = {
       for (final e in [...?_log?.events, ...events])
@@ -781,6 +966,10 @@ class Persistence implements DeviceSettings {
     }
     return events;
   }
+
+  /// Above this many clips, a restore reads all clip records at once
+  /// rather than one by one.
+  static const int _readAllClipsOver = 64;
 
   AppEvent _restoreEvent(
     Map<String, Object?> record,
@@ -842,7 +1031,7 @@ class Persistence implements DeviceSettings {
     Map<String, Object?> record,
     Map<String, String> cameraLabels,
   ) {
-    final cameraId = record['cameraId']! as String;
+    final cameraId = record['cameraId'] as String? ?? '';
     return VideoClip.restored(
       id: record['id']! as String,
       cameraId: cameraId,
@@ -850,8 +1039,8 @@ class Persistence implements DeviceSettings {
           cameraLabels[cameraId] ??
           record['cameraLabel'] as String? ??
           'Camera',
-      before: Duration(milliseconds: record['beforeMs']! as int),
-      after: Duration(milliseconds: record['afterMs']! as int),
+      before: Duration(milliseconds: record['beforeMs'] as int? ?? 0),
+      after: Duration(milliseconds: record['afterMs'] as int? ?? 0),
       past: _restoreMedia(media, record['id']! as String, record['past']),
       full: _restoreMedia(media, record['id']! as String, record['full']),
       thumbnail: _bytes(record['thumbnail']),
@@ -875,8 +1064,8 @@ class Persistence implements DeviceSettings {
           return media.load(mediaId, mimeType);
         }
       },
-      start: Duration(milliseconds: ref['startMs']! as int),
-      end: Duration(milliseconds: ref['endMs']! as int),
+      start: Duration(milliseconds: ref['startMs'] as int? ?? 0),
+      end: Duration(milliseconds: ref['endMs'] as int? ?? 0),
       mimeType: mimeType,
     );
   }
@@ -888,7 +1077,7 @@ class Persistence implements DeviceSettings {
 
 /// Follows one live clip's recordings into storage.
 class _ClipWriter {
-  _ClipWriter(this._store, this._media, this._event);
+  _ClipWriter(this._store, this._media, this._event, this._writing);
 
   static const String recording = 'recording';
   static const String complete = 'complete';
@@ -897,6 +1086,10 @@ class _ClipWriter {
   final EventStore _store;
   final MediaStore _media;
   final ClipRequested _event;
+
+  /// What's being written now (`Persistence._writing`): this clip and its
+  /// recordings while it runs, so a sweep leaves them alone.
+  final Set<String> _writing;
 
   VideoClip get _clip => _event.clip;
 
@@ -915,6 +1108,8 @@ class _ClipWriter {
 
   Future<void> run() async {
     final capture = _clip.capture!;
+    final writing = {_clip.id, '${_clip.id}-past', '${_clip.id}-full'};
+    _writing.addAll(writing);
     try {
       await _store.putClip(_record);
 
@@ -947,6 +1142,8 @@ class _ClipWriter {
       await _store.putEvent(_event.toRecord());
     } catch (e) {
       _clip.markSaveError(_describe(e));
+    } finally {
+      _writing.removeAll(writing);
     }
   }
 

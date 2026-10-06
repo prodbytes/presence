@@ -7,6 +7,8 @@ import 'package:presence_app/cloud/s3.dart';
 import 'package:presence_app/cloud/sigv4.dart';
 
 void main() {
+  group('clock skew', clockSkewTests);
+
   test('uploads use Intelligent-Tiering, and sign the storage class', () async {
     late http.Request sent;
     final bucket = S3Bucket(
@@ -159,5 +161,107 @@ void main() {
       'p/events/b&c.json': '92eb5ffee6ae2fec3ad71c777531578f',
     });
     expect(tokens, [null, 'next']);
+  });
+}
+
+void clockSkewTests() {
+  const creds = AwsCredentials(
+    accessKeyId: 'AKID',
+    secretAccessKey: 'secret',
+    sessionToken: 'token',
+  );
+  const skewed =
+      '<Error><Code>RequestTimeTooSkewed</Code><Message>The difference '
+      'between the request time and the current time is too large.'
+      '</Message><RequestTime>20260927T000000Z</RequestTime>'
+      '<ServerTime>2026-09-27T00:17:30Z</ServerTime></Error>';
+
+  test('a request signed at the wrong time corrects the clock by AWS\'s '
+      'time, and the next one is signed with it', () async {
+    final dates = <String>[];
+    var calls = 0;
+    final clock = AwsClock(now: () => DateTime.utc(2026, 9, 27));
+    final bucket = S3Bucket(
+      bucket: 'b',
+      region: 'us-east-1',
+      clock: clock,
+      client: MockClient((request) async {
+        dates.add(request.headers['x-amz-date']!);
+        return calls++ == 0
+            ? http.Response(skewed, 403)
+            : http.Response('', 200);
+      }),
+    );
+    Future<void> put() => bucket.put(
+      'us-east-1:id/events/e.json',
+      Uint8List.fromList([1]),
+      contentType: 'application/json',
+      credentials: creds,
+    );
+    final error = await put().then<S3Exception?>(
+      (_) => null,
+      onError: (Object e) => e as S3Exception,
+    );
+    expect(error!.clockSkewed, isTrue);
+    expect(error.credentialsRejected, isFalse);
+    expect(error.clockOffset, const Duration(minutes: 17, seconds: 30));
+    expect(clock.offset, const Duration(minutes: 17, seconds: 30));
+    await put();
+    expect(dates, ['20260927T000000Z', '20260927T001730Z']);
+    expect(
+      AwsClock.describe(error.clockOffset!),
+      contains("This device's clock is off by 18 min"),
+    );
+  });
+
+  test('without a ServerTime, the Date header gives AWS\'s time', () async {
+    final clock = AwsClock(now: () => DateTime.utc(2026, 9, 27, 12));
+    final bucket = S3Bucket(
+      bucket: 'b',
+      region: 'us-east-1',
+      clock: clock,
+      client: MockClient(
+        (request) async => http.Response(
+          '<Error><Code>RequestTimeTooSkewed</Code></Error>',
+          403,
+          headers: {'date': 'Sun, 27 Sep 2026 11:40:00 GMT'},
+        ),
+      ),
+    );
+    await expectLater(
+      bucket.get('k', credentials: creds),
+      throwsA(isA<S3Exception>().having((e) => e.clockSkewed, 'skewed', true)),
+    );
+    expect(clock.offset, const Duration(minutes: -20));
+  });
+
+  test('HTTP dates parse; anything else is null', () {
+    expect(
+      S3Bucket.parseHttpDate('Tue, 06 Oct 2026 12:01:02 GMT'),
+      DateTime.utc(2026, 10, 6, 12, 1, 2),
+    );
+    expect(S3Bucket.parseHttpDate('yesterday'), isNull);
+    expect(S3Bucket.parseHttpDate('Tue, 06 Foo 2026 12:01:02 GMT'), isNull);
+  });
+
+  test('other errors leave the clock alone', () async {
+    final clock = AwsClock(now: () => DateTime.utc(2026, 9, 27));
+    final bucket = S3Bucket(
+      bucket: 'b',
+      region: 'us-east-1',
+      clock: clock,
+      client: MockClient(
+        (request) async => http.Response(
+          '<Error><Code>AccessDenied</Code></Error>',
+          403,
+          headers: {'date': 'Sun, 27 Sep 2026 11:40:00 GMT'},
+        ),
+      ),
+    );
+    await expectLater(
+      bucket.get('k', credentials: creds),
+      throwsA(isA<S3Exception>()),
+    );
+    expect(clock.offset, Duration.zero);
   });
 }
