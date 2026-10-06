@@ -23,7 +23,7 @@ void main() {
     expect(c.clip.after, const Duration(seconds: 10));
     expect(c.camera.brightness, 1);
     expect(c.motion.enabled, isTrue);
-    expect(c.motion.threshold, 10);
+    expect(c.motion.threshold, 15);
     expect(c.motion.cooldown, const Duration(minutes: 5));
     expect(c.history.keep, const Duration(days: 14));
   });

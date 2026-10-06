@@ -27,7 +27,7 @@ class SettingsView extends StatefulWidget {
     this.logTabDefault,
   });
 
-  /// For admins, a **Show the Log tab** switch, on by default when this is
+  /// For admins, an **Advanced** section with a **Show the Log tab** switch, on by default when this is
   /// true (DEV); null hides the switch.
   final bool? logTabDefault;
 
@@ -188,17 +188,29 @@ class _SettingsViewState extends State<SettingsView> {
             const SizedBox(height: 16),
             Text('Clips', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            _DurationSlider(
-              key: const Key('clip-before-slider'),
-              label: 'Before the press',
-              value: clip.before,
-              onChanged: (d) => setClip((c) => c.copyWith(before: d)),
-            ),
-            _DurationSlider(
-              key: const Key('clip-after-slider'),
-              label: 'After the press',
-              value: clip.after,
-              onChanged: (d) => setClip((c) => c.copyWith(after: d)),
+            // Side by side: before on the left, after on the right.
+            Row(
+              key: const Key('clip-sliders'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                Expanded(
+                  child: _DurationSlider(
+                    key: const Key('clip-before-slider'),
+                    label: 'Before press',
+                    value: clip.before,
+                    onChanged: (d) => setClip((c) => c.copyWith(before: d)),
+                  ),
+                ),
+                Expanded(
+                  child: _DurationSlider(
+                    key: const Key('clip-after-slider'),
+                    label: 'After press',
+                    value: clip.after,
+                    onChanged: (d) => setClip((c) => c.copyWith(after: d)),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
@@ -238,22 +250,6 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             if (widget.nextClip case final nextClip? when schedule.enabled)
               nextClip,
-            const SizedBox(height: 16),
-            Text('Subjects', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _LabeledSlider(
-              key: const Key('subject-events-slider'),
-              label: "Latest events on a subject's map",
-              valueLabel: '${subjects.mapEvents}',
-              value: subjects.mapEvents.toDouble(),
-              min: SubjectsConfig.minMapEvents.toDouble(),
-              max: SubjectsConfig.maxMapEvents.toDouble(),
-              divisions:
-                  (SubjectsConfig.maxMapEvents - SubjectsConfig.minMapEvents) ~/
-                  SubjectsConfig.mapEventsStep,
-              onChanged: (v) =>
-                  setSubjects((s) => s.copyWith(mapEvents: v.round())),
-            ),
             const SizedBox(height: 16),
             Text('Recognition', style: theme.textTheme.titleMedium),
             SwitchListTile(
@@ -297,17 +293,12 @@ class _SettingsViewState extends State<SettingsView> {
                         setRecognition((r) => r.copyWith(autoTag: _toStep(v)))
                   : null,
             ),
-            _LabeledSlider(
-              key: const Key('recognition-ask-slider'),
-              label: 'Ask me when at least',
-              valueLabel: '${percent(recognition.ask)} sure',
-              value: recognition.ask,
-              min: RecognitionConfig.minConfidence,
-              max: RecognitionConfig.maxConfidence,
-              divisions: confidenceSteps,
-              onChanged: recognition.enabled && _recognitionSupported
-                  ? (v) => setRecognition((r) => r.copyWith(ask: _toStep(v)))
-                  : null,
+            Text(
+              'Less sure than that, it asks you whether it\'s them.',
+              key: const Key('recognition-ask-note'),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             Text('History', style: theme.textTheme.titleMedium),
@@ -335,7 +326,7 @@ class _SettingsViewState extends State<SettingsView> {
             ),
             if (widget.logTabDefault case final dev?) ...[
               const SizedBox(height: 16),
-              Text('Log', style: theme.textTheme.titleMedium),
+              Text('Advanced', style: theme.textTheme.titleMedium),
               SwitchListTile(
                 key: const Key('show-log-switch'),
                 contentPadding: EdgeInsets.zero,
@@ -347,6 +338,23 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
               ),
             ],
+            // Last: how much the Subjects screens load.
+            const SizedBox(height: 16),
+            Text('Subjects', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            _LabeledSlider(
+              key: const Key('subject-events-slider'),
+              label: 'How many events to load at once',
+              valueLabel: '${subjects.mapEvents}',
+              value: subjects.mapEvents.toDouble(),
+              min: SubjectsConfig.minMapEvents.toDouble(),
+              max: SubjectsConfig.maxMapEvents.toDouble(),
+              divisions:
+                  (SubjectsConfig.maxMapEvents - SubjectsConfig.minMapEvents) ~/
+                  SubjectsConfig.mapEventsStep,
+              onChanged: (v) =>
+                  setSubjects((s) => s.copyWith(mapEvents: v.round())),
+            ),
             // Which build this is, e.g. to check a deploy landed.
             if (AppVersion.version.isNotEmpty) ...[
               const SizedBox(height: 32),

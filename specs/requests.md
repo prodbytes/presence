@@ -3013,3 +3013,44 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Navigation](navigation.md), [Membership](membership.md),
        [Execution mode](execution-mode.md), [Auth API](auth-api.md),
        [Local CDN](local-cdn.md), the index.
+278. **Settings: paste a position, clips side by side, fewer recognition
+     knobs, Advanced.** (2026-10-06)
+     - Asked: on the Settings screen, a box to paste a latitude/longitude
+       that sets the device's position on the map; the motion threshold's
+       default at 15 % of the picture; the clip's before/after sliders side
+       by side; the subjects' events setting moved to the bottom, renamed
+       "How many events to load at once", default 100; "Tag automatically"
+       default 85 % and no "Ask me when at least" slider (always ask
+       below the auto-tag level); the Log section renamed "Advanced".
+     - Changed: `parseCoordinates` (`lib/location/coordinates.dart`) reads
+       decimal degrees apart by a comma, semicolon, slash or spaces,
+       hemispheres before or after, and Google Maps' degrees, minutes and
+       seconds; a **Paste a position** box under the Location map sets the
+       location through `setOnMap` (as moving the map does), moves the map
+       there and empties; unreadable or out-of-range input shows an error.
+       `MotionConfig.defaultThreshold` 15 (the score already is the share
+       of the picture's pixels that changed). Before press / After press
+       sit in one row, half the width each. `SubjectsConfig.mapEvents`:
+       default 100, 10–500 in steps of 10, last on the screen.
+       `RecognitionConfig`: `autoTag` default 0.85; the `ask` field is
+       gone (ignored in stored records); matches from `askFloor` (0.3: a
+       face cosine of 0.45, where different people mostly score) up to
+       `autoTag` are always asked about; a note under the slider says so.
+       The Log switch's section is titled "Advanced". Stored values keep
+       theirs; only the defaults changed.
+     - Tests: `coordinates_test.dart` (formats, range edges, errors),
+       `device_location_test.dart` (a pasted position sets the location
+       and moves the map after a drag; errors keep it),
+       `settings_test.dart` (new defaults and stored values kept; clip
+       sliders side by side without overflow at 320 and 1280 dp; 15 %
+       label; no Ask slider; Advanced title, and none without the switch),
+       `recognition_test.dart` (an 80 % and a 40 % match are asked about,
+       a 20 % one isn't; config without `ask`), `subjects_test.dart` (the
+       setting last on the screen, renamed, 100 by default, up to 500);
+       `roles_test.dart` swipes from Settings in its right margin, off
+       the sliders the paste box moved down. 472 Flutter tests pass;
+       `flutter analyze` and `flutter build web` are clean.
+     - Specs: [Settings](settings.md), [Configuration](configuration.md),
+       [Device location](device-location.md),
+       [Recognition](recognition.md), [Subjects](subjects.md),
+       [Log](log.md).

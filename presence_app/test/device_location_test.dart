@@ -231,6 +231,48 @@ void main() {
       await tester.pumpAndSettle();
       expect(camera(tester).center.latitude, closeTo(48.8584, 1e-6));
     });
+
+    testWidgets('a pasted position sets the location and moves the map', (
+      tester,
+    ) async {
+      final location = await show(tester, FakeLocator());
+      await tester.runAsync(location.init);
+      await tester.pumpAndSettle();
+      // Moved by hand first: a pasted position still moves the map.
+      await tester.drag(
+        find.byKey(const Key('location-map')),
+        const Offset(-150, 100),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      final field = find.byKey(const Key('location-paste'));
+      await tester.enterText(field, 'somewhere nice');
+      await tester.tap(find.byKey(const Key('location-paste-set')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Not a position'), findsOneWidget);
+      final before = location.location;
+
+      await tester.enterText(field, '95, 10');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.text('Latitude must be between -90 and 90'), findsOneWidget);
+      expect(location.location, before);
+
+      await tester.enterText(field, '38°43\'20.3"N 9°08\'21.5"W');
+      await tester.tap(find.byKey(const Key('location-paste-set')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('must be between'), findsNothing);
+      expect(location.location?.source, LocationSource.map);
+      expect(location.location?.latitude, closeTo(38.722306, 1e-6));
+      expect(location.location?.longitude, closeTo(-9.139306, 1e-6));
+      expect(camera(tester).center.latitude, closeTo(38.722306, 1e-6));
+      expect(camera(tester).center.longitude, closeTo(-9.139306, 1e-6));
+      expect(find.text('Set on the map'), findsOneWidget);
+      // Taken: the box is empty again, and the position saved.
+      expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+      expect(saved?['lat'], closeTo(38.722306, 1e-6));
+    });
   });
 
   group('Location and battery', () {

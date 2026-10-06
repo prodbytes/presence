@@ -441,25 +441,28 @@ void main() {
   });
 
   group('settings and tags', () {
-    test('recognition settings: defaults, limits, ask under tag', () {
+    test('recognition settings: defaults, limits, no ask level', () {
       const r = RecognitionConfig();
       expect(r.enabled, isTrue);
       expect(r.objects, isTrue);
-      expect(r.autoTag, 0.8);
-      expect(r.ask, 0.5);
+      expect(r.autoTag, 0.85);
+      expect(RecognitionConfig.askFloor, 0.3);
       expect(r.copyWith(autoTag: 2).autoTag, RecognitionConfig.maxConfidence);
-      expect(r.copyWith(ask: 0.9).ask, 0.8);
-      expect(r.copyWith(autoTag: 0.4).ask, 0.4);
+      expect(r.copyWith(autoTag: 0).autoTag, RecognitionConfig.minConfidence);
       final config = const PresenceConfig().copyWith(
-        recognition: r.copyWith(
-          enabled: false,
-          objects: false,
-          autoTag: 0.9,
-          ask: 0.6,
-        ),
+        recognition: r.copyWith(enabled: false, objects: false, autoTag: 0.9),
       );
       expect(PresenceConfig.fromJson(config.toJson()), config);
+      expect(config.toJson()['recognition'], isNot(contains('ask')));
       expect(PresenceConfig.fromJson({'version': 1}).recognition, r);
+      // A record from when it had an "Ask me when at least" level: ignored.
+      expect(
+        PresenceConfig.fromJson({
+          'version': 1,
+          'recognition': {'enabled': true, 'autoTag': 0.7, 'ask': 0.6},
+        }).recognition,
+        r.copyWith(autoTag: 0.7),
+      );
     });
 
     test('tags keep their source and confidence; suggestions are not tags', () {
@@ -661,6 +664,54 @@ void main() {
       // One JPEG per frame used, not per tag.
       expect(sampler.jpegs, 2);
     });
+
+    test(
+      'asks about anyone under the auto-tag level, from the floor up',
+      () async {
+        const left = Box(0, 0.2, 0.3, 1);
+        const middle = Box(0.35, 0.2, 0.65, 1);
+        const right = Box(0.7, 0.2, 1, 1);
+        log.addHistory([
+          tagged(1, ['Ana']),
+          tagged(2, ['Bo']),
+          tagged(3, ['Cy']),
+        ]);
+        final vision = FakeVision(
+          {
+            0: [
+              // Ana at 80 %: under the 85 % default, so asked, not tagged.
+              seenAt(left, face: angleFor(0.70)),
+              // Bo at 40 %: under the old "ask" default (50 %), asked now.
+              seenAt(middle, face: 120 - angleFor(0.50)),
+              // Cy at 20 %: under the floor, a stranger; not asked.
+              seenAt(right, face: 240 + angleFor(0.40)),
+            ],
+          },
+          {
+            // Far apart, so nobody is much like the others.
+            1: [seenAt(middle, face: 0)],
+            2: [seenAt(middle, face: 120)],
+            3: [seenAt(middle, face: 240)],
+          },
+        );
+        final event = ClipRequested(clip(), id: 'new');
+        await recognizer(vision, FakeSampler(1)).recognize(event);
+
+        expect(event.annotations.tags, isEmpty);
+        expect(
+          {
+            for (final a in event.annotations.items)
+              if (a.source == TagSource.suggested) a.name,
+          },
+          {'Ana', 'Bo'},
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          published.whereType<SubjectSuggestion>().map((s) => s.subjectName),
+          unorderedEquals(['Ana', 'Bo']),
+        );
+      },
+    );
 
     test('stops once everyone is found, and skips who is tagged', () async {
       const body = Box(0.3, 0.2, 0.7, 1);

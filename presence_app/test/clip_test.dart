@@ -186,8 +186,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('settings-page')), findsOneWidget);
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
-    expect(find.text('Before the press'), findsOneWidget);
-    expect(find.text('After the press'), findsOneWidget);
+    expect(find.text('Before press'), findsOneWidget);
+    expect(find.text('After press'), findsOneWidget);
     expect(find.textContaining('Clips play 15 s in total'), findsOneWidget);
     // Tests have no build version, so there's no version label.
     expect(

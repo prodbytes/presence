@@ -97,13 +97,21 @@ void main() {
   });
 
   test('the number of events on a subject map is a stored setting', () {
-    expect(const PresenceConfig().subjects.mapEvents, 20);
+    expect(const PresenceConfig().subjects.mapEvents, 100);
     final config = const PresenceConfig().copyWith(
       subjects: const SubjectsConfig().copyWith(mapEvents: 35),
     );
     expect(PresenceConfig.fromJson(config.toJson()), config);
-    expect(const SubjectsConfig().copyWith(mapEvents: 1000).mapEvents, 100);
-    expect(const SubjectsConfig().copyWith(mapEvents: 0).mapEvents, 5);
+    expect(const SubjectsConfig().copyWith(mapEvents: 1000).mapEvents, 500);
+    expect(const SubjectsConfig().copyWith(mapEvents: 0).mapEvents, 10);
+    // A value stored before the default changed is kept.
+    expect(
+      PresenceConfig.fromJson({
+        'version': 1,
+        'subjects': {'mapEvents': 20},
+      }).subjects.mapEvents,
+      20,
+    );
     // Configs stored before the setting existed get the default.
     expect(
       PresenceConfig.fromJson({'version': 1}).subjects,
@@ -226,6 +234,10 @@ void main() {
           clipWith(['Rex'], minutesAgo: i, lat: 48 + i / 100),
         clipWith(['Rex'], minutesAgo: 99, id: 'no-location'),
       ]);
+      // Fewer than the default 100, to see the rest left out.
+      config.update(
+        (c) => c.copyWith(subjects: const SubjectsConfig(mapEvents: 20)),
+      );
       await show(tester);
       await tester.tap(
         find.descendant(
@@ -238,7 +250,7 @@ void main() {
       expect(find.byKey(const Key('subject-page')), findsOneWidget);
       expect(find.widgetWithText(AppBar, 'Rex'), findsOneWidget);
       expect(find.text('© OpenStreetMap contributors'), findsOneWidget);
-      // The latest 20 of 26, by default.
+      // The latest 20 of 26.
       expect(find.text('Latest 20 of 26 events'), findsOneWidget);
       expect(find.byKey(const Key('subject-dot-event-0')), findsOneWidget);
       expect(find.byKey(const Key('subject-dot-event-19')), findsOneWidget);
@@ -556,21 +568,30 @@ void main() {
       expect(opened?.id, 'event-3');
     });
 
-    testWidgets('the setting is on the Settings screen', (tester) async {
+    testWidgets('the setting is last on the Settings screen', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(body: SettingsView(config: config)),
+          home: Scaffold(
+            body: SettingsView(config: config, logTabDefault: false),
+          ),
         ),
       );
       final slider = find.byKey(const Key('subject-events-slider'));
       await tester.scrollUntilVisible(slider, 100);
-      expect(find.text("Latest events on a subject's map"), findsOneWidget);
-      expect(find.text('20'), findsOneWidget);
+      expect(find.text('How many events to load at once'), findsOneWidget);
+      expect(find.text('100'), findsOneWidget);
+      // Below every other setting, the Advanced section's too.
+      expect(
+        tester.getTopLeft(slider).dy,
+        greaterThan(
+          tester.getTopLeft(find.byKey(const Key('show-log-switch'))).dy,
+        ),
+      );
       await tester.drag(
         find.descendant(of: slider, matching: find.byType(Slider)),
         const Offset(500, 0),
       );
-      expect(config.subjects.mapEvents, 100);
+      expect(config.subjects.mapEvents, 500);
     });
   });
 

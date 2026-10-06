@@ -70,7 +70,7 @@ On Android, `devbox run android-log` reads these from the phone (see
   user has every role up to `presence_root`; see [Execution
   mode](execution-mode.md)) **and** the switch is on. See
   [Navigation](navigation.md).
-- **The switch:** Settings' **Log** section, **Show the Log tab** ("The
+- **The switch:** Settings' **Advanced** section, **Show the Log tab** ("The
   app's latest messages and health"), shown only to admins. Stored in the
   config as `log: {show}`; until it's flipped, `show` is unset and follows
   the execution mode (`LogConfig.showIn`): shown in DEV, hidden in RBAC.

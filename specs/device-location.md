@@ -46,6 +46,25 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location asks the device for its position again; it spins while
   waiting, and the map moves to the answer (zoom 17, or closer if already
   zoomed in).
+- **Paste a position**, under the map and its column, full width
+  ([lib/location/coordinates.dart](../presence_app/lib/location/coordinates.dart)):
+  a text box (hint "38.7223, -9.1393") with a check button; the button or
+  the keyboard's Done sets the location to the pasted latitude and
+  longitude exactly as moving the map does (`setOnMap`: "Set on the map",
+  saved, kept until My location), and the map moves there even if the
+  user had moved it. The box then empties. It reads:
+  - decimal degrees apart by a comma, a semicolon, a slash or spaces
+    (`38.7223, -9.1393`, `38.7223,-9.1393`, `38.7223 -9.1393`), in
+    brackets or not;
+  - hemispheres before or after (`38.7223° N, 9.1393° W`,
+    `N 38.7223 W 9.1393`), which may put the longitude first;
+  - degrees, minutes and seconds as Google Maps shows them
+    (`38°43'20.3"N 9°08'21.5"W`, also with ′ ″ or º).
+
+  Anything else shows an error under the box and changes nothing: "Not a
+  position: …" for text it can't read, "Latitude must be between -90 and
+  90" or "Longitude must be between -180 and 180" out of range, and
+  minutes or seconds of 60 or more, or two latitudes, are refused too.
 - **The detected place is the starting view, not a lock.** With no
   location yet, the map opens on the whole world (zoom 2). Until the user
   moves the map, it follows the location in force: the saved one once it
@@ -170,6 +189,11 @@ the camera. (There used to be a Device tab for both; it's gone.)
     choice survives a restart, and My location asks again;
   - without permission the section asks for a move and events have no
     location;
+  - a pasted position: unreadable text and an out-of-range latitude show
+    an error and keep the location; a Google Maps DMS position sets it
+    ("Set on the map", saved), moves the map there after a drag, and
+    empties the box. `coordinates_test.dart` covers the formats, the
+    range edges and the errors;
   - the map opens on the world, then moves to the device's reading, or to
     a saved location once it loads; a reading that answers after the user
     dragged the map leaves the map (and the location) where they put it,
