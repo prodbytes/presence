@@ -15,7 +15,7 @@ import 'map_parts.dart';
 /// it came from. That column is plain screen, so a drag there scrolls the
 /// list, as the map takes drags for itself.
 /// Moving the map moves the pin, and sets the device's location by hand;
-/// so does a position pasted in the box under the map
+/// so does a position pasted in the box under the position
 /// ([parseCoordinates]); **My location** asks the device again.
 class LocationSettings extends StatefulWidget {
   const LocationSettings({
@@ -288,53 +288,62 @@ class _LocationSettingsState extends State<LocationSettings> {
         ),
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 12,
-      children: [
-        LayoutBuilder(
-          builder: (context, box) => Row(
-            key: const Key('location-settings'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 16,
-            children: [
-              Expanded(child: map),
-              SizedBox(
-                key: const Key('location-position'),
-                width: LocationSettings.sideWidthFor(box.maxWidth),
-                child: _Position(location: _location),
-              ),
-            ],
-          ),
+    // A position copied from elsewhere, e.g. a maps app: a compact box in
+    // the position's column, under the position.
+    final paste = TextField(
+      key: const Key('location-paste'),
+      controller: _pasted,
+      keyboardType: TextInputType.text,
+      textInputAction: TextInputAction.done,
+      autocorrect: false,
+      enableSuggestions: false,
+      style: Theme.of(context).textTheme.bodySmall,
+      decoration: InputDecoration(
+        isDense: true,
+        border: const OutlineInputBorder(),
+        labelText: 'Paste position',
+        hintText: '38.72, -9.13',
+        errorText: _pasteError,
+        errorMaxLines: 3,
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
         ),
-        // A position copied from elsewhere, e.g. a maps app.
-        TextField(
-          key: const Key('location-paste'),
-          controller: _pasted,
-          keyboardType: TextInputType.text,
-          textInputAction: TextInputAction.done,
-          autocorrect: false,
-          enableSuggestions: false,
-          decoration: InputDecoration(
-            isDense: true,
-            border: const OutlineInputBorder(),
-            labelText: 'Paste a position',
-            hintText: '38.7223, -9.1393',
-            errorText: _pasteError,
-            errorMaxLines: 2,
-            suffixIcon: IconButton(
-              key: const Key('location-paste-set'),
-              tooltip: 'Set this position',
-              icon: const Icon(Icons.check),
-              onPressed: _setPasted,
+        suffixIcon: IconButton(
+          key: const Key('location-paste-set'),
+          tooltip: 'Set this position',
+          iconSize: 18,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.check),
+          onPressed: _setPasted,
+        ),
+      ),
+      onChanged: (_) {
+        if (_pasteError != null) setState(() => _pasteError = null);
+      },
+      onSubmitted: (_) => _setPasted(),
+    );
+    return LayoutBuilder(
+      builder: (context, box) => Row(
+        key: const Key('location-settings'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 16,
+        children: [
+          Expanded(child: map),
+          SizedBox(
+            key: const Key('location-position'),
+            width: LocationSettings.sideWidthFor(box.maxWidth),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 12,
+              children: [
+                _Position(location: _location),
+                paste,
+              ],
             ),
           ),
-          onChanged: (_) {
-            if (_pasteError != null) setState(() => _pasteError = null);
-          },
-          onSubmitted: (_) => _setPasted(),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
