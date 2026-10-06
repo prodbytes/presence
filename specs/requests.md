@@ -2876,3 +2876,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        asks Google's check; the channel's failure codes). 434 Flutter tests
        pass. On the phone: installed, force-stopped and relaunched, it
        signed in silently. Specs: [Sign-in](sign-in.md).
+271. **Different icons on the RC site.** (2026-10-06)
+     - Asked: make the favicons different on RC and in prod, with a huge
+       RC tag, so the browser tab tells them apart.
+     - Changed: new masters `icon_rc.svg` / `icon_rc_maskable.svg` (a
+       huge dark "RC" on Gruvbox red), rendered into
+       `presence_app/web_rc/` (favicon and the manifest's icons);
+       `scripts/deploy.sh` copies them over the build for `STAGE=rc`
+       only. Specs: [App icon](app-icon.md), [Production deploy](deploy.md).
