@@ -93,7 +93,9 @@ const voucherAnimals = [
 ];
 
 /// A code to suggest for a new voucher: the current season, an animal and
-/// a number, `AUTUMN-OTTER-4821`.
+/// a number, `AUTUMN-OTTER-4821`. Easy to say, but easy to guess too
+/// (about 19 random bits, the season known): offered only on request, for
+/// Member codes; a blank code gets the auth API's random one (60 bits).
 String suggestVoucherCode({DateTime? now, Random? random}) {
   final rng = random ?? Random.secure();
   final animal = voucherAnimals[rng.nextInt(voucherAnimals.length)];
@@ -101,19 +103,20 @@ String suggestVoucherCode({DateTime? now, Random? random}) {
   return '${seasonOf(now ?? DateTime.now())}-$animal-$number';
 }
 
-/// The length of a chosen code, dashes included (as the auth API checks).
-const minVoucherCode = 6;
+/// A chosen code's fewest letters and digits (dashes aside), and its most
+/// characters with dashes, as the auth API checks. Redeeming takes any code
+/// up to [maxVoucherCode]: older ones may be shorter.
+const minVoucherCode = 10;
 const maxVoucherCode = 40;
 
-/// Whether the auth API takes [typed] as a chosen code: letters and digits
-/// in words (spaces, dashes or underscores between them), 6 to 40
+/// Whether the auth API takes [typed] as a new chosen code: letters and
+/// digits in words (spaces, dashes or underscores between them), at least
+/// [minVoucherCode] letters and digits, and at most [maxVoucherCode]
 /// characters once joined by single dashes.
 bool isValidVoucherCode(String typed) {
-  final code = typed
-      .split(RegExp(r'[\s_-]+'))
-      .where((w) => w.isNotEmpty)
-      .join('-');
-  return code.length >= minVoucherCode &&
+  final words = typed.split(RegExp(r'[\s_-]+')).where((w) => w.isNotEmpty);
+  final code = words.join('-');
+  return words.join().length >= minVoucherCode &&
       code.length <= maxVoucherCode &&
       RegExp(r'^[A-Za-z0-9-]+$').hasMatch(code);
 }

@@ -756,9 +756,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
-
-      // A code is suggested: the season, an animal and a number.
+      // Blank by default (a random code); a suggestion only on request:
+      // the season, an animal and a number.
       final codeField = find.byKey(const Key('voucher-new-code'));
+      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
+      await tester.tap(find.byKey(const Key('suggest-code')));
+      await tester.pump();
       final suggested = tester.widget<TextField>(codeField).controller!.text;
       expect(
         suggested,
@@ -789,11 +792,8 @@ void main() {
         find.textContaining('Member · 100% off · 0 of 5 used'),
         findsOneWidget,
       );
-      // A new suggestion for the next one.
-      expect(
-        tester.widget<TextField>(codeField).controller!.text,
-        isNot(suggested),
-      );
+      // Blank again for the next one.
+      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
 
       await tester.tap(find.byKey(Key('delete-${voucher.code}')));
       await tester.pumpAndSettle();
@@ -802,6 +802,51 @@ void main() {
         'NEXT-SEAS-3333',
       ]);
       expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+    });
+
+    testWidgets('an admin sees a root\'s Admin code hidden', (tester) async {
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: '',
+            hidden: true,
+            role: adminRole,
+            expiresAt: DateTime.now().add(const Duration(days: 60)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.utc(2026, 9, 2),
+          ),
+        );
+      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
+      await tester.tap(find.byTooltip('Admin'));
+      await tester.pumpAndSettle();
+      // Listed, but not shown, copied or deleted.
+      final hidden = find.byKey(
+        Key(
+          'voucher-hidden-${DateTime.utc(2026, 9, 2).millisecondsSinceEpoch}',
+        ),
+      );
+      expect(hidden, findsOneWidget);
+      expect(
+        find.descendant(of: hidden, matching: find.text('Hidden code')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: hidden,
+          matching: find.byIcon(Icons.delete_outline),
+        ),
+        findsNothing,
+      );
+
+      expect(
+        find.descendant(of: hidden, matching: find.byIcon(Icons.copy)),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('Admin · 100% off · 0 of 1 used'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an admin types the code and a discount', (tester) async {
@@ -814,6 +859,10 @@ void main() {
       final discount = find.byKey(const Key('voucher-discount'));
 
       await tester.enterText(code, 'no');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      // Too short to be a secret: nine letters and digits.
+      await tester.enterText(code, 'otter-4821');
       await tester.pump();
       expect(tester.widget<FilledButton>(create).onPressed, isNull);
       await tester.enterText(code, 'friends-2026');
@@ -887,9 +936,20 @@ void main() {
       expect(adminItem(), findsWidgets);
       await tester.tap(adminItem().last);
       await tester.pumpAndSettle();
+      // An Admin code is always random: no typing, no suggestion.
+      final code = find.byKey(const Key('voucher-new-code'));
+      expect(tester.widget<TextField>(code).enabled, isFalse);
+      expect(find.text('Admin codes are always random'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('suggest-code')))
+            .onPressed,
+        isNull,
+      );
       await tester.tap(find.byKey(const Key('create-voucher')));
       await tester.pumpAndSettle();
       expect(membership.codes.single.role, adminRole);
+      expect(membership.codes.single.code, startsWith('TEST-CODE-'));
     });
 
     testWidgets('a presence_user: everything but Admin', (tester) async {

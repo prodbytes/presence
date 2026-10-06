@@ -110,7 +110,10 @@ there's no separate sign-in screen:
   - **With `presence_admin` too,** an **Admin** icon also shows, left of
     the account button (see [Membership](membership.md)). With
     `presence_root` as well (`RolesService.isRoot`), its voucher form also
-    offers Admin codes.
+    offers Admin codes. A root on a root domain (`nu01.com`) must sign in
+    with that domain's Google Workspace account (the ID token's `hd`); a
+    personal Google account registered with a `nu01.com` address gets no
+    root roles (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
     icon. The icon opens "Request access", where the user writes a message
@@ -194,7 +197,8 @@ there's no separate sign-in screen:
 - **Linked accounts:** the account sheet (and the sign-up sheet, for an
   account without access) opens **Linked accounts**, where a member makes
   a one-time code and another of their Google accounts enters it. That
-  account then shares the profile's folder and roles. See
+  account then shares the profile's folder and membership
+  (`presence_user`), never the owner's Admin or root roles. See
   [Profiles](profiles.md). On iOS the app now
   also passes the web client as `serverClientId`, so, as on Android and
   web, the ID token is issued for the web client.

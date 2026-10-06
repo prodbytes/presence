@@ -12,11 +12,17 @@ in without asking. Roles come from the
 | Root | `presence_user`, `presence_admin`, `presence_root` | as Admin, and also creates Admin vouchers |
 
 Roots are the auth API's **root allowlist**: verified emails at one of
-`PRESENCE_ROOT_DOMAINS` (`nu01.com`) or listed in `PRESENCE_ROOT_EMAILS`
-(none by default). They get all three roles, and nothing else gives
-`presence_root`. Everyone else starts unknown, and gets roles from an
-administrator's grant or a voucher code. So admins are made only by roots
-(or by hand in `UserRolesTable`), and admins can only add members.
+`PRESENCE_ROOT_DOMAINS` (`nu01.com`) from an account of that domain's
+Google Workspace (the token's `hd` claim), or listed in
+`PRESENCE_ROOT_EMAILS` (none by default; Gmail or Workspace addresses
+only). A personal Google account registered with a `nu01.com` address
+isn't a root (see [Auth API](auth-api.md)). Roots get all three roles,
+and nothing else gives `presence_root`. Everyone else starts unknown, and
+gets roles from an administrator's grant or a voucher code. So admins are
+made only by roots (or by hand in `UserRolesTable`), and admins can only
+add members. An account linked to another's profile shares its
+membership (`presence_user`) only, never `presence_admin` or
+`presence_root`.
 
 ## Asking for access
 
@@ -39,8 +45,10 @@ opens "Request access":
   discount under 100% (402) says "That code gives 25% off. Paying the rest
   isn't available yet, so it can't let you in." and keeps the code. An
   invalid, not yet valid, expired or used-up code (404) says "That code
-  is invalid, expired or used up.";
-  throttling (429) says to try again in a minute;
+  is invalid, expired or used up."; the field takes up to 40 characters,
+  as long as a chosen code may be. Too many tries (429: the route's
+  throttle, or 10 wrong codes from this email within an hour) says "Too
+  many tries. Wait a while and try again.";
 - **Check again** re-asks `GET /api/auth`, so a granted user gets in
   without signing out.
 
@@ -53,16 +61,20 @@ requests when they open the Admin tab.
 
 A voucher grants a role to whoever redeems it:
 
-- **Code:** the admin's choice, or random when left blank. The app
-  suggests the current season, an animal and a number
-  (`AUTUMN-OTTER-4821`). A chosen code is 6 to 40 letters (A to Z),
-  digits and dashes; it's stored upper case, its words joined by single
-  dashes, so `autumn otter_4821` is `AUTUMN-OTTER-4821`. A taken code is
-  refused (409). A random code is `XXXX-XXXX-XXXX` (`SecureRandom`) from
-  32 characters without `0`, `O`, `1` or `I`: 60 bits. Typed codes ignore
-  case and separators (spaces, dashes, underscores); twelve characters of
-  that alphabet, typed whole or as three groups of four, take the random
-  form.
+- **Code:** random when left blank (the app's default), or, for a Member
+  voucher only, the admin's choice; the app suggests the current season,
+  an animal and a number (`AUTUMN-OTTER-4821`) only when asked. The code
+  is a voucher's only secret, so an **Admin voucher always gets a random
+  code** (a chosen one is refused, 400), and a chosen code needs **at
+  least 10 letters and digits** (dashes aside) and at most 40 characters:
+  letters (A to Z), digits and dashes; it's stored upper case, its words
+  joined by single dashes, so `autumn otter_4821` is `AUTUMN-OTTER-4821`.
+  A taken code is refused (409). A random code is `XXXX-XXXX-XXXX`
+  (`SecureRandom`) from 32 characters without `0`, `O`, `1` or `I`: 60
+  bits. Typed codes ignore case and separators (spaces, dashes,
+  underscores); twelve characters of that alphabet, typed whole or as
+  three groups of four, take the random form. Redeeming and deleting take
+  codes from 6 characters, for vouchers made before the 10-character rule.
 - **Discount:** a percentage, 1 to 100, 100 by default. Only a 100%
   voucher grants its role. A valid voucher with less is answered 402 with
   its discount: no role is granted and no use is counted, because the
@@ -89,13 +101,23 @@ dates, which have no `startsAt`, start at `createdAt`). Redeeming is one
 conditional update (the code exists, `startsAt` is missing or not after
 now, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
 `redeemedBy`), so concurrent redemptions can't overspend a code. The role
-is then merged into the user's roles in `UserRolesTable`; if that fails, the
-use is given back. Every refused code gets the same 404, so answers don't
-tell which codes exist, and the route is throttled (1 a second, burst 5).
-The update's condition also requires a full discount (or none stored, for
-vouchers from before discounts); when it fails, the code is read back,
-and one this email could otherwise redeem with a partial discount gets
-402 instead of 404.
+is then added to the user's roles in `UserRolesTable` (one atomic `ADD` to
+the string set); if that fails, the use is given back and the answer is
+502. Every other refused code gets the same 404, so it doesn't tell which
+of unknown, not yet valid, expired, used up or already used it is, and the
+route is throttled (1 a second, burst 5). The update's condition also
+requires a full discount (or none stored, for vouchers from before
+discounts); when it fails, the code is read back, and one this email could
+otherwise redeem with a partial discount gets 402 instead of 404: a 402
+does tell that such a code exists.
+
+**Lockout:** each 404 counts against the email in its `UserRolesTable`
+item (`voucherMisses` since `voucherMissesSince`, epoch ms; no role is
+declared by it). After **10 wrong codes within an hour** of the first, the
+email gets **429** "too many wrong codes; try again later" for the rest
+of that hour, even for a good code; the next miss after it starts a new
+hour. A 402 isn't a miss. With the shared throttle, guessing a random
+code stays hopeless and a 10-character chosen one slow.
 
 ## The Admin tab
 
@@ -115,7 +137,8 @@ opened.
 - the pending requests, oldest first, as cards: name, email, date and
   message;
 - **Grant access** adds `presence_user` to that email's roles in
-  `UserRolesTable` (merged with any it has, stored as a string set) and
+  `UserRolesTable` (one atomic `ADD` to its string set; roles written by
+  hand as a list or a string are rewritten as a set first) and
   removes the request. **Dismiss** hides it: the row stays, marked
   `dismissed`, so the requester still waits out the hour before asking
   again. A message confirms either;
@@ -123,9 +146,12 @@ opened.
 
 **Voucher codes**, after the requests:
 
-- a form: **Code** (a suggestion of the current season, an animal and a
-  number, `AUTUMN-OTTER-4821`; the dice button suggests another, and the
-  admin may type their own, or clear it for a random code), **Grants**
+- a form: **Code** (blank by default, "Blank for a random code (the
+  safest)"; for a Member code the admin may type their own, at least 10
+  letters and digits, or press the dice button, "Suggest a code (easier to
+  guess)", for the season, an animal and a number, `AUTUMN-OTTER-4821`.
+  Choosing **Admin** clears and disables the field, "Admin codes are
+  always random", and the dice), **Grants**
   (Member by default; Admin is offered to roots only, and other admins
   are told "Only roots create Admin codes."), **Valid from** and **Valid
   through** (date pickers, the current season's first and last days by
@@ -134,9 +160,9 @@ opened.
   day after the last moves the last to it), **Uses** (1 by
   default; digits only, 1 to 1000), **Discount** (100 % by default; 1 to
   100) and **Create code**, disabled while a field is invalid. The new
-  code goes to the top of the list and a message names it, and the form
-  suggests a new code (the dates stay). A taken code says "That code is taken; pick
-  another.";
+  code goes to the top of the list and a message names it, and the code
+  field is blank again (the dates stay). A taken code says "That code is
+  taken; pick another.";
 - the season is the northern hemisphere's meteorological one: winter is
   December to February, spring March to May, summer June to August,
   autumn September to November ([lib/auth/voucher_code.dart](../presence_app/lib/auth/voucher_code.dart)),
@@ -145,7 +171,10 @@ opened.
   struck through with "Expired", "Used up" or "Not yet valid" when it
   can't be redeemed), its role, its discount ("25% off"), "N of M used",
   "valid from" its start and "expires" its end, who redeemed it, and **Copy code**
-  and **Delete** buttons. "No vouchers." when there are none.
+  and **Delete** buttons. "No vouchers." when there are none. To an admin
+  who isn't a root, an Admin voucher shows "Hidden code" with no buttons:
+  the API sends it without its code (`"code": null, "hidden": true`) and
+  refuses to delete it (403), so an admin can't pass the Admin role on.
 
 **Reload** (a refresh icon beside the "Membership requests" heading) and
 pull to refresh fetch both lists again; each section
@@ -161,15 +190,19 @@ is the app's client (a fake in tests).
   Admin tab.
 - A request's **Grant access** gives `presence_user` only.
   `presence_admin` comes from the root allowlist, a root's Admin voucher,
-  or editing `UserRolesTable` by hand.
+  or editing `UserRolesTable` by hand, for the account's own email: never
+  from the owner of a profile the account is linked to.
 - Changing the root allowlist takes a deploy (it's a stack parameter).
 - Deleting a voucher, or its expiry, doesn't take back the roles it
   granted.
 - Suggested codes are far easier to guess than random ones: with the
   season known, about 620,000 (63 animals, numbers 100 to 9999), against
-  2^60. At the redeem throttle (1 a second) that's about a week to try
-  them all, so keep few uses and short expiries on them, or clear the
-  field for a random code. Codes an admin types can be weaker still.
+  2^60. The per-email lockout (10 an hour) makes one account need years,
+  but many Google accounts share only the route's throttle (1 a second),
+  about a week for all of them; so the app suggests one only when asked,
+  and only for Member codes. Keep few uses and short expiries on them.
+  Codes an admin types can be weaker still, though at least 10 letters
+  and digits.
 - The suggested season, and the default validity, are the northern
   hemisphere's.
 - The app picks whole days in the admin's time zone; the API takes any
@@ -186,4 +219,5 @@ is the app's client (a fake in tests).
   or a new sign-in (a voucher re-checks at once).
 - Anyone with a Google account can send a request (once an hour per
   email). The route's throttle (1 a second, burst 5) is shared, so a flood
-  can delay real requests.
+  can delay real requests (see [Throttling and
+  floods](auth-api.md#throttling-and-floods)).
