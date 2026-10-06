@@ -485,10 +485,12 @@ void main() {
         await tester.scrollUntilVisible(
           logSwitch,
           300,
-          scrollable: find.descendant(
-            of: find.byKey(const Key('settings-page')),
-            matching: find.byType(Scrollable),
-          ),
+          scrollable: find
+              .descendant(
+                of: find.byKey(const Key('settings-page')),
+                matching: find.byType(Scrollable),
+              )
+              .first,
         );
         await tester.pumpAndSettle();
         await tester.tap(logSwitch);
@@ -933,13 +935,21 @@ void main() {
         expect(find.byKey(const Key('account-button')), findsOneWidget);
 
         // Swiping flips back to Settings, and on to the Admin tab again
-        // (low on the page, off the Settings map, which takes drags).
-        const low = Offset(640, 760);
-        await tester.flingFrom(low, const Offset(300, 0), 1000);
+        // (low on the page, off the Settings map, which takes drags; on
+        // Settings, in its right margin, off the sliders, which do too).
+        await tester.flingFrom(
+          const Offset(640, 760),
+          const Offset(300, 0),
+          1000,
+        );
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('settings-page')), findsOneWidget);
         expect(find.byKey(const Key('admin-view')), findsNothing);
-        await tester.flingFrom(low, const Offset(-300, 0), 1000);
+        await tester.flingFrom(
+          const Offset(1272, 760),
+          const Offset(-300, 0),
+          1000,
+        );
         await tester.pumpAndSettle();
         expect(tabs(tester).index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);

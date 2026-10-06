@@ -85,16 +85,20 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
 
    Pairs are made surest first, one subject per person and one person per
    subject on a frame.
-5. **Tag, ask, or neither** (thresholds in Settings):
-   - from **Tag automatically** (default **80 %**): on the **first frame**
+5. **Tag, ask, or neither** (the threshold in Settings):
+   - from **Tag automatically** (default **85 %**): on the **first frame**
      it happens, a **recognized tag** (`source: detected`, with its
      confidence) at the face's center (or the box's), on that frame;
-   - from **Ask me** (default **50 %**) but below: a **suggestion**
+   - below it, always asked: from **30 %** (`RecognitionConfig.askFloor`,
+     not a setting) up, a **suggestion**
      (`source: suggested`) on the first frame it happens, and, once the
      clip is done, a **"Is this Rex?"** event (`SubjectSuggestion`). If the
      subject is recognized surely later in the clip, they're tagged instead
      and nothing is asked;
-   - below: nothing.
+   - under 30 %: nothing. A face at 30 % has a cosine of 0.45, where
+     different people mostly score, so lower matches would mostly ask
+     about strangers. (There used to be an **Ask me** slider, default
+     50 %; it's gone, and stored `ask` values are ignored.)
 
    A subject is tagged or asked about at most once per clip; later frames
    don't add more. Subjects already on the clip are skipped, and the

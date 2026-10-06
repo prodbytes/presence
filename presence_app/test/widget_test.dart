@@ -222,8 +222,8 @@ void main() {
     expect(find.byKey(const Key('settings-page')), findsOneWidget);
     // Location first, the other sections under it.
     expect(find.text('Location'), findsOneWidget);
-    await scrollSettingsTo(tester, find.text('Before the press'));
-    expect(find.text('Before the press'), findsOneWidget);
+    await scrollSettingsTo(tester, find.text('Before press'));
+    expect(find.text('Before press'), findsOneWidget);
 
     await openTab(tester, 'Camera');
     expect(tabs(tester).index, HomeTab.camera.index);

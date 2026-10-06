@@ -111,9 +111,10 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
   when all are shown), then each event, newest first: its frame, time and
   camera, the coordinates (5 decimals) or "No location", and the same
   dot, in the same color and opacity, as on the map. Tapping an event in the list plays its clip.
-- **It shows the latest 20 events by default**, set on the Settings screen
-  (**Latest events on a subject's map**, 5–100 in steps of 5;
-  `SubjectsConfig.mapEvents`, see [Configuration](configuration.md)).
+- **It shows the latest 100 events by default**, set at the bottom of the
+  Settings screen (**How many events to load at once**, 10–500 in steps
+  of 10; `SubjectsConfig.mapEvents`, see [Configuration](configuration.md)).
+  The same number caps each subject's dots on the subjects map.
   Changing it updates an open screen.
 - Events without a location (published before the location was known, or
   with location unavailable) are listed but have no dot.
@@ -126,7 +127,7 @@ way (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart)):
   newest first, with the latest frame; the opacity runs from 1 to 0.15;
   the setting's default, range and round-trip, and old configs without it;
   a clip card's subjects and colors, updating when a tag is added; a
-  subject's screen with the latest 20 of 26 dots, fading, then 25
+  subject's screen set to 20 with the latest 20 of 26 dots, fading, then 25
   after raising the setting, and the event without a location listed with
   no dot; a subject's color depends only on its name and spreads over
   the palette, and every dot has it, fading by age; the setting's slider;

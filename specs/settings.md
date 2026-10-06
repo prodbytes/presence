@@ -2,11 +2,15 @@
 
 - The **Settings** tab, **full width** (no 560 px readable width).
 - Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
-  Subjects, Recognition, History.
+  Recognition, History, Advanced (admins only), Subjects; then the
+  version, IDs, health line and Add a device.
 - **Location** section, first: a map with a center pin and, to its right,
   this device's position (labeled, with where it came from), so a drag
   beside the map scrolls the list; moving the map sets the location, with
-  zoom and My location buttons on the map. See
+  zoom and My location buttons on the map. Under the map, a **Paste a
+  position** box takes a latitude and longitude copied from elsewhere
+  ("38.7223, -9.1393", or Google Maps' `38°43'20.3"N 9°08'21.5"W`) and
+  sets the location to it, as moving the map does. See
   [Device location and battery](device-location.md).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
   steps, default **+1 EV**. It's applied live to the open camera, and to its
@@ -20,14 +24,18 @@
   nothing elsewhere.
 - **Motion** section:
   - A **Clip automatically on motion** switch (default on).
-  - **Motion threshold**, 1–50% of the picture (default 10%).
+  - **Motion threshold**, 1–50% of the picture (the share of pixels that
+    must change), default **15%**. Stored values are kept; only the
+    default changed (it was 10%).
   - A **live motion meter** showing the open camera's current score, with a
     marker at the threshold, to help calibrate it.
   - **At most one automatic clip every** 1–60 minutes (default 5).
-- **Clips** section, with two sliders from 5 s to 60 s in 5 s steps:
-  - **Before the press**, default 5 s. This also sets how much history the
-    cameras keep recording.
-  - **After the press**, default 10 s.
+- **Clips** section, with two sliders from 5 s to 60 s in 5 s steps,
+  **side by side**, each half the width (8 px apart), with compact labels
+  so they fit a 320 dp phone:
+  - **Before press**, on the left, default 5 s. This also sets how much
+    history the cameras keep recording.
+  - **After press**, on the right, default 10 s.
 - It shows the total clip length, and notes that a new "before" value takes
   up to that long to apply fully.
 - **Scheduled clips** section (see [Scheduled clips](scheduled-clips.md)):
@@ -37,9 +45,6 @@
     is.
   - Under it, while the switch is on, a countdown to the next clip,
     refreshed every second ("Next clip in 2 h 59 min 58 s").
-- **Subjects** section: **Latest events on a subject's map**, 5–100 in
-  steps of 5, default **20**: how many of a subject's latest events its
-  screen lists and maps (see [Subjects](subjects.md)).
 - **Recognition** section (see [Subject recognition](recognition.md)):
   - A **Recognize subjects in new clips** switch (default on). Where there's
     no runtime (iOS for now) it's off and disabled, and says
@@ -48,20 +53,25 @@
     bicycle, bottle… for search": the [object tags](recognition.md).
     Disabled the same way where there's no runtime.
   - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
-    default **80 %**.
-  - **Ask me when at least** 30–95 % sure, default **50 %**; never above
-    the first (raising it past it stops at it, and lowering the first
-    lowers it).
-  - Both sliders are off while the subjects switch is. Stored as
-    `recognition: {enabled, objects, autoTag, ask}`.
+    default **85 %**, off while the subjects switch is. Under it, "Less
+    sure than that, it asks you whether it's them.": there's no separate
+    "Ask me" level any more; anyone recognized below it (from 30 %, the
+    floor) is asked about.
+  - Stored as `recognition: {enabled, objects, autoTag}`; an `ask` value
+    in older records is ignored.
 - **History** section (see [Event retention](event-retention.md)): **Keep
   events for**, 1–90 days in 1-day steps, default **2 weeks**, shown as
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older
   events and their clips are deleted from this device when the app starts
   and every 3 hours. Stored as `history: {keepMs}`.
-- **Log** section, for admins only (everyone in DEV): **Show the Log tab**,
-  on by default in DEV and off otherwise. Stored as `log: {show}`, unset
-  until flipped (see [Log](log.md)).
+- **Advanced** section, for admins only (everyone in DEV): **Show the Log
+  tab**, on by default in DEV and off otherwise. Stored as `log: {show}`,
+  unset until flipped (see [Log](log.md)).
+- **Subjects** section, the last setting: **How many events to load at
+  once**, 10–500 in steps of 10, default **100**: how many of a subject's
+  latest events its screen lists and maps, and each subject's on the
+  Subjects map (see [Subjects](subjects.md)). Stored values are kept
+  (raised to 10 if below).
 - **The build's version** is at the very bottom, small and centred: only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version

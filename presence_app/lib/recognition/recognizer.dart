@@ -76,9 +76,10 @@ class RecognitionResult {
 /// references, so a mistake doesn't spread. The clip is sampled
 /// [every] so long; the first frame a subject is
 /// recognized on at [RecognitionConfig.autoTag] or more gets a
-/// [TagSource.detected] tag. A subject only reaching
-/// [RecognitionConfig.ask] gets a [TagSource.suggested] entry instead, on
-/// the first frame it did, and a [SubjectSuggestion] event asks about it.
+/// [TagSource.detected] tag. A subject recognized below that (but at
+/// least [RecognitionConfig.askFloor]) gets a [TagSource.suggested] entry
+/// instead, on the first frame it was, and a [SubjectSuggestion] event
+/// asks about it.
 /// Subjects already on the clip are skipped, so none is tagged twice. Only
 /// detections that could match someone (people if a person is known, pets
 /// if a pet is) are embedded, at most [maxSeenPerFrame] a frame. Clips
@@ -356,7 +357,7 @@ class SubjectRecognizer {
           analysis.seen,
           gallery,
           skip: found,
-          minConfidence: settings.ask,
+          minConfidence: RecognitionConfig.askFloor,
         );
         TagFrame? tagFrame;
         for (final match in matches) {

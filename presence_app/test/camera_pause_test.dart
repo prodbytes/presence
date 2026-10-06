@@ -122,10 +122,7 @@ void main() {
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
       expect(find.textContaining('· live'), findsNothing);
       expect(find.byTooltip('Clip'), findsNothing);
-      expect(
-        find.byTooltip('Camera off: nothing is recorded'),
-        findsOneWidget,
-      );
+      expect(find.byTooltip('Camera off: nothing is recorded'), findsOneWidget);
       expect(find.text('Off'), findsNothing);
 
       // Back to One: the camera reopens.

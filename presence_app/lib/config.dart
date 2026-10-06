@@ -275,7 +275,9 @@ class MotionConfig {
 
   static const double minThreshold = 1;
   static const double maxThreshold = 50;
-  static const double defaultThreshold = 10;
+
+  /// 15 % of the picture: enough to ignore light flicker and leaves.
+  static const double defaultThreshold = 15;
   static const Duration minCooldown = Duration(minutes: 1);
   static const Duration maxCooldown = Duration(minutes: 60);
   static const Duration defaultCooldown = Duration(minutes: 5);
@@ -433,12 +435,13 @@ class LogConfig {
 class SubjectsConfig {
   const SubjectsConfig({this.mapEvents = defaultMapEvents});
 
-  static const int minMapEvents = 5;
-  static const int maxMapEvents = 100;
-  static const int mapEventsStep = 5;
-  static const int defaultMapEvents = 20;
+  static const int minMapEvents = 10;
+  static const int maxMapEvents = 500;
+  static const int mapEventsStep = 10;
+  static const int defaultMapEvents = 100;
 
-  /// How many of a subject's latest events its screen shows (and maps).
+  /// How many events load at once: a subject's latest events its screen
+  /// shows (and maps), and each subject's on the Subjects map.
   final int mapEvents;
 
   SubjectsConfig copyWith({int? mapEvents}) => SubjectsConfig(
@@ -461,65 +464,56 @@ class SubjectsConfig {
 }
 
 /// Recognizing subjects on new clips (see `recognition/`): on or off, and
-/// how sure it must be to tag on its own, or to ask; and tagging the
-/// objects seen on them ([objects]).
+/// how sure it must be to tag on its own; and tagging the objects seen on
+/// them ([objects]). A subject recognized below [autoTag] is always asked
+/// about, from [askFloor] up.
 @immutable
 class RecognitionConfig {
   const RecognitionConfig({
     this.enabled = true,
     this.objects = true,
     this.autoTag = defaultAutoTag,
-    this.ask = defaultAsk,
   });
 
   static const double minConfidence = 0.3;
   static const double maxConfidence = 0.95;
   static const double step = 0.05;
-  static const double defaultAutoTag = 0.8;
-  static const double defaultAsk = 0.5;
+  static const double defaultAutoTag = 0.85;
+
+  /// Under this confidence a match isn't asked about: a face scoring 30 %
+  /// has a cosine of 0.45, where different people mostly score (see
+  /// `faceConfidence`), so asking would mostly be about strangers.
+  static const double askFloor = minConfidence;
 
   final bool enabled;
 
   /// Whether new clips get object tags (`human`, `cat`, `bicycle`...).
   final bool objects;
 
-  /// From this confidence (0 to 1) a recognized subject is tagged.
+  /// From this confidence (0 to 1) a recognized subject is tagged; from
+  /// [askFloor] to here, a `SubjectSuggestion` asks whether it's them.
   final double autoTag;
 
-  /// From this confidence, below [autoTag], a `SubjectSuggestion` asks
-  /// whether it's them. Never above [autoTag].
-  final double ask;
-
-  RecognitionConfig copyWith({
-    bool? enabled,
-    bool? objects,
-    double? autoTag,
-    double? ask,
-  }) {
-    final auto = (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence);
-    final asking = (ask ?? this.ask).clamp(minConfidence, maxConfidence);
-    return RecognitionConfig(
-      enabled: enabled ?? this.enabled,
-      objects: objects ?? this.objects,
-      autoTag: auto,
-      // Raising "ask" past "tag" would leave nothing to ask about.
-      ask: asking > auto ? auto : asking,
-    );
-  }
+  RecognitionConfig copyWith({bool? enabled, bool? objects, double? autoTag}) =>
+      RecognitionConfig(
+        enabled: enabled ?? this.enabled,
+        objects: objects ?? this.objects,
+        autoTag: (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence),
+      );
 
   Map<String, Object?> toJson() => {
     'enabled': enabled,
     'objects': objects,
     'autoTag': autoTag,
-    'ask': ask,
   };
 
+  /// Records from before always asking also have an `ask` level; it's
+  /// ignored.
   factory RecognitionConfig.fromJson(Map<String, Object?> json) =>
       const RecognitionConfig().copyWith(
         enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
         objects: json['objects'] is bool ? json['objects']! as bool : null,
         autoTag: _num(json['autoTag']),
-        ask: _num(json['ask']),
       );
 
   @override
@@ -527,11 +521,10 @@ class RecognitionConfig {
       other is RecognitionConfig &&
       other.enabled == enabled &&
       other.objects == objects &&
-      other.autoTag == autoTag &&
-      other.ask == ask;
+      other.autoTag == autoTag;
 
   @override
-  int get hashCode => Object.hash(enabled, objects, autoTag, ask);
+  int get hashCode => Object.hash(enabled, objects, autoTag);
 }
 
 /// Holds the current [PresenceConfig] and notifies listeners when it

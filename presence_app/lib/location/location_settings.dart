@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../theme.dart';
+import 'coordinates.dart';
 import 'device_location.dart';
 import 'map_parts.dart';
 
@@ -14,7 +15,8 @@ import 'map_parts.dart';
 /// it came from. That column is plain screen, so a drag there scrolls the
 /// list, as the map takes drags for itself.
 /// Moving the map moves the pin, and sets the device's location by hand;
-/// **My location** asks the device again.
+/// so does a position pasted in the box under the map
+/// ([parseCoordinates]); **My location** asks the device again.
 class LocationSettings extends StatefulWidget {
   const LocationSettings({
     super.key,
@@ -63,6 +65,10 @@ class LocationSettings extends StatefulWidget {
 
 class _LocationSettingsState extends State<LocationSettings> {
   final _map = MapController();
+  final _pasted = TextEditingController();
+
+  /// Why the pasted position wasn't taken, until the text changes.
+  String? _pasteError;
   Timer? _commit;
   bool _ready = false;
 
@@ -98,6 +104,7 @@ class _LocationSettingsState extends State<LocationSettings> {
   @override
   void dispose() {
     _commit?.cancel();
+    _pasted.dispose();
     if (_held > 0) widget.onMapHeld?.call(false);
     _location.removeListener(_onLocation);
     _map.dispose();
@@ -158,6 +165,22 @@ class _LocationSettingsState extends State<LocationSettings> {
       ),
     );
     setState(() {});
+  }
+
+  /// Sets the device's location to the position pasted in the box, as if
+  /// the map had been moved there, and moves the map to it.
+  void _setPasted() {
+    try {
+      final at = parseCoordinates(_pasted.text);
+      _commit?.cancel();
+      // The map follows the new location, wherever the user had put it.
+      _moved = false;
+      _location.setOnMap(at.latitude, at.longitude);
+      _pasted.clear();
+      setState(() => _pasteError = null);
+    } on FormatException catch (e) {
+      setState(() => _pasteError = e.message);
+    }
   }
 
   /// My location: asks the device again, and the map follows the answer.
@@ -265,20 +288,53 @@ class _LocationSettingsState extends State<LocationSettings> {
         ),
       ),
     );
-    return LayoutBuilder(
-      builder: (context, box) => Row(
-        key: const Key('location-settings'),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 16,
-        children: [
-          Expanded(child: map),
-          SizedBox(
-            key: const Key('location-position'),
-            width: LocationSettings.sideWidthFor(box.maxWidth),
-            child: _Position(location: _location),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        LayoutBuilder(
+          builder: (context, box) => Row(
+            key: const Key('location-settings'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 16,
+            children: [
+              Expanded(child: map),
+              SizedBox(
+                key: const Key('location-position'),
+                width: LocationSettings.sideWidthFor(box.maxWidth),
+                child: _Position(location: _location),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        // A position copied from elsewhere, e.g. a maps app.
+        TextField(
+          key: const Key('location-paste'),
+          controller: _pasted,
+          keyboardType: TextInputType.text,
+          textInputAction: TextInputAction.done,
+          autocorrect: false,
+          enableSuggestions: false,
+          decoration: InputDecoration(
+            isDense: true,
+            border: const OutlineInputBorder(),
+            labelText: 'Paste a position',
+            hintText: '38.7223, -9.1393',
+            errorText: _pasteError,
+            errorMaxLines: 2,
+            suffixIcon: IconButton(
+              key: const Key('location-paste-set'),
+              tooltip: 'Set this position',
+              icon: const Icon(Icons.check),
+              onPressed: _setPasted,
+            ),
+          ),
+          onChanged: (_) {
+            if (_pasteError != null) setState(() => _pasteError = null);
+          },
+          onSubmitted: (_) => _setPasted(),
+        ),
+      ],
     );
   }
 }
