@@ -18,6 +18,13 @@ Description: >
   site's CloudFront distribution, with /health.
 
 Parameters:
+  Version:
+    Type: String
+    Default: ''
+    Description: >
+      The release deployed (X.Y.Z, from scripts/deploy.sh), reported by
+      GET /health as "version". Empty locally: /health then leaves it out.
+    AllowedPattern: '([0-9]+\.[0-9]+\.[0-9]+)?'
   GoogleWebClientId:
     Type: String
     Default: ''
@@ -534,6 +541,7 @@ Resources:
       MemorySize: 1024
       Environment:
         Variables:
+          PRESENCE_VERSION: !Ref Version
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket

@@ -158,7 +158,7 @@ echo "==> deploying $AUTH_STACK"
   cd presence_api_auth
   sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
-    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    --parameter-overrides "Version=$VERSION" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
     --no-confirm-changeset --no-fail-on-empty-changeset
@@ -208,10 +208,12 @@ check() {
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
-  # What the Route 53 health check polls: every dependency must be ok.
+  # What the Route 53 health check polls: every dependency must be ok, and
+  # the API must be this release.
   local health
   health="$(curl -s --max-time 20 "https://$DOMAIN/health")"
   [[ "$health" == '{"status":"ok",'* ]] || { echo "    /health answered $health, want status ok"; return 1; }
+  [[ "$health" == *"\"version\":\"$VERSION\""* ]] || { echo "    /health answered $health, want version $VERSION"; return 1; }
 }
 for attempt in $(seq 1 30); do
   if check; then
