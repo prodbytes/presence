@@ -167,6 +167,14 @@
   is saved with the event and syncs in its [JSON](data-formats.md), so
   other devices show it too; events saved before it have none, and keep
   none.
+- **Deleted events show nowhere.** Deleting a device
+  ([Device deletion](device-deletion.md)) gives each of its events
+  `deletedAt` (`AppEvent.deletedAt`): a soft delete. The records stay in
+  storage and the cloud, so the deletion syncs, but deleted events are kept
+  out of `EventLog` (not restored at launch, not added when fetched, taken
+  out when a deleted copy arrives), so the timeline, its count, search and
+  filters, the subjects, the maps, the All grid and the device list never
+  see them.
 - With no events, the panel shows a "No events" empty state.
 - Events flow through an app-wide **event bus**: a plain Dart broadcast
   `StreamController` (`AppEventBus` in

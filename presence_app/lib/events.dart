@@ -118,6 +118,13 @@ class AppEvent {
   /// when it's saved; null on events saved before events had one.
   String? os;
 
+  /// When the event was deleted, with every other event of its device
+  /// (`Persistence.deleteDevice`): a soft delete. The record stays, with
+  /// this time, in storage and in the cloud, so the deletion syncs to the
+  /// profile's other devices; deleted events are kept out of the
+  /// [EventLog], so nothing shows them. Null: not deleted.
+  DateTime? deletedAt;
+
   /// The stored form of this event. Subclasses keep their extra data in
   /// their own records (a clip's recordings live in the clips store).
   Map<String, Object?> toRecord() => {
@@ -132,7 +139,23 @@ class AppEvent {
     'profileId': profileId,
     'location': location?.toJson(),
     if (os != null) 'os': os,
+    if (deletedAt case final at?) deletedAtField: at.millisecondsSinceEpoch,
   };
+
+  /// The record field of [deletedAt], in ms since the epoch.
+  static const String deletedAtField = 'deletedAt';
+
+  /// Whether a stored event is deleted ([deletedAt]): kept, but shown
+  /// nowhere.
+  static bool isDeletedRecord(Map<String, Object?> record) =>
+      record[deletedAtField] is int;
+
+  /// When a stored event was deleted; null if it isn't.
+  static DateTime? deletedAtOf(Map<String, Object?> record) =>
+      switch (record[deletedAtField]) {
+        final int ms => DateTime.fromMillisecondsSinceEpoch(ms),
+        _ => null,
+      };
 
   /// Rebuilds a stored event of a plain type. Returns null for types that
   /// need more than the event record (like clips).
@@ -172,7 +195,8 @@ class AppEvent {
     return event
       ?..location = DeviceLocation.fromJson(record['location'])
       ..profileId = profileOf(record)
-      ..os = osOf(record);
+      ..os = osOf(record)
+      ..deletedAt = deletedAtOf(record);
   }
 
   /// The operating system a stored event was recorded on; null if it

@@ -35,7 +35,10 @@ class EventCopiesBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final copies = EventCopiesScope.maybeOf(context);
-    if (copies == null) return const SizedBox.shrink();
+    // A deleted event (its device was deleted) has no copies to show.
+    if (copies == null || event.deletedAt != null) {
+      return const SizedBox.shrink();
+    }
     final summary = copies.summaryOf(event.id, origin: event.deviceId);
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;

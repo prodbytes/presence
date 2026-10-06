@@ -673,6 +673,54 @@ void main() {
     expect(summary.tooltip, contains("other devices' copies are unknown"));
   });
 
+  test('deleted events are forgotten and never acked; a deleted device '
+      'no longer counts', () async {
+    final backend = FakeCloudBackend();
+    final auth = FakeAuthService();
+    final broker = RoutingBroker();
+    final device = Device('phone_a', backend, auth, broker);
+    await device.start();
+    addTearDown(device.stop);
+    await auth.signIn();
+    await device.sync.idle();
+    await until(() => device.live.state == LiveSyncState.connected);
+    final time = DateTime.now().millisecondsSinceEpoch;
+    Map<String, Object?> eventOf(String id) => {
+      'id': id,
+      'type': 'generic',
+      'title': 'There',
+      'time': time,
+      'deviceId': 'phone_c',
+      'profileId': '1',
+    };
+    // Held here (no media), then deleted with its device.
+    await device.store.putEvent(eventOf('kept'));
+    device.changes.add({'kept'});
+    await device.sync.idle();
+    expect(device.sync.copies.of('kept')?.self, isTrue);
+    await device.store.putEvent({...eventOf('kept'), 'deletedAt': time});
+    // One that arrives deleted.
+    await device.store.putEvent({...eventOf('gone'), 'deletedAt': time});
+    device.changes.add({'kept', 'gone'});
+    await device.sync.idle();
+    expect(device.sync.copies.of('kept'), isNull);
+    expect(device.sync.copies.of('gone'), isNull);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    final acked = [
+      for (final c in broker.connections)
+        for (final m in c.sentOn(acksTopic))
+          if (m['kind'] == 'copied') ...(m['eventIds']! as List),
+    ];
+    expect(acked, isNot(contains('gone')));
+
+    // A deleted device's acks no longer count.
+    final copies = EventCopies()
+      ..addDevice('e1', 'phone_c', 1)
+      ..addDevice('e1', 'phone_d', 1);
+    copies.forgetDevice('phone_c');
+    expect(copies.summaryOf('e1').holders, ['phone_d']);
+  });
+
   group('the badge', () {
     Future<void> pumpTimeline(
       WidgetTester tester,
@@ -739,6 +787,26 @@ void main() {
       copies.setLocal('e2', self: true, cloud: true);
       await tester.pump();
       expect(find.text('3 copies'), findsNWidgets(2));
+    });
+
+    testWidgets('a deleted event shows no copies', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final copies = EventCopies()..deviceId = 'me';
+      await tester.pumpWidget(
+        EventCopiesScope(
+          copies: copies,
+          child: MaterialApp(
+            home: Scaffold(
+              body: EventCopiesBadge(
+                event: eventOf('e1', 'me')..deletedAt = DateTime(2026),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(Tooltip), findsNothing);
     });
 
     testWidgets('in the details, the holders are listed', (tester) async {

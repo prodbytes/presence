@@ -1310,6 +1310,40 @@ void main() {
     expect(record['location'], containsPair('source', 'map'));
   });
 
+  testWidgets("pinning and unpinning sync with this device's settings", (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    final key = cloudSettings(cloud).keys.single;
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('location-map')),
+      const Offset(-150, 100),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('location-pin')));
+    await tester.tap(find.byKey(const Key('location-pin')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    expect(
+      cloudSettings(cloud)[key]!['location'],
+      containsPair('pinned', true),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('location-unpin')));
+    await tester.tap(find.byKey(const Key('location-unpin')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    expect(cloudSettings(cloud)[key]!['location'], isNull);
+  });
+
   testWidgets('motion settings survive a refresh', (tester) async {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));

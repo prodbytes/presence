@@ -52,8 +52,11 @@ event, after a fetch or a live message hands events over, after a wanted
 clip arrives, after a recording downloads, and for every event of the
 restore window at each full fetch (the first pass after a sign-in or
 restart, then hourly), which also sends acks not sent before (such as
-while live sync was off). Deleted events (`deletedAt`) are neither counted
-nor acked, and are forgotten.
+while live sync was off). Deleted events (`deletedAt`, see [deleting a
+device](devices-users-places.md)) are neither counted nor acked, are
+forgotten, and show no count. Deleting a device also drops it as a holder
+of every event (`EventCopies.forgetDevice`); it counts again only if it
+acks again.
 
 ## The ack
 
@@ -161,8 +164,10 @@ the cloud and the recording device.
   "3 copies" ("This device, Cloud, phone_b"); later passes don't ack again;
 - with live sync off: this device and the cloud, and the tooltip says
   other devices' copies are unknown;
+- deleted events are forgotten and never acked, and a deleted device no
+  longer counts as a holder;
 - the badge on every card at 320 dp, with its tooltip, updating when an
-  ack comes in; the details list the holders.
+  ack comes in; none on a deleted event; the details list the holders.
 
 ## Known limitations
 

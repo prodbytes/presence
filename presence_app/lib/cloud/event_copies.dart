@@ -229,6 +229,21 @@ class EventCopies extends ChangeNotifier {
     }
   }
 
+  /// Forgets device [deviceId] as a holder of every event (it was
+  /// deleted, see `Persistence.deleteDevice`): it counts again only once
+  /// it acks again.
+  void forgetDevice(String deviceId) {
+    var changed = false;
+    for (final MapEntry(key: id, value: known) in Map.of(_holders).entries) {
+      if (!known.devices.containsKey(deviceId)) continue;
+      _holders[id] = known.copyWith(
+        devices: {...known.devices}..remove(deviceId),
+      );
+      changed = true;
+    }
+    if (changed) _changed();
+  }
+
   /// Forgets event [id] (deleted).
   void forget(String id) {
     if (_holders.remove(id) == null) return;
