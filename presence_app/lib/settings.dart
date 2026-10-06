@@ -734,7 +734,9 @@ class _IdLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final style = theme.textTheme.bodySmall?.copyWith(
+    // bodyMedium, a step above the version's bodySmall: IDs get read out
+    // and typed on other devices.
+    final style = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
     return Wrap(

@@ -3383,3 +3383,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        admin credentials (adding the IoT rights from #213), the runs were
        re-run and both sites serve `0.6.202610061801`. Specs:
        [Deploy](deploy.md), [Live sync](live-sync.md).
+
+
+287. **Larger device and profile ID text.** (2026-10-06)
+     - Asked: make the device ID and profile ID font size larger.
+     - Changed: in Settings, the Device and Profile lines under the
+       version went from `bodySmall` (12 sp) to `bodyMedium` (14 sp),
+       labels included. In the account sheet, the profile ID went from
+       `titleSmall` (14 sp) to `titleMedium` (16 sp) and each device ID
+       from the default `bodyMedium` (14 sp) to `bodyLarge` (16 sp). The
+       device ID and its "this device" label are now a `Wrap`, not a
+       `Row`, so at 320 dp with a 2x system font the label moves under
+       the ID instead of overflowing (it overflowed by 25 px before). New
+       tests check the sizes and the fit at 320 dp at 1x and 2x text.
+       Specs: [Settings](settings.md), [Sign-in](sign-in.md).

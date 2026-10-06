@@ -347,7 +347,7 @@ class ProfileDevices extends StatelessWidget {
         SelectableText(
           profile,
           key: const Key('profile-id'),
-          style: theme.textTheme.titleSmall,
+          style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
         Text(
@@ -372,10 +372,18 @@ class ProfileDevices extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    // A Wrap, not a Row: at a large system font
+                    // "this device" moves under the ID instead of
+                    // overflowing.
+                    Wrap(
                       spacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Flexible(child: SelectableText(device.id)),
+                        SelectableText(
+                          device.id,
+                          key: Key('profile-device-id-${device.id}'),
+                          style: theme.textTheme.bodyLarge,
+                        ),
                         if (device.id == thisDevice)
                           Text('this device', style: muted),
                       ],
