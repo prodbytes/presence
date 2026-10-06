@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,7 @@ import 'package:idb_shim/idb_shim.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/live_sync.dart';
 import 'package:presence_app/cloud/sigv4.dart';
+import 'package:presence_app/config.dart';
 import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -60,12 +62,20 @@ class FakeBroker {
   final urls = <String>[];
   final clientIds = <String>[];
 
+  /// Whether each connection asked for a persistent session.
+  final persistent = <bool>[];
+
   /// How many of the next connections are refused.
   int refuse = 0;
 
-  Future<LiveConnection> connect(String url, String clientId) async {
+  Future<LiveConnection> connect(
+    String url,
+    String clientId, {
+    bool persistent = false,
+  }) async {
     urls.add(url);
     clientIds.add(clientId);
+    this.persistent.add(persistent);
     if (refuse > 0) {
       refuse--;
       throw StateError('refused');
@@ -281,6 +291,8 @@ void main() {
       expect(broker.urls.single, contains('iotdevicegateway'));
       expect(broker.urls.single, endsWith('&X-Amz-Security-Token=token'));
       expect(broker.clientIds.single, startsWith('$identity-this_device_one-'));
+      // Always connected: a clean session.
+      expect(broker.persistent.single, isFalse);
       expect(broker.last.subscriptions, [eventsTopic]);
     });
 
@@ -387,6 +399,193 @@ void main() {
       expect(live.state, LiveSyncState.off);
       await Future<void>.delayed(const Duration(milliseconds: 30));
       expect(broker.urls, hasLength(1));
+    });
+  });
+
+  group('Connect to live sync', () {
+    late FakeBroker broker;
+    late List<LiveEvent> received;
+    final made = <LiveSync>[];
+
+    LiveLink link() => LiveLink(
+      identityId: identity,
+      deviceId: 'this_device_one',
+      credentials: () async => credentials,
+      onEvent: (e) async => received.add(e),
+    );
+
+    LiveSync make(
+      LiveConfig config, {
+      Duration drainQuiet = const Duration(milliseconds: 40),
+      Duration drainMax = const Duration(milliseconds: 400),
+      Duration maxJitter = const Duration(milliseconds: 20),
+      Random? random,
+    }) {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: config,
+        random: random ?? Random(1),
+        minRetry: const Duration(milliseconds: 5),
+        maxRetry: const Duration(milliseconds: 40),
+        drainQuiet: drainQuiet,
+        drainMax: drainMax,
+        maxJitter: maxJitter,
+      );
+      made.add(live);
+      return live;
+    }
+
+    setUp(() {
+      broker = FakeBroker();
+      received = [];
+    });
+
+    tearDown(() {
+      for (final live in made) {
+        live.dispose();
+      }
+      made.clear();
+    });
+
+    test('Never: never connects, and publishes nothing', () async {
+      final live = make(LiveConfig.never)..start(link());
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(broker.urls, isEmpty);
+      expect(live.state, LiveSyncState.off);
+      expect(
+        await live.publishEvent({'id': 'e-1', 'time': 5}, key: 'k'),
+        isFalse,
+      );
+      expect(broker.urls, isEmpty);
+    });
+
+    test('on a schedule: a persistent session with a stable client ID, '
+        'disconnected once quiet, connecting again on time', () async {
+      final live = make(const LiveConfig(every: Duration(milliseconds: 120)))
+        ..start(link());
+      await until(() => live.state == LiveSyncState.connected);
+      expect(broker.persistent.single, isTrue);
+      expect(broker.clientIds.single, '$identity-this_device_one');
+      expect(broker.last.subscriptions, [eventsTopic]);
+      // Quiet: it disconnects until the next.
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.closed, isTrue);
+      expect(live.untilNext, isNotNull);
+      expect(
+        live.untilNext!,
+        lessThanOrEqualTo(const Duration(milliseconds: 140)),
+      );
+      await until(() => broker.connections.length == 3, reason: 'on time');
+      expect(broker.persistent, everyElement(isTrue));
+      expect(broker.clientIds.toSet(), {'$identity-this_device_one'});
+    });
+
+    test('stays while queued messages come, at most its maximum', () async {
+      final live = make(
+        const LiveConfig(every: Duration(minutes: 1)),
+        drainQuiet: const Duration(milliseconds: 80),
+        drainMax: const Duration(milliseconds: 400),
+      )..start(link());
+      await until(() => live.state == LiveSyncState.connected);
+      final c = broker.last;
+      final started = DateTime.now();
+      // What the broker kept while the device was away, then more: never
+      // quiet for long.
+      var n = 0;
+      final drip = Timer.periodic(const Duration(milliseconds: 30), (_) {
+        c.deliver(eventsTopic, messageOf({'id': 'q-${n++}', 'time': 1}));
+      });
+      addTearDown(drip.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(live.state, LiveSyncState.connected);
+      await until(() => live.state == LiveSyncState.idle);
+      drip.cancel();
+      final stayed = DateTime.now().difference(started);
+      expect(stayed, greaterThanOrEqualTo(const Duration(milliseconds: 350)));
+      expect(stayed, lessThan(const Duration(seconds: 1)));
+      await live.drained;
+      expect(received, isNotEmpty);
+      expect(received.first.event['id'], 'q-0');
+    });
+
+    test('a new event between connections connects at once to send it, '
+        'then disconnects again', () async {
+      final live = make(const LiveConfig(every: Duration(minutes: 1)))
+        ..start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.connections, hasLength(1));
+      final sent = await live.publishEvent({
+        'id': 'e-1',
+        'time': 5,
+      }, key: 'events/year=1970/day=001/e-1.json');
+      expect(sent, isTrue);
+      expect(broker.connections, hasLength(2));
+      expect(broker.last.sent.single['event'], {'id': 'e-1', 'time': 5});
+      expect(broker.persistent, [true, true]);
+      expect(live.published, 1);
+      await until(() => live.state == LiveSyncState.idle);
+      expect(broker.last.closed, isTrue);
+    });
+
+    test('the waits are the interval plus a new random jitter each time, '
+        'within the persistent session\'s hour', () {
+      final live = make(
+        const LiveConfig(),
+        maxJitter: const Duration(seconds: 10),
+        random: Random(42),
+      );
+      const every = Duration(minutes: 1);
+      final waits = [for (var i = 0; i < 200; i++) live.nextWait()];
+      for (final wait in waits) {
+        expect(wait, greaterThanOrEqualTo(every));
+        expect(wait, lessThanOrEqualTo(every + const Duration(seconds: 10)));
+      }
+      expect(waits.toSet().length, greaterThan(100), reason: 'random');
+      // The same seed, the same schedule.
+      final again = make(
+        const LiveConfig(),
+        maxJitter: const Duration(seconds: 10),
+        random: Random(42),
+      );
+      expect([for (var i = 0; i < 200; i++) again.nextWait()], waits);
+      // 60 min: no later than a minute before the session would expire.
+      final hourly = make(
+        const LiveConfig(every: Duration(minutes: 60)),
+        maxJitter: const Duration(seconds: 10),
+      );
+      for (var i = 0; i < 50; i++) {
+        final wait = hourly.nextWait();
+        expect(wait, greaterThanOrEqualTo(const Duration(minutes: 59)));
+        expect(
+          wait,
+          lessThanOrEqualTo(const Duration(minutes: 59, seconds: 10)),
+        );
+      }
+    });
+
+    test('a change of the setting applies at once', () async {
+      final live = make(LiveConfig.always)..start(link());
+      await until(() => live.state == LiveSyncState.connected);
+      expect(broker.persistent.single, isFalse);
+      live.config = LiveConfig.never;
+      expect(broker.last.closed, isTrue);
+      expect(live.state, LiveSyncState.off);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(broker.connections, hasLength(1));
+      live.config = const LiveConfig(every: Duration(minutes: 1));
+      await until(() => broker.connections.length == 2);
+      expect(broker.persistent.last, isTrue);
+      expect(broker.clientIds.last, '$identity-this_device_one');
+      await until(() => live.state == LiveSyncState.idle);
+      live.config = LiveConfig.always;
+      await until(() => live.state == LiveSyncState.connected);
+      expect(broker.persistent.last, isFalse);
+      // Always: stays connected.
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(live.state, LiveSyncState.connected);
+      expect(broker.connections, hasLength(3));
     });
   });
 

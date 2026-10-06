@@ -17,23 +17,30 @@ topics and messages below leave room for it.
 `LiveSync` ([lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart)),
 owned by `CloudSync`:
 
-- **Connects** once a cloud sync pass has a session (signed in, with a
-  profile and `presence_user`), with the profile's Cognito credentials (the
+- **Connects**, as the **Connect to live sync** setting says (see
+  **When it connects**), once a cloud sync pass has a session (signed in,
+  with a profile and `presence_user`), with the profile's Cognito
+  credentials (the
   same ones S3 uses, from `CloudSession.credentials`), to
   `wss://<IOT_ENDPOINT>/mqtt`, presigned with AWS Signature Version 4
   (`SigV4Signer.presignWebSocket`, service `iotdevicegateway`, only `host`
   signed, valid 1 h; the session token is appended after signing, as AWS IoT
   requires).
-  - **Client ID** `<identityId>-<deviceId>-<session>`: the identity first,
-    which the IoT policy requires; the [device ID](devices-users-places.md);
-    and six random characters per app run, so two tabs of one browser (one
-    device ID) don't take each other's connection.
-  - **Subscribes** to the profile's events topic (QoS 1).
-  - **Reconnects** after a drop at once (1 s), and after a refused
+  - **Client ID**: the identity first, which the IoT policy requires, then
+    the [device ID](devices-users-places.md). Always connected,
+    `<identityId>-<deviceId>-<session>`, with six random characters per
+    app run, so two tabs of one browser (one device ID) don't take each
+    other's connection. On a schedule, `<identityId>-<deviceId>`, stable,
+    so AWS IoT finds the device's persistent session again (see below).
+  - **Subscribes** to the profile's events topic (QoS 1), listening before
+    the subscription is acknowledged: a persistent session's queued
+    messages may come first.
+  - **Reconnects** (always connected) after a drop at once (1 s), and after a refused
     connection with a back-off that doubles up to 2 min; each attempt asks
     for credentials again and signs a new URL.
   - **Renews** the connection (new credentials, new URL) 2 min before the
-    credentials expire.
+    credentials expire (always connected; a scheduled connection is brief
+    and signs a new URL each time).
   - **Disconnects** on sign-out, when the profile changes (a link or
     unlink: `CloudSync.reconnect`), when credentials can't be had (cloud
     sync stops), and when the app closes.
@@ -41,7 +48,10 @@ owned by `CloudSync`:
   bucket succeeds (so the bucket already holds it, and its tagged frames,
   clip record and thumbnail, which go up first), at QoS 1. Only events
   from within the restore window (two weeks), not a reconciliation's old
-  ones; nothing while disconnected (the bucket carries it).
+  ones. Always connected, nothing while disconnected (the bucket carries
+  it); on a schedule, between connections it **connects at once to send
+  it** (waiting up to 20 s; then the bucket carries it); with Never,
+  nothing is published.
 - **Receives** the profile's other devices' events: a message from this
   device's own ID is ignored; anything malformed, too big or not for this
   identity is dropped (see **Validation**). Messages are handed to cloud
@@ -77,6 +87,51 @@ owned by `CloudSync`:
     (in the background on Android and desktop, when played on the web).
     The bucket's listing catches a missed completion: a changed event
     whose clip isn't here asks for it too.
+
+## When it connects
+
+The **Connect to live sync** setting ([Settings](settings.md), stored per
+device as `live: {mode, everyMs}`, see [Configuration](configuration.md))
+picks one of nine steps: **Never**, every **1, 2, 5, 10, 15, 30 or
+60 min**, or **Always**. The default is **every minute**. A change applies
+at once: the connection starts over in the new mode (`LiveSync.config`,
+set by the app from the setting at start, when it's restored, and on every
+change).
+
+- **Always**: stays connected, reconnecting and renewing as above, with a
+  clean session.
+- **Never**: never connects, and publishes nothing; events reach and leave
+  the device through the bucket (within 15 s). The health check shows ⚪
+  off.
+- **Every N minutes** (scheduled): connects with an MQTT **persistent
+  session** (cleanSession off) and the stable client ID
+  `<identityId>-<deviceId>`, subscribes at QoS 1, and so takes what AWS
+  IoT kept for it while it was away. It stays while messages come or go,
+  until **3 s pass without any** (at most **30 s**), then disconnects
+  (**idle**) until the next connection.
+  - **The wait** between connections is the interval plus a **random 0 to
+    10 s**, picked anew each time (so 60–70 s for 1 min), so devices don't
+    all connect in step (`LiveSync.nextWait`; the `Random` is injectable,
+    and tests seed it). AWS IoT keeps a persistent session for **1 h**
+    after the device disconnects (the account default): every step fits,
+    and the 60 min step waits 59 min plus the jitter so the session is
+    still there.
+  - **A new event of this device** connects at once to send it (and
+    anything else waiting), then drains and disconnects again, so the
+    other devices still hear of it within a second. The schedule restarts
+    from that connection.
+  - A refused connection backs off as when always connected (1 s,
+    doubling, up to 2 min); a scheduled connection dropped early (another
+    tab connected with the same ID) just ends it: the session is kept.
+  - **Two tabs of one browser** share the device ID and so this client
+    ID: AWS IoT drops the older connection when the other connects. As the
+    connections are brief, that rarely happens and only ends one early;
+    the tab that connects takes the queued messages, and the other gets
+    those events from the bucket. That's the trade-off for a session the
+    broker can find again; always connected keeps the per-run suffix.
+  - **The IoT policy** needs nothing more: `iot:Connect` on
+    `client/<identityId>-*` matches both client IDs, and persistent
+    sessions need only connect, subscribe and receive.
 
 ## Topics and messages
 
@@ -168,9 +223,12 @@ when cloud sync is off, and while signed out.
 ## Status
 
 The health line and the Log tab's health panel have a fourth check,
-**📡 Live** ([Settings](settings.md), [Log](log.md)): ⚪ not set, ✅
-connected (with the events received and sent) or set and waiting for the
-first sync, ⏳ connecting, ❌ failed (with the error). Connections,
+**📡 Live** ([Settings](settings.md), [Log](log.md)): ⚪ not set (no
+endpoint) or off (Never), ✅ connected (with the events received and sent)
+or set and waiting for the first sync, ⏳ connecting, 💤 **idle** between
+scheduled connections ("Idle · next in 0:42 (every 1 min; …)", the panel's
+card counting down each second), ❌ failed (with the error). Only ❌ is a
+failure: idle and off don't turn a run of the timeline red. Connections,
 reconnections, renewals, failures (the first of a streak and every tenth),
 dropped messages and publish failures are logged like cloud sync's
 messages ("Presence: live sync …"), with any URL's query cut out
@@ -186,8 +244,11 @@ query holds the session token.
   `MqttLiveConnection`, on the `mqtt_client` package (pinned at 10.11.11):
   `MqttServerClient` with WebSockets on Android, iOS and desktop,
   `MqttBrowserClient` on the web (a conditional import), MQTT 3.1.1,
-  subprotocol `mqtt`, keep-alive 60 s, clean session, one attempt per
-  connection (`LiveSync` retries).
+  subprotocol `mqtt`, keep-alive 60 s, a clean session or a persistent one
+  (`persistent`), one attempt per connection (`LiveSync` retries).
+  Received messages are buffered until listened to.
+- [lib/config.dart](../presence_app/lib/config.dart): `LiveConfig`
+  (`LiveMode`, the steps).
 - [lib/cloud/sigv4.dart](../presence_app/lib/cloud/sigv4.dart):
   `presignWebSocket`.
 - `CloudSync` (`live`, `_startLive`, `_onLive`, `_fetchWanted`) and
@@ -207,6 +268,14 @@ query holds the session token.
     devices' events in order, not its own, nor other topics'; reconnects
     after a drop and backs off while refused (up to the maximum); renews
     before the credentials expire, once; stops for good;
+  - the setting: Never connects and publishes nothing; on a schedule, a
+    persistent session with the stable client ID, disconnected once quiet
+    and connected again on time; it stays while queued messages come, at
+    most its maximum; a new event between connections connects at once to
+    send it, then disconnects; the waits are the interval plus a new
+    random jitter, within `[interval, interval + 10 s]`, the same for the
+    same seed, and the 60 min step within the session's hour; a change of
+    the setting applies at once (Always keeps a clean session and stays);
   - with `CloudSync`: a saved event goes up, then is published without its
     frames (which are in the bucket), with the uploaded ETag; a received
     event is handed over at once and once, and is neither uploaded back
@@ -215,7 +284,14 @@ query holds the session token.
     bucket when its completion arrives; a change here not uploaded yet
     wins; signing out disconnects; without an endpoint, events still go
     up through the bucket.
-- `persistence_test.dart`, at app level: an event another device publishes
+- `system_health_test.dart`: the Live check is ⚪ without live sync or with
+  Never, 💤 idle with its countdown between scheduled connections, ✅
+  connected, ❌ failed; only ❌ fails a run.
+- `config_test.dart`, `settings_test.dart`: the setting's steps, default,
+  storage round-trip and backward compatibility; the slider from Never to
+  Always, shown only with live sync.
+- `persistence_test.dart`, at app level: the app gives live sync the
+  setting (every minute and a persistent session by default); an event another device publishes
   shows in the Events tab at once, as recording on another device, with an
   inline thumbnail dropped; when its completion arrives, the event shows
   with its clip and thumbnail from the bucket.
@@ -228,6 +304,11 @@ query holds the session token.
   `<id>-ats.iot.us-east-1.amazonaws.com` form the deploy script checks.
 
 ## Known limitations
+
+- Scheduled connections are tested with a fake broker and short
+  intervals, not yet against AWS IoT's persistent sessions; a session
+  expiry other than the 1 h default would change which intervals keep
+  their queue (the bucket still carries everything).
 
 - **Not yet verified against AWS:** a real connection with a profile's
   Cognito credentials (the presigned URL, the client ID and topic

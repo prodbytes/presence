@@ -472,6 +472,23 @@ void main() {
     expect(find.text('From the phone'), findsOneWidget);
   });
 
+  testWidgets('live sync follows the setting: every minute by default, with '
+      'a persistent session', (tester) async {
+    final broker = FakeBroker();
+    final live = LiveSync(
+      endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+      region: 'us-east-1',
+      connect: broker.connect,
+    );
+    await launch(tester, cloud: FakeCloudBackend(), live: live);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(live.config, const LiveConfig());
+    expect(broker.persistent, isNotEmpty);
+    expect(broker.persistent, everyElement(isTrue));
+    live.stop();
+  });
+
   testWidgets('an event another device publishes shows at once; its clip '
       'and thumbnail follow from the cloud', (tester) async {
     final cloud = FakeCloudBackend();
@@ -481,9 +498,20 @@ void main() {
       region: 'us-east-1',
       connect: broker.connect,
     );
+    // Connect to live sync: Always (the default connects every minute).
+    final seed = await run(tester, EventStore.open(storage));
+    await run(
+      tester,
+      seed.putSettings(
+        'config',
+        const PresenceConfig(live: LiveConfig.always).toJson(),
+      ),
+    );
+    seed.close();
     await launch(tester, cloud: cloud, live: live);
     await settleStorage(tester);
     await tester.pumpAndSettle();
+    expect(live.config, LiveConfig.always);
     expect(live.state, LiveSyncState.connected);
     await showEvents(tester);
     expect(inEvents(find.text('Garage')), findsNothing);

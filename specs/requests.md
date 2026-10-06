@@ -3183,3 +3183,48 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Live sync](live-sync.md) (new), [Cloud sync](cloud-sync.md),
        [Deploy](deploy.md), [Profiles](profiles.md),
        [Auth API](auth-api.md), [Settings](settings.md), [Log](log.md).
+     - Then asked (same PR): show on the Log tab's health check whether
+       the device is connected to the MQTT channel, and add a setting for
+       how often it connects, every minute by default, from Never (never
+       connects) to Always (always connected); and randomize the scheduled
+       connections a little (each wait the interval plus up to ~10 s,
+       picked anew each time).
+     - Changed: **Connect to live sync** (`LiveConfig` in `config.dart`,
+       stored per device as `live: {mode, everyMs}`, older records get the
+       default), in a new **Live sync** Settings section for everyone (not
+       the admin-only Advanced), shown when the build has live sync: nine
+       steps, Never, 1, 2, 5, 10, 15, 30, 60 min, Always; default every
+       1 min; a change applies at once (`LiveSync.config`, set by the app
+       from the setting). Never: no connection, nothing published.
+       Scheduled: a persistent session (cleanSession off,
+       `MqttLiveConnection.connect(persistent:)`) as the stable
+       `<identityId>-<deviceId>`, QoS 1, so AWS IoT queues messages while
+       the device is away (1 h by default; the 60 min step waits 59 min
+       plus jitter); it stays until 3 s without messages (at most 30 s),
+       then disconnects; waits the interval plus a random 0–10 s each
+       time (`LiveSync.nextWait`, injectable `Random`); a new local event
+       connects at once to send it. Always: as before, with the per-run
+       client ID and a clean session. Two tabs sharing the stable ID: the
+       older connection is dropped, rarely, and that tab gets the events
+       from S3 (documented). Messages are listened to before subscribing,
+       and `MqttLiveConnection` buffers them, so a session's queued
+       messages aren't lost. Health: 📡 Live gains 💤 **Idle** ("Idle ·
+       next in 0:42", counting down on the panel) and ⚪ off for Never;
+       only a failed connection fails a timeline run. The IoT policy
+       already allows both client IDs (`<identityId>-*`); only its comment
+       changed.
+     - Tests: `live_sync_test.dart` (Never connects and publishes nothing;
+       scheduled: persistent session, stable client ID, disconnects once
+       quiet, connects again on time, stays while queued messages come up
+       to its maximum, connects at once to publish then disconnects;
+       waits within [interval, interval + 10 s], seeded, the 60 min step
+       within the hour; setting changes apply at once; Always keeps a
+       clean session), `system_health_test.dart` (Live states; idle and
+       Never aren't failures, an error is), `config_test.dart` (steps,
+       default, round-trip, older records), `settings_test.dart` (the
+       slider, Never to Always, only with live sync),
+       `persistence_test.dart` (the app applies the setting).
+       `flutter analyze`, `flutter test` (509) and `flutter build web`
+       pass.
+     - Specs: [Live sync](live-sync.md), [Settings](settings.md),
+       [Configuration](configuration.md), [Log](log.md).

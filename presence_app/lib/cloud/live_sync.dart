@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../config.dart';
 import 'sigv4.dart';
 
 /// One MQTT connection to AWS IoT Core: [MqttLiveConnection] in the app
@@ -26,13 +27,19 @@ abstract class LiveConnection {
 }
 
 /// Opens a [LiveConnection] to the presigned WebSocket [url] as
-/// [clientId]. Throws when the broker refuses it.
+/// [clientId]; [persistent]: with a persistent session (cleanSession off),
+/// so the broker keeps QoS 1 messages for it while it's away. Throws when
+/// the broker refuses it.
 typedef LiveConnect = Future<LiveConnection> Function(
   String url,
-  String clientId,
-);
+  String clientId, {
+  bool persistent,
+});
 
-enum LiveSyncState { off, connecting, connected, error }
+/// Live sync's connection: [off] (no endpoint, signed out, or Never),
+/// [connecting], [connected], [idle] (between scheduled connections) or
+/// [error] (the last attempt failed; it retries).
+enum LiveSyncState { off, connecting, connected, idle, error }
 
 /// What [LiveSync] connects as: the profile's Cognito identity (its folder
 /// in the bucket, and its topics), this device, how to get the identity's
@@ -85,10 +92,30 @@ class LiveEvent {
 /// their media) are kept: a message carries only an event's metadata.
 ///
 /// Topics are per profile: `presence/<stage>/<identityId>/events` (and,
-/// later, `.../acks` and `.../requests`). The client ID is
-/// `<identityId>-<deviceId>-<session>`: the IoT policy only lets an
-/// identity connect with IDs that start with its own, and the session part
-/// keeps two tabs of one browser from taking each other's connection.
+/// later, `.../acks` and `.../requests`).
+///
+/// How it connects is the **Connect to live sync** setting ([config]):
+///
+/// - [LiveMode.always]: stays connected, reconnecting with backoff, as
+///   `<identityId>-<deviceId>-<session>` with a clean session: the session
+///   part keeps two tabs of one browser from taking each other's
+///   connection.
+/// - [LiveMode.scheduled] (every minute by default): connects every
+///   [LiveConfig.every] plus a random [maxJitter], with a **persistent
+///   session** (cleanSession off) as `<identityId>-<deviceId>`, a client ID
+///   stable per device and profile, so AWS IoT keeps the QoS 1 messages
+///   that arrive while it's away (for 1 h by default, [sessionExpiry]);
+///   stays until [drainQuiet] passes without a message (at most
+///   [drainMax]), then disconnects ([LiveSyncState.idle]). A new event of
+///   this device connects at once to send it. Two tabs of one browser
+///   share the ID: AWS IoT drops the older connection when the other
+///   connects, which only ends that tab's (brief) connection early; the
+///   one that connects takes the queued messages, and the other gets them
+///   from the bucket.
+/// - [LiveMode.never]: never connects; nothing is published.
+///
+/// The IoT policy only lets an identity connect with IDs that start with
+/// its own (`<identityId>-*`), which both forms do.
 ///
 /// Off without an [endpoint] (local builds, tests): everything syncs
 /// through the bucket as before.
@@ -98,11 +125,17 @@ class LiveSync extends ChangeNotifier {
     required this.region,
     this.stage = 'prod',
     this._connect,
+    this._config = LiveConfig.always,
     DateTime Function()? now,
     Random? random,
     this.minRetry = const Duration(seconds: 1),
     this.maxRetry = const Duration(minutes: 2),
     this.renewBefore = const Duration(minutes: 2),
+    this.drainQuiet = const Duration(seconds: 3),
+    this.drainMax = const Duration(seconds: 30),
+    this.maxJitter = const Duration(seconds: 10),
+    this.sessionExpiry = const Duration(hours: 1),
+    this.publishWait = const Duration(seconds: 20),
   }) : _now = now ?? DateTime.now,
        _random = random ?? Random.secure();
 
@@ -125,6 +158,25 @@ class LiveSync extends ChangeNotifier {
   /// (with a newly signed URL).
   final Duration renewBefore;
 
+  /// A scheduled connection disconnects once this passes without a
+  /// message received or sent...
+  final Duration drainQuiet;
+
+  /// ...or after this long, whatever comes.
+  final Duration drainMax;
+
+  /// Scheduled connections wait their interval plus a random 0 to this
+  /// (picked anew each time), so devices don't connect in step.
+  final Duration maxJitter;
+
+  /// How long AWS IoT keeps a persistent session (and its queued
+  /// messages) after the device disconnects: 1 h by default. A scheduled
+  /// wait never starts later than a minute before it ends ([nextWait]).
+  final Duration sessionExpiry;
+
+  /// How long a scheduled-mode publish waits for its connection.
+  final Duration publishWait;
+
   /// The largest message accepted or sent. AWS IoT allows 128 KB; events'
   /// metadata is a few KB.
   static const int maxMessageBytes = 64 * 1024;
@@ -132,7 +184,28 @@ class LiveSync extends ChangeNotifier {
   /// The message format's version.
   static const int version = 1;
 
+  /// At most this many events wait to be sent while connecting.
+  static const int maxOutbox = 100;
+
   bool get enabled => endpoint.isNotEmpty && _connect != null;
+
+  /// How it connects; [LiveConfig.always] unless given (the app sets it
+  /// from the setting).
+  LiveConfig _config;
+
+  /// How it connects (the **Connect to live sync** setting). A change
+  /// applies at once: the connection starts over in the new mode.
+  LiveConfig get config => _config;
+  set config(LiveConfig value) {
+    if (value == _config) return;
+    _config = value;
+    final link = _link;
+    if (link != null) {
+      _run(link);
+    } else {
+      notifyListeners();
+    }
+  }
 
   LiveSyncState _state = LiveSyncState.off;
   LiveSyncState get state => _state;
@@ -157,11 +230,30 @@ class LiveSync extends ChangeNotifier {
   int _generation = 0;
   int _failures = 0;
 
-  /// Wakes the connection loop early (to stop, or to renew).
+  /// Wakes the connection loop early (to stop, to renew, or to connect
+  /// for a publish).
   Completer<void>? _wake;
 
   /// Events received, handed over one at a time, in order.
   Future<void> _inbox = Future.value();
+
+  /// Events waiting for a scheduled connection to be sent.
+  final _outbox = <(Uint8List, Completer<bool>)>[];
+
+  /// Bumped by each message received or sent: a scheduled connection
+  /// stays while it moves.
+  int _activity = 0;
+
+  /// When the next scheduled connection is, while [LiveSyncState.idle].
+  DateTime? _nextAt;
+
+  /// How long until the next scheduled connection; null unless idle.
+  Duration? get untilNext {
+    final at = _nextAt;
+    if (at == null || _state != LiveSyncState.idle) return null;
+    final left = at.difference(_now());
+    return left.isNegative ? Duration.zero : left;
+  }
 
   /// This run of the app's part of the client ID.
   late final String _session = List.generate(
@@ -174,13 +266,19 @@ class LiveSync extends ChangeNotifier {
   static String topicOf(String stage, String identityId, String kind) =>
       'presence/$stage/$identityId/$kind';
 
-  /// This device's client ID for [link].
+  /// This device's client ID for [link] while always connected: unique to
+  /// this run of the app.
   String clientIdOf(LiveLink link) =>
       '${link.identityId}-${link.deviceId}-$_session';
 
-  /// Connects for [link] (and keeps reconnecting) until [stop]. Does
-  /// nothing when disabled, or already started for the same identity and
-  /// device.
+  /// This device's client ID for [link]'s scheduled connections: the same
+  /// every time, so its persistent session is found again.
+  static String stableClientIdOf(LiveLink link) =>
+      '${link.identityId}-${link.deviceId}';
+
+  /// Connects for [link] (and keeps reconnecting, or connecting on
+  /// schedule) until [stop]. Does nothing when disabled, or already started
+  /// for the same identity and device.
   void start(LiveLink link) {
     if (!enabled) return;
     final current = _link;
@@ -189,6 +287,10 @@ class LiveSync extends ChangeNotifier {
         current.deviceId == link.deviceId) {
       return;
     }
+    _run(link);
+  }
+
+  void _run(LiveLink link) {
     stop();
     _link = link;
     final generation = ++_generation;
@@ -200,11 +302,20 @@ class LiveSync extends ChangeNotifier {
   void stop() {
     _generation++;
     _link = null;
+    _nextAt = null;
     _wakeUp();
+    _failOutbox();
     final connection = _connection;
     _connection = null;
     connection?.close().catchError((Object _) {});
     _set(LiveSyncState.off);
+  }
+
+  void _failOutbox() {
+    for (final (_, sent) in _outbox) {
+      if (!sent.isCompleted) sent.complete(false);
+    }
+    _outbox.clear();
   }
 
   void _wakeUp() {
@@ -226,6 +337,14 @@ class LiveSync extends ChangeNotifier {
     bool current() => generation == _generation;
     while (current()) {
       final link = _link!;
+      final mode = _config.mode;
+      if (mode == LiveMode.never) {
+        // Until the setting changes (which starts over).
+        _set(LiveSyncState.off);
+        return;
+      }
+      final scheduled = mode == LiveMode.scheduled;
+      _nextAt = null;
       _set(LiveSyncState.connecting);
       LiveConnection? connection;
       var renewing = false;
@@ -238,17 +357,29 @@ class LiveSync extends ChangeNotifier {
               credentials: credentials,
               now: _now(),
             );
-        connection = await _connect!(url, clientIdOf(link));
+        connection = await _connect!(
+          url,
+          scheduled ? stableClientIdOf(link) : clientIdOf(link),
+          persistent: scheduled,
+        );
         if (!current()) {
           await connection.close();
           return;
         }
         _connection = connection;
         final topic = topicOf(stage, link.identityId, 'events');
-        await connection.subscribe(topic);
-        final subscription = connection.messages.listen(
-          (m) => _onMessage(link, m.$1, m.$2),
-        );
+        // Listening first: a persistent session's queued messages may come
+        // before the subscription is acknowledged.
+        final subscription = connection.messages.listen((m) {
+          _activity++;
+          _onMessage(link, m.$1, m.$2);
+        });
+        try {
+          await connection.subscribe(topic);
+        } catch (_) {
+          await subscription.cancel();
+          rethrow;
+        }
         if (!current()) {
           await subscription.cancel();
           await connection.close();
@@ -258,11 +389,29 @@ class LiveSync extends ChangeNotifier {
           debugPrint(
             'Presence: live sync reconnected after $_failures failures',
           );
-        } else {
+        } else if (!scheduled) {
           debugPrint('Presence: live sync connected');
         }
         _failures = 0;
         _set(LiveSyncState.connected);
+        await _flushOutbox(link, connection);
+        if (scheduled) {
+          await _drain(connection, current);
+          await subscription.cancel();
+          if (_connection == connection) _connection = null;
+          if (!current()) return;
+          // Even if dropped (another tab took the ID): the broker keeps
+          // the session either way.
+          await connection.close().catchError((Object _) {});
+          if (!current()) return;
+          final wait = nextWait();
+          _nextAt = _now().add(wait);
+          _set(LiveSyncState.idle);
+          // Until the next one, or a new event to send (at once if one
+          // came while this one was closing).
+          if (_outbox.isEmpty) await _sleep(wait);
+          continue;
+        }
         // New credentials (and a newly signed URL) before these expire.
         // Not when they're about to already: that would only loop.
         Timer? renew;
@@ -302,10 +451,60 @@ class LiveSync extends ChangeNotifier {
             '${retryDelay.inSeconds} s): ${redact(e)}',
           );
         }
+        // The bucket still has them.
+        _failOutbox();
         _set(LiveSyncState.error, _describe(e));
       }
       await _sleep(retryDelay);
     }
+  }
+
+  /// Stays connected while messages come (or go): until [drainQuiet]
+  /// without any, at most [drainMax], or until the connection drops.
+  Future<void> _drain(
+    LiveConnection connection,
+    bool Function() current,
+  ) async {
+    var over = false;
+    final deadline = Timer(drainMax, () {
+      over = true;
+      _wakeUp();
+    });
+    var dropped = false;
+    connection.done.then((_) {
+      dropped = true;
+      _wakeUp();
+    }).ignore();
+    try {
+      while (current() && !over && !dropped) {
+        final seen = _activity;
+        await _sleep(drainQuiet);
+        if (_activity == seen) break;
+      }
+    } finally {
+      deadline.cancel();
+    }
+  }
+
+  /// Sends what waited for this connection.
+  Future<void> _flushOutbox(LiveLink link, LiveConnection connection) async {
+    while (_outbox.isNotEmpty) {
+      final (payload, sent) = _outbox.removeAt(0);
+      final ok = await _send(link, connection, payload);
+      if (!sent.isCompleted) sent.complete(ok);
+    }
+  }
+
+  /// The wait before the next scheduled connection: the interval (no
+  /// later than a minute before the persistent session expires) plus a
+  /// random 0 to [maxJitter], picked anew each time.
+  @visibleForTesting
+  Duration nextWait() {
+    final cap = sessionExpiry - const Duration(minutes: 1);
+    final every = _config.every;
+    final base = every > cap && cap > Duration.zero ? cap : every;
+    final jitter = _random.nextInt(maxJitter.inMilliseconds + 1);
+    return base + Duration(milliseconds: jitter);
   }
 
   /// The wait before the next connection attempt: [minRetry], doubling
@@ -330,20 +529,26 @@ class LiveSync extends ChangeNotifier {
 
   /// Publishes [event] (its record as uploaded to the bucket, at [key] with
   /// ETag [etag]) for the profile's other devices. Its inline media is left
-  /// out ([metadataOf]). Returns whether it was sent: not while
-  /// disconnected (the bucket still has it), nor when it's too big.
+  /// out ([metadataOf]). Returns whether it was sent: not when it's too
+  /// big, nor with live sync off (the bucket still has it). Always
+  /// connected, not while disconnected; on a schedule, between connections
+  /// it connects at once to send it (waiting up to [publishWait]).
   Future<bool> publishEvent(
     Map<String, Object?> event, {
     required String key,
     String? etag,
   }) async {
     final link = _link;
+    if (link == null) return false;
     final connection = _connection;
-    if (link == null ||
-        connection == null ||
-        _state != LiveSyncState.connected) {
-      return false;
-    }
+    final connected = connection != null && _state == LiveSyncState.connected;
+    final scheduled = _config.mode == LiveMode.scheduled;
+    final waits =
+        scheduled &&
+        // Connected too: a scheduled connection closing sends it next.
+        _state != LiveSyncState.off &&
+        _state != LiveSyncState.error;
+    if (!connected && !waits) return false;
     final payload = Uint8List.fromList(
       utf8.encode(
         jsonEncode({
@@ -365,12 +570,30 @@ class LiveSync extends ChangeNotifier {
       );
       return false;
     }
+    if (connected) return _send(link, connection, payload);
+    final sent = Completer<bool>();
+    _outbox.add((payload, sent));
+    if (_outbox.length > maxOutbox) {
+      final (_, dropped) = _outbox.removeAt(0);
+      if (!dropped.isCompleted) dropped.complete(false);
+    }
+    // Between scheduled connections: connect now.
+    if (_state == LiveSyncState.idle) _wakeUp();
+    return sent.future.timeout(publishWait, onTimeout: () => false);
+  }
+
+  Future<bool> _send(
+    LiveLink link,
+    LiveConnection connection,
+    Uint8List payload,
+  ) async {
     try {
       await connection.publish(
         topicOf(stage, link.identityId, 'events'),
         payload,
       );
       _published++;
+      _activity++;
       notifyListeners();
       return true;
     } catch (e) {

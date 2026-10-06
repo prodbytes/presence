@@ -118,7 +118,14 @@ top of the Log tab:
   | ❌ | Failed | red (the error color) |
   | ⚠️ | Mismatch | yellow |
   | ⏳ / 🔄 | Checking / Syncing | blue |
+  | 💤 | Idle | blue |
   | ⚪ | Off | gray |
+
+  📡 **Live** says whether this device is connected to the MQTT channel:
+  OK (connected), Checking (connecting), **Idle** between scheduled
+  connections with "Idle · next in 0:42 (every 1 min; …)", counting down
+  each second while the panel shows, Off (no endpoint, or **Connect to
+  live sync** set to Never) or Failed (the error).
 
 - **📱 Devices**, a fifth card, with the count in a pill: how many
   distinct devices recorded the events the profile has
@@ -145,7 +152,8 @@ top of the Log tab:
 - **Timeline**, a card under them, headed "N checks · every 15 s" (DEV) or
   "… · every 1 min" (RBAC): a single block per run, red (the error color)
   if any check failed (❌ or ⚠️) and green if all passed, the newest on the
-  right.
+  right. Idle and Off aren't failures, so a device connecting on a
+  schedule, or never, stays green between connections.
   - Under the first run of every 2 minutes, a tick and its time (HH:MM).
     Labels follow the clock, so they stay put as runs are added.
   - It scrolls sideways and opens at the newest run.

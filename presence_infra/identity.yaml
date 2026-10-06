@@ -97,7 +97,9 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # Client IDs <identity ID>-<device ID>-<session>.
+              # Client IDs <identity ID>-<device ID>[-<session>] (live sync: with
+              # the session part while always connected; without it, stable,
+              # for scheduled connections' persistent sessions).
               - Effect: Allow
                 Action: iot:Connect
                 Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/${!cognito-identity.amazonaws.com:sub}-*

@@ -13,18 +13,24 @@ import 'mqtt_client_io.dart'
 class MqttLiveConnection implements LiveConnection {
   MqttLiveConnection._(this._client);
 
-  /// Connects to the presigned [url] as [clientId]; throws when the broker
-  /// refuses (bad signature, or a client ID the IoT policy doesn't allow).
-  static Future<LiveConnection> connect(String url, String clientId) async {
+  /// Connects to the presigned [url] as [clientId], with a clean session,
+  /// or a [persistent] one (AWS IoT then keeps the QoS 1 messages of its
+  /// subscriptions while it's away, 1 h by default, and sends them when it
+  /// connects again); throws when the broker refuses (bad signature, or a
+  /// client ID the IoT policy doesn't allow).
+  static Future<LiveConnection> connect(
+    String url,
+    String clientId, {
+    bool persistent = false,
+  }) async {
+    final message = MqttConnectMessage().withClientIdentifier(clientId);
     final client = newWebSocketClient(url, clientId)
       ..setProtocolV311()
       ..logging(on: false)
       ..keepAlivePeriod = 60
       ..autoReconnect = false
       ..websocketProtocols = MqttClientConstants.protocolsSingleDefault
-      ..connectionMessage = MqttConnectMessage()
-          .withClientIdentifier(clientId)
-          .startClean();
+      ..connectionMessage = persistent ? message : message.startClean();
     final connection = MqttLiveConnection._(client);
     client.onDisconnected = connection._onDisconnected;
     try {
@@ -41,7 +47,10 @@ class MqttLiveConnection implements LiveConnection {
   }
 
   final MqttClient _client;
-  final _messages = StreamController<(String, Uint8List)>.broadcast();
+
+  /// Not broadcast: messages are kept until listened to (a persistent
+  /// session's queued ones may come at once).
+  final _messages = StreamController<(String, Uint8List)>();
   final _done = Completer<void>();
   bool _closing = false;
   StreamSubscription<Object?>? _updates;
@@ -101,6 +110,7 @@ class MqttLiveConnection implements LiveConnection {
     _closing = true;
     await _updates?.cancel();
     _client.disconnect();
-    await _messages.close();
+    // Not awaited: it only completes once listened to.
+    _messages.close().ignore();
   }
 }

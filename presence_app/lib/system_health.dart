@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
 import 'cloud/live_sync.dart';
+import 'config.dart';
 import 'events.dart';
 import 'status_pill.dart';
 import 'theme.dart';
@@ -86,18 +87,28 @@ class SystemHealth extends StatelessWidget {
   }
 
   /// Live sync's status: off without an IoT endpoint in this build (or
-  /// without cloud sync), else how its connection is.
-  static HealthPart liveOf(CloudSync? sync) {
-    final live = sync?.live;
+  /// without cloud sync), or when set to Never; else how its connection
+  /// is. Idle between scheduled connections, and off, aren't failures: only
+  /// a failed connection is (❌).
+  static HealthPart liveOf(CloudSync? sync) => liveStatusOf(sync?.live);
+
+  /// [liveOf] for [live] itself.
+  static HealthPart liveStatusOf(LiveSync? live) {
     if (live == null || !live.enabled) {
       return ('⚪', 'Live: not set; events arrive with each sync (15 s)');
     }
+    if (live.config.mode == LiveMode.never) {
+      return ('⚪', 'Live: off (Never); events arrive with each sync (15 s)');
+    }
+    final counts = '${live.received} received, ${live.published} sent';
     return switch (live.state) {
-      LiveSyncState.connected => (
-        '✅',
-        'Live: connected (${live.received} received, ${live.published} sent)',
-      ),
+      LiveSyncState.connected => ('✅', 'Live: connected ($counts)'),
       LiveSyncState.connecting => ('⏳', 'Live: connecting'),
+      LiveSyncState.idle => (
+        '💤',
+        'Live: idle · next in ${formatNextIn(live.untilNext)} '
+            '(${live.config.label.toLowerCase()}; $counts)',
+      ),
       LiveSyncState.error => (
         '❌',
         'Live: failed (${live.error ?? 'unknown error'}); events arrive '
@@ -105,6 +116,12 @@ class SystemHealth extends StatelessWidget {
       ),
       LiveSyncState.off => ('✅', 'Live: set; connects once synced'),
     };
+  }
+
+  /// [left] as "0:42" or "12:05" (minutes and seconds, rounded up).
+  static String formatNextIn(Duration? left) {
+    final seconds = ((left?.inMilliseconds ?? 0) + 999) ~/ 1000;
+    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
   }
 
   @override
@@ -258,6 +275,7 @@ String _time(DateTime t) {
   '⚠️' => ('Mismatch', Gruvbox.yellow),
   '⏳' => ('Checking', Gruvbox.blue),
   '🔄' => ('Syncing', Gruvbox.blue),
+  '💤' => ('Idle', Gruvbox.blue),
   _ => ('Off', Gruvbox.gray),
 };
 
@@ -354,12 +372,19 @@ class _HealthPanelState extends State<HealthPanel> {
   Timer? _timer;
   bool _disposed = false;
 
+  /// Redraws the cards every second while live sync is idle, so its
+  /// countdown to the next connection runs.
+  late final Timer _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+    if (widget.sync?.live?.state == LiveSyncState.idle) setState(() {});
+  });
+
   /// The run tapped on the timeline, whose details show under it.
   HealthCheck? _selected;
 
   @override
   void initState() {
     super.initState();
+    _tick;
     _check();
   }
 
@@ -387,6 +412,7 @@ class _HealthPanelState extends State<HealthPanel> {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _tick.cancel();
     super.dispose();
   }
 

@@ -5,11 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/cloud/live_sync.dart';
+import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/system_health.dart';
 import 'package:presence_app/theme.dart';
 
 import 'fakes.dart';
+import 'live_sync_test.dart' show FakeBroker, credentials, until;
 
 void main() {
   test('the auth API reports which settings are set', () async {
@@ -461,6 +464,94 @@ void main() {
         findsOneWidget,
       );
       expect(history.checks, hasLength(120));
+    });
+  });
+
+  group('the Live check', () {
+    late FakeBroker broker;
+    setUp(() => broker = FakeBroker());
+
+    LiveSync live(LiveConfig config) {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: config,
+        drainQuiet: const Duration(milliseconds: 20),
+        minRetry: const Duration(seconds: 10),
+      );
+      addTearDown(live.dispose);
+      return live;
+    }
+
+    void start(LiveSync live) => live.start(
+      LiveLink(
+        identityId: 'us-east-1:identity',
+        deviceId: 'this_device_one',
+        credentials: () async => credentials,
+        onEvent: (_) async {},
+      ),
+    );
+
+    /// A run with [part] as its Live check, the others passing.
+    HealthCheck runWith(HealthPart part) => HealthCheck(DateTime(2026), (
+      api: ('✅', 'Auth API: answered'),
+      aws: ('✅', 'AWS: synced'),
+      oidc: ('✅', 'OIDC: set'),
+      live: part,
+    ));
+
+    test('not in this build, or Never: off, not a failure', () {
+      final none = SystemHealth.liveStatusOf(null);
+      expect(none.$1, '⚪');
+      final never = SystemHealth.liveStatusOf(live(LiveConfig.never));
+      expect(never, (
+        '⚪',
+        'Live: off (Never); events arrive with each sync (15 s)',
+      ));
+      expect(runWith(none).failed, isFalse);
+      expect(runWith(never).failed, isFalse);
+    });
+
+    test('connected, then idle between scheduled connections with a '
+        'countdown: neither a failure', () async {
+      final scheduled = live(const LiveConfig());
+      start(scheduled);
+      await until(() => scheduled.state == LiveSyncState.connected);
+      final connected = SystemHealth.liveStatusOf(scheduled);
+      expect(connected.$1, '✅');
+      expect(connected.$2, startsWith('Live: connected'));
+      await until(() => scheduled.state == LiveSyncState.idle);
+      final idle = SystemHealth.liveStatusOf(scheduled);
+      expect(idle.$1, '💤');
+      expect(idle.$2, matches(RegExp(r'^Live: idle · next in 1:[01]\d ')));
+      expect(idle.$2, contains('every 1 min'));
+      expect(runWith(connected).failed, isFalse);
+      expect(runWith(idle).failed, isFalse);
+    });
+
+    test('a failed connection is a failure', () async {
+      broker.refuse = 100;
+      final failing = live(LiveConfig.always);
+      start(failing);
+      await until(() => failing.state == LiveSyncState.error);
+      final error = SystemHealth.liveStatusOf(failing);
+      expect(error.$1, '❌');
+      expect(error.$2, contains('refused'));
+      expect(runWith(error).failed, isTrue);
+    });
+
+    test('the countdown reads minutes and seconds', () {
+      expect(SystemHealth.formatNextIn(const Duration(seconds: 42)), '0:42');
+      expect(
+        SystemHealth.formatNextIn(const Duration(minutes: 12, seconds: 5)),
+        '12:05',
+      );
+      expect(
+        SystemHealth.formatNextIn(const Duration(milliseconds: 100)),
+        '0:01',
+      );
+      expect(SystemHealth.formatNextIn(null), '0:00');
     });
   });
 }

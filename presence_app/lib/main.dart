@@ -270,6 +270,13 @@ class _PresenceAppState extends State<PresenceApp> {
               _rig.answerCaptureAll(events, deviceId: _deviceId);
             },
           );
+    // How live sync connects (the Connect to live sync setting): now, and
+    // at once whenever it changes (or is restored).
+    if (_sync?.live case final live?) {
+      void applyLive() => live.config = _config.config.live;
+      applyLive();
+      _config.addListener(applyLive);
+    }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;
@@ -1083,6 +1090,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   tiles: widget.mapTiles,
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
+                  liveSync: widget.sync?.live?.enabled ?? false,
                 ),
               ),
               if (_tabList.contains(HomeTab.log))
