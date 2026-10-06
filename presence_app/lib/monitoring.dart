@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -36,14 +38,23 @@ class MonitoringView extends StatefulWidget {
   /// Below this width the map goes above the events instead of beside.
   static const double twoColumnWidth = 720;
 
-  /// The map's share of the height when it's above the events.
-  static const double stackedMapShare = 0.35;
+  /// The map's share of the height when it's above the events
+  /// ([stackedMapHeight]).
+  static const double stackedMapShare = 0.3;
+  static const double minStackedMapHeight = 160;
 
   /// The events column beside the map: [eventsShare] of the width, kept
   /// between [minEventsWidth] and [maxEventsWidth]; the map takes the rest.
-  static const double eventsShare = 0.4;
+  static const double eventsShare = 0.55;
   static const double minEventsWidth = 360;
-  static const double maxEventsWidth = 520;
+  static const double maxEventsWidth = 880;
+
+  /// The stacked map's height in a page [height] tall: [stackedMapShare]
+  /// of it, at least [minStackedMapHeight] unless that's over half of it.
+  static double stackedMapHeight(double height) => math.max(
+    height * stackedMapShare,
+    math.min(minStackedMapHeight, height / 2),
+  );
 
   /// The page's widest; wider screens center it.
   static const double maxWidth = 1600;
@@ -188,9 +199,9 @@ class _MonitoringViewState extends State<MonitoringView> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               SizedBox(
-                                height:
-                                    box.maxHeight *
-                                    MonitoringView.stackedMapShare,
+                                height: MonitoringView.stackedMapHeight(
+                                  box.maxHeight,
+                                ),
                                 child: framedMap,
                               ),
                               Expanded(

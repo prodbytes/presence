@@ -3126,3 +3126,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the box ("Paste position", compact, bodySmall text) moved
        into the position's column right of the map, under the position.
        474 Flutter tests pass. Specs: [Device location](device-location.md).
+282. **The Monitoring map close up on the latest event; more room for
+     events.** (2026-10-06)
+     - Asked: on the Monitoring page, zoom the map to the latest event,
+       and closer; less space for the map and more for the events.
+     - Changed: the subjects map opens on the newest located event at
+       street level (zoom 16–17, fitting only dots within 300 m; was
+       zoomed out to show every dot, up to 17), also once the events load,
+       and follows each newer event until the map is moved by hand.
+       Phones: the map takes 30% of the height (was 35%), at least 160 dp.
+       Wide: the events column is 55% of the width, 360–880 dp (was 40%,
+       360–520 dp). A subject's own map is unchanged. 481 Flutter tests
+       pass; web build compiles. Specs: [Monitoring](monitoring.md),
+       [Subjects](subjects.md).
