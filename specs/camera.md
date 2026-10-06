@@ -72,8 +72,11 @@ profile (`CameraFeedsView.showAll`,
   this one through [cloud sync](cloud-sync.md), from the profile's folder,
   so the grid is the
   profile's devices with whatever they last uploaded (new events within
-  15 s, the last two weeks on a new device). Nothing new is uploaded or
-  fetched for it.
+  15 s, the last two weeks on a new device). A new device shows them all
+  within seconds of signing in: events, clip records and thumbnails come
+  down first, the recordings after them (in the background on Android,
+  when played on the web), so a cell's clip may download when tapped.
+  Nothing new is uploaded or fetched for it.
 - **Layout:** the columns that give the biggest 16:9 cells
   (`gridColumns`); the cells fill the screen below the app bar and above
   the buttons (88 px kept clear), 1 px apart.

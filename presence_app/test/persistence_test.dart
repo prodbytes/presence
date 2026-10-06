@@ -531,6 +531,78 @@ void main() {
     );
   });
 
+  testWidgets("a cloud clip whose recording isn't here yet downloads it when "
+      'played', (tester) async {
+    final cloud = FakeCloudBackend();
+    const prefix = 'us-east-1:identity';
+    Uint8List json(Map<String, Object?> m) =>
+        Uint8List.fromList(utf8.encode(jsonEncode(m)));
+    final requested = DateTime(2026, 9, 24, 8).millisecondsSinceEpoch;
+    cloud.uploads['$prefix/${CloudSync.clipRecordKey('remote-clip', requested)}'] =
+        (
+          bytes: json({
+            'id': 'remote-clip',
+            'eventId': 'remote-event',
+            'cameraId': 'garage-cam',
+            'cameraLabel': 'Garage',
+            'requestedAt': requested,
+            'beforeMs': 15000,
+            'afterMs': 15000,
+            'supported': true,
+            'state': 'complete',
+            'full': {
+              'mediaId': 'remote-clip-full',
+              'startMs': 0,
+              'endMs': 30000,
+              'mimeType': 'video/webm',
+            },
+          }),
+          contentType: 'application/json',
+        );
+    cloud.uploads['$prefix/media/remote-clip.webm'] = (
+      bytes: Uint8List.fromList('remote-video'.codeUnits),
+      contentType: 'video/webm',
+    );
+    cloud.uploads['$prefix/events/remote-event.json'] = (
+      bytes: json({
+        'id': 'remote-event',
+        'type': ClipRequested.clipRequestedType,
+        'title': 'Clip requested',
+        'time': requested,
+        'cameraId': 'garage-cam',
+        'clipId': 'remote-clip',
+        'clipState': 'complete',
+        'trigger': 'manual',
+      }),
+      contentType: 'application/json',
+    );
+    // The background download fails (as if offline then).
+    cloud.failGets.add('media/remote-clip.webm');
+
+    await launch(tester, cloud: cloud);
+    await settleStorage(tester);
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+
+    // The clip shows all the same.
+    expect(inEvents(find.text('Garage')), findsOneWidget);
+    final restored = clipEvent(tester).clip;
+    expect(restored.id, 'remote-clip');
+
+    // Played: downloaded from the cloud, then played from storage.
+    cloud.failGets.clear();
+    expect(
+      await run(tester, restored.full!.resolveUrl()),
+      'restored:remote-video',
+    );
+    final store = await run(tester, EventStore.open(storage));
+    expect(
+      await run(tester, store.getMedia('remote-clip-full')),
+      'remote-video'.codeUnits,
+    );
+  });
+
   testWidgets('a tag removed on another device goes at the next sync', (
     tester,
   ) async {

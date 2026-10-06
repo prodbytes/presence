@@ -214,6 +214,13 @@ class EventStore {
     await txn.completed;
   }
 
+  /// Forgets the synced-store entry [key], if there is one.
+  Future<void> unmarkSynced(String key) async {
+    final txn = _db.transaction(synced, idbModeReadWrite);
+    await txn.objectStore(synced).delete(key);
+    await txn.completed;
+  }
+
   /// Forgets the synced-store entries whose key [test] accepts (those of
   /// deleted events and clips), in one transaction. Returns how many went.
   Future<int> deleteSynced(bool Function(String key) test) async {

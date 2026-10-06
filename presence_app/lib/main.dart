@@ -247,6 +247,9 @@ class _PresenceAppState extends State<PresenceApp> {
               _rig.answerCaptureAll(events, deviceId: _deviceId);
             },
           );
+    // A clip fetched from the cloud plays before its recording has come
+    // down: it's downloaded then.
+    _persistence.fetchMissingMedia = _sync?.fetchRecording;
     _persistence
       ..attachRig(_rig)
       ..restore(_log).catchError((Object e) {

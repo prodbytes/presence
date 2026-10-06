@@ -2828,3 +2828,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        apps in-memory storage. 418 Flutter tests pass; `flutter analyze`
        is clean.
      - Specs: [Navigation](navigation.md), [Configuration](configuration.md).
+269. **A new device shows every device within seconds: recordings come
+     down after their events.** (2026-10-06)
+     - Asked: signed in on the website (a new browser), the Camera tab's
+       All grid and the account sheet showed only one device of the
+       profile's three. The first fetch downloaded every clip's recording
+       (about 6 MB each, 756 MB for the profile) before handing each batch
+       of 25 events over, so nothing showed for minutes, and a failure
+       retried the same batch forever.
+     - Changed: `CloudSync` fetches and hands over events, clip records,
+       thumbnails and tagged frames for all missing events first, and only
+       notes each recording as pending (`fetch:` entries in the `synced`
+       store) and as synced (so it's never uploaded back). Android and
+       desktop download the pending recordings in the background after
+       each pass, newest first, skipping failures until the next full
+       fetch (`prefetchRecordings`); the web doesn't. Playing a clip whose
+       recording isn't stored downloads it through the session
+       (`CloudSync.fetchRecording`, via `Persistence.fetchMissingMedia`),
+       with a spinner in the player meanwhile; "Couldn't load this clip"
+       if it can't. `EventStore.unmarkSynced` added; `isSyncedKeyOf`
+       recognizes `fetch:` entries.
+     - Tests: `cloud_sync_test.dart` (metadata before any recording,
+       then recordings newest first and synced; a failing recording
+       doesn't hold up delivery or passes, and the next full fetch gets
+       it; no prefetch with it off, `fetchRecording` on demand) and
+       `persistence_test.dart` (a cloud clip whose recording failed to
+       come down is downloaded when played). 413 Flutter tests pass;
+       `flutter analyze` and `flutter build web` are clean.
+     - Specs: [Cloud sync](cloud-sync.md), [Camera](camera.md#all-devices),
+       [Event retention](event-retention.md).

@@ -272,6 +272,9 @@ class FakeCloudBackend implements CloudBackend {
   /// Thrown by every connect() while set (the network is down).
   Object? offline;
 
+  /// Keys whose download fails (relative to the folder), while listed.
+  final failGets = <String>{};
+
   /// The keys uploaded as streams (recordings), in order.
   final streamed = <String>[];
 
@@ -340,6 +343,7 @@ class FakeCloudSession implements CloudSession {
   @override
   Future<Uint8List> get(String key) async {
     backend.downloads.add(key);
+    if (backend.failGets.contains(key)) throw StateError('Failed $key');
     final object = backend.uploads['$prefix/$key'];
     if (object == null) throw StateError('No $key');
     return object.bytes;

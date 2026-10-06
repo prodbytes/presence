@@ -67,8 +67,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   next). A successful pass, **Retry** or a new sign-in ends it. Passes
   stop after a credentials failure (see **Errors**).
 - **Fetch:** the events in the user's folder that the device doesn't have
-  are downloaded, with their clips (details, recording and thumbnail) and
-  tagged frames:
+  are downloaded, with their clips (details and thumbnail) and tagged
+  frames, but **not their recordings** (see **Recordings** below):
   - only from the last **two weeks** (`CloudSync.restoreWindow`, 14 days),
     or the History setting when that's shorter (`CloudSync.keep`), so
     nothing the device deletes as too old comes back ([event
@@ -80,13 +80,45 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - only the clips those events use: each record read from its event's
     day partition (`clips/year=…/day=…/<clipId>.json`, listed first), and
     its media found by listing just its own keys (`media/<clipId>`);
-  - each recording is stored as soon as it's downloaded
-    (`MediaStore.saveBytes`), so only one is in memory at a time;
   - they're handed over **in batches of 25 events**
     (`CloudSync.fetchBatch`, with their clips, thumbnails and frames),
     marked as synced, so they aren't uploaded back, stored
     (`Persistence.importRemote`) and added to the event log, so the
-    **Monitoring** tab shows them as each batch lands.
+    **Monitoring** tab, the Camera tab's [All](camera.md#all-devices) grid
+    and the account sheet's devices show them as each batch lands. A new
+    device downloads a few kilobytes per event this way (a profile's 159
+    thumbnails were 4.5 MB in all), so every device shows within seconds
+    of signing in.
+- **Recordings** (about 6 MB each: the same profile's 123 were 756 MB)
+  come down **after** their events, and never hold them up:
+  - when a fetched clip has one (`media/<clipId>.webm` or `.mp4`, listed;
+    or, for a complete clip whose device is still uploading it, where it
+    will be), its key is **marked as synced** at once, since it's in the
+    cloud, so a reconciliation never tries to upload a recording that
+    isn't here; and it's noted as **pending** in the `synced` store, as
+    `fetch:<object key>` = `<event time>:<mediaId>`;
+  - **Android and desktop** (`CloudSync.prefetchRecordings`, on everywhere
+    but the web) download the pending ones **in the background** after each
+    successful pass (not inside it, so uploads and new events don't wait),
+    **newest first, one at a time**, each stored as soon as it's
+    downloaded (`MediaStore.saveBytes`) and its `fetch:` entry dropped
+    (`EventStore.unmarkSynced`). One that fails (not uploaded yet, a
+    network error) is skipped until the next full fetch (hourly); three
+    failures in a row stop the run, and the rest resume after the next
+    pass. What's stored isn't downloaded again: only `fetch:` entries are
+    fetched;
+  - **the web** doesn't prefetch, so a profile's recordings don't fill
+    IndexedDB: a recording comes down **when its clip is played**;
+  - **playing a clip whose recording isn't here** (any platform):
+    `Persistence.fetchMissingMedia` (set to `CloudSync.fetchRecording`)
+    downloads it through the signed-in session when the media store
+    doesn't have it (from its `fetch:` entry, or by listing
+    `media/<clipId>.`), stores it, marks it synced, and the player plays
+    it from storage. Meanwhile the player shows a spinner; if it can't be
+    had (signed out, not in the cloud, offline), "Couldn't load this
+    clip", and playing it again retries;
+  - one download per recording at a time, shared by the background and
+    playback (`CloudSync._inFlight`).
 - **Changes from other devices:** an event the device has that another
   device changed since (a tag added, renamed or removed, a suggestion
   confirmed, object tags) comes down again in the same pass, within the
@@ -162,7 +194,14 @@ an Athena table are in [Recording and data formats](data-formats.md).
   at most once more; a fetch in batches; only the events named as changed
   go up, with their clips, a quiet change at the next reconciliation;
   each full fetch reconciles; failed passes back off, log the stack once
-  and keep what was to go up; recordings stored as downloaded),
+  and keep what was to go up; every event, clip and thumbnail handed
+  over before any recording is downloaded, then the recordings in the
+  background, newest first, marked synced and not uploaded back nor
+  downloaded again; a failing recording download doesn't hold up events
+  or later passes, and the next full fetch gets it; with
+  `prefetchRecordings` off (the web) nothing is downloaded until
+  `fetchRecording`, which stores and marks it, and answers false when
+  signed out or not in the cloud),
   `s3_test.dart` (keys listed with their ETags, across pages; a full
   1000-key page parsed off the UI isolate; a streamed upload with
   `UNSIGNED-PAYLOAD` and signed headers) and `persistence_test.dart` (a
@@ -301,15 +340,17 @@ In [presence_infra/](../presence_infra):
   location set on the map, though the local ones were newer; moving the
   map changes the record).
 - Fetch and timer tests:
-  - on sign-in, a remote clip (details, video, thumbnail) and event are
-    downloaded, handed over and not uploaded back, while local items are
-    uploaded;
+  - on sign-in, a remote clip (details, thumbnail) and event are
+    downloaded and handed over, its video stored in the background, and
+    none of them uploaded back, while local items are uploaded;
   - the fetch runs once per sign-in;
   - periodic passes run without a change, but upload an event saved
     without a change notification only at the next reconciliation (a
     null notification, or each full fetch);
   - at app level, a clip from the cloud joins the Events timeline and its
-    downloaded recording plays.
+    downloaded recording plays; and one whose background download failed
+    is downloaded when played (`persistence_test.dart`, "a cloud clip
+    whose recording isn't here yet downloads it when played").
 - Against AWS, the app's `S3Bucket` uploaded a 300 KB recording and an event
   to the real bucket, listed the prefix (both keys) and downloaded the
   recording byte-for-byte. It was cleaned up afterwards.
@@ -345,7 +386,14 @@ In [presence_infra/](../presence_infra):
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
 - A downloaded recording is held whole in memory until it's stored (one
-  at a time); only uploads stream.
+  at a time); only uploads stream. Playing one that isn't here yet waits
+  for the whole download (no streaming playback from S3), with a spinner
+  and no progress.
+- On the web, a recording downloaded to be played stays in IndexedDB like
+  a local one (until the event ages out); the others stay in the cloud.
+- Not yet verified on a real device: the background download over mobile
+  data, and on-demand playback in a phone browser against the real
+  bucket.
 - An event changed in storage without a `Persistence.changes`
   notification goes up only at the next reconciliation, within the hour.
 - A reconciliation still encodes and hashes every stored event and clip

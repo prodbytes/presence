@@ -65,9 +65,10 @@ abstract class DeviceSettings {
 }
 
 /// What a restore brought down from the cloud, one batch of it: records the
-/// device didn't have, and the events it has that changed elsewhere. The
-/// recordings their clips use are already in the `MediaStore`, saved one
-/// by one as they were downloaded.
+/// device didn't have (with their thumbnails), and the events it has that
+/// changed elsewhere. The recordings their clips use aren't in it: they
+/// come down afterwards, into the `MediaStore` ([CloudSync.fetchRecording],
+/// and in the background off the web).
 class RemoteRecords {
   const RemoteRecords({
     this.events = const [],
@@ -179,10 +180,21 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   has that another device changed since (their listed ETag isn't the
 ///   one this device last uploaded or downloaded) come down again too, as
 ///   [RemoteRecords.updated], unless changed here and not uploaded yet.
-///   They're handed over in batches of [fetchBatch] events, and each
-///   recording is saved to the `MediaStore` as it arrives.
+///   They're handed over in batches of [fetchBatch] events, with their
+///   clips' records and thumbnails and their tagged frames, but not the
+///   recordings: those are big (megabytes each, against kilobytes for the
+///   rest), so a new device shows every device's events within seconds.
 ///   Then what's not yet uploaded goes up. So every device of a user ends
 ///   up with the same events as the bucket.
+/// - Recordings come down after their clips, never holding them up: each
+///   one a fetched clip uses is remembered as pending (`fetch:` entries of
+///   the synced store) and marked as synced at once, since it's in the
+///   cloud (so it's never uploaded back). With [prefetchRecordings] (not
+///   on the web, where they'd fill IndexedDB), a background download takes
+///   the pending ones after each pass, newest first, one at a time; one
+///   that fails is skipped until the next full fetch, and what's left
+///   resumes after the next pass. Playing a clip whose recording isn't here
+///   yet downloads it then ([fetchRecording]), on any platform.
 /// - Uploads look only at the events saved since the last pass (`changes`
 ///   names them), with their clips. A reconciliation, which looks at every
 ///   stored event, runs on the first pass for a user, with each full fetch
@@ -226,8 +238,10 @@ class CloudSync extends ChangeNotifier {
     this.fetchBatch = 25,
     this.fullFetchEvery = const Duration(hours: 1),
     this.maxBackoff = 16,
+    bool? prefetchRecordings,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now {
+  }) : _now = now ?? DateTime.now,
+       prefetchRecordings = prefetchRecordings ?? !kIsWeb {
     auth.addListener(_onAuthChanged);
     roles?.addListener(_onAuthChanged);
     _changes = changes.listen(_onChanged);
@@ -280,6 +294,11 @@ class CloudSync extends ChangeNotifier {
   /// events uploaded late, by a device that was offline) rather than only
   /// today and yesterday.
   final Duration fullFetchEvery;
+
+  /// Whether fetched clips' recordings are downloaded in the background
+  /// after each pass (Android and desktop), rather than only when played
+  /// (the web, whose IndexedDB quota a profile's recordings would fill).
+  final bool prefetchRecordings;
   final DateTime Function() _now;
 
   /// Receives what a fetch downloaded, after it's marked as synced (the app
@@ -323,6 +342,17 @@ class CloudSync extends ChangeNotifier {
   DateTime? _lastFullFetch;
   int _downloaded = 0;
   Future<void>? _running;
+
+  /// The background download of pending recordings, while it runs.
+  Future<void>? _prefetching;
+
+  /// Recordings being downloaded now, by object key: one download each,
+  /// whether in the background or for playing.
+  final Map<String, Future<bool>> _inFlight = {};
+
+  /// Recordings the background download failed to get: not tried again
+  /// until the next full fetch (one may not be uploaded yet).
+  final Set<String> _prefetchFailed = {};
   bool _again = false;
   bool _disposed = false;
 
@@ -344,16 +374,20 @@ class CloudSync extends ChangeNotifier {
   /// Clips and events downloaded since the app started.
   int get downloaded => _downloaded;
 
-  /// Completes when the current sync (if any) has finished (for tests).
+  /// Completes when the current sync (if any) has finished (for tests),
+  /// background downloads of recordings included.
   Future<void> idle() async {
     // Let pending change notifications reach the listener first.
     await Future<void>.delayed(Duration.zero);
-    while (_running != null || (_timer?.isActive ?? false)) {
+    while (_running != null ||
+        _prefetching != null ||
+        (_timer?.isActive ?? false)) {
       if (_timer?.isActive ?? false) {
         _timer!.cancel();
         _startNow();
       }
       await _running;
+      await _prefetching;
       await Future<void>.delayed(Duration.zero);
     }
   }
@@ -398,6 +432,7 @@ class CloudSync extends ChangeNotifier {
     _dirty.clear();
     _failures = 0;
     _ticksToSkip = 0;
+    _prefetchFailed.clear();
   }
 
   void _startPeriodic() {
@@ -497,7 +532,11 @@ class CloudSync extends ChangeNotifier {
       final now = _now().toUtc();
       final last = _lastFullFetch;
       final full = last == null || now.difference(last) >= fullFetchEvery;
-      if (full) reconcile = true;
+      if (full) {
+        reconcile = true;
+        // Recordings that failed get another try.
+        _prefetchFailed.clear();
+      }
       // Read again at each reconciliation, so entries pruned with the
       // events they were for go from memory too.
       if (_synced == null || reconcile) {
@@ -535,6 +574,7 @@ class CloudSync extends ChangeNotifier {
       _failures = 0;
       _ticksToSkip = 0;
       _set(CloudSyncState.synced);
+      _startPrefetch();
     } on CognitoException catch (e) {
       giveBack();
       // Trying again each pass fails the same way: stop until the user
@@ -597,7 +637,6 @@ class CloudSync extends ChangeNotifier {
   /// uploaded yet: then this device's version goes up over the other.
   Future<void> _fetch(CloudSession session, List<String> prefixes) async {
     final store = await _store;
-    final mediaStore = await _media;
     final listed = <String, String>{
       for (final under in prefixes) ...await session.listETags(under),
     };
@@ -624,6 +663,16 @@ class CloudSync extends ChangeNotifier {
         _markSynced(store, '${session.prefix}/$key', fingerprint);
     Future<void> keepETag(String key, String etag) =>
         _markSynced(store, _etagKey('${session.prefix}/$key'), etag);
+    // A recording in the cloud: synced (never uploaded back), and pending
+    // here until it's downloaded.
+    Future<void> pending(String key, String mediaId, int time) async {
+      await synced(key, mediaId);
+      await _markSynced(
+        store,
+        _fetchKey('${session.prefix}/$key'),
+        '$time:$mediaId',
+      );
+    }
 
     // Partitioned keys (events/year=YYYY/day=DDD/<id>.json), and flat ones
     // from before partitioning (events/<id>.json). The newest day first:
@@ -682,7 +731,7 @@ class CloudSync extends ChangeNotifier {
         mediaKeys: mediaKeys,
         synced: synced,
         keepETag: keepETag,
-        mediaStore: mediaStore,
+        pending: pending,
       );
       kept += events.length;
       await deliver(RemoteRecords(events: events, clips: clips));
@@ -735,8 +784,9 @@ class CloudSync extends ChangeNotifier {
   }
 
   /// Downloads the events at [keys] (missing here) that are from [since]
-  /// on, with their tagged frames and their clips: each recording saved to
-  /// [mediaStore] as it arrives, rather than held until the batch is done.
+  /// on, with their tagged frames and their clips (records and
+  /// thumbnails). Their recordings are only noted as [pending]: they come
+  /// down later, so the batch is handed over without waiting for them.
   Future<(List<Map<String, Object?>>, List<Map<String, Object?>>)> _fetchNew(
     CloudSession session,
     List<String> keys, {
@@ -745,7 +795,8 @@ class CloudSync extends ChangeNotifier {
     required Future<Set<String>> Function(String clipId) mediaKeys,
     required Future<void> Function(String key, String fingerprint) synced,
     required Future<void> Function(String key, String etag) keepETag,
-    required MediaStore mediaStore,
+    required Future<void> Function(String key, String mediaId, int time)
+    pending,
   }) async {
     Map<String, Object?> decode(Uint8List bytes) =>
         (jsonDecode(utf8.decode(bytes)) as Map).cast<String, Object?>();
@@ -801,15 +852,17 @@ class CloudSync extends ChangeNotifier {
       final ref = clip['full'] ?? clip['past'];
       if (ref is Map) {
         final mediaId = ref['mediaId']! as String;
-        final video = [
-          'media/$id.webm',
-          'media/$id.mp4',
-        ].where(ofClip.contains).firstOrNull;
-        if (video != null) {
-          // Stored now: one recording in memory at a time.
-          await mediaStore.saveBytes(mediaId, await session.get(video));
-          await synced(video, mediaId);
-        }
+        // Where it is, or, for a complete clip whose recording is still
+        // going up from its device, where it'll be.
+        final video =
+            [
+              'media/$id.webm',
+              'media/$id.mp4',
+            ].where(ofClip.contains).firstOrNull ??
+            (clip['state'] == 'complete'
+                ? 'media/$id.${_extOf(ref['mimeType'] as String?)}'
+                : null);
+        if (video != null) await pending(video, mediaId, time);
       }
       if (ofClip.contains('media/$id.jpg')) {
         clip['thumbnail'] = await session.get('media/$id.jpg');
@@ -818,6 +871,155 @@ class CloudSync extends ChangeNotifier {
       clips.add(clip);
     }
     return (events, clips);
+  }
+
+  /// A recording's file extension in the cloud, from its MIME type.
+  static String _extOf(String? mimeType) =>
+      (mimeType ?? '').contains('mp4') ? 'mp4' : 'webm';
+
+  /// Starts the background download of pending recordings, unless it's
+  /// running already or this platform downloads them only when played.
+  void _startPrefetch() {
+    if (!prefetchRecordings || _prefetching != null || _disposed) return;
+    final owner = _owner;
+    if (owner == null) return;
+    // Nothing pending (as this sync knows): not even a connection.
+    if (!_hasPending(_synced)) return;
+    _prefetching = _prefetch(owner)
+        .catchError((Object e) {
+          debugPrint('Presence: recordings download stopped: $e');
+        })
+        .whenComplete(() => _prefetching = null);
+  }
+
+  /// Downloads the recordings pending for [owner]'s folder, newest first,
+  /// one at a time, while [owner] is still the one syncing. One that fails
+  /// is skipped (until the next full fetch); a few failures in a row (the
+  /// network is down) stop it until the next pass.
+  Future<void> _prefetch(String owner) async {
+    bool current() => !_disposed && !stopped && _owner == owner;
+    final idToken = auth.idToken;
+    if (idToken == null || !current()) return;
+    // Read afresh: entries of events deleted since are gone.
+    final synced = await (await _store).syncedKeys();
+    if (!_hasPending(synced)) return;
+    var session = await backend.connect(idToken);
+    final todo = _pendingIn(synced, session.prefix)
+        .where(
+          (p) => !_prefetchFailed.contains(
+            _fetchKey('${session.prefix}/${p.key}'),
+          ),
+        )
+        .toList();
+    var failuresInRow = 0;
+    for (final (:key, :mediaId) in todo) {
+      if (!current()) return;
+      try {
+        await _download(session, key, mediaId);
+        failuresInRow = 0;
+      } catch (e) {
+        if (e is S3Exception && e.credentialsRejected) {
+          // Expired while downloading: new ones for the rest.
+          backend.reset();
+          final token = auth.idToken;
+          if (token == null) return;
+          session = await backend.connect(token);
+        }
+        _prefetchFailed.add(_fetchKey('${session.prefix}/$key'));
+        debugPrint('Presence: could not download recording $key: $e');
+        if (++failuresInRow >= 3) return;
+      }
+    }
+  }
+
+  /// Whether [synced] (all of it when null, not read yet) has recordings
+  /// pending download that haven't failed since the last full fetch.
+  bool _hasPending(Map<String, String>? synced) =>
+      synced == null ||
+      synced.keys.any(
+        (k) => k.startsWith('fetch:') && !_prefetchFailed.contains(k),
+      );
+
+  /// The recordings pending download into [prefix]'s folder (`fetch:`
+  /// entries of [synced]), newest first: their keys relative to the
+  /// folder, and their media IDs.
+  static List<({String key, String mediaId})> _pendingIn(
+    Map<String, String> synced,
+    String prefix,
+  ) {
+    final start = _fetchKey('$prefix/');
+    final found = <(int, String, String)>[];
+    for (final MapEntry(:key, :value) in synced.entries) {
+      if (!key.startsWith(start)) continue;
+      final colon = value.indexOf(':');
+      if (colon < 0) continue;
+      found.add((
+        int.tryParse(value.substring(0, colon)) ?? 0,
+        key.substring(start.length),
+        value.substring(colon + 1),
+      ));
+    }
+    found.sort((a, b) => b.$1.compareTo(a.$1));
+    return [
+      for (final (_, key, mediaId) in found) (key: key, mediaId: mediaId),
+    ];
+  }
+
+  /// Downloads the recording at [key] into the `MediaStore` as [mediaId],
+  /// and marks it as synced and no longer pending. Once at a time per key.
+  Future<bool> _download(CloudSession session, String key, String mediaId) {
+    final objectKey = '${session.prefix}/$key';
+    return _inFlight[objectKey] ??= () async {
+      try {
+        final store = await _store;
+        final bytes = await session.get(key);
+        await (await _media).saveBytes(mediaId, bytes);
+        await _markSynced(store, objectKey, mediaId);
+        await store.unmarkSynced(_fetchKey(objectKey));
+        _synced?.remove(_fetchKey(objectKey));
+        return true;
+      } finally {
+        _inFlight.remove(objectKey);
+      }
+    }();
+  }
+
+  /// Downloads the recording [mediaId] of clip [clipId] from the signed-in
+  /// profile's folder into the `MediaStore`, for playing a clip fetched
+  /// from the cloud whose recording isn't here yet. Returns whether it's
+  /// stored now; false when signed out, or it isn't in the cloud, or the
+  /// download failed.
+  Future<bool> fetchRecording(String clipId, String mediaId) async {
+    final idToken = auth.idToken;
+    if (_owner == null || idToken == null || stopped || _disposed) {
+      return false;
+    }
+    try {
+      var session = await backend.connect(idToken);
+      final candidates = ['media/$clipId.webm', 'media/$clipId.mp4'];
+      final synced = _synced ??= await (await _store).syncedKeys();
+      final key =
+          candidates
+              .where(
+                (k) => synced.containsKey(_fetchKey('${session.prefix}/$k')),
+              )
+              .firstOrNull ??
+          (await session.list('media/$clipId.'))
+              .where(candidates.contains)
+              .firstOrNull;
+      if (key == null) return false;
+      try {
+        return await _download(session, key, mediaId);
+      } on S3Exception catch (e) {
+        if (!e.credentialsRejected) rethrow;
+        backend.reset();
+        session = await backend.connect(idToken);
+        return await _download(session, key, mediaId);
+      }
+    } catch (e) {
+      debugPrint('Presence: could not download recording of $clipId: $e');
+      return false;
+    }
   }
 
   /// Fetches this device's settings, if the cloud has them, and hands them
@@ -969,7 +1171,7 @@ class CloudSync extends ChangeNotifier {
       if (ref is Map) {
         final mediaId = ref['mediaId']! as String;
         final mimeType = ref['mimeType'] as String? ?? 'video/webm';
-        final ext = mimeType.contains('mp4') ? 'mp4' : 'webm';
+        final ext = _extOf(mimeType);
         await upload(
           'media/$id.$ext',
           mediaId,
@@ -1102,19 +1304,27 @@ class CloudSync extends ChangeNotifier {
   /// device last uploaded or downloaded it.
   static String _etagKey(String objectKey) => 'etag:$objectKey';
 
+  /// Where the synced-keys store notes that the recording at [objectKey]
+  /// is in the cloud but not downloaded yet, as `<time>:<mediaId>` (the
+  /// time of its event, ms since the epoch, to take the newest first).
+  static String _fetchKey(String objectKey) => 'fetch:$objectKey';
+
   /// Whether [syncedKey], a key of the synced-keys store (an object key
-  /// under the user's folder, or its `etag:` entry), is about one of the
-  /// events [eventIds] or the clips [clipIds] (a clip's record, recording,
-  /// thumbnail or tagged frame), in the current layout or the old one. For
-  /// forgetting deleted events (`Persistence.deleteEventsBefore`).
+  /// under the user's folder, or its `etag:` or `fetch:` entry), is about
+  /// one of the events [eventIds] or the clips [clipIds] (a clip's record,
+  /// recording, thumbnail or tagged frame), in the current layout or the
+  /// old one. For forgetting deleted events
+  /// (`Persistence.deleteEventsBefore`).
   static bool isSyncedKeyOf(
     String syncedKey,
     Set<String> eventIds,
     Set<String> clipIds,
   ) {
-    final key = syncedKey.startsWith('etag:')
-        ? syncedKey.substring('etag:'.length)
-        : syncedKey;
+    final key = switch (syncedKey) {
+      final k when k.startsWith('etag:') => k.substring('etag:'.length),
+      final k when k.startsWith('fetch:') => k.substring('fetch:'.length),
+      final k => k,
+    };
     final slash = key.indexOf('/'); // After the identity ID.
     if (slash < 0) return false;
     String stem(String name) {
