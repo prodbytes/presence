@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'annotations.dart';
 import 'cameras/cameras.dart';
+import 'copies_badge.dart';
 import 'event_flags.dart';
 import 'events.dart';
 import 'recognition/recognizer.dart';
@@ -592,6 +593,15 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                 title: Text(
                   '${_event.clip.cameraLabel} · '
                   '${formatEventTime(_event.time)}',
+                ),
+                // Who holds a copy of it.
+                subtitle: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: EventCopiesBadge(
+                    key: const Key('clip-copies'),
+                    event: _event,
+                    detailed: true,
+                  ),
                 ),
                 trailing: IconButton(
                   tooltip: 'Close',

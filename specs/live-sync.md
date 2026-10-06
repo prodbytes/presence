@@ -7,10 +7,12 @@ bucket. [Cloud sync](cloud-sync.md) still does everything it did: **S3 stays
 where events and all their media are kept**, and a device that misses a
 message gets the event from the bucket as before. Nothing is deleted.
 
-This is phase 1. Phase 2 (planned, not built) adds acknowledgements from
-the receiving devices, deletes an event's S3 record once three devices
-acknowledged it, and asks the online devices for events at start; the
-topics and messages below leave room for it.
+This is phase 1, plus **copy acknowledgements**: a device that has stored
+a full copy of another device's event (with its media) says so with a
+`copied` ack on the `acks` topic, and every device counts each event's
+copies ([Event copies](event-copies.md)). Phase 2 (planned, not built)
+deletes an event's S3 record once three devices acknowledged it, and asks
+the online devices for events at start.
 
 ## What a device does
 
@@ -112,6 +114,9 @@ owned by `CloudSync`:
     (in the background on Android and desktop, when played on the web).
     The bucket's listing catches a missed completion: a changed event
     whose clip isn't here asks for it too.
+  - **Once it's copied** (the event, its frames, and its clip with the
+    recording), the device acks it: a `copied` message on `acks`, batched
+    (see [Event copies](event-copies.md)).
 
 ## When it connects
 
@@ -166,8 +171,9 @@ change).
   `<identityId>` the profile's Cognito identity (its folder in the
   bucket). Events go on `events`; `requests` and `acks` carry [device
   presence](device-presence.md)'s pings and pongs (small messages of
-  their own, validated by `LiveSync.parsePresence`), and leave room for
-  phase 2's requests and acknowledgements. The policies allow
+  their own, validated by `LiveSync.parsePresence`), and `acks` also the
+  `copied` acks of [event copies](event-copies.md) (`parseCopied`, at
+  most 1 KB and 32 event IDs each). The policies allow
   `presence/<stage>/<identityId>/*`, which covers all three.
 - **An event message** (JSON, UTF-8, at most 64 KB; AWS IoT allows
   128 KB):
@@ -187,8 +193,8 @@ change).
   ```
 
   - `deviceId` is the **sender**, `key` and `etag` the event's object in
-    the bucket as uploaded (phase 2's acknowledgements and deletion will
-    refer to them), `event` the event record as uploaded.
+    the bucket as uploaded (phase 2's deletion will refer to them),
+    `event` the event record as uploaded.
   - **Metadata only, never media:** `event` carries references (`clipId`,
     `frameId`s in `annotations`, `cameraId`), never frames, thumbnails or
     video. Before publishing, `LiveSync.metadataOf` removes `frames`,
@@ -271,7 +277,8 @@ query holds the session token.
 
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `LiveSync`, `LiveConnection` (the transport), `LiveLink`, `LiveEvent`,
-  `parse` and `metadataOf`.
+  `parse` and `metadataOf`; `ackCopied`, `parseCopied` and
+  `CopiedMessage` ([Event copies](event-copies.md)).
 - [lib/cloud/live_mqtt.dart](../presence_app/lib/cloud/live_mqtt.dart):
   `MqttLiveConnection`, on the `mqtt_client` package (pinned at 10.11.11):
   `MqttServerClient` with WebSockets on Android, iOS and desktop,
@@ -325,6 +332,11 @@ query holds the session token.
     pass fetches the clip of an event whose clip never came; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.
+- `event_copies_test.dart`: `copied` acks (validation, batching, own
+  ignored, repeats deduped) and the whole flow between two devices over
+  an in-memory broker: a capture is uploaded, published, copied with its
+  clip and recording by the other device, which acks it, and the count
+  goes up on the first (see [Event copies](event-copies.md)).
 - `system_health_test.dart`: the Live check is ⚪ without live sync or with
   Never, 💤 idle with its countdown between scheduled connections, ✅
   connected, ❌ failed; only ❌ fails a run.
@@ -373,5 +385,5 @@ query holds the session token.
   within a second as an ordinary event, so they answer sooner; one that
   then also comes from the bucket isn't answered again. It doesn't use
   the `requests` topic, which carries only presence pings.
-- No event acknowledgements, deletion or start-up requests yet (phase 2);
-  `requests` and `acks` carry only presence pings and pongs so far.
+- No deletion or start-up requests yet (phase 2); `requests` carries
+  only presence pings, `acks` presence pongs and `copied` acks.
