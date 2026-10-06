@@ -487,10 +487,84 @@ void main() {
     await tester.scrollUntilVisible(find.text('Event 0'), 200);
     expect(find.text('Event 0'), findsOneWidget);
 
-    // A new event scrolls the timeline back to the top.
+    // Far down the list, reading older events: a new event leaves it
+    // where it is.
+    bus.publish(AppEvent(icon: Icons.circle, title: 'Newer'));
+    await tester.pumpAndSettle();
+    expect(find.text('Event 0'), findsOneWidget);
+    expect(find.text('Newer'), findsNothing);
+
+    // Near the top, a new event scrolls the timeline back up to show it.
+    final list = tester.state<ScrollableState>(find.byType(Scrollable));
+    list.position.jumpTo(EventTimeline.followNewWithin / 2);
+    await tester.pumpAndSettle();
+    expect(find.text('Newer'), findsNothing);
     bus.publish(AppEvent(icon: Icons.circle, title: 'Newest'));
     await tester.pumpAndSettle();
+    expect(list.position.pixels, 0);
     expect(find.text('Newest'), findsOneWidget);
+  });
+
+  testWidgets('the timeline stays where it was scrolled when the log '
+      'changes without a new event', (tester) async {
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    addTearDown(() {
+      log.dispose();
+      bus.close();
+    });
+    final events = [
+      for (var i = 0; i < 20; i++)
+        AppEvent(
+          icon: Icons.circle,
+          title: 'Event $i',
+          time: DateTime(2026, 10, 6, 12, i),
+        ),
+    ];
+    log.addHistory(events);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(height: 300, child: EventTimeline(log: log)),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final list = tester.state<ScrollableState>(find.byType(Scrollable));
+    list.position.jumpTo(600);
+    await tester.pumpAndSettle();
+
+    var notified = 0;
+    void count() => notified++;
+    log.addListener(count);
+    addTearDown(() => log.removeListener(count));
+
+    // A sync with only events already shown: nothing to tell.
+    log.addHistory(events.take(5));
+    await tester.pumpAndSettle();
+    expect(notified, 0);
+    expect(list.position.pixels, 600);
+
+    // An older event, and a known one replaced: the log changes, but the
+    // newest stays the same, so the list stays put.
+    log.addHistory([
+      AppEvent(
+        icon: Icons.circle,
+        title: 'Older',
+        time: DateTime(2026, 10, 6, 11),
+      ),
+    ]);
+    log.replace([
+      AppEvent(
+        icon: Icons.circle,
+        title: 'Event 3 again',
+        time: events[3].time,
+        id: events[3].id,
+      ),
+    ]);
+    await tester.pumpAndSettle();
+    expect(notified, 2);
+    expect(list.position.pixels, 600);
   });
 
   testWidgets('shows an empty state when the device has no cameras', (
