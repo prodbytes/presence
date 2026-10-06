@@ -3397,3 +3397,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the ID instead of overflowing (it overflowed by 25 px before). New
        tests check the sizes and the fit at 320 dp at 1x and 2x text.
        Specs: [Settings](settings.md), [Sign-in](sign-in.md).
+
+
+288. **Tap a tag or subject to filter the events by it.** (2026-10-06)
+     - Asked: "When you click a tag or subject, on an event card or event
+       detail, highlight it and filter it on search."
+     - Changed: in the Monitoring tab's timeline, tapping a clip card's
+       object tag or subject name, or a tag or subject chip in the player
+       opened from a card, sets the events search to it (the field opens
+       with it, and only the events with it show); from the player it
+       also closes, back on the filtered list. While it's the search, that
+       tag or subject shows highlighted (accent container fill and
+       outline, bold, selected for screen readers) on every card shown and
+       in the player. Tapping it again, or clearing the search, removes
+       both. The labels' earlier tap actions move: a long press on a
+       card's label opens the player where it was seen, and a long press
+       or right click on a subject's chip in the player renames; the x
+       still removes. Cards and players outside the timeline (a subject's
+       screen, the Camera tab) are unchanged. New `EventSearchScope` in
+       `lib/events.dart`. New `tag_filter_test.dart` (7 tests, including
+       320 dp). 557 Flutter tests pass. Specs: [Events](events.md),
+       [Clips](clips.md), [Subjects](subjects.md),
+       [Subject recognition](recognition.md), [Monitoring](monitoring.md).

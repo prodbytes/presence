@@ -393,13 +393,23 @@ Future<void> showClipPlayer(
   Duration? at,
   bool identify = false,
 }) {
+  // Opened from a timeline's card: its tags and subjects filter that
+  // timeline's search too.
+  final search = EventSearchScope.peek(context);
+  final player = ClipPlayerDialog(
+    event: event,
+    startAt: at,
+    identify: identify,
+  );
   return showDialog<void>(
     context: context,
     builder: (context) => Dialog(
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
-        child: ClipPlayerDialog(event: event, startAt: at, identify: identify),
+        child: search == null
+            ? player
+            : EventSearchScope(search: search, child: player),
       ),
     ),
   );
@@ -411,6 +421,12 @@ Future<void> showClipPlayer(
 /// clip and grabs the frame it shows; clicking the frame names a person or
 /// pet at that spot (as many as needed). Each subject's tag keeps its
 /// frame, the clicked position and the name, stored with the event.
+///
+/// Opened from a card in the timeline ([EventSearchScope]), a tapped
+/// subject or tag filters the events by it ([EventSearchScope.toggle]) and
+/// closes the player, back to the filtered list; the one searched for shows
+/// selected. A subject is then renamed with a long press (or a right
+/// click). Opened elsewhere, a tapped subject is renamed.
 class ClipPlayerDialog extends StatefulWidget {
   const ClipPlayerDialog({
     super.key,
@@ -524,11 +540,43 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
     if (name != null) _annotations.rename(annotation.id, name);
   }
 
+  /// A tapped subject, opened from the timeline: filters the events by
+  /// [name] (or clears the filter) and closes the player, back to the list.
+  void _filter(ValueNotifier<String> search, String name) {
+    EventSearchScope.toggle(search, name);
+    Navigator.of(context).pop();
+  }
+
+  /// [chip], a subject's, with renaming on a long press (or a right click)
+  /// while a tap filters the events ([search] set); as is otherwise.
+  Widget _subjectChip(
+    ValueNotifier<String>? search,
+    Annotation a,
+    Widget chip,
+  ) {
+    if (search == null) return chip;
+    final active = EventSearchScope.isActive(search.value, a.name);
+    return Tooltip(
+      // Shown on hover; a long press renames.
+      triggerMode: TooltipTriggerMode.manual,
+      message: active
+          ? 'Show every event (hold to rename)'
+          : 'Show only events with ${a.name} (hold to rename)',
+      child: GestureDetector(
+        key: Key('annotation-rename-${a.id}'),
+        onLongPress: () => _rename(a),
+        onSecondaryTap: () => _rename(a),
+        child: chip,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final recognizer = SubjectRecognizerScope.maybeOf(context);
+    final search = EventSearchScope.maybeOf(context);
     return SingleChildScrollView(
       child: ListenableBuilder(
         listenable: _annotations,
@@ -743,33 +791,48 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                               runSpacing: 8,
                               children: [
                                 for (final a in _annotations.on(f.id))
-                                  InputChip(
-                                    key: Key('annotation-${a.id}'),
-                                    // Recognized ones show how sure.
-                                    avatar: Icon(
-                                      a.source == TagSource.detected
-                                          ? Icons.auto_awesome
-                                          : Icons.place,
-                                      size: 18,
+                                  _subjectChip(
+                                    search,
+                                    a,
+                                    InputChip(
+                                      key: Key('annotation-${a.id}'),
+                                      // Recognized ones show how sure.
+                                      avatar: Icon(
+                                        a.source == TagSource.detected
+                                            ? Icons.auto_awesome
+                                            : Icons.place,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        a.source == TagSource.detected &&
+                                                a.confidence != null
+                                            ? '${a.name} · '
+                                                  '${(a.confidence! * 100).round()} %'
+                                            : a.name,
+                                      ),
+                                      tooltip: search == null
+                                          ? 'Rename subject'
+                                          : null,
+                                      selected:
+                                          search != null &&
+                                          EventSearchScope.isActive(
+                                            search.value,
+                                            a.name,
+                                          ),
+                                      showCheckmark: false,
+                                      onPressed: search == null
+                                          ? () => _rename(a)
+                                          : () => _filter(search, a.name),
+                                      deleteButtonTooltipMessage:
+                                          'Remove subject',
+                                      onDeleted: () {
+                                        _annotations.remove(a.id);
+                                        if (_frame?.id == f.id &&
+                                            _annotations.on(f.id).isEmpty) {
+                                          setState(() => _frame = null);
+                                        }
+                                      },
                                     ),
-                                    label: Text(
-                                      a.source == TagSource.detected &&
-                                              a.confidence != null
-                                          ? '${a.name} · '
-                                                '${(a.confidence! * 100).round()} %'
-                                          : a.name,
-                                    ),
-                                    tooltip: 'Rename subject',
-                                    onPressed: () => _rename(a),
-                                    deleteButtonTooltipMessage:
-                                        'Remove subject',
-                                    onDeleted: () {
-                                      _annotations.remove(a.id);
-                                      if (_frame?.id == f.id &&
-                                          _annotations.on(f.id).isEmpty) {
-                                        setState(() => _frame = null);
-                                      }
-                                    },
                                   ),
                               ],
                             ),
@@ -787,6 +850,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                       ClipObjectTags(
                         annotations: _annotations,
                         keyPrefix: 'player-object',
+                        onFiltered: () => Navigator.of(context).pop(),
                       )
                     else
                       Text(
@@ -864,19 +928,25 @@ String autoTagMessage(RecognitionResult result) {
 
 /// A clip's **Tags**: the things recognition saw on it (`human`, `cat`,
 /// `bicycle`, `bottle`…), as small outlined chips, by first sighting;
-/// nothing until it's been searched, or if nothing was seen. A click on one
-/// calls [onOpenAt] with where it was first seen; its x removes it from the
-/// clip.
+/// nothing until it's been searched, or if nothing was seen. In a timeline
+/// ([EventSearchScope]) a click on one filters the events by it (again,
+/// clears the filter) and it shows highlighted while it's the search, a
+/// long press calling [onOpenAt]; elsewhere a click calls [onOpenAt] with
+/// where it was first seen. Its x removes it from the clip.
 class ClipObjectTags extends StatelessWidget {
   const ClipObjectTags({
     super.key,
     required this.annotations,
     this.onOpenAt,
+    this.onFiltered,
     this.keyPrefix = 'clip-object',
   });
 
   final ClipAnnotations annotations;
   final void Function(Duration? at)? onOpenAt;
+
+  /// Called once a click filtered the events (the player closes).
+  final VoidCallback? onFiltered;
 
   /// Starts the chips' keys, so the player's and the card's differ.
   final String keyPrefix;
@@ -889,6 +959,7 @@ class ClipObjectTags extends StatelessWidget {
       if (objects.isEmpty) return const SizedBox.shrink();
       final theme = Theme.of(context);
       final scheme = theme.colorScheme;
+      final search = EventSearchScope.maybeOf(context);
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Wrap(
@@ -897,40 +968,56 @@ class ClipObjectTags extends StatelessWidget {
           runSpacing: 4,
           children: [
             for (final o in objects)
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: scheme.outlineVariant),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    OpenAtLabel(
-                      key: Key('$keyPrefix-${o.label}'),
-                      ms: o.ms,
-                      onOpenAt: onOpenAt,
-                      borderRadius: const BorderRadius.horizontal(
-                        left: Radius.circular(12),
+              if (search != null &&
+                      EventSearchScope.isActive(search.value, o.label)
+                      // Whether it's the search: highlighted.
+                      case final active)
+                Semantics(
+                  key: Key('$keyPrefix-chip-${o.label}'),
+                  selected: search == null ? null : active,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: active ? scheme.primaryContainer : null,
+                      border: Border.all(
+                        color: active ? scheme.primary : scheme.outlineVariant,
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 2, 2, 2),
-                        child: Text(
-                          o.label,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        OpenAtLabel(
+                          key: Key('$keyPrefix-${o.label}'),
+                          ms: o.ms,
+                          onOpenAt: onOpenAt,
+                          filter: o.label,
+                          onFiltered: onFiltered,
+                          borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(12),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 2, 2, 2),
+                            child: Text(
+                              o.label,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: active
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSurfaceVariant,
+                                fontWeight: active ? FontWeight.bold : null,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        RemoveLabelButton(
+                          key: Key('$keyPrefix-remove-${o.label}'),
+                          label: o.label,
+                          kind: 'tag',
+                          onRemove: () => annotations.removeObject(o.label),
+                        ),
+                      ],
                     ),
-                    RemoveLabelButton(
-                      key: Key('$keyPrefix-remove-${o.label}'),
-                      label: o.label,
-                      kind: 'tag',
-                      onRemove: () => annotations.removeObject(o.label),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
           ],
         ),
       );
@@ -941,12 +1028,19 @@ class ClipObjectTags extends StatelessWidget {
 /// A label on a clip's card that, clicked, opens the player paused [ms] into
 /// the recording (or, without [ms], playing from the start); just the label
 /// when the clip can't be played ([onOpenAt] null).
+///
+/// With a [filter] (the tag or subject it shows) and in a timeline
+/// ([EventSearchScope]), a click filters the events by it instead (again,
+/// clears the filter), then calls [onFiltered]; a long press opens the
+/// player.
 class OpenAtLabel extends StatelessWidget {
   const OpenAtLabel({
     super.key,
     required this.ms,
     required this.onOpenAt,
     required this.child,
+    this.filter,
+    this.onFiltered,
     this.borderRadius,
   });
 
@@ -955,11 +1049,34 @@ class OpenAtLabel extends StatelessWidget {
   final Widget child;
   final BorderRadius? borderRadius;
 
+  /// What a click searches the events for, in a timeline.
+  final String? filter;
+  final VoidCallback? onFiltered;
+
   @override
   Widget build(BuildContext context) {
     final open = onOpenAt;
-    if (open == null) return child;
     final at = ms == null ? null : Duration(milliseconds: ms!);
+    final search = filter == null ? null : EventSearchScope.maybeOf(context);
+    if (search != null) {
+      final label = filter!;
+      final active = EventSearchScope.isActive(search.value, label);
+      return Tooltip(
+        // Shown on hover; a long press opens the player.
+        triggerMode: TooltipTriggerMode.manual,
+        message: active ? 'Show every event' : 'Show only events with $label',
+        child: InkWell(
+          borderRadius: borderRadius,
+          onTap: () {
+            EventSearchScope.toggle(search, label);
+            onFiltered?.call();
+          },
+          onLongPress: open == null ? null : () => open(at),
+          child: child,
+        ),
+      );
+    }
+    if (open == null) return child;
     return Tooltip(
       message: at == null
           ? 'Play the clip'

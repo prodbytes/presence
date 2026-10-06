@@ -52,7 +52,10 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   once, as written there, each after a **square in the subject's color**,
   to match them with their dots on the map. Clicking a name opens the
   player paused at the earliest frame that subject is tagged on (see
-  [Clips](clips.md)).
+  [Clips](clips.md)); in the Monitoring tab's timeline that's a long
+  press, and a click filters the events by the subject, highlighting
+  their name while it's the search (see [Events](events.md), "Tapping a
+  tag or subject filters by it").
 - **Unidentified people and pets:** a clip that shows a person or pet
   (object tags `human`, `cat`, `dog`) with fewer subjects named than sorts
   seen gets a yellow **unidentified** flag under its labels; **Identify**
