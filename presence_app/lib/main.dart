@@ -655,12 +655,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
-  /// The devices unchecked in the Monitoring tab's devices dropdown: none
-  /// at launch, so every device's events show, and kept while switching
-  /// tabs.
-  final _hiddenDevices = ValueNotifier<Set<String>>(const {});
+  /// The one device whose events the Monitoring tab shows, picked by
+  /// tapping an event's device: none at launch, so every device's events
+  /// show, and kept while switching tabs.
+  final _onlyDevice = ValueNotifier<String?>(null);
 
-  /// The Monitoring tab's "Show system events" chip: on in DEV, off
+  /// The Monitoring tab's "Show system events" toggle: on in DEV, off
   /// otherwise (only grabs), and kept while switching tabs. Made on first
   /// use, once the execution mode is known.
   late final _showSystemEvents = ValueNotifier(_dev);
@@ -805,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _clipEvents?.cancel();
     _messageTimer?.cancel();
     _focusedEvent.dispose();
-    _hiddenDevices.dispose();
+    _onlyDevice.dispose();
     _showSystemEvents.dispose();
     _eventSearch.dispose();
     _battery.dispose();
@@ -1012,7 +1012,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
-                  hiddenDevices: _hiddenDevices,
+                  onlyDevice: _onlyDevice,
                   showSystemEvents: _showSystemEvents,
                   search: _eventSearch,
                 ),

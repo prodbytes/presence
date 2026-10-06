@@ -396,8 +396,8 @@ void main() {
       expect(out.onPressed, isNull, reason: 'already as far out as it goes');
     });
 
-    testWidgets('the map shows every device until one is unchecked in the '
-        'devices dropdown, with the events', (tester) async {
+    testWidgets("the map shows every device until an event's device is "
+        'tapped, with the events', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
         clipWith(['Ana'], minutesAgo: 2, lat: 48.2)..deviceId = 'there',
@@ -418,35 +418,31 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final dropdown = find.byKey(const Key('device-filter'));
-      final there = find.byWidgetPredicate(
-        (w) =>
-            w is CheckboxMenuButton &&
-            w.key == const Key('device-filter-there'),
-      );
+      final here = find.byKey(const Key('event-device-event-1'));
+      final chip = find.byKey(const Key('device-filter'));
       final rex = find.byKey(const Key('subjects-dot-rex-event-1'));
       final ana = find.byKey(const Key('subjects-dot-ana-event-2'));
       final events = find.byKey(const Key('events-page'));
       Finder card(String name) =>
           find.descendant(of: events, matching: find.text(name));
 
-      expect(find.text('All devices'), findsOneWidget);
+      expect(chip, findsNothing);
       expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
 
-      await tester.tap(dropdown);
+      await tester.tap(here);
       await tester.pumpAndSettle();
-      await tester.tap(there);
-      await tester.pumpAndSettle();
+      expect(chip, findsOneWidget);
       expect(rex, findsOneWidget);
       expect(ana, findsNothing);
       expect(find.byKey(const Key('subjects-label-ana')), findsNothing);
       expect(card('Rex'), findsOneWidget);
       expect(card('Ana'), findsNothing);
 
-      await tester.tap(there);
+      await tester.tap(find.byTooltip('Show every device'));
       await tester.pumpAndSettle();
+      expect(chip, findsNothing);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
     });

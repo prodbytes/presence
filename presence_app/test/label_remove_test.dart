@@ -149,6 +149,8 @@ void main() {
       expect(onCard('2', 'event-subject-remove-ana'), findsOneWidget);
       expect(find.byKey(const Key('subjects-label-ana')), findsOneWidget);
       expect(find.byKey(const Key('subjects-dot-rex-event-2')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('event-search-open')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('event-search')), 'rex');
       await tester.pumpAndSettle();
       expect(count(tester), '2 / 2');
@@ -180,6 +182,8 @@ void main() {
 
     testWidgets('removes an object tag from that event', (tester) async {
       await show(tester);
+      await tester.tap(find.byKey(const Key('event-search-open')));
+      await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('event-search')), 'cat');
       await tester.pumpAndSettle();
       expect(count(tester), '1 / 2');

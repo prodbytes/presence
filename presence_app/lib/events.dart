@@ -273,7 +273,7 @@ class EventTimeline extends StatefulWidget {
     required this.log,
     this.focus,
     this.deviceId,
-    this.hiddenDevices,
+    this.onlyDevice,
     this.showSystemEvents,
     this.search,
     this.padding = const EdgeInsets.all(12),
@@ -287,13 +287,13 @@ class EventTimeline extends StatefulWidget {
   /// This device's ID: events without a device ID (not saved yet) are its.
   final String? deviceId;
 
-  /// The devices unchecked in the [DeviceFilter] dropdown at the top of the
-  /// Monitoring tab: their events don't show. Kept by the caller, so it
-  /// survives the tab being rebuilt; defaults to an own one, empty: every
-  /// device's events show.
-  final ValueNotifier<Set<String>>? hiddenDevices;
+  /// The one device whose events show, set by tapping an event's device
+  /// ([EventDeviceTag]) and cleared with the [DeviceFilterChip] at the top
+  /// of the Monitoring tab; null, every device's. Kept by the caller, so it
+  /// survives the tab being rebuilt; defaults to an own one, null.
+  final ValueNotifier<String?>? onlyDevice;
 
-  /// Whether system events show (the [ShowSystemEvents] chip): on, every
+  /// Whether system events show (the [ShowSystemEvents] toggle): on, every
   /// event, such as "Application started" and sign-ins; off, only grabs
   /// ([isGrab]: clips, by hand, on motion, at start, on a schedule or for
   /// Capture all, the Capture all requests, and the suggestions about
@@ -322,25 +322,22 @@ class EventTimeline extends StatefulWidget {
       if (e.profileId == null || e.profileId == profileId) e,
   ];
 
-  /// [events] of the devices shown: those not in [hiddenDevices]. Events
-  /// not saved yet have no device ID; they're this device's ([deviceId]).
+  /// The device [event] was taken on: its device ID, or, not saved yet
+  /// (no device ID), this device's ([deviceId]).
+  static String? deviceOf(AppEvent event, String? deviceId) =>
+      event.deviceId ?? deviceId;
+
+  /// [events] of [onlyDevice] ([deviceOf]); null, every device's.
   static List<AppEvent> ofDevices(
     List<AppEvent> events, {
     required String? deviceId,
-    required Set<String> hiddenDevices,
+    required String? onlyDevice,
   }) {
-    if (hiddenDevices.isEmpty) return events;
+    if (onlyDevice == null) return events;
     return [
       for (final e in events)
-        if (!hiddenDevices.contains(e.deviceId ?? deviceId)) e,
+        if (deviceOf(e, deviceId) == onlyDevice) e,
     ];
-  }
-
-  /// Every device with an event in [events], sorted, with [thisDevice]
-  /// first even before it has one (the [DeviceFilter] dropdown's lines).
-  static List<String> devicesOf(List<AppEvent> events, String? thisDevice) {
-    final others = {for (final e in events) ?e.deviceId}..remove(thisDevice);
-    return [?thisDevice, ...others.toList()..sort()];
   }
 
   /// [events], only the grabs ([isGrab]) unless [showSystemEvents].
@@ -373,20 +370,20 @@ class EventTimeline extends StatefulWidget {
 class _EventTimelineState extends State<EventTimeline> {
   final _scroll = ScrollController();
 
-  ValueNotifier<Set<String>>? _ownFilter;
-  ValueNotifier<Set<String>> get _filter =>
-      widget.hiddenDevices ?? (_ownFilter ??= ValueNotifier(const {}));
+  ValueNotifier<String?>? _ownFilter;
+  ValueNotifier<String?> get _filter =>
+      widget.onlyDevice ?? (_ownFilter ??= ValueNotifier(null));
 
   ValueNotifier<bool>? _ownSystem;
   ValueNotifier<bool> get _system =>
       widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
 
-  /// The events of the devices shown: those not unchecked in [_filter].
+  /// The events of the device shown ([_filter]), or of every device.
   /// Events not saved yet have no device ID; they're this device's.
   List<AppEvent> get _ofDevices => EventTimeline.ofDevices(
     widget.log.events,
     deviceId: widget.deviceId,
-    hiddenDevices: _filter.value,
+    onlyDevice: _filter.value,
   );
 
   ValueNotifier<String>? _ownSearch;
@@ -430,8 +427,8 @@ class _EventTimelineState extends State<EventTimeline> {
       oldWidget.focus?.removeListener(_onFocus);
       widget.focus?.addListener(_onFocus);
     }
-    if (oldWidget.hiddenDevices != widget.hiddenDevices) {
-      (oldWidget.hiddenDevices ?? _ownFilter)?.removeListener(_onFilter);
+    if (oldWidget.onlyDevice != widget.onlyDevice) {
+      (oldWidget.onlyDevice ?? _ownFilter)?.removeListener(_onFilter);
       _filter.addListener(_onFilter);
     }
     if (oldWidget.showSystemEvents != widget.showSystemEvents) {
@@ -464,10 +461,11 @@ class _EventTimelineState extends State<EventTimeline> {
   void _onFocus() {
     final id = widget.focus?.value;
     if (id == null) return;
-    // An event of an unchecked device, opened from elsewhere: check them all.
+    // An event of another device than the one shown, opened from
+    // elsewhere: show every device.
     if (!_ofDevices.any((e) => e.id == id) &&
         widget.log.events.any((e) => e.id == id)) {
-      _filter.value = const {};
+      _filter.value = null;
     }
     // A system event, with them hidden: show them.
     if (!_ofKinds.any((e) => e.id == id) &&
@@ -550,7 +548,7 @@ class _EventTimelineState extends State<EventTimeline> {
         message: widget.log.events.isEmpty
             ? 'No events'
             : _ofDevices.isEmpty
-            ? 'No events on the devices checked'
+            ? 'No events on ${_filter.value}'
             : _ofKinds.isEmpty
             ? 'No grabs yet: system events are hidden'
             : 'No events match "${_search.value.trim()}"',
@@ -560,12 +558,31 @@ class _EventTimelineState extends State<EventTimeline> {
       controller: _scroll,
       padding: widget.padding,
       itemCount: events.length,
-      separatorBuilder: (context, i) => const SizedBox(height: 8),
+      separatorBuilder: (context, i) => const SizedBox(height: 4),
       itemBuilder: (context, i) {
         final event = events[i];
+        final device = EventTimeline.deviceOf(event, widget.deviceId);
         final card = KeyedSubtree(
           key: _cards.putIfAbsent(event.id, GlobalKey.new),
-          child: event.buildCard(context),
+          child: device == null
+              ? event.buildCard(context)
+              // The device it was taken on, above the card: tapping it
+              // shows only that device's events.
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: EventDeviceTag(
+                        key: Key('event-device-${event.id}'),
+                        device: device,
+                        thisDevice: device == widget.deviceId,
+                        value: _filter,
+                      ),
+                    ),
+                    event.buildCard(context),
+                  ],
+                ),
         );
         if (event.id != _highlighted) return card;
         return DecoratedBox(
@@ -625,17 +642,18 @@ bool eventMatches(AppEvent event, String query) {
   return eventSearchFields(event).any((f) => f.toLowerCase().contains(q));
 }
 
-/// The search field at the top of the Monitoring tab, before the filter
-/// chips: what's typed goes to [value] (the timeline's
-/// [EventTimeline.search]) as it's typed, and the x clears it.
+/// The events search at the top of the Monitoring tab: a search icon
+/// button until tapped, then a text field, focused so the user can type;
+/// what's typed goes to [value] (the timeline's [EventTimeline.search]) as
+/// it's typed. It folds back into the icon when it loses focus empty, or
+/// with its x, which clears it first; while it has text it stays open.
 class EventSearch extends StatefulWidget {
   const EventSearch({super.key, required this.value});
 
   final ValueNotifier<String> value;
 
-  /// Its width; narrow enough to share a 320 dp phone's row with nothing
-  /// else, so the chips go on the next row.
-  static const double width = 220;
+  /// The open field's widest; it gives up room on a narrow phone.
+  static const double maxWidth = 280;
 
   @override
   State<EventSearch> createState() => _EventSearchState();
@@ -643,11 +661,16 @@ class EventSearch extends StatefulWidget {
 
 class _EventSearchState extends State<EventSearch> {
   late final _controller = TextEditingController(text: widget.value.value);
+  final _focus = FocusNode(debugLabel: 'event-search');
+
+  /// Whether the field shows: open with a search kept from before.
+  late bool _open = widget.value.value.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
     widget.value.addListener(_onValue);
+    _focus.addListener(_onFocus);
   }
 
   @override
@@ -664,64 +687,92 @@ class _EventSearchState extends State<EventSearch> {
   void dispose() {
     widget.value.removeListener(_onValue);
     _controller.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
   /// Follows [EventSearch.value] when it's changed elsewhere (cleared when
   /// an event it hides is opened).
   void _onValue() {
-    if (_controller.text != widget.value.value) {
-      _controller.text = widget.value.value;
+    final text = widget.value.value;
+    if (_controller.text != text) _controller.text = text;
+    if (text.isNotEmpty && !_open) setState(() => _open = true);
+    if (text.isEmpty && _open && !_focus.hasFocus) {
+      setState(() => _open = false);
     }
   }
 
+  /// Folds back once it's left empty.
+  void _onFocus() {
+    if (!_focus.hasFocus && _controller.text.isEmpty && _open) {
+      setState(() => _open = false);
+    }
+  }
+
+  void _close() {
+    _controller.clear();
+    widget.value.value = '';
+    _focus.unfocus();
+    setState(() => _open = false);
+  }
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: EventSearch.width,
-    // Rebuilt as it's typed, for the x.
-    child: ValueListenableBuilder(
-      valueListenable: _controller,
-      builder: (context, text, _) => TextField(
+  Widget build(BuildContext context) {
+    if (!_open) {
+      return IconButton(
+        key: const Key('event-search-open'),
+        tooltip: 'Search events',
+        icon: const Icon(Icons.search),
+        onPressed: () {
+          setState(() => _open = true);
+          // Focused once it's built, so the keyboard comes up.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _focus.requestFocus();
+          });
+        },
+      );
+    }
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: EventSearch.maxWidth),
+      child: TextField(
         key: const Key('event-search'),
         controller: _controller,
+        focusNode: _focus,
         onChanged: (text) => widget.value.value = text,
+        onSubmitted: (text) {
+          if (text.isEmpty) _close();
+        },
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search events',
           prefixIcon: const Icon(Icons.search, size: 20),
           border: const OutlineInputBorder(),
-          // The x, while there's something to clear.
-          suffixIcon: text.text.isEmpty
-              ? null
-              : IconButton(
-                  key: const Key('event-search-clear'),
-                  tooltip: 'Clear search',
-                  icon: const Icon(Icons.close, size: 18),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () {
-                    _controller.clear();
-                    widget.value.value = '';
-                  },
-                ),
+          suffixIcon: IconButton(
+            key: const Key('event-search-clear'),
+            tooltip: 'Clear search',
+            icon: const Icon(Icons.close, size: 18),
+            visualDensity: VisualDensity.compact,
+            onPressed: _close,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
-/// The event counts beside the [EventSearch] field, as "3 / 12": *all* is
+/// The event counts beside the [EventSearch], as "3 / 12": *all* is
 /// every event of [profileId] on this device ([EventTimeline.ofProfile]: recorded
 /// here, restored, or fetched from the cloud, so it grows as sync brings
-/// more), and *matching* those of them left after the search and the filter
-/// chips, with the same steps as the [EventTimeline].
+/// more), and *matching* those of them left after the search and the
+/// filters, with the same steps as the [EventTimeline].
 class EventCount extends StatelessWidget {
   const EventCount({
     super.key,
     required this.log,
     required this.profileId,
     required this.deviceId,
-    required this.hiddenDevices,
+    required this.onlyDevice,
     required this.showSystemEvents,
     required this.search,
   });
@@ -731,18 +782,13 @@ class EventCount extends StatelessWidget {
   /// The signed-in account's profile; null signed out.
   final String? profileId;
   final String? deviceId;
-  final ValueListenable<Set<String>> hiddenDevices;
+  final ValueListenable<String?> onlyDevice;
   final ValueListenable<bool> showSystemEvents;
   final ValueListenable<String> search;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([
-      log,
-      hiddenDevices,
-      showSystemEvents,
-      search,
-    ]),
+    listenable: Listenable.merge([log, onlyDevice, showSystemEvents, search]),
     // Recognition tags clips once they're recorded: count again when a
     // clip's tags or object tags change.
     builder: (context, _) => ListenableBuilder(
@@ -758,7 +804,7 @@ class EventCount extends StatelessWidget {
             EventTimeline.ofDevices(
               mine,
               deviceId: deviceId,
-              hiddenDevices: hiddenDevices.value,
+              onlyDevice: onlyDevice.value,
             ),
             showSystemEvents: showSystemEvents.value,
           ),
@@ -770,7 +816,7 @@ class EventCount extends StatelessWidget {
           child: Text(
             '$shown / $all',
             key: const Key('event-count'),
-            style: theme.textTheme.labelLarge?.copyWith(
+            style: theme.textTheme.labelMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -781,94 +827,105 @@ class EventCount extends StatelessWidget {
   );
 }
 
-/// The devices dropdown: a chip opening a menu with a checkbox per device
-/// of [log] ([EventTimeline.devicesOf]), this device first, in bold, and
-/// below them an "All devices" checkbox that checks or unchecks them all.
-/// Unchecking a device adds it to [value] (the timeline's
-/// [EventTimeline.hiddenDevices]); every device is checked at first, and so
-/// is any device whose events arrive later.
-class DeviceFilter extends StatelessWidget {
-  const DeviceFilter({
+/// The device an event was taken on, small and quiet above its card in the
+/// timeline: a device icon and its ID, this device's in bold. Tapping it
+/// shows only that device's events ([value], the timeline's
+/// [EventTimeline.onlyDevice]); tapped again, every device's.
+class EventDeviceTag extends StatelessWidget {
+  const EventDeviceTag({
     super.key,
-    required this.log,
-    required this.deviceId,
+    required this.device,
+    required this.thisDevice,
     required this.value,
   });
 
-  final EventLog log;
+  final String device;
 
-  /// This device's ID, the first line.
-  final String deviceId;
-  final ValueNotifier<Set<String>> value;
+  /// Whether [device] is this device.
+  final bool thisDevice;
+  final ValueNotifier<String?> value;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([log, value]),
-    builder: (context, _) {
-      final devices = EventTimeline.devicesOf(log.events, deviceId);
-      final hidden = value.value;
-      final shown = devices.where((d) => !hidden.contains(d)).length;
-      void set(String device, bool checked) => value.value = checked
-          ? ({...hidden}..remove(device))
-          : {...hidden, device};
-      return MenuAnchor(
-        menuChildren: [
-          for (final device in devices)
-            CheckboxMenuButton(
-              key: Key('device-filter-$device'),
-              value: !hidden.contains(device),
-              closeOnActivate: false,
-              onChanged: (checked) => set(device, checked ?? false),
-              child: device == deviceId
-                  ? const Text(
-                      'This device',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    )
-                  : Text(device),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final only = value.value == device;
+    final color = only ? scheme.primary : scheme.onSurfaceVariant;
+    return Tooltip(
+      message: only
+          ? 'Show the events of every device'
+          : thisDevice
+          ? 'Show only this device ($device)'
+          : 'Show only $device',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: () => value.value = only ? null : device,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 32),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.devices_other, size: 14, color: color),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    device,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: color,
+                      fontWeight: thisDevice || only ? FontWeight.bold : null,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          const Divider(height: 1),
-          CheckboxMenuButton(
-            key: const Key('device-filter-all'),
-            value: shown == devices.length
-                ? true
-                : shown == 0
-                ? false
-                : null,
-            tristate: true,
-            closeOnActivate: false,
-            // Checked, every device; some or none checked, check them all.
-            onChanged: (_) => value.value = shown == devices.length
-                ? devices.toSet()
-                : const {},
-            child: const Text('All devices'),
           ),
-        ],
-        builder: (context, menu, _) => FilterChip(
+        ),
+      ),
+    );
+  }
+}
+
+/// The device filter at the top of the Monitoring tab, while an event's
+/// device ([EventDeviceTag]) shows only its events: a small chip with the
+/// device's ID and an x that shows every device again ([value] back to
+/// null). Nothing while every device shows.
+class DeviceFilterChip extends StatelessWidget {
+  const DeviceFilterChip({super.key, required this.value});
+
+  final ValueNotifier<String?> value;
+
+  /// The chip's widest; a long ID is cut short.
+  static const double maxWidth = 180;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder(
+    valueListenable: value,
+    builder: (context, device, _) {
+      if (device == null) return const SizedBox.shrink();
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: maxWidth),
+        child: InputChip(
           key: const Key('device-filter'),
-          selected: shown < devices.length,
-          showCheckmark: false,
-          onSelected: (_) => menu.isOpen ? menu.close() : menu.open(),
-          avatar: const Icon(Icons.devices_other, size: 18),
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                shown == devices.length
-                    ? 'All devices'
-                    : '$shown of ${devices.length} devices',
-              ),
-              const Icon(Icons.arrow_drop_down, size: 18),
-            ],
-          ),
+          visualDensity: VisualDensity.compact,
+          avatar: const Icon(Icons.devices_other, size: 16),
+          label: Text(device, overflow: TextOverflow.ellipsis),
+          tooltip: 'Showing only $device',
+          onPressed: () => value.value = null,
+          deleteButtonTooltipMessage: 'Show every device',
+          onDeleted: () => value.value = null,
         ),
       );
     },
   );
 }
 
-/// The "Show system events" filter chip, with a check while on, switching
-/// [value] (the timeline's [EventTimeline.showSystemEvents]). On in DEV, off
-/// otherwise, at launch.
+/// The small "Show system events" toggle at the bottom of the Monitoring
+/// tab: an icon, no label (its tooltip names it), highlighted while on,
+/// switching [value] (the timeline's [EventTimeline.showSystemEvents]). On
+/// in DEV, off otherwise, at launch.
 class ShowSystemEvents extends StatelessWidget {
   const ShowSystemEvents({super.key, required this.value});
 
@@ -877,13 +934,20 @@ class ShowSystemEvents extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ValueListenableBuilder(
     valueListenable: value,
-    builder: (context, on, _) => FilterChip(
-      key: const Key('show-system-events'),
-      selected: on,
-      onSelected: (selected) => value.value = selected,
-      avatar: on ? null : const Icon(Icons.settings_suggest, size: 18),
-      label: const Text('Show system events'),
-    ),
+    builder: (context, on, _) {
+      final scheme = Theme.of(context).colorScheme;
+      return IconButton(
+        key: const Key('show-system-events'),
+        isSelected: on,
+        tooltip: on ? 'Hide system events' : 'Show system events',
+        visualDensity: VisualDensity.compact,
+        iconSize: 18,
+        color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
+        selectedIcon: Icon(Icons.settings_suggest, color: scheme.primary),
+        icon: const Icon(Icons.settings_suggest_outlined),
+        onPressed: () => value.value = !on,
+      );
+    },
   );
 }
 

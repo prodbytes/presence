@@ -35,7 +35,7 @@ void main() {
 
   Finder chip() => find.byKey(const Key('show-system-events'));
   bool checked(WidgetTester tester) =>
-      tester.widget<FilterChip>(chip()).selected;
+      tester.widget<IconButton>(chip()).isSelected!;
   Finder inEvents(Finder f) =>
       find.descendant(of: find.byKey(const Key('events-page')), matching: f);
 
@@ -45,7 +45,7 @@ void main() {
     await pumpApp(tester, cameras: openFakes([FakeCameraSource('Front door')]));
     await clipAndShowEvents(tester);
 
-    expect(find.text('Show system events'), findsOneWidget);
+    expect(find.byTooltip('Show system events'), findsOneWidget);
     expect(checked(tester), isFalse);
     expect(inEvents(find.text('Clip requested')), findsOneWidget);
     expect(inEvents(find.text('Application started')), findsNothing);

@@ -115,7 +115,15 @@ void main() {
   String count(WidgetTester tester) =>
       tester.widget<Text>(find.byKey(const Key('event-count'))).data!;
 
+  Finder opener() => find.byKey(const Key('event-search-open'));
+  Finder system() => find.byKey(const Key('show-system-events'));
+
+  /// Types [text] in the search, opening it first if it's folded.
   Future<void> type(WidgetTester tester, String text) async {
+    if (field().evaluate().isEmpty) {
+      await tester.tap(opener());
+      await tester.pumpAndSettle();
+    }
     await tester.enterText(field(), text);
     await tester.pumpAndSettle();
   }
@@ -164,19 +172,74 @@ void main() {
     expect(count(tester), '1 / 4');
   });
 
-  testWidgets('the field sits top left, on the chips row', (tester) async {
+  testWidgets('the search is an icon top left until tapped, then a field '
+      'to type in, folding back when left empty', (tester) async {
     await show(tester);
-    final search = tester.getRect(field());
-    final chip = tester.getRect(find.byKey(const Key('device-filter')));
+    expect(field(), findsNothing);
+    final icon = tester.getRect(opener());
     final page = tester.getRect(find.byKey(const Key('monitoring-page')));
-    expect(search.left, closeTo(page.left + 16, 0.5));
-    expect(search.right, lessThan(chip.left));
-    expect(search.center.dy, closeTo(chip.center.dy, 1));
-    // The count sits between the field and the chips.
+    expect(icon.left, closeTo(page.left + 16, 0.5));
+    expect(icon.height, greaterThanOrEqualTo(40));
+    expect(find.byTooltip('Search events'), findsOneWidget);
+    // The count sits beside it.
     final counts = tester.getRect(find.byKey(const Key('event-count')));
-    expect(counts.left, greaterThan(search.right));
-    expect(counts.right, lessThan(chip.left));
-    expect(counts.center.dy, closeTo(search.center.dy, 1));
+    expect(counts.left, greaterThan(icon.right));
+    expect(counts.center.dy, closeTo(icon.center.dy, 1));
+
+    // Tapped, it opens focused, so the user can type straight away.
+    await tester.tap(opener());
+    await tester.pumpAndSettle();
+    expect(opener(), findsNothing);
+    final editable = tester.widget<EditableText>(
+      find.descendant(of: field(), matching: find.byType(EditableText)),
+    );
+    expect(editable.focusNode.hasFocus, isTrue);
+    await tester.enterText(field(), 'rex');
+    await tester.pumpAndSettle();
+    expect(titles(tester), ['Clip requested']);
+
+    // With text it stays open when it loses focus.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    expect(field(), findsOneWidget);
+    expect(count(tester), '1 / 4');
+
+    // Emptied and unfocused, it folds back into the icon.
+    await tester.enterText(field(), '');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    expect(field(), findsNothing);
+    expect(opener(), findsOneWidget);
+    expect(titles(tester), hasLength(4));
+  });
+
+  testWidgets('a search kept from before shows open', (tester) async {
+    final search = ValueNotifier('door');
+    addTearDown(search.dispose);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MonitoringView(
+            log: log,
+            config: ConfigController(),
+            tiles: const SizedBox(),
+            deviceId: 'this_device',
+            search: search,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(field()).controller!.text, 'door');
+    expect(count(tester), '2 / 4');
+    // Cleared elsewhere (an event it hid was opened), it folds back.
+    search.value = '';
+    await tester.pumpAndSettle();
+    expect(field(), findsNothing);
+    expect(opener(), findsOneWidget);
   });
 
   testWidgets('the count is the events shown out of all', (tester) async {
@@ -189,9 +252,9 @@ void main() {
     await type(tester, 'milo');
     expect(count(tester), '0 / 4');
 
-    // The chips count too.
+    // The filters count too.
     await type(tester, '');
-    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.tap(system());
     await tester.pumpAndSettle();
     expect(count(tester), '2 / 4');
 
@@ -199,12 +262,14 @@ void main() {
     bus.add(AppEvent(icon: Icons.circle, title: 'Just now'));
     await tester.pumpAndSettle();
     expect(count(tester), '2 / 5');
-    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.tap(system());
     await tester.pumpAndSettle();
     expect(count(tester), '5 / 5');
   });
 
-  testWidgets('typing filters the events; the x clears it', (tester) async {
+  testWidgets('typing filters the events; the x clears and folds it', (
+    tester,
+  ) async {
     await show(tester);
     expect(titles(tester), [
       'Clip requested',
@@ -228,14 +293,14 @@ void main() {
 
     await tester.tap(find.byKey(const Key('event-search-clear')));
     await tester.pumpAndSettle();
-    expect(tester.widget<TextField>(field()).controller!.text, isEmpty);
-    expect(find.byKey(const Key('event-search-clear')), findsNothing);
+    expect(field(), findsNothing);
+    expect(opener(), findsOneWidget);
     expect(titles(tester), hasLength(4));
   });
 
   testWidgets('works together with Show system events', (tester) async {
     await show(tester);
-    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.tap(system());
     await tester.pumpAndSettle();
     expect(titles(tester), ['Clip requested', 'Clip requested']);
 
@@ -247,7 +312,7 @@ void main() {
     await type(tester, 'kitchen');
     expect(find.text('No events match "kitchen"'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('show-system-events')));
+    await tester.tap(system());
     await tester.pumpAndSettle();
     expect(titles(tester), ['Door opened']);
   });
@@ -291,26 +356,66 @@ void main() {
     expect(count(tester), '5 / 7');
   });
 
-  testWidgets('fits a 320 dp phone, the chips wrapping below', (tester) async {
-    await show(tester, width: 320);
-    expect(tester.takeException(), isNull);
-    final search = tester.getRect(field());
-    final system = tester.getRect(find.byKey(const Key('show-system-events')));
-    expect(search.left, closeTo(12, 0.5));
-    expect(search.right, lessThanOrEqualTo(320 - 12));
-    expect(system.right, lessThanOrEqualTo(320 - 12));
-    expect(system.top, greaterThanOrEqualTo(search.bottom));
-    // The count stays on the field's row.
-    final counts = tester.getRect(find.byKey(const Key('event-count')));
-    expect(counts.right, lessThanOrEqualTo(320 - 12));
-    expect(counts.center.dy, closeTo(search.center.dy, 1));
+  testWidgets('the system events toggle is a small icon at the bottom '
+      'right, under the events', (tester) async {
+    await show(tester, width: 390);
+    final toggle = tester.getRect(system());
+    final page = tester.getRect(find.byKey(const Key('monitoring-page')));
+    final events = tester.getRect(find.byKey(const Key('events-page')));
+    expect(toggle.right, closeTo(page.right - 12, 0.5));
+    expect(toggle.top, greaterThanOrEqualTo(events.bottom));
+    expect(page.bottom - toggle.bottom, lessThan(1));
+    expect(toggle.height, lessThanOrEqualTo(48));
+    expect(toggle.height, greaterThanOrEqualTo(40));
+    // No label; its tooltip names it, and says what a tap does.
+    expect(find.text('Show system events'), findsNothing);
+    expect(find.byTooltip('Show system events'), findsNothing);
+    expect(find.byTooltip('Hide system events'), findsOneWidget);
+    expect(tester.widget<IconButton>(system()).isSelected, isTrue);
 
-    await type(tester, 'a long search that is wider than the field');
-    expect(tester.takeException(), isNull);
-    expect(find.byKey(const Key('event-search-clear')), findsOneWidget);
-    expect(
-      tester.getRect(find.byKey(const Key('event-search-clear'))).right,
-      lessThanOrEqualTo(search.right),
-    );
+    await tester.tap(system());
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(system()).isSelected, isFalse);
+    expect(find.byTooltip('Show system events'), findsOneWidget);
+    expect(titles(tester), ['Clip requested', 'Clip requested']);
   });
+
+  for (final width in [320.0, 390.0]) {
+    testWidgets('fits a ${width.toInt()} dp phone, one row on top', (
+      tester,
+    ) async {
+      await show(tester, width: width);
+      expect(tester.takeException(), isNull);
+      final row = tester.getRect(find.byKey(const Key('monitoring-filters')));
+      expect(row.height, lessThanOrEqualTo(48));
+      final icon = tester.getRect(opener());
+      expect(icon.left, closeTo(12, 0.5));
+
+      // A device filter joins the row.
+      await tester.tap(find.byKey(const Key('event-device-door')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final chip = tester.getRect(find.byKey(const Key('device-filter')));
+      expect(chip.right, lessThanOrEqualTo(width - 12));
+      expect(chip.center.dy, closeTo(icon.center.dy, 1));
+
+      // Open, with a long search, the field shares the row.
+      await type(tester, 'a long search that is wider than the field');
+      expect(tester.takeException(), isNull);
+      final search = tester.getRect(field());
+      expect(search.left, closeTo(12, 0.5));
+      final counts = tester.getRect(find.byKey(const Key('event-count')));
+      expect(counts.left, greaterThan(search.right));
+      expect(counts.center.dy, closeTo(search.center.dy, 1));
+      expect(
+        tester.getRect(find.byKey(const Key('device-filter'))).right,
+        lessThanOrEqualTo(width - 12),
+      );
+      expect(
+        tester.getRect(find.byKey(const Key('event-search-clear'))).right,
+        lessThanOrEqualTo(search.right),
+      );
+      expect(tester.getRect(system()).right, lessThanOrEqualTo(width - 12));
+    });
+  }
 }
