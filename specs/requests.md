@@ -3782,3 +3782,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        - Specs: [Sign-in](sign-in.md), [Camera screen](camera.md),
          [Clips](clips.md), [Subject recognition](recognition.md),
          [Android](android.md).
+
+299. **The copies label: just "X copies" or "Not synced".** (2026-10-07)
+     - Asked: on the events' copy label, just say "X copies", or "Not
+       synced" for zero copies.
+     - Changed:
+       - The label is "Not synced" when no copy is held beyond this
+         device (not in the cloud, no other device holds it; it was "1
+         copy — not uploaded yet"), and otherwise "N copies" counting
+         every holder, this device included ("1 copy" in the singular).
+         A not-synced event shows a cloud-off icon.
+       - The event details (clip player) show the same label; the
+         holders, listed after the count there before, are in the tooltip
+         and screen-reader label, as on the cards (with the live-sync-off
+         note).
+       - Tests: the label for cloud-only, received-not-uploaded, here-only
+         and unknown events; the not-synced card's tooltip; the details'
+         label, tooltip and semantics.
+       - Specs: [Event copies](event-copies.md), [Events](events.md).
