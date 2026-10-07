@@ -125,11 +125,31 @@ owned by `CloudSync`:
 
 The **Connect to live sync** setting ([Settings](settings.md), stored per
 device as `live: {mode, everyMs}`, see [Configuration](configuration.md))
-picks one of nine steps: **Never**, every **1, 2, 5, 10, 15, 30 or
-60 min**, or **Always**. The default is **every minute**. A change applies
-at once: the connection starts over in the new mode (`LiveSync.config`,
-set by the app from the setting at start, when it's restored, and on every
-change).
+picks one of ten steps: **Never**, every **30 s**, every **1, 2, 5, 10, 15,
+30 or 60 min**, or **Always**. The default is **every minute**.
+
+How live sync connects depends on the user's roles too
+(`LiveConfig.effective(isAdmin:)`; see [Membership](membership.md)):
+
+- **Admins** (`presence_admin`, so roots too) are **always connected**,
+  whatever the setting says, so their devices (often unattended) are
+  always reachable and their Live check shows ✅ connected. Their slider
+  shows Always, locked.
+- **Everyone else** (members) connects as set, but **at most every 30 s**:
+  Always isn't theirs, and a saved Always (or an interval under 30 s)
+  connects every 30 s. Their slider goes from Never to every 60 min. The
+  app can't tell a free member from a premium one (both have
+  `presence_user` only; vouchers grant roles, and payment isn't built), so
+  all members get these rules.
+- The saved setting is never rewritten for the roles: an admin who stops
+  being one gets their own choice back (clamped), and a member made admin
+  is always connected at once.
+
+A change applies at once: the connection starts over in the new mode
+(`LiveSync.config`, set by the app from the setting and the roles at
+start, when the setting is restored or changed, and when the roles change:
+sign-in, sign-out, a role granted or taken). Signed out, cloud sync and so
+live sync are off, as before.
 
 - **Always**: stays connected, reconnecting and renewing as above, with a
   clean session.
@@ -145,7 +165,9 @@ change).
   - **The wait** between connections is the interval plus a **random 0 to
     10 s**, picked anew each time (so 60–70 s for 1 min), so devices don't
     all connect in step (`LiveSync.nextWait`; the `Random` is injectable,
-    and tests seed it). AWS IoT keeps a persistent session for **1 h**
+    and tests seed it); every 30 s, that's 30–40 s, and with a connection
+    staying at least 3 s (at most 30 s) a device is connected at most
+    about half the time. AWS IoT keeps a persistent session for **1 h**
     after the device disconnects (the account default): every step fits,
     and the 60 min step waits 59 min plus the jitter so the session is
     still there.

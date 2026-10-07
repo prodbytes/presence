@@ -7,8 +7,8 @@ in without asking. Roles come from the
 | Who | Roles | Sees |
 |---|---|---|
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
-| Member | `presence_user` | every feature: tabs, camera buttons, cloud sync |
-| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers |
+| Member | `presence_user` | every feature: tabs, camera buttons, cloud sync; live sync at most every 30 s |
+| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers; live sync always connected |
 | Root | `presence_user`, `presence_admin`, `presence_root` | as Admin, and also creates Admin vouchers |
 
 Roots are the auth API's **root allowlist**: verified emails at one of
@@ -23,6 +23,13 @@ made only by roots (or by hand in `UserRolesTable`), and admins can only
 add members. An account linked to another's profile shares its
 membership (`presence_user`) only, never `presence_admin` or
 `presence_root`.
+
+There's no free or premium tier among members: a voucher only grants a
+role (a partial discount grants nothing, as payment isn't built), so the
+app can't tell a paying member from another, and treats all members the
+same. Roles do set limits: **Connect to live sync** is always connected
+for admins, and at most every 30 s for members (see
+[Live sync](live-sync.md#when-it-connects)).
 
 ## Asking for access
 
