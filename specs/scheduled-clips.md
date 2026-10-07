@@ -2,8 +2,9 @@
 
 Besides the Clip button and [motion](motion-clips.md), the app takes clips
 on its own: **one when it starts, then one every 3 hours** by default
-([lib/camera_feeds.dart](../presence_app/lib/camera_feeds.dart),
-`CameraRig`).
+(`CameraRig`, [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart);
+when a clip is due is `AutoClipPolicy`,
+[lib/camera/auto_clip_policy.dart](../presence_app/lib/camera/auto_clip_policy.dart)).
 
 ## When
 

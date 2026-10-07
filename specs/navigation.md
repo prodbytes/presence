@@ -144,7 +144,8 @@ in the app bar**, which flip between full screens.
       red while that clip's *after* part is still saving ("Clip saving;
       next automatic clip in 4:59"), then amber ("Next automatic clip in
       4:28"). Below a minute it shows "45 s". The countdown and the
-      automatic triggers use the same end time (`CameraRig.cooldownEnds`):
+      automatic triggers use the same end time (`CameraRig.cooldownEnds`,
+      [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)):
       - **motion** is ignored until it reaches zero;
       - a **scheduled (or startup) clip** due during it is taken the
         moment it ends (a one-shot timer wakes the schedule then), ahead

@@ -3848,3 +3848,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        within the screen; the add-device tests read the ID at the top; the
        Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
      - Specs: [Settings](settings.md), [Navigation](navigation.md).
+
+302. **Split `camera_feeds.dart` (refactor, no behaviour change).**
+     (2026-10-07)
+     - Asked: split `presence_app/lib/camera_feeds.dart` (1327 lines;
+       `CameraRig` mixed the camera's lifecycle, the brightness restart,
+       the motion trigger, the cooldown and schedule, and Capture all,
+       beside the All grid's widgets) without changing behaviour.
+     - Changed: `lib/camera_feeds.dart` (332 lines) keeps
+       `CameraFeedsView`, `FeedMessage` and `describeCameraError`, and
+       re-exports the rest, so it's still the one import.
+       `lib/camera/camera_rig.dart` (698): `CameraRig` (opening, the open
+       generation, pause, lost-camera retry, brightness restart, timers,
+       `requestClips`). `lib/camera/auto_clip_policy.dart` (138):
+       `ClipReadiness`, `AutoClipPolicy` (cooldown end, next scheduled
+       clip, its countdown, startup/scheduled due) and `MotionTrigger`
+       (frames in a row over the threshold), pure of time and settings.
+       `lib/camera/capture_all.dart` (89): `CaptureAll`, the ask and
+       answer rate limits and the seen request IDs. `lib/camera/device_grid.dart`
+       (249): `DeviceLatest`, `latestByDevice`, `gridColumns`,
+       `describeAge` and the grid's cells (`_Cell` is now `DeviceGridCell`,
+       `_DeviceImage` `DeviceImage`). `CameraRig`'s constants
+       (`motionFramesToTrigger`, `captureAllWithin`, `askAllEvery`,
+       `pressAllEvery`, `answerAllEvery`) stay, naming the moved ones.
+     - Tests: unchanged and passing; new `auto_clip_policy_test.dart`
+       covers `AutoClipPolicy`, `MotionTrigger` and `CaptureAll` alone.
+     - Specs: code pointers in [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Navigation](navigation.md), [Device deletion](device-deletion.md).
