@@ -120,15 +120,25 @@ the cloud and the recording device.
 
 ## On screen
 
-- **Event cards** (the Monitoring timeline): on the row above each card,
-  at the right of the device tag, a small file icon and **"3 copies"**,
-  **"1 copy"**, or **"1 copy — not uploaded yet"** for an event held only
-  here. The tooltip (and screen-reader label) names the holders, this
+- **The label** says just how many copies there are, or that there are
+  none beyond this device (`CopiesSummary.label`):
+  - **"Not synced"** (with a cloud-off icon) when no copy is held anywhere
+    but this device: not in the cloud, and no other device (neither the
+    recording device nor an acked one) holds it. Also when nothing is
+    known of it.
+  - Otherwise **"N copies"**, counting every holder, this device
+    included: "3 copies" (this device, the cloud, another device), "2
+    copies", or **"1 copy"** (held only in the cloud, or only on another
+    device).
+- **The holders** are in the tooltip and the screen-reader label, this
   device first, then the cloud, then devices: "This device, Cloud,
-  loud_shy_kettle". It fits a 320 dp phone (the device tag and the count
-  share the row, each cut short with an ellipsis if needed).
-- **Event details** (the clip player): under the title, the count and the
-  holders: "3 copies: This device, Cloud, loud_shy_kettle".
+  loud_shy_kettle" ("This device" for one not synced).
+- **Event cards** (the Monitoring timeline): on the row above each card,
+  at the right of the device tag, a small icon and the label. It fits a
+  320 dp phone (the device tag and the label share the row, each cut short
+  with an ellipsis if needed).
+- **Event details** (the clip player): under the title, the same label,
+  with the holders in its tooltip.
 - **With live sync off** (no endpoint, Never, signed out): the count is
   what's known (this device, the cloud, the recording device, and acks
   heard before), and the tooltip adds "Live sync is off: other devices'
@@ -137,7 +147,8 @@ the cloud and the recording device.
 ## Code
 
 - [lib/cloud/event_copies.dart](../presence_app/lib/cloud/event_copies.dart):
-  `EventCopies`, `EventHolders`, `CopiesSummary` (count, label, tooltip).
+  `EventCopies`, `EventHolders`, `CopiesSummary` (count, synced, label,
+  tooltip).
 - [lib/copies_badge.dart](../presence_app/lib/copies_badge.dart):
   `EventCopiesScope`, `EventCopiesBadge`.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
@@ -157,13 +168,15 @@ the cloud and the recording device.
   ignored, another's handed over (and its sender seen), an invalid one
   dropped; nothing is sent with live sync off;
 - a repeated ack changes nothing; the count, label and tooltip (this
-  device and the recording device not counted twice); the holders survive
+  device and the recording device not counted twice; "1 copy" for one only
+  in the cloud, "2 copies" for one received from its device and not
+  uploaded from here, "Not synced" for one held only here or not known); the holders survive
   a restart, bounded to the newest;
 - `copyOf`: an event without media, another device's clip (held here only
   with its recording downloaded), a clip recorded here (in the cloud once
   its recording is), tagged frames;
 - two devices over an in-memory broker and a shared bucket: a capture is
-  held only on its device ("1 copy — not uploaded yet") until uploaded;
+  held only on its device ("Not synced") until uploaded;
   it's uploaded then published; the other device stores it, gets its
   clip and recording when it completes, and acks it; the first then shows
   "3 copies" ("This device, Cloud, phone_b"); later passes don't ack again;

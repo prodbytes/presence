@@ -610,7 +610,6 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                   child: EventCopiesBadge(
                     key: const Key('clip-copies'),
                     event: _event,
-                    detailed: true,
                   ),
                 ),
                 trailing: IconButton(
