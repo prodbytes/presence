@@ -123,23 +123,26 @@ WebmCut? _cut(Uint8List bytes, Duration start, Duration end) {
   if (kept.isEmpty) throw _NotWebm();
   final last = kept.map((b) => b.time).reduce((a, b) => a > b ? a : b);
 
-  final out = BytesBuilder(copy: false)..add(parsed.ebmlHeader);
-  final segment = BytesBuilder(copy: false)
+  // Written as a list of slices (views into [bytes] where possible), each
+  // element's size known before its header is written, then copied once
+  // into the new file.
+  final segment = _Chunks()
     ..add(parsed.infoWithDuration(parsed.toUnits(last - origin).toDouble()))
     ..add(parsed.tracksElement!);
 
   // New clusters: one per video keyframe, and before block timecodes (16
   // bits, signed) would overflow.
-  final cluster = BytesBuilder(copy: false);
+  var cluster = _Chunks();
   int? clusterTime;
   void flush() {
-    if (clusterTime == null) return;
-    segment.add(
-      _element(_cluster, [
-        ..._element(_timecode, _uint(clusterTime)),
-        ...cluster.takeBytes(),
-      ]),
-    );
+    final time = clusterTime;
+    if (time == null) return;
+    final timecode = _element(_timecode, _uint(time));
+    segment
+      ..add(_header(_cluster, timecode.length + cluster.length))
+      ..add(timecode)
+      ..addAll(cluster);
+    cluster = _Chunks();
   }
 
   for (final b in kept) {
@@ -153,19 +156,45 @@ WebmCut? _cut(Uint8List bytes, Duration start, Duration end) {
       clusterTime = t;
     }
     final rel = t - clusterTime;
-    cluster.add(
-      _element(_simpleBlock, [
-        ...b._trackBytes,
-        (rel >> 8) & 0xFF,
-        rel & 0xFF,
-        ...b._payload,
-      ]),
-    );
+    cluster
+      ..add(_header(_simpleBlock, b._trackBytes.length + 2 + b._payload.length))
+      ..add(b._trackBytes)
+      ..add(Uint8List.fromList([(rel >> 8) & 0xFF, rel & 0xFF]))
+      ..add(b._payload);
   }
   flush();
 
-  out.add(_element(_segment, segment.takeBytes()));
-  return (bytes: out.takeBytes(), start: start - origin, end: end - origin);
+  final out = _Chunks()
+    ..add(parsed.ebmlHeader)
+    ..add(_header(_segment, segment.length))
+    ..addAll(segment);
+  return (bytes: out.toBytes(), start: start - origin, end: end - origin);
+}
+
+/// Byte slices to write one after the other, and their total length.
+class _Chunks {
+  final _parts = <Uint8List>[];
+  int length = 0;
+
+  void add(Uint8List bytes) {
+    _parts.add(bytes);
+    length += bytes.length;
+  }
+
+  void addAll(_Chunks other) {
+    _parts.addAll(other._parts);
+    length += other.length;
+  }
+
+  Uint8List toBytes() {
+    final out = Uint8List(length);
+    var at = 0;
+    for (final part in _parts) {
+      out.setRange(at, at + part.length, part);
+      at += part.length;
+    }
+    return out;
+  }
 }
 
 /// The parts of a WebM file the cut needs.
@@ -174,7 +203,7 @@ class _Parsed {
     var pos = 0;
     final header = _readElement(pos);
     if (header.id != _ebml || header.unknownSize) throw _NotWebm();
-    ebmlHeader = _bytes.sublist(pos, header.end);
+    ebmlHeader = Uint8List.sublistView(_bytes, pos, header.end);
     pos = header.end;
     final segment = _readElement(pos);
     if (segment.id != _segment) throw _NotWebm();
@@ -188,10 +217,10 @@ class _Parsed {
       switch (e.id) {
         case _info:
           _readInfo(e.dataStart, elementEnd);
-          info = _bytes.sublist(e.dataStart, elementEnd);
+          info = Uint8List.sublistView(_bytes, e.dataStart, elementEnd);
         case _tracks:
           _readTracks(e.dataStart, elementEnd);
-          tracksElement = _bytes.sublist(pos, elementEnd);
+          tracksElement = Uint8List.sublistView(_bytes, pos, elementEnd);
         case _cluster:
           _readCluster(e.dataStart, elementEnd);
         default:
@@ -218,17 +247,22 @@ class _Parsed {
 
   /// Info with its Duration replaced by [units].
   Uint8List infoWithDuration(double units) {
-    final children = BytesBuilder(copy: false);
+    final children = _Chunks();
     var pos = 0;
     final data = info!;
     while (pos < data.length) {
       final e = _ElementHeader.read(data, pos);
-      if (e.id != _duration) children.add(data.sublist(pos, e.end));
+      if (e.id != _duration) {
+        children.add(Uint8List.sublistView(data, pos, e.end));
+      }
       pos = e.end;
     }
     final d = ByteData(8)..setFloat64(0, units);
     children.add(_element(_duration, d.buffer.asUint8List()));
-    return _element(_info, children.takeBytes());
+    return (_Chunks()
+          ..add(_header(_info, children.length))
+          ..addAll(children))
+        .toBytes();
   }
 
   _ElementHeader _readElement(int pos) => _ElementHeader.read(_bytes, pos);
@@ -304,8 +338,8 @@ class _Parsed {
       track.value,
       toDuration(clusterTime + rel),
       flags & 0x80 != 0,
-      _bytes.sublist(p + 2, end),
-    ).._trackBytes = _bytes.sublist(pos, pos + track.length);
+      Uint8List.sublistView(_bytes, p + 2, end),
+    ).._trackBytes = Uint8List.sublistView(_bytes, pos, pos + track.length);
   }
 
   int _readUint(int start, int end) {
@@ -373,19 +407,22 @@ int _vintLength(int first) {
   throw _NotWebm();
 }
 
-/// An element with a known size, written as an 8-byte size.
-Uint8List _element(int id, List<int> data) {
-  final out = BytesBuilder(copy: false);
+/// An element's ID and size ([length] bytes of data follow), the size
+/// written in 8 bytes.
+Uint8List _header(int id, int length) {
   final idBytes = <int>[];
   for (var v = id; v > 0; v >>= 8) {
     idBytes.insert(0, v & 0xFF);
   }
-  out
-    ..add(idBytes)
-    ..add(_size(data.length))
-    ..add(data);
-  return out.takeBytes();
+  return Uint8List.fromList([...idBytes, ..._size(length)]);
 }
+
+/// A small element with a known size: its header, then [data].
+Uint8List _element(int id, List<int> data) =>
+    (_Chunks()
+          ..add(_header(id, data.length))
+          ..add(data is Uint8List ? data : Uint8List.fromList(data)))
+        .toBytes();
 
 /// Sizes stay under 4 GB, so the top 3 of the 7 size bytes are zero (shifts
 /// past 32 bits aren't safe on the web, where they wrap).

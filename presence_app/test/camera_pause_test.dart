@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/camera_feeds.dart';
+import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/main.dart';
 
@@ -16,7 +19,142 @@ Future<void> pumpGate(WidgetTester tester, PresenceApp app) async {
   await tester.pump(const Duration(seconds: 1));
 }
 
+/// Cameras that open when the test says ([finish]), each open a new
+/// source, so a leaked one shows as not disposed.
+class GatedCameraBackend implements CameraBackend {
+  GatedCameraBackend(this.devices);
+
+  final List<CameraDevice> devices;
+  final List<Completer<CameraSource>> pending = [];
+  final List<FakeCameraSource> sources = [];
+
+  @override
+  Future<List<CameraDevice>> listCameras() async => devices;
+
+  @override
+  Future<CameraSource> open(CameraDevice device, Duration Function() preRoll) {
+    final opening = Completer<CameraSource>();
+    pending.add(opening);
+    return opening.future;
+  }
+
+  /// Finishes the [i]th open with a new source for [device].
+  FakeCameraSource finish(int i, CameraDevice device) {
+    final source = FakeCameraSource(
+      device.label,
+      id: device.id,
+      facing: device.facing,
+    );
+    sources.add(source);
+    pending[i].complete(source);
+    return source;
+  }
+}
+
 void main() {
+  group('an open in flight', () {
+    const back = CameraDevice(
+      id: 'back',
+      label: 'Back',
+      facing: CameraFacing.back,
+    );
+    const front = CameraDevice(
+      id: 'front',
+      label: 'Front',
+      facing: CameraFacing.front,
+    );
+
+    test('a pause and a resume during it leave one camera open', () async {
+      final backend = GatedCameraBackend([back]);
+      final config = ConfigController();
+      final rig = CameraRig(backend: backend, config: config);
+      addTearDown(rig.dispose);
+      unawaited(rig.load());
+      await pumpEventQueue();
+      expect(backend.pending, hasLength(1));
+
+      rig.setPaused(true);
+      await pumpEventQueue();
+      rig.setPaused(false);
+      await pumpEventQueue();
+      expect(backend.pending, hasLength(2), reason: 'the resume opens');
+
+      // The first open finishes last-but-one: it's stale, and released.
+      final first = backend.finish(0, back);
+      await pumpEventQueue();
+      expect(first.disposed, isTrue);
+      expect(rig.active, isNull);
+      expect(rig.busy, isTrue, reason: 'the resume is still opening');
+
+      final second = backend.finish(1, back);
+      await pumpEventQueue();
+      expect(rig.active, second);
+      expect(second.disposed, isFalse);
+      expect(rig.busy, isFalse);
+      expect(rig.error, isNull);
+    });
+
+    test('a pause during it releases what it opens', () async {
+      final backend = GatedCameraBackend([back]);
+      final config = ConfigController();
+      final rig = CameraRig(backend: backend, config: config);
+      addTearDown(rig.dispose);
+      unawaited(rig.load());
+      await pumpEventQueue();
+      rig.setPaused(true);
+      await pumpEventQueue();
+      expect(rig.busy, isFalse);
+      final source = backend.finish(0, back);
+      await pumpEventQueue();
+      expect(source.disposed, isTrue);
+      expect(rig.active, isNull);
+      expect(rig.readiness.state, ClipReadinessState.paused);
+    });
+
+    test('a stale open that fails shows no error', () async {
+      final backend = GatedCameraBackend([back]);
+      final config = ConfigController();
+      final rig = CameraRig(backend: backend, config: config);
+      addTearDown(rig.dispose);
+      unawaited(rig.load());
+      await pumpEventQueue();
+      rig.setPaused(true);
+      await pumpEventQueue();
+      rig.setPaused(false);
+      await pumpEventQueue();
+      backend.pending[0].completeError(
+        const CameraUnavailable('The camera is in use'),
+      );
+      final second = backend.finish(1, back);
+      await pumpEventQueue();
+      expect(rig.active, second);
+      expect(rig.error, isNull);
+    });
+
+    test('a flip during it is ignored, and a flip after it switches', () async {
+      final backend = GatedCameraBackend([back, front]);
+      final config = ConfigController();
+      final rig = CameraRig(backend: backend, config: config);
+      addTearDown(rig.dispose);
+      unawaited(rig.load());
+      await pumpEventQueue();
+      expect(rig.canFlip, isFalse);
+      await rig.flip();
+      expect(backend.pending, hasLength(1), reason: 'no second open');
+      final first = backend.finish(0, back);
+      await pumpEventQueue();
+      expect(rig.active, first);
+
+      unawaited(rig.flip());
+      await pumpEventQueue();
+      expect(first.disposed, isTrue);
+      final second = backend.finish(1, front);
+      await pumpEventQueue();
+      expect(rig.active, second);
+      expect(backend.sources.where((s) => !s.disposed), [second]);
+    });
+  });
+
   group('pausing the camera', () {
     test('closes it, records nothing, and reopens it on resume', () async {
       final back = FakeCameraSource('Main');

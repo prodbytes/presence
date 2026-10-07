@@ -27,7 +27,14 @@ class PlatformRuntime implements TfliteRuntime {
   @override
   Future<TfliteModel> load(Uint8List bytes) async {
     await (_loading ??= _loadScripts()..ignore());
-    final model = await _tflite.loadTFLiteModel(bytes.buffer.toJS).toDart;
+    // The model's own bytes: a view into a larger buffer (an asset bundle)
+    // would hand TFLite everything around it too.
+    final exact =
+        bytes.offsetInBytes == 0 &&
+            bytes.lengthInBytes == bytes.buffer.lengthInBytes
+        ? bytes
+        : Uint8List.fromList(bytes);
+    final model = await _tflite.loadTFLiteModel(exact.buffer.toJS).toDart;
     return _WebModel(model);
   }
 

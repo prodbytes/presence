@@ -50,6 +50,17 @@ Everything else is JSON, written so a query engine can read it as is:
   and confidences from 0 to 1.
 - **Optional fields** are left out or `null`; queries read both as null.
   New fields may be added; existing ones keep their name, type and meaning.
+- **Reading them** (the app, from storage or the bucket) goes through one
+  codec, `Records` ([records.dart](../presence_app/lib/storage/records.dart)),
+  that tolerates damage rather than trusting it: an event needs a string
+  `id` and an integer `time`, a clip record a string `id`; an integral
+  double (`6.0`) counts as the integer; a text field of another type is
+  dropped; a recording reference (`past`, `full`) needs a `mediaId` of
+  `[A-Za-z0-9_-]` (it names a file on Android) or it's dropped;
+  durations default to 0. From the bucket, event, clip and frame IDs must
+  also match `[A-Za-z0-9_.:-]{1,128}` without `..` (they go into keys).
+  A record that fails is skipped and logged, never the whole history or
+  sync pass with it. Settings need `deviceId` and `config`.
 
 ### Event record — `events/year=YYYY/day=DDD/<id>.json`
 
@@ -64,7 +75,7 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
 | `location` | object | `{lat, lng, accuracy, source, time}`: where the device was (see [Device location](device-location.md)); may be null |
 | `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
-| `deletedAt` | integer (ms, UTC) | when the event was deleted with its device ([Device deletion](device-deletion.md)): the event is hidden on every device; missing on events that aren't deleted. Once set it stays (a copy without it doesn't undo it) |
+| `deletedAt` | integer (ms, UTC) | when the event was deleted, alone from its details or with its device ([Device deletion](device-deletion.md)): the event is hidden on every device; missing on events that aren't deleted. Once set it stays (a copy without it doesn't undo it) |
 
 Clip events (`clip_requested`) add:
 
@@ -104,7 +115,19 @@ folder: `config` as in [Configuration](configuration.md), `profileId` the
 profile they were synced with, and `location` the location set on the map
 (`{lat, lng, source: "map", time}`, as in [Device
 location](device-location.md)) or null. Older records have no
-`profileId` or `location`.
+`profileId` or `location`. A `config` whose `version` is newer than the
+app's (`PresenceConfig.version`, 1) isn't applied: the app would drop what
+it doesn't know, so the local settings stay and go up over it.
+
+### Not on S3: copies
+
+Who holds a copy of each event ([Event copies](event-copies.md)) is
+**not** written into the event record: it travels only as live sync's
+`copied` acks (`{v, kind: "copied", deviceId, identityId, sentAt,
+eventIds}`, at most 1 KB) and is kept on each device (the local
+`settings` store's `copies` record). Writing it into the record would
+change the record's ETag with each ack, and devices would upload and
+fetch it back and forth.
 
 ## On S3
 

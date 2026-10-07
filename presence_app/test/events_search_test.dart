@@ -76,6 +76,7 @@ void main() {
     WidgetTester tester, {
     double width = 1280,
     String? profileId,
+    EventFilters? filters,
   }) async {
     // Tall, so every card is built.
     tester.view.physicalSize = Size(width, 2000);
@@ -90,6 +91,7 @@ void main() {
             tiles: const SizedBox(),
             deviceId: 'this_device',
             profileId: profileId,
+            filters: filters,
           ),
         ),
       ),
@@ -214,8 +216,8 @@ void main() {
   });
 
   testWidgets('a search kept from before shows open', (tester) async {
-    final search = ValueNotifier('door');
-    addTearDown(search.dispose);
+    final filters = EventFilters(search: 'door');
+    addTearDown(filters.dispose);
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -227,7 +229,7 @@ void main() {
             config: ConfigController(),
             tiles: const SizedBox(),
             deviceId: 'this_device',
-            search: search,
+            filters: filters,
           ),
         ),
       ),
@@ -236,7 +238,7 @@ void main() {
     expect(tester.widget<TextField>(field()).controller!.text, 'door');
     expect(count(tester), '2 / 4');
     // Cleared elsewhere (an event it hid was opened), it folds back.
-    search.value = '';
+    filters.search.value = '';
     await tester.pumpAndSettle();
     expect(field(), findsNothing);
     expect(opener(), findsOneWidget);
@@ -341,6 +343,10 @@ void main() {
     ]);
     await show(tester, profileId: 'me');
     expect(count(tester), '5 / 5');
+    // The timeline shows what's counted: not the other profile's event.
+    expect(titles(tester), hasLength(5));
+    expect(find.byKey(const Key('event-device-theirs')), findsNothing);
+    expect(find.byKey(const Key('event-device-signed-out')), findsOneWidget);
 
     // Sync brings down events from the cloud: this profile's, from this
     // device and another one.
@@ -354,6 +360,7 @@ void main() {
 
     await type(tester, 'door');
     expect(count(tester), '5 / 7');
+    expect(titles(tester), hasLength(5));
   });
 
   testWidgets('the system events toggle is a small icon in the top row, '
@@ -424,4 +431,85 @@ void main() {
       expect(tester.getRect(system()).right, lessThanOrEqualTo(width - 12));
     });
   }
+
+  group('opening an event (EventFilters.focus)', () {
+    // As on the home screen, outside DEV: system events hidden, and the
+    // filters kept while the Monitoring tab comes and goes.
+    late EventFilters filters;
+    setUp(() => filters = EventFilters(showSystemEvents: false));
+    tearDown(() => filters.dispose());
+
+    /// Another tab: the Monitoring tab's widgets are gone.
+    Future<void> away(WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Text('Settings')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows it once: back on the tab later, the search and '
+        'filters set since are kept', (tester) async {
+      await show(tester, filters: filters);
+      expect(titles(tester), ['Clip requested', 'Clip requested']);
+
+      // Opened from a subject's map: a system event, so they show.
+      filters.focus('door');
+      await tester.pumpAndSettle();
+      expect(filters.showSystemEvents.value, isTrue);
+      expect(find.byKey(const Key('event-highlight')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Then a search that hides it, a device picked, system events off.
+      await type(tester, 'rex');
+      await tester.tap(find.byKey(const Key('event-device-event-3')));
+      await tester.tap(system());
+      await tester.pumpAndSettle();
+      expect(titles(tester), ['Clip requested']);
+
+      // Settings, and back: as it was left.
+      await away(tester);
+      await show(tester, filters: filters);
+      expect(tester.takeException(), isNull);
+      expect(filters.search.value, 'rex');
+      expect(filters.onlyDevice.value, 'this_device');
+      expect(filters.showSystemEvents.value, isFalse);
+      expect(tester.widget<TextField>(field()).controller!.text, 'rex');
+      expect(find.byKey(const Key('device-filter')), findsOneWidget);
+      expect(titles(tester), ['Clip requested']);
+      expect(find.byKey(const Key('event-highlight')), findsNothing);
+    });
+
+    testWidgets('asked for before the tab is built, it shows once it is, '
+        'after the first frame', (tester) async {
+      filters.search.value = 'milo';
+      filters.focus('door');
+      await show(tester, filters: filters);
+      // No "setState() called during build": the filters change after it.
+      expect(tester.takeException(), isNull);
+      expect(filters.search.value, '');
+      expect(filters.showSystemEvents.value, isTrue);
+      expect(find.byKey(const Key('event-highlight')), findsOneWidget);
+
+      await type(tester, 'milo');
+      await away(tester);
+      await show(tester, filters: filters);
+      expect(filters.search.value, 'milo');
+      expect(find.byKey(const Key('event-highlight')), findsNothing);
+    });
+
+    testWidgets('asked for again, even the same event, it shows again', (
+      tester,
+    ) async {
+      await show(tester, filters: filters);
+      filters.focus('door');
+      await tester.pumpAndSettle();
+      await tester.pump(EventTimeline.highlightFor);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('event-highlight')), findsNothing);
+      await type(tester, 'rex');
+      filters.focus('door');
+      await tester.pumpAndSettle();
+      expect(filters.search.value, '');
+      expect(find.byKey(const Key('event-highlight')), findsOneWidget);
+      await tester.pump(EventTimeline.highlightFor);
+    });
+  });
 }

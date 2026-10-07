@@ -19,8 +19,9 @@ Admins are users with both `presence_user` and `presence_admin`.
   token first: signature, expiry, issuer `https://accounts.google.com`, and
   audience the web client ID (`GoogleWebClientId`). A missing, expired,
   forged or foreign token gets **401** and never reaches a function. The
-  functions read the verified `iss`, `sub`, `email`, `email_verified` and
-  `name` claims.
+  functions read the verified `iss`, `sub`, `email`, `email_verified`,
+  `hd` and `name` claims (the authorizer passes every claim through), in
+  one place: [Caller.java](AuthFunction/src/main/java/presence/auth/Caller.java).
 - **Profiles** ([Profiles.java](AuthFunction/src/main/java/presence/auth/Profiles.java)):
   data belongs to a **profile**, not to a login, so users can change
   emails, providers or add collaborators without losing it. Each subject
@@ -38,14 +39,21 @@ Admins are users with both `presence_user` and `presence_admin`.
   - nobody has roles by default;
   - the **root allowlist** gets all three: a **verified** email at one of
     `PRESENCE_ROOT_DOMAINS` (parameter `RootDomains`, default `nu01.com`,
-    each matched exactly after the `@`) or listed in `PRESENCE_ROOT_EMAILS`
-    (parameter `RootEmails`, default none). Both are comma-separated;
+    each matched exactly after the `@`) **whose token's `hd` claim is that
+    domain** (an account of that Google Workspace; a personal Google
+    account registered with such an address has no `hd` and gets nothing),
+    or listed in `PRESENCE_ROOT_EMAILS` (parameter `RootEmails`, default
+    none; list only Gmail or Workspace addresses, which nobody else can
+    register as a Google account). Both are comma-separated;
     `scripts/deploy.sh` passes them on every deploy, from the environment
     or `.env`;
   - anyone listed in the **`UserRolesTable`** DynamoDB table gets the roles
     declared there, added to any allowlist roles, except `presence_root`. The table is keyed by
     lowercase `email`, with `roles` as a string set (a list of strings, or
-    one string, is read too).
+    one string, is read too);
+  - an account linked to a profile another account owns gets
+    `presence_user` when the owner has it, never the owner's
+    `presence_admin` or `presence_root`.
 - **Membership requests**
   ([MembershipHandler.java](AuthFunction/src/main/java/presence/auth/MembershipHandler.java)):
   one per email in **`MembershipTable`**, the latest replacing the last,
@@ -58,8 +66,9 @@ Admins are users with both `presence_user` and `presence_admin`.
 - **Admin routes**
   ([AdminHandler.java](AuthFunction/src/main/java/presence/auth/AdminHandler.java)):
   the function works out the caller's roles itself and answers **403**
-  unless they include both roles. A grant merges `presence_user` into the
-  email's roles and writes them back as a string set.
+  unless they include both roles. A grant adds `presence_user` to the
+  email's string set in one atomic `ADD` (roles written by hand as a list
+  or a string are first rewritten as a set, conditionally, with retries).
 - The tables' contents (people's emails) live only in AWS, never in this
   repository. Roles can still be set by hand, for example:
 

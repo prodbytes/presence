@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'config.dart';
@@ -27,12 +26,9 @@ class MonitoringView extends StatefulWidget {
     required this.config,
     this.tiles,
     this.onOpenEvent,
-    this.focus,
     this.deviceId,
     this.profileId,
-    this.onlyDevice,
-    this.showSystemEvents,
-    this.search,
+    this.filters,
   });
 
   /// Below this width the map goes above the events instead of beside.
@@ -69,47 +65,30 @@ class MonitoringView extends StatefulWidget {
   /// Opens an event: scrolls the events to it (a dot tapped on a map).
   final ValueChanged<AppEvent>? onOpenEvent;
 
-  /// The event the timeline scrolls to and outlines.
-  final ValueListenable<String?>? focus;
-
   /// This device's ID: events without one (not saved yet) are its.
   final String? deviceId;
 
-  /// The signed-in account's profile (null signed out): the events count counts
-  /// only its own ([EventCount]).
+  /// The signed-in account's profile (null signed out): the map, the
+  /// events and their count show only its own ([EventTimeline.ofProfile]).
   final String? profileId;
 
-  /// The one device whose events show ([EventTimeline.onlyDevice]).
-  final ValueNotifier<String?>? onlyDevice;
-
-  /// The "Show system events" toggle ([EventTimeline.showSystemEvents]).
-  final ValueNotifier<bool>? showSystemEvents;
-
-  /// The events search field's text ([EventTimeline.search]).
-  final ValueNotifier<String>? search;
+  /// The device picked, the "Show system events" toggle, the search and
+  /// the event to open ([EventFilters]); defaults to an own one, showing
+  /// every event.
+  final EventFilters? filters;
 
   @override
   State<MonitoringView> createState() => _MonitoringViewState();
 }
 
 class _MonitoringViewState extends State<MonitoringView> {
-  ValueNotifier<String?>? _ownFilter;
-  ValueNotifier<String?> get _filter =>
-      widget.onlyDevice ?? (_ownFilter ??= ValueNotifier(null));
-
-  ValueNotifier<bool>? _ownSystem;
-  ValueNotifier<bool> get _system =>
-      widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
-
-  ValueNotifier<String>? _ownSearch;
-  ValueNotifier<String> get _search =>
-      widget.search ?? (_ownSearch ??= ValueNotifier(''));
+  EventFilters? _ownFilters;
+  EventFilters get _filters =>
+      widget.filters ?? (_ownFilters ??= EventFilters());
 
   @override
   void dispose() {
-    _ownFilter?.dispose();
-    _ownSystem?.dispose();
-    _ownSearch?.dispose();
+    _ownFilters?.dispose();
     super.dispose();
   }
 
@@ -121,17 +100,16 @@ class _MonitoringViewState extends State<MonitoringView> {
       tiles: widget.tiles,
       onOpenEvent: widget.onOpenEvent,
       deviceId: widget.deviceId,
-      onlyDevice: _filter,
+      profileId: widget.profileId,
+      filters: _filters,
     );
     Widget events(EdgeInsets padding) => KeyedSubtree(
       key: const Key('events-page'),
       child: EventTimeline(
         log: widget.log,
-        focus: widget.focus,
+        filters: _filters,
         deviceId: widget.deviceId,
-        onlyDevice: _filter,
-        showSystemEvents: _system,
-        search: _search,
+        profileId: widget.profileId,
         padding: padding,
       ),
     );
@@ -162,18 +140,18 @@ class _MonitoringViewState extends State<MonitoringView> {
                     child: Row(
                       key: const Key('monitoring-filters'),
                       children: [
-                        Flexible(child: EventSearch(value: _search)),
+                        Flexible(child: EventSearch(value: _filters.search)),
                         const SizedBox(width: 8),
                         EventCount(
                           log: widget.log,
+                          filters: _filters,
                           profileId: widget.profileId,
                           deviceId: widget.deviceId,
-                          onlyDevice: _filter,
-                          showSystemEvents: _system,
-                          search: _search,
                         ),
-                        ShowSystemEvents(value: _system),
-                        Flexible(child: DeviceFilterChip(value: _filter)),
+                        ShowSystemEvents(value: _filters.showSystemEvents),
+                        Flexible(
+                          child: DeviceFilterChip(value: _filters.onlyDevice),
+                        ),
                       ],
                     ),
                   ),

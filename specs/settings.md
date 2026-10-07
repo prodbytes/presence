@@ -1,10 +1,29 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- Sections, in order: Location, Camera, Motion, Clips, Scheduled clips,
-  Recognition, History, Live sync (with live sync in the build),
-  Advanced (admins only), Subjects; then the
-  version, IDs, health line and Add a device.
+- First the device and profile IDs; then the sections, in order:
+  Location, Camera, Motion, Clips, Scheduled clips, Recognition, History,
+  Live sync (with live sync in the build), Advanced (admins only),
+  Subjects; then the version, health line and Add a device.
+- **The device and profile IDs, always, first**: the very top of the
+  page, above Location (the first section), seen without scrolling. Quiet
+  (`onSurfaceVariant`) and the same size as the version (`bodyMedium`,
+  14 sp), each a bold label over its ID, the IDs selectable to copy. **Two
+  columns**, Device left and Profile right, each ID wrapping within its
+  column; they **stack** (Profile under Device) only when a column would
+  be narrower than **120 dp at 1x text**, scaled with the system font
+  (240 dp at 2x). At 320 dp a column is 136 dp: two columns at 1x,
+  stacked at 2x; nothing overflows.
+  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
+    places](devices-users-places.md)), or *loading…* until it's known;
+  - **Profile** `huge_wavy_darter`, the signed-in account's
+    [profile](profiles.md), the same on every device; *none until signed
+    in* signed out, in DEV, and until the auth API answers a sign-in.
+- **Sliders change their setting when let go.** While one is dragged,
+  its thumb and the value beside its name follow the finger; the setting
+  changes once, on release (or on each keyboard or screen-reader step), so
+  a drag saves the settings, and syncs them, once rather than on every
+  frame.
 - **Location** section, first: a map with a center pin and, to its right,
   this device's position (labeled, with where it came from), so a drag
   beside the map scrolls the list; moving the map sets the location, with
@@ -18,9 +37,9 @@
   automatic location. See
   [Device location and battery](device-location.md#pinning-the-position).
 - **Camera** section: a **Brightness** slider from −2 to +2 EV in ½ EV
-  steps, default **+1 EV**. It's applied live to the open camera, and to its
-  recordings, as auto-exposure compensation; then, once the slider has
-  stayed put for 0.8 s, the camera view restarts (closes and reopens) with
+  steps, default **+1 EV**. Once the slider is let go, it's applied to the
+  open camera, and to its recordings, as auto-exposure compensation; then,
+  0.8 s later, the camera view restarts (closes and reopens) with
   the new value, so one drag restarts it once. The restart drops the
   camera's rolling "before" history, as a flip does. Cameras opened later,
   after a flip or restart, get the current value. On Android it's clamped to what
@@ -88,24 +107,15 @@
   latest events its screen lists and maps, and each subject's on the
   Subjects map (see [Subjects](subjects.md)). Stored values are kept
   (raised to 10 if below).
-- **The build's version** is at the very bottom, small and centred: only
+- **The build's version** is at the very bottom, centred, quiet
+  (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the top): only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
   as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
   `flutter-run.sh`) pass it too, with Z the time they started. A bare
   `flutter run` or a test has none, and shows no label
   ([lib/app_version.dart](../presence_app/lib/app_version.dart)).
-- **The device and profile IDs, always**, under the version, quiet
-  (`onSurfaceVariant`) but a step larger than it (`bodyMedium`, 14 sp, the
-  version's `bodySmall` is 12 sp), one labelled line each, the IDs
-  selectable to copy. Each line wraps, so at 320 dp and a 2x system font
-  the ID moves under its label rather than overflowing:
-  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
-    places](devices-users-places.md)), or *loading…* until it's known;
-  - **Profile** `huge_wavy_darter`, the signed-in account's
-    [profile](profiles.md), the same on every device; *none until signed
-    in* signed out, in DEV, and until the auth API answers a sign-in.
-- **Health line**, under the IDs, as small
+- **Health line**, under the version, as small
   ([lib/system_health.dart](../presence_app/lib/system_health.dart)):
   `🔌 API ✅ · ☁️ AWS ⚪ · 🔑 OIDC ✅ · 📡 Live ⚪`, each with a tooltip. For AWS and
   OIDC, the [auth API](auth-api.md)'s start check says whether its

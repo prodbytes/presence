@@ -13,6 +13,7 @@ import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
+import 'voucher_code.dart';
 
 /// The app bar's account button: the user's avatar when signed in, a person
 /// icon otherwise. Opens [AccountSheet].
@@ -717,7 +718,8 @@ class _SignUpSheetState extends State<SignUpSheet> {
               'That code gives ${e.discount}% off. Paying the rest isn\'t '
                   'available yet, so it can\'t let you in.',
             404 => 'That code is invalid, expired or used up.',
-            429 => 'Too many tries right now. Try again in a minute.',
+            // The route's throttle, or this email's wrong codes (an hour).
+            429 => 'Too many tries. Wait a while and try again.',
             _ => 'Couldn\'t redeem the code ($e).',
           },
         );
@@ -836,7 +838,7 @@ class _SignUpSheetState extends State<SignUpSheet> {
                       controller: _code,
                       enabled: !_redeeming,
                       textCapitalization: TextCapitalization.characters,
-                      maxLength: 20,
+                      maxLength: maxVoucherCode,
                       decoration: const InputDecoration(
                         labelText: 'Voucher code',
                         hintText: 'XXXX-XXXX-XXXX',

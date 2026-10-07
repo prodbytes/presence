@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../app_log.dart';
 import 'auth_service.dart';
 import 'google_button.dart';
 import 'google_config.dart';
@@ -191,7 +192,10 @@ class GoogleAuthService extends AuthService {
           user.authentication.idToken,
         );
         _silent?.remember(user.email).ignore();
+        // A sign-in with UI starts the silent backoff over.
+        _silentFailures = 0;
       case GoogleSignInAuthenticationEventSignOut():
+        _silentFailures = 0;
         _user = null;
         _idToken = null;
         _refresh?.cancel();
@@ -233,7 +237,7 @@ class GoogleAuthService extends AuthService {
     try {
       account = await silent.signIn(email: email, serverClientId: server);
     } on SilentSignInRequired {
-      debugPrint('Presence: $email must sign in again');
+      debugPrint('Presence: ${maskEmail(email)} must sign in again');
       return _Silent.needsUi;
     }
     if (account == null || _user?.email != before) return _Silent.failed;
@@ -247,13 +251,19 @@ class GoogleAuthService extends AuthService {
       account.idToken,
       atLeast: same ? const Duration(minutes: 1) : Duration.zero,
     );
-    if (!same) debugPrint('Presence: signed in again as $email, silently');
+    if (!same) {
+      debugPrint('Presence: signed in again as ${maskEmail(email)}, silently');
+    }
     notifyListeners();
     return _Silent.signedIn;
   }
 
   /// Silent sign-ins that failed in a row, for [_retrySilently]'s backoff.
   int _silentFailures = 0;
+
+  /// [_silentFailures], for tests: back to 0 at a sign-in or sign-out.
+  @visibleForTesting
+  int get silentFailures => _silentFailures;
 
   /// The first wait before a silent retry; then 2, 4, 8 and 15 times it.
   final Duration retryUnit;
@@ -266,7 +276,7 @@ class GoogleAuthService extends AuthService {
     final wait = retryUnit * min(1 << min(_silentFailures, 4), 15);
     _silentFailures++;
     debugPrint(
-      'Presence: silent sign-in of $email failed '
+      'Presence: silent sign-in of ${maskEmail(email)} failed '
       '($_silentFailures in a row); trying again in ${wait.inSeconds} s',
     );
     final user = _user?.email;
@@ -306,6 +316,7 @@ class GoogleAuthService extends AuthService {
     _store.clear();
     await _silent?.forget();
     _refresh?.cancel();
+    _silentFailures = 0;
     _user = null;
     _idToken = null;
     notifyListeners();

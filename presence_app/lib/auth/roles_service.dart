@@ -189,11 +189,18 @@ class RolesService extends ChangeNotifier {
   /// starts (a debug build, with the camera and recognition starting).
   final Duration checkTimeout;
 
-  /// When the start check failed: how long to wait before each check that
-  /// follows it, until one answers; the last delay repeats.
+  /// When the start check (or a roles check) failed: how long to wait
+  /// before each check that follows it, until one answers; the last delay
+  /// repeats.
   final List<Duration> retryDelays;
 
   Timer? _retry;
+
+  /// Checks the roles again after a failed roles check, so an unattended
+  /// device that started offline gets its access back without anyone
+  /// pressing "Check again".
+  Timer? _rolesRetry;
+  int _rolesAttempt = 0;
 
   ExecutionMode? _mode;
   List<String> _anonymousRoles = const [anonymousRole];
@@ -352,8 +359,10 @@ class RolesService extends ChangeNotifier {
     _check();
   }
 
-  Future<void> _check() async {
+  Future<void> _check({bool retry = false}) async {
     final generation = ++_generation;
+    _rolesRetry?.cancel();
+    if (!retry) _rolesAttempt = 0;
     final token = _token = auth.idToken;
     // Another account (or nobody): the profile was the last one's.
     if (auth.user?.id != _profileUser) {
@@ -372,12 +381,15 @@ class RolesService extends ChangeNotifier {
       );
       return;
     }
-    _set(AccessState.checking, const []);
+    // A background retry keeps the denied screen up while it asks, rather
+    // than flashing "checking" every time.
+    if (!retry) _set(AccessState.checking, const []);
     try {
       final user = auth.user!.id;
       final access = await _client.fetch(token);
       // A newer sign-in (or sign-out) wins over this answer.
       if (generation != _generation) return;
+      _rolesAttempt = 0;
       if (access.profile case final id?) {
         _profile = id;
         _profileUser = user;
@@ -390,9 +402,23 @@ class RolesService extends ChangeNotifier {
       );
     } catch (e) {
       if (generation != _generation) return;
-      debugPrint('Presence: could not check roles: $e');
+      debugPrint('Presence: could not check roles (checking again): $e');
       _set(AccessState.denied, const [], error: '$e');
+      _retryRoles(generation);
     }
+  }
+
+  /// Checks the roles again after [retryDelays], sooner then less often,
+  /// while the check that failed ([generation]) is still the last one.
+  void _retryRoles(int generation) {
+    if (retryDelays.isEmpty || _disposed) return;
+    final delay = retryDelays[_rolesAttempt.clamp(0, retryDelays.length - 1)];
+    _rolesAttempt++;
+    _rolesRetry = Timer(delay, () {
+      if (_disposed || generation != _generation || _error == null) return;
+      if (auth.user == null) return;
+      _check(retry: true);
+    });
   }
 
   void _set(AccessState state, List<String> roles, {String? error}) {
@@ -410,7 +436,17 @@ class RolesService extends ChangeNotifier {
     final delay = retryDelays[attempt.clamp(0, retryDelays.length - 1)];
     _retry = Timer(delay, () async {
       await checkApi();
-      if (_apiError != null) _retryCheck(attempt + 1);
+      if (_disposed) return;
+      if (_apiError != null) {
+        _retryCheck(attempt + 1);
+      } else if (_mode == ExecutionMode.rbac &&
+          _error != null &&
+          auth.user != null &&
+          auth.idToken != null) {
+        // The API answers again: the roles check that failed with it
+        // needn't wait for its own retry.
+        _check(retry: true);
+      }
     });
   }
 
@@ -418,6 +454,7 @@ class RolesService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _retry?.cancel();
+    _rolesRetry?.cancel();
     auth.removeListener(_onAuthChanged);
     super.dispose();
   }

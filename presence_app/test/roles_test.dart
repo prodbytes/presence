@@ -165,6 +165,68 @@ void main() {
       expect(client.tokens, ['id-token-1', 'id-token-1-r1']);
     });
 
+    test('a failed roles check is retried on its own, sooner then less '
+        'often, until it answers', () async {
+      // An unattended phone that rebooted offline: the start check and
+      // the roles check both fail, and nobody presses "Check again".
+      final auth = FakeAuthService.signedIn();
+      final client = FakeRolesClient()
+        ..anonymousError = RolesException(502)
+        ..error = RolesException(502);
+      final roles = RolesService(
+        auth: auth,
+        client: client,
+        oidcClient: true,
+        retryDelays: const [
+          Duration(milliseconds: 10),
+          Duration(milliseconds: 20),
+        ],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(roles.state, AccessState.denied);
+      final states = <AccessState>[];
+      roles.addListener(() => states.add(roles.state));
+
+      // Still offline: checked again, without flashing "checking".
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(client.tokens.length, greaterThanOrEqualTo(3));
+      expect(states, isNot(contains(AccessState.checking)));
+      expect(roles.state, AccessState.denied);
+
+      // Back online, the same token: access comes back by itself.
+      client
+        ..anonymousError = null
+        ..error = null;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(roles.state, AccessState.granted);
+      expect(roles.error, isNull);
+      expect(client.tokens.toSet(), {'id-token-1'});
+
+      // Answered: the retries stop.
+      final calls = client.tokens.length;
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(client.tokens.length, calls);
+    });
+
+    test('a failed roles check stops retrying once signed out', () async {
+      final auth = FakeAuthService.signedIn();
+      final client = FakeRolesClient()..error = RolesException(502);
+      final roles = RolesService(
+        auth: auth,
+        client: client,
+        retryDelays: const [Duration(milliseconds: 10)],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(roles.state, AccessState.denied);
+      await auth.signOut();
+      final calls = client.tokens.length;
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(client.tokens.length, calls);
+      expect(roles.state, AccessState.signedOut);
+    });
+
     test('dev mode: the anonymous user gets every role', () async {
       final auth = FakeAuthService();
       final client = FakeRolesClient()..mode = ExecutionMode.dev;
@@ -482,17 +544,9 @@ void main() {
       Future<void> toggleLog(WidgetTester tester) async {
         await tester.tap(find.byTooltip('Settings'));
         await tester.pumpAndSettle();
-        await tester.scrollUntilVisible(
-          logSwitch,
-          300,
-          scrollable: find
-              .descendant(
-                of: find.byKey(const Key('settings-page')),
-                matching: find.byType(Scrollable),
-              )
-              .first,
-        );
-        await tester.pumpAndSettle();
+        // At the list's edge: a drag in its middle can land on the
+        // location map or a slider.
+        await scrollSettingsTo(tester, logSwitch);
         await tester.tap(logSwitch);
         await tester.pumpAndSettle();
       }
@@ -694,9 +748,12 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
-
-      // A code is suggested: the season, an animal and a number.
+      // Blank by default (a random code); a suggestion only on request:
+      // the season, an animal and a number.
       final codeField = find.byKey(const Key('voucher-new-code'));
+      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
+      await tester.tap(find.byKey(const Key('suggest-code')));
+      await tester.pump();
       final suggested = tester.widget<TextField>(codeField).controller!.text;
       expect(
         suggested,
@@ -727,11 +784,8 @@ void main() {
         find.textContaining('Member · 100% off · 0 of 5 used'),
         findsOneWidget,
       );
-      // A new suggestion for the next one.
-      expect(
-        tester.widget<TextField>(codeField).controller!.text,
-        isNot(suggested),
-      );
+      // Blank again for the next one.
+      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
 
       await tester.tap(find.byKey(Key('delete-${voucher.code}')));
       await tester.pumpAndSettle();
@@ -740,6 +794,51 @@ void main() {
         'NEXT-SEAS-3333',
       ]);
       expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+    });
+
+    testWidgets('an admin sees a root\'s Admin code hidden', (tester) async {
+      final membership = FakeMembershipClient()
+        ..codes.add(
+          Voucher(
+            code: '',
+            hidden: true,
+            role: adminRole,
+            expiresAt: DateTime.now().add(const Duration(days: 60)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.utc(2026, 9, 2),
+          ),
+        );
+      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
+      await tester.tap(find.byTooltip('Admin'));
+      await tester.pumpAndSettle();
+      // Listed, but not shown, copied or deleted.
+      final hidden = find.byKey(
+        Key(
+          'voucher-hidden-${DateTime.utc(2026, 9, 2).millisecondsSinceEpoch}',
+        ),
+      );
+      expect(hidden, findsOneWidget);
+      expect(
+        find.descendant(of: hidden, matching: find.text('Hidden code')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: hidden,
+          matching: find.byIcon(Icons.delete_outline),
+        ),
+        findsNothing,
+      );
+
+      expect(
+        find.descendant(of: hidden, matching: find.byIcon(Icons.copy)),
+        findsNothing,
+      );
+      expect(
+        find.textContaining('Admin · 100% off · 0 of 1 used'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an admin types the code and a discount', (tester) async {
@@ -752,6 +851,10 @@ void main() {
       final discount = find.byKey(const Key('voucher-discount'));
 
       await tester.enterText(code, 'no');
+      await tester.pump();
+      expect(tester.widget<FilledButton>(create).onPressed, isNull);
+      // Too short to be a secret: nine letters and digits.
+      await tester.enterText(code, 'otter-4821');
       await tester.pump();
       expect(tester.widget<FilledButton>(create).onPressed, isNull);
       await tester.enterText(code, 'friends-2026');
@@ -825,9 +928,20 @@ void main() {
       expect(adminItem(), findsWidgets);
       await tester.tap(adminItem().last);
       await tester.pumpAndSettle();
+      // An Admin code is always random: no typing, no suggestion.
+      final code = find.byKey(const Key('voucher-new-code'));
+      expect(tester.widget<TextField>(code).enabled, isFalse);
+      expect(find.text('Admin codes are always random'), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('suggest-code')))
+            .onPressed,
+        isNull,
+      );
       await tester.tap(find.byKey(const Key('create-voucher')));
       await tester.pumpAndSettle();
       expect(membership.codes.single.role, adminRole);
+      expect(membership.codes.single.code, startsWith('TEST-CODE-'));
     });
 
     testWidgets('a presence_user: everything but Admin', (tester) async {

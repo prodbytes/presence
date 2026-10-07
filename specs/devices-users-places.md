@@ -75,6 +75,12 @@ not built yet.
     completing or a tag, keep the profile) and the stored records.
   - After a sign-out the profile's events stay its; new ones have none
     until the next sign-in.
+- **The Monitoring tab shows only the profile's events**: the timeline,
+  its count, the subjects map and a subject's screen leave out another
+  profile's events stored on the device (`EventTimeline.ofProfile`), so a
+  second user signing in on a shared device doesn't see the first user's
+  history. Events without a profile show, since the next sign-in gives
+  them its profile.
 - **Cloud sync uploads only the profile's events**, and the clips those
   events show (see [Cloud sync](cloud-sync.md)). Events fetched from the
   profile's folder are its.
@@ -116,9 +122,6 @@ All of them are in the stored record, in the cloud JSON, and on `AppEvent`
 
 ## Known limitations
 
-- The timeline still shows every event stored on the device, whatever its
-  profile: a second user signing in on a shared device sees the first
-  user's history (but doesn't sync it).
 - Events recorded signed out are taken by whoever signs in next on the
   device, even if someone else recorded them.
 - Clips and cameras have no device or user ID of their own; they follow

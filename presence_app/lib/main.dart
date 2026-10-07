@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:app_links/app_links.dart';
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:idb_shim/idb_shim.dart' show IdbFactory;
 
@@ -19,17 +18,22 @@ import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'copies_badge.dart';
 import 'cloud/cloud_config.dart';
 import 'cloud/cloud_sync.dart';
 import 'cloud/cognito.dart';
+import 'cloud/event_copies.dart';
 import 'cloud/live_mqtt.dart';
 import 'cloud/live_sync.dart';
 import 'cloud/s3.dart';
 import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'delete_device.dart';
+import 'event_details.dart';
 import 'cameras/cameras.dart';
+import 'dot.dart';
 import 'events.dart';
+import 'home_tabs.dart';
 import 'identity/add_device.dart';
 import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
@@ -46,6 +50,9 @@ import 'storage/media_store.dart';
 import 'storage/persistence.dart';
 import 'storage/retention.dart';
 import 'theme.dart';
+import 'time_format.dart';
+
+export 'home_tabs.dart' show HomeTab;
 
 void main() {
   // Everything the app logs also goes to the admins' Log tab.
@@ -154,6 +161,10 @@ class _PresenceAppState extends State<PresenceApp> {
   final _config = ConfigController();
   late final EventLog _log;
   late final Persistence _persistence;
+
+  /// Who holds a copy of each event (this device, the cloud, the profile's
+  /// other devices), for the copies count on event cards.
+  late final EventCopies _copies = EventCopies(store: _persistence.store);
   late final EventRetention _retention;
   late final CameraRig _rig;
   late final LocationController _location;
@@ -241,6 +252,7 @@ class _PresenceAppState extends State<PresenceApp> {
             keep: () => _config.config.history.keep,
             // And this device's settings, kept per device.
             settings: _persistence,
+            copies: _copies,
             // Events reach the profile's other devices within a second
             // (AWS IoT Core), when this build has its endpoint.
             live:
@@ -294,6 +306,7 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     )..start();
     _persistence.deviceId.then((id) {
+      _copies.deviceId = id;
       if (mounted) setState(() => _deviceId = id);
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
     _checkConsent();
@@ -324,6 +337,23 @@ class _PresenceAppState extends State<PresenceApp> {
     // No presence dot from before: it shows again only if it pings or
     // answers again, with new events.
     _sync?.live?.forget(deviceId);
+    // Nor is it counted as holding copies of the events left.
+    _copies.forgetDevice(deviceId);
+    return deleted;
+  }
+
+  /// Deletes one event of the signed-in profile on every device
+  /// (`Persistence.deleteEvent`); nothing without a profile (so not in
+  /// DEV).
+  Future<bool> _deleteEvent(AppEvent event) async {
+    final profile = _roles.profile;
+    if (profile == null) return false;
+    final deleted = await _persistence.deleteEvent(
+      event.id,
+      profileId: profile,
+    );
+    // Nor is it counted among the copies any more.
+    if (deleted) _copies.forget(event.id);
     return deleted;
   }
 
@@ -402,20 +432,26 @@ class _PresenceAppState extends State<PresenceApp> {
     _openCameras();
   }
 
-  /// The profile whose events were last claimed; null signed out.
+  /// The profile whose events were last claimed, and for whom; null
+  /// signed out.
   String? _claimedFor;
+  String? _claimedBy;
 
   /// Once the auth API answers a sign-in (or a session restored at launch)
   /// with the account's profile, the events recorded here without one
-  /// become that profile's.
+  /// become that profile's. When the same account moves to another profile
+  /// (linked or moved while signed in), its events not yet uploaded to the
+  /// one before come along.
   void _onProfileChanged() {
     final profile = _roles.profile;
     final user = _auth.user;
     if (profile == _claimedFor) return;
+    final previous = _claimedBy == user?.id ? _claimedFor : null;
     _claimedFor = profile;
+    _claimedBy = user?.id;
     if (profile == null || user == null) return;
     _persistence
-        .claimForProfile(profile, user.id)
+        .claimForProfile(profile, user.id, from: previous)
         .catchError(
           (Object e) => debugPrint('Presence: could not claim events: $e'),
         );
@@ -449,6 +485,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();
     _sync?.dispose();
+    _copies.dispose();
     _roles.dispose();
     _location.dispose();
     _recognizer.dispose();
@@ -468,64 +505,61 @@ class _PresenceAppState extends State<PresenceApp> {
       bus: _bus,
       child: SubjectRecognizerScope(
         recognizer: _recognizer,
-        child: MaterialApp(
-          title: AppVersion.title,
-          debugShowCheckedModeBanner: false,
-          theme: gruvboxSoftDarkTheme(),
-          home: switch (_consented) {
-            // Nothing shows until the device's consent is known.
-            null => const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(key: Key('checking-consent')),
-              ),
-            ),
-            false => ConsentScreen(onAgree: _agree),
-            true => HomeScreen(
+        child: EventCopiesScope(
+          copies: _copies,
+          // The end of an event's details (the clip player): its map, its
+          // device and deleting it, signed in with a profile.
+          child: ListenableBuilder(
+            listenable: _roles,
+            builder: (context, app) => EventDetailsScope(
+              profileId: _roles.profile,
+              thisDevice: _deviceId,
+              live: _sync?.live,
               log: _log,
-              rig: _rig,
-              config: _config,
-              auth: _auth,
-              roles: _roles,
-              membership: _membership,
-              profiles: _profiles,
-              sync: _sync,
-              deviceId: _deviceId,
-              location: _location,
-              mapTiles: widget.mapTiles,
-              battery: widget.battery,
-              join: _join,
-              onJoinHandled: _joinHandled,
-              tabMemory: widget.tabMemory,
-              deleteDevice: _deleteDevice,
+              tiles: widget.mapTiles,
+              deleteEvent: _deleteEvent,
+              now: widget.now,
+              child: app!,
             ),
-          },
+            child: MaterialApp(
+              title: AppVersion.title,
+              debugShowCheckedModeBanner: false,
+              theme: gruvboxSoftDarkTheme(),
+              home: switch (_consented) {
+                // Nothing shows until the device's consent is known.
+                null => const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(
+                      key: Key('checking-consent'),
+                    ),
+                  ),
+                ),
+                false => ConsentScreen(onAgree: _agree),
+                true => HomeScreen(
+                  log: _log,
+                  rig: _rig,
+                  config: _config,
+                  auth: _auth,
+                  roles: _roles,
+                  membership: _membership,
+                  profiles: _profiles,
+                  sync: _sync,
+                  deviceId: _deviceId,
+                  location: _location,
+                  mapTiles: widget.mapTiles,
+                  battery: widget.battery,
+                  join: _join,
+                  onJoinHandled: _joinHandled,
+                  tabMemory: widget.tabMemory,
+                  deleteDevice: _deleteDevice,
+                ),
+              },
+            ),
+          ),
         ),
       ),
     );
   }
-}
-
-/// The top-level destinations, as tabs in the app bar.
-enum HomeTab {
-  camera('Camera', Icons.videocam),
-  monitoring('Monitoring', Icons.monitor_heart),
-  settings('Settings', Icons.settings),
-
-  /// Admins only, when Settings' switch shows it (on by default in DEV,
-  /// whose anonymous user is a root); after the always-shown tabs, so they
-  /// keep their index.
-  log('Log', Icons.receipt_long),
-
-  /// Signed-in admins only (not DEV: there are no accounts): membership
-  /// requests and voucher codes ([AdminView]). Last; with the Log tab
-  /// hidden it takes the Log's place, so map a tab to its controller index
-  /// through the shown tabs, never by [HomeTab.index] alone.
-  admin('Admin', Icons.admin_panel_settings);
-
-  const HomeTab(this.label, this.icon);
-
-  final String label;
-  final IconData icon;
 }
 
 /// The app's one screen: a tab bar in the top right of the app bar flips
@@ -622,11 +656,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
-  late TabController _tabs;
-
-  /// The tabs [_tabs] was made for, in order: what the tab bar and its
-  /// pages show, so they always match the controller's length.
-  late List<HomeTab> _tabList;
+  /// The tabs shown, the open one, and the one remembered across refreshes.
+  late final HomeTabs _tabs;
 
   /// The Log tab shows for admins (so in DEV too: the anonymous user is a
   /// root there) when Settings' switch is on: by default in DEV only.
@@ -637,86 +668,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// accounts).
   bool get _showAdmin => !_dev && widget.roles.isAdmin;
 
-  /// The tabs to show, in [HomeTab] order. A tab's controller index is its
-  /// place here ([_indexOf]): the Admin tab's moves when the Log's hides.
-  List<HomeTab> get _shownTabs => [
-    for (final tab in HomeTab.values)
-      if (switch (tab) {
-        HomeTab.log => _showLog,
-        HomeTab.admin => _showAdmin,
-        _ => true,
-      })
-        tab,
-  ];
+  /// The tabs to show, in [HomeTab] order.
+  List<HomeTab> get _shownTabs =>
+      HomeTab.shown(log: _showLog, admin: _showAdmin);
 
-  /// [tab]'s index in the tab bar, or -1 when it isn't shown.
-  int _indexOf(HomeTab tab) => _tabList.indexOf(tab);
-
-  /// The open tab.
-  HomeTab get _tab => _tabList[_tabs.index];
-
-  /// A controller for the [_shownTabs], open on [tab] (or the camera, if
-  /// it isn't shown).
-  TabController _newTabs(HomeTab tab) {
-    _tabList = _shownTabs;
-    return TabController(
-      length: _tabList.length,
-      initialIndex: _indexOf(tab).clamp(0, _tabList.length - 1),
-      vsync: this,
-    )..addListener(_onTabChanged);
-  }
-
-  /// Adds or removes the Log and Admin tabs when the roles or the Log
-  /// switch change, staying on the same tab (or, if it goes, the nearest
-  /// one before it).
-  void _syncTabs() {
-    final shown = _shownTabs;
-    if (listEquals(shown, _tabList)) return;
-    final old = _tabs..removeListener(_onTabChanged);
-    final stay = _tabList
-        .take(old.index + 1)
-        .lastWhere(shown.contains, orElse: () => HomeTab.camera);
-    _tabs = _newTabs(stay);
-    // The tab bar lets go of it in this frame's build.
-    WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
-  }
-
-  late final TabMemory _tabMemory = widget.tabMemory ?? TabMemory();
-
-  /// The tab open before a refresh, until the tabs can show (access is
-  /// known only once the roles load).
-  HomeTab? _restoreTab;
-
-  void _onTabChanged() {
-    if (!_tabs.indexIsChanging) {
-      _tabMemory.write(_tab.name);
-    }
-    setState(() {});
-  }
-
-  /// Opens the tab remembered from before a refresh, once there's access.
-  void _restore() {
-    final tab = _restoreTab;
-    if (tab == null || !_hasAccess) return;
-    _restoreTab = null;
-    final index = _indexOf(tab);
-    if (index >= 0) _tabs.index = index;
-  }
-
-  bool get _onCamera => _tab == HomeTab.camera;
+  bool get _onCamera => _tabs.current == HomeTab.camera;
 
   /// The battery, shown over the camera; read every minute and on
-  /// charging changes.
-  late final _battery = BatteryController(widget.battery ?? DeviceBattery());
+  /// charging changes. Made the first time the camera's pills show, so a
+  /// screen that never shows them never reads the battery.
+  BatteryController get _battery =>
+      _batteryOrNull ??= BatteryController(widget.battery ?? DeviceBattery());
+  BatteryController? _batteryOrNull;
 
   /// A finger is on the Settings location map: no swiping to other tabs,
   /// so a drag moves the map.
   bool _mapHeld = false;
 
-  bool get _onMonitoring => _tab == HomeTab.monitoring;
-
-  /// The event the Monitoring tab's timeline scrolls to and outlines.
-  final _focusedEvent = ValueNotifier<String?>(null);
+  bool get _onMonitoring => _tabs.current == HomeTab.monitoring;
 
   /// The Camera tab's view button, All: this device's camera in a grid
   /// with every other device's latest image.
@@ -724,11 +693,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// What the view button shows: One (this camera), All (the grid) or None
   /// (the camera off: [CameraRig.paused], kept in the settings).
-  CameraViewMode get _viewMode => widget.rig.paused
-      ? CameraViewMode.none
-      : _showAll
-      ? CameraViewMode.all
-      : CameraViewMode.one;
+  CameraViewMode get _viewMode =>
+      CameraViewMode.of(paused: widget.rig.paused, showAll: _showAll);
 
   /// One → All → None → One.
   void _nextViewMode() {
@@ -788,29 +754,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _refreshingSince = request.time);
   }
 
-  /// The one device whose events the Monitoring tab shows, picked by
-  /// tapping an event's device: none at launch, so every device's events
-  /// show, and kept while switching tabs.
-  final _onlyDevice = ValueNotifier<String?>(null);
-
-  /// The Monitoring tab's "Show system events" toggle: on in DEV, off
-  /// otherwise (only grabs), and kept while switching tabs. Made on first
-  /// use, once the execution mode is known.
-  late final _showSystemEvents = ValueNotifier(_dev);
-
-  /// The Monitoring tab's events search: blank at launch, and kept while
-  /// switching tabs.
-  final _eventSearch = ValueNotifier('');
+  /// What the Monitoring tab shows, kept while switching tabs: the device
+  /// picked by tapping an event's device (none at launch: every device's),
+  /// the "Show system events" toggle (on in DEV, off otherwise: only
+  /// grabs), the search (blank at launch) and the event to open. Made on
+  /// first use, once the execution mode is known.
+  EventFilters get _filters =>
+      _filtersOrNull ??= EventFilters(showSystemEvents: _dev);
+  EventFilters? _filtersOrNull;
 
   /// Shows [event] in the Monitoring tab's timeline, closing any screen over
   /// the tabs (a subject's).
   void _openEvent(AppEvent event) {
     Navigator.of(context).popUntil((route) => route.isFirst);
-    _tabs.animateTo(_indexOf(HomeTab.monitoring));
-    // Cleared first, so asking for the same event again still scrolls.
-    _focusedEvent
-      ..value = null
-      ..value = event.id;
+    _tabs.animateTo(HomeTab.monitoring);
+    // A one-shot request: handled once, by the timeline shown now or the
+    // next one built.
+    _filters.focus(event.id);
   }
 
   bool get _signedIn => widget.auth.user != null;
@@ -826,27 +786,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabs = _newTabs(HomeTab.camera);
+    _tabs = HomeTabs(
+      vsync: this,
+      memory: widget.tabMemory ?? TabMemory(),
+      shown: _shownTabs,
+      onChanged: () => setState(() {}),
+    );
     widget.auth.addListener(_onAuthChanged);
     widget.roles.addListener(_onAccessChanged);
     widget.config.addListener(_onConfigChanged);
-    _restoreTab = HomeTab.values.asNameMap()[_tabMemory.read()];
-    _restore();
+    _tabs.restore(hasAccess: _hasAccess);
   }
 
   /// Losing access hides the other tabs, so go back to the camera.
   void _onAccessChanged() {
-    _syncTabs();
-    if (!_hasAccess) _tabs.index = _indexOf(HomeTab.camera);
-    _restore();
+    _tabs.sync(_shownTabs);
+    if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
+    _tabs.restore(hasAccess: _hasAccess);
     if (mounted) setState(() {});
   }
 
   /// Settings' Log switch adds or removes the Log tab.
   void _onConfigChanged() {
-    if (listEquals(_tabList, _shownTabs)) return;
-    _syncTabs();
-    _restore();
+    if (!_tabs.sync(_shownTabs)) return;
+    _tabs.restore(hasAccess: _hasAccess);
     if (mounted) setState(() {});
   }
 
@@ -855,8 +818,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Signing out hides the navigation, so go back to the camera. Sign-in
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
-    if (!_hasAccess) _tabs.index = _indexOf(HomeTab.camera);
-    _restore();
+    if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
+    _tabs.restore(hasAccess: _hasAccess);
     final error = widget.auth.error;
     if (error != null && error != _shownError && mounted) {
       _showMessage(
@@ -939,11 +902,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _clipEvents?.cancel();
     _messageTimer?.cancel();
     _refreshingTimer?.cancel();
-    _focusedEvent.dispose();
-    _onlyDevice.dispose();
-    _showSystemEvents.dispose();
-    _eventSearch.dispose();
-    _battery.dispose();
+    _filtersOrNull?.dispose();
+    _batteryOrNull?.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -979,18 +939,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
-  /// when the tabs, the buttons after them and the dev label's edge don't
-  /// fit the screen.
-  double _tabWidth(BuildContext context) {
-    // The account button (none in DEV) and the gap after it.
-    final buttons = (_dev ? 0 : 48) + 4;
-    const titleRoom = 12 + 16;
-    final fit =
-        (MediaQuery.sizeOf(context).width - titleRoom - buttons) / _tabs.length;
-    return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
-  }
-
   /// The Clip button: this camera's clip; with the All grid showing, a
   /// Capture all request too, which cloud sync takes to the profile's other
   /// devices so each takes a clip ([CameraRig.answerCaptureAll]).
@@ -1021,97 +969,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,
       backgroundColor: _onCamera ? Colors.black : scheme.surface,
-      appBar: AppBar(
-        // No title: only the "dev" label, in DEV.
-        titleSpacing: 12,
-        title: _dev
-            ? const Row(children: [Flexible(child: DevModeLabel())])
-            : null,
-        backgroundColor: _onCamera ? Colors.transparent : scheme.surface,
-        surfaceTintColor: Colors.transparent,
-        scrolledUnderElevation: 0,
-        // Over the camera, a scrim keeps the tabs readable.
-        flexibleSpace: _onCamera
-            ? const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xB3000000), Color(0x00000000)],
-                  ),
-                ),
-              )
-            : null,
-        actions: [
-          if (!_hasAccess && !_signedIn) ...[
-            SignInAction(auth: widget.auth),
-            const SizedBox(width: 12),
-          ] else if (!_hasAccess) ...[
-            // Signed in without a role: only their account, and sign-up.
-            if (widget.roles.state == AccessState.checking)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
-                child: SizedBox.square(
-                  key: Key('checking-access'),
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              )
-            else
-              SignUpButton(
-                auth: widget.auth,
-                roles: widget.roles,
-                membership: widget.membership,
-                profiles: widget.profiles,
-              ),
-            AccountButton(
-              auth: widget.auth,
-              roles: widget.roles,
-              profiles: widget.profiles,
-              log: widget.log,
-              deviceId: widget.deviceId,
-              deleteDevice: widget.deleteDevice,
-            ),
-            const SizedBox(width: 4),
-          ] else ...[
-            SizedBox(
-              width: _tabWidth(context) * _tabs.length,
-              child: TabBar(
-                controller: _tabs,
-                dividerHeight: 0,
-                indicatorSize: TabBarIndicatorSize.tab,
-                labelPadding: EdgeInsets.zero,
-                tabs: [
-                  for (final tab in _tabList)
-                    Tooltip(
-                      message: tab.label,
-                      child: Tab(
-                        icon: Icon(tab.icon, semanticLabel: tab.label),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            // Account (who's signed in, sign out, about): an action, not a
-            // tab.
-            if (!_dev)
-              AccountButton(
-                auth: widget.auth,
-                sync: widget.sync,
-                roles: widget.roles,
-                profiles: widget.profiles,
-                log: widget.log,
-                deviceId: widget.deviceId,
-                deleteDevice: widget.deleteDevice,
-              ),
-            const SizedBox(width: 4),
-          ],
-        ],
+      appBar: _HomeAppBar(
+        tabs: _tabs,
+        onCamera: _onCamera,
+        dev: _dev,
+        hasAccess: _hasAccess,
+        signedIn: _signedIn,
+        auth: widget.auth,
+        roles: widget.roles,
+        membership: widget.membership,
+        profiles: widget.profiles,
+        sync: widget.sync,
+        log: widget.log,
+        deviceId: widget.deviceId,
+        deleteDevice: widget.deleteDevice,
       ),
       body: Stack(
         children: [
           TabBarView(
-            controller: _tabs,
+            controller: _tabs.controller,
             // No swiping to the other tabs while they're hidden, nor on the
             // maps: there, a drag moves the map.
             physics: _hasAccess && !_onMonitoring && !_mapHeld
@@ -1155,12 +1031,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   config: widget.config,
                   tiles: widget.mapTiles,
                   onOpenEvent: _openEvent,
-                  focus: _focusedEvent,
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
-                  onlyDevice: _onlyDevice,
-                  showSystemEvents: _showSystemEvents,
-                  search: _eventSearch,
+                  filters: _filters,
                 ),
               ),
               // Full width, with the device's location map.
@@ -1189,7 +1062,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   liveSync: widget.sync?.live?.enabled ?? false,
                 ),
               ),
-              if (_tabList.contains(HomeTab.log))
+              if (_tabs.shows(HomeTab.log))
                 SafeArea(
                   child: LogView(
                     log: AppLog.instance,
@@ -1204,7 +1077,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               // Membership requests and vouchers: a page like the others,
               // with no back button of its own.
-              if (_tabList.contains(HomeTab.admin))
+              if (_tabs.shows(HomeTab.admin))
                 SafeArea(
                   child: AdminView(
                     auth: widget.auth,
@@ -1227,18 +1100,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               roles: widget.roles,
               sync: widget.sync,
               onHealthTap: () => _tabs.animateTo(
-                _indexOf(
-                  _tabList.contains(HomeTab.log)
-                      ? HomeTab.log
-                      : HomeTab.settings,
-                ),
+                _tabs.shows(HomeTab.log) ? HomeTab.log : HomeTab.settings,
               ),
               message: switch (_message) {
                 final m? => CameraMessagePill(
                   message: m,
                   // The events tab is only there with access.
                   onView: m.opensEvents && _hasAccess
-                      ? () => _tabs.animateTo(_indexOf(HomeTab.monitoring))
+                      ? () => _tabs.animateTo(HomeTab.monitoring)
                       : null,
                 ),
                 null => null,
@@ -1264,64 +1133,240 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
-          ? ListenableBuilder(
-              listenable: widget.rig,
-              // Each button is hidden, not disabled, when it can't act.
-              builder: (context, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                spacing: 12,
-                children: [
-                  // Shows what's on screen (One, All, None); a tap moves
-                  // on to the next. Highlighted for All, and for None, the
-                  // camera off.
-                  // Icon only: the tooltip and screen readers name it.
-                  FloatingActionButton(
-                    key: const Key('show-all'),
-                    heroTag: 'show-all',
-                    tooltip: switch (_viewMode) {
-                      CameraViewMode.one => 'Show all devices',
-                      CameraViewMode.all => 'Turn the camera off',
-                      CameraViewMode.none => 'Turn the camera on',
-                    },
-                    backgroundColor: switch (_viewMode) {
-                      CameraViewMode.one => scheme.surfaceContainerHigh,
-                      CameraViewMode.all => scheme.secondaryContainer,
-                      CameraViewMode.none => scheme.errorContainer,
-                    },
-                    foregroundColor: switch (_viewMode) {
-                      CameraViewMode.one => scheme.onSurface,
-                      CameraViewMode.all => scheme.onSecondaryContainer,
-                      CameraViewMode.none => scheme.onErrorContainer,
-                    },
-                    onPressed: _nextViewMode,
-                    child: Icon(switch (_viewMode) {
-                      CameraViewMode.one => Icons.crop_square,
-                      CameraViewMode.all => Icons.grid_view,
-                      CameraViewMode.none => Icons.videocam_off,
-                    }),
-                  ),
-                  if (widget.rig.devices.length > 1 && !widget.rig.paused)
-                    FloatingActionButton(
-                      heroTag: 'flip-camera',
-                      tooltip: 'Flip camera',
-                      // Secondary action: quieter than Clip.
-                      backgroundColor: scheme.surfaceContainerHigh,
-                      foregroundColor: scheme.onSurface,
-                      onPressed: widget.rig.canFlip ? widget.rig.flip : null,
-                      child: const Icon(Icons.cameraswitch),
-                    ),
-                  if (widget.rig.canClip)
-                    FloatingActionButton.extended(
-                      heroTag: 'clip',
-                      tooltip: 'Clip',
-                      icon: const Icon(Icons.camera),
-                      label: const Text('Clip'),
-                      onPressed: _clip,
-                    ),
-                ],
+          ? _CameraButtons(
+              rig: widget.rig,
+              showAll: _showAll,
+              onNextViewMode: _nextViewMode,
+              onClip: _clip,
+            )
+          : null,
+    );
+  }
+}
+
+/// The home screen's app bar: the "dev" label in DEV, and on the right the
+/// tabs and the account button, or, without access, only sign-in (signed
+/// out) or sign-up and the account (signed in without a role). Clear over
+/// the camera, with a scrim keeping the tabs readable.
+class _HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const _HomeAppBar({
+    required this.tabs,
+    required this.onCamera,
+    required this.dev,
+    required this.hasAccess,
+    required this.signedIn,
+    required this.auth,
+    required this.roles,
+    required this.membership,
+    required this.profiles,
+    required this.log,
+    this.sync,
+    this.deviceId,
+    this.deleteDevice,
+  });
+
+  final HomeTabs tabs;
+  final bool onCamera;
+  final bool dev;
+  final bool hasAccess;
+  final bool signedIn;
+  final AuthService auth;
+  final RolesService roles;
+  final MembershipClient membership;
+  final ProfileClient profiles;
+  final EventLog log;
+  final CloudSync? sync;
+  final String? deviceId;
+  final DeleteDevice? deleteDevice;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
+  /// when the tabs, the buttons after them and the dev label's edge don't
+  /// fit the screen.
+  double _tabWidth(BuildContext context) {
+    // The account button (none in DEV) and the gap after it.
+    final buttons = (dev ? 0 : 48) + 4;
+    const titleRoom = 12 + 16;
+    final fit =
+        (MediaQuery.sizeOf(context).width - titleRoom - buttons) /
+        tabs.tabs.length;
+    return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppBar(
+      // No title: only the "dev" label, in DEV.
+      titleSpacing: 12,
+      title: dev
+          ? const Row(children: [Flexible(child: DevModeLabel())])
+          : null,
+      backgroundColor: onCamera ? Colors.transparent : scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      scrolledUnderElevation: 0,
+      // Over the camera, a scrim keeps the tabs readable.
+      flexibleSpace: onCamera
+          ? const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xB3000000), Color(0x00000000)],
+                ),
               ),
             )
           : null,
+      actions: [
+        if (!hasAccess && !signedIn) ...[
+          SignInAction(auth: auth),
+          const SizedBox(width: 12),
+        ] else if (!hasAccess) ...[
+          // Signed in without a role: only their account, and sign-up.
+          if (roles.state == AccessState.checking)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: SizedBox.square(
+                key: Key('checking-access'),
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            SignUpButton(
+              auth: auth,
+              roles: roles,
+              membership: membership,
+              profiles: profiles,
+            ),
+          AccountButton(
+            auth: auth,
+            roles: roles,
+            profiles: profiles,
+            log: log,
+            deviceId: deviceId,
+            deleteDevice: deleteDevice,
+          ),
+          const SizedBox(width: 4),
+        ] else ...[
+          SizedBox(
+            width: _tabWidth(context) * tabs.tabs.length,
+            child: TabBar(
+              controller: tabs.controller,
+              dividerHeight: 0,
+              indicatorSize: TabBarIndicatorSize.tab,
+              labelPadding: EdgeInsets.zero,
+              tabs: [
+                for (final tab in tabs.tabs)
+                  Tooltip(
+                    message: tab.label,
+                    child: Tab(icon: Icon(tab.icon, semanticLabel: tab.label)),
+                  ),
+              ],
+            ),
+          ),
+          // Account (who's signed in, sign out, about): an action, not a
+          // tab.
+          if (!dev)
+            AccountButton(
+              auth: auth,
+              sync: sync,
+              roles: roles,
+              profiles: profiles,
+              log: log,
+              deviceId: deviceId,
+              deleteDevice: deleteDevice,
+            ),
+          const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+}
+
+/// The Camera tab's floating buttons, bottom right: the view button (One,
+/// All, None), Flip and Clip. Each is hidden, not disabled, when it can't
+/// act.
+class _CameraButtons extends StatelessWidget {
+  const _CameraButtons({
+    required this.rig,
+    required this.showAll,
+    required this.onNextViewMode,
+    required this.onClip,
+  });
+
+  final CameraRig rig;
+
+  /// The All grid is asked for: with the camera on, the view is All.
+  final bool showAll;
+  final VoidCallback onNextViewMode;
+  final VoidCallback onClip;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: rig,
+      builder: (context, _) {
+        final viewMode = CameraViewMode.of(
+          paused: rig.paused,
+          showAll: showAll,
+        );
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 12,
+          children: [
+            // Shows what's on screen (One, All, None); a tap moves on to the
+            // next. Highlighted for All, and for None, the camera off. Icon
+            // only: the tooltip and screen readers name it.
+            FloatingActionButton(
+              key: const Key('show-all'),
+              heroTag: 'show-all',
+              tooltip: switch (viewMode) {
+                CameraViewMode.one => 'Show all devices',
+                CameraViewMode.all => 'Turn the camera off',
+                CameraViewMode.none => 'Turn the camera on',
+              },
+              backgroundColor: switch (viewMode) {
+                CameraViewMode.one => scheme.surfaceContainerHigh,
+                CameraViewMode.all => scheme.secondaryContainer,
+                CameraViewMode.none => scheme.errorContainer,
+              },
+              foregroundColor: switch (viewMode) {
+                CameraViewMode.one => scheme.onSurface,
+                CameraViewMode.all => scheme.onSecondaryContainer,
+                CameraViewMode.none => scheme.onErrorContainer,
+              },
+              onPressed: onNextViewMode,
+              child: Icon(switch (viewMode) {
+                CameraViewMode.one => Icons.crop_square,
+                CameraViewMode.all => Icons.grid_view,
+                CameraViewMode.none => Icons.videocam_off,
+              }),
+            ),
+            if (rig.devices.length > 1 && !rig.paused)
+              FloatingActionButton(
+                heroTag: 'flip-camera',
+                tooltip: 'Flip camera',
+                // Secondary action: quieter than Clip.
+                backgroundColor: scheme.surfaceContainerHigh,
+                foregroundColor: scheme.onSurface,
+                onPressed: rig.canFlip ? rig.flip : null,
+                child: const Icon(Icons.cameraswitch),
+              ),
+            if (rig.canClip)
+              FloatingActionButton.extended(
+                heroTag: 'clip',
+                tooltip: 'Clip',
+                icon: const Icon(Icons.camera),
+                label: const Text('Clip'),
+                onPressed: onClip,
+              ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1366,7 +1411,7 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
     // Minutes and seconds for the cooldown ("4:59"), seconds below
     // a minute ("45 s").
     final countdown = seconds >= 60
-        ? '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}'
+        ? formatMinutesSeconds(seconds)
         : '$seconds s';
     // Only the dot, and the countdown while there is one: the tooltip and
     // screen readers spell the state out.
@@ -1376,25 +1421,25 @@ class _ReadinessIndicatorState extends State<ReadinessIndicator> {
       String semantics,
     ) = switch (readiness.state) {
       ClipReadinessState.ready => (
-        _Dot(color: Gruvbox.green),
+        Dot(color: Gruvbox.green),
         null,
         'Ready to clip',
       ),
       ClipReadinessState.cooldown => (
         // Red while the latest clip is still saving, then amber.
-        _Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
+        Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
         countdown,
         readiness.recording
             ? 'Clip saving; next automatic clip in $countdown'
             : 'Next automatic clip in $countdown',
       ),
       ClipReadinessState.unavailable => (
-        _Dot(color: scheme.outline),
+        Dot(color: scheme.outline),
         null,
         'Camera not ready',
       ),
       ClipReadinessState.paused => (
-        _Dot(color: scheme.outline),
+        Dot(color: scheme.outline),
         null,
         'Camera off: nothing is recorded',
       ),
@@ -1442,7 +1487,7 @@ class CameraMessagePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = message.label;
-    final pill = StatusPill(
+    return StatusPill(
       key: const Key('camera-message'),
       leading: Icon(
         message.icon,
@@ -1451,9 +1496,10 @@ class CameraMessagePill extends StatelessWidget {
       ),
       label: label,
       semantics: onView == null ? label : '$label. Tap to view it.',
+      // News: read out when it shows.
+      liveRegion: true,
+      onTap: onView,
     );
-    if (onView == null) return pill;
-    return GestureDetector(onTap: onView, child: pill);
   }
 }
 
@@ -1567,19 +1613,6 @@ class _CameraStatus extends StatelessWidget {
   }
 }
 
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 10,
-    height: 10,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-  );
-}
-
 /// Keeps a tab's page (and its live camera views) alive while other tabs
 /// are shown.
 class _KeepAlive extends StatefulWidget {
@@ -1653,5 +1686,14 @@ enum CameraViewMode {
   all,
 
   /// Nothing: the camera is off ([CameraRig.paused]).
-  none,
+  none;
+
+  /// What shows with the camera [paused] or not and the All grid asked for
+  /// ([showAll]).
+  static CameraViewMode of({required bool paused, required bool showAll}) =>
+      paused
+      ? CameraViewMode.none
+      : showAll
+      ? CameraViewMode.all
+      : CameraViewMode.one;
 }

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
+import '../storage/records.dart';
 import 'sigv4.dart';
 
 /// One MQTT connection to AWS IoT Core: [MqttLiveConnection] in the app
@@ -52,12 +53,17 @@ class LiveLink {
     required this.deviceId,
     required this.credentials,
     required this.onEvent,
+    this.onCopied,
   });
 
   final String identityId;
   final String deviceId;
   final Future<AwsCredentials> Function() credentials;
   final Future<void> Function(LiveEvent event) onEvent;
+
+  /// Another device of the profile said it holds copies of events (a
+  /// `copied` ack, [LiveSync.parseCopied]).
+  final void Function(CopiedMessage message)? onCopied;
 }
 
 /// An event another device of the profile published ([LiveSync.parse]):
@@ -101,6 +107,21 @@ class PresenceMessage {
   final String? nonce;
 }
 
+/// A `copied` ack ([LiveSync.parseCopied]): device [deviceId] has stored
+/// a full copy of the events [eventIds] (each with all its media), said at
+/// [sentAt] (ms since the epoch, by its clock).
+class CopiedMessage {
+  const CopiedMessage({
+    required this.deviceId,
+    required this.sentAt,
+    required this.eventIds,
+  });
+
+  final String deviceId;
+  final int sentAt;
+  final List<String> eventIds;
+}
+
 /// Live sync: the profile's devices tell each other about new and changed
 /// events over MQTT (AWS IoT Core, over WebSockets signed with the profile's
 /// Cognito credentials), so they arrive within a second instead of at the
@@ -110,7 +131,9 @@ class PresenceMessage {
 /// Topics are per profile: `presence/<stage>/<identityId>/events`, and
 /// `.../requests` and `.../acks` for device presence: a [ping] on
 /// requests, which each connected device answers with a pong on acks, so
-/// each knows which of the profile's devices are live ([seenOf]).
+/// each knows which of the profile's devices are live ([seenOf]). A device
+/// that has stored a full copy of another's event says so with a `copied`
+/// ack on acks ([ackCopied]), so each knows who holds each event.
 ///
 /// How it connects is the **Connect to live sync** setting ([config]):
 ///
@@ -145,6 +168,7 @@ class LiveSync extends ChangeNotifier {
     this._connect,
     this._config = LiveConfig.always,
     DateTime Function()? now,
+    AwsClock? clock,
     Random? random,
     this.minRetry = const Duration(seconds: 1),
     this.maxRetry = const Duration(minutes: 2),
@@ -155,7 +179,10 @@ class LiveSync extends ChangeNotifier {
     this.sessionExpiry = const Duration(hours: 1),
     this.publishWait = const Duration(seconds: 20),
     this.connectTimeout = const Duration(seconds: 15),
+    this.ackDelay = const Duration(seconds: 1),
+    this.ackEvery = const Duration(seconds: 1),
   }) : _now = now ?? DateTime.now,
+       _clock = clock ?? (now == null ? AwsClock.shared : AwsClock(now: now)),
        _random = random ?? Random.secure();
 
   /// The AWS IoT data endpoint (`<id>-ats.iot.<region>.amazonaws.com`).
@@ -166,6 +193,10 @@ class LiveSync extends ChangeNotifier {
   final String stage;
   final LiveConnect? _connect;
   final DateTime Function() _now;
+
+  /// AWS's time, which the connection's URL is signed with and the
+  /// credentials expire by (corrected when S3 finds the clock off).
+  final AwsClock _clock;
   final Random _random;
 
   /// The wait before reconnecting after the first failure; it doubles
@@ -200,6 +231,13 @@ class LiveSync extends ChangeNotifier {
   /// attempt that hangs (a stalled network) fails after it, into the usual
   /// back-off.
   final Duration connectTimeout;
+
+  /// `copied` acks wait this long to go out, so events stored together
+  /// share a message ([ackCopied])...
+  final Duration ackDelay;
+
+  /// ...and a backlog goes out one message per this.
+  final Duration ackEvery;
 
   /// The largest message accepted or sent. AWS IoT allows 128 KB; events'
   /// metadata is a few KB.
@@ -284,8 +322,11 @@ class LiveSync extends ChangeNotifier {
   }
 
   /// This run of the app's part of the client ID.
-  late final String _session = List.generate(
-    6,
+  late final String _session = _randomId(6);
+
+  /// [length] random lowercase letters and digits.
+  String _randomId(int length) => List.generate(
+    length,
     (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
   ).join();
 
@@ -344,6 +385,10 @@ class LiveSync extends ChangeNotifier {
     _nextAt = null;
     _wakeUp();
     _failOutbox();
+    // A flush under way ends, failing its acks.
+    _ackQueue.clear();
+    _acksDone = null;
+    _acking = false;
     final connection = _connection;
     _connection = null;
     connection?.close().catchError((Object _) {});
@@ -400,7 +445,7 @@ class LiveSync extends ChangeNotifier {
             .presignWebSocket(
               host: endpoint,
               credentials: credentials,
-              now: _now(),
+              now: _clock.now(),
             );
         final connecting = _connect!(
           url,
@@ -484,7 +529,7 @@ class LiveSync extends ChangeNotifier {
         // Not when they're about to already: that would only loop.
         Timer? renew;
         if (credentials.expiration case final expiration?) {
-          final left = expiration.difference(_now()) - renewBefore;
+          final left = expiration.difference(_clock.now()) - renewBefore;
           if (left > Duration.zero) {
             renew = Timer(left, () {
               renewing = true;
@@ -503,8 +548,11 @@ class LiveSync extends ChangeNotifier {
           await connection.close().catchError((Object _) {});
           continue;
         }
-        // Dropped: reconnect soon.
+        // Dropped: reconnect soon. Closed all the same, so the client's
+        // socket and timers go.
         debugPrint('Presence: live sync disconnected; reconnecting');
+        await connection.close().catchError((Object _) {});
+        if (!current()) return;
         _failures = 1;
       } catch (e) {
         if (connection != null) {
@@ -684,6 +732,12 @@ class LiveSync extends ChangeNotifier {
 
   void _onMessage(LiveLink link, String topic, Uint8List payload) {
     if (link != _link) return;
+    if (topic == topicOf(stage, link.identityId, acksKind)) {
+      if (parseCopied(payload, identityId: link.identityId) case final ack?) {
+        _onCopied(link, ack);
+        return;
+      }
+    }
     if (topic == topicOf(stage, link.identityId, requestsKind) ||
         topic == topicOf(stage, link.identityId, acksKind)) {
       _onPresence(link, topic, payload);
@@ -780,10 +834,7 @@ class LiveSync extends ChangeNotifier {
     }
     _lastPing = now;
     _pings.removeWhere((_, at) => now.difference(at) > pingsKept);
-    final nonce = List.generate(
-      16,
-      (_) => 'abcdefghijklmnopqrstuvwxyz0123456789'[_random.nextInt(36)],
-    ).join();
+    final nonce = _randomId(16);
     _pings[nonce] = now;
     return _publish(
       link,
@@ -863,6 +914,147 @@ class LiveSync extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Copy acks -----------------------------------------------------------
+
+  /// The most event IDs one `copied` ack carries (fewer when they'd make it
+  /// bigger than [maxPresenceBytes]).
+  static const int maxAckIds = 32;
+
+  /// At most this many event IDs wait to be acked; the oldest go first.
+  static const int maxAckQueue = 1000;
+
+  /// Event IDs waiting to be acked, oldest first.
+  final _ackQueue = <String>{};
+
+  /// Completes when the acks queued now have gone out: whether all did.
+  Completer<bool>? _acksDone;
+  bool _acking = false;
+
+  /// Tells the profile's other devices that this device has stored a full
+  /// copy of the events [eventIds] (with all their media): `copied` acks on
+  /// the acks topic. They're batched: they wait [ackDelay], then go out as
+  /// few messages as fit ([maxAckIds] IDs, at most [maxPresenceBytes]
+  /// each), one per [ackEvery]. Returns whether they all went: not with
+  /// live sync off or failing, nor while disconnected when always connected
+  /// (on a schedule, it connects to send them).
+  Future<bool> ackCopied(Iterable<String> eventIds) {
+    final link = _link;
+    if (link == null || !_canSend) return Future.value(false);
+    for (final id in eventIds) {
+      if (isSafeId(id)) _ackQueue.add(id);
+    }
+    while (_ackQueue.length > maxAckQueue) {
+      _ackQueue.remove(_ackQueue.first);
+    }
+    if (_ackQueue.isEmpty) return Future.value(true);
+    final done = _acksDone ??= Completer<bool>();
+    if (!_acking) {
+      _acking = true;
+      final generation = _generation;
+      Timer(ackDelay, () => _flushAcks(link, done, generation));
+    }
+    return done.future;
+  }
+
+  /// Sends the queued acks, while the connection loop is still the one of
+  /// [generation]: a [stop] or a new [start] (or a change of [config],
+  /// which starts over with the same link) ends it, so two flushes never
+  /// share the queue.
+  Future<void> _flushAcks(
+    LiveLink link,
+    Completer<bool> done,
+    int generation,
+  ) async {
+    bool current() => generation == _generation && link == _link;
+    var ok = true;
+    try {
+      while (_ackQueue.isNotEmpty && current()) {
+        final now = _now();
+        final batch = <String>[];
+        for (final id in _ackQueue) {
+          if (batch.length >= maxAckIds) break;
+          final payload = _copiedPayload(link, [...batch, id], now);
+          if (payload.length > maxPresenceBytes) break;
+          batch.add(id);
+        }
+        _ackQueue.removeAll(batch);
+        if (!await _publish(link, acksKind, _copiedPayload(link, batch, now))) {
+          ok = false;
+        }
+        if (_ackQueue.isNotEmpty) await Future<void>.delayed(ackEvery);
+      }
+    } finally {
+      if (identical(_acksDone, done)) {
+        _acksDone = null;
+        _acking = false;
+      }
+      done.complete(ok && current());
+    }
+  }
+
+  Uint8List _copiedPayload(
+    LiveLink link,
+    List<String> eventIds,
+    DateTime now,
+  ) => Uint8List.fromList(
+    utf8.encode(
+      jsonEncode({
+        'v': version,
+        'kind': 'copied',
+        'deviceId': link.deviceId,
+        'identityId': link.identityId,
+        'sentAt': now.millisecondsSinceEpoch,
+        'eventIds': eventIds,
+      }),
+    ),
+  );
+
+  void _onCopied(LiveLink link, CopiedMessage ack) {
+    // This device's own (or another tab's on it).
+    if (ack.deviceId == link.deviceId) return;
+    final now = _now();
+    final sentAt = DateTime.fromMillisecondsSinceEpoch(ack.sentAt);
+    // It's running (or was, when it sent it).
+    _see(ack.deviceId, sentAt.isAfter(now) ? now : sentAt);
+    try {
+      link.onCopied?.call(ack);
+    } catch (e) {
+      debugPrint('Presence: live sync could not take an ack: ${redact(e)}');
+    }
+  }
+
+  /// The `copied` ack in [payload], a message on [identityId]'s acks topic;
+  /// null when it isn't one: too big ([maxPresenceBytes]), not JSON,
+  /// another version, kind or identity, an unsafe device ID, no integer
+  /// `sentAt`, or no event IDs, too many, or an unsafe one.
+  static CopiedMessage? parseCopied(
+    Uint8List payload, {
+    required String identityId,
+  }) {
+    final decoded = _envelope(
+      payload,
+      maxBytes: maxPresenceBytes,
+      kind: 'copied',
+      identityId: identityId,
+    );
+    if (decoded == null) return null;
+    final deviceId = decoded['deviceId'];
+    final sentAt = decoded['sentAt'];
+    final eventIds = decoded['eventIds'];
+    if (sentAt is! int ||
+        eventIds is! List ||
+        eventIds.isEmpty ||
+        eventIds.length > maxAckIds ||
+        !eventIds.every(isSafeId)) {
+      return null;
+    }
+    return CopiedMessage(
+      deviceId: deviceId! as String,
+      sentAt: sentAt,
+      eventIds: eventIds.cast<String>().toSet().toList(),
+    );
+  }
+
   static final RegExp _noncePattern = RegExp(r'^[A-Za-z0-9]{8,64}$');
 
   /// The presence message in [payload], a [kind] (`ping` or `pong`) on
@@ -874,29 +1066,24 @@ class LiveSync extends ChangeNotifier {
     required String identityId,
     required String kind,
   }) {
-    if (payload.length > maxPresenceBytes) return null;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(utf8.decode(payload));
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
+    final decoded = _envelope(
+      payload,
+      maxBytes: maxPresenceBytes,
+      kind: kind,
+      identityId: identityId,
+    );
+    if (decoded == null) return null;
     final deviceId = decoded['deviceId'];
     final sentAt = decoded['sentAt'];
     final nonce = decoded['nonce'];
-    if (decoded['v'] != version ||
-        decoded['kind'] != kind ||
-        decoded['identityId'] != identityId ||
-        !isSafeId(deviceId) ||
-        sentAt is! int ||
+    if (sentAt is! int ||
         (nonce != null &&
             (nonce is! String || !_noncePattern.hasMatch(nonce))) ||
         (kind == 'ping' && nonce == null)) {
       return null;
     }
     return PresenceMessage(
-      deviceId: deviceId as String,
+      deviceId: deviceId! as String,
       sentAt: sentAt,
       nonce: nonce as String?,
     );
@@ -917,12 +1104,9 @@ class LiveSync extends ChangeNotifier {
     'data',
   };
 
-  static final RegExp _idPattern = RegExp(r'^[A-Za-z0-9_.:-]{1,128}$');
-
   /// Whether [id] is safe as an event, clip, frame or device ID: it goes
-  /// into object keys in the bucket.
-  static bool isSafeId(Object? id) =>
-      id is String && _idPattern.hasMatch(id) && !id.contains('..');
+  /// into object keys in the bucket ([Records.isSafeId]).
+  static bool isSafeId(Object? id) => Records.isSafeId(id);
   static final RegExp _etagPattern = RegExp(r'^[0-9a-f]{32}$');
 
   /// [event] without inline media: no [inlineFields], and no value that is
@@ -941,25 +1125,18 @@ class LiveSync extends ChangeNotifier {
   /// identity's, or without an event ID and time. Inline media is dropped
   /// ([metadataOf]).
   static LiveEvent? parse(Uint8List payload, {required String identityId}) {
-    if (payload.length > maxMessageBytes) return null;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(utf8.decode(payload));
-    } catch (_) {
-      return null;
-    }
-    if (decoded is! Map) return null;
-    final message = decoded.cast<String, Object?>();
-    final deviceId = message['deviceId'];
+    final message = _envelope(
+      payload,
+      maxBytes: maxMessageBytes,
+      kind: 'event',
+      identityId: identityId,
+    );
+    if (message == null) return null;
+    final deviceId = message['deviceId']! as String;
     final event = message['event'];
     final etag = message['etag'];
     final sentAt = message['sentAt'];
-    if (message['v'] != version ||
-        message['kind'] != 'event' ||
-        message['identityId'] != identityId ||
-        deviceId is! String ||
-        !isSafeId(deviceId) ||
-        event is! Map ||
+    if (event is! Map ||
         (etag != null && (etag is! String || !_etagPattern.hasMatch(etag))) ||
         (sentAt != null && sentAt is! int)) {
       return null;
@@ -982,6 +1159,32 @@ class LiveSync extends ChangeNotifier {
       sentAt: sentAt as int?,
       etag: etag as String?,
     );
+  }
+
+  /// The message in [payload] when its envelope is right: at most
+  /// [maxBytes], a JSON object of this [version], of [kind], for
+  /// [identityId], from a device with a safe ID ([isSafeId]); else null.
+  static Map<String, Object?>? _envelope(
+    Uint8List payload, {
+    required int maxBytes,
+    required String kind,
+    required String identityId,
+  }) {
+    if (payload.length > maxBytes) return null;
+    Object? decoded;
+    try {
+      decoded = jsonDecode(utf8.decode(payload));
+    } catch (_) {
+      return null;
+    }
+    if (decoded is! Map ||
+        decoded['v'] != version ||
+        decoded['kind'] != kind ||
+        decoded['identityId'] != identityId ||
+        !isSafeId(decoded['deviceId'])) {
+      return null;
+    }
+    return decoded.cast<String, Object?>();
   }
 
   void _set(LiveSyncState state, [String? error]) {

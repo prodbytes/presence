@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_log.dart';
+import 'time_format.dart';
 
 /// The **Log** tab, for admins (and everyone in DEV): the app's latest log
 /// messages ([AppLog]), newest first, with the time of each; errors in the
@@ -12,11 +13,6 @@ class LogView extends StatelessWidget {
 
   final AppLog log;
   final Widget? health;
-
-  static String _time(DateTime t) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
-  }
 
   static String _text(List<LogEntry> entries) =>
       [for (final e in entries) '${e.time.toIso8601String()} ${e.message}']
@@ -87,7 +83,7 @@ class LogView extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _time(entry.time),
+                                formatEventTime(entry.time),
                                 style: mono?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),

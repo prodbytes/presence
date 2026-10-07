@@ -225,7 +225,12 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   static const _endSlack = Duration(milliseconds: 30);
 
   VideoPlayerController? _controller;
+
+  /// The file [_controller] plays.
   String? _path;
+
+  /// Counts loads: one finishing after a newer one began is stale.
+  int _loadGeneration = 0;
   ClipMedia? _current;
   bool _onFull = false;
   bool _waiting = false;
@@ -287,14 +292,20 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       _loading = true;
       _loadFailed = false;
     });
-    final VideoPlayerController controller;
+    // A newer load (or closing the player) makes this one stale: what it
+    // made is disposed, and it changes nothing.
+    final generation = ++_loadGeneration;
+    bool stale() => !mounted || generation != _loadGeneration;
+    VideoPlayerController? opening;
+    final String path;
     try {
-      final path = await media.resolveUrl();
-      controller = VideoPlayerController.file(File(path));
-      await controller.initialize();
-      _path = path;
+      path = await media.resolveUrl();
+      if (stale()) return;
+      opening = VideoPlayerController.file(File(path));
+      await opening.initialize();
     } catch (_) {
-      if (mounted && _current == media) {
+      opening?.dispose();
+      if (!stale()) {
         setState(() {
           _loading = false;
           _loadFailed = true;
@@ -302,20 +313,30 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       }
       return;
     }
-    if (mounted && _current == media) setState(() => _loading = false);
-    if (!mounted || _current != media) {
+    final controller = opening;
+    if (stale()) {
       controller.dispose();
+      return;
+    }
+    setState(() => _loading = false);
+    await controller.seekTo(at);
+    if (stale()) {
+      controller.dispose();
+      return;
+    }
+    controller.addListener(_onTick);
+    if (play) await controller.play();
+    if (stale()) {
+      controller
+        ..removeListener(_onTick)
+        ..dispose();
       return;
     }
     final old = _controller;
-    await controller.seekTo(at);
-    controller.addListener(_onTick);
-    if (play) await controller.play();
-    if (!mounted) {
-      controller.dispose();
-      return;
-    }
-    setState(() => _controller = controller);
+    setState(() {
+      _controller = controller;
+      _path = path;
+    });
     old?.removeListener(_onTick);
     old?.dispose();
   }

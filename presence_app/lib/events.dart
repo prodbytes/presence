@@ -1,16 +1,22 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'annotations.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
+import 'copies_badge.dart';
+import 'event_filters.dart';
 import 'event_flags.dart';
 import 'identity/device_os.dart';
 import 'location/device_location.dart';
 import 'recognition/suggestion.dart';
+import 'time_format.dart';
+
+export 'event_filters.dart' show EventFilters, EventView;
+export 'time_format.dart' show formatEventTime;
 
 /// Something that happened, shown in the Events timeline and saved to
 /// storage.
@@ -266,6 +272,9 @@ class AppEventBusScope extends InheritedWidget {
 }
 
 /// History of bus events for the Events panel, newest first.
+///
+/// Notifies when events are added, removed or replaced; [annotations]
+/// notifies, separately, when a clip's tags or object tags change.
 class EventLog extends ChangeNotifier {
   EventLog(Stream<AppEvent> events) {
     _subscription = events.listen(_add);
@@ -274,18 +283,80 @@ class EventLog extends ChangeNotifier {
   late final StreamSubscription<AppEvent> _subscription;
   final List<AppEvent> _events = [];
 
-  List<AppEvent> get events => List.unmodifiable(_events);
+  /// The events, newest first: a snapshot that doesn't change with the
+  /// log (callers may go through it across awaits), made once per change
+  /// and shared until the next.
+  List<AppEvent> get events => _snapshot ??= List.unmodifiable(_events);
+  List<AppEvent>? _snapshot;
+
+  /// Goes up by one with every change to [events].
+  int get version => _version;
+  int _version = 0;
+
+  /// [profileId]'s events ([EventTimeline.ofProfile]), kept until the log
+  /// changes.
+  List<AppEvent> eventsOf(String? profileId) {
+    if (_ofProfile case (final v, final p, final list)
+        when v == _version && p == profileId) {
+      return list;
+    }
+    final list = List<AppEvent>.unmodifiable(
+      EventTimeline.ofProfile(events, profileId),
+    );
+    _ofProfile = (_version, profileId, list);
+    return list;
+  }
+
+  (int, String?, List<AppEvent>)? _ofProfile;
+
+  /// Notifies when any clip's tags or object tags change (recognition, a
+  /// tag added or removed), so what depends on them (the search, the
+  /// subjects) is worked out again; [annotationsVersion] goes up first.
+  Listenable get annotations => _annotations;
+  final _annotations = _Signal();
+
+  /// Goes up by one with every change to a clip's tags or object tags.
+  int get annotationsVersion => _annotationsVersion;
+  int _annotationsVersion = 0;
+
+  /// The clips' annotations listened to for [annotations].
+  var _watched = Set<ClipAnnotations>.identity();
+
+  void _onAnnotations() {
+    _annotationsVersion++;
+    _annotations.fire();
+  }
+
+  /// Listens to the annotations of the clips now in the log, and no others.
+  void _watch() {
+    final now = Set<ClipAnnotations>.identity()
+      ..addAll(_events.whereType<ClipRequested>().map((e) => e.annotations));
+    for (final gone in _watched.difference(now)) {
+      gone.removeListener(_onAnnotations);
+    }
+    for (final added in now.difference(_watched)) {
+      added.addListener(_onAnnotations);
+    }
+    _watched = now;
+  }
+
+  void _changed() {
+    _version++;
+    _snapshot = null;
+    _watch();
+    notifyListeners();
+  }
 
   void _add(AppEvent event) {
     _events.insert(0, event);
-    notifyListeners();
+    _changed();
   }
 
   /// Takes the events [ids] out of the log (deleted from storage).
   void remove(Set<String> ids) {
     final before = _events.length;
     _events.removeWhere((e) => ids.contains(e.id));
-    if (_events.length != before) notifyListeners();
+    if (_events.length != before) _changed();
   }
 
   /// Puts [events] in place of the ones in the log with their IDs (shown
@@ -301,24 +372,42 @@ class EventLog extends ChangeNotifier {
         changed = true;
       }
     }
-    if (changed) notifyListeners();
+    if (changed) _changed();
   }
 
   /// Adds events restored from storage, keeping the timeline newest first.
-  /// Events already in the log (published since launch) are kept.
+  /// Events already in the log (published since launch) are kept. Notifies
+  /// only when something was added: a sync with only changes to known
+  /// events (their tags, which [annotations] reports) leaves the log as
+  /// it is.
   void addHistory(Iterable<AppEvent> history) {
     final known = {for (final e in _events) e.id};
+    final added = [
+      for (final e in history)
+        if (known.add(e.id)) e,
+    ];
+    if (added.isEmpty) return;
     _events
-      ..addAll(history.where((e) => !known.contains(e.id)))
+      ..addAll(added)
       ..sort((a, b) => b.time.compareTo(a.time));
-    notifyListeners();
+    _changed();
   }
 
   @override
   void dispose() {
     _subscription.cancel();
+    for (final a in _watched) {
+      a.removeListener(_onAnnotations);
+    }
+    _watched.clear();
+    _annotations.dispose();
     super.dispose();
   }
+}
+
+/// A [ChangeNotifier] that notifies when [fire]d.
+class _Signal extends ChangeNotifier {
+  void fire() => notifyListeners();
 }
 
 /// Scrollable timeline of events, newest at the top.
@@ -326,11 +415,9 @@ class EventTimeline extends StatefulWidget {
   const EventTimeline({
     super.key,
     required this.log,
-    this.focus,
+    this.filters,
     this.deviceId,
-    this.onlyDevice,
-    this.showSystemEvents,
-    this.search,
+    this.profileId,
     this.padding = const EdgeInsets.all(12),
   });
 
@@ -342,31 +429,22 @@ class EventTimeline extends StatefulWidget {
   /// This device's ID: events without a device ID (not saved yet) are its.
   final String? deviceId;
 
-  /// The one device whose events show, set by tapping an event's device
-  /// ([EventDeviceTag]) and cleared with the [DeviceFilterChip] at the top
-  /// of the Monitoring tab; null, every device's. Kept by the caller, so it
-  /// survives the tab being rebuilt; defaults to an own one, null.
-  final ValueNotifier<String?>? onlyDevice;
+  /// The signed-in account's profile (null signed out): only its events
+  /// show ([ofProfile]), as the [EventCount] counts them.
+  final String? profileId;
 
-  /// Whether system events show (the [ShowSystemEvents] toggle): on, every
-  /// event, such as "Application started" and sign-ins; off, only grabs
-  /// ([isGrab]: clips, by hand, on motion, at start, on a schedule or for
-  /// Capture all, the Capture all requests, and the suggestions about
-  /// clips). Kept by the caller; defaults to an own one, on.
-  final ValueNotifier<bool>? showSystemEvents;
-
-  /// The [EventSearch] text: only the events it matches ([eventMatches])
-  /// show; blank, every one. Kept by the caller; defaults to an own one,
-  /// blank.
-  final ValueNotifier<String>? search;
+  /// What shows ([EventFilters]: the device picked, system events, the
+  /// search) and the event to open ([EventFilters.focus]). Kept by the
+  /// caller, so they survive the tab being rebuilt; defaults to an own
+  /// one, showing every event.
+  final EventFilters? filters;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
-  /// clip, a Capture all request, or a suggestion about a clip ("Is this
-  /// Rex?"), which waits for an answer.
+  /// clip (Capture all's too) or a suggestion about a clip ("Is this
+  /// Rex?"), which waits for an answer. A Capture all request has no
+  /// video of its own: it's a system event.
   static bool isGrab(AppEvent event) =>
-      event is ClipRequested ||
-      event is SubjectSuggestion ||
-      event.type == AppEvent.captureAllType;
+      event is ClipRequested || event is SubjectSuggestion;
 
   /// [events] of [profileId], the signed-in account's profile (null
   /// signed out): its own, and those without a profile (recorded signed
@@ -410,13 +488,13 @@ class EventTimeline extends StatefulWidget {
     ];
   }
 
-  /// The ID of an event to scroll to and outline (an event opened from
-  /// elsewhere, such as a subject's map). Setting it again, even to the
-  /// same ID, scrolls to it again.
-  final ValueListenable<String?>? focus;
-
-  /// How long an event opened through [focus] stays outlined.
+  /// How long an event opened through [EventFilters.focus] stays outlined.
   static const Duration highlightFor = Duration(seconds: 4);
+
+  /// A new event at the top scrolls the list back up to it only when the
+  /// list is scrolled less than this far down: further down, the user is
+  /// reading older events and stays where they are.
+  static const double followNewWithin = 200;
 
   @override
   State<EventTimeline> createState() => _EventTimelineState();
@@ -425,35 +503,22 @@ class EventTimeline extends StatefulWidget {
 class _EventTimelineState extends State<EventTimeline> {
   final _scroll = ScrollController();
 
-  ValueNotifier<String?>? _ownFilter;
-  ValueNotifier<String?> get _filter =>
-      widget.onlyDevice ?? (_ownFilter ??= ValueNotifier(null));
+  EventFilters? _ownFilters;
+  EventFilters get _filters =>
+      widget.filters ?? (_ownFilters ??= EventFilters());
 
-  ValueNotifier<bool>? _ownSystem;
-  ValueNotifier<bool> get _system =>
-      widget.showSystemEvents ?? (_ownSystem ??= ValueNotifier(true));
-
-  /// The events of the device shown ([_filter]), or of every device.
-  /// Events not saved yet have no device ID; they're this device's.
-  List<AppEvent> get _ofDevices => EventTimeline.ofDevices(
-    widget.log.events,
+  /// The events at each filter step ([EventFilters.viewOf]).
+  EventView get _view => _filters.viewOf(
+    widget.log,
     deviceId: widget.deviceId,
-    onlyDevice: _filter.value,
+    profileId: widget.profileId,
   );
 
-  ValueNotifier<String>? _ownSearch;
-  ValueNotifier<String> get _search =>
-      widget.search ?? (_ownSearch ??= ValueNotifier(''));
-
-  /// [_ofDevices], only the grabs while [_system] is off.
-  List<AppEvent> get _ofKinds =>
-      EventTimeline.ofKinds(_ofDevices, showSystemEvents: _system.value);
-
-  /// The events shown: [_ofKinds], only those matching [_search].
-  List<AppEvent> get _shown => EventTimeline.matching(_ofKinds, _search.value);
-
-  /// Each card's key, to find it once it's built.
+  /// Each shown card's key, to find it once it's built.
   final _cards = <String, GlobalKey>{};
+
+  /// The newest event shown, to tell a new event from other changes.
+  String? _newest;
 
   /// The outlined event, while [EventTimeline.highlightFor] lasts.
   String? _highlighted;
@@ -462,75 +527,90 @@ class _EventTimelineState extends State<EventTimeline> {
   @override
   void initState() {
     super.initState();
-    widget.log.addListener(_onEvent);
-    widget.focus?.addListener(_onFocus);
-    _filter.addListener(_onFilter);
-    _system.addListener(_onFilter);
-    _search.addListener(_onFilter);
+    _listen(widget.log, _filters);
+    _newest = _view.shown.firstOrNull?.id;
     // The tab may be built only once the event was asked for.
-    if (widget.focus?.value != null) _onFocus();
+    _onFocusRequest();
+  }
+
+  void _listen(EventLog log, EventFilters filters) {
+    log.addListener(_onEvent);
+    log.annotations.addListener(_onAnnotations);
+    filters.addListener(_onFilter);
+    filters.focusRequests.addListener(_onFocusRequest);
+  }
+
+  void _unlisten(EventLog log, EventFilters filters) {
+    log.removeListener(_onEvent);
+    log.annotations.removeListener(_onAnnotations);
+    filters.removeListener(_onFilter);
+    filters.focusRequests.removeListener(_onFocusRequest);
   }
 
   @override
   void didUpdateWidget(EventTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.log != widget.log) {
-      oldWidget.log.removeListener(_onEvent);
-      widget.log.addListener(_onEvent);
-    }
-    if (oldWidget.focus != widget.focus) {
-      oldWidget.focus?.removeListener(_onFocus);
-      widget.focus?.addListener(_onFocus);
-    }
-    if (oldWidget.onlyDevice != widget.onlyDevice) {
-      (oldWidget.onlyDevice ?? _ownFilter)?.removeListener(_onFilter);
-      _filter.addListener(_onFilter);
-    }
-    if (oldWidget.showSystemEvents != widget.showSystemEvents) {
-      (oldWidget.showSystemEvents ?? _ownSystem)?.removeListener(_onFilter);
-      _system.addListener(_onFilter);
-    }
-    if (oldWidget.search != widget.search) {
-      (oldWidget.search ?? _ownSearch)?.removeListener(_onFilter);
-      _search.addListener(_onFilter);
+    final oldFilters = oldWidget.filters ?? _ownFilters!;
+    if (oldWidget.log != widget.log || oldFilters != _filters) {
+      _unlisten(oldWidget.log, oldFilters);
+      _listen(widget.log, _filters);
+      _newest = _view.shown.firstOrNull?.id;
     }
   }
 
-  void _onFilter() => setState(() {});
-
   @override
   void dispose() {
-    widget.log.removeListener(_onEvent);
-    widget.focus?.removeListener(_onFocus);
-    _filter.removeListener(_onFilter);
-    _system.removeListener(_onFilter);
-    _search.removeListener(_onFilter);
-    _ownFilter?.dispose();
-    _ownSystem?.dispose();
-    _ownSearch?.dispose();
+    _unlisten(widget.log, _filters);
+    _ownFilters?.dispose();
     _unhighlight?.cancel();
     _scroll.dispose();
     super.dispose();
   }
 
-  void _onFocus() {
-    final id = widget.focus?.value;
-    if (id == null) return;
-    // An event of another device than the one shown, opened from
-    // elsewhere: show every device.
-    if (!_ofDevices.any((e) => e.id == id) &&
-        widget.log.events.any((e) => e.id == id)) {
-      _filter.value = null;
+  void _onFilter() {
+    _newest = _view.shown.firstOrNull?.id;
+    setState(() {});
+  }
+
+  /// A clip's tags changed: the search matches again ([EventLog.annotations]).
+  /// The cards follow their own tags; without a search, nothing else does.
+  void _onAnnotations() {
+    if (_filters.search.value.trim().isNotEmpty) setState(() {});
+  }
+
+  /// Handles an event asked for with [EventFilters.focus], once. Asked for
+  /// while the tree builds (this timeline just built, in [initState]), only
+  /// after the frame: it may change the filters, which other widgets show,
+  /// and those mustn't change during a build.
+  void _onFocusRequest() {
+    void handle() {
+      if (!mounted) return;
+      if (_filters.takeFocus() case final id?) _focus(id);
     }
-    // A system event, with them hidden: show them.
-    if (!_ofKinds.any((e) => e.id == id) &&
-        widget.log.events.any((e) => e.id == id)) {
-      _system.value = true;
+
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase == SchedulerPhase.idle ||
+        phase == SchedulerPhase.postFrameCallbacks) {
+      handle();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) => handle());
+      WidgetsBinding.instance.ensureVisualUpdate();
     }
-    // An event the search hides: clear it.
-    if (!_shown.any((e) => e.id == id) &&
-        widget.log.events.any((e) => e.id == id)) {
-      _search.value = '';
+  }
+
+  /// Shows [id]: clears whichever filter hides it, scrolls to it and
+  /// outlines it for [EventTimeline.highlightFor].
+  void _focus(String id) {
+    bool hasIt(List<AppEvent> events) => events.any((e) => e.id == id);
+    // Only the profile's events can show.
+    if (hasIt(_view.mine)) {
+      // An event of another device than the one shown, opened from
+      // elsewhere: show every device.
+      if (!hasIt(_view.ofDevices)) _filters.onlyDevice.value = null;
+      // A system event, with them hidden: show them.
+      if (!hasIt(_view.ofKinds)) _filters.showSystemEvents.value = true;
+      // An event the search hides: clear it.
+      if (!hasIt(_view.shown)) _filters.search.value = '';
     }
     _unhighlight?.cancel();
     _unhighlight = Timer(EventTimeline.highlightFor, () {
@@ -556,7 +636,7 @@ class _EventTimelineState extends State<EventTimeline> {
         );
         return;
       }
-      final events = _shown;
+      final events = _view.shown;
       final index = events.indexWhere((e) => e.id == id);
       if (index < 0 || tries >= 8) return;
       if (!_scroll.hasClients) return _reveal(id, tries + 1);
@@ -567,52 +647,49 @@ class _EventTimelineState extends State<EventTimeline> {
     });
   }
 
+  /// The log changed. Only a new event at the top brings the list back up
+  /// to it, and only when it's near the top already: a sync that only
+  /// changed or added older events leaves it where the user scrolled.
   void _onEvent() {
+    final newest = _view.shown.firstOrNull?.id;
+    final arrived = newest != null && newest != _newest;
+    _newest = newest;
     setState(() {});
-    // Bring the newest event into view.
+    if (!arrived) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
-          0,
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-        );
-      }
+      if (!mounted || !_scroll.hasClients) return;
+      if (_scroll.offset > EventTimeline.followNewWithin) return;
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_search.value.trim().isEmpty) return _list(context);
-    // Recognition tags clips once they're recorded: match again when a
-    // clip's tags or object tags change.
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        for (final e in _ofKinds)
-          if (e is ClipRequested) e.annotations,
-      ]),
-      builder: (context, _) => _list(context),
-    );
-  }
-
-  Widget _list(BuildContext context) {
-    final events = _shown;
+    final view = _view;
+    final events = view.shown;
+    // Keys only for the cards that can show.
+    final shownIds = {for (final e in events) e.id};
+    _cards.removeWhere((id, _) => !shownIds.contains(id));
     if (events.isEmpty) {
       return FeedMessage(
         icon: Icons.notifications_none,
-        message: widget.log.events.isEmpty
+        message: view.mine.isEmpty
             ? 'No events'
-            : _ofDevices.isEmpty
-            ? 'No events on ${_filter.value}'
-            : _ofKinds.isEmpty
+            : view.ofDevices.isEmpty
+            ? 'No events on ${_filters.onlyDevice.value}'
+            : view.ofKinds.isEmpty
             ? 'No grabs yet: system events are hidden'
-            : 'No events match "${_search.value.trim()}"',
+            : 'No events match "${_filters.search.value.trim()}"',
       );
     }
     // The cards' tags and subjects filter the search when tapped
     // ([EventSearchScope]).
     return EventSearchScope(
-      search: _search,
+      search: _filters.search,
       child: ListView.separated(
         controller: _scroll,
         padding: widget.padding,
@@ -623,26 +700,37 @@ class _EventTimelineState extends State<EventTimeline> {
           final device = EventTimeline.deviceOf(event, widget.deviceId);
           final card = KeyedSubtree(
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
-            child: device == null
-                ? event.buildCard(context)
-                // The device it was taken on, above the card: tapping it
-                // shows only that device's events.
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Align(
-                        alignment: AlignmentDirectional.centerStart,
+            // Above the card, the device it was taken on (tapping it
+            // shows only that device's events) and how many copies of it
+            // there are.
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    if (device != null)
+                      Flexible(
                         child: EventDeviceTag(
                           key: Key('event-device-${event.id}'),
                           device: device,
                           thisDevice: device == widget.deviceId,
                           os: event.os,
-                          value: _filter,
+                          value: _filters.onlyDevice,
                         ),
                       ),
-                      event.buildCard(context),
-                    ],
-                  ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: EventCopiesBadge(
+                        key: Key('event-copies-${event.id}'),
+                        event: event,
+                      ),
+                    ),
+                  ],
+                ),
+                event.buildCard(context),
+              ],
+            ),
           );
           if (event.id != _highlighted) return card;
           return DecoratedBox(
@@ -663,7 +751,7 @@ class _EventTimelineState extends State<EventTimeline> {
   }
 }
 
-/// Makes the Events search ([EventTimeline.search]) reachable from the
+/// Makes the Events search ([EventFilters.search]) reachable from the
 /// cards in the timeline, and from the clip player opened from one, so a
 /// tapped tag or subject filters the events by it ([toggle]) and shows
 /// highlighted while it's the search ([isActive]). Cards shown outside a
@@ -740,7 +828,7 @@ bool eventMatches(AppEvent event, String query) {
 
 /// The events search at the top of the Monitoring tab: a search icon
 /// button until tapped, then a text field, focused so the user can type;
-/// what's typed goes to [value] (the timeline's [EventTimeline.search]) as
+/// what's typed goes to [value] (the timeline's [EventFilters.search]) as
 /// it's typed. It folds back into the icon when it loses focus empty, or
 /// with its x, which clears it first; while it has text it stays open.
 class EventSearch extends StatefulWidget {
@@ -858,68 +946,53 @@ class _EventSearchState extends State<EventSearch> {
 }
 
 /// The event counts beside the [EventSearch], as "3 / 12": *all* is
-/// every event of [profileId] on this device ([EventTimeline.ofProfile]: recorded
-/// here, restored, or fetched from the cloud, so it grows as sync brings
-/// more), and *matching* those of them left after the search and the
-/// filters, with the same steps as the [EventTimeline].
+/// every event of [profileId] on this device ([EventTimeline.ofProfile]:
+/// recorded here, restored, or fetched from the cloud, so it grows as sync
+/// brings more), and *matching* those of them left after the search and
+/// the filters: what the [EventTimeline] shows, from the same
+/// [EventFilters.viewOf].
 class EventCount extends StatelessWidget {
   const EventCount({
     super.key,
     required this.log,
+    required this.filters,
     required this.profileId,
     required this.deviceId,
-    required this.onlyDevice,
-    required this.showSystemEvents,
-    required this.search,
   });
 
   final EventLog log;
+  final EventFilters filters;
 
   /// The signed-in account's profile; null signed out.
   final String? profileId;
   final String? deviceId;
-  final ValueListenable<String?> onlyDevice;
-  final ValueListenable<bool> showSystemEvents;
-  final ValueListenable<String> search;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([log, onlyDevice, showSystemEvents, search]),
     // Recognition tags clips once they're recorded: count again when a
     // clip's tags or object tags change.
-    builder: (context, _) => ListenableBuilder(
-      listenable: Listenable.merge([
-        for (final e in log.events)
-          if (e is ClipRequested) e.annotations,
-      ]),
-      builder: (context, _) {
-        final mine = EventTimeline.ofProfile(log.events, profileId);
-        final all = mine.length;
-        final shown = EventTimeline.matching(
-          EventTimeline.ofKinds(
-            EventTimeline.ofDevices(
-              mine,
-              deviceId: deviceId,
-              onlyDevice: onlyDevice.value,
-            ),
-            showSystemEvents: showSystemEvents.value,
+    listenable: Listenable.merge([log, filters, log.annotations]),
+    builder: (context, _) {
+      final view = filters.viewOf(
+        log,
+        deviceId: deviceId,
+        profileId: profileId,
+      );
+      final all = view.mine.length;
+      final shown = view.shown.length;
+      final theme = Theme.of(context);
+      return Tooltip(
+        message: '$shown of $all events shown',
+        child: Text(
+          '$shown / $all',
+          key: const Key('event-count'),
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontFeatures: const [FontFeature.tabularFigures()],
           ),
-          search.value,
-        ).length;
-        final theme = Theme.of(context);
-        return Tooltip(
-          message: '$shown of $all events shown',
-          child: Text(
-            '$shown / $all',
-            key: const Key('event-count'),
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        );
-      },
-    ),
+        ),
+      );
+    },
   );
 }
 
@@ -928,7 +1001,7 @@ class EventCount extends StatelessWidget {
 /// device's in bold, and the operating system's name ([os], left out on
 /// events recorded before events had one). Tapping it
 /// shows only that device's events ([value], the timeline's
-/// [EventTimeline.onlyDevice]); tapped again, every device's.
+/// [EventFilters.onlyDevice]); tapped again, every device's.
 class EventDeviceTag extends StatelessWidget {
   const EventDeviceTag({
     super.key,
@@ -1035,10 +1108,10 @@ class DeviceFilterChip extends StatelessWidget {
   );
 }
 
-/// The small "Show system events" toggle at the bottom of the Monitoring
-/// tab: an icon, no label (its tooltip names it), highlighted while on,
-/// switching [value] (the timeline's [EventTimeline.showSystemEvents]). On
-/// in DEV, off otherwise, at launch.
+/// The small "Show system events" toggle in the Monitoring tab's top row,
+/// after the count: an icon, no label (its tooltip names it), highlighted
+/// while on, switching [value] ([EventFilters.showSystemEvents]). On in
+/// DEV, off otherwise, at launch.
 class ShowSystemEvents extends StatelessWidget {
   const ShowSystemEvents({super.key, required this.value});
 
@@ -1112,9 +1185,4 @@ class EventCard extends StatelessWidget {
       ),
     );
   }
-}
-
-String formatEventTime(DateTime t) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
 }

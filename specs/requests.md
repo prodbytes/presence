@@ -3541,7 +3541,326 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Settings screen](settings.md), [Configuration](configuration.md),
        [Devices, users and places](devices-users-places.md).
 
-294. **Every view change looks the same.** (2026-10-06)
+293. **Copies count on events; copy on capture over S3 and MQTT.** (2026-10-06)
+     - Asked: "I still don't see the copies count on events. When an
+       event is taken, copy to S3 and send an MQTT message to other
+       devices to copy."
+     - Checked: the flow already worked as asked: a saved event is
+       uploaded to S3 by the next pass and then published on `events`
+       (at capture, and again when its clip completes, after the
+       recording, thumbnail and clip record are up); receivers store it
+       at once and fetch the clip, thumbnail and recording from S3. A
+       new end-to-end test covers it.
+     - Changed: **copy acks** ([Event copies](event-copies.md)): a device
+       that holds a full copy of another device's event (record, tagged
+       frames, clip with its recording; the record alone without a clip)
+       publishes `{v:1, kind:"copied", deviceId, identityId, sentAt,
+       eventIds}` on `acks`, batched (1 s, up to 32 IDs and 1 KB per
+       message, one per second, at most 1000 waiting), once per event,
+       retried at the next full fetch if it didn't go;
+       `LiveSync.parseCopied` validates them (version, kind, identity,
+       safe IDs, integer `sentAt`, 1 KB), own ones are ignored, repeats
+       change nothing. **`EventCopies`** keeps per event whether this
+       device and the cloud hold it (`CloudSync.copyOf`) and which devices
+       acked it, saved in the `settings` store (`copies`, the 2000 most
+       recent events). **A copies count** on every event card (beside the
+       device tag) and in the clip player: "3 copies", "1 copy — not
+       uploaded yet", with the holders in the tooltip; with live sync
+       off, what's known, and a note that other devices' copies are
+       unknown. Holders are not written into the event JSON in S3 (each
+       ack would change its ETag and loop uploads between devices):
+       MQTT only. Deleted events are neither counted nor acked nor
+       shown with a count, and a deleted device is dropped as a holder. No IoT
+       policy change. New `event_copies_test.dart`. Specs: [Event
+       copies](event-copies.md), [Live sync](live-sync.md),
+       [Events](events.md), [Cloud sync](cloud-sync.md), [Device
+       presence](device-presence.md), [Recording and data
+       formats](data-formats.md), [index](README.md).
+
+294. **A larger version label.** (2026-10-06)
+     - Asked: make the version label larger as well (after the device and
+       profile IDs, #219).
+     - Changed: the build's version at the bottom of Settings ("Presence
+       0.6.…") went from `bodySmall` (12 sp) to `bodyMedium` (14 sp), the
+       IDs' size under it. The About text and the dev-mode label in the
+       title bar are unchanged. Specs: [Settings](settings.md).
+
+295. **Auth review fixes: roles, vouchers and link codes.** (2026-10-06)
+     - Asked: fix every finding of a code review of the auth API and its
+       client (roles, vouchers, profiles, link codes), with tests.
+     - Changed (security):
+       - **Root domains need `hd`:** a `PRESENCE_ROOT_DOMAINS` match now
+         also needs the ID token's `hd` claim to be that domain (the
+         account is managed by its Google Workspace). A personal Google
+         account registered with a `nu01.com` address, verified once, was
+         root forever. Root emails are unchanged, documented as Gmail or
+         Workspace addresses only. The HTTP API's JWT authorizer passes
+         every claim, `hd` included.
+       - **Admin codes stay with roots:** `GET /api/auth/vouchers` sends a
+         `presence_admin` voucher's code to roots only (`"code": null,
+         "hidden": true` otherwise), and only roots delete one (403, a
+         conditional delete); the Admin tab shows "Hidden code" without
+         buttons.
+       - **Linked accounts share membership only:** a subject linked to
+         another account's profile gets `presence_user` when the owner
+         has it, never `presence_admin` or `presence_root`.
+       - **Only verified owner emails:** the profile keeps `ownerEmail`
+         (and the new `ownerHd`) only from a verified token; an unverified
+         email never replaces it, and one kept unverified before is
+         dropped at the owner's next unverified sign-in.
+       - **Voucher codes:** Admin vouchers always get a random code (a
+         chosen one is 400); chosen Member codes need at least 10 letters
+         and digits; after 10 wrong codes within an hour an email gets 429
+         for the rest of the hour (counted in `UserRolesTable`). The Admin
+         tab's code field is blank (random) by default, the suggestion
+         only on the dice, never for Admin codes; the redeem field takes
+         40 characters.
+       - **Atomic grants:** a role grant is one `ADD` to the roles string
+         set (a list or string written by hand is rewritten as a set,
+         conditionally, with retries), so concurrent grants can't lose
+         roles.
+       - **Link codes:** a link checks the code, then refuses (409) before
+         using it up with a conditional delete, so a refusal leaves it
+         usable.
+     - Changed (code): one `Caller.from(event)` (claims, verified email,
+       `hd`, bearer token) for all five handlers; `Http`, `Aws` (one
+       DynamoDB client per function instance; the sanitized 502 every
+       handler now answers on AWS failures), `Attrs` and `UserRoles`
+       helpers replace the copies in each handler.
+     - Documented: the anonymous route's flood risk and per-IP WAF rules
+       (not deployed), `iot:AttachPolicy` on `*`, profile-ID squatting,
+       and that a 402 reveals a partial-discount code.
+     - Deploy: profiles of root-domain owners share membership with
+       linked accounts again once the owner signs in after the deploy
+       (which stores `ownerHd`).
+     - Specs: [Auth API](auth-api.md), [Membership](membership.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md).
+     - Deploy fix: the `0.6.202610061950` deploys failed creating the
+       auth API's change set ("Template format error: 'Description' length
+       is greater than 1024": this change made the template's description
+       1081 characters). It was shortened to 960, with a note of the limit.
+
+296. **UI review fixes: Monitoring focus, timeline scroll, filters and
+     pills.** (2026-10-06)
+     - Asked: fix everything a code review found in the UI (Monitoring,
+       events, subjects, status pills, settings sliders), with tests.
+     - Changed:
+       - Opening an event (a dot on a subject's map) is a **one-shot
+         request** (`EventFilters.focus`, taken once): coming back to
+         Monitoring no longer re-opens it, which cleared a search typed
+         since, reset the device filter and system events toggle, and
+         threw "setState() called during build". Filter resets happen
+         after the frame, never during a build.
+       - The timeline no longer **jumps to the top** on every change of
+         the log: `EventLog.addHistory` notifies only when it added
+         something, and the list scrolls up only for a new newest event
+         while it's within 200 dp of the top.
+       - **One filter model**, `EventFilters` (device, system events,
+         search, focus) with `viewOf`, whose steps are kept until their
+         inputs change; it replaces the home screen's four loose
+         notifiers and the fallback copies in `MonitoringView`,
+         `EventTimeline` and `EventCount`. `EventLog.events` is a snapshot
+         made once per change (`version`), `eventsOf(profile)` is kept the
+         same way, and `EventLog.annotations` reports clips' tag changes
+         (no more merged listenable over every clip per rebuild); the
+         subjects are worked out again only on a change.
+       - The timeline, the subjects map and a subject's screen show only
+         the **signed-in profile's events**, like the count (which read
+         "5 / 5" over 6 cards); the known limitation is gone.
+       - **Status pills** are live regions only for the camera message
+         and the health warning (the readiness countdown was read out
+         every second); tappable pills are buttons to screen readers.
+       - **Settings sliders** change (save and sync) their setting once,
+         when let go, not on every drag frame.
+       - The battery reader and the filters are made only when used (the
+         battery was started in `dispose`); the timeline's card keys are
+         pruned to the cards shown; subject frames decode at display
+         size; the subject chips' always-matching pattern is a field.
+       - Refactors: one time-format helper (`lib/time_format.dart`), one
+         `Dot` widget, `HomeTabs` (`lib/home_tabs.dart`) for the tabs,
+         `_HomeAppBar` and `_CameraButtons` out of `HomeScreen`.
+       - Docs: the system events toggle is in the top row, cards are
+         4 px apart.
+     - Tests: `event_log_test.dart`, `status_pill_test.dart`, and new
+       cases in `events_search_test.dart`, `subjects_test.dart` (the
+       focus repro in the app), `widget_test.dart` (scroll kept) and
+       `settings_test.dart` (slider commits on release). Specs:
+       [Events](events.md), [Monitoring](monitoring.md),
+       [Navigation](navigation.md), [Subjects](subjects.md),
+       [Settings](settings.md), [Devices, users and
+       places](devices-users-places.md).
+
+297. **Sync and storage integrity fixes from a code review.** (2026-10-06)
+     - Asked: fix everything a code review found in cloud sync, live
+       sync and local storage (one of five fix PRs from the review).
+     - Changed:
+       - **A pass belongs to one profile** (`CloudSync._Pass`): it keeps
+         the session, store and profile it started with, stamps, hands
+         over and uploads for that profile only, and checks before each
+         step; signing out, moving to another profile or reconnecting
+         ends it at its next step (`_epoch`).
+       - **One damaged record no longer stops syncing or the history:**
+         a new codec, `Records` (`lib/storage/records.dart`), reads
+         events, clips and settings tolerantly (required fields, integral
+         doubles as ints, wrong-typed text dropped, damaged recording
+         references dropped) for `Persistence` (restore, `importRemote`)
+         and `CloudSync`; a damaged bucket object is skipped, logged and
+         not downloaded again until its ETag changes; damaged settings in
+         the cloud count as none and are replaced; a 404 between listing
+         and download is skipped.
+       - **IDs from the bucket are validated** like live sync's (event,
+         clip, frame IDs safe; an event's `id` must be its key's); media
+         IDs must be `[A-Za-z0-9_-]` (Android file names).
+       - **Clock skew:** S3's `RequestTimeTooSkewed` corrects a shared
+         `AwsClock` from the answer's `ServerTime` or `Date`, used to sign
+         S3 and live sync and to judge credential expiry; the pass runs
+         again, and a persistent one says "This device's clock is off by N
+         min".
+       - Live sync closes a dropped connection; the ack flush is tied to
+         the connection loop's generation; one envelope parser and one
+         random-ID helper. Cognito credential fetches are single-flight,
+         and one cleared meanwhile isn't kept. A recording download that
+         meets expired credentials is retried with new ones at once.
+         `PresencePinger` takes on a new live sync or interval.
+       - Storage: restores read only the clips the events show (live
+         imports no longer reread every clip); unreadable saved settings
+         no longer stop settings from saving; a cloud settings record of a
+         newer config version isn't applied; each retention run deletes
+         recordings no clip uses and settles clips left `recording` by a
+         crash; moving the signed-in account to another profile brings
+         its events not yet uploaded from the profile before.
+       - `cloud_sync.dart` helpers deduplicated (record decoding, event
+         key and recording key patterns, media listing, pending marks).
+       - Deferred: streaming recording downloads into the media store
+         (documented in Cloud sync's limitations); AWS IoT's own clock
+         refusal isn't recognized.
+       - Tests: `record_integrity_test.dart` (new), and new cases in
+         `cloud_sync_test.dart`, `s3_test.dart`, `live_sync_test.dart`,
+         `profile_test.dart` and `device_presence_test.dart`.
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Profiles](profiles.md), [Event copies](event-copies.md),
+       [Device presence](device-presence.md), [Event
+       retention](event-retention.md), [Storage](storage.md).
+
+298. **Reliability fixes from a code review.** (2026-10-06)
+     - Asked: fix everything a code review found in the app's sign-in,
+       camera, clips and recognition code.
+     - Changed:
+       - Sign-in: a failed roles check retries on its own (5 s, 15 s,
+         30 s, then every minute, and at once when the auth API answers
+         again), so an unattended phone that rebooted offline gets its
+         access back; the silent sign-in backoff starts over at a UI
+         sign-in and at sign-out; emails in the log (Dart and Kotlin, kept
+         in files on the phone) are masked (`maskEmail`).
+       - Camera: on web an ended video track reports the camera lost and
+         it's reopened every 10 s like Android's; a recorder that can't
+         start is retried at the next interval and logged once instead of
+         throwing every second; pausing and resuming are serialized, and
+         an open overtaken by a pause, resume or flip releases its camera
+         (no leaked camera, no stale error); unhandled clip futures are
+         logged.
+       - Web memory: live and loaded recording Blob URLs are revoked once
+         nothing uses them (`MediaUrls`, `ClipMedia.persisted`,
+         `acquireUrl`/`releaseUrl`); platform views reuse one factory and
+         release their elements; the canvas-to-JPEG code is one helper
+         (`web_dom.dart`); the TFLite model gets only its own bytes.
+       - Clips: the WebM cutter copies slices once instead of spreading
+         bytes into lists (output byte-identical); a failed frame grab
+         no longer leaves Name subject stuck; the Android player disposes
+         a controller that failed or was overtaken by a newer load.
+       - Recognition: Auto goes ahead of waiting new clips, and a new clip
+         waiting for memory steps out of the queue instead of holding it
+         (and Auto) for up to 5 min; searched clips and reference
+         embeddings no longer in the log are dropped; checking for
+         references no longer sorts the whole log.
+       - Kept: the cooldown's clamp of a clock set back stays where the
+         cooldown is read (only there can it see the clock went back).
+       - Tests: roles retry, silent backoff reset and masked log, masking,
+         `MediaUrls`, recorder start failure, pause/resume/flip during an
+         open, a throwing frame grab, Auto ahead of a memory wait.
+       - Specs: [Sign-in](sign-in.md), [Camera screen](camera.md),
+         [Clips](clips.md), [Subject recognition](recognition.md),
+         [Android](android.md).
+
+299. **The copies label: just "X copies" or "Not synced".** (2026-10-07)
+     - Asked: on the events' copy label, just say "X copies", or "Not
+       synced" for zero copies.
+     - Changed:
+       - The label is "Not synced" when no copy is held beyond this
+         device (not in the cloud, no other device holds it; it was "1
+         copy — not uploaded yet"), and otherwise "N copies" counting
+         every holder, this device included ("1 copy" in the singular).
+         A not-synced event shows a cloud-off icon.
+       - The event details (clip player) show the same label; the
+         holders, listed after the count there before, are in the tooltip
+         and screen-reader label, as on the cards (with the live-sync-off
+         note).
+       - Tests: the label for cloud-only, received-not-uploaded, here-only
+         and unknown events; the not-synced card's tooltip; the details'
+         label, tooltip and semantics.
+       - Specs: [Event copies](event-copies.md), [Events](events.md).
+
+300. **Event details: map, device and Delete event.** (2026-10-07)
+     - Asked (voice): in the event detail page, at the end, show the
+       event's map and device, and a delete button that deletes the event
+       from all devices.
+     - Changed: the clip player (the event's details) ends, after Tags,
+       with **Where** (a small, still 140 dp map of the event's location
+       with a pin, its coordinates and how the position was found; "No
+       location for this event" without one), **Device** (the recording
+       device's OS icon, ID, "this device" for this one, OS name, and
+       signed in its presence dot), and, signed in with the event's
+       profile, an error-colored **Delete event** button. It asks "Delete
+       this event? It will be hidden on every device."; Delete closes the
+       player and a snack bar says "Event deleted on every device". New
+       `Persistence.deleteEvent(id, profileId:)` soft-deletes the event
+       and the "Is this Rex?" suggestions about its clip the way device
+       deletion does (`deletedAt`, out of the event log, uploaded deleted
+       and published over live sync; a deleted copy wins and isn't
+       resurrected), sharing its code (`_softDelete`); the event's copies
+       are forgotten. Any device's event can be deleted, this one's too.
+       Not in DEV (no profile), as device deletion. New
+       `lib/event_details.dart` (`EventDetailsScope`, `EventMap`,
+       `EventDevice`, `DeleteEventDialog`) and
+       `test/event_details_test.dart`. Specs: [Clips](clips.md),
+       [Events](events.md), [Device deletion](device-deletion.md),
+       [Data formats](data-formats.md), [Cloud sync](cloud-sync.md),
+       [Event copies](event-copies.md).
+
+301. **The device and profile IDs first in Settings, in two columns.**
+     (2026-10-07)
+     - Asked: "On the management page, let device ID and profile ID be the
+       first thing on the page"; then "make it two columns for the ids to
+       save space". The management page is read as Settings, where the
+       IDs were (at the very bottom); the Admin tab manages users and
+       vouchers, not this device, and has no device ID.
+     - Changed: the Device and Profile IDs moved from under the version
+       to the very top of Settings, above Location, side by side (Device
+       left, Profile right), each a label over its selectable ID, wrapping
+       within its column; stacked only when a column would be under 120 dp
+       at 1x text (scaled with the font: at 320 dp, two columns at 1x,
+       stacked at 2x). Same style (`bodyMedium`, `onSurfaceVariant`). The
+       version, health line and Add a device stay at the bottom; the
+       health line now sits under the version.
+     - Tests: the IDs come first (above the first section), in two columns
+       at 320 and 1280 dp at 1x and 1280 dp at 2x, stacked at 320 dp/2x,
+       within the screen; the add-device tests read the ID at the top; the
+       Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
+     - Specs: [Settings](settings.md), [Navigation](navigation.md).
+
+302. **Capture all requests are system events.** (2026-10-06)
+     - Asked: consider "Capture all" a system event: the one without
+       video; the clips taken for it can stay marked as Capture all.
+     - Changed: the Capture all request (`capture_all`, no video) is no
+       longer a grab (`EventTimeline.isGrab`), so Monitoring hides it
+       while system events are hidden. The clips each device takes for it
+       (`ClipRequested`, trigger `all`) are still grabs, titled "Capture
+       all" with the grid icon. Test: `capture_all_test.dart` (a restored
+       request isn't a grab). Specs: [Events](events.md),
+       [Camera screen](camera.md#capture-all).
+
+303. **Every view change looks the same.** (2026-10-06)
      - Asked: make all navigation transitions equal; the Admin view
        shouldn't change differently, it only needs the role.
      - Changed: Admin (and the Log) were already tabs flipping with the

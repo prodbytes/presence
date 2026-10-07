@@ -47,7 +47,8 @@ class CognitoCredentials {
     http.Client? client,
     DateTime Function()? now,
   }) : _client = client ?? http.Client(),
-       _now = now ?? DateTime.now;
+       // AWS's time as best known: credentials expire by its clock.
+       _now = now ?? AwsClock.shared.now;
 
   /// The `Logins` key for tokens Cognito issued itself (developer identities).
   static const String cognitoProvider = 'cognito-identity.amazonaws.com';
@@ -62,15 +63,49 @@ class CognitoCredentials {
   CognitoSession? _session;
   String? _sessionToken;
 
+  /// The fetch of a session under way, and the token it's for: callers
+  /// asking meanwhile share it (one auth API and Cognito call, not one
+  /// each).
+  Future<CognitoSession>? _inFlight;
+  String? _inFlightToken;
+
+  /// Bumped by [clear]: a fetch that started before isn't kept.
+  int _epoch = 0;
+
   /// A session for [idToken], reused until its credentials expire soon or
-  /// the token changes.
-  Future<CognitoSession> session(String idToken) async {
+  /// the token changes. Calls made while one is being fetched for the same
+  /// token share it.
+  Future<CognitoSession> session(String idToken) {
     final current = _session;
     if (current != null &&
         _sessionToken == idToken &&
         !current.credentials.expiresSoon(_now())) {
-      return current;
+      return Future.value(current);
     }
+    if (_inFlight case final fetching? when _inFlightToken == idToken) {
+      return fetching;
+    }
+    final epoch = _epoch;
+    final fetch = _fetch(idToken).then((session) {
+      // Not after a clear() (a sign-out, or rejected credentials).
+      if (epoch == _epoch) {
+        _session = session;
+        _sessionToken = idToken;
+      }
+      return session;
+    });
+    _inFlight = fetch;
+    _inFlightToken = idToken;
+    fetch.whenComplete(() {
+      if (identical(_inFlight, fetch)) {
+        _inFlight = null;
+        _inFlightToken = null;
+      }
+    }).ignore();
+    return fetch;
+  }
+
+  Future<CognitoSession> _fetch(String idToken) async {
     final profile = await _profileToken(idToken);
     final identityId = profile.identityId;
     final result = await _call('GetCredentialsForIdentity', {
@@ -93,8 +128,6 @@ class CognitoCredentials {
             : null,
       ),
     );
-    _session = session;
-    _sessionToken = idToken;
     return session;
   }
 
@@ -137,8 +170,11 @@ class CognitoCredentials {
 
   /// Forgets the session (on sign-out).
   void clear() {
+    _epoch++;
     _session = null;
     _sessionToken = null;
+    _inFlight = null;
+    _inFlightToken = null;
   }
 
   Future<Map<String, Object?>> _call(
