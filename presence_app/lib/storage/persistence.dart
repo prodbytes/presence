@@ -663,28 +663,83 @@ class Persistence implements DeviceSettings {
               ofDevice.contains(r['clipEventId']))
             if (r['id'] case final String id) id,
       };
-      final at = _now();
-      final clipIds = <String>{};
-      // The events in memory too, so a later save of one keeps it deleted.
-      final inLog = {
-        for (final e in _log?.events ?? const <AppEvent>[]) e.id: e,
-      };
-      for (final r in records) {
-        final id = r['id'];
-        if (id is! String || !ids.contains(id)) continue;
-        if (r['clipId'] case final String clipId) clipIds.add(clipId);
-        inLog[id]?.deletedAt = at;
-        await store.putEvent({
-          ...r,
-          AppEvent.deletedAtField: at.millisecondsSinceEpoch,
-        });
-      }
-      await _hide(store, ids, clipIds);
-      _changed(ids);
+      await _softDelete(store, records, ids);
       return ids.length;
     }();
     _track(delete);
     return delete;
+  }
+
+  /// Deletes the event [id] of [profileId] on every device (soft:
+  /// [AppEvent.deletedAt] set, the record kept), with the suggestions
+  /// about its clip, as [deleteDevice] does for a whole device: it leaves
+  /// the event log here, and cloud sync uploads it deleted (and live sync
+  /// publishes it), so the profile's other devices hide it too. Its clip
+  /// and recordings stay until the History setting or the bucket deletes
+  /// them. Any device's event, this one's too: a deleted ID never comes
+  /// back, and this device's next events are new ones.
+  ///
+  /// Runs after the history is restored and pending saves are done.
+  /// Returns whether it deleted it (false: no such event in the profile,
+  /// or deleted already).
+  Future<bool> deleteEvent(String id, {required String profileId}) {
+    final pending = List.of(_pending);
+    final restoring = _restoring;
+    final delete = () async {
+      await restoring?.then((_) {}, onError: (Object _) {});
+      await Future.wait(pending);
+      if (_disposed) return false;
+      final store = await _store;
+      final event = await store.getEvent(id);
+      if (event == null ||
+          AppEvent.isDeletedRecord(event) ||
+          AppEvent.profileOf(event) != profileId) {
+        return false;
+      }
+      // A suggestion goes with the clip it asks about.
+      final records = [
+        event,
+        for (final r in await store.allEvents())
+          if (r['type'] == SubjectSuggestion.suggestionType &&
+              r['clipEventId'] == id &&
+              !AppEvent.isDeletedRecord(r) &&
+              AppEvent.profileOf(r) == profileId)
+            r,
+      ];
+      await _softDelete(store, records, {
+        for (final r in records)
+          if (r['id'] case final String rid) rid,
+      });
+      return true;
+    }();
+    _track(delete);
+    return delete;
+  }
+
+  /// Marks the stored [records] whose IDs are in [ids] deleted (now), in
+  /// memory too, hides them ([_hide]) and names them changed, so cloud
+  /// sync uploads them deleted.
+  Future<void> _softDelete(
+    EventStore store,
+    List<Map<String, Object?>> records,
+    Set<String> ids,
+  ) async {
+    final at = _now();
+    final clipIds = <String>{};
+    // The events in memory too, so a later save of one keeps it deleted.
+    final inLog = {for (final e in _log?.events ?? const <AppEvent>[]) e.id: e};
+    for (final r in records) {
+      final id = r['id'];
+      if (id is! String || !ids.contains(id)) continue;
+      if (r['clipId'] case final String clipId) clipIds.add(clipId);
+      inLog[id]?.deletedAt = at;
+      await store.putEvent({
+        ...r,
+        AppEvent.deletedAtField: at.millisecondsSinceEpoch,
+      });
+    }
+    await _hide(store, ids, clipIds);
+    _changed(ids);
   }
 
   /// Takes the deleted events [ids] out of the event log, stops saving

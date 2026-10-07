@@ -124,6 +124,37 @@ on a tag's chip "Remove tag bicycle from this event".
   Auto)" only where Auto can run), or, once searched with nothing found,
   "No tags: nothing was seen on this clip."
 
+## Where, Device and Delete event, at the end
+
+After Tags, below a divider, the details end with
+(`EventDetailsFooter`, [event_details.dart](../presence_app/lib/event_details.dart)):
+
+- **Where** (a place icon): a small map (140 dp high, `EventMap`) of the
+  event's location (`AppEvent.location`, the device's when it was
+  published) with a pin (a push pin when the position was pinned), the
+  OpenStreetMap credit, and under it the coordinates (5 decimals) and how
+  the position was found: "The device's position · ±20 m", "Set on the
+  map" or "Pinned". The map is still (no gestures), so a drag over it
+  scrolls the details. Without a location it says "No location for this
+  event".
+- **Device** (`EventDevice`): the recording device's operating system
+  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID
+  (selectable), "this device" for this one, and the OS name under it;
+  signed in, its [presence dot](device-presence.md) before the ID (the
+  devices are pinged while the details show, as in the device list).
+- **Delete event**: an outlined, error-colored button, signed in with the
+  event's profile only (not signed out, not in DEV, not for another
+  profile's event). It asks "Delete this event? It will be hidden on every
+  device." (with "Its clip stays in the cloud until it expires.") with
+  **Cancel** / **Delete**; Delete deletes it on every device
+  ([Device deletion](device-deletion.md#one-event)), closes the player,
+  and a snack bar says "Event deleted on every device".
+
+The app hands these their data through `EventDetailsScope` (the profile,
+this device, live sync, the event log, the map tiles and
+`Persistence.deleteEvent`). It all fits a 320 dp phone, at a 2x system
+font too.
+
 ## Naming subjects
 
 The **Subjects** section names whoever is in the video, as many as
