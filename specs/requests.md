@@ -3848,3 +3848,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        within the screen; the add-device tests read the ID at the top; the
        Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
      - Specs: [Settings](settings.md), [Navigation](navigation.md).
+
+302. **Capture all requests are system events.** (2026-10-06)
+     - Asked: consider "Capture all" a system event: the one without
+       video; the clips taken for it can stay marked as Capture all.
+     - Changed: the Capture all request (`capture_all`, no video) is no
+       longer a grab (`EventTimeline.isGrab`), so Monitoring hides it
+       while system events are hidden. The clips each device takes for it
+       (`ClipRequested`, trigger `all`) are still grabs, titled "Capture
+       all" with the grid icon. Test: `capture_all_test.dart` (a restored
+       request isn't a grab). Specs: [Events](events.md),
+       [Camera screen](camera.md#capture-all).
