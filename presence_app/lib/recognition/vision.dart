@@ -28,14 +28,25 @@ class Detection {
   final SeenKind kind;
 }
 
-/// A face found on a picture, with its eyes (fractions of the picture).
+/// A face found on a picture, with its eyes, and its nose and mouth when
+/// known (fractions of the picture). The right eye is the person's, on the
+/// left of the picture.
 class Face {
-  const Face(this.box, this.score, this.rightEye, this.leftEye);
+  const Face(
+    this.box,
+    this.score,
+    this.rightEye,
+    this.leftEye, {
+    this.nose,
+    this.mouth,
+  });
 
   final Box box;
   final double score;
   final (double, double) rightEye;
   final (double, double) leftEye;
+  final (double, double)? nose;
+  final (double, double)? mouth;
 }
 
 /// One person or pet on a frame, with what recognition compares: their
@@ -94,41 +105,64 @@ abstract class Vision {
   void release() {}
 }
 
-/// The four models recognition runs, all TensorFlow Lite, bundled under
-/// `assets/models/` (see its README for sources and licenses):
+/// The five models recognition runs, all TensorFlow Lite, bundled under
+/// `assets/models/` (see its README for sources, licenses and how they were
+/// chosen):
 ///
-/// - EfficientDet-Lite0 (COCO): people, cats and dogs on a frame, and every
+/// - EfficientDet-Lite2 (COCO): people, cats and dogs on a frame, and every
 ///   other object it knows (object tags);
 /// - BlazeFace (short range): a face on a person;
 /// - MobileFaceNet: a face's embedding;
-/// - MobileNetV3 small (image embedder): a person's or pet's look.
+/// - OSNet: a person's look (trained to tell people apart);
+/// - MobileNetV3 small (image embedder): a pet's look.
 class VisionModels extends Vision {
-  VisionModels._(this._detector, this._faces, this._faceNet, this._embedder);
+  VisionModels._(
+    this._detector,
+    this._faces,
+    this._faceNet,
+    this._personNet,
+    this._petNet,
+  );
 
-  static const String detectorAsset = 'assets/models/efficientdet_lite0.tflite';
+  static const String detectorAsset = 'assets/models/efficientdet_lite2.tflite';
   static const String faceAsset = 'assets/models/blaze_face_short_range.tflite';
   static const String faceNetAsset = 'assets/models/mobilefacenet.tflite';
-  static const String embedderAsset = 'assets/models/mobilenet_v3_small.tflite';
+  static const String personNetAsset = 'assets/models/osnet.tflite';
+  static const String petNetAsset = 'assets/models/mobilenet_v3_small.tflite';
 
-  static const int detectorSize = 320;
+  static const int detectorSize = 448;
   static const int faceSize = 128;
   static const int faceNetSize = 112;
-  static const int embedderSize = 224;
+  static const int personNetWidth = 128;
+  static const int personNetHeight = 256;
+  static const int petNetSize = 224;
 
   /// The least detection score that counts.
   static const double minDetection = 0.4;
 
-  /// The least score for an object tag: higher, as a wrong label can't be
-  /// caught by matching.
+  /// The least score for an object to count on a frame: higher, as a wrong
+  /// label can't be caught by matching.
   static const double minObject = 0.5;
   static const double minFace = 0.5;
+
+  /// How far apart a face's eyes must be (frame pixels) for it to be
+  /// compared: closer, its embedding can't tell people apart, and the look
+  /// is compared instead.
+  static const double minEyeDistance = 9;
+
+  /// A detection overlapping a better one of its kind this much (as
+  /// intersection over union), or this much inside it, is the same one: a
+  /// tile cuts people at its edge.
+  static const double maxOverlap = 0.5;
+  static const double maxContained = 0.8;
 
   /// Every model's asset.
   static const List<String> assets = [
     detectorAsset,
     faceAsset,
     faceNetAsset,
-    embedderAsset,
+    personNetAsset,
+    petNetAsset,
   ];
 
   static Future<VisionModels> load(
@@ -152,7 +186,8 @@ class VisionModels extends Vision {
       await model(detectorAsset),
       await model(faceAsset),
       await model(faceNetAsset),
-      await model(embedderAsset),
+      await model(personNetAsset),
+      await model(petNetAsset),
     );
     // Build the anchors now, not on the first frame.
     efficientDetAnchors.length;
@@ -163,32 +198,84 @@ class VisionModels extends Vision {
   final TfliteModel _detector;
   final TfliteModel _faces;
   final TfliteModel _faceNet;
-  final TfliteModel _embedder;
+  final TfliteModel _personNet;
+  final TfliteModel _petNet;
 
-  /// The people, cats and dogs on [image], and every object's best score.
+  /// The people, cats and dogs on [image], and every object's best score:
+  /// the detector runs on each of [detectorRegions] (the whole frame, and
+  /// tiles along it), and what they find is put together.
   Future<(List<Detection>, Map<String, double>)> detect(RgbaImage image) async {
-    final outputs = await _detector.run(
-      toTensor(
-        image,
-        Region.whole(image),
-        width: detectorSize,
-        height: detectorSize,
-        scale: PixelScale.bytes,
-      ),
-    );
-    final n = efficientDetAnchors.length ~/ 4;
-    final scores = outputs.firstWhere((o) => o.length == n * cocoClasses);
-    final boxes = outputs.firstWhere((o) => o.length == n * 4);
-    return (
-      decodeDetections(scores, boxes, threshold: minDetection),
-      decodeObjects(scores, threshold: minObject),
+    final detections = <Detection>[];
+    final objects = <String, double>{};
+    for (final region in detectorRegions(image)) {
+      final outputs = await _detector.run(
+        toTensor(
+          image,
+          region,
+          width: detectorSize,
+          height: detectorSize,
+          scale: PixelScale.bytes,
+        ),
+      );
+      final n = efficientDetAnchors.length ~/ 4;
+      final scores = outputs.firstWhere((o) => o.length == n * cocoClasses);
+      final boxes = outputs.firstWhere((o) => o.length == n * 4);
+      for (final d in decodeDetections(
+        scores,
+        boxes,
+        threshold: minDetection,
+      )) {
+        final box = region.boxToImage(image, d.box).clamped();
+        if (box.area > 0) detections.add(Detection(box, d.score, d.kind));
+      }
+      for (final MapEntry(key: label, value: score) in decodeObjects(
+        scores,
+        threshold: minObject,
+      ).entries) {
+        if (score > (objects[label] ?? 0)) objects[label] = score;
+      }
+      // On web the models share the page's thread: let it draw.
+      await Future<void>.delayed(Duration.zero);
+    }
+    return (mergeDetections(detections), objects);
+  }
+
+  /// The face on the person at [box] of [image], if one shows: first in a
+  /// square around their head ([headRegion]), where it's big enough for
+  /// BlazeFace even far away; else in a square around all of them, kept
+  /// only if it's in their top [maxFaceDepth].
+  Future<Face?> face(RgbaImage image, Box box) async {
+    final head = await _faceIn(image, headRegion(image, box));
+    if (head != null) return head;
+    final whole = await _faceIn(image, Region.box(image, box, square: true));
+    if (whole == null || whole.box.cy > box.top + box.height * maxFaceDepth) {
+      return null;
+    }
+    return whole;
+  }
+
+  /// How far down a person their face may be, as a fraction of their box.
+  static const double maxFaceDepth = 0.35;
+
+  /// The square BlazeFace looks for a face in first: as wide as the person
+  /// (at least 7/16 of their height, as for someone seen sideways, at most
+  /// their box's longer side), centered on them, from a little above their
+  /// top. Measured on COCO's people with a visible face (see the models'
+  /// README), it finds more faces than a square around all of them, and far
+  /// fewer in the wrong place.
+  static Region headRegion(RgbaImage image, Box box) {
+    final w = box.width * image.width;
+    final h = box.height * image.height;
+    final side = math.min(math.max(w, h * 7 / 16), math.max(w, h));
+    return Region(
+      box.cx * image.width,
+      box.top * image.height - 0.05 * side + side / 2,
+      side,
+      side,
     );
   }
 
-  /// The face on the person at [box] of [image], if one shows.
-  Future<Face?> face(RgbaImage image, Box box) async {
-    // A square around the person, so the face isn't stretched.
-    final region = Region.box(image, box, square: true);
+  Future<Face?> _faceIn(RgbaImage image, Region region) async {
     final outputs = await _faces.run(
       toTensor(
         image,
@@ -207,49 +294,134 @@ class VisionModels extends Vision {
     final faces = decodeFaces(regressors, scores, threshold: minFace);
     if (faces.isEmpty) return null;
     final f = faces.first;
+    (double, double) point((double, double) p) =>
+        region.toImage(image, p.$1, p.$2);
     return Face(
       region.boxToImage(image, f.box),
       f.score,
-      region.toImage(image, f.rightEye.$1, f.rightEye.$2),
-      region.toImage(image, f.leftEye.$1, f.leftEye.$2),
+      point(f.rightEye),
+      point(f.leftEye),
+      nose: f.nose == null ? null : point(f.nose!),
+      mouth: f.mouth == null ? null : point(f.mouth!),
     );
   }
 
-  /// [face]'s embedding: the face cropped square, 1.1 times its box, turned
-  /// so the eyes are level.
+  /// [face]'s embedding: the face aligned to the template the embedder was
+  /// trained on ([faceRegion]), and the mean with its mirror image.
   Future<Float32List> faceVector(RgbaImage image, Face face) async {
-    final dx = (face.leftEye.$1 - face.rightEye.$1) * image.width;
-    final dy = (face.leftEye.$2 - face.rightEye.$2) * image.height;
-    final region = Region.box(
+    final tensor = toTensor(
       image,
-      face.box,
-      scale: 1.1,
-      square: true,
-      angle: math.atan2(dy, dx),
-    );
-    final outputs = await _faceNet.run(
-      toTensor(
-        image,
-        region,
-        width: faceNetSize,
-        height: faceNetSize,
-        scale: PixelScale.centered,
-      ),
-    );
-    return normalized(outputs.single);
+      faceRegion(image, face),
+      width: faceNetSize,
+      height: faceNetSize,
+      scale: PixelScale.centered,
+    ) as Float32List;
+    final straight = (await _faceNet.run(tensor)).single;
+    // Read before the next run: the output may be the model's own memory.
+    final sum = Float32List.fromList(straight);
+    final flipped = (await _faceNet.run(
+      mirrored(tensor, faceNetSize, faceNetSize),
+    )).single;
+    for (var i = 0; i < sum.length; i++) {
+      sum[i] += flipped[i];
+    }
+    return normalized(sum);
   }
 
-  /// The embedding of how whoever is in [box] looks.
-  Future<Float32List> lookVector(RgbaImage image, Box box) async {
-    final outputs = await _embedder.run(
-      toTensor(
-        image,
-        Region.box(image, box),
-        width: embedderSize,
-        height: embedderSize,
-        scale: PixelScale.unit,
-      ),
+  /// Where [face]'s eyes, nose and mouth sit on MobileFaceNet's 112 px
+  /// input (ArcFace's template; the mouth halfway between its corners).
+  static const List<(double, double)> faceTemplate = [
+    (38.2946, 51.6963),
+    (73.5318, 51.5014),
+    (56.0252, 71.7366),
+    (56.1396, 92.2848),
+  ];
+
+  /// The region of [image] that puts [face]'s eyes, nose and mouth where
+  /// [faceTemplate] has them: the best fit by turning, scaling and moving
+  /// (no stretching). Cropped from BlazeFace's box instead, faces of the same
+  /// person were barely closer than different people's (LFW: 76 % right,
+  /// against 98.7 % aligned).
+  static Region faceRegion(RgbaImage image, Face face) {
+    (double, double) px((double, double) p) =>
+        (p.$1 * image.width, p.$2 * image.height);
+    final from = [
+      px(face.rightEye),
+      px(face.leftEye),
+      if (face.nose case final nose? when face.mouth != null) ...[
+        px(nose),
+        px(face.mouth!),
+      ],
+    ];
+    final to = faceTemplate.sublist(0, from.length);
+    // The similarity w = a·z + b (as complex numbers) that fits the points
+    // best (least squares).
+    var zx = 0.0, zy = 0.0, wx = 0.0, wy = 0.0;
+    for (var i = 0; i < from.length; i++) {
+      zx += from[i].$1;
+      zy += from[i].$2;
+      wx += to[i].$1;
+      wy += to[i].$2;
+    }
+    zx /= from.length;
+    zy /= from.length;
+    wx /= from.length;
+    wy /= from.length;
+    var re = 0.0, im = 0.0, norm = 0.0;
+    for (var i = 0; i < from.length; i++) {
+      final dzx = from[i].$1 - zx, dzy = from[i].$2 - zy;
+      final dwx = to[i].$1 - wx, dwy = to[i].$2 - wy;
+      // (dw) · conj(dz)
+      re += dwx * dzx + dwy * dzy;
+      im += dwy * dzx - dwx * dzy;
+      norm += dzx * dzx + dzy * dzy;
+    }
+    if (norm == 0) {
+      return Region.box(image, face.box, scale: 1.1, square: true);
+    }
+    final scale = math.sqrt(re * re + im * im) / norm;
+    final angle = math.atan2(im, re);
+    // The template's center, back on the image: z = (w − b) / a, with
+    // b = w̄ − a·z̄, so z = z̄ + (w − w̄) / a.
+    const center = VisionModels.faceNetSize / 2;
+    final dx = center - wx, dy = center - wy;
+    final cos = math.cos(-angle), sin = math.sin(-angle);
+    return Region(
+      zx + (dx * cos - dy * sin) / scale,
+      zy + (dx * sin + dy * cos) / scale,
+      faceNetSize / scale,
+      faceNetSize / scale,
+      -angle,
     );
+  }
+
+  /// The embedding of how whoever is in [box] looks: OSNet for a person
+  /// (their box, as it was trained), MobileNetV3 for a pet (a square
+  /// around it, not stretched).
+  Future<Float32List> lookVector(
+    RgbaImage image,
+    Box box,
+    SeenKind kind,
+  ) async {
+    final outputs = kind == SeenKind.person
+        ? await _personNet.run(
+            toTensor(
+              image,
+              Region.box(image, box),
+              width: personNetWidth,
+              height: personNetHeight,
+              scale: PixelScale.unit,
+            ),
+          )
+        : await _petNet.run(
+            toTensor(
+              image,
+              Region.box(image, box, square: true),
+              width: petNetSize,
+              height: petNetSize,
+              scale: PixelScale.unit,
+            ),
+          );
     return normalized(outputs.single);
   }
 
@@ -268,16 +440,25 @@ class VisionModels extends Vision {
       final found = faces && d.kind == SeenKind.person
           ? await face(image, d.box)
           : null;
+      final comparable =
+          found != null && eyeDistance(image, found) >= minEyeDistance;
       seen.add(
         Seen(
           d,
           face: found,
-          faceVector: found == null ? null : await faceVector(image, found),
-          lookVector: await lookVector(image, d.box),
+          faceVector: comparable ? await faceVector(image, found) : null,
+          lookVector: await lookVector(image, d.box, d.kind),
         ),
       );
     }
     return FrameAnalysis(seen: seen, objects: objects);
+  }
+
+  /// How far apart [face]'s eyes are on [image], in pixels.
+  static double eyeDistance(RgbaImage image, Face face) {
+    final dx = (face.leftEye.$1 - face.rightEye.$1) * image.width;
+    final dy = (face.leftEye.$2 - face.rightEye.$2) * image.height;
+    return math.sqrt(dx * dx + dy * dy);
   }
 
   /// Models loaded here stay until [dispose]d.
@@ -288,8 +469,58 @@ class VisionModels extends Vision {
     _detector.dispose();
     _faces.dispose();
     _faceNet.dispose();
-    _embedder.dispose();
+    _personNet.dispose();
+    _petNet.dispose();
   }
+}
+
+/// Where the detector looks on [image]: the whole of it (a square around
+/// it, black outside, so it isn't stretched), and for a frame wider (or
+/// taller) than [tileAbove] times the other side, squares as tall (or wide)
+/// as it, overlapping, from one end to the other: people far away are
+/// twice as big there as on the whole frame. Measured on COCO, the tiles
+/// find twice as many small people.
+List<Region> detectorRegions(RgbaImage image) {
+  final w = image.width.toDouble();
+  final h = image.height.toDouble();
+  final side = math.max(w, h);
+  final regions = [Region(w / 2, h / 2, side, side)];
+  final short = math.min(w, h);
+  if (side > short * tileAbove) {
+    final count = math.max(2, (side / short).ceil());
+    for (var i = 0; i < count; i++) {
+      final along = short / 2 + i * (side - short) / (count - 1);
+      regions.add(
+        w >= h
+            ? Region(along, h / 2, short, short)
+            : Region(w / 2, along, short, short),
+      );
+    }
+  }
+  return regions;
+}
+
+/// How much longer than wide a frame must be to be tiled ([detectorRegions]).
+const double tileAbove = 1.15;
+
+/// [detections] from several regions as one list, best first: one that
+/// overlaps a better one of its kind ([VisionModels.maxOverlap]), or lies
+/// mostly inside it ([VisionModels.maxContained]: the part of someone a
+/// tile's edge cut), is the same one and dropped.
+List<Detection> mergeDetections(List<Detection> detections) {
+  final sorted = [...detections]..sort((a, b) => b.score.compareTo(a.score));
+  final kept = <Detection>[];
+  for (final d in sorted) {
+    if (kept.every(
+      (k) =>
+          k.kind != d.kind ||
+          (k.box.iou(d.box) <= VisionModels.maxOverlap &&
+              k.box.containment(d.box) <= VisionModels.maxContained),
+    )) {
+      kept.add(d);
+    }
+  }
+  return kept;
 }
 
 /// Of [detections] (best first), those of [kinds] (all if null), at most
@@ -421,25 +652,31 @@ const Map<int, String> cocoLabels = {
   89: 'toothbrush',
 };
 
-/// EfficientDet-Lite0's anchors at 320 px, as (cy, cx, h, w) fractions,
+/// EfficientDet-Lite2's anchors at 448 px, as (cy, cx, h, w) fractions,
 /// flattened: levels 3 to 7, then rows, columns, 3 scales and 3 aspect
-/// ratios (19206 in all), as the model was trained.
-final Float32List efficientDetAnchors = () {
+/// ratios (37629 in all), as the model was trained. A level's grid is
+/// the input divided by 2^level, rounded up (56 … 4 cells a side), its
+/// anchors centered on its cells and 3 cells (times 2^(scale/3)) across:
+/// the same as the anchors the model file lists in its metadata.
+final Float32List efficientDetAnchors = efficientDetAnchorsFor(
+  VisionModels.detectorSize,
+);
+
+/// EfficientDet's anchors for a [size] px input (see [efficientDetAnchors]).
+Float32List efficientDetAnchorsFor(int size) {
   final anchors = <double>[];
-  const size = VisionModels.detectorSize;
   for (var level = 3; level <= 7; level++) {
-    final stride = 1 << level;
-    final cells = (size / stride).ceil();
+    final cells = (size / (1 << level)).ceil();
     for (var y = 0; y < cells; y++) {
       for (var x = 0; x < cells; x++) {
         for (var octave = 0; octave < 3; octave++) {
           for (final ratio in const [1.0, 2.0, 0.5]) {
-            final base = 4 * stride * math.pow(2, octave / 3);
+            final base = anchorScale * math.pow(2, octave / 3) / cells;
             anchors.addAll([
-              (y + 0.5) * stride / size,
-              (x + 0.5) * stride / size,
-              base / math.sqrt(ratio) / size,
-              base * math.sqrt(ratio) / size,
+              (y + 0.5) / cells,
+              (x + 0.5) / cells,
+              base / math.sqrt(ratio),
+              base * math.sqrt(ratio),
             ]);
           }
         }
@@ -447,7 +684,10 @@ final Float32List efficientDetAnchors = () {
     }
   }
   return Float32List.fromList(anchors);
-}();
+}
+
+/// How many cells an EfficientDet-Lite anchor spans (at its first scale).
+const double anchorScale = 3;
 
 /// People, cats and dogs from EfficientDet's raw outputs: per anchor,
 /// [scores] for every COCO class (already 0 to 1) and [boxes] as (ty, tx,
@@ -519,8 +759,9 @@ final Float32List blazeFaceAnchors = () {
 }();
 
 /// Faces from BlazeFace's raw outputs, as fractions of its input: per
-/// anchor, 16 [regressors] (box center offset and size, then 6 keypoints,
-/// in input pixels) and a [scores] logit. Best first.
+/// anchor, 16 [regressors] (box center offset and size, then 6 keypoints:
+/// the eyes, nose, mouth and ears, in input pixels) and a [scores] logit.
+/// Best first.
 List<Face> decodeFaces(
   Float32List regressors,
   Float32List scores, {
@@ -549,6 +790,8 @@ List<Face> decodeFaces(
         score,
         point(0),
         point(1),
+        nose: point(2),
+        mouth: point(3),
       ),
     );
   }

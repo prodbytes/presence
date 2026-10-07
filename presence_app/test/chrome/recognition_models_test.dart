@@ -101,7 +101,8 @@ void main() {
     // Her face, upper half of the picture.
     expect(person.face!.box.cy, lessThan(truth.cy));
     expect(person.faceVector, hasLength(192));
-    expect(person.lookVector, hasLength(1024));
+    // OSNet, for people.
+    expect(person.lookVector, hasLength(512));
 
     // The same face on its own photo matches it surely.
     final alone = (await models.analyse(hopper)).seen.first;
@@ -109,6 +110,40 @@ void main() {
       faceConfidence(cosine(person.faceVector!, alone.faceVector!)),
       greaterThan(0.8),
     );
+  });
+
+  test('someone small, far off, is found by a tile, where they are', () async {
+    if (!serving) return markTestSkipped('no server at $server');
+    final hopper = await fixture('hopper_1.jpg');
+    // A third of her size (nearest pixel), at the right of a grey frame.
+    const k = 3;
+    final w = hopper.width ~/ k, h = hopper.height ~/ k;
+    const left = 1000, top = 400;
+    final frame = RgbaImage(
+      1280,
+      720,
+      Uint8List(1280 * 720 * 4)..fillRange(0, 1280 * 720 * 4, 120),
+    );
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        final from = ((y * k) * hopper.width + x * k) * 4;
+        final to = ((top + y) * 1280 + left + x) * 4;
+        frame.pixels.setRange(to, to + 4, hopper.pixels, from);
+      }
+    }
+    final (detections, _) = await models.detect(frame);
+    final truth = Box(
+      left / 1280,
+      top / 720,
+      (left + w) / 1280,
+      (top + h) / 720,
+    );
+    final person = detections.firstWhere((d) => d.kind == SeenKind.person);
+    // ignore: avoid_print
+    print('small person: $w × $h px, found at ${person.box}');
+    expect(person.box.iou(truth), greaterThan(0.5));
+    // Found once, not once per region.
+    expect(detections.where((d) => d.kind == SeenKind.person), hasLength(1));
   });
 
   test('the same person is closer than someone else', () async {

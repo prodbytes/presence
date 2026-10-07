@@ -65,6 +65,13 @@ ThemeData gruvboxSoftDarkTheme() {
   );
   return ThemeData(
     colorScheme: scheme,
+    // Every screen changes as the tabs do, on every platform.
+    pageTransitionsTheme: PageTransitionsTheme(
+      builders: {
+        for (final platform in TargetPlatform.values)
+          platform: const TabSlidePageTransitionsBuilder(),
+      },
+    ),
     scaffoldBackgroundColor: scheme.surface,
     cardTheme: const CardThemeData(color: Gruvbox.bg1, elevation: 0),
     dividerTheme: const DividerThemeData(color: Gruvbox.bg2),
@@ -74,6 +81,42 @@ ThemeData gruvboxSoftDarkTheme() {
         borderRadius: BorderRadius.all(Radius.circular(4)),
       ),
       textStyle: TextStyle(color: Gruvbox.fg0),
+    ),
+  );
+}
+
+/// A pushed screen (a subject's) slides in from the right as the one under
+/// it slides out to the left, and back again on return: the same move,
+/// curve and duration as flipping between the tabs (`TabBarView`), so
+/// every view change looks alike.
+class TabSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const TabSlidePageTransitionsBuilder();
+
+  /// The tabs' curve.
+  static const Curve curve = Curves.ease;
+
+  /// The tabs' duration.
+  @override
+  Duration get transitionDuration => kTabScrollDuration;
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => SlideTransition(
+    position: Tween(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).chain(CurveTween(curve: curve)).animate(animation),
+    child: SlideTransition(
+      position: Tween(
+        begin: Offset.zero,
+        end: const Offset(-1, 0),
+      ).chain(CurveTween(curve: curve)).animate(secondaryAnimation),
+      child: child,
     ),
   );
 }
