@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../battery.dart';
@@ -7,102 +5,17 @@ import '../battery_pills.dart';
 import '../auth/roles_service.dart';
 import '../camera_feeds.dart';
 import '../cloud/cloud_sync.dart';
-import '../dot.dart';
-import '../status_pill.dart';
 import '../system_health.dart';
-import '../theme.dart';
-import '../time_format.dart';
-
-/// Whether an automatic clip can be taken now: ready, or counting down the
-/// cooldown after the latest clip (red while its "after" part is still
-/// being saved). The Clip button works either way.
-class ReadinessIndicator extends StatefulWidget {
-  const ReadinessIndicator({super.key, required this.rig});
-
-  final CameraRig rig;
-
-  @override
-  State<ReadinessIndicator> createState() => _ReadinessIndicatorState();
-}
-
-class _ReadinessIndicatorState extends State<ReadinessIndicator> {
-  late final Timer _ticker;
-
-  @override
-  void initState() {
-    super.initState();
-    // Readiness moves with time: refresh the countdowns.
-    _ticker = Timer.periodic(
-      const Duration(milliseconds: 500),
-      (_) => setState(() {}),
-    );
-  }
-
-  @override
-  void dispose() {
-    _ticker.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final readiness = widget.rig.readiness;
-    final seconds = (readiness.remaining.inMilliseconds / 1000).ceil();
-    // Minutes and seconds for the cooldown ("4:59"), seconds below
-    // a minute ("45 s").
-    final countdown = seconds >= 60
-        ? formatMinutesSeconds(seconds)
-        : '$seconds s';
-    // Only the dot, and the countdown while there is one: the tooltip and
-    // screen readers spell the state out.
-    final (
-      Widget leading,
-      String? label,
-      String semantics,
-    ) = switch (readiness.state) {
-      ClipReadinessState.ready => (
-        Dot(color: Gruvbox.green),
-        null,
-        'Ready to clip',
-      ),
-      ClipReadinessState.cooldown => (
-        // Red while the latest clip is still saving, then amber.
-        Dot(color: readiness.recording ? Gruvbox.red : Gruvbox.yellow),
-        countdown,
-        readiness.recording
-            ? 'Clip saving; next automatic clip in $countdown'
-            : 'Next automatic clip in $countdown',
-      ),
-      ClipReadinessState.unavailable => (
-        Dot(color: scheme.outline),
-        null,
-        'Camera not ready',
-      ),
-      ClipReadinessState.paused => (
-        Dot(color: scheme.outline),
-        null,
-        'Camera off: nothing is recorded',
-      ),
-    };
-    return StatusPill(
-      key: const Key('readiness'),
-      leading: leading,
-      label: label,
-      semantics: semantics,
-    );
-  }
-}
+import 'clip_button.dart';
 
 /// The status pills over the camera, bottom left, across from Flip and
-/// Clip: a failed health check ([HealthWarningPill]), the battery, its temperature
-/// (Android), the readiness and, beside it, a clip that just started
-/// ([message]). In a row, level with the
-/// buttons and clear of them, on wide screens. On phones they stack,
-/// starting just above the buttons' row, so however wide they are they
-/// never run into Flip and Clip; the readiness and the message share the
-/// lowest line. A label that doesn't fit is cut short.
+/// Clip: a failed health check ([HealthWarningPill]), the battery, its
+/// temperature (Android) and a clip that just started ([message]); the
+/// Clip button itself shows whether a clip can be taken ([ClipButton]).
+/// In a row, level with the buttons and clear of them, on wide screens.
+/// On phones they stack, starting just above the buttons' row, so however
+/// wide they are they never run into Flip and Clip; the message is the
+/// lowest. A label that doesn't fit is cut short.
 class CameraStatus extends StatelessWidget {
   const CameraStatus({
     super.key,
@@ -118,8 +31,8 @@ class CameraStatus extends StatelessWidget {
   final CameraRig rig;
   final BatteryController battery;
 
-  /// With access: the health warning, battery and readiness too. Signed
-  /// out, only [message].
+  /// With access: the health warning and battery too. Signed out, only
+  /// [message].
   final bool full;
 
   /// The health checks', for [HealthWarningPill].
@@ -132,9 +45,9 @@ class CameraStatus extends StatelessWidget {
   /// The pill saying a clip just started, if one did.
   final Widget? message;
 
-  /// Room kept on the right for the view button, Flip and Clip when the
-  /// pills are in a row.
-  static const double buttonsRoom = 16 + 56 + 12 + 56 + 12 + 120;
+  /// Room kept on the right for the view button, Flip and Clip (as wide
+  /// as "Clip · 4:59") when the pills are in a row.
+  static const double buttonsRoom = 16 + 56 + 12 + 56 + 12 + 170;
 
   /// Narrower than this, the pills stack.
   static const double stackBelow = 600;
@@ -159,9 +72,6 @@ class CameraStatus extends StatelessWidget {
           listenable: Listenable.merge([rig, battery, roles, ?sync]),
           builder: (context, _) {
             final reading = full ? battery.reading : null;
-            final readiness = full && (rig.active != null || rig.paused)
-                ? ReadinessIndicator(rig: rig)
-                : null;
             final failed = full
                 ? HealthWarningPill.failedChecks(roles, sync)
                 : const <String>[];
@@ -172,11 +82,8 @@ class CameraStatus extends StatelessWidget {
               if (reading?.celsius != null)
                 BatteryTemperaturePill(battery: battery),
             ];
-            // The readiness, and the message beside it, cut short if need be.
-            final last = [
-              ?readiness,
-              if (message case final m?) Flexible(child: m),
-            ];
+            // The message, cut short if need be.
+            final last = [if (message case final m?) Flexible(child: m)];
             return stacked
                 ? Column(
                     key: const Key('camera-status'),

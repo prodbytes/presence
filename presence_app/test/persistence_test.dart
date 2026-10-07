@@ -1556,8 +1556,8 @@ void main() {
     await refresh(tester, cameras: [camera]);
     await tester.pump(const Duration(milliseconds: 600));
 
-    // The pill shows exactly what's left of the 5-minute cooldown.
-    expect(find.text('3:00'), findsOneWidget);
+    // The Clip button shows exactly what's left of the 5-minute cooldown.
+    expect(find.text('Clip · 3:00'), findsOneWidget);
 
     // Motion stays blocked until the cooldown ends…
     await frames(camera, List.filled(20, frame()));
@@ -1584,10 +1584,10 @@ void main() {
     // A Clip press (not motion).
     clock = clock.add(const Duration(seconds: 2));
     final pressedAt = clock;
-    await tester.tap(find.byTooltip('Clip'));
+    await tester.tap(find.byKey(const Key('clip')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('5:00'), findsOneWidget);
+    expect(find.text('Clip · 5:00'), findsOneWidget);
     camera.fullCompleters.last.complete(media);
     await settleStorage(tester);
 
@@ -1616,7 +1616,7 @@ void main() {
     camera = FakeCameraSource('Main', immediatePast: media);
     await refresh(tester, cameras: [camera]);
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('3:00'), findsOneWidget);
+    expect(find.text('Clip · 3:00'), findsOneWidget);
     await settleStorage(tester);
   });
 

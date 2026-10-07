@@ -82,9 +82,11 @@ in the app bar**, which flip between full screens.
     **default camera**: the first back camera, or else the first camera
     (on web, the one the browser picks by default).
   - The **Clip** trigger is an extended floating action button (bottom
-    right), shown only on the Camera tab and only when a camera is open.
-    Material says to hide a FAB that can't act, rather than disable it.
-    With the **All** grid showing, it's **Capture all**: this camera takes
+    right), shown on the Camera tab with access (`ClipButton`,
+    `lib/home/clip_button.dart`). It's also the **readiness indicator**:
+    its color says whether a clip can be taken (below), and it's
+    **disabled**, not hidden, when none can, so the reason is in its
+    tooltip. With the **All** grid showing, it's **Capture all**: this camera takes
     a clip, and every press asks every other device of the profile for one
     too (unless a request went out in the last 5 s; see
     [Camera screen](camera.md#capture-all)); otherwise only this camera.
@@ -115,23 +117,23 @@ in the app bar**, which flip between full screens.
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
   - **Status pills, bottom left**, across from Flip and Clip
-    (`CameraStatus` and `ReadinessIndicator` in
-    `lib/home/camera_status.dart`): a **health warning** while a
-    health check fails, the **battery**, its **temperature** (Android),
-    the **readiness indicator** and, after it for 4 s, the latest
+    (`CameraStatus` in `lib/home/camera_status.dart`): a **health
+    warning** while a health check fails, the **battery**, its
+    **temperature** (Android) and, after them for 4 s, the latest
     **message**, all in one pill style (`StatusPill`), 16 px from the
-    edges. On screens 600 px and wider
-    they're in a row, centered on the buttons and kept clear of them.
-    Narrower, they stack (the health warning, then the battery, on top), starting just above the buttons'
-    row, so they never run into Flip and Clip; the readiness and the
-    message share the lowest line. A label too long for the room is cut
-    short with an ellipsis. See
+    edges. (There's no separate readiness pill any more: the Clip button
+    carries it.) On screens 600 px and wider they're in a row, centered
+    on the buttons and kept clear of them (room is kept for Clip as wide
+    as "Clip · 4:59"). Narrower, they stack (the health warning, then the
+    battery, then the message), starting just above the buttons' row, so
+    they never run into Flip and Clip. A label too long for the room is
+    cut short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
   - **Screen readers** read each pill's full label. Only the **message**
     and the **health warning** are live regions, read out when they show
-    or change; the readiness countdown and the battery change all the
-    time, so they aren't announced (they used to be, every second during
-    a cooldown). A pill that does something when tapped (the message
+    or change; the battery changes all the time, so it isn't announced,
+    and neither is the Clip button's countdown (it isn't a live region;
+    screen readers read its label and status when they reach it). A pill that does something when tapped (the message
     opening Monitoring, the health warning) is a **button** to screen
     readers too (`StatusPill.liveRegion`, `StatusPill.onTap`).
   - **Health warning** (`HealthWarningPill` in
@@ -144,23 +146,25 @@ in the app bar**, which flip between full screens.
     say "Health check failed" and each failed check's explanation.
     **Tapping it** opens the Log tab's health panel when the Log tab is
     shown, Settings' health line otherwise. Gone once every check passes.
-  - **Readiness indicator:** shows whether an automatic clip (motion,
-    the schedule) can be taken now. It's only the colored dot, in a round
-    40 dp pill, with no text label; during the cooldown the countdown
-    number shows beside the dot, since it's information rather than a
-    label. The tooltip and screen-reader label spell each state out:
-    - **Ready** (green dot only; "Ready to clip"): shown as soon as a
-      camera is open, including right after a page reload or a flip, when
-      no cooldown is running. A clip in the first seconds after opening
-      simply has less *before* history.
-    - **"4:59"** after **any clip**, whatever took it (the Clip button,
-      motion, the schedule, the startup clip, Capture all or a remote
-      capture request): the **cooldown** countdown (Settings' cooldown, 5
-      minutes by default), starting when the clip is grabbed. The dot is
-      red while that clip's *after* part is still saving ("Clip saving;
-      next automatic clip in 4:59"), then amber ("Next automatic clip in
-      4:28"). Below a minute it shows "45 s". The countdown and the
-      automatic triggers use the same end time (`CameraRig.cooldownEnds`,
+  - **Clip readiness (the Clip button's color)** (`ClipButtonStatus` and
+    `ClipButtonColors` in `lib/home/clip_button.dart`, from
+    `CameraRig.readiness`): the Clip button shows whether an automatic
+    clip (motion, the schedule) can be taken now. The label stays short;
+    the tooltip and screen-reader label spell the state out:
+    - **Ready** (green; label "Clip"; tooltip "Ready"): shown as soon as
+      a camera is open, including right after a page reload or a flip,
+      when no cooldown is running. A clip in the first seconds after
+      opening simply has less *before* history.
+    - **Cooldown** (amber; label "Clip · 4:59"; tooltip "Next automatic
+      clip in 4:28") after **any clip**, whatever took it (the Clip
+      button, motion, the schedule, the startup clip, Capture all or a
+      remote capture request): the countdown of Settings' cooldown (5
+      minutes by default), starting when the clip is grabbed. Below a
+      minute it shows "45 s". Where "Clip · 4:59" doesn't fit (a 320 dp
+      phone with Flip, large text) the label is the time alone ("4:59"),
+      and where not even that fits, the button is the icon alone (the
+      tooltip still has it all). The countdown and the automatic triggers
+      use the same end time (`CameraRig.cooldownEnds`,
       [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)):
       - **motion** is ignored until it reaches zero;
       - a **scheduled (or startup) clip** due during it is taken the
@@ -171,17 +175,31 @@ in the app bar**, which flip between full screens.
         takes the clip and restarts the countdown from the press.
       It applies with motion clips turned off too, as long as scheduled
       clips are on. With **both motion and scheduled clips off** there's
-      no automatic clip to wait for: no cooldown and no countdown, the
-      pill stays Ready (the Clip button works as always).
+      no automatic clip to wait for: no cooldown and no countdown.
       A clip time later than now (a clock set back, or a stored time from
       a clock ahead) counts as now, so the cooldown never runs longer
       than its length.
-    - **Not ready** (gray dot only; "Camera not ready") and **Off** (gray
-      dot only; "Camera off: nothing is recorded", the view button's
-      None).
+    - **Saving** (red; label "Clip", or "Clip · 4:59" with the cooldown;
+      tooltip "Clip saving…", followed by "Next automatic clip in 4:59"
+      with the cooldown) while the latest clip's *after* part is still
+      being recorded, with automatic clips on or off. It **can still be
+      pressed**, as before: a press takes another clip (its own *before*
+      and *after* parts) and restarts the cooldown; `requestClips` has
+      never held a press back.
+    - **Disabled** (red-tinted, flat, not pressable) when no clip can be
+      taken, with the reason as its tooltip: "Camera off" (the view
+      button's None), "No camera", "Camera starting…" (opening, or a
+      flip), "Camera unavailable" (failed to open, or lost and being
+      retried), else "Camera not ready".
 
-    The countdown shows only the number, to keep the pill short. The
-    pill refreshes twice a second.
+    Colors (Gruvbox): on the dark theme the app uses, green `#B8BB26`,
+    amber `#FABD2F` and red `#FB4934` with the darkest background
+    (`#1D2021`) as text; disabled `#4A2B28` with `#F2A39A`. A light theme
+    gets Gruvbox's faded green `#79740E`, a darker amber `#8F5902` and red
+    `#9D0006` with white text, and disabled `#F6DCD8` with `#8A1C12`.
+    Every pair is at least 4.5:1 (tested). The button refreshes twice a
+    second, rebuilding only when what it shows changes.
+
     - **The cooldown survives restarts and page reloads.** On launch, it's
       restored from this device's latest clip of any trigger in the stored
       events (clips other devices took, fetched from the cloud, don't
@@ -191,18 +209,18 @@ in the app bar**, which flip between full screens.
       later than now counts as now.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
     `CameraMessagePill`, kept for 4 s by `CameraMessages`, all in
-    `lib/home/camera_messages.dart`), never a snackbar: at the bottom, to the right of
-    the readiness pill, for 4 s, so nothing over the camera moves (a
+    `lib/home/camera_messages.dart`), never a snackbar: bottom left, after
+    the battery pills, for 4 s, so nothing over the camera moves (a
     snackbar pushed Flip and Clip up) or is covered. A newer message
     replaces it and restarts the 4 s. A label too long for the room is cut
     short; its tooltip has it all. Signed out, it's the only pill (no
-    battery or readiness), bottom left. The messages:
+    battery, and no buttons), bottom left. The messages:
     - **a clip starts** (the Clip button, motion, the schedule or the
       start), with the clip's icon: "Clip started · saving the next 10 s",
       "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".
       **Tapping it** opens Monitoring, where the clip's event is (with
       access). On the other tabs it doesn't show. After any clip, the
-      indicator carries the cooldown;
+      Clip button carries the cooldown;
     - **a sign-in fails**: "Sign-in failed: <reason>", with the icon in
       the error color. On another tab it's still a snackbar.
 - **Monitoring:** the map of every subject's events, with their names,
@@ -212,8 +230,8 @@ in the app bar**, which flip between full screens.
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
-  **full width**, opening on this device's and profile's IDs (two
-  columns), with this device's location map as a section (see
+  **full width**, opening on this device's location map, and ending
+  with this device's and profile's IDs (one line each) (see
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).

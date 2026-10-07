@@ -25,13 +25,13 @@ requested", and its stored event has `trigger: "motion"`.
 - **Cooldown:** after **any clip** (motion's, a Clip press, a scheduled,
   startup or Capture all clip), **no automatic clip for 5 minutes**
   (configurable), counted from the moment the clip is grabbed
-  (`AutoClipPolicy.cooldownEnds`, kept by `CameraRig`). The
-  readiness indicator shows it as a countdown, and motion is ignored until
-  it reaches zero. A scheduled or startup clip due when it ends goes
+  (`AutoClipPolicy.cooldownEnds`, kept by `CameraRig`). The Clip button
+  shows it as a countdown (amber, "Clip · 4:59"), and motion is ignored
+  until it reaches zero. A scheduled or startup clip due when it ends goes
   first (motion then waits for its cooldown). Manual clips are never
   limited (a press restarts the countdown). With motion and scheduled
   clips both off there's no cooldown. See
-  [Navigation](navigation.md#readiness-indicator).
+  [Navigation](navigation.md) (Clip readiness).
 - **Frames per platform:**
   - **Web:** the live `<video>` is drawn into a 64×48 canvas every 200 ms,
     and converted to luma.

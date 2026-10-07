@@ -41,7 +41,8 @@ import 'theme.dart';
 
 export 'home/camera_buttons.dart' show CameraViewMode;
 export 'home/camera_messages.dart' show CameraMessage, CameraMessagePill;
-export 'home/camera_status.dart' show ReadinessIndicator;
+export 'home/clip_button.dart'
+    show ClipButton, ClipButtonColors, ClipButtonStatus, ClipTone;
 export 'home/dev_mode_label.dart' show DevModeLabel;
 export 'home/home_screen.dart' show HomeScreen;
 export 'home_tabs.dart' show HomeTab;
