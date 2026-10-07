@@ -160,7 +160,8 @@ font too.
 The **Subjects** section names whoever is in the video, as many as
 needed. Each name is on a frame of the clip, at the spot clicked
 ([lib/annotations.dart](../presence_app/lib/annotations.dart),
-`ClipPlayerDialog` in `lib/clips.dart`):
+`ClipPlayerDialog` in
+[lib/clips/clip_player_dialog.dart](../presence_app/lib/clips/clip_player_dialog.dart)):
 
 - **Click someone on the video** to tag them: on the web, a click on the
   picture (not on the browser's controls bar at the bottom, nor on the
@@ -251,6 +252,26 @@ needed. Each name is on a frame of the clip, at the spot clicked
   video froze the frame over the player and tagged the spot, and tags
   were still there after a reload. The Android and iOS
   debug builds compile; frame grabbing hasn't been tried on a device.
+
+## Code
+
+The clip code is in [lib/clips/](../presence_app/lib/clips), all of it
+re-exported by `lib/clips.dart`:
+
+- `clip_model.dart`: `VideoClip` (its recordings and status line),
+  `ClipTrigger`, the `ClipRequested` event and its record, and
+  `formatClipTime`.
+- `clip_card.dart`: the timeline card (`ClipEventCard`).
+- `clip_labels.dart`: the labels on the card and in the player
+  (`ClipObjectTags`, `OpenAtLabel`, `RemoveLabelButton`).
+- `clip_player_dialog.dart`: `showClipPlayer` and `ClipPlayerDialog`, its
+  Subjects and Tags sections, `autoTagMessage` and the name prompt.
+- `frame_tagger.dart`: the grabbed frame names are clicked on
+  (`FrameTagger`), with a marker per subject.
+
+The video itself plays in the platform's `ClipPlayerView`
+([lib/cameras/](../presence_app/lib/cameras): `web_cameras.dart` on the
+web, `native_cameras.dart` elsewhere).
 
 ## Known limitations
 

@@ -3849,7 +3849,139 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
      - Specs: [Settings](settings.md), [Navigation](navigation.md).
 
-302. **Cloud sync split into parts, without a change in behaviour.**
+302. **Capture all requests are system events.** (2026-10-06)
+     - Asked: consider "Capture all" a system event: the one without
+       video; the clips taken for it can stay marked as Capture all.
+     - Changed: the Capture all request (`capture_all`, no video) is no
+       longer a grab (`EventTimeline.isGrab`), so Monitoring hides it
+       while system events are hidden. The clips each device takes for it
+       (`ClipRequested`, trigger `all`) are still grabs, titled "Capture
+       all" with the grid icon. Test: `capture_all_test.dart` (a restored
+       request isn't a grab). Specs: [Events](events.md),
+       [Camera screen](camera.md#capture-all).
+
+303. **Every view change looks the same.** (2026-10-06)
+     - Asked: make all navigation transitions equal; the Admin view
+       shouldn't change differently, it only needs the role.
+     - Changed: Admin (and the Log) were already tabs flipping with the
+       same slide (#209). The one view that still changed differently,
+       a subject's screen (pushed from Monitoring, with the platform's
+       zoom or fade), now slides in sideways like the tabs: the theme's
+       page transition is `TabSlidePageTransitionsBuilder` on every
+       platform (300 ms, `Curves.ease`, the tabs' own), so any screen
+       pushed later moves the same way. Test: `theme_test.dart`. Specs:
+       [Navigation](navigation.md), [Subjects](subjects.md).
+
+304. **Better recognition of subjects and object tags.** (2026-10-06)
+     - Asked: detection was poor (subjects rarely recognized, objects
+       wrongly tagged); improve image recognition on the device, every
+       point found: several models together if it helps, bigger crops,
+       more frames, taking more time if needed.
+     - Found, measured in Python on public datasets with the same models
+       and pre-processing (COCO val2017, LFW, Market-1501; see the
+       models' README):
+       - EfficientDet's anchors were wrong (4 strides across instead of 3
+         cells, the largest off-center): boxes a third too big.
+       - Faces were cropped from BlazeFace's box, not aligned: LFW pairs
+         76 % right (98.7 % aligned); strangers scored where the same
+         person should.
+       - The look embedder (MobileNetV3) couldn't tell people apart (16 %
+         right first on Market-1501), and its scale started above the
+         same person's typical score.
+       - One unsure frame was enough for an object tag, or a subject tag.
+     - Changed: anchors as the model file lists them;
+       **EfficientDet-Lite2** (448 px) on the whole frame (squared, not
+       stretched) plus overlapping squares along a wide one, merged (small
+       people found 13 → 135 of 434 on COCO, box precision 0.73 → 0.83);
+       BlazeFace looks around the head first (faces found 241 → 295 of
+       336, misplaced 36 → 12); faces **aligned** to MobileFaceNet's
+       template and averaged with their mirror image, compared only from
+       9 px between the eyes; **OSNet** for people's looks (95 % right
+       first), MobileNetV3 on a square for pets; new confidence scales
+       (faces 0.30–0.65, people's looks 0.53–0.82); each subject's
+       confidence over the clip is their surest face, or else the mean
+       of their best 3 frames, tagged or asked about on their best frame; object tags need 2
+       frames (or one at 0.7); frames up to **1280 px**, shrunk by
+       averaging; 5 people or pets a frame; memory margin 96 MB. The
+       models are 26 MB (were 14); a frame takes about three times the
+       models' work. Frames stay one a second (Android reads keyframes
+       only). Tests: `recognition_test.dart` (anchors, squares, merging,
+       averaging, alignment, pooling, object frames), the Chrome real-model
+       test (aligned face cosines, a small far person found by a tile).
+       Not yet run on a phone. Specs: [Subject recognition](recognition.md),
+       [Android](android.md), [Data formats](data-formats.md).
+
+305. **The home screen split out of `main.dart`.** (2026-10-07)
+     - Asked: break up `presence_app/lib/main.dart` (about 1700 lines)
+       without changing behaviour.
+     - Changed: a pure refactor. `lib/main.dart` keeps `main()` and
+       `PresenceApp` (the app's services and their wiring); the home
+       screen moved to `lib/home/`: `home_screen.dart` (`HomeScreen`),
+       `home_app_bar.dart` (`HomeAppBar`, was `_HomeAppBar`),
+       `camera_buttons.dart` (`CameraButtons`, was `_CameraButtons`, and
+       `CameraViewMode`), `camera_status.dart` (`CameraStatus`, was
+       `_CameraStatus`, and `ReadinessIndicator`), `camera_messages.dart`
+       (`CameraMessage`, `CameraMessagePill`, and a new `CameraMessages`
+       notifier that holds the message and its 4 s timer, which
+       `HomeScreen` kept itself) and `dev_mode_label.dart`
+       (`DevModeLabel`). `main.dart` re-exports every public name it had,
+       so imports of `package:presence_app/main.dart` still find them.
+     - Tests: unchanged; all pass.
+     - Specs: [Navigation](navigation.md).
+
+306. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
+     - Asked: a pure refactor, no behaviour change: split the 1,347-line
+       `lib/clips.dart` into the model, the timeline card and the player
+       dialog, breaking the player's ~300-line `build` into section
+       widgets; and share the playback logic the native and web
+       `ClipPlayerView`s repeat, only if the load-race fixes stay intact
+       and tests prove the two equivalent.
+     - Changed: `lib/clips/clip_model.dart` (`VideoClip`, `ClipTrigger`,
+       `ClipRequested`, `formatClipTime`), `clip_card.dart`
+       (`ClipEventCard`), `clip_labels.dart` (`ClipObjectTags`,
+       `OpenAtLabel`, `RemoveLabelButton`), `clip_player_dialog.dart`
+       (`showClipPlayer`, `ClipPlayerDialog`, now built from
+       `_SubjectsSection`, `_FrameRow`, `_SubjectChip` and `_TagsSection`)
+       and `frame_tagger.dart` (`FrameTagger`, was `_FrameTagger`).
+       `lib/clips.dart` re-exports them, so importers are unchanged. The
+       two `ClipPlayerView`s were left as they are: the web one has no
+       tests (the tests run on the VM) and the native one's loading isn't
+       exercised (no `video_player` fake), so no test could prove a
+       shared controller equivalent; what they share is short
+       (`_start`, `_showFull`, `_onClipChanged`), while their loading and
+       stale-load guards differ by platform.
+     - Tests: unchanged; all pass.
+     - Specs: [Clips](clips.md) (new Code section, the player's file).
+
+307. **Split `camera_feeds.dart` (refactor, no behaviour change).**
+     (2026-10-07)
+     - Asked: split `presence_app/lib/camera_feeds.dart` (1327 lines;
+       `CameraRig` mixed the camera's lifecycle, the brightness restart,
+       the motion trigger, the cooldown and schedule, and Capture all,
+       beside the All grid's widgets) without changing behaviour.
+     - Changed: `lib/camera_feeds.dart` (332 lines) keeps
+       `CameraFeedsView`, `FeedMessage` and `describeCameraError`, and
+       re-exports the rest, so it's still the one import.
+       `lib/camera/camera_rig.dart` (698): `CameraRig` (opening, the open
+       generation, pause, lost-camera retry, brightness restart, timers,
+       `requestClips`). `lib/camera/auto_clip_policy.dart` (138):
+       `ClipReadiness`, `AutoClipPolicy` (cooldown end, next scheduled
+       clip, its countdown, startup/scheduled due) and `MotionTrigger`
+       (frames in a row over the threshold), pure of time and settings.
+       `lib/camera/capture_all.dart` (89): `CaptureAll`, the ask and
+       answer rate limits and the seen request IDs. `lib/camera/device_grid.dart`
+       (249): `DeviceLatest`, `latestByDevice`, `gridColumns`,
+       `describeAge` and the grid's cells (`_Cell` is now `DeviceGridCell`,
+       `_DeviceImage` `DeviceImage`). `CameraRig`'s constants
+       (`motionFramesToTrigger`, `captureAllWithin`, `askAllEvery`,
+       `pressAllEvery`, `answerAllEvery`) stay, naming the moved ones.
+     - Tests: unchanged and passing; new `auto_clip_policy_test.dart`
+       covers `AutoClipPolicy`, `MotionTrigger` and `CaptureAll` alone.
+     - Specs: code pointers in [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Navigation](navigation.md), [Device deletion](device-deletion.md).
+
+308. **Cloud sync split into parts, without a change in behaviour.**
      (2026-10-07)
      - Asked: split `lib/cloud/cloud_sync.dart` (one `CloudSync` class of
        2252 lines) into cohesive parts without changing behaviour, keeping

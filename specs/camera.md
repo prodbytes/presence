@@ -5,7 +5,7 @@
   ([Capture all](#capture-all) below), as opening the grid does.
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
-  (`CameraRig`), so they stay open, and keep recording, across rebuilds.
+  (`CameraRig`, [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)), so they stay open, and keep recording, across rebuilds.
 - **The view button** (One / All / None, an icon-only button, see
   [Navigation](navigation.md)) chooses what the Camera tab shows: **One**, this camera full screen;
   **All**, the grid ([All devices](#all-devices) below); **None**, the
@@ -91,7 +91,8 @@ profile (`CameraFeedsView.showAll`,
   when it shows and every 30 s while it does (see [Device
   presence](device-presence.md)).
 - **Then one cell per other device**, sorted by device ID so cells don't
-  move (`latestByDevice`): the thumbnail of its newest clip, shown whole,
+  move (`latestByDevice`,
+  [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart)): the thumbnail of its newest clip, shown whole,
   labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
@@ -145,7 +146,9 @@ sync all carry clips, and a still-only grab would need its own record
 everywhere.
 
 - **The request:** a **Capture all** event (`AppEvent.captureAll`, type
-  `capture_all`, grid icon), published on the device's event bus by
+  `capture_all`, grid icon), a **system event** (it has no video: hidden
+  in Monitoring while system events are, unlike the clips it asks for),
+  published on the device's event bus by
   `CameraRig.askAll` when the grid opens (signed in with cloud sync) or
   Clip is pressed with it showing. **Opening the grid asks at most once
   a minute** per device (`CameraRig.askAllEvery`): opening it again
@@ -170,7 +173,9 @@ everywhere.
 - **On the others:** each other device of the profile, if the request
   came from another device and is within **5 minutes** of its clock
   either way (`CameraRig.captureAllWithin`), takes a clip of its own on
-  its open camera, trigger `all` (`CameraRig.answerCaptureAll`). A
+  its open camera, trigger `all` (`CameraRig.answerCaptureAll`; the
+  rate limits and seen request IDs are `CaptureAll`,
+  [lib/camera/capture_all.dart](../presence_app/lib/camera/capture_all.dart)). A
   request is answered **once**, however it arrives: cloud sync hands a
   live event over once and doesn't download it again from the bucket,
   and the rig also remembers the request IDs it has seen (the latest
@@ -205,7 +210,7 @@ everywhere.
   make one, a later one another; `askAll`'s minute; a press asks within
   the minute but not within 5 s of the last request; in the app, Clip
   20 s after opening All uploads a second request; the request survives
-  storage and counts as a grab).
+  storage and is a system event, not a grab).
 
 ## Known limitations
 

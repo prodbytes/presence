@@ -147,13 +147,14 @@
   or "Hide system events"; a 40 dp target) in the Monitoring tab's
   **top row**, after the count, with the other filters, decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
-    sign-outs, the recording consent and other plain events;
+    sign-outs, the recording consent, the
+    [Capture all](camera.md#capture-all) requests (`capture_all`, which
+    have no video of their own) and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
-    requested, Motion detected, Scheduled clip, Startup clip, Capture
-    all), the [Capture all](camera.md#capture-all) requests
-    (`capture_all`), and the
-    [recognition](recognition.md) suggestions about them ("Is this Rex?",
-    `SubjectSuggestion`), which wait for an answer.
+    requested, Motion detected, Scheduled clip, Startup clip, and the
+    clips taken for a Capture all, titled "Capture all" with the grid
+    icon), and the [recognition](recognition.md) suggestions about them
+    ("Is this Rex?", `SubjectSuggestion`), which wait for an answer.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
     the execution mode is known. The choice stays while switching tabs, but
     not across restarts. It always shows, even before the device ID is

@@ -19,11 +19,13 @@ requested", and its stored event has `trigger: "motion"`.
   - The first 3 s after a camera opens or flips are ignored while exposure
     settles.
 - **Triggering:** the score must be at or above the threshold for **3
-  consecutive frames** (0.6 s). A one-frame glitch changes only two frames
+  consecutive frames** (0.6 s) (`MotionTrigger`,
+  [lib/camera/auto_clip_policy.dart](../presence_app/lib/camera/auto_clip_policy.dart)). A one-frame glitch changes only two frames
   (appearing, then disappearing), so it doesn't count.
 - **Cooldown:** after **any clip** (motion's, a Clip press, a scheduled,
   startup or Capture all clip), **no automatic clip for 5 minutes**
-  (configurable), counted from the moment the clip is grabbed. The
+  (configurable), counted from the moment the clip is grabbed
+  (`AutoClipPolicy.cooldownEnds`, kept by `CameraRig`). The
   readiness indicator shows it as a countdown, and motion is ignored until
   it reaches zero. A scheduled or startup clip due when it ends goes
   first (motion then waits for its cooldown). Manual clips are never

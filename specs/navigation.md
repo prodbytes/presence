@@ -35,6 +35,16 @@ in the app bar**, which flip between full screens.
   (`TabBar` + `TabBarView`). While a finger is on the Settings location
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
+- **Every view change looks the same:** a sideways slide, 300 ms, eased
+  (`Curves.ease`, the tabs' own). The role-gated tabs (Log, Admin) are
+  tabs like the others: they only need the role to show, and flip in the
+  same way. A screen pushed over the tabs (a [subject's](subjects.md))
+  slides in from the right as the tabs slide out to the left, and back on
+  return (`TabSlidePageTransitionsBuilder` in `lib/theme.dart`, the
+  theme's page transition on every platform), instead of the platform's
+  own zoom or fade. Sheets (the account sheet) and dialogs (the clip
+  player) aren't view changes: they still rise over the screen.
+  Test: `theme_test.dart`.
 - **A browser refresh stays on the open tab** (Camera, Monitoring,
   Settings, Log or Admin; the Log and Admin only if the user still has
   them), remembered by name: each switch is remembered in the browser tab's
@@ -45,8 +55,13 @@ in the app bar**, which flip between full screens.
   Android and iOS apps don't refresh, so they always start on the Camera.
   Which tabs show, the open one and the remembered one are kept by
   `HomeTabs` ([lib/home_tabs.dart](../presence_app/lib/home_tabs.dart));
-  the app bar (`_HomeAppBar`) and the Camera tab's buttons
-  (`_CameraButtons`) are widgets of their own in `lib/main.dart`.
+  the home screen (`HomeScreen`) is in
+  [lib/home/home_screen.dart](../presence_app/lib/home/home_screen.dart),
+  with its app bar (`HomeAppBar`, `lib/home/home_app_bar.dart`), the
+  Camera tab's buttons (`CameraButtons`, `lib/home/camera_buttons.dart`)
+  and the "dev" label (`DevModeLabel`, `lib/home/dev_mode_label.dart`) as
+  widgets of their own in `lib/home/`; `lib/main.dart` keeps `main()` and
+  the app's wiring (`PresenceApp`).
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
   the camera, with a dark gradient scrim to keep the tabs
@@ -100,7 +115,8 @@ in the app bar**, which flip between full screens.
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
   - **Status pills, bottom left**, across from Flip and Clip
-    (`_CameraStatus` in `lib/main.dart`): a **health warning** while a
+    (`CameraStatus` and `ReadinessIndicator` in
+    `lib/home/camera_status.dart`): a **health warning** while a
     health check fails, the **battery**, its **temperature** (Android),
     the **readiness indicator** and, after it for 4 s, the latest
     **message**, all in one pill style (`StatusPill`), 16 px from the
@@ -144,7 +160,8 @@ in the app bar**, which flip between full screens.
       red while that clip's *after* part is still saving ("Clip saving;
       next automatic clip in 4:59"), then amber ("Next automatic clip in
       4:28"). Below a minute it shows "45 s". The countdown and the
-      automatic triggers use the same end time (`CameraRig.cooldownEnds`):
+      automatic triggers use the same end time (`CameraRig.cooldownEnds`,
+      [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)):
       - **motion** is ignored until it reaches zero;
       - a **scheduled (or startup) clip** due during it is taken the
         moment it ends (a one-shot timer wakes the schedule then), ahead
@@ -173,7 +190,8 @@ in the app bar**, which flip between full screens.
       was taken since launch, the later of the two wins. A stored time
       later than now counts as now.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
-    `CameraMessagePill`), never a snackbar: at the bottom, to the right of
+    `CameraMessagePill`, kept for 4 s by `CameraMessages`, all in
+    `lib/home/camera_messages.dart`), never a snackbar: at the bottom, to the right of
     the readiness pill, for 4 s, so nothing over the camera moves (a
     snackbar pushed Flip and Clip up) or is covered. A newer message
     replaces it and restarts the 4 s. A label too long for the room is cut
