@@ -544,17 +544,9 @@ void main() {
       Future<void> toggleLog(WidgetTester tester) async {
         await tester.tap(find.byTooltip('Settings'));
         await tester.pumpAndSettle();
-        await tester.scrollUntilVisible(
-          logSwitch,
-          300,
-          scrollable: find
-              .descendant(
-                of: find.byKey(const Key('settings-page')),
-                matching: find.byType(Scrollable),
-              )
-              .first,
-        );
-        await tester.pumpAndSettle();
+        // At the list's edge: a drag in its middle can land on the
+        // location map or a slider.
+        await scrollSettingsTo(tester, logSwitch);
         await tester.tap(logSwitch);
         await tester.pumpAndSettle();
       }

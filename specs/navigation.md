@@ -194,7 +194,8 @@ in the app bar**, which flip between full screens.
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
-  **full width**, with this device's location map as a section (see
+  **full width**, opening on this device's and profile's IDs (two
+  columns), with this device's location map as a section (see
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).

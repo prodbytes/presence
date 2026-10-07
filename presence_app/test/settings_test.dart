@@ -189,17 +189,23 @@ void main() {
     );
   });
 
-  for (final scale in [1.0, 2.0]) {
-    testWidgets('the device and profile IDs are bodyMedium, larger than the '
-        'version, and fit 320 dp at ${scale}x text', (tester) async {
-      tester.view.physicalSize = const Size(320, 640);
+  for (final (width, scale, columns) in [
+    (320.0, 1.0, true),
+    (320.0, 2.0, false),
+    (1280.0, 1.0, true),
+    (1280.0, 2.0, true),
+  ]) {
+    testWidgets('the device and profile IDs come first, bodyMedium, '
+        '${columns ? 'in two columns' : 'stacked'}, and fit '
+        '${width.round()} dp at ${scale}x text', (tester) async {
+      tester.view.physicalSize = Size(width, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       await tester.pumpWidget(
         MaterialApp(
           home: MediaQuery(
             data: MediaQueryData(
-              size: const Size(320, 640),
+              size: Size(width, 640),
               textScaler: TextScaler.linear(scale),
             ),
             child: Scaffold(
@@ -213,37 +219,61 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('profile-id')),
-        200,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.pumpAndSettle();
-      // At 2x, other rows scrolled past overflow already (not the IDs,
-      // which wrap); at 1x nothing does.
+      // Shown without scrolling; the IDs never overflow (other rows may
+      // at 2x and 320 dp).
       final error = tester.takeException();
       if (scale == 1) expect(error, isNull);
+      expect(error.toString(), isNot(contains('_IdLine')));
 
       final body = Theme.of(tester.element(find.byType(SettingsView)))
           .textTheme;
-      for (final key in ['device-id', 'profile-id']) {
-        final id = find.byKey(Key(key));
+      final device = find.byKey(const Key('device-id'));
+      final profile = find.byKey(const Key('profile-id'));
+      for (final id in [device, profile]) {
         final style = tester.widget<SelectableText>(id).style!;
         expect(style.fontSize, body.bodyMedium!.fontSize);
         expect(style.fontSize, greaterThan(body.bodySmall!.fontSize!));
-        // Inside the screen, not cut off.
+        // Inside the screen, not cut off, and visible at the top.
         expect(tester.getTopLeft(id).dx, greaterThanOrEqualTo(0));
-        expect(tester.getTopRight(id).dx, lessThanOrEqualTo(320));
+        expect(tester.getTopRight(id).dx, lessThanOrEqualTo(width));
+        expect(tester.getBottomLeft(id).dy, lessThanOrEqualTo(640));
       }
       expect(
-        tester.widget<SelectableText>(find.byKey(const Key('device-id'))).data,
+        tester.widget<SelectableText>(device).data,
         'automatic_paranoid_gadget',
       );
-      // The labels are the same size as the IDs.
+      // The first content: above the first section's title.
+      final ids = find.byKey(const Key('settings-ids'));
       expect(
-        tester.widget<Text>(find.text('Device ')).style!.fontSize,
-        body.bodyMedium!.fontSize,
+        tester.getBottomLeft(ids).dy,
+        lessThan(tester.getTopLeft(find.text('Camera')).dy),
       );
+      expect(tester.getTopLeft(ids).dy, lessThanOrEqualTo(16));
+      if (columns) {
+        // Device left, Profile right, on the same line.
+        expect(tester.getTopLeft(device).dy, tester.getTopLeft(profile).dy);
+        expect(
+          tester.getTopRight(device).dx,
+          lessThan(tester.getTopLeft(profile).dx),
+        );
+      } else {
+        // Stacked: Profile under Device.
+        expect(
+          tester.getTopLeft(profile).dy,
+          greaterThan(tester.getBottomLeft(device).dy),
+        );
+      }
+      // Each label is above its ID, the same size.
+      for (final (label, id) in [('Device', device), ('Profile', profile)]) {
+        final text = find.text(label);
+        expect(tester.widget<Text>(text).style!.fontSize,
+            body.bodyMedium!.fontSize);
+        expect(
+          tester.getBottomLeft(text).dy,
+          lessThanOrEqualTo(tester.getTopLeft(id).dy),
+        );
+      }
     });
   }
+
 }
