@@ -113,7 +113,8 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Scrolls to "Add a device", last in Settings, and returns its link.
+    /// Scrolls to "Add a device", near the end of Settings, and returns its
+    /// link.
     Future<Uri> openAddDevice(WidgetTester tester) async {
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
@@ -155,20 +156,16 @@ void main() {
       await tester.pumpAndSettle();
       await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
       expect(deviceIdShown(tester), matches(DeviceId.pattern));
-      expect(find.text('Device'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
+      expect(find.text('Device '), findsOneWidget);
+      expect(find.text('Profile '), findsOneWidget);
       expect(
         tester.widget<SelectableText>(find.byKey(const Key('profile-id'))).data,
         'automatic_paranoid_axolotl',
       );
-      // Side by side at the top: the device ID left, the profile ID right.
+      // One column at the bottom: the profile ID under the device ID.
       expect(
         tester.getTopLeft(find.byKey(const Key('profile-id'))).dy,
-        tester.getTopLeft(find.byKey(const Key('device-id'))).dy,
-      );
-      expect(
-        tester.getTopLeft(find.byKey(const Key('profile-id'))).dx,
-        greaterThan(tester.getTopRight(find.byKey(const Key('device-id'))).dx),
+        greaterThan(tester.getTopLeft(find.byKey(const Key('device-id'))).dy),
       );
     });
 
@@ -208,23 +205,40 @@ void main() {
       tester,
     ) async {
       await launch(tester);
-      // The ID at the top of Settings, then the link at the bottom.
-      await tester.tap(find.byTooltip('Settings'));
-      await tester.pumpAndSettle();
+      // The link near the bottom, then the ID last.
+      final link = await openAddDevice(tester);
+      expect(find.textContaining('ana@example.com'), findsOneWidget);
+      // Below the health line, and above the IDs, the last thing.
+      // Up from Add a device to the health line above it.
+      final health = find.byKey(const Key('system-health'));
+      for (var i = 0; i < 10 && health.evaluate().isEmpty; i++) {
+        final rect = tester.getRect(find.byKey(const Key('settings-page')));
+        await tester.dragFrom(
+          Offset(rect.left + 4, rect.center.dy),
+          const Offset(0, 200),
+        );
+        await tester.pumpAndSettle();
+      }
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('add-device'), skipOffstage: false),
+            )
+            .dy,
+        greaterThan(tester.getTopLeft(health).dy),
+      );
+      await scrollSettingsTo(tester, find.byKey(const Key('settings-ids')));
+      expect(
+        tester.getTopLeft(find.byKey(const Key('settings-ids'))).dy,
+        greaterThan(
+          tester.getBottomLeft(find.byKey(const Key('add-device'))).dy,
+        ),
+      );
       final deviceId = deviceIdShown(tester);
       expect(deviceId, matches(DeviceId.pattern));
-      final link = await openAddDevice(tester);
       expect(
         JoinLink.parse(link),
         JoinLink(from: deviceId, user: JoinLink.userCode('1')),
-      );
-      expect(find.textContaining('ana@example.com'), findsOneWidget);
-      // It's the last thing: below the health line.
-      expect(
-        tester.getTopLeft(find.byKey(const Key('add-device'))).dy,
-        greaterThan(
-          tester.getTopLeft(find.byKey(const Key('system-health'))).dy,
-        ),
       );
     });
 
@@ -267,6 +281,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Settings'));
         await tester.pumpAndSettle();
+        await scrollSettingsTo(tester, find.byKey(const Key('device-id')));
         expect(deviceIdShown(tester), isNot('other_device_here'));
       },
     );

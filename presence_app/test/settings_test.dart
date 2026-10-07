@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/settings.dart';
 
+import 'fakes.dart';
+
 void main() {
   late ConfigController config;
   setUp(() => config = ConfigController());
@@ -189,15 +191,16 @@ void main() {
     );
   });
 
-  for (final (width, scale, columns) in [
-    (320.0, 1.0, true),
-    (320.0, 2.0, false),
-    (1280.0, 1.0, true),
-    (1280.0, 2.0, true),
+  for (final (width, scale) in [
+    (320.0, 1.0),
+    (320.0, 2.0),
+    (1280.0, 1.0),
+    (1280.0, 2.0),
   ]) {
-    testWidgets('the device and profile IDs come first, bodyMedium, '
-        '${columns ? 'in two columns' : 'stacked'}, and fit '
-        '${width.round()} dp at ${scale}x text', (tester) async {
+    testWidgets('the device and profile IDs come last, bodyMedium, one '
+        'line each, and fit ${width.round()} dp at ${scale}x text', (
+      tester,
+    ) async {
       tester.view.physicalSize = Size(width, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -213,17 +216,35 @@ void main() {
                 config: config,
                 deviceId: 'automatic_paranoid_gadget',
                 profileId: 'automatic_paranoid_axolotl',
+                health: const Text('All good', key: Key('system-health')),
+                addDevice: const Text('Add a device', key: Key('add-device')),
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      // Shown without scrolling; the IDs never overflow (other rows may
-      // at 2x and 320 dp).
+      final ids = find.byKey(const Key('settings-ids'));
+      await scrollSettingsTo(tester, ids);
+      // The IDs never overflow (other rows may at 2x and 320 dp).
       final error = tester.takeException();
       if (scale == 1) expect(error, isNull);
       expect(error.toString(), isNot(contains('_IdLine')));
+
+      // The very last thing on the page: the list's last child, under
+      // the health line and Add a device.
+      final list = tester.widget<ListView>(
+        find.byKey(const Key('settings-page')),
+      );
+      final children =
+          (list.childrenDelegate as SliverChildListDelegate).children;
+      expect(children.last.key, const Key('settings-ids'));
+      for (final above in ['system-health', 'add-device']) {
+        expect(
+          tester.getTopLeft(ids).dy,
+          greaterThan(tester.getBottomLeft(find.byKey(Key(above))).dy),
+        );
+      }
 
       final body = Theme.of(tester.element(find.byType(SettingsView)))
           .textTheme;
@@ -233,47 +254,34 @@ void main() {
         final style = tester.widget<SelectableText>(id).style!;
         expect(style.fontSize, body.bodyMedium!.fontSize);
         expect(style.fontSize, greaterThan(body.bodySmall!.fontSize!));
-        // Inside the screen, not cut off, and visible at the top.
+        // Inside the screen, not cut off.
         expect(tester.getTopLeft(id).dx, greaterThanOrEqualTo(0));
         expect(tester.getTopRight(id).dx, lessThanOrEqualTo(width));
+        expect(tester.getTopLeft(id).dy, greaterThanOrEqualTo(0));
         expect(tester.getBottomLeft(id).dy, lessThanOrEqualTo(640));
       }
       expect(
         tester.widget<SelectableText>(device).data,
         'automatic_paranoid_gadget',
       );
-      // The first content: above the first section's title.
-      final ids = find.byKey(const Key('settings-ids'));
+      // One column: Profile under Device.
       expect(
-        tester.getBottomLeft(ids).dy,
-        lessThan(tester.getTopLeft(find.text('Camera')).dy),
+        tester.getTopLeft(profile).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(device).dy),
       );
-      expect(tester.getTopLeft(ids).dy, lessThanOrEqualTo(16));
-      if (columns) {
-        // Device left, Profile right, on the same line.
-        expect(tester.getTopLeft(device).dy, tester.getTopLeft(profile).dy);
-        expect(
-          tester.getTopRight(device).dx,
-          lessThan(tester.getTopLeft(profile).dx),
-        );
-      } else {
-        // Stacked: Profile under Device.
-        expect(
-          tester.getTopLeft(profile).dy,
-          greaterThan(tester.getBottomLeft(device).dy),
-        );
-      }
-      // Each label is above its ID, the same size.
+      // Each label at the ID's size, before it on its line, or above it
+      // when the line doesn't fit.
       for (final (label, id) in [('Device', device), ('Profile', profile)]) {
-        final text = find.text(label);
-        expect(tester.widget<Text>(text).style!.fontSize,
-            body.bodyMedium!.fontSize);
+        final text = find.text('$label ');
         expect(
-          tester.getBottomLeft(text).dy,
-          lessThanOrEqualTo(tester.getTopLeft(id).dy),
+          tester.widget<Text>(text).style!.fontSize,
+          body.bodyMedium!.fontSize,
         );
+        final sameLine =
+            tester.getTopRight(text).dx <= tester.getTopLeft(id).dx;
+        final under = tester.getBottomLeft(text).dy <= tester.getTopLeft(id).dy;
+        expect(sameLine || under, isTrue);
       }
     });
   }
-
 }
