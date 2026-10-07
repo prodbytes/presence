@@ -3928,3 +3928,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        so imports of `package:presence_app/main.dart` still find them.
      - Tests: unchanged; all pass.
      - Specs: [Navigation](navigation.md).
+
+306. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
+     - Asked: a pure refactor, no behaviour change: split the 1,347-line
+       `lib/clips.dart` into the model, the timeline card and the player
+       dialog, breaking the player's ~300-line `build` into section
+       widgets; and share the playback logic the native and web
+       `ClipPlayerView`s repeat, only if the load-race fixes stay intact
+       and tests prove the two equivalent.
+     - Changed: `lib/clips/clip_model.dart` (`VideoClip`, `ClipTrigger`,
+       `ClipRequested`, `formatClipTime`), `clip_card.dart`
+       (`ClipEventCard`), `clip_labels.dart` (`ClipObjectTags`,
+       `OpenAtLabel`, `RemoveLabelButton`), `clip_player_dialog.dart`
+       (`showClipPlayer`, `ClipPlayerDialog`, now built from
+       `_SubjectsSection`, `_FrameRow`, `_SubjectChip` and `_TagsSection`)
+       and `frame_tagger.dart` (`FrameTagger`, was `_FrameTagger`).
+       `lib/clips.dart` re-exports them, so importers are unchanged. The
+       two `ClipPlayerView`s were left as they are: the web one has no
+       tests (the tests run on the VM) and the native one's loading isn't
+       exercised (no `video_player` fake), so no test could prove a
+       shared controller equivalent; what they share is short
+       (`_start`, `_showFull`, `_onClipChanged`), while their loading and
+       stale-load guards differ by platform.
+     - Tests: unchanged; all pass.
+     - Specs: [Clips](clips.md) (new Code section, the player's file).
