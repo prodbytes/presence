@@ -11,6 +11,7 @@ import 'battery.dart';
 import 'battery_pills.dart';
 import 'auth/admin_screen.dart';
 import 'auth/api_config.dart';
+import 'barrel_roll.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'auth/membership_client.dart';
@@ -525,6 +526,8 @@ class _PresenceAppState extends State<PresenceApp> {
               title: AppVersion.title,
               debugShowCheckedModeBanner: false,
               theme: gruvboxSoftDarkTheme(),
+              // The "do a barrel roll" search spins everything.
+              builder: (context, app) => BarrelRoll(child: app!),
               home: switch (_consented) {
                 // Nothing shows until the device's consent is known.
                 null => const Scaffold(

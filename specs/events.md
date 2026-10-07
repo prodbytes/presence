@@ -78,6 +78,20 @@
     before); the tooltip, on hover, says "Show only events with cat" or
     "Show every event" (and "hold to rename" on a subject's chip). Each
     label's **x** still removes it. It fits a 320 dp phone.
+  - **Easter egg: "do a barrel roll".** As in Google, searching for
+    **do a barrel roll** (or "barrell", any case, extra spaces ignored)
+    spins the whole screen one full turn around its center over 2 s
+    (ease in and out), then it's level again; the search still filters
+    as usual (and matches nothing). It rolls once when the text becomes
+    the phrase, not again on more keys while it stays it, and again each
+    time it's submitted (Enter / Search). Not while one turn is running,
+    and never with reduced motion (the system's "remove animations"). It's
+    `BarrelRoll` ([lib/barrel_roll.dart](../presence_app/lib/barrel_roll.dart)),
+    wrapped around the app in `MaterialApp.builder`, so dialogs and snack
+    bars spin too; the app's state is kept through a turn.
+    `test/barrel_roll_test.dart`: the phrase's spellings, a turn starting
+    and ending level with the search kept, once per phrase and again on
+    submit, other searches and reduced motion don't roll.
   - **Counts.** Right after the search (icon or field), on its row, the count of events
     (`EventCount`) reads **matching / all**, such as `2 / 12`, with the
     tooltip "2 of 12 events shown".
