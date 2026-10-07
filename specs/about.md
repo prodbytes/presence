@@ -9,12 +9,13 @@ There's no About button or screen any more, and no call to become a member.
   unavailable" note). The account button isn't shown in DEV or to a
   signed-out user who can sign in, so there it isn't shown either.
 - **Content**, small and quiet (`bodySmall`, muted):
-  - one paragraph: Presence turns a phone, tablet or laptop into an
+  - one paragraph: Presence turns a phone, tablet, laptop or Raspberry Pi
+    ([Raspberry Pi](raspberry-pi.md)) into an
     always-on camera for a place you look after (live feeds, clips that
     include the moments before, clips on motion), and to only record where
     you're allowed to;
-  - "Presence X.Y.Z is open source:" (the build's [version](release.md);
-    left out when the build has none) and a link to
+  - "Presence is open source:" (no version: the build's version is at the
+    bottom of [Settings](settings.md)) and a link to
     `github.com/prodbytes/presence`. Tapping it opens it outside the app
     (`url_launcher`); when it can't open, it's copied, saying "Link
     copied".

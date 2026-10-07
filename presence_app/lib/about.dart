@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'app_version.dart';
-
 /// Opens [url] outside the app; false when it couldn't.
 typedef LinkOpener = Future<bool> Function(Uri url);
 
@@ -32,26 +30,22 @@ class AboutParagraph extends StatelessWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    const version = AppVersion.version;
     return Column(
       key: const Key('about'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Presence turns a phone, tablet or laptop into an always-on camera '
-          'for a place you look after: live feeds, clips that include the '
-          'moments before, and clips on motion. Only record where you\'re '
-          'allowed to.',
+          'Presence turns a phone, tablet, laptop or Raspberry Pi into an '
+          'always-on camera for a place you look after: live feeds, clips '
+          'that include the moments before, and clips on motion. Only record '
+          'where you\'re allowed to.',
           style: muted,
         ),
         const SizedBox(height: 4),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text(
-              'Presence${version.isEmpty ? '' : ' $version'} is open source:',
-              style: muted,
-            ),
+            Text('Presence is open source:', style: muted),
             TextButton(
               key: const Key('about-source'),
               style: TextButton.styleFrom(

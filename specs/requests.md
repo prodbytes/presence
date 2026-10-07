@@ -4004,3 +4004,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter build web` pass.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
+
+309. **About: Raspberry Pi, and no version.** (2026-10-07)
+     - Asked: on the About paragraph, add the Raspberry Pi and remove the
+       version.
+     - Changed: the paragraph now reads "a phone, tablet, laptop or
+       Raspberry Pi"; the open-source line is just "Presence is open
+       source:" (the version stays at the bottom of Settings). Specs:
+       [About](about.md).
