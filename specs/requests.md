@@ -3910,3 +3910,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        test (aligned face cosines, a small far person found by a tile).
        Not yet run on a phone. Specs: [Subject recognition](recognition.md),
        [Android](android.md), [Data formats](data-formats.md).
+
+305. **Cameras ordered by activity, with online status.** (2026-10-07)
+     - Asked: in the camera section, order the cameras most recently
+       active first, with an online or offline indicator if possible,
+       checked by pinging over MQTT.
+     - Changed: the All grid's other devices are now ordered by activity
+       (`byActivity`): live devices first (answered a live-sync ping
+       within 90 s), then by when last heard from or last event, newest
+       first; ties by device ID. Among live devices their latest event
+       decides, so cells don't swap at every ping round. Cells slide to
+       their new place (300 ms). The online indicator was already there:
+       each cell's presence dot (green live, yellow seen within 24 h, red
+       older), from the MQTT pings the grid sends every 30 s. Tests:
+       `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
+       [Device presence](device-presence.md).
+

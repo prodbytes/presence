@@ -90,8 +90,16 @@ profile (`CameraFeedsView.showAll`,
   reason as tooltip and screen-reader label. The grid pings the devices
   when it shows and every 30 s while it does (see [Device
   presence](device-presence.md)).
-- **Then one cell per other device**, sorted by device ID so cells don't
-  move (`latestByDevice`): the thumbnail of its newest clip, shown whole,
+- **Then one cell per other device**, **most recently active first**
+  (`byActivity`): those **live** now (green: answered a ping within 90 s)
+  first, then the others by when they were last heard from over live
+  sync or posted an event, whichever is later, newest first; ties by
+  device ID. Live devices all answer the same ping round within a moment,
+  so among them their latest event decides, and cells don't swap at
+  every round. As devices' activity changes (a pong, a new clip, one
+  going quiet), the cells move, sliding to their new place (300 ms, as
+  the tabs). Without live sync, events alone decide. Each cell
+  (`latestByDevice`) shows the thumbnail of its newest clip, shown whole,
   labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
@@ -129,8 +137,9 @@ profile (`CameraFeedsView.showAll`,
   in the grid always asks again (see Capture all).
 - The grid and the camera alone are the same widget tree, so switching
   never rebuilds or reopens the camera's preview, and recording goes on.
-- Tests: `camera_all_test.dart` (which devices and images, the grid's
-  places, the same preview across switches, the button, the spinner on
+- Tests: `camera_all_test.dart` (which devices and images, the order
+  (live first, latest activity, ties, without live sync), the grid's
+  places and a device moving ahead once it takes a clip, the same preview across switches, the button, the spinner on
   older images while asked for fresh ones) and
   `camera_pause_test.dart` (the view button's cycle, the camera closed and
   no clips while off, Turn on, the setting kept).

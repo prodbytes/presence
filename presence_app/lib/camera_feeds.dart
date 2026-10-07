@@ -896,11 +896,18 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                   profileId: widget.profileId,
                 )
               : const <String, DateTime>{};
+          final now = DateTime.now();
           final others = all
-              ? latestByDevice(
-                  log?.events ?? const [],
-                  thisDevice: widget.deviceId,
-                  profileId: widget.profileId,
+              ? byActivity(
+                  latestByDevice(
+                    log?.events ?? const [],
+                    thisDevice: widget.deviceId,
+                    profileId: widget.profileId,
+                  ),
+                  seenOf: live?.seenOf,
+                  lastEvents: lastEvents,
+                  now: now,
+                  liveAvailable: available,
                 )
               : const <DeviceLatest>[];
           final padding = MediaQuery.paddingOf(context);
@@ -927,7 +934,6 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       (i ~/ columns) * cell.height,
                     ) &
                     cell;
-                final now = DateTime.now();
                 return Stack(
                   children: [
                     // This device, live: top left in the grid.
@@ -953,8 +959,12 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       ),
                     ),
                     for (final (i, latest) in others.indexed)
-                      Positioned.fromRect(
+                      // A device whose place changes slides there, as the
+                      // tabs do.
+                      AnimatedPositioned.fromRect(
                         key: ValueKey(latest.deviceId),
+                        duration: kTabScrollDuration,
+                        curve: Curves.ease,
                         rect: rectOf(i + 1).deflate(1),
                         child: _Cell(
                           label:
@@ -1083,6 +1093,46 @@ List<DeviceLatest> latestByDevice(
   }
   return latest.values.toList()
     ..sort((a, b) => a.deviceId.compareTo(b.deviceId));
+}
+
+/// [devices] most recently active first, for the All grid: those live now
+/// (answered a ping within [DevicePresence.liveWithin], green) first, then
+/// the others by when they were last heard from over live sync
+/// ([seenOf]) or posted an event ([lastEvents]), whichever is later,
+/// newest first. Live devices all answer the same ping round within a
+/// second or so, so among them their latest event decides, and the cells
+/// don't swap places at every round. Ties by device ID.
+List<DeviceLatest> byActivity(
+  List<DeviceLatest> devices, {
+  DateTime? Function(String deviceId)? seenOf,
+  required Map<String, DateTime> lastEvents,
+  required DateTime now,
+  required bool liveAvailable,
+}) {
+  (bool, DateTime) rank(DeviceLatest d) {
+    final answered = seenOf?.call(d.deviceId);
+    final event = lastEvents[d.deviceId] ?? d.time;
+    final live =
+        DevicePresence.of(
+          answeredAt: answered,
+          lastEvent: event,
+          now: now,
+          liveAvailable: liveAvailable,
+        ).level ==
+        PresenceLevel.live;
+    if (live) return (true, event);
+    final heard = liveAvailable ? answered : null;
+    return (false, heard != null && heard.isAfter(event) ? heard : event);
+  }
+
+  final ranks = {for (final d in devices) d.deviceId: rank(d)};
+  return [...devices]..sort((a, b) {
+    final (aLive, aTime) = ranks[a.deviceId]!;
+    final (bLive, bTime) = ranks[b.deviceId]!;
+    if (aLive != bLive) return aLive ? -1 : 1;
+    final byTime = bTime.compareTo(aTime);
+    return byTime != 0 ? byTime : a.deviceId.compareTo(b.deviceId);
+  });
 }
 
 /// How many columns fit [count] cells in [size] with the biggest 16:9
