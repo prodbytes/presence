@@ -251,7 +251,7 @@ void main() {
       expect(find.byTooltip('Turn the camera off'), findsOneWidget);
       expect(find.textContaining('· live'), findsOneWidget);
 
-      // None: the camera off, the single view, no Clip.
+      // None: the camera off, the single view, Clip disabled.
       await tester.tap(button);
       await tester.pumpAndSettle();
       expect(label(), Icons.videocam_off);
@@ -259,8 +259,9 @@ void main() {
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
       expect(find.textContaining('· live'), findsNothing);
-      expect(find.byTooltip('Clip'), findsNothing);
-      expect(find.byTooltip('Camera off: nothing is recorded'), findsOneWidget);
+      final clip = find.byKey(const Key('clip'));
+      expect(tester.widget<FloatingActionButton>(clip).onPressed, isNull);
+      expect(find.byTooltip('Camera off'), findsOneWidget);
       expect(find.text('Off'), findsNothing);
 
       // Back to One: the camera reopens.
@@ -268,7 +269,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(label(), Icons.crop_square);
       expect(find.byKey(const Key('camera-paused')), findsNothing);
-      expect(find.byTooltip('Clip'), findsOneWidget);
+      expect(tester.widget<FloatingActionButton>(clip).onPressed, isNotNull);
+      expect(find.byTooltip('Ready'), findsOneWidget);
       expect(backend.opened, hasLength(2));
     });
   });

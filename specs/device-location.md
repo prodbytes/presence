@@ -89,7 +89,7 @@ the camera. (There used to be a Device tab for both; it's gone.)
 ## Battery, over the camera
 
 - Over the Camera tab, **bottom left**, across from Flip and Clip, in the
-  same pill style as the readiness indicator
+  same pill style as the camera's messages
   ([lib/battery_pills.dart](../presence_app/lib/battery_pills.dart),
   [lib/status_pill.dart](../presence_app/lib/status_pill.dart)); see
   [Navigation](navigation.md) for the layout. Only with access, like the

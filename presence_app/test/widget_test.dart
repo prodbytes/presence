@@ -267,7 +267,7 @@ void main() {
     expect(backend.opened, hasLength(1), reason: 'the camera still shows');
     expect(find.byKey(const Key('dev-mode')), findsOneWidget);
     expect(find.byType(TabBar), findsOneWidget);
-    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byKey(const Key('clip')), findsOneWidget);
     expect(find.byKey(const Key('account-button')), findsNothing);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(find.byKey(const Key('sign-up')), findsNothing);
@@ -346,9 +346,9 @@ void main() {
     // navigation; only the sign-in button in the app bar.
     expect(backend.opened, [camera.id]);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
-    expect(find.byTooltip('Clip'), findsNothing);
+    expect(find.byKey(const Key('clip')), findsNothing);
     expect(find.byTooltip('Flip camera'), findsNothing);
-    expect(find.byType(ReadinessIndicator), findsNothing);
+    expect(find.byType(ClipButton), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
     expect(find.byType(TabBar), findsNothing);
     expect(find.byKey(const Key('account-button')), findsNothing);
@@ -358,8 +358,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Signed in: the camera's buttons, the tabs and the account button.
-    expect(find.byTooltip('Clip'), findsOneWidget);
-    expect(find.byType(ReadinessIndicator), findsOneWidget);
+    expect(find.byKey(const Key('clip')), findsOneWidget);
+    expect(find.byType(ClipButton), findsOneWidget);
     expect(find.byType(TabBar), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(
@@ -387,7 +387,7 @@ void main() {
     expect(find.byType(TabBar), findsNothing);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
-    expect(find.byTooltip('Clip'), findsNothing);
+    expect(find.byKey(const Key('clip')), findsNothing);
     expect(camera.disposed, isFalse);
     expect(backend.opened, [camera.id]);
     await tester.pump(const Duration(seconds: 1));
@@ -421,15 +421,19 @@ void main() {
       cameras: openFakes([FakeCameraSource('Front door')]),
     );
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byKey(const Key('clip')), findsOneWidget);
 
     await openTab(tester, 'Monitoring');
-    expect(find.byTooltip('Clip'), findsNothing);
+    expect(find.byKey(const Key('clip')), findsNothing);
   });
 
-  testWidgets('no clip button without a camera', (tester) async {
+  testWidgets('without a camera, Clip is disabled and says why', (
+    tester,
+  ) async {
     await pumpAt(tester, const Size(1280, 800));
-    expect(find.byTooltip('Clip'), findsNothing);
+    final clip = find.byKey(const Key('clip'));
+    expect(tester.widget<FloatingActionButton>(clip).onPressed, isNull);
+    expect(find.byTooltip('No camera'), findsOneWidget);
   });
 
   testWidgets('uses the gruvbox soft dark palette', (tester) async {

@@ -4004,3 +4004,35 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter build web` pass.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
+
+309. **One Clip button that is also the readiness indicator.** (2026-10-07)
+     - Asked: merge the readiness indicator and the grab (Clip) button:
+       greenish when ready, yellow during the cooldown with the time left
+       in the label, red when disabled or recording a clip.
+     - Changed: the separate readiness pill (`ReadinessIndicator`) is
+       gone; `ClipButton` (`lib/home/clip_button.dart`) replaces the old
+       Clip FAB and carries it. **Green**, "Clip", tooltip "Ready";
+       **amber** during the cooldown, "Clip · 4:59" / "Clip · 45 s"
+       (the time alone where that doesn't fit, the icon alone with very
+       large text), tooltip "Next automatic clip in 4:28"; **red** while
+       the latest clip's after part is saving, tooltip "Clip saving…"
+       (plus the countdown), now also with automatic clips off
+       (`ClipReadiness.recording` is set when ready too); **red-tinted
+       and disabled** when no clip can be taken, with the reason as the
+       tooltip ("Camera off", "No camera", "Camera starting…", "Camera
+       unavailable", "Camera not ready"). Clip used to be hidden then; it
+       now always shows with access. Presses during the cooldown and
+       while saving still take a clip and restart the cooldown (kept);
+       in the All grid a press still asks every device. Colors meet
+       4.5:1 on dark and light themes; the countdown is not a live
+       region. The status pills keep the health warning, battery,
+       temperature and message.
+     - Tests: `readiness_test.dart` asserts the button's colors, labels
+       and tooltips (ready, saving, cooldown, disabled), contrast on both
+       themes, a press while saving, 320 dp with Flip at 1x and 2x text;
+       other tests find Clip by its key (`Key('clip')`) and expect it
+       disabled, not missing, without a camera or with the camera off.
+     - Specs: [Navigation](navigation.md), [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [README](README.md).

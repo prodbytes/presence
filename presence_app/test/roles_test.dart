@@ -370,7 +370,7 @@ void main() {
       await launch(tester, roles, membership);
 
       expect(find.byType(TabBar), findsNothing);
-      expect(find.byTooltip('Clip'), findsNothing);
+      expect(find.byKey(const Key('clip')), findsNothing);
       expect(find.byType(FloatingActionButton), findsNothing);
       expect(find.byKey(const Key('account-button')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
@@ -409,7 +409,7 @@ void main() {
           .pop();
       await tester.pumpAndSettle();
       expect(find.byType(TabBar), findsOneWidget);
-      expect(find.byTooltip('Clip'), findsOneWidget);
+      expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
@@ -947,7 +947,7 @@ void main() {
     testWidgets('a presence_user: everything but Admin', (tester) async {
       await launch(tester, FakeRolesClient([userRole]));
       expect(find.byType(TabBar), findsOneWidget);
-      expect(find.byTooltip('Clip'), findsOneWidget);
+      expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
       expect(find.byTooltip('Admin'), findsNothing);
     });

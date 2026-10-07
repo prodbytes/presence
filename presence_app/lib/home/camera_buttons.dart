@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../camera_feeds.dart';
+import 'clip_button.dart';
 
 /// The Camera tab's floating buttons, bottom right: the view button (One,
-/// All, None), Flip and Clip. Each is hidden, not disabled, when it can't
-/// act.
+/// All, None), Flip and Clip. Flip is hidden when it can't act; Clip
+/// ([ClipButton]) always shows, colored by whether a clip can be taken,
+/// and disabled when none can.
 class CameraButtons extends StatelessWidget {
   const CameraButtons({
     super.key,
@@ -24,6 +26,9 @@ class CameraButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final padding = MediaQuery.paddingOf(context);
+    // The screen less the 16 dp margins on both sides.
+    final room = MediaQuery.sizeOf(context).width - padding.horizontal - 2 * 16;
     return ListenableBuilder(
       listenable: rig,
       builder: (context, _) {
@@ -31,6 +36,7 @@ class CameraButtons extends StatelessWidget {
           paused: rig.paused,
           showAll: showAll,
         );
+        final flips = rig.devices.length > 1 && !rig.paused;
         return Row(
           mainAxisSize: MainAxisSize.min,
           spacing: 12,
@@ -63,7 +69,7 @@ class CameraButtons extends StatelessWidget {
                 CameraViewMode.none => Icons.videocam_off,
               }),
             ),
-            if (rig.devices.length > 1 && !rig.paused)
+            if (flips)
               FloatingActionButton(
                 heroTag: 'flip-camera',
                 tooltip: 'Flip camera',
@@ -73,14 +79,11 @@ class CameraButtons extends StatelessWidget {
                 onPressed: rig.canFlip ? rig.flip : null,
                 child: const Icon(Icons.cameraswitch),
               ),
-            if (rig.canClip)
-              FloatingActionButton.extended(
-                heroTag: 'clip',
-                tooltip: 'Clip',
-                icon: const Icon(Icons.camera),
-                label: const Text('Clip'),
-                onPressed: onClip,
-              ),
+            ClipButton(
+              rig: rig,
+              onPressed: onClip,
+              maxWidth: room - (56 + 12) - (flips ? 56 + 12 : 0),
+            ),
           ],
         );
       },

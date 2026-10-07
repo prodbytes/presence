@@ -160,16 +160,18 @@ class CameraRig extends ChangeNotifier {
       return const ClipReadiness(ClipReadinessState.unavailable);
     }
     final now = _now();
+    // The latest clip's "after" part is still being saved.
+    final recording = !(_latestClip?.fullDone ?? true);
     // After any clip: the cooldown, when automatic clips may come again.
     final ends = cooldownEnds;
     if (ends != null) {
       return ClipReadiness(
         ClipReadinessState.cooldown,
         remaining: ends.difference(now),
-        recording: !(_latestClip?.fullDone ?? true),
+        recording: recording,
       );
     }
-    return const ClipReadiness(ClipReadinessState.ready);
+    return ClipReadiness(ClipReadinessState.ready, recording: recording);
   }
 
   /// Restores the cooldown after a restart, from this device's last clip
@@ -190,9 +192,9 @@ class CameraRig extends ChangeNotifier {
   /// When automatic clips (motion, scheduled, startup) may be taken again,
   /// or null if they may now: [MotionConfig.cooldown] after the latest
   /// clip, whatever took it. Null too when motion and scheduled clips are
-  /// both off: there's no automatic clip to wait for. The readiness
-  /// countdown and the automatic triggers use this; the Clip button
-  /// ignores it.
+  /// both off: there's no automatic clip to wait for. The automatic
+  /// triggers wait for it; the Clip button counts it down but is never
+  /// held back by it.
   DateTime? get cooldownEnds {
     final last = _lastClip;
     if (last == null ||

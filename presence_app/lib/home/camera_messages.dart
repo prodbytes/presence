@@ -24,8 +24,8 @@ class CameraMessage {
   final bool error;
 }
 
-/// A [CameraMessage] as a pill after the readiness one, where it moves and
-/// covers nothing; tapping it opens the clip's event ([onView]), where
+/// A [CameraMessage] as a pill bottom left, where it moves and covers
+/// nothing; tapping it opens the clip's event ([onView]), where
 /// there's one and access. A label too long for the room is cut short; the
 /// tooltip has it all.
 class CameraMessagePill extends StatelessWidget {
