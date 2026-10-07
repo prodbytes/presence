@@ -99,11 +99,9 @@ profile (`CameraFeedsView.showAll`,
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
   player.
-- **Deleting a device:** each other device's cell has a delete button,
-  top left (tooltip "Delete <device ID>"); after a confirmation naming the
-  device and its number of events, every event of it is hidden on every
-  device ("all events emptied") and its cell goes. This device's cell has
-  none. See [Device deletion](device-deletion.md).
+- **No delete button:** the cells don't delete devices; that's done from
+  the account sheet's device list ([Device deletion](device-deletion.md)).
+  A deleted device's cell goes.
 - **Which devices:** those in the event log with a device ID other than
   this one's, from the signed-in account's [profile](profiles.md)'s events
   only (signed out and in DEV, every event's). Other devices' events reach
