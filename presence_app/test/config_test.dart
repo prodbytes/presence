@@ -123,12 +123,13 @@ void main() {
       expect(LiveConfig.fromJson({'mode': 'sometimes'}), const LiveConfig());
     });
 
-    test('the steps: Never first, then 1 to 60 min, Always last', () {
-      expect(LiveConfig.steps, 9);
+    test('the steps: Never first, then 30 s to 60 min, Always last', () {
+      expect(LiveConfig.steps, 10);
       expect(
         [for (var i = 0; i < LiveConfig.steps; i++) LiveConfig.ofStep(i).label],
         [
           'Never',
+          'Every 30 s',
           'Every 1 min',
           'Every 2 min',
           'Every 5 min',
@@ -140,13 +141,46 @@ void main() {
         ],
       );
       expect(LiveConfig.ofStep(0), LiveConfig.never);
-      expect(LiveConfig.ofStep(8), LiveConfig.always);
+      expect(LiveConfig.ofStep(9), LiveConfig.always);
+      expect(LiveConfig.memberMaxStep, 8);
+      expect(LiveConfig.ofStep(LiveConfig.memberMaxStep).label, 'Every 60 min');
       expect(LiveConfig.ofStep(-3), LiveConfig.never);
       expect(LiveConfig.ofStep(42), LiveConfig.always);
       for (var i = 0; i < LiveConfig.steps; i++) {
         expect(LiveConfig.ofStep(i).step, i);
       }
-      expect(const LiveConfig().step, 1);
+      expect(const LiveConfig().step, 2);
+    });
+
+    test('admins are always connected, whatever the setting', () {
+      for (var i = 0; i < LiveConfig.steps; i++) {
+        expect(
+          LiveConfig.ofStep(i).effective(isAdmin: true),
+          LiveConfig.always,
+        );
+      }
+    });
+
+    test('members connect as set, but at most every 30 s: Always becomes '
+        'every 30 s', () {
+      for (var i = 0; i < LiveConfig.memberMaxStep; i++) {
+        final live = LiveConfig.ofStep(i);
+        expect(live.effective(isAdmin: false), live);
+      }
+      expect(
+        LiveConfig.always.effective(isAdmin: false),
+        const LiveConfig(every: Duration(seconds: 30)),
+      );
+      expect(
+        const LiveConfig().effective(isAdmin: false),
+        const LiveConfig(every: Duration(minutes: 1)),
+      );
+      expect(
+        const LiveConfig(every: Duration(seconds: 5))
+            .effective(isAdmin: false)
+            .every,
+        const Duration(seconds: 30),
+      );
     });
 
     test('round-trips through storage; odd intervals snap to a step', () {
@@ -162,6 +196,10 @@ void main() {
       expect(
         LiveConfig.fromJson({'mode': 'scheduled', 'everyMs': 9e9}).every,
         const Duration(minutes: 60),
+      );
+      expect(
+        LiveConfig.fromJson({'mode': 'scheduled', 'everyMs': 1000}).every,
+        const Duration(seconds: 30),
       );
     });
   });

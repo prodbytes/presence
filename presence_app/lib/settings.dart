@@ -26,11 +26,18 @@ class SettingsView extends StatefulWidget {
     this.nextClip,
     this.logTabDefault,
     this.liveSync = false,
+    this.liveAdmin = false,
   });
 
   /// Whether this build has live sync (an IoT endpoint, and cloud sync):
   /// the **Live sync** section, with its **Connect to live sync** slider.
   final bool liveSync;
+
+  /// The user is an admin: live sync is always connected for them
+  /// ([LiveConfig.effective]), so the slider shows Always, locked. Others
+  /// may pick from Never to every 60 min (every 30 s the most often), and
+  /// a saved Always shows as every 30 s.
+  final bool liveAdmin;
 
   /// For admins, an **Advanced** section with a **Show the Log tab** switch, on by default when this is
   /// true (DEV); null hides the switch.
@@ -114,6 +121,12 @@ class _SettingsViewState extends State<SettingsView> {
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         final recognition = config.recognition;
+        // How live sync connects for this user (admins: always; others:
+        // as saved, at most every 30 s), not just what's saved.
+        final live = config.live.effective(isAdmin: widget.liveAdmin);
+        final liveMax = widget.liveAdmin
+            ? LiveConfig.steps - 1
+            : LiveConfig.memberMaxStep;
         void setHistory(HistoryConfig Function(HistoryConfig) f) =>
             config.update((x) => x.copyWith(history: f(x.history)));
         void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
@@ -362,16 +375,23 @@ class _SettingsViewState extends State<SettingsView> {
                 key: const Key('live-connect-slider'),
                 label: 'Connect to live sync',
                 format: (v) => LiveConfig.ofStep(v.round()).label,
-                value: config.live.step.toDouble(),
+                value: live.step.toDouble(),
                 min: 0,
-                max: (LiveConfig.steps - 1).toDouble(),
-                divisions: LiveConfig.steps - 1,
-                onChanged: (v) => config.update(
-                  (x) => x.copyWith(live: LiveConfig.ofStep(v.round())),
-                ),
+                max: liveMax.toDouble(),
+                divisions: liveMax,
+                // Locked for admins: always connected.
+                onChanged: widget.liveAdmin
+                    ? null
+                    : (v) => config.update(
+                        (x) => x.copyWith(live: LiveConfig.ofStep(v.round())),
+                      ),
               ),
               Text(
-                switch (config.live.mode) {
+                switch (live.mode) {
+                  _ when widget.liveAdmin =>
+                    'Always connected for admins, so this device is always '
+                        'reachable: other devices\' events arrive within a '
+                        'second.',
                   LiveMode.never =>
                     'Other devices\' events arrive with each sync (15 s), '
                         'and this device\'s reach them the same way.',
@@ -380,9 +400,9 @@ class _SettingsViewState extends State<SettingsView> {
                         'a second.',
                   LiveMode.scheduled =>
                     'Connects about every '
-                        '${config.live.every.inMinutes} min for what other '
-                        'devices sent meanwhile, and at once to send this '
-                        'device\'s events.',
+                        '${LiveConfig.formatEvery(live.every)} for what '
+                        'other devices sent meanwhile, and at once to send '
+                        'this device\'s events.',
                 },
                 key: const Key('live-connect-note'),
                 style: theme.textTheme.bodySmall?.copyWith(

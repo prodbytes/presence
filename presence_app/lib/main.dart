@@ -276,12 +276,17 @@ class _PresenceAppState extends State<PresenceApp> {
               _rig.answerCaptureAll(events, deviceId: _deviceId);
             },
           );
-    // How live sync connects (the Connect to live sync setting): now, and
-    // at once whenever it changes (or is restored).
+    // How live sync connects (the Connect to live sync setting, for this
+    // user's roles: admins always connected, others at most every 30 s):
+    // now, and at once whenever it changes (or is restored) or the roles
+    // do (sign-in, a role granted or taken, sign-out). The saved setting
+    // is left as it is.
     if (_sync?.live case final live?) {
-      void applyLive() => live.config = _config.config.live;
+      void applyLive() =>
+          live.config = _config.config.live.effective(isAdmin: _roles.isAdmin);
       applyLive();
       _config.addListener(applyLive);
+      _roles.addListener(applyLive);
     }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.

@@ -659,6 +659,52 @@ void main() {
       }
     });
 
+    testWidgets('every 30 s, with the real timings: drains for 3 s, idles '
+        '30 to 40 s, and connects again with the same session', (tester) async {
+      var clock = DateTime.utc(2026, 10, 7, 12);
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: const LiveConfig(every: Duration(seconds: 30)),
+        now: () => clock,
+        random: Random(7),
+      );
+      addTearDown(live.dispose);
+      Future<void> advance(Duration d) async {
+        const step = Duration(milliseconds: 500);
+        for (var t = Duration.zero; t < d; t += step) {
+          clock = clock.add(step);
+          await tester.pump(step);
+          // A cancelled subscription's future completes in the root
+          // zone, outside the fake time: let it.
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+      }
+
+      live.start(link());
+      await advance(const Duration(milliseconds: 500));
+      expect(live.state, LiveSyncState.connected);
+      expect(broker.persistent.single, isTrue);
+      // Quiet for 3 s: idle until the next, 30 s plus up to 10 s on.
+      await advance(const Duration(seconds: 4));
+      expect(live.state, LiveSyncState.idle);
+      expect(broker.last.closed, isTrue);
+      final left = live.untilNext!;
+      expect(left, greaterThan(const Duration(seconds: 25)));
+      expect(left, lessThanOrEqualTo(const Duration(seconds: 40)));
+      await advance(left + const Duration(seconds: 1));
+      expect(broker.connections, hasLength(2));
+      expect(broker.persistent, [true, true]);
+      expect(broker.clientIds.toSet(), {'$identity-this_device_one'});
+      await advance(const Duration(seconds: 4));
+      expect(live.state, LiveSyncState.idle);
+      // Twice more within the next 80 s, never closer than 30 s apart.
+      await advance(const Duration(seconds: 80));
+      expect(broker.connections, hasLength(4));
+      live.stop();
+    });
+
     test('a change of the setting applies at once', () async {
       final live = make(LiveConfig.always)..start(link());
       await until(() => live.state == LiveSyncState.connected);
