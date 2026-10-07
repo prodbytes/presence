@@ -3859,3 +3859,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        all" with the grid icon. Test: `capture_all_test.dart` (a restored
        request isn't a grab). Specs: [Events](events.md),
        [Camera screen](camera.md#capture-all).
+
+303. **Every view change looks the same.** (2026-10-06)
+     - Asked: make all navigation transitions equal; the Admin view
+       shouldn't change differently, it only needs the role.
+     - Changed: Admin (and the Log) were already tabs flipping with the
+       same slide (#209). The one view that still changed differently,
+       a subject's screen (pushed from Monitoring, with the platform's
+       zoom or fade), now slides in sideways like the tabs: the theme's
+       page transition is `TabSlidePageTransitionsBuilder` on every
+       platform (300 ms, `Curves.ease`, the tabs' own), so any screen
+       pushed later moves the same way. Test: `theme_test.dart`. Specs:
+       [Navigation](navigation.md), [Subjects](subjects.md).
