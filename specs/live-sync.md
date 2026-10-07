@@ -264,7 +264,11 @@ The health line and the Log tab's health panel have a fourth check,
 endpoint) or off (Never), ✅ connected (with the events received and sent)
 or set and waiting for the first sync, ⏳ connecting, 💤 **idle** between
 scheduled connections ("Idle · next in 0:42 (every 1 min; …)", the panel's
-card counting down each second), ❌ failed (with the error). "Sent"
+card counting down each second), ❌ failed (with the error). The account
+sheet's **connectivity** row ([Sign-in](sign-in.md)) sums it up for this
+device with the API and cloud sync: green only while connected, amber
+when connecting, idle ("Live sync idle · next in 0:42"), off, or not set
+("Live sync isn't set up in this build"), red when failed. "Sent"
 (`LiveSync.sent`) counts events handed to the connection to publish at
 QoS 1, not the broker's acknowledgements (PUBACK), which aren't waited
 for: one sent just before a drop may not have arrived (the bucket still
