@@ -33,14 +33,25 @@ Float32List direction(double degrees) {
 /// The angle between two unit vectors with cosine [c].
 double angleFor(double c) => math.acos(c) * 180 / math.pi;
 
+/// The face cosine [faceConfidence] makes [confidence] of.
+double faceCos(double confidence) => 0.30 + 0.35 * confidence;
+
+/// A unit vector along axis [i] of 6, turned toward axis [i] + 3 so its
+/// cosine with axis [i] is [cos], and 0 with the other axes below 3: faces
+/// of three people that don't look like one another.
+Float32List axis(int i, {double cos = 1}) => Float32List(6)
+  ..[i] = cos
+  ..[i + 3] = math.sqrt(1 - cos * cos);
+
 Seen seenAt(
   Box box, {
   SeenKind kind = SeenKind.person,
   double? face,
+  Float32List? faceVector,
   double look = 0,
 }) => Seen(
   Detection(box, 0.9, kind),
-  face: face == null
+  face: face == null && faceVector == null
       ? null
       : Face(
           Box.centered(box.cx, box.top + 0.05, 0.04, 0.04),
@@ -48,7 +59,7 @@ Seen seenAt(
           (box.cx - 0.01, box.top + 0.04),
           (box.cx + 0.01, box.top + 0.04),
         ),
-  faceVector: face == null ? null : direction(face),
+  faceVector: faceVector ?? (face == null ? null : direction(face)),
   lookVector: direction(look),
 );
 
@@ -204,29 +215,84 @@ void main() {
     test('EfficientDet: a scored anchor becomes a box of its kind', () {
       final anchors = efficientDetAnchors;
       final n = anchors.length ~/ 4;
-      expect(n, 19206);
+      expect(n, 37629);
       final scores = Float32List(n * cocoClasses);
       final boxes = Float32List(n * 4);
-      // A dog on anchor 1000 exactly, and a weaker overlapping one.
-      scores[1000 * cocoClasses + 17] = 0.9;
-      scores[1009 * cocoClasses + 17] = 0.6;
-      // A person on anchor 15000, shifted right by half its width.
-      scores[15000 * cocoClasses] = 0.8;
-      boxes[15000 * 4 + 1] = 0.5;
+      // A dog on an anchor exactly (row 10, column 10), and a weaker overlapping one.
+      scores[5130 * cocoClasses + 17] = 0.9;
+      // Same place, one scale up: overlapping.
+      scores[5133 * cocoClasses + 17] = 0.6;
+      // A person on the middle cell's anchor, shifted right by half its width.
+      scores[14364 * cocoClasses] = 0.8;
+      boxes[14364 * 4 + 1] = 0.5;
       // A car: not kept.
       scores[200 * cocoClasses + 2] = 0.99;
       final found = decodeDetections(scores, boxes);
       expect(found.map((d) => d.kind), [SeenKind.dog, SeenKind.person]);
       final dog = found.first;
       expect(dog.score, closeTo(0.9, 1e-6));
-      expect(dog.box.cy, closeTo(anchors[1000 * 4], 1e-6));
-      expect(dog.box.cx, closeTo(anchors[1000 * 4 + 1], 1e-6));
+      expect(dog.box.cy, closeTo(anchors[5130 * 4], 1e-6));
+      expect(dog.box.cx, closeTo(anchors[5130 * 4 + 1], 1e-6));
       final person = found.last;
       expect(
         person.box.cx,
-        closeTo(anchors[15000 * 4 + 1] + 0.5 * anchors[15000 * 4 + 3], 1e-6),
+        closeTo(anchors[14364 * 4 + 1] + 0.5 * anchors[14364 * 4 + 3], 1e-6),
       );
-      expect(person.box.height, closeTo(anchors[15000 * 4 + 2], 1e-6));
+      expect(person.box.height, closeTo(anchors[14364 * 4 + 2], 1e-6));
+    });
+
+    test("EfficientDet's anchors are the ones its model file lists", () {
+      // (cy, cx, h, w), from efficientdet_lite2.tflite's metadata.
+      void expectAnchor(int i, List<double> expected) {
+        for (var k = 0; k < 4; k++) {
+          expect(efficientDetAnchors[i * 4 + k], closeTo(expected[k], 1e-5));
+        }
+      }
+
+      expectAnchor(0, [0.0089286, 0.0089286, 0.0535714, 0.0535714]);
+      expectAnchor(1234, [0.0446429, 0.4553571, 0.0378807, 0.0757615]);
+      // Level 7: 4 cells a side, centered on them, 3 cells across.
+      expectAnchor(37629 - 16 * 9, [0.125, 0.125, 0.75, 0.75]);
+      expectAnchor(37628, [0.875, 0.875, 1.6836932, 0.8418465]);
+    });
+
+    test('the detector sees the whole frame, and tiles along a wide one', () {
+      RgbaImage blank(int w, int h) => RgbaImage(w, h, Uint8List(w * h * 4));
+      final wide = detectorRegions(blank(1280, 720));
+      expect(wide, hasLength(3));
+      // The whole frame, in a square (not stretched).
+      expect(
+        (wide[0].cx, wide[0].cy, wide[0].w, wide[0].h),
+        (640.0, 360.0, 1280.0, 1280.0),
+      );
+      // Two 720 px squares, from one end to the other.
+      expect((wide[1].cx, wide[1].w), (360.0, 720.0));
+      expect((wide[2].cx, wide[2].w), (920.0, 720.0));
+      final tall = detectorRegions(blank(720, 1280));
+      expect(tall.map((r) => r.cy), [640.0, 360.0, 920.0]);
+      // Square enough: only the whole frame.
+      expect(detectorRegions(blank(640, 600)), hasLength(1));
+      // Very wide: enough tiles to cover it.
+      expect(detectorRegions(blank(2000, 500)), hasLength(5));
+    });
+
+    test('detections from the regions merge: cut-off parts are dropped', () {
+      Detection d(Box box, double score, [SeenKind kind = SeenKind.person]) =>
+          Detection(box, score, kind);
+      final whole = d(const Box(0.40, 0.2, 0.60, 0.9), 0.8);
+      // The same person seen by a tile, cut at its edge: mostly inside.
+      final cut = d(const Box(0.40, 0.2, 0.50, 0.9), 0.9);
+      // Someone else, beside them.
+      final beside = d(const Box(0.62, 0.2, 0.80, 0.9), 0.5);
+      // A dog on the same spot as the person: another kind, kept.
+      final dog = d(const Box(0.40, 0.2, 0.60, 0.9), 0.6, SeenKind.dog);
+      final merged = mergeDetections([whole, cut, beside, dog]);
+      expect(merged, [cut, dog, beside]);
+      expect(
+        const Box(0, 0, 1, 1).containment(const Box(0.2, 0.2, 0.4, 0.4)),
+        1,
+      );
+      expect(const Box(0, 0, 1, 1).containment(const Box(2, 2, 3, 3)), 0);
     });
 
     test('object tags: every known label, its best score, once', () {
@@ -267,6 +333,9 @@ void main() {
       expect(f.box.height, closeTo(0.3, 1e-6));
       expect(f.rightEye.$1, closeTo(anchors[i * 2] - 0.05, 1e-6));
       expect(f.leftEye.$2, closeTo(anchors[i * 2 + 1] - 0.1, 1e-6));
+      // Nose and mouth too (zero offsets here: on the anchor).
+      expect(f.nose!.$1, closeTo(anchors[i * 2], 1e-6));
+      expect(f.mouth!.$2, closeTo(anchors[i * 2 + 1], 1e-6));
     });
 
     test('non-maximum suppression keeps the best of overlaps', () {
@@ -372,28 +441,137 @@ void main() {
       expect(back.left, closeTo(0.25, 1e-9));
       expect(back.right, closeTo(0.75, 1e-9));
     });
+
+    test('shrunk, each value is the mean of what it covers', () {
+      // Black and white columns, 1 px each: any single sample is black or
+      // white, the area they cover is grey.
+      const n = 16;
+      final stripes = Uint8List(n * n * 4);
+      for (var y = 0; y < n; y++) {
+        for (var x = 0; x < n; x++) {
+          final i = (y * n + x) * 4;
+          stripes.fillRange(i, i + 3, x.isEven ? 0 : 255);
+          stripes[i + 3] = 255;
+        }
+      }
+      final image = RgbaImage(n, n, stripes);
+      final small = toTensor(
+        image,
+        Region.whole(image),
+        width: 4,
+        height: 4,
+        scale: PixelScale.unit,
+      ) as Float32List;
+      for (final v in small) {
+        expect(v, closeTo(0.5, 0.01));
+      }
+      expect(samplesFor(1), 1);
+      expect(samplesFor(1.2), 1);
+      expect(samplesFor(2.9), 3);
+      expect(samplesFor(9), maxSamplesPerSide);
+    });
+
+    test('mirrored left to right', () {
+      // 2 × 1, three channels: (1, 2, 3) then (4, 5, 6).
+      final t = Float32List.fromList([1, 2, 3, 4, 5, 6]);
+      expect(mirrored(t, 2, 1), [4, 5, 6, 1, 2, 3]);
+    });
+
+    test("the face is looked for around the person's head first", () {
+      final frame = RgbaImage(1000, 1000, Uint8List(1000 * 1000 * 4));
+      // Standing: 100 px wide, 400 px tall, from (450, 300).
+      final head = VisionModels.headRegion(
+        frame,
+        const Box(0.45, 0.3, 0.55, 0.7),
+      );
+      // As wide as their height × 7/16 (wider than they are), on them,
+      // starting a little above them.
+      expect(head.w, closeTo(175, 1e-9));
+      expect(head.h, head.w);
+      expect(head.cx, closeTo(500, 1e-9));
+      expect(head.cy - head.h / 2, closeTo(300 - 0.05 * 175, 1e-9));
+      // Wide (lying down, or close): as wide as them.
+      expect(
+        VisionModels.headRegion(frame, const Box(0.2, 0.5, 0.8, 0.7)).w,
+        closeTo(600, 1e-9),
+      );
+    });
+
+    test("faces are aligned to the face embedder's template", () {
+      final image = RgbaImage(400, 400, Uint8List(400 * 400 * 4));
+      // The template's points, twice as big and turned 30°, moved to
+      // (200, 150): the face's region must undo exactly that.
+      const turn = math.pi / 6;
+      (double, double) placed((double, double) p) {
+        final x = (p.$1 - 56) * 2, y = (p.$2 - 56) * 2;
+        return (
+          (200 + x * math.cos(turn) - y * math.sin(turn)) / 400,
+          (150 + x * math.sin(turn) + y * math.cos(turn)) / 400,
+        );
+      }
+
+      final t = VisionModels.faceTemplate;
+      final face = Face(
+        const Box(0.4, 0.3, 0.6, 0.5),
+        0.9,
+        placed(t[0]),
+        placed(t[1]),
+        nose: placed(t[2]),
+        mouth: placed(t[3]),
+      );
+      final region = VisionModels.faceRegion(image, face);
+      expect(region.cx, closeTo(200, 1e-6));
+      expect(region.cy, closeTo(150, 1e-6));
+      expect(region.w, closeTo(224, 1e-6));
+      expect(region.h, closeTo(224, 1e-6));
+      expect(region.angle, closeTo(turn, 1e-9));
+      // With the eyes only, the same.
+      final eyes = VisionModels.faceRegion(
+        image,
+        Face(face.box, 0.9, face.rightEye, face.leftEye),
+      );
+      expect(eyes.cx, closeTo(200, 1e-6));
+      expect(eyes.angle, closeTo(turn, 1e-9));
+    });
+
+    test('faces too small to compare: eyes closer than the minimum', () {
+      final frame = RgbaImage(1000, 500, Uint8List(1000 * 500 * 4));
+      const box = Box(0.4, 0.4, 0.42, 0.42);
+      expect(
+        VisionModels.eyeDistance(
+          frame,
+          const Face(box, 0.9, (0.400, 0.41), (0.408, 0.41)),
+        ),
+        closeTo(8, 1e-9),
+      );
+      expect(VisionModels.minEyeDistance, greaterThan(8));
+    });
   });
 
   group('matching', () {
     test('confidence: faces and looks on their own scales', () {
       expect(faceConfidence(0.2), 0);
-      expect(faceConfidence(0.55), closeTo(0.5, 1e-9));
-      expect(faceConfidence(0.70), closeTo(0.8, 1e-9));
-      expect(faceConfidence(0.95), 1);
-      expect(lookConfidence(0.45), 0);
-      expect(lookConfidence(0.81), closeTo(0.8, 1e-9));
+      expect(faceConfidence(0.475), closeTo(0.5, 1e-9));
+      expect(faceConfidence(0.58), closeTo(0.8, 1e-9));
+      expect(faceConfidence(0.7), 1);
+      // People's looks (OSNet), and pets' (MobileNetV3).
+      expect(lookConfidence(0.53), 0);
+      expect(lookConfidence(0.762), closeTo(0.8, 1e-9));
+      expect(lookConfidence(0.9), 1);
+      expect(lookConfidence(0.45, kind: SeenKind.dog), 0);
+      expect(lookConfidence(0.81, kind: SeenKind.cat), closeTo(0.8, 1e-9));
     });
 
     test('faces are compared when both show; looks otherwise', () {
       const box = Box(0, 0, 0.5, 1);
       final byFace = compare(
-        seenAt(box, face: angleFor(0.7), look: 90),
+        seenAt(box, face: angleFor(faceCos(0.8)), look: 90),
         entry('ana', face: 0, look: 0),
       )!;
       expect(byFace.byFace, isTrue);
       expect(byFace.confidence, closeTo(0.8, 1e-6));
       final byLook = compare(
-        seenAt(box, look: angleFor(0.81)),
+        seenAt(box, look: angleFor(0.762)),
         entry('ana', face: 0),
       )!;
       expect(byLook.byFace, isFalse);
@@ -430,7 +608,7 @@ void main() {
         same(seen.first),
       );
       expect(
-        matchFrame(seen, [entry('bo', face: 90)], minConfidence: 0.7),
+        matchFrame(seen, [entry('bo', face: 150)], minConfidence: 0.7),
         isEmpty,
       );
     });
@@ -616,7 +794,7 @@ void main() {
           },
         );
 
-    test('tags the sure, asks about the unsure, on the first frame', () async {
+    test('tags the sure, asks about the unsure, on their best frame', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       const other = Box(0.75, 0.2, 0.95, 1);
       log.addHistory([
@@ -626,15 +804,16 @@ void main() {
       ]);
       final vision = FakeVision(
         {
-          // Frame 0: nobody. Frame 1: Rex, surely (0.95 → 1.0).
+          // Frame 0: nobody. Frame 1: Rex, surely (100 %).
           1: [seenAt(body, face: angleFor(0.85))],
-          // Frame 2: Rex again, and someone a bit like Ana (0.6 → 0.6).
+          // Frame 2: Rex again, and someone a bit like Ana (60 %).
           2: [
             seenAt(body, face: angleFor(0.85)),
-            seenAt(other, face: 100 + angleFor(0.6)),
+            seenAt(other, face: 100 + angleFor(faceCos(0.6))),
           ],
-          // Frame 3: the same one, a bit more like Ana: still unsure.
-          3: [seenAt(other, face: 100 + angleFor(0.65))],
+          // Frame 3: the same one, a bit more like Ana (70 %): her surest
+          // face, still unsure.
+          3: [seenAt(other, face: 100 + angleFor(faceCos(0.7)))],
         },
         {
           1: [seenAt(body, face: 0)],
@@ -656,8 +835,9 @@ void main() {
 
       final ana = event.annotations.items.firstWhere((a) => a.name == 'Ana');
       expect(ana.source, TagSource.suggested);
-      expect(ana.confidence, closeTo(0.6, 1e-6));
-      expect(event.annotations.frames[ana.frameId]!.ms, 3000);
+      expect(ana.confidence, closeTo(0.7, 1e-6));
+      // Her best frame.
+      expect(event.annotations.frames[ana.frameId]!.ms, 4000);
       expect(ana.x, closeTo(other.cx, 1e-9));
 
       await Future<void>.delayed(Duration.zero);
@@ -665,8 +845,8 @@ void main() {
       expect(suggestion.subjectName, 'Ana');
       expect(suggestion.annotationId, ana.id);
       expect(suggestion.clip, same(event));
-      // One JPEG per frame used, not per tag.
-      expect(sampler.jpegs, 2);
+      // A JPEG per frame someone was best on so far, not per match.
+      expect(sampler.jpegs, 3);
     });
 
     test(
@@ -684,18 +864,18 @@ void main() {
           {
             0: [
               // Ana at 80 %: under the 85 % default, so asked, not tagged.
-              seenAt(left, face: angleFor(0.70)),
+              seenAt(left, faceVector: axis(0, cos: faceCos(0.8))),
               // Bo at 40 %: under the old "ask" default (50 %), asked now.
-              seenAt(middle, face: 120 - angleFor(0.50)),
+              seenAt(middle, faceVector: axis(1, cos: faceCos(0.4))),
               // Cy at 20 %: under the floor, a stranger; not asked.
-              seenAt(right, face: 240 + angleFor(0.40)),
+              seenAt(right, faceVector: axis(2, cos: faceCos(0.2))),
             ],
           },
           {
-            // Far apart, so nobody is much like the others.
-            1: [seenAt(middle, face: 0)],
-            2: [seenAt(middle, face: 120)],
-            3: [seenAt(middle, face: 240)],
+            // Nobody is like the others.
+            1: [seenAt(middle, faceVector: axis(0))],
+            2: [seenAt(middle, faceVector: axis(1))],
+            3: [seenAt(middle, faceVector: axis(2))],
           },
         );
         final event = ClipRequested(clip(), id: 'new');
@@ -717,7 +897,7 @@ void main() {
       },
     );
 
-    test('stops once everyone is found, and skips who is tagged', () async {
+    test('stops once everyone is surely found, skips who is tagged', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       log.addHistory([
         tagged(1, ['Rex']),
@@ -725,7 +905,7 @@ void main() {
       ]);
       final vision = FakeVision(
         {
-          0: [seenAt(body, face: angleFor(0.9))],
+          for (var i = 0; i < 10; i++) i: [seenAt(body, face: angleFor(0.9))],
         },
         {
           1: [seenAt(body, face: 0)],
@@ -736,8 +916,80 @@ void main() {
       final event = ClipRequested(clip(), annotations: a, id: 'new');
       await recognizer(vision, FakeSampler(10)).recognize(event);
       expect(event.annotations.tags.map((t) => t.name), ['Ana', 'Rex']);
-      // Two references, then the first frame only.
+      // Two references, then one frame: a sure face is enough.
       expect(vision.calls, 3);
+    });
+
+    test('sure by look takes as many frames as are pooled', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          for (var i = 0; i < 10; i++) i: [seenAt(body, look: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body)],
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      await recognizer(vision, FakeSampler(10)).recognize(event);
+      expect(event.annotations.tags.single.name, 'Rex');
+      expect(vision.calls, 1 + SubjectRecognizer.framesPooled);
+    });
+
+    /// The look cosine [lookConfidence] makes [confidence] of, for people.
+    double lookCos(double confidence) => 0.53 + 0.29 * confidence;
+
+    test('one lucky look of a stranger asks, it does not tag', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          // Looks like Rex on one frame (95 %), not on the others (35 %).
+          0: [seenAt(body, look: angleFor(lookCos(0.35)))],
+          1: [seenAt(body, look: angleFor(lookCos(0.95)))],
+          2: [seenAt(body, look: angleFor(lookCos(0.35)))],
+          3: [seenAt(body, look: angleFor(lookCos(0.35)))],
+        },
+        {
+          1: [seenAt(body)],
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await recognizer(vision, FakeSampler(4)).recognize(event);
+      expect(result.tagged, isEmpty);
+      expect(result.asked, ['Rex']);
+      final rex = event.annotations.items.single;
+      // The mean of the best three: (95 + 35 + 35) / 3.
+      expect(rex.confidence, closeTo(0.55, 1e-6));
+      // Asked about on the frame most like him.
+      expect(event.annotations.frames[rex.frameId]!.ms, 2000);
+    });
+
+    test('one sure face tags, whatever the other frames', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          // His face once (95 %), turned away the rest (looks at 35 %).
+          0: [seenAt(body, look: angleFor(lookCos(0.35)))],
+          1: [seenAt(body, face: angleFor(faceCos(0.95)))],
+          2: [seenAt(body, look: angleFor(lookCos(0.35)))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await recognizer(vision, FakeSampler(3)).recognize(event);
+      expect(result.tagged, ['Rex']);
+      expect(event.annotations.tags.single.confidence, closeTo(0.95, 1e-6));
     });
 
     test('recognized tags never become references', () async {
@@ -784,6 +1036,9 @@ void main() {
         objects: {
           0: {'human': 0.7},
           1: {'cat': 0.6, 'human': 0.9},
+          // A bottle on one frame, unsure: more often a mistake.
+          2: {'bottle': 0.55},
+          // A bicycle on one frame, but sure.
           3: {'bicycle': 0.8, 'cat': 0.95},
         },
       );
@@ -792,9 +1047,10 @@ void main() {
       final result = await r.recognize(event);
       expect(result.outcome, RecognitionOutcome.noReferences);
       expect(result.objects, ['human', 'cat', 'bicycle']);
+      // Where each was first seen, with its best score.
       expect(event.annotations.objects, const [
-        ObjectTag(label: 'human', ms: 1000, score: 0.7),
-        ObjectTag(label: 'cat', ms: 2000, score: 0.6),
+        ObjectTag(label: 'human', ms: 1000, score: 0.9),
+        ObjectTag(label: 'cat', ms: 2000, score: 0.95),
         ObjectTag(label: 'bicycle', ms: 4000, score: 0.8),
       ]);
       expect(vision.frameCalls, 4, reason: 'the whole clip');
@@ -815,22 +1071,35 @@ void main() {
       ]);
       final vision = FakeVision(
         {
-          0: [seenAt(body, face: angleFor(0.9))],
+          for (var i = 0; i < 3; i++) i: [seenAt(body, face: angleFor(0.9))],
         },
         {
           1: [seenAt(body, face: 0)],
         },
         objects: {
-          2: {'dog': 0.8},
+          4: {'dog': 0.8},
         },
       );
       final event = ClipRequested(clip(), id: 'new');
-      final result = await recognizer(vision, FakeSampler(3)).recognize(event);
+      final result = await recognizer(vision, FakeSampler(5)).recognize(event);
       expect(result.tagged, ['Rex']);
       expect(result.objects, ['dog']);
-      // One reference, then subjects on the first frame only.
+      // One reference, then subjects until Rex is sure (his face, at once).
       expect(vision.calls, 2);
-      expect(vision.frameCalls, 3);
+      expect(vision.frameCalls, 5);
+    });
+
+    test('a one-frame clip keeps what it saw', () async {
+      final vision = FakeVision(
+        {},
+        {},
+        objects: {
+          0: {'bottle': 0.55},
+        },
+      );
+      final event = ClipRequested(clip(), id: 'new');
+      final result = await recognizer(vision, FakeSampler(1)).recognize(event);
+      expect(result.objects, ['bottle']);
     });
 
     test('object tags off: subjects only, and nothing stored', () async {
@@ -944,7 +1213,7 @@ void main() {
         {
           0: [
             seenAt(body, face: angleFor(0.9)),
-            seenAt(other, face: 100 + angleFor(0.6)),
+            seenAt(other, face: 100 + angleFor(faceCos(0.6))),
           ],
         },
         {
@@ -1024,7 +1293,7 @@ void main() {
       expect(result.outcome, RecognitionOutcome.searched);
     });
 
-    test('only the kinds known are embedded, three a frame at most', () async {
+    test('only the kinds known are embedded, five a frame at most', () async {
       log.addHistory([
         tagged(1, ['Rex']),
       ]);
