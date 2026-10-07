@@ -327,7 +327,7 @@ void main() {
       final copies = EventCopies()..deviceId = 'phone_a';
       // Recorded here, not uploaded yet.
       var s = copies.summaryOf('e1', origin: 'phone_a');
-      expect(s.label, '1 copy — not uploaded yet');
+      expect(s.label, 'Not synced');
       expect(s.tooltip, contains("other devices' copies are unknown"));
       copies
         ..liveOn = true
@@ -344,6 +344,23 @@ void main() {
       s = copies.summaryOf('e2', origin: 'phone_c');
       expect(s.holders, ['Cloud', 'phone_c']);
       expect(s.label, '2 copies');
+      // Only in the cloud: synced, one copy.
+      copies.setLocal('e3', self: false, cloud: true);
+      s = copies.summaryOf('e3');
+      expect(s.synced, isTrue);
+      expect(s.label, '1 copy');
+      // Received from its device, not uploaded from here: synced (that
+      // device holds it), two copies.
+      copies.setLocal('e4', self: true, cloud: false);
+      s = copies.summaryOf('e4', origin: 'phone_c');
+      expect(s.label, '2 copies');
+      // Here only, or nothing known: not synced.
+      copies.setLocal('e5', self: true, cloud: false);
+      s = copies.summaryOf('e5');
+      expect(s.synced, isFalse);
+      expect(s.label, 'Not synced');
+      expect(s.tooltip, 'This device');
+      expect(copies.summaryOf('e6').label, 'Not synced');
     });
 
     test('kept across a restart, and bounded', () async {
@@ -560,10 +577,7 @@ void main() {
       await a.store.putClip(clip);
       a.changes.add({'cap-1'});
       await a.sync.idle();
-      expect(
-        a.summaryOf('cap-1', origin: 'phone_a').label,
-        '1 copy — not uploaded yet',
-      );
+      expect(a.summaryOf('cap-1', origin: 'phone_a').label, 'Not synced');
       // Up first, then published.
       expect(
         backend.uploads.keys,
@@ -770,7 +784,16 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('2 copies'), findsNothing);
       expect(find.text('3 copies'), findsOneWidget);
-      expect(find.text('1 copy — not uploaded yet'), findsOneWidget);
+      expect(find.text('Not synced'), findsOneWidget);
+      final notSynced = tester.widget<Tooltip>(
+        find
+            .ancestor(
+              of: find.text('Not synced'),
+              matching: find.byType(Tooltip),
+            )
+            .first,
+      );
+      expect(notSynced.message, 'This device');
       final tooltip = tester.widget<Tooltip>(
         find
             .ancestor(of: find.text('3 copies'), matching: find.byType(Tooltip))
@@ -808,7 +831,8 @@ void main() {
       expect(find.byType(Tooltip), findsNothing);
     });
 
-    testWidgets('in the details, the holders are listed', (tester) async {
+    testWidgets('in the details, the same label, the holders in its '
+        'tooltip', (tester) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -820,17 +844,19 @@ void main() {
           copies: copies,
           child: MaterialApp(
             home: Scaffold(
-              body: EventCopiesBadge(
-                event: eventOf('e1', 'loud_shy_kettle'),
-                detailed: true,
-              ),
+              body: EventCopiesBadge(event: eventOf('e1', 'loud_shy_kettle')),
             ),
           ),
         ),
       );
-      expect(find.text('2 copies: Cloud, loud_shy_kettle'), findsOneWidget);
+      expect(find.text('2 copies'), findsOneWidget);
       final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, startsWith('Cloud, loud_shy_kettle'));
       expect(tooltip.message, contains("other devices' copies are unknown"));
+      expect(
+        find.bySemanticsLabel(RegExp(r'^2 copies\. Cloud, loud_shy_kettle')),
+        findsOneWidget,
+      );
     });
   });
 }

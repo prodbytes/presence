@@ -85,13 +85,15 @@ class CopiesSummary {
 
   int get count => holders.length;
 
-  /// "3 copies", "1 copy", or "1 copy — not uploaded yet" for an event
-  /// held only here.
+  /// Whether a copy is held anywhere but this device: in the cloud, or on
+  /// another device.
+  bool get synced => holders.any((h) => h != EventCopies.thisDevice);
+
+  /// "Not synced" when no copy is held beyond this device (not in the
+  /// cloud, no other device); otherwise the count of every holder (this
+  /// device included): "3 copies", or "1 copy".
   String get label {
-    if (count == 0) return 'No copy known';
-    if (count == 1 && !cloud && holders.first == EventCopies.thisDevice) {
-      return '1 copy — not uploaded yet';
-    }
+    if (!synced) return 'Not synced';
     return count == 1 ? '1 copy' : '$count copies';
   }
 
