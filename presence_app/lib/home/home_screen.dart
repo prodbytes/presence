@@ -62,7 +62,7 @@ class HomeScreen extends StatefulWidget {
   });
 
   /// Deletes another of the profile's devices: from the account sheet's
-  /// device list and the Camera tab's All grid, after a confirmation.
+  /// device list, after a confirmation.
   final DeleteDevice? deleteDevice;
 
   /// Where the open tab is remembered, so a browser refresh comes back to
@@ -472,24 +472,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   profileId: widget.roles.profile,
                   showAll: _showAll && _hasAccess,
                   refreshingSince: _showAll ? _refreshingSince : null,
-                  // Signed in with a profile only (not in DEV).
-                  onDeleteDevice: switch ((
-                    widget.deleteDevice,
-                    widget.roles.profile,
-                  )) {
-                    (final delete?, final profile?) =>
-                      (id) => deleteDeviceAfterConfirming(
-                        context,
-                        deviceId: id,
-                        events: deviceEventCount(
-                          widget.log.events,
-                          deviceId: id,
-                          profileId: profile,
-                        ),
-                        delete: delete,
-                      ),
-                    _ => null,
-                  },
                   live: widget.sync?.live,
                   active: _onCamera,
                 ),

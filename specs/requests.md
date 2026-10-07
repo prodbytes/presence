@@ -4022,3 +4022,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and the IDs and scrolls to the IDs to read them.
      - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
        [Add a device](add-device.md).
+
+310. **No delete button in the Camera tab's All grid.** (2026-10-07)
+     - Asked: "No need for the delete device button in the camera view;
+       only on the profile view is fine."
+     - Changed: the All grid's cells no longer have a delete button.
+       `DeviceGridCell` lost `onDelete`, `deleteTooltip`, `deleteKey` and
+       `deleteRoom` (and its size check); `CameraFeedsView` lost
+       `onDeleteDevice`, and `HomeScreen` no longer wires it. Devices are
+       still deleted from the account sheet's device list, unchanged.
+     - Tests: `device_delete_test.dart`'s two grid delete tests replaced
+       by one asserting no cell has a delete button; the account sheet's
+       deletion tests are unchanged.
+     - Specs: [Device deletion](device-deletion.md),
+       [Camera screen](camera.md).
