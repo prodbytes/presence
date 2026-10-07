@@ -472,26 +472,38 @@ Google web client ID and AWS credentials, and a deploy to your own account
 needs `HOSTED_ZONE_ID`.
 
 Everything is deployed by [scripts/deploy.sh](scripts/deploy.sh) into
-`us-east-1`. It deploys the stacks in this order:
+`us-east-1`. It first checks that the stage's permissions boundary and SAM
+artifact bucket exist (both from the `presence-github-deploy` stack, see
+below), then deploys the stacks in this order:
 
 1. `presence-user-data`: the S3 bucket for users' clips and events.
    Objects expire after 90 days.
-2. `presence-identity`: the Cognito identity pool.
-3. The auth API with SAM (`presence-auth-api`).
-4. `presence-web`: the certificate, the bucket, CloudFront and the DNS
-   records.
+2. `presence-identity`: the Cognito identity pool, and live sync's IoT
+   policy.
+3. The auth API with SAM (`presence-auth-api`), uploaded to the stage's
+   own artifact bucket.
+4. `presence-web`: the certificate, the bucket, CloudFront (with its
+   security headers) and the DNS records, and the `/health` check.
 
-It then uploads the web build, invalidates the cache and smoke-tests the
-live site. With `STAGE=rc` it deploys the release candidate's own separate
-copies (`presence-rc-*`).
+Every IAM role these stacks create carries the stage's permissions
+boundary. It then uploads the web build, invalidates the cache and
+smoke-tests the live site; if anything fails, it prints the version that
+was live before and how to redeploy it. With `STAGE=rc` it deploys the
+release candidate's own separate copies (`presence-rc-*`). The Deploy
+workflow then deploys the install URL (`scripts/deploy-sh.sh`).
 
-**One-time setup** (an administrator, once): deploy the GitHub OIDC roles
-from [presence_infra/github-deploy.yaml](presence_infra/github-deploy.yaml).
-Then set the repository variables `AWS_DEPLOY_ROLE_ARN`,
-`AWS_DEPLOY_RC_ROLE_ARN`, `HOSTED_ZONE_ID` and `GOOGLE_WEB_CLIENT_ID`. Finally,
-add the site origins to the Google OAuth client. The exact commands are in
+**One-time setup** (an administrator): deploy
+[presence_infra/github-deploy.yaml](presence_infra/github-deploy.yaml):
+the GitHub OIDC provider and roles, and per stage the deploy policies,
+the permissions boundary and the SAM artifact bucket. Then set the
+repository variables `AWS_DEPLOY_ROLE_ARN`, `AWS_DEPLOY_RC_ROLE_ARN`,
+`HOSTED_ZONE_ID` and `GOOGLE_WEB_CLIENT_ID`. Finally, add the site origins
+to the Google OAuth client. The exact commands are in
 [presence_infra/README.md](presence_infra/README.md). The workflows hold no
-AWS keys; they exchange GitHub's OIDC token for those roles.
+AWS keys; they exchange GitHub's OIDC token for those roles, which trust
+this repository's tags in both of GitHub's subject forms
+(`repo:prodbytes/presence:…` and the immutable
+`repo:prodbytes@<owner id>/presence@<repo id>:…`).
 
 **Releasing:**
 
@@ -500,16 +512,19 @@ AWS keys; they exchange GitHub's OIDC token for those roles.
 | `bash scripts/release-rc.sh` | `X.Y.Z-RC` | **https://rc.presence.nu01.com** ([Deploy RC workflow](.github/workflows/deploy-rc.yml)) |
 | `bash scripts/release-ga.sh` | `X.Y.Z-GA` | **https://presence.nu01.com** ([Deploy workflow](.github/workflows/deploy.yml)) |
 
-Every pushed tag that contains `RC` is deployed automatically to
-https://rc.presence.nu01.com, and every pushed tag ending in `GA` is
-deployed automatically to production, https://presence.nu01.com. The Deploy RC workflow can also be run by hand,
-with an optional tag. Both kinds of tag also publish the binaries through the
+Every pushed `X.Y.Z-RC` tag is deployed automatically to
+https://rc.presence.nu01.com, and every pushed `X.Y.Z-GA` tag to
+production, https://presence.nu01.com, if its commit is on `main` (the
+workflows check). The scripts sign the tags. The Deploy RC workflow can
+also be run by hand, from `main`, with an optional RC tag. Both kinds of
+tag also publish the binaries through the
 [Release workflow](.github/workflows/release.yml).
 
 To deploy into your own AWS account, run the script by hand with admin
 credentials, inside devbox. Your `.env` must have `HOSTED_ZONE_ID` set to a
-Route 53 zone you control. The domain names are set in
-[presence_infra/](presence_infra).
+Route 53 zone you control, and the `presence-github-deploy` stack must be
+deployed first (it holds the boundaries and SAM buckets the script uses).
+The domain names are set in [presence_infra/](presence_infra).
 
 ```bash
 TAG=0.1.0-GA bash scripts/deploy.sh             # production stacks
@@ -550,7 +565,8 @@ The [Containerfile](.devcontainer/Containerfile) starts from Microsoft's
    user, so the Nix store's owner matches the container's `remoteUser`.
 2. Nix is installed in single-user mode (`--no-daemon`). Containers have no
    systemd, so the multi-user Nix daemon can't run. Devbox and Nix are
-   pinned, and the Nix installer is checked against its published hash.
+   pinned: Devbox's release binary and the Nix installer are each checked
+   against their published SHA-256.
 3. The image stops there; it doesn't fill the Nix store. On container
    start, `postCreateCommand` downloads the locked store paths straight from
    `cache.nixos.org` (no GitHub API calls), quietly so the creation log

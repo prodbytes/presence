@@ -19,6 +19,8 @@
 #   /etc/pam.d/presence-kiosk        the kiosk's logind session (conffile)
 #   /etc/chromium/policies/managed/presence.json  camera and mic allowed for
 #                                    Presence's origins (conffile)
+#   /usr/share/polkit-1/rules.d/50-presence-kiosk.rules  denies the kiosk
+#                                    user power, network and storage actions
 set -euo pipefail
 
 if [[ $# -lt 3 || $# -gt 4 ]]; then
@@ -69,6 +71,7 @@ install -D -m 0644 "$src/presence-kiosk.service" "$root/lib/systemd/system/prese
 install -D -m 0644 "$src/default" "$root/etc/default/presence"
 install -D -m 0644 "$src/pam-presence-kiosk" "$root/etc/pam.d/presence-kiosk"
 install -D -m 0644 "$src/chromium-policy.json" "$root/etc/chromium/policies/managed/presence.json"
+install -D -m 0644 "$src/polkit-presence-kiosk.rules" "$root/usr/share/polkit-1/rules.d/50-presence-kiosk.rules"
 
 mkdir -p "$root/DEBIAN"
 for script in postinst prerm postrm; do

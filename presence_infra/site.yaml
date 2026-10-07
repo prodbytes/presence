@@ -22,6 +22,14 @@ Parameters:
   ApiDomainName:
     Type: String
     Description: The auth API's execute-api host name (the presence_api_auth stack's ApiDomain output)
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod, rc]
+    Description: >
+      The presence:stage tag on the certificate and distribution, which the
+      deploy roles (presence_infra/github-deploy.yaml) are scoped by: prod,
+      or rc for presence-rc-web.
   HealthNotificationEmails:
     Type: CommaDelimitedList
     Default: julio+health@nu01.com
@@ -38,6 +46,9 @@ Resources:
       DomainValidationOptions:
         - DomainName: !Ref DomainName
           HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: presence:stage
+          Value: !Ref Stage
 
   SiteBucket:
     Type: AWS::S3::Bucket
@@ -120,9 +131,115 @@ Resources:
           return request;
         }
 
+  # The Flutter web app's headers: AWS's managed security headers
+  # (HSTS, nosniff, Referrer-Policy, X-XSS-Protection) plus a Content
+  # Security Policy for what the app loads, and Permissions-Policy. See
+  # specs/deploy.md (Response headers) for why each source is there:
+  # - script-src: the app, CanvasKit (www.gstatic.com/flutter-canvaskit),
+  #   Google Identity Services (accounts.google.com/gsi). 'wasm-unsafe-eval'
+  #   compiles CanvasKit's and TensorFlow Lite's WebAssembly; 'unsafe-eval'
+  #   is for TensorFlow Lite's Emscripten glue (embind builds its bindings
+  #   with new Function()), which subject recognition loads from tfjs/.
+  # - style-src 'unsafe-inline': Flutter's engine injects <style> elements
+  #   and style attributes; Google's button adds its stylesheet.
+  # - connect-src: the auth API ('self'), Google's fonts and CanvasKit
+  #   downloads, map tiles, and AWS (Cognito, S3 *.amazonaws.com, and live
+  #   sync's IoT MQTT over wss://*.amazonaws.com).
+  # - blob: and data: (img, media, connect): clips and frames the app
+  #   recorded, which it also reads back with fetch().
+  # frame-ancestors 'none' (and X-Frame-Options DENY): nothing may frame it.
+  AppHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub ${AWS::StackName}-app
+        Comment: Presence web app (/app/) security headers, CSP and Permissions-Policy
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: >-
+              default-src 'self';
+              script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://www.gstatic.com/flutter-canvaskit/ https://accounts.google.com/gsi/;
+              style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/;
+              img-src 'self' data: blob: https://tile.openstreetmap.org https://*.googleusercontent.com https://*.amazonaws.com;
+              media-src 'self' data: blob: https://*.amazonaws.com;
+              font-src 'self' data: https://fonts.gstatic.com;
+              connect-src 'self' blob: data: https://www.gstatic.com https://fonts.gstatic.com https://accounts.google.com https://tile.openstreetmap.org https://*.amazonaws.com wss://*.amazonaws.com;
+              frame-src https://accounts.google.com;
+              worker-src 'self' blob:;
+              manifest-src 'self';
+              object-src 'none';
+              base-uri 'self';
+              form-action 'self';
+              frame-ancestors 'none'
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            Override: true
+          XSSProtection:
+            Protection: true
+            ModeBlock: true
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            # The camera, microphone and location only for the app itself.
+            - Header: Permissions-Policy
+              Value: camera=(self), microphone=(self), geolocation=(self)
+              Override: true
+
+  # The index page (/): its only script is the redirect to /app/, allowed
+  # by its hash (update it if presence_index/site/index.html's <script>
+  # changes; the meta refresh still redirects if it doesn't match).
+  IndexHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub ${AWS::StackName}-index
+        Comment: Presence index page (/) security headers and CSP
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: >-
+              default-src 'none';
+              script-src 'sha256-AKfnPi3vZ46xMn5ssxBaCzpOf77ER2OwJeWySFPo0cU=';
+              img-src 'self';
+              base-uri 'none';
+              form-action 'none';
+              frame-ancestors 'none'
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            Override: true
+          XSSProtection:
+            Protection: true
+            ModeBlock: true
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Permissions-Policy
+              Value: camera=(), microphone=(), geolocation=()
+              Override: true
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - Key: presence:stage
+          Value: !Ref Stage
       DistributionConfig:
         Comment: Presence (presence.nu01.com)
         Enabled: true
@@ -157,7 +274,7 @@ Resources:
           AllowedMethods: [GET, HEAD, OPTIONS]
           CachedMethods: [GET, HEAD]
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # Managed-SecurityHeadersPolicy
+          ResponseHeadersPolicyId: !Ref IndexHeadersPolicy
         CacheBehaviors:
           # The Flutter web app, built with --base-href /app/
           - PathPattern: /app*
@@ -167,7 +284,7 @@ Resources:
             AllowedMethods: [GET, HEAD, OPTIONS]
             CachedMethods: [GET, HEAD]
             CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
-            ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # Managed-SecurityHeadersPolicy
+            ResponseHeadersPolicyId: !Ref AppHeadersPolicy
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt AppIndexFunction.FunctionMetadata.FunctionARN

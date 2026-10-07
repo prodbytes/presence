@@ -172,7 +172,10 @@ is an infrastructure and cost decision. Until then the per-route limits,
 the voucher lockout per email and the membership cooldown per email are
 what slow abuse.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
-  `presence-auth-api` and `presence-rc-auth-api`) before the site, and passes
+  `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
+  own artifact bucket, `<prefix>-sam-artifacts-<account>`, and with
+  `PermissionsBoundary`, the stage's boundary, on every function role; see
+  [Production deploy](deploy.md#github-access)) before the site, and passes
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live, and `/api/auth/anonymous` to report RBAC with

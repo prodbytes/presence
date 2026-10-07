@@ -3910,3 +3910,56 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        test (aligned face cosines, a small far person found by a tile).
        Not yet run on a phone. Specs: [Subject recognition](recognition.md),
        [Android](android.md), [Data formats](data-formats.md).
+
+305. **Least-privilege, stage-separated deploys and trustworthy releases.**
+     (2026-10-07)
+     - Asked: a hardening follow-up to a code review: permissions
+       boundaries for the roles CI creates, specific Lambda actions instead
+       of `lambda:*`, the prod and RC roles from one definition, RC scoped
+       away from prod's CloudFront, ACM and Cognito resources and SAM
+       bucket, CI checks that tags are on `main`, RC-only manual RC
+       deploys, no "latest" release from another branch, signed tags,
+       systemd hardening and a polkit rule for the Raspberry Pi kiosk, a
+       postinst that doesn't start the kiosk on its own console, pinned
+       devbox, Floci, SAM CLI and Flutter, a CSP for the site, and
+       `deploy.sh` saying how to roll back.
+     - Changed: `github-deploy.yaml` builds, per stage (`Fn::ForEach` over
+       `presence` and `presence-rc`), two deploy managed policies, a
+       permissions boundary (`<prefix>-app-boundary`) and a SAM artifact
+       bucket (`<prefix>-sam-artifacts-<account>`); roles may be created
+       or given permissions only with the stage's boundary, attach only
+       `AWSLambdaBasicExecutionRole`, never lose a boundary, and never
+       touch the deploy roles or stack. Distributions, certificates and
+       identity pools are scoped by a new `presence:stage` tag (added in
+       `site.yaml`, `presence_sh/template.yaml`, `identity.yaml`), records
+       by domain (prod now too). The templates take `PermissionsBoundary`
+       (SAM's `Globals`), `deploy.sh` passes it and the stage's bucket
+       (`resolve_s3` dropped), checks both exist, and on failure prints the
+       previous live version and the redeploy command. New
+       `scripts/tag-stage-resources.sh` tags the existing resources once.
+       Deploy, Deploy RC and Release check the commit is on `main`
+       (`fetch-depth: 0`); Deploy RC takes only RC tags; manual releases
+       off `main` are always prereleases (`--latest=false`);
+       `tag-release.sh` signs tags and requires `main` for RCs too; the
+       workflows pin Flutter's commit and SAM CLI 1.165.0. `site.yaml` has
+       its own response headers policies: a CSP for `/app*` (checked in
+       headless Chrome against the live app: `'unsafe-eval'` is needed by
+       TensorFlow Lite's Emscripten glue, `'unsafe-inline'` styles by
+       Flutter, `blob:` in `connect-src` by clip read-back) and one for
+       `/`, `Permissions-Policy`, `X-Frame-Options: DENY`. The kiosk unit
+       gets `NoNewPrivileges`, `ProtectSystem=strict`, kernel/cgroup
+       protections, `RestrictSUIDSGID`, `LockPersonality`, and loses
+       `ProtectHome=yes`, which hid `/run/user` (cage's Wayland socket);
+       a polkit rule denies the kiosk user power, network and storage
+       actions; postinst only enables the kiosk (and asks for a reboot)
+       from tty1 or without systemd. The dev container installs devbox's
+       release binary by checksum; Floci is pinned by digest.
+     - Deferred: a separate RC AWS account (recommended; HTTP APIs, origin
+       access controls, response headers policies,
+       `SetIdentityPoolRoles` and health checks can't be separated by
+       stage in one account), a dev bucket for local development (it uses
+       prod's), and GitHub tag rulesets (documented, need an admin).
+     - Specs: [Production deploy](deploy.md), [Release builds](release.md),
+       [Raspberry Pi camera](raspberry-pi.md), [Install URL](install-url.md),
+       [Auth API](auth-api.md), [Dev environment](dev-environment.md),
+       [Local CDN](local-cdn.md).

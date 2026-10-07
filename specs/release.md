@@ -15,7 +15,12 @@ app binaries with `make` and publishes them as a GitHub release.
   - **Manual dispatch** (Actions → Release → Run workflow) takes an
     optional `tag` and a `prerelease` switch (on by default). An empty tag
     uses the selected ref if it's a tag, or `manual-<run number>`. A tag
-    that doesn't exist yet is created on the dispatched commit.
+    that doesn't exist yet is created on the dispatched commit; one that
+    exists must name the dispatched commit (dispatch from the tag). Turning
+    `prerelease` off publishes a full release only when dispatched from
+    `main` (or a tag) whose commit is on `main`; from any other ref it's
+    published as a prerelease anyway, with a warning, so it can never
+    become "latest".
   - **Pull requests** that change the workflow, the `Makefile`,
     `scripts/make.sh`, `scripts/deb.sh`, `packaging/`,
     `scripts/dart-defines.sh`, `scripts/version.sh` or
@@ -27,7 +32,8 @@ app binaries with `make` and publishes them as a GitHub release.
   `1.0.202609261530-RC`) keeps its Z, and fails if its X.Y doesn't match the
   version files; any other run gets Z from the current time.
 - **Builds:** one job per target, all with Flutter 3.47.5 (cloned at its
-  tag): `web` and `android` (JDK 17) on `ubuntu-latest`, `ios` on
+  tag, and checked to be the pinned commit `6a19cca5…`, `FLUTTER_COMMIT`,
+  so a moved tag fails the build): `web` and `android` (JDK 17) on `ubuntu-latest`, `ios` on
   `macos-latest`, and `linux` (GTK build packages) twice, x64 on
   `ubuntu-22.04` and arm64 on `ubuntu-22.04-arm` (Flutter doesn't
   cross-compile Linux desktop). Each runs `make <target>`; the arm64 one
@@ -56,10 +62,53 @@ app binaries with `make` and publishes them as a GitHub release.
   `GOOGLE_IOS_CLIENT_ID`. They're public identifiers that get compiled into
   the app anyway, so they aren't secrets; the client secret is never given
   to the workflow.
-- **Security:** actions are pinned to commit SHAs; the workflow token is
-  read-only except in the release job (`contents: write`); checkout doesn't
-  keep credentials; inputs reach scripts only through environment
-  variables.
+- **Security:** actions are pinned to commit SHAs, Flutter to a commit and
+  the SAM CLI to a version (1.165.0, in the deploy workflows); the
+  workflow token is read-only except in the release job (`contents:
+  write`); checkout doesn't keep credentials; inputs reach scripts only
+  through environment variables.
+
+## Release trust
+
+What a tag can make CI do is checked in CI, not only by the scripts that
+push tags:
+
+- **On `main` only.** The Deploy and Deploy RC workflows, and the Release
+  workflow for `*GA` and `*RC*` tags, check out full history
+  (`fetch-depth: 0`) and refuse a tag whose commit isn't on `main` (`git
+  merge-base --is-ancestor <commit> origin/main`), before any build or AWS
+  access. `*QA` tags may be on any branch (always prereleases).
+- **Names.** Deploy takes only `X.Y.Z-GA`; Deploy RC only `X.Y.Z-RC` or
+  `X.Y.Z-RC<n>` (`^[0-9]+\.[0-9]+\.[0-9]+-RC[0-9]*$`), whether pushed or
+  given as its manual `tag` input, which must also be an existing tag
+  (checked out as `refs/tags/<tag>`, so a branch of that name can't stand
+  in). A manual Deploy RC run without a tag deploys `main`'s commit; from
+  another branch it's refused.
+- **Latest.** Only a pushed `*GA` tag on `main`, or a manual run as above
+  from `main`, publishes a full release (`--latest`); everything else is a
+  prerelease (`--latest=false`).
+- **Signed tags.** `scripts/tag-release.sh` creates **signed** annotated
+  tags (`git tag --sign`, with the user's GPG or SSH signing key;
+  `tag.gpgSign` makes plain `git tag` sign too). The Deploy workflow
+  warns (doesn't fail) when GitHub can't verify the tag's signature, so a
+  key GitHub doesn't know can't block a release; add the signing key to
+  the GitHub account as a signing key.
+
+### Recommended GitHub rulesets (not applied by this repository)
+
+Set in Settings → Rules → Rulesets (they need a repository admin), so
+only the maintainers can make a tag that deploys:
+
+- **Release tags:** a tag ruleset targeting `*-GA`, `*-RC` and `*-RC*`
+  (and `*GA`, `*RC*`, which the workflows trigger on): restrict
+  creations, updates and deletions, with bypass only for the maintainers
+  (or a "release" team). Rulesets can't require a tag's own signature
+  ("require signed commits" checks commits), hence the CI check above.
+- **`main`:** a branch ruleset: require pull requests (with the
+  maintainers' approval), block force pushes and deletions, require the
+  Release workflow's PR build where it runs.
+- Optionally, **Actions → General**: require approval for workflows from
+  outside collaborators, and keep `GITHUB_TOKEN` read-only by default.
 
 **First release:** [1.0.0-RC1](https://github.com/prodbytes/presence/releases/tag/1.0.0-RC1),
 from the tag pushed on `main` after the workflow was merged. All four assets
@@ -75,11 +124,14 @@ push the tag, which starts the workflow:
 - [scripts/release-rc.sh](../scripts/release-rc.sh) tags `X.Y.Z-RC`
   → prerelease `presence-X.Y.Z-RC`.
 - [scripts/release-ga.sh](../scripts/release-ga.sh) tags `X.Y.Z-GA`
-  → latest release `presence-X.Y.Z-GA`. The commit must be on `main`.
+  → latest release `presence-X.Y.Z-GA`.
 
 Both run [scripts/tag-release.sh](../scripts/tag-release.sh), which refuses
 when tracked files have uncommitted changes, when the commit isn't pushed,
-or when the tag already exists (tags are unique per minute).
+when it isn't on `main` (both kinds; CI refuses them too, see [Release
+trust](#release-trust)), or when the tag already exists (tags are unique
+per minute). It **signs** the tag (`git tag --sign`) and stops if signing
+fails.
 `DRY_RUN=1 bash scripts/release-rc.sh` checks and prints the tag without
 creating it. Each GA gets its own new Z, so it's a fresh build of the
 commit, not the RC's binaries.

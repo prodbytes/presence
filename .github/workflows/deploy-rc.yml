@@ -10,6 +10,11 @@
 # manage presence-rc-* resources and the rc.presence.nu01.com records. Its
 # ARN is the repository variable AWS_DEPLOY_RC_ROLE_ARN.
 #
+# Before anything else, it checks what it deploys: a tag must be an RC tag
+# (X.Y.Z-RC or X.Y.Z-RC<n>) whose commit is on main, and a manual run's
+# `tag` input must name such an existing tag; a manual run without one
+# deploys main's own commit (the RC role only trusts runs from main).
+#
 # The Release workflow runs on the same tags and publishes the binaries as
 # a prerelease.
 name: Deploy RC
@@ -21,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag to deploy (e.g. 0.2.202609271200-RC1). Empty deploys the selected branch's commit.
+        description: RC tag to deploy (X.Y.Z-RC or X.Y.Z-RC<n>, e.g. 0.2.202609271200-RC1). Empty deploys main's commit.
         required: false
         type: string
 
@@ -36,6 +41,9 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.47.5"
+  # The commit that tag names: the clone is checked against it.
+  FLUTTER_COMMIT: 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+  SAM_CLI_VERSION: "1.165.0"
   AWS_REGION: us-east-1
 
 jobs:
@@ -44,31 +52,63 @@ jobs:
     # No `environment:` here: it would change the OIDC subject, which the
     # RC role matches (the tag, or refs/heads/main for manual runs).
     steps:
+      # Validated before checkout: only an RC tag name reaches git.
       - name: Resolve the tag
         id: tag
         env:
           INPUT_TAG: ${{ inputs.tag }}
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
+          REF: ${{ github.ref }}
         run: |
           if [[ -n "$INPUT_TAG" ]]; then
             tag="$INPUT_TAG"
           elif [[ "$REF_TYPE" == tag ]]; then
             tag="$REF_NAME"
-          else
+          elif [[ "$REF" == refs/heads/main ]]; then
             tag=""
+          else
+            echo "::error::Manual runs deploy main (or an RC tag), not $REF"
+            exit 1
           fi
-          if [[ -n "$tag" && ! "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-            echo "::error::Invalid tag '$tag'"
+          if [[ -n "$tag" && ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+-RC[0-9]*$ ]]; then
+            echo "::error::'$tag' isn't an RC tag (X.Y.Z-RC or X.Y.Z-RC<n>)"
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Deploying ${tag:-the current commit} to rc.presence.nu01.com"
+          echo "Deploying ${tag:-main's commit} to rc.presence.nu01.com"
 
+      # Full history, so the commit can be checked against main. A tag is
+      # checked out as refs/tags/<tag>, so a branch or SHA of that name
+      # can't stand in for it.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.tag.outputs.tag || github.ref }}
+          ref: ${{ steps.tag.outputs.tag && format('refs/tags/{0}', steps.tag.outputs.tag) || github.ref }}
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Check the commit is on main
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          head="$(git rev-parse HEAD)"
+          if [[ -n "$TAG" ]]; then
+            if ! commit="$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}")"; then
+              echo "::error::$TAG isn't a tag"
+              exit 1
+            fi
+            if [[ "$head" != "$commit" ]]; then
+              echo "::error::checked out $head, not $TAG's $commit"
+              exit 1
+            fi
+          else
+            commit="$head"
+          fi
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::${TAG:-$commit} ($commit) isn't on main; only commits on main are deployed"
+            exit 1
+          fi
+          echo "${TAG:-HEAD} is $commit, on main"
 
       # The auth API (presence_api_auth) is a Java 25 Lambda, built and deployed with SAM.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -79,11 +119,17 @@ jobs:
       - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
         with:
           use-installer: true
+          version: ${{ env.SAM_CLI_VERSION }}
 
       - name: Install Flutter ${{ env.FLUTTER_VERSION }}
         run: |
           git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
             https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          got="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          if [[ "$got" != "$FLUTTER_COMMIT" ]]; then
+            echo "::error::Flutter $FLUTTER_VERSION is $got, not the pinned $FLUTTER_COMMIT"
+            exit 1
+          fi
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
       - name: Show the toolchain
