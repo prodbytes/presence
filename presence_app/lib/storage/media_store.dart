@@ -30,6 +30,9 @@ abstract class MediaStore {
 
   /// Deletes the recordings [ids]; missing ones are skipped.
   Future<void> delete(Iterable<String> ids);
+
+  /// The IDs of every stored recording (to find ones no clip uses).
+  Future<List<String>> ids();
 }
 
 /// A recording's bytes, streamed, and how many there are.
@@ -59,6 +62,9 @@ class IdbMediaStore implements MediaStore {
     final url = media.liveUrl;
     if (url == null) return;
     await _store.putMedia(id, await _io.readBytes(url));
+    // Saved: played from IndexedDB from now on, and the in-memory copy is
+    // freed once nothing plays it.
+    media.persisted(() => load(id, media.mimeType));
   }
 
   @override
@@ -91,4 +97,7 @@ class IdbMediaStore implements MediaStore {
       await _store.deleteMedia(id);
     }
   }
+
+  @override
+  Future<List<String>> ids() => _store.mediaIds();
 }

@@ -20,14 +20,17 @@ same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
   another clip). Restored and synced clips aren't run.
 - **Backpressure:** at most the **latest 3 new clips** wait their turn;
   when another arrives the oldest waiting one is skipped (logged, outcome
-  `deferred`). Auto is never skipped.
+  `deferred`). Auto is never skipped, and goes ahead of the new clips
+  waiting (after the clip already running).
 - **Memory (Android):** before a clip's models run, the app asks Android
   how much memory is left (`memoryStatus`, see [Android](android.md)). It's
   **tight** when the system says memory is low, or less than its
   low-memory threshold plus 96 MB is free (the models' files are 26 MB,
-  the detector's working memory and a 1280 px frame the rest). Then the models are freed and a
-  new clip waits 30 s and asks again, up to 10 times (5 min) before it's
-  skipped; Auto doesn't wait but says the phone is low on memory. After
+  the detector's working memory and a 1280 px frame the rest). Then the
+  models are freed and a new clip steps out of the queue for 30 s and
+  asks again, up to 10 times (5 min) before it's skipped; it holds
+  nothing up meanwhile. Auto doesn't wait but says the phone is low on
+  memory. After
   each clip, tight memory frees the models at once; otherwise they're
   freed after **60 s** without a frame, and loaded again for the next
   clip. Elsewhere there's no such check.
@@ -59,7 +62,9 @@ How each choice was measured (datasets, numbers) is in the models'
    On each tag's frame, the person, cat or dog **containing the clicked
    spot** (the smallest such box; else the nearest within 15 % of the
    frame) is the reference. Its embeddings are kept in memory for the
-   session, never stored or synced.
+   session, never stored or synced; those of tags no longer in the log
+   (deleted, or past retention) are dropped, as are the searched-clip
+   marks of clips no longer in it.
 2. **Frames.** The clip is sampled **every 1 s**, from its start to its
    end, at most **1280 px** wide (reference frames too; a 720p recording
    whole), so far faces keep every pixel. On Android each sample is the
@@ -240,7 +245,8 @@ How each choice was measured (datasets, numbers) is in the models'
   when they're freed), builds the anchors, resizes each frame to each
   model's input, runs them and decodes their outputs, reading
   EfficientDet's 13.5 MB of scores in place. The app's isolate only sends
-  each frame's RGBA pixels (moved, not copied) and gets back who's on it,
+  each frame's RGBA pixels (`TransferableTypedData`: copied once into
+  the transfer, then moved to the worker) and gets back who's on it,
   so it doesn't stall. Frames come from `keyframesAt` on the
   `presence/cameras` channel, 3 times per call, as raw RGBA; a frame's
   JPEG is only made (`encodeJpeg`) when a tag or suggestion keeps it.
@@ -286,9 +292,10 @@ How each choice was measured (datasets, numbers) is in the models'
   tagged, or the tag points at nobody) and nobody found; a failed model
   load doesn't block the next run; only the sorts of subject known are
   embedded, at most 5 detections a frame (`keepDetections`); only the
-  latest 3 new clips wait (older ones skipped, Auto never); tight memory
+  latest 3 new clips wait (older ones skipped, Auto never); Auto goes
+  ahead of the new clips waiting; tight memory
   puts Auto off and frees the models, and makes a new clip wait until
-  there's room or give up after its retries; what counts as tight; object
+  there's room or give up after its retries, without holding up Auto; what counts as tight; object
   tags: each label once, from its first frame with its best score, over
   the whole clip, with nobody to look for, and not again once searched;
   one seen on a single frame unsure is dropped, sure kept, and a one-frame
@@ -344,7 +351,7 @@ How each choice was measured (datasets, numbers) is in the models'
 
   These were last run before the worker and keyframes (2026-10-05): the
   test and its fixtures are updated (for the new models too), not rerun.
-- 611 Flutter tests pass, plus the 5 in Chrome (2026-10-06, with the
+- 714 Flutter tests pass, plus the 6 in Chrome (2026-10-07, with the
   real models). Web release and Android release builds compile (the
   release APK carries LiteRT's libraries for arm64, armv7 and x86_64).
   The worker, keyframes, memory check and the new models are not yet

@@ -34,7 +34,7 @@ void main() {
 
   Future<void> pressClip(WidgetTester tester) => clipAndShowEvents(tester);
 
-  const media = ClipMedia(
+  final media = ClipMedia(
     url: 'blob:fake',
     start: Duration(seconds: 3),
     end: Duration(seconds: 18),
@@ -89,6 +89,43 @@ void main() {
     await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
     await tester.pumpAndSettle();
     expect(find.byType(ClipPlayerView), findsOneWidget);
+  });
+
+  testWidgets('a frame grab that throws brings the button back', (
+    tester,
+  ) async {
+    var fail = true;
+    ClipPlayerController.debugCaptureOverride = () async {
+      if (fail) throw StateError('no frame');
+      return CapturedFrame(
+        jpeg: onePixelPng,
+        position: const Duration(seconds: 4),
+      );
+    };
+    addTearDown(() => ClipPlayerController.debugCaptureOverride = null);
+    final camera = FakeCameraSource('Front door', immediatePast: media);
+    await pumpApp(tester, openFakes([camera]));
+    await pressClip(tester);
+    camera.fullCompleters.single.complete(media);
+    await tester.pumpAndSettle();
+    await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('tag-frame')));
+    await tester.pumpAndSettle();
+    expect(find.text("Couldn't grab this frame; try again"), findsOneWidget);
+    expect(find.byKey(const Key('frame-tagger')), findsNothing);
+    final button = tester.widget<ButtonStyleButton>(
+      find.byKey(const Key('tag-frame')),
+    );
+    expect(button.onPressed, isNotNull, reason: 'not stuck grabbing');
+
+    // Tried again, it works.
+    fail = false;
+    await tester.tap(find.byKey(const Key('tag-frame')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
+    await settleStorage(tester);
   });
 
   testWidgets('a clip event is playable the moment it is published', (

@@ -155,16 +155,20 @@ void main() {
       await tester.pumpAndSettle();
       await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
       expect(deviceIdShown(tester), matches(DeviceId.pattern));
-      expect(find.text('Device '), findsOneWidget);
-      expect(find.text('Profile '), findsOneWidget);
+      expect(find.text('Device'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
       expect(
         tester.widget<SelectableText>(find.byKey(const Key('profile-id'))).data,
         'automatic_paranoid_axolotl',
       );
-      // The device ID comes first, then the profile ID.
+      // Side by side at the top: the device ID left, the profile ID right.
       expect(
         tester.getTopLeft(find.byKey(const Key('profile-id'))).dy,
-        greaterThan(tester.getTopLeft(find.byKey(const Key('device-id'))).dy),
+        tester.getTopLeft(find.byKey(const Key('device-id'))).dy,
+      );
+      expect(
+        tester.getTopLeft(find.byKey(const Key('profile-id'))).dx,
+        greaterThan(tester.getTopRight(find.byKey(const Key('device-id'))).dx),
       );
     });
 
@@ -204,9 +208,12 @@ void main() {
       tester,
     ) async {
       await launch(tester);
-      final link = await openAddDevice(tester);
+      // The ID at the top of Settings, then the link at the bottom.
+      await tester.tap(find.byTooltip('Settings'));
+      await tester.pumpAndSettle();
       final deviceId = deviceIdShown(tester);
       expect(deviceId, matches(DeviceId.pattern));
+      final link = await openAddDevice(tester);
       expect(
         JoinLink.parse(link),
         JoinLink(from: deviceId, user: JoinLink.userCode('1')),
@@ -215,7 +222,9 @@ void main() {
       // It's the last thing: below the health line.
       expect(
         tester.getTopLeft(find.byKey(const Key('add-device'))).dy,
-        greaterThan(tester.getTopLeft(find.byKey(const Key('device-id'))).dy),
+        greaterThan(
+          tester.getTopLeft(find.byKey(const Key('system-health'))).dy,
+        ),
       );
     });
 
@@ -256,7 +265,8 @@ void main() {
         // As a new device: its own ID, not the one that shared the link.
         await tester.pump(const Duration(seconds: 5)); // the message goes
         await tester.pumpAndSettle();
-        await openAddDevice(tester);
+        await tester.tap(find.byTooltip('Settings'));
+        await tester.pumpAndSettle();
         expect(deviceIdShown(tester), isNot('other_device_here'));
       },
     );

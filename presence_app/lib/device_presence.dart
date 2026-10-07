@@ -169,11 +169,24 @@ class _PresencePingerState extends State<PresencePinger> {
   @override
   void initState() {
     super.initState();
+    _start();
+  }
+
+  /// Pings now, and every [PresencePinger.every] from now.
+  void _start() {
+    _timer?.cancel();
     widget.live?.ping().ignore();
     _timer = Timer.periodic(widget.every, (_) {
       widget.live?.ping().ignore();
       setState(() {});
     });
+  }
+
+  @override
+  void didUpdateWidget(PresencePinger old) {
+    super.didUpdateWidget(old);
+    // Another live sync, or another interval: start over with it.
+    if (old.live != widget.live || old.every != widget.every) _start();
   }
 
   @override

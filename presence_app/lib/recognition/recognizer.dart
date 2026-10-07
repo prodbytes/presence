@@ -87,11 +87,12 @@ class RecognitionResult {
 /// are done one at a time, each queued once it's fully recorded, so one
 /// still recording doesn't hold up the others; only the latest
 /// [maxPending] new clips wait, older ones are skipped. While the device
-/// is low on memory ([MemoryStatus.tight]) a new clip waits
-/// [memoryRetryAfter] at a time (at most [memoryRetries] times), the
-/// models' memory freed meanwhile. [recognizeNow] runs it on any clip, on
-/// request (the player's Auto); a new clip already searched that way isn't
-/// searched again.
+/// is low on memory ([MemoryStatus.tight]) a new clip steps out of the
+/// queue for [memoryRetryAfter] at a time (at most [memoryRetries] times),
+/// the models' memory freed meanwhile, so it holds nothing up.
+/// [recognizeNow] runs it on any clip, on request (the player's Auto),
+/// ahead of the new clips waiting; a new clip already searched that way
+/// isn't searched again.
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -168,17 +169,27 @@ class SubjectRecognizer {
   bool _disposed = false;
 
   /// Each reference tag's detection and embeddings, by tag ID (null: no
-  /// one found where it was clicked).
+  /// one found where it was clicked). Tags no longer in the log are
+  /// dropped ([_prune]).
   final _references = <String, Seen?>{};
 
-  /// The clips searched in full, by event ID.
+  /// The clips searched in full, by event ID; those no longer in the log
+  /// are dropped ([_prune]).
   final _searched = <String>{};
+
+  /// New clips out of the queue while memory is low, each until its timer
+  /// puts it back.
+  final _parked = <_Job, Timer>{};
+
+  /// What [_recognize] answers when memory is low and a new clip should
+  /// wait outside the queue (not the same object as any other result).
+  static final _tight = RecognitionResult(RecognitionOutcome.deferred);
 
   /// Whether recognition can run on this platform.
   bool get supported => _runtime.supported && _sampler.supported;
 
   /// Completes once every clip queued so far is done (for tests).
-  Future<void> get idle => !_running && _pending.isEmpty
+  Future<void> get idle => !_running && _pending.isEmpty && _parked.isEmpty
       ? Future.value()
       : (_drained ??= Completer<void>()).future;
 
@@ -198,8 +209,8 @@ class SubjectRecognizer {
   }
 
   /// Runs recognition on [event]'s clip now, after any clip already being
-  /// searched, even with recognition off in Settings: someone asked.
-  /// Throws if the models can't load.
+  /// searched (ahead of new clips waiting), even with recognition off in
+  /// Settings: someone asked. Throws if the models can't load.
   Future<RecognitionResult> recognizeNow(ClipRequested event) =>
       _enqueue(event, onRequest: true);
 
@@ -208,6 +219,18 @@ class SubjectRecognizer {
     required bool onRequest,
   }) {
     final job = _Job(event, onRequest: onRequest);
+    _queue(job);
+    _pump();
+    return job.done.future;
+  }
+
+  /// Puts [job] in line: asked-for clips before new ones, each in order.
+  void _queue(_Job job) {
+    if (job.onRequest) {
+      final firstNew = _pending.indexWhere((j) => !j.onRequest);
+      _pending.insert(firstNew < 0 ? _pending.length : firstNew, job);
+      return;
+    }
     _pending.add(job);
     // Clips come faster than they're searched: keep the latest new ones.
     final waiting = [
@@ -221,8 +244,6 @@ class SubjectRecognizer {
       );
       old.done.complete(const RecognitionResult(RecognitionOutcome.deferred));
     }
-    _pump();
-    return job.done.future;
   }
 
   Future<void> _pump() async {
@@ -231,7 +252,26 @@ class SubjectRecognizer {
     while (_pending.isNotEmpty) {
       final job = _pending.removeAt(0);
       try {
-        job.done.complete(await recognize(job.event, onRequest: job.onRequest));
+        final result = await _recognize(
+          job.event,
+          onRequest: job.onRequest,
+          waitForMemory: false,
+        );
+        if (identical(result, _tight)) {
+          if (job.memoryWaits < memoryRetries && !_disposed) {
+            _park(job);
+            continue;
+          }
+          debugPrint(
+            'Presence: recognition put off on ${job.event.id}: low on '
+            'memory after ${job.memoryWaits} wait(s)',
+          );
+          job.done.complete(
+            const RecognitionResult(RecognitionOutcome.deferred),
+          );
+        } else {
+          job.done.complete(result);
+        }
       } catch (e, stack) {
         job.done.completeError(e, stack);
       }
@@ -239,8 +279,26 @@ class SubjectRecognizer {
       if ((await _memory.status())?.tight ?? false) _release();
     }
     _running = false;
-    _drained?.complete();
-    _drained = null;
+    if (_parked.isEmpty) {
+      _drained?.complete();
+      _drained = null;
+    }
+  }
+
+  /// Takes a new clip out of the queue while memory is low: it goes back
+  /// in after [memoryRetryAfter], and Auto (or another clip) runs
+  /// meanwhile.
+  void _park(_Job job) {
+    job.memoryWaits++;
+    _parked[job] = Timer(memoryRetryAfter, () {
+      _parked.remove(job);
+      if (_disposed) {
+        job.done.complete(const RecognitionResult(RecognitionOutcome.deferred));
+        return;
+      }
+      _queue(job);
+      _pump();
+    });
   }
 
   /// Frees the models' memory; they load again when next needed.
@@ -268,10 +326,20 @@ class SubjectRecognizer {
   Future<RecognitionResult> recognize(
     ClipRequested event, {
     bool onRequest = false,
+  }) => _recognize(event, onRequest: onRequest, waitForMemory: !onRequest);
+
+  /// [recognize]; with memory low, a new clip waits for it here if
+  /// [waitForMemory], or else gets [_tight] back (the queue then parks
+  /// it).
+  Future<RecognitionResult> _recognize(
+    ClipRequested event, {
+    required bool onRequest,
+    required bool waitForMemory,
   }) async {
     if (!supported) {
       return const RecognitionResult(RecognitionOutcome.unsupported);
     }
+    _prune();
     final settings = config.recognition;
     // A new clip already searched for subjects (with Auto) isn't again.
     final subjectsOn =
@@ -290,8 +358,10 @@ class SubjectRecognizer {
       return const RecognitionResult(RecognitionOutcome.searched);
     }
     // Asked for, it's now or not at all; a new clip can wait.
-    if (!await _roomToRun(wait: !onRequest)) {
-      return const RecognitionResult(RecognitionOutcome.deferred);
+    if (!await _roomToRun(wait: waitForMemory)) {
+      return onRequest || waitForMemory
+          ? const RecognitionResult(RecognitionOutcome.deferred)
+          : _tight;
     }
     if (_disposed) return const RecognitionResult(RecognitionOutcome.searched);
     final Vision vision;
@@ -490,7 +560,36 @@ class SubjectRecognizer {
     }
   }
 
-  bool _hasReferences(ClipRequested event) => _vouched(event).isNotEmpty;
+  /// Whether any other clip has a vouched tag with a frame: [_vouched]
+  /// without sorting the clips.
+  bool _hasReferences(ClipRequested event) => log.events.any(
+    (e) =>
+        e is ClipRequested &&
+        e.id != event.id &&
+        e.annotations.items.any(
+          (tag) =>
+              tag.source.vouched &&
+              tag.frameId != null &&
+              Subject.idOf(tag.name).isNotEmpty,
+        ),
+  );
+
+  /// Forgets the searched clips and reference tags no longer in the log
+  /// (deleted, or past retention), so neither grows forever.
+  void _prune() {
+    if (_searched.isEmpty && _references.isEmpty) return;
+    final clips = <String>{};
+    final tags = <String>{};
+    for (final e in log.events) {
+      if (e is! ClipRequested) continue;
+      clips.add(e.id);
+      for (final tag in e.annotations.items) {
+        tags.add(tag.id);
+      }
+    }
+    _searched.retainAll(clips);
+    _references.removeWhere((id, _) => !tags.contains(id));
+  }
 
   /// Every subject's references: their latest [referencesPerSubject]
   /// vouched tags whose frame shows someone where they were clicked, named
@@ -565,6 +664,13 @@ class SubjectRecognizer {
   void dispose() {
     _disposed = true;
     _subscription.cancel();
+    for (final MapEntry(key: job, value: timer) in _parked.entries) {
+      timer.cancel();
+      job.done.complete(const RecognitionResult(RecognitionOutcome.deferred));
+    }
+    _parked.clear();
+    _drained?.complete();
+    _drained = null;
     _release();
   }
 }
@@ -576,6 +682,9 @@ class _Job {
   final ClipRequested event;
   final bool onRequest;
   final done = Completer<RecognitionResult>();
+
+  /// How many times it stepped out of the queue for memory.
+  int memoryWaits = 0;
 }
 
 /// Puts the app's [SubjectRecognizer] within reach of its screens (the

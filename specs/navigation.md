@@ -35,6 +35,16 @@ in the app bar**, which flip between full screens.
   (`TabBar` + `TabBarView`). While a finger is on the Settings location
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
+- **Every view change looks the same:** a sideways slide, 300 ms, eased
+  (`Curves.ease`, the tabs' own). The role-gated tabs (Log, Admin) are
+  tabs like the others: they only need the role to show, and flip in the
+  same way. A screen pushed over the tabs (a [subject's](subjects.md))
+  slides in from the right as the tabs slide out to the left, and back on
+  return (`TabSlidePageTransitionsBuilder` in `lib/theme.dart`, the
+  theme's page transition on every platform), instead of the platform's
+  own zoom or fade. Sheets (the account sheet) and dialogs (the clip
+  player) aren't view changes: they still rise over the screen.
+  Test: `theme_test.dart`.
 - **A browser refresh stays on the open tab** (Camera, Monitoring,
   Settings, Log or Admin; the Log and Admin only if the user still has
   them), remembered by name: each switch is remembered in the browser tab's
@@ -43,6 +53,10 @@ in the app bar**, which flip between full screens.
   roles load; signed out, it stays on the camera and keeps the memory for
   later). A new browser tab, or blocked storage, starts on the Camera. The
   Android and iOS apps don't refresh, so they always start on the Camera.
+  Which tabs show, the open one and the remembered one are kept by
+  `HomeTabs` ([lib/home_tabs.dart](../presence_app/lib/home_tabs.dart));
+  the app bar (`_HomeAppBar`) and the Camera tab's buttons
+  (`_CameraButtons`) are widgets of their own in `lib/main.dart`.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
   the camera, with a dark gradient scrim to keep the tabs
@@ -107,6 +121,13 @@ in the app bar**, which flip between full screens.
     message share the lowest line. A label too long for the room is cut
     short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
+  - **Screen readers** read each pill's full label. Only the **message**
+    and the **health warning** are live regions, read out when they show
+    or change; the readiness countdown and the battery change all the
+    time, so they aren't announced (they used to be, every second during
+    a cooldown). A pill that does something when tapped (the message
+    opening Monitoring, the health warning) is a **button** to screen
+    readers too (`StatusPill.liveRegion`, `StatusPill.onTap`).
   - **Health warning** (`HealthWarningPill` in
     [lib/system_health.dart](../presence_app/lib/system_health.dart)):
     only an icon (`warning_amber_rounded`, in the error color), no label,
@@ -183,7 +204,8 @@ in the app bar**, which flip between full screens.
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
-  **full width**, with this device's location map as a section (see
+  **full width**, opening on this device's and profile's IDs (two
+  columns), with this device's location map as a section (see
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).

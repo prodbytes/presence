@@ -18,6 +18,13 @@
     recorded".
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
     camera's retries) but the button (None → One) or Turn on.
+  - Pausing and resuming run one after the other: a resume waits for the
+    pause before it to close the camera (phones allow one open camera). A
+    pause doesn't wait for a camera still opening: that open is stale
+    (`CameraRig`'s open generation, bumped by every open and close), and
+    whatever it opens is closed at once, so pressing None and One while
+    the camera opens never leaves two cameras open, and a stale open's
+    error never shows.
   - It's a camera setting (`camera.paused`), saved with the device's
     settings, so it lasts across restarts, including the Android
     watchdog's; One and All aren't kept (One at launch).
@@ -49,8 +56,24 @@
     `OverconstrainedError`), or in use / couldn't start (`NotReadableError`,
     `AbortError`). Android and iOS show their plugin's message, or "Camera
     permission was denied. Allow it in Settings."
-  - **Per-tile error:** if one camera fails to open (for example, it's in use),
-    only that tile shows the error.
+  - The error shows in the camera's view: full screen in One, in its
+    top-left cell in All (one camera opens at a time).
+- **A lost camera is reopened, on every platform.** When the platform
+  takes the running camera away, the source's `lost` completes and
+  `CameraRig` closes it, shows the error and tries to reopen it every
+  10 s (`CameraRig.lostRetryDelay`) until it opens. On Android that's a
+  disconnected or failed camera (see [Android](android.md)). On web the
+  browser **ends the video track** (camera unplugged, taken by another
+  app, permission revoked): its `ended` event reports the camera lost
+  ("The camera stopped (unplugged or taken away)"), so the pill doesn't
+  stay Ready on a frozen frame. Closing the camera ourselves stops the
+  track without that event.
+- **Web elements are released** with the camera or player that showed
+  them: every `<video>` is shown through one platform view type
+  (`presence-element`, `ElementView` in
+  [web_dom.dart](../presence_app/lib/cameras/web_dom.dart)) and looked up
+  by a key that's dropped on close, rather than a new view factory per
+  open that the browser's registry would keep forever.
 
 ## All devices
 
@@ -122,7 +145,9 @@ sync all carry clips, and a still-only grab would need its own record
 everywhere.
 
 - **The request:** a **Capture all** event (`AppEvent.captureAll`, type
-  `capture_all`, grid icon), published on the device's event bus by
+  `capture_all`, grid icon), a **system event** (it has no video: hidden
+  in Monitoring while system events are, unlike the clips it asks for),
+  published on the device's event bus by
   `CameraRig.askAll` when the grid opens (signed in with cloud sync) or
   Clip is pressed with it showing. **Opening the grid asks at most once
   a minute** per device (`CameraRig.askAllEvery`): opening it again
@@ -182,7 +207,7 @@ everywhere.
   make one, a later one another; `askAll`'s minute; a press asks within
   the minute but not within 5 s of the last request; in the app, Clip
   20 s after opening All uploads a second request; the request survives
-  storage and counts as a grab).
+  storage and is a system event, not a grab).
 
 ## Known limitations
 

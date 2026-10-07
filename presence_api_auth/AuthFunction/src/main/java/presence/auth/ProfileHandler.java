@@ -4,7 +4,6 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import software.amazon.awssdk.awscore.exception.AwsServiceException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -15,11 +14,10 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static presence.auth.AuthHandler.response;
+import static presence.auth.Http.response;
 
 /**
  * A {@link Profiles profile}'s cloud folder and linked subjects, whichever
@@ -39,9 +37,13 @@ import static presence.auth.AuthHandler.response;
  *       only): a one-time code, valid for {@link #CODE_TTL}, as {@code
  *       {"code": "ABCD-EFGH", "expiresAt"}};</li>
  *   <li>{@code POST /api/auth/profile/link}: the signed-in subject joins the
- *       profile of the code in the (plain-text) body, and gets its roles.
- *       Refused (409) if the subject owns a profile with cloud data, or
- *       one other subjects are linked to;</li>
+ *       profile of the code in the (plain-text) body, and shares its
+ *       owner's membership ({@code presence_user}; never the owner's
+ *       {@code presence_admin} or {@code presence_root}, see
+ *       {@link Roles#of(Caller, Profiles.Profile)}). Refused (409) if the
+ *       subject owns a profile with cloud data, or one other subjects are
+ *       linked to; a refusal leaves the code usable, which is used up
+ *       only by a link that's made;</li>
  *   <li>{@code POST /api/auth/profile/unlink}: removes the subject with the
  *       email in the body from the caller's profile (not the owner). Its
  *       next sign-in makes it a profile of its own again.</li>
@@ -64,6 +66,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     interface Backend {
         /** Keeps {@code code} under {@code hash} until it expires. */
         void saveCode(String hash, LinkCode code);
+
+        /** The code under {@code hash}, if it's there and hasn't expired by {@code now}; it stays. */
+        Optional<LinkCode> peekCode(String hash, Instant now);
 
         /** Removes and returns the code under {@code hash}, if it's there and hasn't expired by {@code now}. */
         Optional<LinkCode> takeCode(String hash, Instant now);
@@ -104,7 +109,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public ProfileHandler() {
-        this(AuthHandler.fromEnvironment(), AuthHandler.profilesFromEnvironment(), ProfileBackend.fromEnvironment(),
+        this(Roles.fromEnvironment(), Profiles.fromEnvironment(), ProfileBackend.fromEnvironment(),
                 ProfileBackend.configured(), new SecureRandom());
     }
 
@@ -122,86 +127,28 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
-        var claims = AuthHandler.claims(event);
-        var iss = claims.get("iss");
-        var sub = claims.get("sub");
-        var email = claims.get("email");
-        var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        if (iss == null || iss.isBlank() || sub == null || sub.isBlank()
-                || email == null || email.isBlank() || !verified) {
+        var caller = Caller.from(event);
+        if (!caller.hasSubject() || caller.verifiedEmail() == null) {
             return response(403, "{\"error\":\"a verified email is required\"}");
         }
-        var caller = new Caller(iss, sub, email.strip().toLowerCase(Locale.ROOT), bearer(event));
-        var route = event.getRouteKey() == null ? "" : event.getRouteKey();
+        var route = Http.route(event);
         try {
             return switch (route) {
                 case "GET /api/auth/profile" -> listing(caller);
                 case "POST /api/auth/credentials" -> credentials(caller);
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
-                case "POST /api/auth/profile/link" -> link(caller, MembershipHandler.bodyText(event, 32));
-                case "POST /api/auth/profile/unlink" -> unlink(caller, MembershipHandler.bodyText(event, 254));
+                case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
+                case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
                 default -> response(404, "{\"error\":\"no such route\"}");
             };
         } catch (RuntimeException e) {
-            // Cognito or DynamoDB failed: say which and how (its error code),
-            // and the request ID that finds the full error in the log, but
-            // not AWS's message, which names ARNs.
-            var requestId = context == null ? null : context.getAwsRequestId();
-            System.err.println("presence: " + route + " failed (request " + requestId + "): "
-                    + cause(e) + ": " + e);
-            return response(502, "{\"error\":\"the profile service failed\",\"cause\":"
-                    + Json.string(cause(e))
-                    + (requestId == null ? "" : ",\"requestId\":" + Json.string(requestId)) + "}");
-        }
-    }
-
-    /**
-     * What failed, for the caller: an AWS service, the operation (when the
-     * SDK client called it) and its error code, or the exception's type.
-     */
-    static String cause(RuntimeException e) {
-        if (e instanceof AwsServiceException aws && aws.awsErrorDetails() != null) {
-            var details = aws.awsErrorDetails();
-            var cause = details.serviceName() + operation(e).map(op -> " " + op + ":").orElse("")
-                    + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
-            // AWS knows every operation the SDK sends; an endpoint that
-            // doesn't is an emulator, such as Floci locally.
-            if ("UnknownOperationException".equals(details.errorCode())) {
-                cause += "; the endpoint doesn't implement it (a local AWS emulator?)";
-            }
-            return cause;
-        }
-        return e.getClass().getSimpleName();
-    }
-
-    /**
-     * The AWS operation that threw {@code e}: the SDK client's method in its
-     * stack trace ({@code DefaultCognitoIdentityClient.getId} is
-     * {@code GetId}), if it's there.
-     */
-    static Optional<String> operation(Throwable e) {
-        for (var frame : e.getStackTrace()) {
-            var type = frame.getClassName();
-            if (type.startsWith("software.amazon.awssdk.services.")
-                    && type.substring(type.lastIndexOf('.') + 1).startsWith("Default")
-                    && type.endsWith("Client")) {
-                var method = frame.getMethodName();
-                return Optional.of(Character.toUpperCase(method.charAt(0)) + method.substring(1));
-            }
-        }
-        return Optional.empty();
-    }
-
-    /** The signed-in subject: its issuer and Google ID, verified email (lowercase) and ID token. */
-    record Caller(String iss, String sub, String email, String idToken) {
-
-        String subject() {
-            return Profiles.subject(iss, sub);
+            // Cognito or DynamoDB failed: say which and how, not AWS's message.
+            return Aws.failed("profile", route, e, context);
         }
     }
 
     private Profiles.Profile profile(Caller caller) {
-        return profiles.profile(caller.iss(), caller.sub(), caller.email());
+        return profiles.profile(caller, null);
     }
 
     private APIGatewayV2HTTPResponse credentials(Caller caller) {
@@ -233,7 +180,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
         var code = newCode(random);
         var expiresAt = profiles.clock().instant().plus(CODE_TTL);
-        backend.saveCode(hash(code), new LinkCode(profile.id(), caller.email(), expiresAt));
+        backend.saveCode(hash(code), new LinkCode(profile.id(), caller.verifiedEmail(), expiresAt));
         return response(201, "{\"code\":" + Json.string(code.substring(0, 4) + "-" + code.substring(4))
                 + ",\"expiresAt\":" + Json.string(expiresAt.toString()) + "}");
     }
@@ -246,13 +193,17 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (code == null) {
             return response(400, "{\"error\":\"the body must be a link code\"}");
         }
-        var taken = backend.takeCode(hash(code), profiles.clock().instant()).orElse(null);
-        var target = taken == null ? null : profiles.store().profile(taken.profileId());
+        var hash = hash(code);
+        var now = profiles.clock().instant();
+        // Refusals come first and leave the code; only a link uses it up.
+        var pending = backend.peekCode(hash, now).orElse(null);
+        var target = pending == null ? null : profiles.store().profile(pending.profileId());
         if (target == null) {
             return response(404, "{\"error\":\"the code is wrong, used or expired\"}");
         }
         var current = profile(caller);
         if (current.id().equals(target.id())) {
+            backend.takeCode(hash, now);
             return listing(caller);
         }
         if (caller.subject().equals(current.ownerSubject())) {
@@ -267,7 +218,11 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 return response(409, "{\"error\":\"this account already has cloud data of its own\"}");
             }
         }
-        profiles.store().relink(caller.subject(), target.id(), caller.email(), profiles.clock().instant());
+        // One use: whoever deletes it first links (a conditional delete).
+        if (backend.takeCode(hash, now).isEmpty()) {
+            return response(404, "{\"error\":\"the code is wrong, used or expired\"}");
+        }
+        profiles.store().relink(caller.subject(), target.id(), caller.verifiedEmail(), now);
         return listing(caller);
     }
 
@@ -312,18 +267,11 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     private boolean isUser(Caller caller, Profiles.Profile profile) {
-        return roles.of(caller.email(), true, profile.ownerEmail()).contains(Roles.USER);
+        return roles.of(caller, profile).contains(Roles.USER);
     }
 
     private static APIGatewayV2HTTPResponse notConfigured() {
         return response(503, "{\"error\":\"cloud sync isn't set up\"}");
-    }
-
-    /** The token from {@code Authorization: Bearer <token>} (verified by the authorizer). */
-    static String bearer(APIGatewayV2HTTPEvent event) {
-        Map<String, String> headers = event.getHeaders() == null ? Map.of() : event.getHeaders();
-        var value = headers.getOrDefault("authorization", headers.getOrDefault("Authorization", ""));
-        return value.regionMatches(true, 0, "Bearer ", 0, 7) ? value.substring(7).strip() : value.strip();
     }
 
     /** {@link #CODE_LENGTH} random characters from {@link #CODE_ALPHABET}. */

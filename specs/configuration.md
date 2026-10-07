@@ -42,7 +42,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
   `<identityId>/devices/<deviceId>/settings.json`, as
   `{deviceId, profileId, updatedAt, config, location}`: every setting on
   the Settings screen, and `location`, the location set on the map
-  ([Device location](device-location.md)) or null when the device's own
+  ([Device location](device-location.md)), pinned or not (`pinned: true`), or null when the device's own
   position is used. A reading of the device's position isn't a setting:
   it's read again at each launch, and doesn't change the record.
   - At start, the local record loads first (or the defaults). Once the

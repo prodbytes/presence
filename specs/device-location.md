@@ -23,6 +23,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
   - "This device's location · ±12 m": the device's own position, with the
     accuracy it reported;
   - "Set on the map": set by hand;
+  - "Pinned · used for every event": pinned, with a pin icon and
+    "Pinned:" before the label;
   - "Finding this device…" while the first reading is under way;
   - otherwise the reason, such as "Location permission was denied. Move
     the map to set it.", while the location is unknown. If a later reading
@@ -46,6 +48,9 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location asks the device for its position again; it spins while
   waiting, and the map moves to the answer (zoom 17, or closer if already
   zoomed in).
+- **Pin position** (a tonal button with a pin icon, under the position)
+  pins the position shown; while pinned it's **Unpin** (outlined). See
+  [Pinning the position](#pinning-the-position).
 - **Paste position**, a compact box in the position's column, right of
   the map and under the position, not a full row
   ([lib/location/coordinates.dart](../presence_app/lib/location/coordinates.dart)):
@@ -53,7 +58,9 @@ the camera. (There used to be a Device tab for both; it's gone.)
   the keyboard's Done sets the location to the pasted latitude and
   longitude exactly as moving the map does (`setOnMap`: "Set on the map",
   saved, kept until My location), and the map moves there even if the
-  user had moved it. The box then empties. It reads:
+  user had moved it. While pinned, it moves the pin there instead (still
+  pinned; the check button's tooltip says "Pin this position"). The box
+  then empties. It reads:
   - decimal degrees apart by a comma, a semicolon, a slash or spaces
     (`38.7223, -9.1393`, `38.7223,-9.1393`, `38.7223 -9.1393`), in
     brackets or not;
@@ -120,7 +127,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
   accuracy** it offers: GPS on phones, the browser's Geolocation API on web
   (which needs HTTPS or localhost). A reading gives up after 30 s.
 - The permission is asked the first time it's needed: at launch, unless
-  the location was set on the map. Location turned off or permission
+  the location was set on the map or pinned. While pinned, nothing asks
+  for the device's position (no permission prompt, no GPS). Location turned off or permission
   denied leaves it unknown; nothing else in the app changes.
   - Android: `ACCESS_FINE_LOCATION` and `ACCESS_COARSE_LOCATION` in the
     manifest.
@@ -147,6 +155,35 @@ the camera. (There used to be a Device tab for both; it's gone.)
   stay on the device.
 - Longitudes past the date line are wrapped back into -180..180.
 
+## Pinning the position
+
+- **Pin position** fixes this device's position (`LocationController.pin`)
+  to the one shown: the location in force (the device's reading, a
+  position set on the map or pasted), or the map's center if the user
+  just moved it and the move isn't committed yet. Off while the location
+  is unknown and the map hasn't been moved.
+- **While pinned**:
+  - every event this device publishes carries the pinned position as its
+    `location` (source `map`, `pinned: true`);
+  - the device's own positioning is **never asked**: not at launch, not
+    by My location (off, tooltip "Unpin to use my location"), so a
+    pinned device never prompts for the location permission nor turns on
+    GPS; a reading already under way when pinning is dropped;
+  - the map shows a **push-pin marker on the pinned place** instead of
+    the center pin; moving the map only looks around and doesn't change
+    the location;
+  - a pasted position moves the pin there (still pinned).
+- **Unpin** (`unpin`) goes back to the automatic location: the pinned
+  point stands as a reading until the device answers, and the map
+  follows the answer.
+- **Saved** in the `settings` store (survives restarts) and part of this
+  device's settings record, which syncs per device (not per profile; see
+  [Configuration](configuration.md)), like a location set on the map.
+- **Validated**: a position must be finite, latitude -90 to 90 and
+  longitude -180 to 180 (`validCoordinates`); `pin` throws for anything
+  else, and the paste box shows the error and keeps the pin. Saved or
+  synced records out of range read as no location.
+
 ## Storage
 
 - `LocationController`
@@ -159,6 +196,7 @@ the camera. (There used to be a Device tab for both; it's gone.)
   | `lat`, `lng` | degrees (WGS 84) |
   | `accuracy` | meters, for the device's own readings only |
   | `source` | `device` (its positioning) or `map` (set by hand) |
+  | `pinned` | `true` when pinned (only with `map`); absent otherwise, so earlier versions read it as a location set on the map |
   | `time` | when it was read or set, ms since the epoch |
 
 ## On every event
@@ -169,7 +207,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
   and [Cloud sync](cloud-sync.md)). It's absent while the location is
   unknown, which includes the launch's "Application started" event: it's
   published before the saved location has loaded.
-- Moving the map later doesn't change past events.
+- Moving the map later doesn't change past events. While pinned, it's the
+  pinned position, with `pinned: true`.
 
 ## Verified
 
@@ -177,7 +216,21 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location set on the map survives a restart without asking the device,
   until My location; a saved device reading is read again at launch; a
   map move during a slow reading wins; a denied permission leaves it
-  unknown; damaged records read as none. In the app:
+  unknown; damaged records (and positions out of range) read as none; a
+  pinned position survives a restart without asking the device, ignores
+  My location and map moves, moves when pinned elsewhere, and unpinning
+  asks the device; a reading under way when pinning is dropped; positions
+  off the Earth (and NaN) aren't pinned. In the app:
+  - at 320 px: pinning the detected position shows the pin icon,
+    "Pinned:", the status, the marker instead of the center pin, Unpin
+    and a disabled My location; dragging the map doesn't change it;
+    Unpin asks the device and the map follows; a pasted position can be
+    pinned, an out-of-range paste is refused and keeps the pin, a good
+    one moves it; a map move not yet committed is what gets pinned;
+  - events published while pinned, before and after a restart, carry the
+    pinned position (`pinned: true`) and the device isn't asked;
+  - pinning and unpinning change the device's settings record in the
+    cloud (`persistence_test.dart`);
   - there's no Device tab; the Location section shows the pin, the
     labeled position, the accuracy and the credit, without the device ID;
   - at 360 and 1280 px, the section spans the width less the 16 px

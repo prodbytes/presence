@@ -7,10 +7,12 @@ bucket. [Cloud sync](cloud-sync.md) still does everything it did: **S3 stays
 where events and all their media are kept**, and a device that misses a
 message gets the event from the bucket as before. Nothing is deleted.
 
-This is phase 1. Phase 2 (planned, not built) adds acknowledgements from
-the receiving devices, deletes an event's S3 record once three devices
-acknowledged it, and asks the online devices for events at start; the
-topics and messages below leave room for it.
+This is phase 1, plus **copy acknowledgements**: a device that has stored
+a full copy of another device's event (with its media) says so with a
+`copied` ack on the `acks` topic, and every device counts each event's
+copies ([Event copies](event-copies.md)). Phase 2 (planned, not built)
+deletes an event's S3 record once three devices acknowledged it, and asks
+the online devices for events at start.
 
 ## What a device does
 
@@ -25,7 +27,9 @@ owned by `CloudSync`:
   `wss://<IOT_ENDPOINT>/mqtt`, presigned with AWS Signature Version 4
   (`SigV4Signer.presignWebSocket`, service `iotdevicegateway`, only `host`
   signed, valid 1 h; the session token is appended after signing, as AWS IoT
-  requires).
+  requires). It's signed at AWS's time as best known (`AwsClock.shared`,
+  corrected when S3 finds the device's clock off; see [Cloud
+  sync](cloud-sync.md#how)), and the renewal below is timed by it too.
   - **Client ID**: the identity first, which the IoT policy requires, then
     the [device ID](devices-users-places.md). Always connected,
     `<identityId>-<deviceId>-<session>`, with six random characters per
@@ -37,7 +41,8 @@ owned by `CloudSync`:
     messages may come first; then to its `requests` and `acks` topics for
     [device presence](device-presence.md) (a refusal there is logged and
     doesn't drop the connection).
-  - **Reconnects** (always connected) after a drop at once (1 s), and after a refused
+  - **Reconnects** (always connected) after a drop at once (1 s), closing
+    the dropped connection first (its socket and timers go), and after a refused
     connection with a back-off that doubles up to 2 min; each attempt asks
     for credentials again and signs a new URL. Getting the credentials and
     connecting may each take **15 s** (`LiveSync.connectTimeout`): an
@@ -112,6 +117,9 @@ owned by `CloudSync`:
     (in the background on Android and desktop, when played on the web).
     The bucket's listing catches a missed completion: a changed event
     whose clip isn't here asks for it too.
+  - **Once it's copied** (the event, its frames, and its clip with the
+    recording), the device acks it: a `copied` message on `acks`, batched
+    (see [Event copies](event-copies.md)).
 
 ## When it connects
 
@@ -166,8 +174,9 @@ change).
   `<identityId>` the profile's Cognito identity (its folder in the
   bucket). Events go on `events`; `requests` and `acks` carry [device
   presence](device-presence.md)'s pings and pongs (small messages of
-  their own, validated by `LiveSync.parsePresence`), and leave room for
-  phase 2's requests and acknowledgements. The policies allow
+  their own, validated by `LiveSync.parsePresence`), and `acks` also the
+  `copied` acks of [event copies](event-copies.md) (`parseCopied`, at
+  most 1 KB and 32 event IDs each). The policies allow
   `presence/<stage>/<identityId>/*`, which covers all three.
 - **An event message** (JSON, UTF-8, at most 64 KB; AWS IoT allows
   128 KB):
@@ -187,8 +196,8 @@ change).
   ```
 
   - `deviceId` is the **sender**, `key` and `etag` the event's object in
-    the bucket as uploaded (phase 2's acknowledgements and deletion will
-    refer to them), `event` the event record as uploaded.
+    the bucket as uploaded (phase 2's deletion will refer to them),
+    `event` the event record as uploaded.
   - **Metadata only, never media:** `event` carries references (`clipId`,
     `frameId`s in `annotations`, `cameraId`), never frames, thumbnails or
     video. Before publishing, `LiveSync.metadataOf` removes `frames`,
@@ -271,7 +280,8 @@ query holds the session token.
 
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `LiveSync`, `LiveConnection` (the transport), `LiveLink`, `LiveEvent`,
-  `parse` and `metadataOf`.
+  `parse` and `metadataOf`; `ackCopied`, `parseCopied` and
+  `CopiedMessage` ([Event copies](event-copies.md)).
 - [lib/cloud/live_mqtt.dart](../presence_app/lib/cloud/live_mqtt.dart):
   `MqttLiveConnection`, on the `mqtt_client` package (pinned at 10.11.11):
   `MqttServerClient` with WebSockets on Android, iOS and desktop,
@@ -300,7 +310,8 @@ query holds the session token.
     the events topic (and the presence topics, `requests` and `acks`;
     their pings and pongs are in `device_presence_test.dart`); publishes an event's metadata; hands over other
     devices' events in order, not its own, nor other topics'; reconnects
-    after a drop and backs off while refused (up to the maximum); renews
+    after a drop (closing the dropped connection) and backs off while
+    refused (up to the maximum); renews
     before the credentials expire, once; stops for good; a hung
     credentials request, then a hung connection, each time out into the
     back-off;
@@ -325,6 +336,11 @@ query holds the session token.
     pass fetches the clip of an event whose clip never came; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.
+- `event_copies_test.dart`: `copied` acks (validation, batching, own
+  ignored, repeats deduped) and the whole flow between two devices over
+  an in-memory broker: a capture is uploaded, published, copied with its
+  clip and recording by the other device, which acks it, and the count
+  goes up on the first (see [Event copies](event-copies.md)).
 - `system_health_test.dart`: the Live check is ⚪ without live sync or with
   Never, 💤 idle with its countdown between scheduled connections, ✅
   connected, ❌ failed; only ❌ fails a run.
@@ -351,11 +367,12 @@ query holds the session token.
   expiry other than the 1 h default would change which intervals keep
   their queue (the bucket still carries everything).
 
-- **Not yet verified against AWS:** a real connection with a profile's
-  Cognito credentials (the presigned URL, the client ID and topic
-  policies, `AttachPolicy` from the auth API's role, and the
-  `mqtt_client` transports on Android, desktop and the web). That needs a
-  deploy with the updated `github-deploy.yaml`.
+- The automated tests use a fake broker. Live sync has been deployed to
+  prod and RC since `0.6.202610061801` (2026-10-06, with the updated
+  `github-deploy.yaml`, see **Infrastructure**); its real connections
+  (the presigned URL, client ID and topic policies, `AttachPolicy` from
+  the auth API's role, the `mqtt_client` transports on Android, desktop
+  and the web) are checked by hand on the deployed apps, not by a test.
 - A device whose clip is recording shows "Recording on another device…"
   until the clip completes there; one that misses the completion message
   gets the clip at the next listing that sees the event changed (within
@@ -373,5 +390,5 @@ query holds the session token.
   within a second as an ordinary event, so they answer sooner; one that
   then also comes from the bucket isn't answered again. It doesn't use
   the `requests` topic, which carries only presence pings.
-- No event acknowledgements, deletion or start-up requests yet (phase 2);
-  `requests` and `acks` carry only presence pings and pongs so far.
+- No deletion or start-up requests yet (phase 2); `requests` carries
+  only presence pings, `acks` presence pongs and `copied` acks.

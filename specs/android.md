@@ -212,7 +212,9 @@ Android uses the standard dashcam technique instead
   without root; the latest 7 days are kept. At each start the app also
   saves what logcat still holds of it (`logcat-before-<time>.txt`, the
   latest 5): the minutes before a crash or a kill. Native lines are logged
-  with tag `Presence` too.
+  with tag `Presence` too. Account emails in them are masked
+  (`a***@example.com`, see [Sign-in](sign-in.md)); tokens are never
+  logged.
 - **Pull them:** `devbox run android-pull`, or `scripts/android-log.sh
   --pull [dir]`, copies those files to `android-logs/<time>/`
   (git-ignored), with `status.txt` (the phone's time and uptime, whether

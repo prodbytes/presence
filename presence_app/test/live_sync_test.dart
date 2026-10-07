@@ -363,6 +363,49 @@ void main() {
       ]);
     });
 
+    test('a dropped connection is closed before reconnecting', () async {
+      live.start(link());
+      await until(() => live.state == LiveSyncState.connected);
+      final dropped = broker.last;
+      dropped.drop();
+      await until(() => broker.connections.length == 2, reason: 'reconnected');
+      expect(dropped.closed, isTrue, reason: 'its socket and timers go');
+    });
+
+    test('a change of the setting ends an ack flush under way: it says the '
+        'rest didn\'t go, and only the new loop sends', () async {
+      final acking = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        ackDelay: const Duration(milliseconds: 5),
+        ackEvery: const Duration(milliseconds: 60),
+      );
+      addTearDown(acking.dispose);
+      acking.start(link());
+      await until(() => acking.state == LiveSyncState.connected);
+      final first = broker.last;
+      final ids = [for (var i = 0; i < 40; i++) 'event_$i'];
+      final sent = acking.ackCopied(ids);
+      await until(() => first.published.isNotEmpty, reason: 'first batch');
+      // The same link, started over in another mode of connecting.
+      acking.config = const LiveConfig(
+        mode: LiveMode.always,
+        every: Duration(minutes: 2),
+      );
+      expect(await sent, isFalse);
+      await until(() => acking.state == LiveSyncState.connected);
+      final again = acking.ackCopied(['event_new']);
+      expect(await again, isTrue);
+      final acked = [
+        for (final c in broker.connections)
+          for (final m in c.sent)
+            if (m['kind'] == 'copied') ...(m['eventIds']! as List),
+      ];
+      expect(acked, isNot(contains('event_39')));
+      expect(acked.where((id) => id == 'event_new'), hasLength(1));
+    });
+
     test('the wait doubles with each failure, up to the maximum', () async {
       broker.refuse = 100;
       live.start(link());

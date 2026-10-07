@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'annotations.dart';
 import 'cameras/cameras.dart';
+import 'copies_badge.dart';
+import 'event_details.dart';
 import 'event_flags.dart';
 import 'events.dart';
 import 'recognition/recognizer.dart';
@@ -178,8 +180,9 @@ enum ClipTrigger {
   all,
 }
 
-/// Published when a clip starts: from the Clip button, or automatically on
-/// motion. Both behave the same; only the title differs.
+/// Published when a clip starts: from the Clip button, or automatically
+/// (motion, the schedule, the app's start, or Capture all; see
+/// [ClipTrigger]). All behave the same; only the title and icon differ.
 class ClipRequested extends AppEvent {
   ClipRequested(
     this.clip, {
@@ -415,9 +418,11 @@ Future<void> showClipPlayer(
   );
 }
 
-/// The clip player (the event's details), with two sections under it:
-/// **Subjects**, the people and pets named in it, and **Tags**, the things
-/// recognition saw on it (`bottle`, `bicycle`…). "Name subject" pauses the
+/// The clip player (the event's details), with sections under it:
+/// **Subjects**, the people and pets named in it, **Tags**, the things
+/// recognition saw on it (`bottle`, `bicycle`…), and at the end where it
+/// was, the device that recorded it and a Delete event button
+/// ([EventDetailsFooter]). "Name subject" pauses the
 /// clip and grabs the frame it shows; clicking the frame names a person or
 /// pet at that spot (as many as needed). Each subject's tag keeps its
 /// frame, the clicked position and the name, stored with the event.
@@ -472,7 +477,13 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   Future<TagFrame?> _grabFrame() async {
     if (_grabbing) return null;
     setState(() => _grabbing = true);
-    final captured = await _player.captureFrame();
+    CapturedFrame? captured;
+    try {
+      captured = await _player.captureFrame();
+    } catch (e) {
+      // A failed grab is no frame: the button must come back either way.
+      debugPrint('Presence: could not grab the frame: $e');
+    }
     if (!mounted) return null;
     setState(() {
       _grabbing = false;
@@ -592,6 +603,14 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                 title: Text(
                   '${_event.clip.cameraLabel} · '
                   '${formatEventTime(_event.time)}',
+                ),
+                // Who holds a copy of it.
+                subtitle: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: EventCopiesBadge(
+                    key: const Key('clip-copies'),
+                    event: _event,
+                  ),
                 ),
                 trailing: IconButton(
                   tooltip: 'Close',
@@ -863,6 +882,14 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                         key: const Key('tags-empty'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
+                    // Where it was, the device, and deleting it.
+                    const Divider(height: 16),
+                    EventDetailsFooter(
+                      event: _event,
+                      onDeleted: () {
+                        if (mounted) Navigator.of(context).pop();
+                      },
+                    ),
                   ],
                 ),
               ),

@@ -48,13 +48,15 @@ their data.
   profile from the account sheet's device list or its All grid cell, after
   a confirmation: its events move to a deleted state (`deletedAt`), synced,
   and are hidden on every device; media stay; this device can't be
-  deleted, and a device that records again reappears.
+  deleted, and a device that records again reappears. One event is
+  deleted the same way from the end of its details (the clip player).
 - [Devices, users and places](devices-users-places.md): the device ID
   (`automatic_paranoid_gadget`) and user ID on every event, and a sign-in
   taking over the events recorded signed out; places (device groups) are
   defined, not built.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
-  tagging people and pets by clicking them on the video, or with Auto.
+  tagging people and pets by clicking them on the video, or with Auto;
+  the details end with the event's map, its device and Delete event.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   3 hours (30 min to a day, in Settings, with a countdown).
@@ -82,7 +84,7 @@ their data.
   (tagged when sure, "Is this Rex?" when unsure), and object tags (human,
   cat, bicycle, bottle…) for search.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
-  the location by moving it, and the location on every event.
+  the location by moving it, pinning it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule,
   subject, recognition and history settings.
 - [Add a device](add-device.md): a QR code, the link and a Share button,
@@ -104,6 +106,10 @@ their data.
   live sync; a green (answered within 90 s), yellow (heard from or an
   event within 24 h) or red dot by each device in the All grid and the
   account sheet's devices list.
+- [Event copies](event-copies.md): each event card and the event's
+  details count the copies of the event (this device, the cloud, other
+  devices) with the holders in a tooltip; devices ack copies over live
+  sync (`copied` on `acks`).
 - [Recording and data formats](data-formats.md): the video codecs and
   containers per platform, the JSON records, and the S3 layout (JSON and
   media in separate trees, partitioned by day) for querying with Athena.

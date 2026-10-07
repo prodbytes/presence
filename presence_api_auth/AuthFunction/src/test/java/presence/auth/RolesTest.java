@@ -20,62 +20,84 @@ class RolesTest {
 
     @Test
     void nobodyHasRolesByDefault() {
-        assertEquals(Set.of(), roles.of("someone@example.com", true));
+        assertEquals(Set.of(), roles.of("someone@example.com", true, null));
     }
 
     @Test
     void verifiedRootDomainsGetEveryRole() {
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("Bob@NU01.com", true));
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("carol@example.org", true));
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("Bob@NU01.com", true, "nu01.com"));
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("carol@example.org", true, "Example.org"));
+    }
+
+    @Test
+    void aRootDomainNeedsItsWorkspaceToVouch() {
+        // A personal Google account registered with a nu01.com address:
+        // verified once, but nu01.com's Workspace doesn't manage it.
+        assertEquals(Set.of(), roles.of("bob@nu01.com", true, null));
+        assertEquals(Set.of(), roles.of("bob@nu01.com", true, " "));
+        // Another Workspace's account with a nu01.com address.
+        assertEquals(Set.of(), roles.of("bob@nu01.com", true, "evil.example"));
+        // nu01.com's Workspace, but another domain's address.
+        assertEquals(Set.of(), roles.of("bob@example.com", true, "nu01.com"));
+        var auth = new AuthHandler(roles, profiles());
+        assertEquals("{\"email\":\"bob@nu01.com\",\"profile\":null,\"roles\":[]}", auth.handleRequest(
+                event(Map.of("email", "bob@nu01.com", "email_verified", "true")), null).getBody());
+        assertEquals("{\"email\":\"bob@nu01.com\",\"profile\":null,"
+                + "\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}", auth.handleRequest(
+                event(Map.of("email", "bob@nu01.com", "email_verified", "true", "hd", "nu01.com")), null).getBody());
     }
 
     @Test
     void verifiedRootEmailsGetEveryRole() {
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of(" root@GMAIL.com", true));
-        assertEquals(Set.of(), roles.of("root@gmail.com", false));
+        // A Gmail address: no hd, and nobody else can register it.
+        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of(" root@GMAIL.com", true, null));
+        assertEquals(Set.of(), roles.of("root@gmail.com", false, null));
         // The whole address: not the domain, nor a longer one.
-        assertEquals(Set.of(), roles.of("other@gmail.com", true));
-        assertEquals(Set.of(), roles.of("xroot@gmail.com", true));
+        assertEquals(Set.of(), roles.of("other@gmail.com", true, null));
+        assertEquals(Set.of(), roles.of("xroot@gmail.com", true, null));
     }
 
     @Test
     void onlyTheAllowlistGivesRoot() {
         // The roles table can't make a root.
-        assertEquals(Set.of(Roles.USER), roles.of("eve@example.com", true));
+        assertEquals(Set.of(Roles.USER), roles.of("eve@example.com", true, null));
     }
 
     @Test
     void domainsAndRolesComeFromCommaSeparatedSettings() {
-        assertEquals(Set.of("nu01.com", "example.org"), AuthHandler.list(" nu01.com, ,example.org"));
-        assertEquals(Set.of(), AuthHandler.list(null));
+        assertEquals(Set.of("nu01.com", "example.org"), Roles.list(" nu01.com, ,example.org"));
+        assertEquals(Set.of(), Roles.list(null));
     }
 
     @Test
     void theDomainMustMatchExactlyAndBeVerified() {
-        assertEquals(Set.of(), roles.of("bob@nu01.com", false));
-        assertEquals(Set.of(), roles.of("bob@evilnu01.com", true));
-        assertEquals(Set.of(), roles.of("bob@nu01.com.evil.example", true));
-        assertEquals(Set.of(), roles.of("bob@sub.nu01.com", true));
+        assertEquals(Set.of(), roles.of("bob@nu01.com", false, "nu01.com"));
+        assertEquals(Set.of(), roles.of("bob@evilnu01.com", true, "evilnu01.com"));
+        assertEquals(Set.of(), roles.of("bob@nu01.com.evil.example", true, "nu01.com.evil.example"));
+        assertEquals(Set.of(), roles.of("bob@sub.nu01.com", true, "sub.nu01.com"));
     }
 
     @Test
     void theTableDeclaresRolesByEmail() {
-        assertEquals(Set.of("viewer"), roles.of(" ANA@example.com ", true));
-        assertEquals(Set.of("owner", "presence_admin", "presence_root", "presence_user"), roles.of("julia@nu01.com", true));
+        assertEquals(Set.of("viewer"), roles.of(" ANA@example.com ", true, null));
+        assertEquals(Set.of("owner", "presence_admin", "presence_root", "presence_user"),
+                roles.of("julia@nu01.com", true, "nu01.com"));
+        // Without the Workspace, just what the table declares.
+        assertEquals(Set.of("owner"), roles.of("julia@nu01.com", true, null));
     }
 
     @Test
     void unverifiedOrMissingEmailsGetNothing() {
-        assertEquals(Set.of(), roles.of("ana@example.com", false));
-        assertEquals(Set.of(), roles.of(null, true));
-        assertEquals(Set.of(), roles.of(" ", true));
+        assertEquals(Set.of(), roles.of("ana@example.com", false, null));
+        assertEquals(Set.of(), roles.of(null, true, null));
+        assertEquals(Set.of(), roles.of(" ", true, null));
     }
 
     @Test
     void theHandlerReturnsTheRolesAsJson() {
         var handler = new AuthHandler(roles, profiles());
         var response = handler.handleRequest(event(Map.of(
-                "email", "julia@nu01.com", "email_verified", "true")), null);
+                "email", "julia@nu01.com", "email_verified", "true", "hd", "nu01.com")), null);
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
@@ -150,10 +172,33 @@ class RolesTest {
         return new Profiles(new MemoryProfiles());
     }
 
+    /**
+     * A verified Google account's claims; a nu01.com address is one of
+     * nu01.com's Workspace (hd), as a root's is.
+     */
+    static Map<String, String> verified(String email) {
+        var claims = new java.util.HashMap<>(Map.of("email", email, "email_verified", "true", "name", "Ana"));
+        if (email.endsWith("@nu01.com")) {
+            claims.put("hd", "nu01.com");
+        }
+        return claims;
+    }
+
     static APIGatewayV2HTTPEvent event(Map<String, String> claims) {
         var jwt = APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT.builder().withClaims(claims).build();
         var authorizer = APIGatewayV2HTTPEvent.RequestContext.Authorizer.builder().withJwt(jwt).build();
         var context = APIGatewayV2HTTPEvent.RequestContext.builder().withAuthorizer(authorizer).build();
         return APIGatewayV2HTTPEvent.builder().withRequestContext(context).build();
+    }
+
+    @Test
+    void aFailingTableAnswersASanitized502() {
+        var failing = new Roles(Set.of(), Set.of(), e -> {
+            throw new IllegalStateException("arn:aws:dynamodb:us-east-1:123456789012:table/x");
+        });
+        var response = new AuthHandler(failing, profiles()).handleRequest(event(verified("ana@example.com")), null);
+        assertEquals(502, response.getStatusCode());
+        assertEquals("{\"error\":\"the auth service failed\",\"cause\":\"IllegalStateException\"}",
+                response.getBody());
     }
 }

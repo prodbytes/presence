@@ -106,12 +106,12 @@ void main() {
   ClipRequested clipEvent(WidgetTester tester) =>
       tester.widget<ClipEventCard>(find.byType(ClipEventCard)).event;
 
-  const past = ClipMedia(
+  final past = ClipMedia(
     url: 'blob:past',
     start: Duration(seconds: 2),
     end: Duration(seconds: 17),
   );
-  const full = ClipMedia(
+  final full = ClipMedia(
     url: 'blob:full',
     start: Duration(seconds: 10),
     end: Duration(seconds: 40),
@@ -1310,6 +1310,40 @@ void main() {
     expect(record['location'], containsPair('source', 'map'));
   });
 
+  testWidgets("pinning and unpinning sync with this device's settings", (
+    tester,
+  ) async {
+    final cloud = FakeCloudBackend();
+    await launch(tester, cloud: cloud);
+    final key = cloudSettings(cloud).keys.single;
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byKey(const Key('location-map')),
+      const Offset(-150, 100),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('location-pin')));
+    await tester.tap(find.byKey(const Key('location-pin')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    expect(
+      cloudSettings(cloud)[key]!['location'],
+      containsPair('pinned', true),
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('location-unpin')));
+    await tester.tap(find.byKey(const Key('location-unpin')));
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pump(const Duration(seconds: 1));
+    await settleStorage(tester);
+    expect(cloudSettings(cloud)[key]!['location'], isNull);
+  });
+
   testWidgets('motion settings survive a refresh', (tester) async {
     await launch(tester);
     await tester.tap(find.byTooltip('Settings'));
@@ -1427,7 +1461,7 @@ void main() {
       for (var i = 0; i < 4; i++)
         frame(x: (step++ % 2) * 30 + 5, y: 10, size: 24),
     ];
-    const media = ClipMedia(
+    final media = ClipMedia(
       url: 'blob:m',
       start: Duration.zero,
       end: Duration(seconds: 15),
@@ -1465,7 +1499,7 @@ void main() {
 
   testWidgets('after a restart the cooldown runs from this device\'s latest '
       'clip of any trigger, not from other devices\' clips', (tester) async {
-    const media = ClipMedia(
+    final media = ClipMedia(
       url: 'blob:m',
       start: Duration.zero,
       end: Duration(seconds: 15),

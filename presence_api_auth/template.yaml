@@ -9,13 +9,12 @@ Description: >
   manage vouchers; /api/auth/credentials and /api/auth/profile/* give a
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
-  returns the execution mode (DEV without GoogleWebClientId, else RBAC),
-  the anonymous roles and which settings are set; GET /health (no token)
-  checks the dependencies for Route 53. Roles: the root
-  allowlist (RootDomains, RootEmails) gets presence_root, presence_admin
-  and presence_user; the UserRoles table adds more (never presence_root);
-  a linked account shares its profile owner's. Served under /api/* by the
-  site's CloudFront distribution, with /health.
+  returns the execution mode and which settings are set; GET /health (no
+  token) checks the dependencies. Roles: the root allowlist (RootDomains
+  for that Google Workspace, RootEmails) gets every role; the UserRoles
+  table adds more (never presence_root); a linked account shares only its
+  owner's presence_user. Served under /api/* by the site's CloudFront.
+  (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
   Version:
@@ -65,15 +64,20 @@ Parameters:
     Type: String
     Default: nu01.com
     Description: >
-      PRESENCE_ROOT_DOMAINS: comma-separated email domains whose verified
-      users get presence_root, presence_admin and presence_user.
+      PRESENCE_ROOT_DOMAINS: comma-separated Google Workspace domains whose
+      users get presence_root, presence_admin and presence_user: a verified
+      email at the domain, with the ID token's hd claim the same domain (a
+      personal Google account registered with such an address has no hd,
+      and gets nothing from this list).
   RootEmails:
     Type: String
     Default: ''
     Description: >
       PRESENCE_ROOT_EMAILS: comma-separated verified emails that get
-      presence_root, presence_admin and presence_user. Empty by default; set
-      it at deploy (scripts/deploy.sh), never in the repository.
+      presence_root, presence_admin and presence_user, matched whole without
+      hd: list only Gmail or Workspace addresses, whose Google account
+      nobody else can register. Empty by default; set it at deploy
+      (scripts/deploy.sh), never in the repository.
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
@@ -225,7 +229,9 @@ Resources:
         "POST /api/auth/membership":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
-        # Slows down guessing codes (60 random bits each).
+        # Slows down guessing codes (random ones have 60 bits; chosen ones at
+        # least 10 letters and digits), with VoucherHandler's per-email
+        # lockout (10 wrong codes an hour).
         "POST /api/auth/voucher":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
@@ -233,7 +239,11 @@ Resources:
         "GET /api/auth":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
-        # Public (no token): the app asks it at every start.
+        # Public (no token): the app asks it at every start. These limits
+        # are per route, for all callers together: a flood from one address
+        # uses them up and every app start waits (429) until it stops. Only
+        # a per-IP rate rule (AWS WAF on the CloudFront distribution) would
+        # isolate it; see specs/auth-api.md.
         "GET /api/auth/anonymous":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
@@ -292,7 +302,7 @@ Resources:
                 - dynamodb:PutItem
               Resource: !GetAtt ProfileSubjectsTable.Arn
             # Creates profiles (with an unused ID), records each sign-in
-            # and reads the owner, whose roles a linked subject shares.
+            # and reads the owner, whose membership a linked subject shares.
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
@@ -355,7 +365,8 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:UpdateItem
               Resource: !GetAtt VoucherTable.Arn
-            # Merges the voucher's role into the redeemer's roles.
+            # Adds the voucher's role to the redeemer's roles, and counts
+            # the email's wrong codes (the lockout).
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
@@ -385,7 +396,7 @@ Resources:
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
       Policies:
         - Statement:
-            # The caller's profile owner, whose roles a linked subject shares.
+            # The caller's profile owner, whose membership a linked subject shares.
             - Effect: Allow
               Action: dynamodb:GetItem
               Resource:
@@ -404,7 +415,8 @@ Resources:
                 - dynamodb:UpdateItem
                 - dynamodb:DeleteItem
               Resource: !GetAtt MembershipTable.Arn
-            # Creates (only new codes), lists and deletes vouchers.
+            # Creates (only new codes), lists and deletes vouchers (a
+            # presence_admin one only for a root: a conditional delete).
             - Effect: Allow
               Action:
                 - dynamodb:PutItem
@@ -489,8 +501,11 @@ Resources:
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
               Resource: !GetAtt ProfilesTable.Arn
+            # Saves codes; reads one to check a link before using it up
+            # (a conditional delete).
             - Effect: Allow
               Action:
+                - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:DeleteItem
               Resource: !GetAtt LinkCodesTable.Arn

@@ -128,7 +128,95 @@ void main() {
       expect(location.error, 'Permission denied');
     });
 
+    test('a pinned position survives a restart, and the device is never '
+        'asked', () async {
+      final first = controller(FakeLocator());
+      await first.init();
+      first.pin();
+      expect(first.pinned, isTrue);
+      expect(first.location?.latitude, 48.8584);
+      expect(saved?['pinned'], isTrue);
+      expect(saved?['source'], 'map');
+
+      final locator = FakeLocator(
+        position: (latitude: 1, longitude: 1, accuracy: 3.0),
+      );
+      final second = controller(locator);
+      await second.init();
+      expect(second.pinned, isTrue);
+      expect(second.location?.latitude, 48.8584);
+      // Neither My location nor a map move changes it.
+      await second.locate();
+      second.setOnMap(10, 10);
+      expect(locator.calls, 0);
+      expect(second.location?.latitude, 48.8584);
+
+      // Pinning elsewhere moves the pin.
+      second.pin(38.72, -9.14);
+      expect(second.location?.latitude, 38.72);
+      expect(second.pinned, isTrue);
+
+      // Unpinned: the device is asked again.
+      await second.unpin();
+      expect(locator.calls, 1);
+      expect(second.pinned, isFalse);
+      expect(second.location?.source, LocationSource.device);
+      expect(second.location?.latitude, 1);
+      expect(saved?.containsKey('pinned'), isFalse);
+    });
+
+    test('a reading under way when pinning is dropped', () async {
+      final locator = FakeLocator()..gate = Completer();
+      final location = controller(locator);
+      final reading = location.init();
+      await Future<void>.delayed(Duration.zero);
+      location.pin(10, 20);
+      locator.gate!.complete();
+      await reading;
+      expect(location.pinned, isTrue);
+      expect(location.location?.longitude, 20);
+    });
+
+    test('positions off the Earth are not pinned', () async {
+      final location = controller(FakeLocator());
+      expect(location.pin, throwsStateError, reason: 'nothing to pin yet');
+      for (final (lat, lng) in [
+        (91.0, 0.0),
+        (-90.5, 0.0),
+        (0.0, 180.1),
+        (0.0, -181.0),
+        (double.nan, 0.0),
+      ]) {
+        expect(() => location.pin(lat, lng), throwsArgumentError);
+      }
+      expect(location.location, isNull);
+      expect(saved, isNull);
+      // The edges are fine.
+      location.pin(-90, 180);
+      expect(location.pinned, isTrue);
+    });
+
     test('damaged records read as no location', () {
+      expect(
+        DeviceLocation.fromJson({
+          'lat': 95,
+          'lng': 2,
+          'source': 'map',
+          'time': 0,
+        }),
+        isNull,
+      );
+      // Only a position set by hand is pinned.
+      expect(
+        DeviceLocation.fromJson({
+          'lat': 1,
+          'lng': 2,
+          'source': 'device',
+          'pinned': true,
+          'time': 0,
+        })?.pinned,
+        isFalse,
+      );
       expect(DeviceLocation.fromJson(null), isNull);
       expect(DeviceLocation.fromJson({'lat': 'x'}), isNull);
       expect(
@@ -272,6 +360,146 @@ void main() {
       // Taken: the box is empty again, and the position saved.
       expect(tester.widget<TextField>(field).controller!.text, isEmpty);
       expect(saved?['lat'], closeTo(38.722306, 1e-6));
+    });
+  });
+
+  group('Pinning in Settings', () {
+    Map<String, Object?>? saved;
+    setUp(() => saved = null);
+
+    Future<(LocationController, FakeLocator)> show(
+      WidgetTester tester, {
+      double width = 320,
+    }) async {
+      tester.view.physicalSize = Size(width, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final locator = FakeLocator();
+      final location = LocationController(
+        locator: locator,
+        load: () async => saved,
+        save: (json) async => saved = json,
+      );
+      addTearDown(location.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(16),
+              child: LocationSettings(
+                location: location,
+                tiles: const SizedBox(),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(location.init);
+      await tester.pumpAndSettle();
+      return (location, locator);
+    }
+
+    MapCamera camera(WidgetTester tester) => tester
+        .widget<FlutterMap>(find.byType(FlutterMap))
+        .mapController!
+        .camera;
+
+    testWidgets('pins the detected position, shows it, and unpins', (
+      tester,
+    ) async {
+      final (location, locator) = await show(tester);
+      expect(find.byKey(const Key('pinned-marker')), findsNothing);
+      await tester.tap(find.byKey(const Key('location-pin')));
+      await tester.pumpAndSettle();
+      expect(location.pinned, isTrue);
+      expect(location.location?.latitude, 48.8584);
+      expect(saved?['pinned'], isTrue);
+      // Shown as pinned: icon, label, status, a marker instead of the
+      // center pin, and Unpin.
+      expect(find.byKey(const Key('pinned-icon')), findsOneWidget);
+      expect(find.textContaining('Pinned:'), findsOneWidget);
+      expect(find.text('48.858400, 2.294500'), findsOneWidget);
+      expect(find.text('Pinned · used for every event'), findsOneWidget);
+      expect(find.byKey(const Key('pinned-marker')), findsOneWidget);
+      expect(find.byKey(const Key('device-pin')), findsNothing);
+      expect(find.byKey(const Key('location-unpin')), findsOneWidget);
+      expect(find.byKey(const Key('location-pin')), findsNothing);
+      // My location is off while pinned.
+      expect(find.byTooltip('Unpin to use my location'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Moving the map only looks around.
+      await tester.drag(
+        find.byKey(const Key('location-map')),
+        const Offset(-100, 80),
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(camera(tester).center.latitude, isNot(closeTo(48.8584, 1e-6)));
+      expect(location.location?.latitude, 48.8584);
+      expect(location.pinned, isTrue);
+
+      // Unpin: back to the device's position, and the map follows it.
+      final calls = locator.calls;
+      locator.position = (latitude: 40.7, longitude: -74.0, accuracy: 8.0);
+      await tester.tap(find.byKey(const Key('location-unpin')));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      expect(locator.calls, calls + 1);
+      expect(location.pinned, isFalse);
+      expect(find.text("This device's location · ±8 m"), findsOneWidget);
+      expect(find.byKey(const Key('device-pin')), findsOneWidget);
+      expect(camera(tester).center.latitude, closeTo(40.7, 1e-6));
+      expect(saved?.containsKey('pinned'), isFalse);
+    });
+
+    testWidgets('pins a pasted position, and a paste moves the pin', (
+      tester,
+    ) async {
+      final (location, _) = await show(tester);
+      final field = find.byKey(const Key('location-paste'));
+      await tester.enterText(field, '38.7223, -9.1393');
+      await tester.tap(find.byKey(const Key('location-paste-set')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('location-pin')));
+      await tester.pumpAndSettle();
+      expect(location.pinned, isTrue);
+      expect(location.location?.latitude, 38.7223);
+
+      // Pinned, an out-of-range position is refused and the pin stays.
+      await tester.enterText(field, '10, 190');
+      await tester.tap(find.byKey(const Key('location-paste-set')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Longitude must be between -180 and 180'),
+        findsOneWidget,
+      );
+      expect(location.location?.longitude, -9.1393);
+
+      // A good one moves the pin.
+      await tester.enterText(field, '51.5, -0.12');
+      await tester.tap(find.byKey(const Key('location-paste-set')));
+      await tester.pumpAndSettle();
+      expect(location.pinned, isTrue);
+      expect(location.location?.latitude, 51.5);
+      expect(camera(tester).center.latitude, closeTo(51.5, 1e-6));
+      expect(saved?['lat'], 51.5);
+    });
+
+    testWidgets('pins where the map was just moved to', (tester) async {
+      final (location, _) = await show(tester);
+      await tester.drag(
+        find.byKey(const Key('location-map')),
+        const Offset(-100, 80),
+      );
+      await tester.pump();
+      final center = camera(tester).center;
+      // Before the move is committed.
+      await tester.tap(find.byKey(const Key('location-pin')));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(location.pinned, isTrue);
+      expect(location.location?.latitude, closeTo(center.latitude, 1e-6));
     });
   });
 
@@ -496,6 +724,40 @@ void main() {
       await tester.pumpAndSettle();
       expect(again.calls, 1);
       expect(find.text('48.858400, 2.294500'), findsOneWidget);
+    });
+
+    testWidgets('while pinned, every event carries the pinned position, '
+        'also after a restart, without asking the device', (tester) async {
+      await launch(tester, FakeLocator(), size: const Size(320, 640));
+      await openLocation(tester);
+      await scrollSettingsTo(tester, find.byKey(const Key('location-pin')));
+      await tester.tap(find.byKey(const Key('location-pin')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      publish(tester, 'Pinned');
+      await settleStorage(tester);
+
+      await tester.pumpWidget(const SizedBox());
+      await settleStorage(tester);
+      final again = FakeLocator(
+        position: (latitude: 1, longitude: 1, accuracy: 3.0),
+      );
+      await launch(tester, again);
+      expect(again.calls, 0, reason: 'no position asked while pinned');
+      publish(tester, 'Pinned after restart');
+      await settleStorage(tester);
+      final stored = {
+        for (final e in await storedEvents(tester)) e['title']: e['location'],
+      };
+      for (final title in ['Pinned', 'Pinned after restart']) {
+        final at = DeviceLocation.fromJson(stored[title])!;
+        expect(at.pinned, isTrue, reason: title);
+        expect(at.source, LocationSource.map);
+        expect(at.latitude, 48.8584);
+        expect((stored[title]! as Map)['pinned'], isTrue);
+      }
+      await openLocation(tester);
+      expect(find.text('Pinned · used for every event'), findsOneWidget);
     });
 
     testWidgets('the battery shows over the camera, and follows it', (

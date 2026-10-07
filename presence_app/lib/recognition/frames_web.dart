@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:web/web.dart' as web;
 
 import '../cameras/camera_source.dart';
+import '../cameras/web_dom.dart';
 import 'frames.dart';
 import 'image.dart';
 
@@ -23,8 +24,13 @@ class PlatformFrameSampler implements ClipFrameSampler {
     required Duration every,
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
-    final url = await media.resolveUrl();
-    if (url.isEmpty) return;
+    // Held while sampling, so it isn't freed meanwhile (the clip being
+    // saved), and let go after.
+    final url = await media.acquireUrl();
+    if (url.isEmpty) {
+      media.releaseUrl(url);
+      return;
+    }
     final video = web.HTMLVideoElement()
       ..muted = true
       ..preload = 'auto'
@@ -52,13 +58,14 @@ class PlatformFrameSampler implements ClipFrameSampler {
         yield SampledFrame(
           Duration(microseconds: (video.currentTime * 1e6).round()),
           RgbaImage(canvas.width, canvas.height, pixels),
-          () => _jpeg(canvas),
+          () => canvasJpeg(canvas),
         );
       }
     } finally {
       video
         ..removeAttribute('src')
         ..load();
+      media.releaseUrl(url);
     }
   }
 
@@ -83,17 +90,5 @@ class PlatformFrameSampler implements ClipFrameSampler {
         video.removeEventListener('error', onError);
       },
     );
-  }
-
-  static Future<Uint8List?> _jpeg(web.HTMLCanvasElement canvas) async {
-    final blob = Completer<web.Blob?>();
-    canvas.toBlob(
-      ((web.Blob? b) => blob.complete(b)).toJS,
-      'image/jpeg',
-      0.85.toJS,
-    );
-    final result = await blob.future;
-    if (result == null) return null;
-    return (await result.arrayBuffer().toDart).toDart.asUint8List();
   }
 }

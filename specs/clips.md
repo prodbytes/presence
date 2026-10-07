@@ -32,6 +32,10 @@ file of *before* + *after* once the *after* seconds have passed.
    playing or had ended, paused if it was paused. From then on only the full
    clip plays, **before + after = 15 s** by default. Seeking is kept inside
    the clip window, and replaying after the end starts from the beginning.
+   When the full clip replaces the preview while the preview still loads
+   (or the player closes), the load that finished last doesn't win: a
+   stale one is dropped and, on Android, its `VideoPlayerController`
+   disposed, as is one whose file failed to open.
    Clicking one of the card's **labels** instead (a subject's name or an
    object tag) opens the player **paused at the frame it was seen on**
    (`showClipPlayer(at:)`, `ClipPlayerView.startAt`, kept inside the clip
@@ -69,7 +73,9 @@ recorders (`RecorderPool` in
     of lead-in, instead of the recorder's whole history (up to 2 ×
     *before*).
   - Clips sharing a held recorder are each cut from one download of it;
-    the shared file is released once every clip has its own.
+    the shared file is released once every clip has its own. The cut
+    writes slices of the downloaded file into the new one, copying the
+    bytes once (`webm_trim_test.dart` pins the output byte for byte).
   - A file the cutter doesn't understand (block groups, no video track,
     MP4 from Safari) is kept whole, as before.
 - Clips are then cut to their exact window by seeking, using each
@@ -78,6 +84,20 @@ recorders (`RecorderPool` in
   *before* seconds before the press, and playback stopped exactly at the
   end of the window.
 - Presses close together share the held recorder.
+- **A recorder that can't start** (the browser throws, e.g. once the
+  camera's track has ended) is tried again at the next interval, not
+  every second, and logged once until one starts.
+- **Recordings are freed from memory** (`MediaUrls`,
+  [lib/cameras/media_urls.dart](../presence_app/lib/cameras/media_urls.dart)):
+  each live recording is a Blob URL holding its bytes in the page. Once
+  the clip's recording is saved to IndexedDB, the clip plays it from there
+  (`ClipMedia.persisted`) and the live URL is revoked as soon as no player
+  or recognition sampler still uses it; a cut file's shared original is
+  revoked when the last clip cut from it lets go. A stored recording
+  loaded to play is revoked when its last player or sampler closes, and
+  loaded again next time. So an unattended browser recording for days
+  doesn't keep every clip in memory. Android's recordings are files and
+  aren't tracked.
 - A clip requested before enough history exists (just after startup, or right
   after raising *before*) starts at the oldest recording instead.
 - Recording format: WebM with Opus audio (`vp8,opus` preferred, as VP8 is
@@ -103,6 +123,37 @@ on a tag's chip "Remove tag bicycle from this event".
   or bicycle, show here once it has been searched (try Auto)." ("(try
   Auto)" only where Auto can run), or, once searched with nothing found,
   "No tags: nothing was seen on this clip."
+
+## Where, Device and Delete event, at the end
+
+After Tags, below a divider, the details end with
+(`EventDetailsFooter`, [event_details.dart](../presence_app/lib/event_details.dart)):
+
+- **Where** (a place icon): a small map (140 dp high, `EventMap`) of the
+  event's location (`AppEvent.location`, the device's when it was
+  published) with a pin (a push pin when the position was pinned), the
+  OpenStreetMap credit, and under it the coordinates (5 decimals) and how
+  the position was found: "The device's position · ±20 m", "Set on the
+  map" or "Pinned". The map is still (no gestures), so a drag over it
+  scrolls the details. Without a location it says "No location for this
+  event".
+- **Device** (`EventDevice`): the recording device's operating system
+  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID
+  (selectable), "this device" for this one, and the OS name under it;
+  signed in, its [presence dot](device-presence.md) before the ID (the
+  devices are pinged while the details show, as in the device list).
+- **Delete event**: an outlined, error-colored button, signed in with the
+  event's profile only (not signed out, not in DEV, not for another
+  profile's event). It asks "Delete this event? It will be hidden on every
+  device." (with "Its clip stays in the cloud until it expires.") with
+  **Cancel** / **Delete**; Delete deletes it on every device
+  ([Device deletion](device-deletion.md#one-event)), closes the player,
+  and a snack bar says "Event deleted on every device".
+
+The app hands these their data through `EventDetailsScope` (the profile,
+this device, live sync, the event log, the map tiles and
+`Persistence.deleteEvent`). It all fits a 320 dp phone, at a 2x system
+font too.
 
 ## Naming subjects
 
@@ -139,7 +190,8 @@ needed. Each name is on a frame of the clip, at the spot clicked
 - The frame is grabbed as a JPEG at most 960 px wide
   (`ClipPlayerController.captureFrame`):
   - **web:** the `<video>` is drawn onto a canvas (`toBlob`, JPEG 0.85), at
-    its `currentTime`;
+    its `currentTime` (the same helper as the camera's thumbnails and
+    recognition's frames, `web_dom.dart`);
   - **Android:** `MediaMetadataRetriever.getFrameAtTime` (closest frame,
     rotated upright), through the `frameAt` method of the `presence/cameras`
     channel;
@@ -189,7 +241,9 @@ needed. Each name is on a frame of the clip, at the spot clicked
   JSON round-trip that skips bad entries), and at app level a frame grabbed
   and clicked twice, restored after a refresh with its image, positions and
   names, and stored in the event record; a click on the video tagging that
-  frame (and a cancelled one tagging nothing); the letterbox mapping.
+  frame (and a cancelled one tagging nothing); the letterbox mapping; a
+  grab that fails (or throws) says "Couldn't grab this frame; try again"
+  and leaves the button usable (`clip_test.dart`).
   `recognition_test.dart` checks the player's Subjects and Tags headings,
   their empty texts, Tags below Subjects and a tag removed from the
   player, at 320 and 1000 dp without overflow.

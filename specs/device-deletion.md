@@ -3,7 +3,8 @@
 A signed-in user can **delete another device of their profile**: every
 event it recorded moves to a **deleted** state and is hidden on every
 device of the profile. It's a soft delete: nothing in the cloud or on the
-devices is destroyed by it.
+devices is destroyed by it. **One event** is deleted the same way, from
+the end of its details ([One event](#one-event)).
 
 ## Where
 
@@ -68,6 +69,29 @@ delete it from another device.
   reappears, its dot from the pings and pongs heard from then on.
 - Returns how many events it deleted.
 
+## One event
+
+The clip player (the event's details, [Clips](clips.md)) ends with a
+**Delete event** button, signed in with the event's profile only (not in
+DEV, where there's no profile, as for devices). It asks "Delete this
+event? It will be hidden on every device." with **Cancel** / **Delete**;
+Delete closes the player and a snack bar says "Event deleted on every
+device" ([event_details.dart](../presence_app/lib/event_details.dart)).
+
+`Persistence.deleteEvent(id, profileId:)` does for one event what
+`deleteDevice` does for a device's (the same code, `_softDelete`): the
+event, if it's stored, in the profile and not deleted yet, and the "Is
+this Rex?" suggestions about its clip get `deletedAt`, leave the event
+log, have their pending recording downloads dropped, and are named
+changed so cloud sync uploads them deleted and live sync publishes them.
+The app also forgets its copies (`EventCopies.forget`). Any device's
+event can be deleted, this device's too: a deleted ID never comes back,
+and the device's next events are new ones. The device stays (its other
+events show). It returns whether it deleted it ("Event already deleted"
+otherwise, and the player stays). Everything under
+[Deleted stays deleted](#deleted-stays-deleted) and [Media](#media)
+holds for it too.
+
 ## Deleted stays deleted
 
 - **At launch**, deleted records aren't restored into the event log.
@@ -121,6 +145,24 @@ setting, and the bucket expires every object after 90 days
   Over live sync, a deleted copy hides the event at once, even changed
   here, and the device's new events show it again.
 
+`event_details_test.dart` (one event):
+
+- The player's end: a located event's map, its pin and caption (a
+  pinned one says so); "No location for this event" without one; the
+  device's OS icon, ID, OS name and presence dot; signed out, no dot and
+  no delete button; none for another profile's event; Cancel keeps it,
+  Delete deletes it, closes the player and says so; nothing deleted keeps
+  the player; it fits 320 dp at 1x and 2x text.
+- In the app: deleting an event hides it from the timeline and lowers the
+  count.
+- With storage and cloud sync: the event and the suggestion about its
+  clip are marked deleted and leave the log (the device's other event
+  stays); they upload deleted and the event is published with
+  `deletedAt`; still hidden after a full fetch and a restart; deleting
+  again does nothing. This device's own event can be deleted; another
+  profile's or an unknown one isn't. A deleted copy from another device
+  hides it; a later copy that isn't deleted doesn't bring it back.
+
 ## Known limitations
 
 - Events the deleted device recorded **before** the deletion but uploads
@@ -131,3 +173,5 @@ setting, and the bucket expires every object after 90 days
   deleted there unless that device hears of them: the other device still
   shows those.
 - No undo; the events stay deleted until retention removes them.
+- Only clip events have a details screen, so plain events (an app start,
+  a sign-in) can't be deleted one by one.
