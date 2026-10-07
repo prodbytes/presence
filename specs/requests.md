@@ -3910,3 +3910,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        test (aligned face cosines, a small far person found by a tile).
        Not yet run on a phone. Specs: [Subject recognition](recognition.md),
        [Android](android.md), [Data formats](data-formats.md).
+
+305. **The home screen split out of `main.dart`.** (2026-10-07)
+     - Asked: break up `presence_app/lib/main.dart` (about 1700 lines)
+       without changing behaviour.
+     - Changed: a pure refactor. `lib/main.dart` keeps `main()` and
+       `PresenceApp` (the app's services and their wiring); the home
+       screen moved to `lib/home/`: `home_screen.dart` (`HomeScreen`),
+       `home_app_bar.dart` (`HomeAppBar`, was `_HomeAppBar`),
+       `camera_buttons.dart` (`CameraButtons`, was `_CameraButtons`, and
+       `CameraViewMode`), `camera_status.dart` (`CameraStatus`, was
+       `_CameraStatus`, and `ReadinessIndicator`), `camera_messages.dart`
+       (`CameraMessage`, `CameraMessagePill`, and a new `CameraMessages`
+       notifier that holds the message and its 4 s timer, which
+       `HomeScreen` kept itself) and `dev_mode_label.dart`
+       (`DevModeLabel`). `main.dart` re-exports every public name it had,
+       so imports of `package:presence_app/main.dart` still find them.
+     - Tests: unchanged; all pass.
+     - Specs: [Navigation](navigation.md).
