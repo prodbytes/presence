@@ -40,9 +40,11 @@ void main() {
     end: Duration(seconds: 18),
   );
 
-  testWidgets('no clip button until a camera is open', (tester) async {
+  testWidgets('Clip is disabled until a camera is open', (tester) async {
     await pumpApp(tester, noCameras);
-    expect(find.byTooltip('Clip'), findsNothing);
+    final clip = find.byKey(const Key('clip'));
+    expect(tester.widget<FloatingActionButton>(clip).onPressed, isNull);
+    expect(find.byTooltip('No camera'), findsOneWidget);
   });
 
   testWidgets('clip publishes a ClipRequested card with a thumbnail', (
@@ -142,7 +144,7 @@ void main() {
         });
     addTearDown(sub.cancel);
 
-    await tester.tap(find.byTooltip('Clip'));
+    await tester.tap(find.byKey(const Key('clip')));
     await tester.pump(const Duration(milliseconds: 10));
     expect(playableOnArrival, [true]);
 
@@ -185,7 +187,7 @@ void main() {
     final camera = FakeCameraSource('Front door');
     await pumpApp(tester, openFakes([camera]));
 
-    await tester.tap(find.byTooltip('Clip'));
+    await tester.tap(find.byKey(const Key('clip')));
     await tester.pump(const Duration(milliseconds: 50));
     await showEvents(tester);
     expect(inEvents(find.text('Clip requested')), findsNothing);
@@ -325,7 +327,7 @@ void main() {
 
     // Beside the Clip button.
     final flip = tester.getCenter(find.byTooltip('Flip camera'));
-    final clip = tester.getCenter(find.byTooltip('Clip'));
+    final clip = tester.getCenter(find.byKey(const Key('clip')));
     expect(flip.dx, lessThan(clip.dx));
     expect((flip.dy - clip.dy).abs(), lessThan(1));
 
@@ -393,7 +395,7 @@ void main() {
 
   testWidgets('no flip button with a single camera', (tester) async {
     await pumpApp(tester, openFakes([FakeCameraSource('Only')]));
-    expect(find.byTooltip('Clip'), findsOneWidget);
+    expect(find.byKey(const Key('clip')), findsOneWidget);
     expect(find.byTooltip('Flip camera'), findsNothing);
   });
 

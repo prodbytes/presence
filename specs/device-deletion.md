@@ -13,30 +13,22 @@ the end of its details ([One event](#one-event)).
   tooltip "Delete <device ID>") at the end of its row
   (`ProfileDevices.onDelete`,
   [account_sheet.dart](../presence_app/lib/auth/account_sheet.dart)).
-- **The Camera tab's All grid** ([Camera screen](camera.md#all-devices)):
-  each other device's cell has the same button, top left, on a
-  translucent round background (`CameraFeedsView.onDeleteDevice`,
-  [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)), clear of
-  the "Asked for a fresh grab" spinner (top right) and the label with its
-  [presence dot](device-presence.md) (bottom). A cell smaller than 96 x
-  84 dp (`DeviceGridCell.deleteRoom`,
-  [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart), many devices on a small phone) leaves the
-  button out rather than overlap them; the device list still deletes.
-  Its cell goes once the device is deleted.
-- Both ask first, in a dialog ([delete_device.dart](../presence_app/lib/delete_device.dart),
+- **Only there.** The Camera tab's All grid
+  ([Camera screen](camera.md#all-devices)) has no delete button on its
+  cells; a deleted device's cell goes from it.
+- It asks first, in a dialog ([delete_device.dart](../presence_app/lib/delete_device.dart),
   `DeleteDeviceDialog`): **"Delete device brave_phone? Its 12 events will
   be hidden on every device."** (the count is that device's events in the
   profile now shown, `deviceEventCount`), with a smaller line, "Its clips
   stay in the cloud. If it records again, it shows again with its new
   events.", and **Cancel** / **Delete** (error-colored). After Delete a
   snack bar says "Deleted brave_phone: 12 events hidden".
-- Signed in with a profile only (the list and the grid show only then);
+- Signed in with a profile only (the list shows only then);
   not in DEV. It fits a 320 dp phone, at a 2x system font too.
 
 ## This device
 
-**This device can't be deleted:** its row and its (live) cell have no
-delete button, and `Persistence.deleteDevice` does nothing for its own
+**This device can't be deleted:** its row has no delete button, and `Persistence.deleteDevice` does nothing for its own
 ID. Its next event (an app start, a clip) would bring it straight back.
 To stop a device appearing, sign out on it (or uninstall it), then
 delete it from another device.
@@ -130,8 +122,7 @@ setting, and the bucket expires every object after 90 days
 - The account sheet: a delete button on every other device, none on this
   one; it fits 320 dp at 1x and 2x text; the dialog's wording and count;
   Cancel keeps the device; Delete deletes it and it leaves the list.
-- The All grid: a delete button on each other device's cell, none on this
-  device's; the dialog; the cell goes.
+- The All grid: no cell has a delete button.
 - In the app: deleting from the account sheet hides the device's events
   from the timeline and lowers the count.
 - With storage and cloud sync (real `Persistence`, `CloudSync`,

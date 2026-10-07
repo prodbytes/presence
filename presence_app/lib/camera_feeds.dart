@@ -34,15 +34,9 @@ class CameraFeedsView extends StatefulWidget {
     this.profileId,
     this.showAll = false,
     this.refreshingSince,
-    this.onDeleteDevice,
     this.live,
     this.active = true,
   });
-
-  /// Asks to delete another device (the delete button on its cell in the
-  /// grid, top left): its events are hidden on every device, and its cell
-  /// goes. None: no delete buttons.
-  final ValueChanged<String>? onDeleteDevice;
 
   final CameraRig rig;
 
@@ -214,12 +208,6 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                             null => false,
                           },
                           refreshingKey: Key('refreshing-${latest.deviceId}'),
-                          onDelete: switch (widget.onDeleteDevice) {
-                            final delete? => () => delete(latest.deviceId),
-                            null => null,
-                          },
-                          deleteTooltip: 'Delete ${latest.deviceId}',
-                          deleteKey: Key('device-delete-${latest.deviceId}'),
                           presence: PresenceDot(
                             key: Key('presence-${latest.deviceId}'),
                             presence: DevicePresence.of(

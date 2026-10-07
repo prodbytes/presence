@@ -4005,7 +4005,108 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
 
-309. **Device names lead to the device's events in Monitoring.**
+309. **Device and profile IDs back to one column, last in Settings.**
+     (2026-10-07)
+     - Asked: move the device ID and profile ID back to one column, and
+       make them the last thing on the Settings page.
+     - Changed: the IDs left the top of Settings (where #238 put them in
+       two columns) for the very end, after the version, the health line
+       and Add a device: one centred line each, a bold label then the
+       selectable ID (`bodyMedium`, `onSurfaceVariant`), the ID wrapping
+       under its label when the line doesn't fit. Location is now the
+       first thing on the page. The two-column layout (`_Ids`) is gone.
+     - Tests: the settings test checks the IDs are the list's last child,
+       below the health line and Add a device, one column, inside the
+       screen with no overflow at 320 and 1280 dp, 1x and 2x text;
+       `add_device_test` checks Add a device sits between the health line
+       and the IDs and scrolls to the IDs to read them.
+     - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
+       [Add a device](add-device.md).
+
+310. **No delete button in the Camera tab's All grid.** (2026-10-07)
+     - Asked: "No need for the delete device button in the camera view;
+       only on the profile view is fine."
+     - Changed: the All grid's cells no longer have a delete button.
+       `DeviceGridCell` lost `onDelete`, `deleteTooltip`, `deleteKey` and
+       `deleteRoom` (and its size check); `CameraFeedsView` lost
+       `onDeleteDevice`, and `HomeScreen` no longer wires it. Devices are
+       still deleted from the account sheet's device list, unchanged.
+     - Tests: `device_delete_test.dart`'s two grid delete tests replaced
+       by one asserting no cell has a delete button; the account sheet's
+       deletion tests are unchanged.
+     - Specs: [Device deletion](device-deletion.md),
+       [Camera screen](camera.md).
+
+311. **About: Raspberry Pi, and no version.** (2026-10-07)
+     - Asked: on the About paragraph, add the Raspberry Pi and remove the
+       version.
+     - Changed: the paragraph now reads "a phone, tablet, laptop or
+       Raspberry Pi"; the open-source line is just "Presence is open
+       source:" (the version stays at the bottom of Settings). Specs:
+       [About](about.md).
+
+312. **A connectivity indicator in the account sheet.** (2026-10-07)
+     - Asked: add a connectivity indicator to the profile page (the
+       account sheet). The unattended phone showed as offline on other
+       devices because live sync wasn't set up in its build, and nothing
+       on it said so.
+     - Changed: under the email, a `ConnectivityIndicator`
+       ([lib/connectivity.dart](../presence_app/lib/connectivity.dart))
+       for this device: a dot and a headline, green only when the auth
+       API answers, cloud sync is set and live sync is connected; amber
+       when degraded (checking, connecting, idle with the countdown to
+       the next connection, live sync off or "isn't set up in this
+       build", cloud sync not set up); red when the API is unreachable
+       ("Offline: can't reach the server"), cloud sync failed or live
+       sync failed. It reuses the health checks
+       (`SystemHealth.statusOf` / `liveStatusOf`), asks the auth API
+       again when the sheet opens and on the health panel's interval,
+       and taps open each check's details. This device's presence dot
+       in the devices list now takes the same color and reason
+       (`ProfileDevices.thisPresence`). Cloud sync's routine 15 s
+       syncing passes stay green rather than flicker amber.
+     - Tests: new `connectivity_test.dart`: not set up, connected,
+       idle with a running countdown, connecting, failed (with the
+       error in the details), the API down then back, live updates, and
+       the account sheet at 320 dp with a 2x font (this device's dot
+       following the row). `flutter analyze` clean, `flutter test` and
+       `flutter build web` pass.
+     - Specs: [Sign-in](sign-in.md) (account sheet),
+       [Device presence](device-presence.md), [Live sync](live-sync.md).
+
+313. **One Clip button that is also the readiness indicator.** (2026-10-07)
+     - Asked: merge the readiness indicator and the grab (Clip) button:
+       greenish when ready, yellow during the cooldown with the time left
+       in the label, red when disabled or recording a clip.
+     - Changed: the separate readiness pill (`ReadinessIndicator`) is
+       gone; `ClipButton` (`lib/home/clip_button.dart`) replaces the old
+       Clip FAB and carries it. **Green**, "Clip", tooltip "Ready";
+       **amber** during the cooldown, "Clip · 4:59" / "Clip · 45 s"
+       (the time alone where that doesn't fit, the icon alone with very
+       large text), tooltip "Next automatic clip in 4:28"; **red** while
+       the latest clip's after part is saving, tooltip "Clip saving…"
+       (plus the countdown), now also with automatic clips off
+       (`ClipReadiness.recording` is set when ready too); **red-tinted
+       and disabled** when no clip can be taken, with the reason as the
+       tooltip ("Camera off", "No camera", "Camera starting…", "Camera
+       unavailable", "Camera not ready"). Clip used to be hidden then; it
+       now always shows with access. Presses during the cooldown and
+       while saving still take a clip and restart the cooldown (kept);
+       in the All grid a press still asks every device. Colors meet
+       4.5:1 on dark and light themes; the countdown is not a live
+       region. The status pills keep the health warning, battery,
+       temperature and message.
+     - Tests: `readiness_test.dart` asserts the button's colors, labels
+       and tooltips (ready, saving, cooldown, disabled), contrast on both
+       themes, a press while saving, 320 dp with Flip at 1x and 2x text;
+       other tests find Clip by its key (`Key('clip')`) and expect it
+       disabled, not missing, without a camera or with the camera off.
+     - Specs: [Navigation](navigation.md), [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [README](README.md).
+
+314. **Device names lead to the device's events in Monitoring.**
      (2026-10-07)
      - Asked: when device names are clicked, navigate to the Monitoring
        view with the search on that device name.

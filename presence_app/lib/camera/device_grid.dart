@@ -91,9 +91,6 @@ class DeviceGridCell extends StatelessWidget {
     this.onTap,
     this.refreshing = false,
     this.refreshingKey,
-    this.onDelete,
-    this.deleteTooltip,
-    this.deleteKey,
     this.presence,
     this.device,
   });
@@ -101,11 +98,6 @@ class DeviceGridCell extends StatelessWidget {
   /// The device shown: its label, tapped, shows its events
   /// ([DeviceEventsLink]).
   final String? device;
-
-  /// Deletes the device shown: a small button, top left.
-  final VoidCallback? onDelete;
-  final String? deleteTooltip;
-  final Key? deleteKey;
 
   /// The device's presence dot, before the label.
   final Widget? presence;
@@ -119,21 +111,6 @@ class DeviceGridCell extends StatelessWidget {
   /// right.
   final bool refreshing;
   final Key? refreshingKey;
-
-  /// The smallest cell that shows the delete button: room for it (top
-  /// left) beside the spinner (top right) and above the label. A smaller
-  /// cell leaves it out; the account sheet's device list still deletes.
-  static const Size deleteRoom = Size(96, 84);
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) => _build(
-      context,
-      roomy:
-          constraints.maxWidth >= deleteRoom.width &&
-          constraints.maxHeight >= deleteRoom.height,
-    ),
-  );
 
   /// The label's text: tapped, it shows the [device]'s events; otherwise
   /// it lets taps through to the cell.
@@ -161,7 +138,8 @@ class DeviceGridCell extends StatelessWidget {
     );
   }
 
-  Widget _build(BuildContext context, {required bool roomy}) {
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return ClipRect(
       child: Stack(
@@ -172,24 +150,6 @@ class DeviceGridCell extends StatelessWidget {
             Material(
               type: MaterialType.transparency,
               child: InkWell(onTap: onTap),
-            ),
-          if (onDelete case final onDelete? when roomy)
-            Positioned(
-              top: 2,
-              left: 2,
-              child: IconButton(
-                key: deleteKey,
-                tooltip: deleteTooltip,
-                visualDensity: VisualDensity.compact,
-                iconSize: 18,
-                style: IconButton.styleFrom(
-                  backgroundColor: scheme.surfaceContainerHigh.withValues(
-                    alpha: 0.85,
-                  ),
-                ),
-                icon: const Icon(Icons.delete_outline),
-                onPressed: onDelete,
-              ),
             ),
           if (refreshing)
             Positioned(
