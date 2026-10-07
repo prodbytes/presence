@@ -120,3 +120,14 @@ class AppLog extends ChangeNotifier {
     );
   }
 }
+
+/// [email] masked for the log, which is kept in files on the device and
+/// may be shared: its first character and its domain
+/// (`a***@example.com`), so a line still says which account without
+/// spelling it out.
+String maskEmail(String? email) {
+  if (email == null || email.isEmpty) return '(none)';
+  final at = email.lastIndexOf('@');
+  if (at <= 0) return '***';
+  return '${email[0]}***${email.substring(at)}';
+}

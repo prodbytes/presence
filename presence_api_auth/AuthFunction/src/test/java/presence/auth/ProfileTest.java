@@ -54,6 +54,12 @@ class ProfileTest {
         }
 
         @Override
+        public Optional<ProfileHandler.LinkCode> peekCode(String hash, Instant now) {
+            var code = codes.get(hash);
+            return code == null || !code.expiresAt().isAfter(now) ? Optional.empty() : Optional.of(code);
+        }
+
+        @Override
         public Optional<ProfileHandler.LinkCode> takeCode(String hash, Instant now) {
             var code = codes.remove(hash);
             return code == null || !code.expiresAt().isAfter(now) ? Optional.empty() : Optional.of(code);
@@ -143,7 +149,7 @@ class ProfileTest {
     }
 
     @Test
-    void aLinkedAccountGetsTheSameFolderAndRoles() {
+    void aLinkedAccountGetsTheSameFolderAndMembershipButNotAdministration() {
         googleIdentities.put("tok-work", "us-east-1:work");
         foldersWithData.add("us-east-1:work");
         var code = linkCode("work", "julio@nu01.com");
@@ -155,19 +161,37 @@ class ProfileTest {
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
-        // The gmail account now has nu01.com's roles and folder, here and in GET /api/auth.
+        // The gmail account now has nu01.com's folder and membership, here
+        // and in GET /api/auth, but not its administration.
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
-        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\","
-                        + "\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}",
+        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
-        // And the Admin routes, which never make a profile.
-        assertEquals("julio@nu01.com", AuthHandler.ownerOf(AuthHandler.owners(new Profiles(store)),
-                Map.of("iss", GOOGLE, "sub", "home")));
-        assertNull(AuthHandler.ownerOf(AuthHandler.owners(new Profiles(store)), Map.of("iss", GOOGLE, "sub", "nobody")));
+        // And the Admin routes, which never make a profile: no admin.
+        var admin = new AdminHandler(roles, new Profiles(store)::existing, null, new VoucherTest.MemoryStore(), clock);
+        assertEquals(403, admin.handleRequest(call("GET /api/auth/vouchers", "home", "julio@gmail.com", null), null)
+                .getStatusCode());
+        assertEquals(200, admin.handleRequest(call("GET /api/auth/vouchers", "work", "julio@nu01.com", null), null)
+                .getStatusCode());
+        assertEquals(403, admin.handleRequest(call("GET /api/auth/vouchers", "nobody", "x@example.com", null), null)
+                .getStatusCode());
         assertNull(store.links.get(GOOGLE + "#nobody"));
+    }
+
+    @Test
+    void anOwnerWithoutItsWorkspaceSharesNoMembership() {
+        // The owner's nu01.com address is a personal Google account (no hd).
+        var event = call("POST /api/auth/profile/link-code", "mallory", "mallory@nu01.com", null);
+        event.getRequestContext().getAuthorizer().getJwt().setClaims(Map.of("iss", GOOGLE, "sub", "mallory",
+                "email", "mallory@nu01.com", "email_verified", "true"));
+        assertEquals(403, profiles.handleRequest(event, null).getStatusCode());
+        // Even linked by hand, its accounts get nothing from it.
+        var owner = profileOf("mallory");
+        store.links.put(GOOGLE + "#home", owner.id());
+        assertEquals(Set.of(), roles.of(Caller.of(Map.of("iss", GOOGLE, "sub", "home",
+                "email", "julio@gmail.com", "email_verified", "true")), store.profile(owner.id())));
     }
 
     @Test
@@ -175,6 +199,20 @@ class ProfileTest {
         profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@nu01.com", null), null);
         profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@new.example", null), null);
         assertEquals("julio@new.example", profileOf("work").ownerEmail());
+    }
+
+    @Test
+    void aRefusedLinkLeavesTheCodeUsable() {
+        googleIdentities.put("tok-home", "us-east-1:home");
+        foldersWithData.add("us-east-1:home");
+        var code = linkCode("work", "julio@nu01.com");
+        assertEquals(409, link("home", "julio@gmail.com", code).getStatusCode());
+        assertEquals(1, codes.size());
+        // The data is moved away: the same code links.
+        foldersWithData.remove("us-east-1:home");
+        assertEquals(200, link("home", "julio@gmail.com", code).getStatusCode());
+        assertTrue(codes.isEmpty());
+        assertEquals(profileOf("work").id(), profileOf("home").id());
     }
 
     @Test
@@ -280,18 +318,30 @@ class ProfileTest {
     }
 
     @Test
-    void anOwnerLinkedAccountSharesTheOwnersRoles() {
-        assertEquals(Set.of(), roles.of("julio@gmail.com", true));
-        assertEquals(Set.of(Roles.ROOT, Roles.ADMIN, Roles.USER), roles.of("julio@gmail.com", true, "julio@nu01.com"));
-        assertEquals(Set.of(), roles.of("julio@gmail.com", false, "julio@nu01.com"));
-        assertEquals(Set.of(), roles.of("julio@gmail.com", true, null));
+    void aLinkedAccountSharesOnlyTheOwnersMembership() {
+        var gmail = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "julio@gmail.com", "email_verified", "true"));
+        var owned = new Profiles.Profile("p", "", GOOGLE + "#work", "julio@nu01.com", "nu01.com");
+        assertEquals(Set.of(), roles.of(gmail));
+        assertEquals(Set.of(Roles.USER), roles.of(gmail, owned));
+        var unverified = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "julio@gmail.com",
+                "email_verified", "false"));
+        assertEquals(Set.of(), roles.of(unverified, owned));
+        assertEquals(Set.of(), roles.of(gmail, null));
+        assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", null, null)));
+        // An owner without its Workspace is no member to share.
+        assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", "julio@nu01.com", null)));
+        // A member by the roles table shares that.
+        var members = new Roles(Set.of(), Set.of(), e -> e.equals("ana@example.com")
+                ? Set.of(Roles.USER, Roles.ADMIN) : Set.of());
+        assertEquals(Set.of(Roles.USER),
+                members.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#ana", "ana@example.com", null)));
     }
 
     @Test
     void bearerTokens() {
         var event = new APIGatewayV2HTTPEvent();
         event.setHeaders(Map.of("authorization", "Bearer abc.def"));
-        assertEquals("abc.def", ProfileHandler.bearer(event));
+        assertEquals("abc.def", Http.bearer(event));
         assertNull(ProfileHandler.normalizeCode(null));
         assertEquals("ABCDEFGH", ProfileHandler.normalizeCode("abcd-efgh"));
         assertNull(ProfileHandler.normalizeCode("ABCD-EFG0"));
@@ -351,17 +401,20 @@ class ProfileTest {
         });
 
         assertEquals("CognitoIdentity GetId: UnknownOperationException (HTTP 400); "
-                + "the endpoint doesn't implement it (a local AWS emulator?)", ProfileHandler.cause(e));
+                + "the endpoint doesn't implement it (a local AWS emulator?)", Aws.cause(e));
     }
 
     @Test
     void anOtherFailureNamesItsType() {
-        assertEquals("IllegalStateException", ProfileHandler.cause(new IllegalStateException("x")));
+        assertEquals("IllegalStateException", Aws.cause(new IllegalStateException("x")));
     }
 
     private static APIGatewayV2HTTPEvent call(String route, String sub, String email, String body) {
         var jwt = new APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT();
-        jwt.setClaims(Map.of("iss", GOOGLE, "sub", sub, "email", email, "email_verified", "true"));
+        var claims = RolesTest.verified(email);
+        claims.put("iss", GOOGLE);
+        claims.put("sub", sub);
+        jwt.setClaims(claims);
         var authorizer = new APIGatewayV2HTTPEvent.RequestContext.Authorizer();
         authorizer.setJwt(jwt);
         var context = new APIGatewayV2HTTPEvent.RequestContext();

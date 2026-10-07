@@ -1,5 +1,6 @@
 package presence.auth;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
@@ -9,9 +10,21 @@ import java.util.stream.Collectors;
 /**
  * Decides a user's roles: none by default; every role ({@link #ROOT},
  * {@link #ADMIN} and {@link #USER}) for a verified email on the root
- * allowlist (one of its domains, or one of its emails); plus whatever the
- * roles table declares for the email, except {@link #ROOT}, which only the
- * allowlist gives. Returned sorted.
+ * allowlist; plus whatever the roles table declares for the email, except
+ * {@link #ROOT}, which only the allowlist gives. A subject linked to a
+ * profile another account owns also gets {@link #USER} when the owner has
+ * it (membership), never the owner's {@link #ADMIN} or {@link #ROOT}.
+ * Returned sorted.
+ *
+ * <p>The allowlist: a root <em>domain</em> ({@code PRESENCE_ROOT_DOMAINS})
+ * counts only when the token's {@code hd} claim is that domain, i.e. the
+ * account is managed by that Google Workspace. Anyone can register a
+ * personal Google account with any address they can receive mail at
+ * ({@code x@nu01.com}, verified once), so {@code email_verified} alone
+ * doesn't prove the domain still vouches for it. A root <em>email</em>
+ * ({@code PRESENCE_ROOT_EMAILS}) is matched whole, verified, without
+ * {@code hd}: list only Gmail addresses, or addresses of a Workspace domain,
+ * whose Google account can't be made by someone else.
  */
 public final class Roles {
 
@@ -39,7 +52,7 @@ public final class Roles {
     private final Function<String, Set<String>> declared;
 
     /**
-     * @param rootDomains e.g. {@code nu01.com}; each matched exactly after the {@code @}
+     * @param rootDomains e.g. {@code nu01.com}; each matched exactly after the {@code @}, and against {@code hd}
      * @param rootEmails  single addresses, matched whole
      * @param declared    roles declared for a (lowercase) email, empty if none
      */
@@ -49,6 +62,22 @@ public final class Roles {
         this.declared = declared;
     }
 
+    /** From the function's environment (see template.yaml): the allowlist and the UserRoles table. */
+    static Roles fromEnvironment() {
+        var table = System.getenv("USER_ROLES_TABLE");
+        var dynamo = Aws.dynamo();
+        return new Roles(list(System.getenv("PRESENCE_ROOT_DOMAINS")), list(System.getenv("PRESENCE_ROOT_EMAILS")),
+                email -> UserRoles.declared(dynamo, table, email));
+    }
+
+    /** A comma-separated setting's non-blank items. */
+    static Set<String> list(String value) {
+        return Arrays.stream(value == null ? new String[0] : value.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+    }
+
     private static Set<String> normalized(Set<String> values) {
         return values.stream()
                 .map(d -> d.trim().toLowerCase(Locale.ROOT))
@@ -56,31 +85,49 @@ public final class Roles {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
-    /** The roles for {@code email}; {@code emailVerified} is the token's {@code email_verified} claim. */
-    public Set<String> of(String email, boolean emailVerified) {
+    /**
+     * The roles for {@code email} alone.
+     *
+     * @param emailVerified the token's {@code email_verified} claim
+     * @param hd            the token's {@code hd} claim (its Workspace domain), null if none
+     */
+    public Set<String> of(String email, boolean emailVerified, String hd) {
         var roles = new TreeSet<String>();
         if (email == null || email.isBlank() || !emailVerified) {
             return roles;
         }
         var normalized = email.trim().toLowerCase(Locale.ROOT);
         var at = normalized.lastIndexOf('@');
-        if (rootEmails.contains(normalized) || at > 0 && rootDomains.contains(normalized.substring(at + 1))) {
+        var domain = at > 0 ? normalized.substring(at + 1) : "";
+        var workspace = hd == null ? "" : hd.trim().toLowerCase(Locale.ROOT);
+        if (rootEmails.contains(normalized) || rootDomains.contains(domain) && domain.equals(workspace)) {
             roles.addAll(ROOT_ROLES);
         }
         declared.apply(normalized).stream().filter(r -> !ROOT.equals(r)).forEach(roles::add);
         return roles;
     }
 
+    /** The caller's own roles. */
+    public Set<String> of(Caller caller) {
+        return of(caller.email(), caller.verified(), caller.hd());
+    }
+
     /**
-     * The roles for {@code email} plus, when its account is linked to a
-     * profile another account owns, the owner's: one person, the same roles
-     * whichever of their accounts signs in. {@code ownerEmail} (null when
-     * none) was verified when the profile was made.
+     * The caller's roles, plus {@link #USER} when its account is linked to
+     * {@code profile} (null when none), owned by another account that is a
+     * member: one person, whichever of their accounts signs in, uses the
+     * app. Administration ({@link #ADMIN}, {@link #ROOT}) is never shared:
+     * each account gets it only from its own email.
      */
-    public Set<String> of(String email, boolean emailVerified, String ownerEmail) {
-        var roles = new TreeSet<>(of(email, emailVerified));
-        if (emailVerified && ownerEmail != null && !ownerEmail.equalsIgnoreCase(email == null ? "" : email.trim())) {
-            roles.addAll(of(ownerEmail, true));
+    public Set<String> of(Caller caller, Profiles.Profile profile) {
+        var roles = new TreeSet<>(of(caller));
+        if (profile == null || !caller.verified() || profile.ownerEmail() == null
+                || profile.ownerSubject() != null && profile.ownerSubject().equals(caller.subject())) {
+            return roles;
+        }
+        // The owner's email was verified when stored (Profiles keeps no other).
+        if (of(profile.ownerEmail(), true, profile.ownerHd()).contains(USER)) {
+            roles.add(USER);
         }
         return roles;
     }

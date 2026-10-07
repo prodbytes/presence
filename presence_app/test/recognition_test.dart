@@ -75,9 +75,12 @@ class FakeRuntime implements TfliteRuntime {
 
 /// Frames whose width is their index, so [FakeVision] knows which it got.
 class FakeSampler implements ClipFrameSampler {
-  FakeSampler(this.count);
+  FakeSampler(this.count, {this.onSample});
 
   final int count;
+
+  /// Called (and awaited) as each clip is sampled.
+  final Future<void> Function(ClipMedia media)? onSample;
   int jpegs = 0;
 
   /// Clips sampled.
@@ -93,6 +96,7 @@ class FakeSampler implements ClipFrameSampler {
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
     samples++;
+    await onSample?.call(media);
     for (var i = 0; i < count; i++) {
       yield SampledFrame(
         Duration(milliseconds: 1000 + i * every.inMilliseconds),
@@ -1181,6 +1185,88 @@ void main() {
       expect(full.reads, 3 + 1, reason: 'three tries, then after the run');
       expect(clip2.annotations.isEmpty, isTrue);
       r2.dispose();
+    });
+
+    test('low on memory: a waiting new clip doesn\'t hold up Auto', () async {
+      const body = Box(0.3, 0.2, 0.7, 1);
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision(
+        {
+          0: [seenAt(body, face: angleFor(0.9))],
+        },
+        {
+          1: [seenAt(body, face: 0)],
+        },
+      );
+      // Tight for the new clip's first read only; it then waits an hour
+      // out of the queue.
+      final memory = FakeMemory()..tight = 1;
+      final r = SubjectRecognizer(
+        bus: bus,
+        log: log,
+        config: config,
+        runtime: FakeRuntime(),
+        sampler: FakeSampler(1),
+        loadVision: () async => vision,
+        decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
+        memory: memory,
+        memoryRetryAfter: const Duration(hours: 1),
+      );
+      final waiting = recorded('waiting');
+      bus.publish(waiting);
+      await pumpEventQueue();
+      expect(memory.reads, 1);
+
+      final asked = recorded('asked');
+      final result = await r
+          .recognizeNow(asked)
+          .timeout(const Duration(seconds: 5));
+      expect(result.outcome, RecognitionOutcome.searched);
+      expect(asked.annotations.tags.single.name, 'Rex');
+      expect(waiting.annotations.isEmpty, isTrue, reason: 'still waiting');
+      r.dispose();
+      await r.idle;
+    });
+
+    test('Auto goes ahead of new clips waiting their turn', () async {
+      log.addHistory([
+        tagged(1, ['Rex']),
+      ]);
+      final vision = FakeVision({}, {
+        1: [seenAt(const Box(0.3, 0.2, 0.7, 1), face: 0)],
+      });
+      final order = <String>[];
+      final gate = Completer<void>();
+      final r = SubjectRecognizer(
+        bus: bus,
+        log: log,
+        config: config,
+        runtime: FakeRuntime(),
+        sampler: FakeSampler(
+          1,
+          onSample: (media) async {
+            order.add(media.liveUrl!);
+            // The first clip holds the queue until Auto is asked.
+            if (order.length == 1) await gate.future;
+          },
+        ),
+        loadVision: () async => vision,
+        decode: (jpeg) async => RgbaImage(1001, 1, Uint8List(1001 * 4)),
+      );
+      for (final id in ['new1', 'new2', 'new3']) {
+        bus.publish(recorded(id));
+      }
+      await pumpEventQueue();
+      expect(order, ['blob:new1']);
+      final asked = r.recognizeNow(recorded('asked'));
+      gate.complete();
+      await asked;
+      await r.idle;
+      expect(order.first, 'blob:new1', reason: 'already running');
+      expect(order[1], 'blob:asked');
+      r.dispose();
     });
 
     test('memory is tight under the threshold plus what recognition needs', () {

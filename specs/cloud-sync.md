@@ -107,10 +107,12 @@ an Athena table are in [Recording and data formats](data-formats.md).
     successful pass (not inside it, so uploads and new events don't wait),
     **newest first, one at a time**, each stored as soon as it's
     downloaded (`MediaStore.saveBytes`) and its `fetch:` entry dropped
-    (`EventStore.unmarkSynced`). One that fails (not uploaded yet, a
-    network error) is skipped until the next full fetch (hourly); three
-    failures in a row stop the run, and the rest resume after the next
-    pass. What's stored isn't downloaded again: only `fetch:` entries are
+    (`EventStore.unmarkSynced`). One whose download meets expired
+    credentials (or a request AWS refused as signed at the wrong time)
+    is downloaded again at once with new credentials (or the corrected
+    clock); one that fails otherwise (not uploaded yet, a network error)
+    is skipped until the next full fetch (hourly); three failures in a
+    row stop the run, and the rest resume after the next pass. What's stored isn't downloaded again: only `fetch:` entries are
     fetched;
   - **the web** doesn't prefetch, so a profile's recordings don't fill
     IndexedDB: a recording comes down **when its clip is played**;
@@ -242,6 +244,30 @@ an Athena table are in [Recording and data formats](data-formats.md).
   another isolate (`compute`). The status notifies listeners only when
   it changes.
 - One pass runs at a time. A change during a pass queues one more pass.
+- **A pass belongs to one profile** (`_Pass`): it captures the session,
+  the store and the profile when it starts, stamps fetched events with
+  that profile (never whichever is signed in by then), hands over,
+  uploads and filters events for it alone, and checks before each step
+  (each batch, download, hand-over and upload) that it's still current.
+  Signing out, the account moving to another profile, `reconnect()` or a
+  stop starts syncing over (`CloudSync._epoch`), and a pass of the one
+  before ends at its next step, quietly, without an error or giving its
+  events back to the next profile's sync. One upload under way finishes.
+- **One damaged object doesn't stop syncing.** Records from the bucket
+  go through one codec (`Records`, [lib/storage/records.dart](../presence_app/lib/storage/records.dart),
+  shared with `Persistence`): an event needs a string `id` and an integer
+  `time` (an integral double, such as `6.0`, counts), a clip record a
+  string `id`, a recording reference a media ID of `[A-Za-z0-9_-]`; text
+  fields of the wrong type are dropped. Event, clip and frame IDs from the
+  bucket must be safe (`Records.isSafeId`, as over live sync), and an
+  event's `id` must be its key's. An object that isn't JSON, or fails
+  these, is **skipped and logged**, the rest of the pass goes on (the
+  other events, the uploads), and it isn't downloaded again until its
+  listed ETag changes (a clip record: until the next start); an object
+  deleted between listing and download (404) is skipped too. A clip
+  whose recording reference is damaged comes without it. Settings in the
+  cloud that aren't JSON, or have no `config`, count as none: the local
+  ones are uploaded over them.
 - **Live sync** ([live-sync.md](live-sync.md)): after a successful pass,
   `CloudSync` starts `LiveSync` with the session's identity and
   credentials. Each event a pass uploads (from the last two weeks) is then
@@ -251,6 +277,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   fetched from the bucket by a pass started for them
   (`CloudSync._fetchWanted`) once the clip is there. An event that arrives
   both ways is handed over once.
+- **Copies** ([Event copies](event-copies.md)): `CloudSync.copies`
+  (`EventCopies`, the app's instance) records whether this device and the
+  cloud hold each event (`copyOf`), checked when an event is saved here,
+  uploaded, handed over by a fetch or live sync, when its clip arrives or
+  its recording downloads, and for the whole window at each full fetch;
+  another device's event held here in full is acked over live sync
+  (`LiveSync.ackCopied`), once. Other devices' acks add them as holders.
 
 ## How
 
@@ -261,7 +294,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - then `GetCredentialsForIdentity` with
     `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
     unsigned: the token is the proof;
-  - credentials are reused until five minutes before they expire;
+  - credentials are reused until five minutes before they expire (by
+    AWS's time, see **Clock**); callers asking at once (a pass, live
+    sync, a playback download) share one fetch, and one that a sign-out
+    or reset cleared meanwhile isn't kept;
   - after a link or unlink, `CloudSync.reconnect()` drops them and starts
     over, as for a new user (the folder changed).
 - **Uploads** (`S3Bucket`, `SigV4Signer`): `PUT` to
@@ -271,9 +307,21 @@ an Athena table are in [Recording and data formats](data-formats.md).
   (`UNSIGNED-PAYLOAD`, the body streamed with its `Content-Length`; the
   headers, storage class included, are still signed); the rest with a
   signed SHA-256 of the body.
+- **Clock** (`AwsClock`, [sigv4.dart](../presence_app/lib/cloud/sigv4.dart)):
+  requests are signed with the device's time, and AWS refuses one more
+  than 15 min off its own (S3's `RequestTimeTooSkewed`). When S3 says
+  so, `S3Bucket` takes AWS's time from the answer (its `ServerTime`, or
+  else its `Date` header) and from then on signs with the device's clock
+  corrected by that offset (`AwsClock.shared`, used by S3, the credentials'
+  expiry and [live sync](live-sync.md)'s connection URL); the pass that
+  met it runs again at once. If it still fails, the error says
+  **"This device's clock is off by N min: set it to the right time to
+  sync"**. AWS IoT's own refusal isn't recognized (its WebSocket handshake
+  doesn't say why), but live sync signs with the clock S3 corrected.
 - **Errors:**
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
+  - if S3 refuses a request as signed at the wrong time, see **Clock**;
   - if the auth API rejects the Google token (401, for example once it
     has expired), or Cognito rejects its token (`NotAuthorizedException`),
     the account sheet says **"Sign in again to resume uploads"**;
@@ -361,9 +409,22 @@ In [presence_infra/](../presence_infra):
 
 ## Verified
 
+- Integrity: `cloud_sync_test.dart` (signing out mid-pass uploads nothing
+  more; a pass that outlives its profile hands over and uploads nothing
+  for the next one, nor into the old folder; non-JSON, ID-less, wrongly
+  typed, unsafe or mismatched objects are skipped, not downloaded again
+  until they change, and the rest syncs; an unsafe frame ID isn't
+  fetched; a damaged recording reference is dropped; a clock-skewed
+  request is made again, and a persistent one says the clock is off; a
+  recording download that meets expired credentials succeeds with new
+  ones in the same run), `s3_test.dart` (the clock corrected from
+  `ServerTime` or the `Date` header, the next request signed with it,
+  other errors leave it), `profile_test.dart` (one credentials fetch for
+  callers at once; a cleared one isn't kept) and
+  `record_integrity_test.dart` (the codec).
 - Settings: `cloud_sync_test.dart` (the settings listing only on the
-  first pass, an upload when they change, another device's or a damaged
-  record ignored and replaced; the profile's older record wins over
+  first pass, an upload when they change, another device's, a damaged or
+  a non-JSON record ignored and replaced; the profile's older record wins over
   another profile's newer settings, the profile's own newer ones stay,
   and the settings are claimed for the profile with or without a record)
   and `persistence_test.dart` (signed in, the defaults go up under the
@@ -419,7 +480,10 @@ In [presence_infra/](../presence_infra):
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about
   10 MB per clip.
 - A downloaded recording is held whole in memory until it's stored (one
-  at a time); only uploads stream. Playing one that isn't here yet waits
+  at a time, about 6 MB); only uploads stream. Streaming downloads into
+  the media store would need a streaming `get` on `CloudSession` and a
+  streaming `saveBytes` on `MediaStore` (IndexedDB keeps whole values
+  anyway), so it's left as is. Playing one that isn't here yet waits
   for the whole download (no streaming playback from S3), with a spinner
   and no progress.
 - On the web, a recording downloaded to be played stays in IndexedDB like
@@ -432,7 +496,7 @@ In [presence_infra/](../presence_infra):
 - A reconciliation still encodes and hashes every stored event and clip
   record (letting frames through as it goes), once an hour.
 - A clip deleted on one device isn't deleted elsewhere: retention deletes
-  per device, and [device deletion](device-deletion.md) only hides events
+  per device, and [deleting a device or an event](device-deletion.md) only hides events
   (`deletedAt`), synced, without deleting anything.
 - Of a changed event, only its tags, suggestions and object tags are taken
   on: other fields another device changes (such as `clipState`) aren't,

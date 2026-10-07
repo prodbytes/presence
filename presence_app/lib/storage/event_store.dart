@@ -11,7 +11,7 @@ import 'package:idb_shim/idb_shim.dart';
 /// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID, device ID, user ID, location |
 /// | `clips`    | `id`, index `eventId` | camera, window, media IDs, thumbnail |
 /// | `media`    | media ID          | recording bytes                         |
-/// | `settings` | name              | the config; `device`: this device's ID; `location`: its location |
+/// | `settings` | name              | the config; `device`: this device's ID; `location`: its location; `copies`: who holds each event (`EventCopies`) |
 /// | `synced`   | object key        | fingerprint of what was uploaded (v2)   |
 class EventStore {
   EventStore._(this._db);
@@ -133,6 +133,14 @@ class EventStore {
   Future<Map<String, Object?>?> getEvent(String id) async {
     final txn = _db.transaction(events, idbModeReadOnly);
     final value = await txn.objectStore(events).getObject(id);
+    await txn.completed;
+    return value == null ? null : _map(value);
+  }
+
+  /// The clip [id]'s record, or null if there's none.
+  Future<Map<String, Object?>?> getClip(String id) async {
+    final txn = _db.transaction(clips, idbModeReadOnly);
+    final value = await txn.objectStore(clips).getObject(id);
     await txn.completed;
     return value == null ? null : _map(value);
   }

@@ -13,7 +13,7 @@ void main() {
   // CameraRig listens to app lifecycle, which needs a binding.
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const media = ClipMedia(
+  final media = ClipMedia(
     url: 'blob:fake',
     start: Duration.zero,
     end: Duration(seconds: 15),

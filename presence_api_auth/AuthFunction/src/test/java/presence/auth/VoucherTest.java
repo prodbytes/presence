@@ -17,9 +17,9 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VoucherTest {
@@ -47,8 +47,13 @@ class VoucherTest {
         }
 
         @Override
-        public void delete(String code) {
+        public boolean delete(String code, boolean admins) {
+            var v = vouchers.get(code);
+            if (v != null && !admins && Roles.ADMIN.equals(v.role())) {
+                return false;
+            }
             vouchers.remove(code);
+            return true;
         }
 
         @Override
@@ -78,7 +83,32 @@ class VoucherTest {
         }
     }
 
+    /** The UserRoles table's miss counts, with the conditions of the DynamoDB lockout. */
+    static final class MemoryLockout implements VoucherHandler.Lockout {
+        final Map<String, Integer> misses = new HashMap<>();
+        final Map<String, Instant> since = new HashMap<>();
+
+        @Override
+        public boolean locked(String email, Instant now) {
+            var start = since.get(email);
+            return start != null && misses.get(email) >= VoucherHandler.MAX_MISSES
+                    && start.isAfter(now.minus(VoucherHandler.MISS_WINDOW));
+        }
+
+        @Override
+        public void miss(String email, Instant now) {
+            var start = since.get(email);
+            if (start == null || !start.isAfter(now.minus(VoucherHandler.MISS_WINDOW))) {
+                since.put(email, now);
+                misses.put(email, 1);
+            } else {
+                misses.merge(email, 1, Integer::sum);
+            }
+        }
+    }
+
     private final MemoryStore store = new MemoryStore();
+    private final MemoryLockout lockout = new MemoryLockout();
     private final Map<String, Set<String>> granted = new HashMap<>();
     private Instant now = NOW;
     private boolean grantFails;
@@ -105,7 +135,7 @@ class VoucherTest {
             throw new IllegalStateException("DynamoDB is down");
         }
         granted.computeIfAbsent(email, e -> new TreeSet<>()).addAll(roles);
-    }, clock);
+    }, lockout, clock);
 
     private final AdminHandler admin = new AdminHandler(
             new Roles(Set.of("nu01.com"), Set.of(), e -> granted.getOrDefault(e, Set.of())),
@@ -203,6 +233,10 @@ class VoucherTest {
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=101",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&discount=half",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=no",
+                // Nine letters and digits: too few for a chosen code.
+                "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=otter-4821",
+                // An Admin voucher's code is always random.
+                "role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=autumn-otter-4821",
                 "role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1&code=otter%3Bdrop",
                 "role=presence_user&startsAt=autumn&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
                 "role=presence_user&startsAt=2026-10-05T00:00:00Z&expiresAt=2026-10-05T00:00:00Z&maxUses=1",
@@ -301,6 +335,76 @@ class VoucherTest {
     }
 
     @Test
+    void onlyRootsSeeAndDeleteAdminCodes() {
+        var adminCode = code(create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=5").getBody());
+        now = NOW.plusSeconds(1);
+        var memberCode = code(create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=5").getBody());
+        granted.put("lead@example.com", Set.of(Roles.ADMIN, Roles.USER));
+
+        var list = admin.handleRequest(event("GET /api/auth/vouchers", "lead@example.com", null), null).getBody();
+        assertTrue(list.contains("\"code\":\"" + memberCode + "\""), list);
+        assertFalse(list.contains(adminCode), list);
+        assertTrue(list.contains("{\"code\":null,\"hidden\":true,\"role\":\"presence_admin\""), list);
+        // A root sees both.
+        var rootList = admin.handleRequest(event("GET /api/auth/vouchers", "boss@nu01.com", null), null).getBody();
+        assertTrue(rootList.contains(adminCode) && !rootList.contains("hidden"), rootList);
+
+        assertEquals(403, admin.handleRequest(event("POST /api/auth/vouchers/delete", "lead@example.com", adminCode),
+                null).getStatusCode());
+        assertTrue(store.vouchers.containsKey(adminCode));
+        assertEquals(200, admin.handleRequest(event("POST /api/auth/vouchers/delete", "lead@example.com", memberCode),
+                null).getStatusCode());
+        assertEquals(200, admin.handleRequest(event("POST /api/auth/vouchers/delete", "boss@nu01.com", adminCode),
+                null).getStatusCode());
+        assertEquals(Map.of(), store.vouchers);
+    }
+
+    @Test
+    void aPersonalAccountWithARootDomainAddressIsNoRoot() {
+        // Verified, but not nu01.com's Workspace (no hd): no admin at all.
+        var claims = new HashMap<>(Map.of("email", "mallory@nu01.com", "email_verified", "true"));
+        var event = RolesTest.event(claims);
+        event.setRouteKey("POST /api/auth/vouchers");
+        event.setBody("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1");
+        assertEquals(403, admin.handleRequest(event, null).getStatusCode());
+        assertEquals(Map.of(), store.vouchers);
+    }
+
+    @Test
+    void tooManyWrongCodesLockTheEmailOutForAWhile() {
+        var code = code(create("role=presence_user&expiresAt=2026-10-06T00:00:00Z&maxUses=5").getBody());
+        var partial = code(create("role=presence_user&expiresAt=2026-10-06T00:00:00Z&maxUses=5"
+                + "&code=autumn-otter-4821&discount=25").getBody());
+        for (var i = 0; i < VoucherHandler.MAX_MISSES; i++) {
+            // A partial-discount code is no miss.
+            assertEquals(402, redeem.handleRequest(redeem("eve@example.com", partial), null).getStatusCode());
+            assertEquals(404, redeem.handleRequest(redeem("eve@example.com", "WRONG-CODE-" + i), null)
+                    .getStatusCode());
+        }
+        // Locked: even a good code waits, and nothing is counted or granted.
+        var locked = redeem.handleRequest(redeem("eve@example.com", code), null);
+        assertEquals(429, locked.getStatusCode());
+        assertEquals("{\"error\":\"too many wrong codes; try again later\"}", locked.getBody());
+        assertEquals(0, store.vouchers.get(code).uses());
+        assertNull(granted.get("eve@example.com"));
+        // Others aren't.
+        assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code), null).getStatusCode());
+
+        // Once the window is over.
+        now = NOW.plus(VoucherHandler.MISS_WINDOW).plusSeconds(1);
+        assertEquals(200, redeem.handleRequest(redeem("eve@example.com", code), null).getStatusCode());
+    }
+
+    @Test
+    void chosenCodesNeedTenLettersAndDigits() {
+        assertEquals("AUTUMN-OTTER", VoucherHandler.chosen("autumn otter"));
+        assertNull(VoucherHandler.chosen("OTTER-4821"));
+        assertNull(VoucherHandler.chosen("A-B-C-D-E-F-G-H-I"));
+        // Older, shorter codes are still redeemed and deleted.
+        assertEquals("OTTER-4821", VoucherHandler.normalize("otter 4821"));
+    }
+
+    @Test
     void vouchersRunOutAndExpire() {
         var code = code(create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=2").getBody());
         assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code), null).getStatusCode());
@@ -358,7 +462,10 @@ class VoucherTest {
     void aFailedGrantGivesTheUseBack() {
         var code = code(create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getBody());
         grantFails = true;
-        assertThrows(IllegalStateException.class, () -> redeem.handleRequest(redeem("ana@example.com", code), null));
+        var failed = redeem.handleRequest(redeem("ana@example.com", code), null);
+        assertEquals(502, failed.getStatusCode());
+        assertEquals("{\"error\":\"the voucher service failed\",\"cause\":\"IllegalStateException\"}",
+                failed.getBody());
         assertEquals(0, store.vouchers.get(code).uses());
         grantFails = false;
         assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code), null).getStatusCode());
@@ -385,7 +492,7 @@ class VoucherTest {
     }
 
     private static APIGatewayV2HTTPEvent event(String routeKey, String email, String body) {
-        var event = RolesTest.event(new HashMap<>(Map.of("email", email, "email_verified", "true", "name", "Ana")));
+        var event = RolesTest.event(RolesTest.verified(email));
         event.setRouteKey(routeKey);
         event.setBody(body);
         return event;

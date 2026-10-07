@@ -6,15 +6,25 @@ import 'sigv4.dart';
 
 /// An S3 upload that didn't succeed.
 class S3Exception implements Exception {
-  S3Exception(this.statusCode, this.body);
+  S3Exception(this.statusCode, this.body, {this.clockOffset});
 
   final int statusCode;
   final String body;
+
+  /// For a request refused as signed at the wrong time
+  /// ([clockSkewed]): how far AWS's time is from the device's, when the
+  /// answer said (the clock is corrected by it, [AwsClock.correct]).
+  final Duration? clockOffset;
 
   /// AWS refused the credentials (expired or revoked): get new ones.
   bool get credentialsRejected =>
       statusCode == 403 &&
       (body.contains('ExpiredToken') || body.contains('InvalidToken'));
+
+  /// AWS refused the request as signed too far from its time (more than
+  /// 15 min): the device's clock is off.
+  bool get clockSkewed =>
+      statusCode == 403 && body.contains('RequestTimeTooSkewed');
 
   @override
   String toString() => 'S3 HTTP $statusCode: $body';
@@ -27,14 +37,17 @@ class S3Bucket {
     required this.region,
     http.Client? client,
     DateTime Function()? now,
+    AwsClock? clock,
   }) : _client = client ?? http.Client(),
-       _now = now ?? DateTime.now,
+       clock = clock ?? (now == null ? AwsClock.shared : AwsClock(now: now)),
        _signer = SigV4Signer(region: region);
 
   final String bucket;
   final String region;
   final http.Client _client;
-  final DateTime Function() _now;
+
+  /// The time requests are signed with; corrected when AWS says it's off.
+  final AwsClock clock;
   final SigV4Signer _signer;
 
   String get host => '$bucket.s3.$region.amazonaws.com';
@@ -124,16 +137,68 @@ class S3Bucket {
       headers: {'host': host},
       payloadHash: SigV4Signer.emptyPayloadHash,
       credentials: credentials,
-      now: _now(),
+      now: clock.now(),
     );
     final response = await _client.get(
       uri,
       headers: {...headers}..remove('host'),
     );
-    if (response.statusCode != 200) {
-      throw S3Exception(response.statusCode, response.body);
-    }
+    _check(response);
     return response;
+  }
+
+  /// Throws an [S3Exception] for an answer that isn't a success. One that
+  /// says the request was signed at the wrong time corrects [clock] by
+  /// AWS's time in it (its `ServerTime`, or else its `Date` header), so
+  /// the next request is signed right.
+  void _check(http.Response response) {
+    if (response.statusCode == 200) return;
+    final error = S3Exception(response.statusCode, response.body);
+    if (!error.clockSkewed) throw error;
+    final serverTime =
+        _serverTimeOf(response.body) ??
+        parseHttpDate(response.headers['date'] ?? '');
+    if (serverTime == null) throw error;
+    clock.correct(serverTime);
+    debugPrint(
+      'Presence: AWS says the clock is off by ${clock.offset.inSeconds} s; '
+      'signing with its time from now on',
+    );
+    throw S3Exception(
+      response.statusCode,
+      response.body,
+      clockOffset: clock.offset,
+    );
+  }
+
+  static DateTime? _serverTimeOf(String body) {
+    final m = RegExp(r'<ServerTime>([^<]+)</ServerTime>').firstMatch(body);
+    return m == null ? null : DateTime.tryParse(m[1]!.trim());
+  }
+
+  static const _months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  /// An HTTP `Date` header (`Tue, 06 Oct 2026 12:00:00 GMT`), in UTC;
+  /// null when it isn't one.
+  @visibleForTesting
+  static DateTime? parseHttpDate(String value) {
+    final m = RegExp(
+      r'(\d{1,2}) ([A-Za-z]{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT',
+    ).firstMatch(value);
+    if (m == null) return null;
+    final month = _months.indexOf(m[2]!) + 1;
+    if (month == 0) return null;
+    return DateTime.utc(
+      int.parse(m[3]!),
+      month,
+      int.parse(m[1]!),
+      int.parse(m[4]!),
+      int.parse(m[5]!),
+      int.parse(m[6]!),
+    );
   }
 
   static String _unescape(String s) => s
@@ -166,7 +231,7 @@ class S3Bucket {
       },
       payloadHash: sha256.convert(bytes).toString(),
       credentials: credentials,
-      now: _now(),
+      now: clock.now(),
     );
     // Browsers set Host themselves and refuse it from scripts.
     final response = await _client.put(
@@ -174,9 +239,7 @@ class S3Bucket {
       headers: {...headers}..remove('host'),
       body: bytes,
     );
-    if (response.statusCode != 200) {
-      throw S3Exception(response.statusCode, response.body);
-    }
+    _check(response);
   }
 
   /// Uploads [length] bytes from [body] to [key], as they're read: for
@@ -201,7 +264,7 @@ class S3Bucket {
       },
       payloadHash: SigV4Signer.unsignedPayload,
       credentials: credentials,
-      now: _now(),
+      now: clock.now(),
     );
     final request = _BodyRequest('PUT', uri, body)
       ..contentLength = length
@@ -209,9 +272,7 @@ class S3Bucket {
     final response = await http.Response.fromStream(
       await _client.send(request),
     );
-    if (response.statusCode != 200) {
-      throw S3Exception(response.statusCode, response.body);
-    }
+    _check(response);
   }
 }
 

@@ -18,6 +18,13 @@
     recorded".
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
     camera's retries) but the button (None → One) or Turn on.
+  - Pausing and resuming run one after the other: a resume waits for the
+    pause before it to close the camera (phones allow one open camera). A
+    pause doesn't wait for a camera still opening: that open is stale
+    (`CameraRig`'s open generation, bumped by every open and close), and
+    whatever it opens is closed at once, so pressing None and One while
+    the camera opens never leaves two cameras open, and a stale open's
+    error never shows.
   - It's a camera setting (`camera.paused`), saved with the device's
     settings, so it lasts across restarts, including the Android
     watchdog's; One and All aren't kept (One at launch).
@@ -49,8 +56,24 @@
     `OverconstrainedError`), or in use / couldn't start (`NotReadableError`,
     `AbortError`). Android and iOS show their plugin's message, or "Camera
     permission was denied. Allow it in Settings."
-  - **Per-tile error:** if one camera fails to open (for example, it's in use),
-    only that tile shows the error.
+  - The error shows in the camera's view: full screen in One, in its
+    top-left cell in All (one camera opens at a time).
+- **A lost camera is reopened, on every platform.** When the platform
+  takes the running camera away, the source's `lost` completes and
+  `CameraRig` closes it, shows the error and tries to reopen it every
+  10 s (`CameraRig.lostRetryDelay`) until it opens. On Android that's a
+  disconnected or failed camera (see [Android](android.md)). On web the
+  browser **ends the video track** (camera unplugged, taken by another
+  app, permission revoked): its `ended` event reports the camera lost
+  ("The camera stopped (unplugged or taken away)"), so the pill doesn't
+  stay Ready on a frozen frame. Closing the camera ourselves stops the
+  track without that event.
+- **Web elements are released** with the camera or player that showed
+  them: every `<video>` is shown through one platform view type
+  (`presence-element`, `ElementView` in
+  [web_dom.dart](../presence_app/lib/cameras/web_dom.dart)) and looked up
+  by a key that's dropped on close, rather than a new view factory per
+  open that the browser's registry would keep forever.
 
 ## All devices
 

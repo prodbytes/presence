@@ -4,8 +4,6 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
-import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
@@ -24,11 +22,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static presence.auth.AuthHandler.response;
+import static presence.auth.Attrs.instant;
+import static presence.auth.Attrs.text;
+import static presence.auth.Http.response;
 
 /**
  * The Admin screen's API, for users with both {@code presence_user} and
@@ -42,20 +41,27 @@ import static presence.auth.AuthHandler.response;
  *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
  *       {@code {"vouchers": [{code, role, startsAt, expiresAt, maxUses, uses, redeemedBy,
- *       createdBy, createdAt, discount}]}};</li>
+ *       createdBy, createdAt, discount}]}}. A presence_admin voucher's code
+ *       is shown only to a {@code presence_root} caller: to others it is
+ *       {@code null}, with {@code "hidden": true}, so an admin can't pass
+ *       the role on;</li>
  *   <li>{@code POST /api/auth/vouchers}: creates a voucher from the
  *       form-encoded body {@code role}, {@code expiresAt} (ISO-8601, in the
  *       future, within {@link #MAX_VALIDITY}), {@code maxUses} (1 to
  *       {@link VoucherHandler#MAX_USES}), and optionally {@code startsAt}
  *       (ISO-8601, before {@code expiresAt}, at most {@link #MAX_VALIDITY}
  *       ago; now if absent), {@code code} (see
- *       {@link VoucherHandler#normalize}; random if absent or blank, 409 if
- *       taken) and {@code discount} (percent, 1 to 100; 100 if absent), and
- *       answers it. A {@code presence_admin} voucher needs a
- *       {@code presence_root} caller (403 otherwise);</li>
+ *       {@link VoucherHandler#chosen}: at least {@link VoucherHandler#MIN_CHOSEN}
+ *       letters and digits; random if absent or blank, 409 if taken) and
+ *       {@code discount} (percent, 1 to 100; 100 if absent), and answers it.
+ *       A {@code presence_admin} voucher needs a {@code presence_root} caller
+ *       (403 otherwise) and a random code (400 for a chosen one);</li>
  *   <li>{@code POST /api/auth/vouchers/delete}: deletes the voucher whose code
- *       is the body.</li>
+ *       is the body; a presence_admin one only for a {@code presence_root}
+ *       caller (403 otherwise).</li>
  * </ul>
+ * A linked account shares its profile owner's membership, never the
+ * owner's administration: the caller's own email must make it an admin.
  */
 public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -78,14 +84,14 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     static final Duration MAX_VALIDITY = Duration.ofDays(366);
 
     private final Roles roles;
-    private final Function<String, String> owners;
+    private final Function<String, Profiles.Profile> linked;
     private final Backend backend;
     private final VoucherHandler.Store vouchers;
     private final Clock clock;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
-        this(AuthHandler.fromEnvironment(), AuthHandler.owners(AuthHandler.profilesFromEnvironment()),
+        this(Roles.fromEnvironment(), Profiles.fromEnvironment()::existing,
                 dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), System.getenv("USER_ROLES_TABLE")),
                 VoucherHandler.dynamoStore(System.getenv("VOUCHER_TABLE")),
                 Clock.systemUTC());
@@ -95,11 +101,14 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         this(roles, subject -> null, backend, vouchers, clock);
     }
 
-    /** @param owners for a subject, its profile owner's email ({@link AuthHandler#owners}): a linked subject shares the owner's roles */
-    AdminHandler(Roles roles, Function<String, String> owners, Backend backend, VoucherHandler.Store vouchers,
-                 Clock clock) {
+    /**
+     * @param linked for a subject, the profile it's linked to, without making one
+     *               ({@link Profiles#existing}): a linked subject shares the owner's membership
+     */
+    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
+                 VoucherHandler.Store vouchers, Clock clock) {
         this.roles = roles;
-        this.owners = owners;
+        this.linked = linked;
         this.backend = backend;
         this.vouchers = vouchers;
         this.clock = clock;
@@ -107,13 +116,21 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
-        var claims = AuthHandler.claims(event);
-        var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        var callerRoles = roles.of(claims.get("email"), verified, AuthHandler.ownerOf(owners, claims));
+        var route = Http.route(event);
+        try {
+            return handle(event, route);
+        } catch (RuntimeException e) {
+            return Aws.failed("admin", route, e, context);
+        }
+    }
+
+    private APIGatewayV2HTTPResponse handle(APIGatewayV2HTTPEvent event, String route) {
+        var caller = Caller.from(event);
+        var callerRoles = roles.of(caller, caller.hasSubject() ? linked.apply(caller.subject()) : null);
         if (!callerRoles.contains(Roles.USER) || !callerRoles.contains(Roles.ADMIN)) {
             return response(403, "{\"error\":\"administrators only\"}");
         }
-        var route = event.getRouteKey() == null ? "" : event.getRouteKey();
+        var root = callerRoles.contains(Roles.ROOT);
         return switch (route) {
             case "GET /api/auth/membership" -> response(200, "{\"requests\":["
                     + backend.requests().stream()
@@ -122,7 +139,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                     .collect(Collectors.joining(","))
                     + "]}");
             case "POST /api/auth/membership/grant", "POST /api/auth/membership/dismiss" -> {
-                var body = MembershipHandler.bodyText(event, 254);
+                var body = Http.bodyText(event, 254);
                 var email = body == null ? "" : body.toLowerCase(Locale.ROOT);
                 if (!validEmail(email)) {
                     yield response(400, "{\"error\":\"the body must be an email\"}");
@@ -135,35 +152,39 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 }
                 yield response(200, "{\"email\":" + Json.string(email) + "}");
             }
+            // Only roots see presence_admin codes: an admin can't hand the role on.
             case "GET /api/auth/vouchers" -> response(200, "{\"vouchers\":["
                     + vouchers.all().stream()
                     .sorted(Comparator.comparing(VoucherHandler.Voucher::createdAt).reversed())
-                    .map(VoucherHandler.Voucher::toJson)
+                    .map(v -> v.toJson(root || !Roles.ADMIN.equals(v.role())))
                     .collect(Collectors.joining(","))
                     + "]}");
-            case "POST /api/auth/vouchers" -> createVoucher(event, claims.get("email"), callerRoles);
+            // Roles need a verified email, so an admin has one.
+            case "POST /api/auth/vouchers" -> createVoucher(event, caller.verifiedEmail(), root);
             case "POST /api/auth/vouchers/delete" -> {
-                var body = MembershipHandler.bodyText(event, 64);
+                var body = Http.bodyText(event, 64);
                 var code = body == null ? null : VoucherHandler.normalize(body);
                 if (code == null) {
                     yield response(400, "{\"error\":\"the body must be a voucher code\"}");
                 }
-                vouchers.delete(code);
+                if (!vouchers.delete(code, root)) {
+                    yield response(403, "{\"error\":\"only presence_root deletes presence_admin vouchers\"}");
+                }
                 yield response(200, "{\"code\":" + Json.string(code) + "}");
             }
             default -> response(404, "{\"error\":\"no such route\"}");
         };
     }
 
-    private APIGatewayV2HTTPResponse createVoucher(APIGatewayV2HTTPEvent event, String admin, Set<String> callerRoles) {
-        var body = MembershipHandler.bodyText(event, 1000);
+    private APIGatewayV2HTTPResponse createVoucher(APIGatewayV2HTTPEvent event, String createdBy, boolean root) {
+        var body = Http.bodyText(event, 1000);
         var form = VoucherHandler.form(body == null ? "" : body);
         var role = form.getOrDefault("role", "");
         if (!VoucherHandler.ROLES.contains(role)) {
             return response(400, "{\"error\":\"role must be one of " + String.join(", ", new TreeSet<>(VoucherHandler.ROLES)) + "\"}");
         }
         // Only roots make admins: an admin can't pass the role on.
-        if (Roles.ADMIN.equals(role) && !callerRoles.contains(Roles.ROOT)) {
+        if (Roles.ADMIN.equals(role) && !root) {
             return response(403, "{\"error\":\"only presence_root creates presence_admin vouchers\"}");
         }
         // Milliseconds, as stored.
@@ -211,13 +232,16 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         if (discount < 1 || discount > VoucherHandler.FULL_DISCOUNT) {
             return response(400, "{\"error\":\"discount must be 1 to 100 (percent)\"}");
         }
-        var createdBy = admin.strip().toLowerCase(Locale.ROOT);
         var chosen = form.getOrDefault("code", "");
         if (!chosen.isBlank()) {
-            var code = VoucherHandler.normalize(chosen);
+            // The code is an Admin voucher's only secret: never a guessable one.
+            if (Roles.ADMIN.equals(role)) {
+                return response(400, "{\"error\":\"presence_admin vouchers get a random code\"}");
+            }
+            var code = VoucherHandler.chosen(chosen);
             if (code == null) {
-                return response(400, "{\"error\":\"code must be " + VoucherHandler.MIN_CODE + " to "
-                        + VoucherHandler.MAX_CODE + " letters, digits and dashes\"}");
+                return response(400, "{\"error\":\"code must be " + VoucherHandler.MIN_CHOSEN + " to "
+                        + VoucherHandler.MAX_CODE + " letters and digits, with dashes between words\"}");
             }
             var voucher = new VoucherHandler.Voucher(code, role, startsAt, expiresAt, maxUses, 0,
                     Set.of(), createdBy, now, discount);
@@ -251,7 +275,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     }
 
     static Backend dynamoBackend(String membershipTable, String rolesTable) {
-        var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
+        var dynamo = Aws.dynamo();
         return new Backend() {
             @Override
             public List<MembershipHandler.Request> requests() {
@@ -271,11 +295,9 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 return result;
             }
 
-            private final BiConsumer<String, Set<String>> grant = dynamoGrant(dynamo, rolesTable);
-
             @Override
             public void grant(String email, String role) {
-                grant.accept(email, Set.of(role));
+                UserRoles.grant(dynamo, rolesTable, email, Set.of(role));
             }
 
             @Override
@@ -302,40 +324,5 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 }
             }
         };
-    }
-
-    /** Adds roles to an email's roles in the UserRoles table. */
-    static BiConsumer<String, Set<String>> dynamoGrant(String rolesTable) {
-        return dynamoGrant(DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build(), rolesTable);
-    }
-
-    private static BiConsumer<String, Set<String>> dynamoGrant(DynamoDbClient dynamo, String rolesTable) {
-        return (email, roles) -> {
-            // Merged and written back as a string set, whatever form (set,
-            // list or string) the roles were in.
-            var merged = new TreeSet<>(AuthHandler.declaredRoles(dynamo, rolesTable, email));
-            merged.addAll(roles);
-            dynamo.updateItem(UpdateItemRequest.builder()
-                    .tableName(rolesTable)
-                    .key(Map.of("email", AttributeValue.fromS(email)))
-                    .updateExpression("SET #roles = :roles")
-                    .expressionAttributeNames(Map.of("#roles", "roles"))
-                    .expressionAttributeValues(Map.of(":roles", AttributeValue.fromSs(List.copyOf(merged))))
-                    .build());
-        };
-    }
-
-    /** Epoch milliseconds (as stored), or the epoch if malformed. */
-    private static Instant instant(AttributeValue value) {
-        try {
-            return Instant.ofEpochMilli(Long.parseLong(value.n()));
-        } catch (NumberFormatException | NullPointerException e) {
-            return Instant.EPOCH;
-        }
-    }
-
-    private static String text(Map<String, AttributeValue> item, String name) {
-        var value = item.get(name);
-        return value == null || value.s() == null ? "" : value.s();
     }
 }

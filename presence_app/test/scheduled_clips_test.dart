@@ -21,7 +21,7 @@ import 'package:presence_app/settings.dart';
 import 'fakes.dart';
 import 'motion_test.dart' show frame;
 
-const media = ClipMedia(
+final media = ClipMedia(
   url: 'blob:fake',
   start: Duration.zero,
   end: Duration(seconds: 15),
@@ -454,7 +454,7 @@ void _endToEnd() {
     Future<void> finishRecording() async {
       for (final past in camera.pastCompleters.where((c) => !c.isCompleted)) {
         past.complete(
-          const ClipMedia(
+          ClipMedia(
             url: 'blob:past',
             start: Duration.zero,
             end: Duration(seconds: 5),
@@ -464,7 +464,7 @@ void _endToEnd() {
       await settleStorage(tester);
       for (final full in camera.fullCompleters.where((c) => !c.isCompleted)) {
         full.complete(
-          const ClipMedia(
+          ClipMedia(
             url: 'blob:full',
             start: Duration.zero,
             end: Duration(seconds: 15),

@@ -43,6 +43,10 @@ in the app bar**, which flip between full screens.
   roles load; signed out, it stays on the camera and keeps the memory for
   later). A new browser tab, or blocked storage, starts on the Camera. The
   Android and iOS apps don't refresh, so they always start on the Camera.
+  Which tabs show, the open one and the remembered one are kept by
+  `HomeTabs` ([lib/home_tabs.dart](../presence_app/lib/home_tabs.dart));
+  the app bar (`_HomeAppBar`) and the Camera tab's buttons
+  (`_CameraButtons`) are widgets of their own in `lib/main.dart`.
 - **Camera** (the start tab): **one camera at a time** fills the **whole
   screen**, edge to edge and under the app bar, which is transparent over
   the camera, with a dark gradient scrim to keep the tabs
@@ -107,6 +111,13 @@ in the app bar**, which flip between full screens.
     message share the lowest line. A label too long for the room is cut
     short with an ellipsis. See
     [Device location and battery](device-location.md) for the battery.
+  - **Screen readers** read each pill's full label. Only the **message**
+    and the **health warning** are live regions, read out when they show
+    or change; the readiness countdown and the battery change all the
+    time, so they aren't announced (they used to be, every second during
+    a cooldown). A pill that does something when tapped (the message
+    opening Monitoring, the health warning) is a **button** to screen
+    readers too (`StatusPill.liveRegion`, `StatusPill.onTap`).
   - **Health warning** (`HealthWarningPill` in
     [lib/system_health.dart](../presence_app/lib/system_health.dart)):
     only an icon (`warning_amber_rounded`, in the error color), no label,
@@ -183,7 +194,8 @@ in the app bar**, which flip between full screens.
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
 - **Settings:** the settings as a normal screen (no longer a drawer),
-  **full width**, with this device's location map as a section (see
+  **full width**, opening on this device's and profile's IDs (two
+  columns), with this device's location map as a section (see
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).

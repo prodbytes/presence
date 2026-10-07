@@ -32,7 +32,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static presence.auth.AuthHandler.response;
+import static presence.auth.Http.response;
 
 /**
  * {@code GET /health} (public, no token): whether everything the API needs

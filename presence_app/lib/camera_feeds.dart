@@ -155,9 +155,13 @@ class CameraRig extends ChangeNotifier {
     _lastScheduledClip = now;
     _scheduledClipStarting = true;
     requestClips(
-      target,
-      trigger: startup ? ClipTrigger.startup : ClipTrigger.scheduled,
-    ).whenComplete(() => _scheduledClipStarting = false);
+          target,
+          trigger: startup ? ClipTrigger.startup : ClipTrigger.scheduled,
+        )
+        .catchError(
+          (Object e) => debugPrint('Presence: scheduled clip failed: $e'),
+        )
+        .whenComplete(() => _scheduledClipStarting = false);
     return true;
   }
 
@@ -285,18 +289,36 @@ class CameraRig extends ChangeNotifier {
   /// The pause state the camera was last opened or closed for.
   bool _appliedPaused = false;
 
+  /// Pause and resume transitions, one after the other: a resume waits for
+  /// the pause before it to finish closing the camera (phones allow one
+  /// open camera). A pause doesn't wait for a resume's open: that open is
+  /// stale once the pause closes the camera, and releases what it opened.
+  Future<void> _pauseTransitions = Future.value();
+
+  void _queuePaused() {
+    _pauseTransitions = _pauseTransitions
+        .then((_) => _applyPaused())
+        .catchError(
+          (Object e) => debugPrint('Presence: could not pause/resume: $e'),
+        );
+  }
+
   Future<void> _applyPaused() async {
-    if (_appliedPaused == paused) return;
+    if (_disposed || _appliedPaused == paused) return;
     _appliedPaused = paused;
     if (paused) {
       debugPrint('Presence: camera paused');
       _lostRetry?.cancel();
       _brightnessRestart?.cancel();
       await _closeActive();
-      if (!_disposed) _set(busy: false, error: null);
+      // Still paused: a resume queued meanwhile reports its own state.
+      if (!_disposed && paused) _set(busy: false, error: null);
     } else {
       debugPrint('Presence: camera resumed');
-      await (_devices.isEmpty ? load() : _openCurrent());
+      // Not awaited: a pause queued behind it needn't wait for the camera
+      // to open (a browser's permission prompt can wait forever); it makes
+      // this open stale instead ([_openGeneration]).
+      unawaited(_devices.isEmpty ? load() : _openCurrent());
     }
   }
 
@@ -412,7 +434,12 @@ class CameraRig extends ChangeNotifier {
     if (!_disposed && !_busy) await _applyChosen();
   }
 
+  /// Counts opens and closes: an open finishing after a newer open or a
+  /// close ([_closeActive]) began is stale, and its camera is released.
+  int _openGeneration = 0;
+
   Future<void> _openCurrent() async {
+    final generation = ++_openGeneration;
     final device = _current;
     if (device == null || paused) {
       _set(busy: false, error: null);
@@ -421,10 +448,15 @@ class CameraRig extends ChangeNotifier {
     _set(busy: true, error: null);
     try {
       final source = await _backend.open(device, () => config.clip.before);
-      if (_disposed || _current != device || paused) {
+      if (_disposed ||
+          generation != _openGeneration ||
+          _current != device ||
+          paused) {
         await source.dispose();
         // Paused while it opened: nothing else will clear the spinner.
-        if (!_disposed && paused) _set(busy: false, error: null);
+        if (!_disposed && paused && generation == _openGeneration) {
+          _set(busy: false, error: null);
+        }
         return;
       }
       _active = source;
@@ -435,7 +467,10 @@ class CameraRig extends ChangeNotifier {
       source.lost.then((reason) => _onLost(source, reason)).ignore();
       _set(busy: false, error: null);
     } catch (e) {
-      if (!_disposed) _set(busy: false, error: e);
+      // A newer open or a close owns the state now.
+      if (!_disposed && generation == _openGeneration) {
+        _set(busy: false, error: e);
+      }
     }
   }
 
@@ -479,7 +514,7 @@ class CameraRig extends ChangeNotifier {
     // The cooldown's length, or whether scheduled clips are on, may have
     // changed.
     _armCooldownWake();
-    _applyPaused();
+    _queuePaused();
     // While a camera opens, [load] or [flip] applies it once it's open.
     if (!_busy) _applyChosen();
     final ev = config.camera.brightness;
@@ -539,13 +574,16 @@ class CameraRig extends ChangeNotifier {
     // cooldown like any clip), so steady motion can't hold it back.
     if (_checkSchedule()) return;
     _motionClipStarting = true;
-    requestClips(
-      target,
-      trigger: ClipTrigger.motion,
-    ).whenComplete(() => _motionClipStarting = false);
+    requestClips(target, trigger: ClipTrigger.motion)
+        .catchError(
+          (Object e) => debugPrint('Presence: motion clip failed: $e'),
+        )
+        .whenComplete(() => _motionClipStarting = false);
   }
 
   Future<void> _closeActive() async {
+    // An open still in flight is stale now.
+    _openGeneration++;
     _openedAt = null;
     _motionFrames?.cancel();
     _motionFrames = null;
@@ -707,7 +745,9 @@ class CameraRig extends ChangeNotifier {
         now.difference(last) < answerAllEvery) {
       return;
     }
-    requestClips(target, trigger: ClipTrigger.all).ignore();
+    requestClips(target, trigger: ClipTrigger.all).catchError(
+      (Object e) => debugPrint('Presence: Capture all clip failed: $e'),
+    );
   }
 
   void _retryFailed() {

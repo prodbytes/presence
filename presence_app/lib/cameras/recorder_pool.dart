@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'camera_source.dart';
 
 /// Cuts finished recordings down to their windows. All of [media] come
@@ -90,10 +92,24 @@ class RecorderPool {
 
     final last = _lastStart;
     if (last == null || now.difference(last) >= _startInterval) {
-      _entries.add(_Entry(_startRecorder()));
+      // Tried again at the next interval, not every tick.
       _lastStart = now;
+      try {
+        _entries.add(_Entry(_startRecorder()));
+        _startFailed = false;
+      } catch (e) {
+        // E.g. the browser's NotSupportedError once the camera's track has
+        // ended: logged once, until a recorder starts again.
+        if (!_startFailed) {
+          debugPrint('Presence: could not start recording: $e');
+        }
+        _startFailed = true;
+      }
     }
   }
+
+  /// The last recorder failed to start (logged once until one starts).
+  bool _startFailed = false;
 
   ClipCapture requestClip({required Duration before, required Duration after}) {
     if (_closed || _entries.isEmpty) return ClipCapture.unsupported;

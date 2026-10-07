@@ -2,6 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 
+import 'media_urls.dart';
+
+export 'media_urls.dart' show MediaUrls;
+
 /// Why the camera couldn't be opened, in words for the user (the view shows
 /// [message] under "Could not open the camera"). [cause] is the underlying
 /// error, for logs.
@@ -20,13 +24,21 @@ class CameraUnavailable implements Exception {
 /// The file is either live in memory (on web, a Blob object URL) or stored,
 /// in which case it's loaded the first time it's played. [start] and [end]
 /// are offsets into the file that bound the part to play.
+///
+/// A live recording owns its URL ([MediaUrls]) until it's saved
+/// ([persisted]) or replaced ([discard]); players and samplers hold the
+/// URL they play with [acquireUrl] / [releaseUrl], so on web each
+/// recording's memory is freed once nothing needs it.
 class ClipMedia {
-  const ClipMedia({
-    required String this._url,
+  ClipMedia({
+    required String url,
     required this.start,
     required this.end,
     this.mimeType = defaultMimeType,
-  }) : _stored = null;
+  }) : _url = url,
+       _stored = null {
+    MediaUrls.instance.own(url);
+  }
 
   /// A recording kept in storage; [load] makes it playable.
   ClipMedia.stored({
@@ -39,18 +51,64 @@ class ClipMedia {
 
   static const String defaultMimeType = 'video/webm';
 
-  final String? _url;
-  final _StoredUrl? _stored;
+  String? _url;
+  _StoredUrl? _stored;
   final Duration start;
   final Duration end;
   final String mimeType;
 
   Duration get length => end - start;
 
-  /// The in-memory URL of a live recording, or null for a stored one.
+  /// The in-memory URL of a live recording, or null for a stored one (or
+  /// a live one since saved).
   String? get liveUrl => _url;
 
-  /// A playable URL for the recording, loading it from storage if needed.
+  /// The live recording was saved: from now on it's loaded from storage
+  /// with [load], and its in-memory URL is let go (revoked once nothing
+  /// plays it).
+  void persisted(Future<String> Function() load) {
+    final url = _url;
+    // Untracked (a file on Android): stays as it is.
+    if (url == null || !MediaUrls.instance.isLive(url)) return;
+    _stored = _StoredUrl(load);
+    _url = null;
+    MediaUrls.instance.disown(url);
+  }
+
+  /// The live recording isn't needed any more (a trimmed copy replaces
+  /// it): its URL is let go.
+  void discard() {
+    final url = _url;
+    if (url == null) return;
+    _url = null;
+    MediaUrls.instance.disown(url);
+  }
+
+  /// A playable URL for the recording, loading it from storage if needed,
+  /// held until [releaseUrl]: a player or sampler calls both. Throws when
+  /// it can't be loaded.
+  Future<String> acquireUrl() async {
+    for (var attempt = 0; ; attempt++) {
+      final live = _url;
+      if (live != null) {
+        MediaUrls.instance.retain(live);
+        return live;
+      }
+      final stored = _stored;
+      if (stored == null) throw StateError('No recording');
+      final url = await stored.get();
+      // Revoked while this waited (its last user let go): load it again.
+      if (stored.current != url && attempt < 2) continue;
+      MediaUrls.instance.retain(url);
+      return url;
+    }
+  }
+
+  /// Done with a URL from [acquireUrl].
+  void releaseUrl(String url) => MediaUrls.instance.release(url);
+
+  /// A playable URL (on Android, a file path), not held: for platforms
+  /// whose recordings are files. On web use [acquireUrl].
   Future<String> resolveUrl() =>
       _url != null ? Future.value(_url) : _stored!.get();
 }
@@ -61,12 +119,30 @@ class _StoredUrl {
   final Future<String> Function() _load;
   Future<String>? _url;
 
-  // Load once; retry next time if loading failed.
-  Future<String> get() => _url ??= _load()
-    ..catchError((Object _) {
+  /// The loaded URL, until it's revoked.
+  String? current;
+
+  // Load once (again once revoked); retry next time if loading failed.
+  Future<String> get() => _url ??= _loadTracked();
+
+  Future<String> _loadTracked() async {
+    try {
+      final url = await _load();
+      current = url;
+      MediaUrls.instance.loaded(
+        url,
+        onRevoked: () {
+          if (current != url) return;
+          current = null;
+          _url = null;
+        },
+      );
+      return url;
+    } catch (_) {
       _url = null;
-      return '';
-    });
+      rethrow;
+    }
+  }
 }
 
 /// The two recordings a clip request produces.

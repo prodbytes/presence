@@ -62,4 +62,12 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
     expect(log.persist, isNull);
   });
+
+  test('maskEmail keeps the first character and the domain', () {
+    expect(maskEmail('ana@example.com'), 'a***@example.com');
+    expect(maskEmail('a@b.c'), 'a***@b.c');
+    expect(maskEmail('nodomain'), '***');
+    expect(maskEmail(''), '(none)');
+    expect(maskEmail(null), '(none)');
+  });
 }

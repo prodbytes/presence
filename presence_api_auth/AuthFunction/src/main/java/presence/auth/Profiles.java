@@ -17,7 +17,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
+
+import static presence.auth.Attrs.text;
 
 /**
  * A profile is whose data it is: a stable ID that outlives the ways its
@@ -31,6 +34,17 @@ import java.util.function.Supplier;
  * belongs to the profile, not the subject or the email, so more subjects
  * (another Google account, another provider, a new email) can be linked to
  * it with a link code ({@link ProfileHandler}) without losing anything.
+ *
+ * <p>The owner's email (and Workspace domain, {@code hd}) is kept only from
+ * a token whose {@code email_verified} is true, since linked subjects share
+ * the owner's membership ({@link Roles#of(Caller, Profile)}).
+ *
+ * <p>Squatting: the app's profile ID ({@code ?profile=<id>}) is a name, not
+ * a secret, and the first subject to sign in with a free one claims it. One
+ * who learns another install's ID before that install's first sign-in can
+ * take it; the install then gets a fresh profile at its sign-in, and the
+ * squatter gets an empty profile (data is the profile's once signed in, and
+ * uploads need a profile's credentials), so it's a nuisance, not a leak.
  */
 public final class Profiles {
 
@@ -45,9 +59,10 @@ public final class Profiles {
      * @param id           a {@link ProfileId}; Cognito's developer user identifier for it
      * @param identityId   its Cognito identity, its folder in the bucket; empty until its first credentials
      * @param ownerSubject the subject that made it, which can't be unlinked
-     * @param ownerEmail   the owner's email, whose roles every linked subject shares
+     * @param ownerEmail   the owner's verified email (null if none), whose membership every linked subject shares
+     * @param ownerHd      the owner's Google Workspace domain ({@code hd}) when that email was seen; null if none
      */
-    record Profile(String id, String identityId, String ownerSubject, String ownerEmail) {
+    record Profile(String id, String identityId, String ownerSubject, String ownerEmail, String ownerHd) {
 
         boolean hasIdentity() {
             return identityId != null && !identityId.isBlank();
@@ -61,7 +76,7 @@ public final class Profiles {
     /** The profiles table and the subject links table. */
     interface Store {
         /** Creates the profile {@code id}, owned by {@code ownerSubject}, unless one has that ID: then false. */
-        boolean create(String id, String ownerSubject, String ownerEmail, Instant now);
+        boolean create(String id, String ownerSubject, String ownerEmail, String ownerHd, Instant now);
 
         /** The profile {@code id}, or null. */
         Profile profile(String id);
@@ -84,8 +99,8 @@ public final class Profiles {
         /** Records a sign-in to the profile, creating it if it doesn't exist; the profile after. */
         Profile signedIn(String profileId, Instant now);
 
-        /** The owner's new email. */
-        void ownerEmail(String profileId, String email);
+        /** The owner's new verified email and its {@code hd}; null removes either. */
+        void owner(String profileId, String email, String hd);
 
         /** Sets the profile's identity unless it has one; the profile after. */
         Profile identity(String profileId, String identityId);
@@ -117,51 +132,77 @@ public final class Profiles {
         return clock;
     }
 
-    /** The ID of {@link #profile}'s profile, or null. */
+    /** The ID of {@link #profile}'s profile, for a verified {@code email} without {@code hd}; or null. */
     public String of(String issuer, String sub, String email) {
         return of(issuer, sub, email, null);
     }
 
-    /** The ID of {@link #profile}'s profile, or null. */
+    /** The ID of {@link #profile}'s profile, for a verified {@code email} without {@code hd}; or null. */
     public String of(String issuer, String sub, String email, String requested) {
-        var profile = profile(issuer, sub, email, requested);
+        var profile = profile(caller(issuer, sub, email), requested);
         return profile == null ? null : profile.id();
     }
 
-    /** {@link #profile(String, String, String, String)}, without an ID from the app. */
+    /** {@link #profile(Caller, String)}, without an ID from the app, for a verified {@code email}. */
     public Profile profile(String issuer, String sub, String email) {
-        return profile(issuer, sub, email, null);
+        return profile(caller(issuer, sub, email), null);
+    }
+
+    private static Caller caller(String issuer, String sub, String email) {
+        var claims = new HashMap<String, String>();
+        claims.put("email_verified", "true");
+        if (issuer != null) {
+            claims.put("iss", issuer);
+        }
+        if (sub != null) {
+            claims.put("sub", sub);
+        }
+        if (email != null) {
+            claims.put("email", email);
+        }
+        return Caller.of(claims);
     }
 
     /**
-     * The profile of the subject {@code sub} from {@code issuer}: the one it's
-     * linked to, or a new one it owns and is linked to from now on. The new
-     * one gets the ID {@code requested}, the app's own profile ID, if it's a
-     * {@link ProfileId#valid valid} one no profile has; otherwise a fresh
-     * one. Null without both.
+     * The profile of the caller's subject (its {@code iss} and {@code sub}):
+     * the one it's linked to, or a new one it owns and is linked to from now
+     * on. The new one gets the ID {@code requested}, the app's own profile
+     * ID, if it's a {@link ProfileId#valid valid} one no profile has;
+     * otherwise a fresh one. Null without a subject. Only a verified email
+     * is stored (as the owner's, or the link's); an owner's verified new
+     * email replaces the old, and an unverified one never does.
      */
-    public Profile profile(String issuer, String sub, String email, String requested) {
-        if (issuer == null || issuer.isBlank() || sub == null || sub.isBlank()) {
+    public Profile profile(Caller caller, String requested) {
+        if (!caller.hasSubject()) {
             return null;
         }
-        var subject = subject(issuer, sub);
-        var normalized = email == null || email.isBlank() ? null : email.strip().toLowerCase(Locale.ROOT);
+        var subject = caller.subject();
+        var email = caller.verifiedEmail();
+        var hd = email == null ? null : caller.hd();
         var now = clock.instant();
         var linked = store.linked(subject);
         if (linked != null) {
             // Also creates the profile if a link names one that doesn't exist.
             var profile = store.signedIn(linked, now);
-            if (subject.equals(profile.ownerSubject()) && normalized != null
-                    && !normalized.equals(profile.ownerEmail())) {
-                store.ownerEmail(linked, normalized);
-                profile = new Profile(profile.id(), profile.identityId(), subject, normalized);
+            if (!subject.equals(profile.ownerSubject())) {
+                return profile;
+            }
+            if (email != null && (!email.equals(profile.ownerEmail()) || !Objects.equals(hd, profile.ownerHd()))) {
+                store.owner(linked, email, hd);
+                return new Profile(profile.id(), profile.identityId(), subject, email, hd);
+            }
+            if (email == null && profile.ownerEmail() != null && caller.email() != null
+                    && caller.email().strip().equalsIgnoreCase(profile.ownerEmail())) {
+                // Kept before only verified emails were: the token says it isn't.
+                store.owner(linked, null, null);
+                return new Profile(profile.id(), profile.identityId(), subject, null, null);
             }
             return profile;
         }
-        var created = create(subject, normalized, requested, now);
+        var created = create(subject, email, hd, requested, now);
         // Two first sign-ins at once: the first link wins, the other reads it
         // (leaving its new profile unused).
-        if (store.link(subject, created, normalized, now)) {
+        if (store.link(subject, created, email, now)) {
             return store.profile(created);
         }
         return store.signedIn(store.linked(subject), now);
@@ -177,17 +218,23 @@ public final class Profiles {
      * A new profile, with an ID no other profile has: {@code requested} if
      * it's valid and free, so the app's profile becomes the subject's.
      */
-    private String create(String subject, String email, String requested, Instant now) {
-        if (ProfileId.valid(requested) && store.create(requested, subject, email, now)) {
+    private String create(String subject, String email, String hd, String requested, Instant now) {
+        if (ProfileId.valid(requested) && store.create(requested, subject, email, hd, now)) {
             return requested;
         }
         for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
             var id = ids.get();
-            if (store.create(id, subject, email, now)) {
+            if (store.create(id, subject, email, hd, now)) {
                 return id;
             }
         }
         throw new IllegalStateException("no free profile ID after " + ATTEMPTS + " attempts");
+    }
+
+    /** From the function's environment (see template.yaml). */
+    static Profiles fromEnvironment() {
+        return new Profiles(dynamoStore(Aws.dynamo(),
+                System.getenv("PROFILES_TABLE"), System.getenv("PROFILE_SUBJECTS_TABLE")));
     }
 
     /** The subjects table's index by profile. */
@@ -196,7 +243,7 @@ public final class Profiles {
     /**
      * Profiles in {@code profilesTable} ({@code id}, a {@link ProfileId},
      * {@code createdAt}, {@code lastSignInAt}, {@code ownerSubject},
-     * {@code ownerEmail}, {@code identityId}) and links in
+     * {@code ownerEmail}, {@code ownerHd}, {@code identityId}) and links in
      * {@code subjectsTable} ({@code subject}, {@code profileId}, {@code email},
      * {@code linkedAt}; indexed by {@code profileId}). Times are epoch
      * milliseconds.
@@ -204,7 +251,7 @@ public final class Profiles {
     static Store dynamoStore(DynamoDbClient dynamo, String profilesTable, String subjectsTable) {
         return new Store() {
             @Override
-            public boolean create(String id, String ownerSubject, String ownerEmail, Instant now) {
+            public boolean create(String id, String ownerSubject, String ownerEmail, String ownerHd, Instant now) {
                 var time = AttributeValue.fromN(Long.toString(now.toEpochMilli()));
                 var item = new HashMap<String, AttributeValue>();
                 item.put("id", AttributeValue.fromS(id));
@@ -213,6 +260,9 @@ public final class Profiles {
                 item.put("ownerSubject", AttributeValue.fromS(ownerSubject));
                 if (ownerEmail != null) {
                     item.put("ownerEmail", AttributeValue.fromS(ownerEmail));
+                }
+                if (ownerHd != null) {
+                    item.put("ownerHd", AttributeValue.fromS(ownerHd));
                 }
                 try {
                     dynamo.putItem(PutItemRequest.builder()
@@ -307,13 +357,32 @@ public final class Profiles {
             }
 
             @Override
-            public void ownerEmail(String profileId, String email) {
-                dynamo.updateItem(UpdateItemRequest.builder()
+            public void owner(String profileId, String email, String hd) {
+                var set = new ArrayList<String>();
+                var remove = new ArrayList<String>();
+                var values = new HashMap<String, AttributeValue>();
+                if (email == null) {
+                    remove.add("ownerEmail");
+                } else {
+                    set.add("ownerEmail = :email");
+                    values.put(":email", AttributeValue.fromS(email));
+                }
+                if (hd == null) {
+                    remove.add("ownerHd");
+                } else {
+                    set.add("ownerHd = :hd");
+                    values.put(":hd", AttributeValue.fromS(hd));
+                }
+                var expression = (set.isEmpty() ? "" : "SET " + String.join(", ", set))
+                        + (remove.isEmpty() ? "" : (set.isEmpty() ? "" : " ") + "REMOVE " + String.join(", ", remove));
+                var update = UpdateItemRequest.builder()
                         .tableName(profilesTable)
                         .key(Map.of("id", AttributeValue.fromS(profileId)))
-                        .updateExpression("SET ownerEmail = :email")
-                        .expressionAttributeValues(Map.of(":email", AttributeValue.fromS(email)))
-                        .build());
+                        .updateExpression(expression);
+                if (!values.isEmpty()) {
+                    update.expressionAttributeValues(values);
+                }
+                dynamo.updateItem(update.build());
             }
 
             @Override
@@ -348,11 +417,10 @@ public final class Profiles {
 
     private static Profile profileOf(Map<String, AttributeValue> item) {
         return new Profile(text(item, "id"), text(item, "identityId"), text(item, "ownerSubject"),
-                text(item, "ownerEmail").isEmpty() ? null : text(item, "ownerEmail"));
+                nullIfEmpty(text(item, "ownerEmail")), nullIfEmpty(text(item, "ownerHd")));
     }
 
-    private static String text(Map<String, AttributeValue> item, String name) {
-        var value = item.get(name);
-        return value == null || value.s() == null ? "" : value.s();
+    private static String nullIfEmpty(String value) {
+        return value.isEmpty() ? null : value;
     }
 }
