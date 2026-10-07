@@ -3848,3 +3848,27 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        within the screen; the add-device tests read the ID at the top; the
        Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
      - Specs: [Settings](settings.md), [Navigation](navigation.md).
+
+302. **Cloud sync split into parts, without a change in behaviour.**
+     (2026-10-07)
+     - Asked: split `lib/cloud/cloud_sync.dart` (one `CloudSync` class of
+       2252 lines) into cohesive parts without changing behaviour, keeping
+       its public API; and split `LiveSync._loop` if safe.
+     - Changed: `CloudSync` stays the public API and runs the passes;
+       its parts are `part of` the same library (they share its private
+       state): `_Pass` (`cloud_sync_pass.dart`), `_Fetcher`
+       (`cloud_sync_fetch.dart`), `_Uploader` (`cloud_sync_upload.dart`),
+       `_Recordings` (`cloud_sync_recordings.dart`), `_LiveBridge`
+       (`cloud_sync_live.dart`), `_CopyTracker` (`cloud_sync_copies.dart`)
+       and the key helpers (`cloud_sync_keys.dart`). Each part owns its
+       own state (damaged objects and wanted clips, uploads under way,
+       recording downloads, the live identity, the copy checks).
+       `CloudSession`, `CloudBackend` and `AwsCloudBackend` moved to
+       `cloud_backend.dart`, exported by `cloud_sync.dart`, so imports
+       don't change. `LiveSync._loop` now calls `_connectOnce`,
+       `_subscribe`, `_runScheduled` and `_runAlways`; its shared `_wake`
+       completer is unchanged.
+     - Tests: none changed; `flutter analyze` clean, `flutter test` and
+       `flutter build web` pass.
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Event copies](event-copies.md).
