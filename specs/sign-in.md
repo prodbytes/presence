@@ -150,7 +150,10 @@ there's no separate sign-in screen:
     devices and linked accounts' devices show. This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
-    long. Each ID is selectable, in `bodyLarge` (16 sp); "this device"
+    long. Each ID is selectable, in `bodyLarge` (16 sp); with access it's
+    in the accent color and a tap **shows the device's events**: the
+    sheet closes and Monitoring opens with the search set to the ID (see
+    [Navigation](navigation.md)); "this device"
     sits beside it, or under it when they don't fit on one line (at 320
     dp with a 2x system font). A device shows only once one of its
     events has synced here, and drops off when its events age out of

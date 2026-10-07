@@ -4004,3 +4004,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `flutter build web` pass.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
+
+309. **Device names lead to the device's events in Monitoring.**
+     (2026-10-07)
+     - Asked: when device names are clicked, navigate to the Monitoring
+       view with the search on that device name.
+     - Changed: every device name is a button (tooltip "Show this
+       device's events"): an event card's device (`EventDeviceTag`), the
+       device in an event's details (`EventDevice`), the account sheet's
+       device list (`ProfileDevices`) and the All grid's labels
+       (`DeviceGridCell.device`). A tap closes what's open over the tabs
+       (player, sheet, subject's screen), switches to Monitoring and sets
+       the events search to the device's ID through one app-level scope,
+       `ShowDeviceEvents` (`lib/device_events.dart`), put by the home
+       screen and passed on to dialogs and sheets with `capture`. The
+       search now matches device IDs (`eventSearchFields`), and a search
+       that is a device's whole ID shows only that device's events on the
+       timeline, the count and the subjects map
+       (`EventFilters.searchedDevice`, `showDevice`). That replaces the
+       separate device filter (`EventFilters.onlyDevice` and its chip,
+       `DeviceFilterChip`): the card's device tag now toggles the search.
+       Selectable IDs stay selectable (`SelectableText.onTap`). Without
+       access the names are plain and do nothing.
+     - Tests: new `device_events_test.dart` (account sheet, grid label,
+       event details, card; 320 dp; no access; the link's button and
+       tooltip); `events_filter_test.dart`, `events_search_test.dart`,
+       `subjects_test.dart` and `device_os_test.dart` moved from the
+       device chip to the search.
+     - Specs: [Events](events.md), [Monitoring](monitoring.md),
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [Camera screen](camera.md), [Clips](clips.md),
+       [Subjects](subjects.md).

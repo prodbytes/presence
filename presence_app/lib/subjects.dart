@@ -7,6 +7,7 @@ import 'camera_feeds.dart';
 import 'clips.dart';
 import 'config.dart';
 import 'dot.dart';
+import 'device_events.dart';
 import 'events.dart';
 import 'location/map_parts.dart';
 import 'theme.dart';
@@ -154,8 +155,8 @@ class _SubjectsBuilderState extends State<_SubjectsBuilder> {
 /// A map merging every subject's latest events, each subject in its own
 /// color (on the Monitoring tab), with the subject's name beside its newest
 /// dot. Tapping a dot opens its event; tapping a name opens the subject.
-/// Only [profileId]'s events show, and with a device picked
-/// ([EventFilters.onlyDevice]) only that device's.
+/// Only [profileId]'s events show, and with a device searched for
+/// ([EventFilters.searchedDevice]) only that device's.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -178,8 +179,8 @@ class SubjectsMap extends StatelessWidget {
   /// show, as in the timeline ([EventTimeline.ofProfile]).
   final String? profileId;
 
-  /// The timeline's filters: the map follows its device filter
-  /// ([EventFilters.onlyDevice]). Every device shows without them.
+  /// The timeline's filters: the map follows a search for a device
+  /// ([EventView.device]). Every device shows without them.
   final EventFilters? filters;
 
   /// Opens an event (a dot tapped on the map).
@@ -190,8 +191,10 @@ class SubjectsMap extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    // Not the search nor the system events: they don't change the map.
-    listenable: Listenable.merge([config, filters?.onlyDevice]),
+    // Not the system events: they don't change the map. The search does
+    // only when it's a device's ID ([EventView.device]); the subjects are
+    // worked out again only then (their events' list is kept otherwise).
+    listenable: Listenable.merge([config, filters?.search]),
     builder: (context, _) => _SubjectsBuilder(
       log: log,
       events: () => switch (filters) {
@@ -218,13 +221,16 @@ class SubjectsMap extends StatelessWidget {
               subject: subject,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => SubjectScreen(
-                    subjectId: subject.id,
-                    log: log,
-                    profileId: profileId,
-                    config: config,
-                    tiles: tiles,
-                    onOpenEvent: onOpenEvent,
+                  builder: (_) => ShowDeviceEvents.capture(
+                    context,
+                    SubjectScreen(
+                      subjectId: subject.id,
+                      log: log,
+                      profileId: profileId,
+                      config: config,
+                      tiles: tiles,
+                      onOpenEvent: onOpenEvent,
+                    ),
                   ),
                 ),
               ),
@@ -233,8 +239,11 @@ class SubjectsMap extends StatelessWidget {
         }
         return _SightingsMap(
           key: const Key('subjects-map'),
-          // Fitted again to the dots shown when the device filter changes.
-          fitKey: filters?.onlyDevice.value,
+          // Fitted again to the dots shown when the device searched for
+          // changes.
+          fitKey: filters
+              ?.viewOf(log, deviceId: deviceId, profileId: profileId)
+              .device,
           closeUp: true,
           dots: dots,
           labels: labels,

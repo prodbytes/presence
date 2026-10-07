@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import '../clips.dart' show ClipRequested;
+import '../device_events.dart';
 import '../events.dart';
 
 /// Another device's latest event, and its latest image, for the grid.
@@ -94,7 +95,12 @@ class DeviceGridCell extends StatelessWidget {
     this.deleteTooltip,
     this.deleteKey,
     this.presence,
+    this.device,
   });
+
+  /// The device shown: its label, tapped, shows its events
+  /// ([DeviceEventsLink]).
+  final String? device;
 
   /// Deletes the device shown: a small button, top left.
   final VoidCallback? onDelete;
@@ -128,6 +134,32 @@ class DeviceGridCell extends StatelessWidget {
           constraints.maxHeight >= deleteRoom.height,
     ),
   );
+
+  /// The label's text: tapped, it shows the [device]'s events; otherwise
+  /// it lets taps through to the cell.
+  Widget _label(String label) {
+    final text = Builder(
+      builder: (context) => Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelSmall,
+      ),
+    );
+    final device = this.device;
+    if (device == null) return IgnorePointer(child: text);
+    return DeviceEventsLink(
+      key: Key('device-label-$device'),
+      device: device,
+      builder: (context, onTap) => onTap == null
+          ? IgnorePointer(child: text)
+          : InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: onTap,
+              child: text,
+            ),
+    );
+  }
 
   Widget _build(BuildContext context, {required bool roomy}) {
     final scheme = Theme.of(context).colorScheme;
@@ -202,16 +234,7 @@ class DeviceGridCell extends StatelessWidget {
                     spacing: 4,
                     children: [
                       ?presence,
-                      Flexible(
-                        child: IgnorePointer(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                        ),
-                      ),
+                      Flexible(child: _label(label)),
                     ],
                   ),
                 ),
