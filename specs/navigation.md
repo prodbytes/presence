@@ -229,6 +229,32 @@ in the app bar**, which flip between full screens.
   (tap it to see only that device) (see
   [Monitoring](monitoring.md)).
   Swiping between tabs is off there.
+- **A device's name leads to its events, from anywhere.** Tapping a
+  device's ID or name (an event card's device, the device in an event's
+  details, the account sheet's device list, an All grid cell's label)
+  closes whatever is open over the tabs (the clip player, the account
+  sheet, a subject's screen), switches to **Monitoring** and sets its
+  events search to the device's ID, so the field shows open with it and
+  only that device's events show (see [Events](events.md)). The names
+  are buttons with the tooltip "Show this device's events", in the accent
+  color; selectable IDs stay selectable (a long press or a drag selects,
+  a tap goes). Without access (no Monitoring tab) they're plain text and
+  do nothing.
+  - One app-level scope, `ShowDeviceEvents`
+    ([lib/device_events.dart](../presence_app/lib/device_events.dart)),
+    put by the home screen around its tabs: its `onShow` pops back to the
+    tabs, `HomeTabs.animateTo(monitoring)` and
+    `EventFilters.showDevice`. Dialogs and sheets are routes outside the
+    home screen, so what opens them passes it on
+    (`ShowDeviceEvents.capture`: the clip player, the account sheet, a
+    subject's screen). Each name is a `DeviceEventsLink`.
+  - Test: `device_events_test.dart`: at 320 dp, tapping the device ID in
+    the account sheet, an All grid label, the device in an event's details
+    and an event card's device each end on Monitoring with the search
+    set to the device's ID and only its events (the count too), the sheet
+    or player closed and nothing overflowing; signed in without access the
+    IDs aren't tappable; the link is a button with the tooltip, and plain
+    selectable text outside a scope.
 - **Settings:** the settings as a normal screen (no longer a drawer),
   **full width**, opening on this device's location map, and ending
   with this device's and profile's IDs (one line each) (see

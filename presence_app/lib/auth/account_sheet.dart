@@ -4,6 +4,7 @@ import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
+import '../device_events.dart';
 import '../cloud/live_sync.dart';
 import '../connectivity.dart';
 import '../device_presence.dart';
@@ -61,14 +62,18 @@ class AccountButton extends StatelessWidget {
             showDragHandle: true,
             // Room to scroll a long device list.
             isScrollControlled: true,
-            builder: (_) => AccountSheet(
-              auth: auth,
-              sync: sync,
-              roles: roles,
-              profiles: profiles,
-              log: log,
-              deviceId: deviceId,
-              deleteDevice: deleteDevice,
+            // A device's ID shows its events ([ShowDeviceEvents]).
+            builder: (_) => ShowDeviceEvents.capture(
+              context,
+              AccountSheet(
+                auth: auth,
+                sync: sync,
+                roles: roles,
+                profiles: profiles,
+                log: log,
+                deviceId: deviceId,
+                deleteDevice: deleteDevice,
+              ),
             ),
           ),
         );
@@ -359,7 +364,8 @@ String exactTime(DateTime time) {
 
 /// The profile's ID and its devices, each with its operating system's
 /// icon and name and how long ago its latest event was (the exact time in
-/// a tooltip). IDs are selectable to copy.
+/// a tooltip). IDs are selectable to copy; a tapped device ID shows its
+/// events ([DeviceEventsLink]).
 class ProfileDevices extends StatelessWidget {
   const ProfileDevices({
     super.key,
@@ -460,10 +466,18 @@ class ProfileDevices extends StatelessWidget {
                             ),
                           },
                         ),
-                        SelectableText(
-                          device.id,
-                          key: Key('profile-device-id-${device.id}'),
-                          style: theme.textTheme.bodyLarge,
+                        DeviceEventsLink(
+                          device: device.id,
+                          builder: (context, onTap) => SelectableText(
+                            device.id,
+                            key: Key('profile-device-id-${device.id}'),
+                            onTap: onTap,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: onTap == null
+                                  ? null
+                                  : theme.colorScheme.primary,
+                            ),
+                          ),
                         ),
                         if (device.id == thisDevice)
                           Text('this device', style: muted),

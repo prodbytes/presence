@@ -99,6 +99,11 @@ profile (`CameraFeedsView.showAll`,
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
   player.
+- **A cell's label shows the device's events:** tapping the label (this
+  device's too) switches to Monitoring with the search set to the
+  device's ID (tooltip "Show this device's events"; see
+  [Navigation](navigation.md)); the rest of the cell keeps opening the
+  clip. Without access the label lets taps through to the cell.
 - **No delete button:** the cells don't delete devices; that's done from
   the account sheet's device list ([Device deletion](device-deletion.md)).
   A deleted device's cell goes.

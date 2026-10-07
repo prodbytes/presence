@@ -139,7 +139,10 @@ After Tags, below a divider, the details end with
   event".
 - **Device** (`EventDevice`): the recording device's operating system
   icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID
-  (selectable), "this device" for this one, and the OS name under it;
+  (selectable; with access, in the accent color, and a tap closes the
+  player and shows the device's events in Monitoring, the search set to
+  its ID: see [Navigation](navigation.md)), "this device" for this one,
+  and the OS name under it;
   signed in, its [presence dot](device-presence.md) before the ID (the
   devices are pinged while the details show, as in the device list).
 - **Delete event**: an outlined, error-colored button, signed in with the

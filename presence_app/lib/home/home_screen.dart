@@ -14,6 +14,7 @@ import '../clips.dart';
 import '../cloud/cloud_sync.dart';
 import '../config.dart';
 import '../delete_device.dart';
+import '../device_events.dart';
 import '../events.dart';
 import '../home_tabs.dart';
 import '../identity/add_device.dart';
@@ -240,6 +241,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _filters.focus(event.id);
   }
 
+  /// Shows [device]'s events ([ShowDeviceEvents]): closes any screen,
+  /// dialog or sheet over the tabs, switches to Monitoring and searches
+  /// for the device's ID. Only with access (the tab is there).
+  void _showDeviceEvents(String device) {
+    if (!_hasAccess) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    _tabs.animateTo(HomeTab.monitoring);
+    _filters.showDevice(device);
+  }
+
   bool get _signedIn => widget.auth.user != null;
 
   /// No sign-in configured ([ExecutionMode.dev]): everything but what's
@@ -424,8 +435,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     // Nothing shows until the auth API says how the system runs.
     if (widget.roles.state == AccessState.starting) {
       return const Scaffold(
@@ -433,6 +442,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       );
     }
     final joinStatus = _joinStatus();
+    // A tapped device name shows its events, anywhere ([ShowDeviceEvents]).
+    return ShowDeviceEvents(
+      onShow: _hasAccess ? _showDeviceEvents : null,
+      child: _scaffold(context, joinStatus),
+    );
+  }
+
+  Widget _scaffold(BuildContext context, JoinStatus? joinStatus) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       // The camera runs edge to edge, under the app bar.
       extendBodyBehindAppBar: true,

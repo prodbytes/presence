@@ -155,7 +155,7 @@ void main() {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final filter = ValueNotifier<String?>(null);
+    final filter = ValueNotifier('');
     addTearDown(filter.dispose);
     await tester.pumpWidget(
       MaterialApp(

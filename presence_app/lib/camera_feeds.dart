@@ -173,6 +173,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                         label: all
                             ? '${widget.deviceId ?? 'This device'} · live'
                             : null,
+                        device: all ? widget.deviceId : null,
                         presence: all
                             ? PresenceDot(
                                 key: const Key('presence-this-device'),
@@ -196,6 +197,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                           label:
                               '${latest.deviceId} · '
                               '${describeAge(now.difference(latest.time))}',
+                          device: latest.deviceId,
                           onTap: switch (latest.clip) {
                             final clip? when clip.clip.playable =>
                               () => showClipPlayer(context, clip),

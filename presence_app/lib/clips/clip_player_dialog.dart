@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../annotations.dart';
 import '../cameras/cameras.dart';
 import '../copies_badge.dart';
+import '../device_events.dart';
 import '../event_details.dart';
 import '../event_flags.dart';
 import '../events.dart';
@@ -28,15 +29,18 @@ Future<void> showClipPlayer(
     startAt: at,
     identify: identify,
   );
+  // Its device's name shows the device's events ([ShowDeviceEvents]).
+  final scoped = ShowDeviceEvents.capture(
+    context,
+    search == null ? player : EventSearchScope(search: search, child: player),
+  );
   return showDialog<void>(
     context: context,
     builder: (context) => Dialog(
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
-        child: search == null
-            ? player
-            : EventSearchScope(search: search, child: player),
+        child: scoped,
       ),
     ),
   );
