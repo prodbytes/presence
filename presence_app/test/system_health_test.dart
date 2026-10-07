@@ -530,6 +530,27 @@ void main() {
       expect(runWith(idle).failed, isFalse);
     });
 
+    test('every 30 s: idle with a countdown under 41 s', () async {
+      final scheduled = live(const LiveConfig(every: Duration(seconds: 30)));
+      start(scheduled);
+      await until(() => scheduled.state == LiveSyncState.idle);
+      final idle = SystemHealth.liveStatusOf(scheduled);
+      expect(idle.$1, '💤');
+      expect(idle.$2, matches(RegExp(r'^Live: idle · next in 0:[34]\d ')));
+      expect(idle.$2, contains('every 30 s'));
+    });
+
+    test('an admin\'s, set to every minute: always connected, ✅', () async {
+      final admin = live(const LiveConfig().effective(isAdmin: true));
+      start(admin);
+      await until(() => admin.state == LiveSyncState.connected);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      final status = SystemHealth.liveStatusOf(admin);
+      expect(admin.state, LiveSyncState.connected);
+      expect(status.$1, '✅');
+      expect(status.$2, startsWith('Live: connected'));
+    });
+
     test('a failed connection is a failure', () async {
       broker.refuse = 100;
       final failing = live(LiveConfig.always);

@@ -16,6 +16,7 @@ void main() {
     double width = 320,
     bool? logTabDefault = false,
     bool liveSync = false,
+    bool liveAdmin = false,
   }) async {
     tester.view.physicalSize = Size(width, 640);
     tester.view.devicePixelRatio = 1;
@@ -27,6 +28,7 @@ void main() {
             config: config,
             logTabDefault: logTabDefault,
             liveSync: liveSync,
+            liveAdmin: liveAdmin,
           ),
         ),
       ),
@@ -163,8 +165,8 @@ void main() {
     expect(find.text('Advanced', skipOffstage: false), findsNothing);
   });
 
-  testWidgets('Connect to live sync: a slider from Never to Always, every '
-      'minute by default; only with live sync', (tester) async {
+  testWidgets('Connect to live sync: a slider from Never to every 60 min, '
+      'every minute by default; only with live sync', (tester) async {
     await show(tester);
     expect(find.byKey(const Key('live-connect-slider')), findsNothing);
 
@@ -174,21 +176,61 @@ void main() {
     expect(find.text('Connect to live sync'), findsOneWidget);
     expect(find.text('Every 1 min'), findsOneWidget);
     final bar = find.descendant(of: slider, matching: find.byType(Slider));
-    expect(tester.widget<Slider>(bar).divisions, LiveConfig.steps - 1);
+    expect(tester.widget<Slider>(bar).divisions, LiveConfig.memberMaxStep);
 
-    // All the way left: Never; all the way right: Always.
+    // All the way left: Never; all the way right: every 60 min (Always
+    // is for admins).
     await tester.drag(bar, const Offset(-1000, 0));
     await tester.pumpAndSettle();
     expect(config.live, LiveConfig.never);
     expect(find.text('Never'), findsOneWidget);
     await tester.drag(bar, const Offset(1000, 0));
     await tester.pumpAndSettle();
-    expect(config.live, LiveConfig.always);
-    expect(find.text('Always'), findsOneWidget);
+    expect(config.live, const LiveConfig(every: Duration(minutes: 60)));
+    expect(find.text('Every 60 min'), findsOneWidget);
+    expect(find.text('Always'), findsNothing);
+  });
+
+  testWidgets('Connect to live sync: every 30 s the most often for members; '
+      'a saved Always shows as every 30 s', (tester) async {
+    config.update(
+      (x) => x.copyWith(live: const LiveConfig(every: Duration(seconds: 30))),
+    );
+    await show(tester, liveSync: true, logTabDefault: null);
+    final slider = find.byKey(const Key('live-connect-slider'));
+    await scrollTo(tester, slider);
+    expect(find.text('Every 30 s'), findsOneWidget);
     expect(
       tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
-      contains('Stays connected'),
+      contains('every 30 s'),
     );
+
+    config.update((x) => x.copyWith(live: LiveConfig.always));
+    await tester.pumpAndSettle();
+    expect(find.text('Every 30 s'), findsOneWidget);
+    expect(find.text('Always'), findsNothing);
+    // What's saved stays: an admin's again would be Always.
+    expect(config.live, LiveConfig.always);
+  });
+
+  testWidgets('Connect to live sync: admins are always connected, the '
+      'slider locked at Always', (tester) async {
+    await show(tester, liveSync: true, liveAdmin: true, logTabDefault: null);
+    final slider = find.byKey(const Key('live-connect-slider'));
+    await scrollTo(tester, slider);
+    expect(find.text('Always'), findsOneWidget);
+    final bar = find.descendant(of: slider, matching: find.byType(Slider));
+    expect(tester.widget<Slider>(bar).onChanged, isNull);
+    expect(tester.widget<Slider>(bar).value, LiveConfig.steps - 1);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
+      contains('Always connected for admins'),
+    );
+    await tester.drag(bar, const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    // Unchanged: every minute, the default, saved for when they're not.
+    expect(config.live, const LiveConfig());
+    expect(find.text('Always'), findsOneWidget);
   });
 
   for (final (width, scale) in [

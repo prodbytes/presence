@@ -510,6 +510,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   onMapHeld: (held) => setState(() => _mapHeld = held),
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
                   liveSync: widget.sync?.live?.enabled ?? false,
+                  liveAdmin: widget.roles.isAdmin,
                 ),
               ),
               if (_tabs.shows(HomeTab.log))

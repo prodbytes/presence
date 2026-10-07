@@ -79,12 +79,20 @@
   and every 3 hours. Stored as `history: {keepMs}`.
 - **Live sync** section, for everyone, shown when the build has
   [live sync](live-sync.md) (an IoT endpoint and cloud sync): **Connect to
-  live sync**, a slider of nine steps, **Never**, every **1, 2, 5, 10, 15,
-  30, 60 min**, **Always**, default **every 1 min**, shown as "Never",
-  "Every 1 min" … "Always", with a note on what it does. A change applies
-  at once. Stored as `live: {mode, everyMs}`. It's here, not in Advanced
-  (admins only), because it's about every user's devices and their data
-  use.
+  live sync**, a slider of **Never**, every **30 s**, every **1, 2, 5, 10,
+  15, 30, 60 min**, **Always**, default **every 1 min**, shown as "Never",
+  "Every 30 s", "Every 1 min" … "Always", with a note on what it does. A
+  change applies at once. Stored as `live: {mode, everyMs}`. It depends on
+  the roles (`SettingsView.liveAdmin`, see [live sync](live-sync.md#when-it-connects)):
+  - **members** slide from Never to every 60 min (every 30 s the most
+    often); a saved Always shows, and connects, as every 30 s;
+  - **admins** see **Always**, locked (the slider disabled), with the
+    note "Always connected for admins, so this device is always reachable:
+    other devices' events arrive within a second." Their saved setting is
+    kept for if they stop being admins.
+
+  It's here, not in Advanced (admins only), because it's about every
+  user's devices and their data use.
 - **Advanced** section, for admins only (everyone in DEV): **Show the Log
   tab**, on by default in DEV and off otherwise. Stored as `log: {show}`,
   unset until flipped (see [Log](log.md)).
@@ -120,7 +128,8 @@
     events arrive with each sync; ✅ connected (the tooltip counts the
     events received and sent), or set and waiting for the first sync; ⏳
     connecting; 💤 idle between scheduled connections (the tooltip: "idle
-    · next in 0:42 (every 1 min; …)"); ❌ the connection failed (the
+    · next in 0:42 (every 1 min; …)", or "every 30 s"); admins, always
+    connected, show ✅; ❌ the connection failed (the
     error; it retries, and the bucket still syncs everything). Idle and
     off aren't failures;
   - when the API didn't answer, or is older and doesn't report settings,

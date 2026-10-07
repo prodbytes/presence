@@ -4105,3 +4105,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
        [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
        [Device location](device-location.md), [README](README.md).
+
+314. **Live sync by role: admins always connected, others every 30 s at
+     most.** (2026-10-07)
+     - Asked: let user roles have different limits on **Connect to live
+       sync**: free and premium users default to every 1 min, at most
+       every 30 s; admins stay connected.
+     - Changed: the app can't tell free from premium users (both are
+       members, `presence_user`; vouchers only grant roles, and payment
+       isn't built), so every non-admin user gets the same rules. A
+       **30 s** step joins the slider (Never, every 30 s, 1, 2, 5, 10,
+       15, 30, 60 min, Always: ten steps). How live sync connects is
+       `LiveConfig.effective(isAdmin:)` of the saved setting and the
+       roles: **admins** (`presence_admin`, so roots too) are always
+       connected, whatever is saved; **members** connect as saved, but
+       Always (or anything under 30 s) becomes every 30 s, and their
+       slider stops at every 60 min. The app applies it at start, on each
+       change of the setting, and on each change of the roles (sign-in,
+       sign-out, a role granted or taken); the saved setting isn't
+       rewritten, so a former admin gets their own choice back (clamped).
+       For admins the slider shows Always, locked, with "Always connected
+       for admins…".
+     - Tests: `effective` for both; the 30 s step and label; a scheduled
+       connection every 30 s with the real timings (3 s drain, 30–40 s
+       waits, the same persistent session); the slider's range for
+       members, a saved Always shown as every 30 s, the locked slider for
+       admins; the app switching live when the roles change; the Live
+       check's ✅ for an admin and its 30 s countdown.
+     - Specs: [Live sync](live-sync.md), [Settings](settings.md),
+       [Configuration](configuration.md), [Membership](membership.md).

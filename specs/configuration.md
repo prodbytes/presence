@@ -13,7 +13,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `recognition` (`RecognitionConfig`) | `enabled` (on), `objects` (on), `autoTag` (85 %, 30–95 % in 5 % steps): below it, from `askFloor` (30 %), it asks ([recognition](recognition.md)); the old `ask` field is ignored |
 | `log` (`LogConfig`) | `show` (unset: follows the execution mode): the [Log](log.md) tab |
 | `history` (`HistoryConfig`) | `keep` (14 days, 1–90 days in 1-day steps): events older than this are deleted from the device ([event retention](event-retention.md)) |
-| `live` (`LiveConfig`) | `mode` (`never`, `scheduled` or `always`; scheduled) and `every` (1 min; 1, 2, 5, 10, 15, 30 or 60 min, a stored value snapping to the nearest): **Connect to live sync** ([live sync](live-sync.md)); the slider's steps are Never, the intervals, Always (`LiveConfig.ofStep`, `step`). Missing in older records: the default |
+| `live` (`LiveConfig`) | `mode` (`never`, `scheduled` or `always`; scheduled) and `every` (1 min; 30 s, 1, 2, 5, 10, 15, 30 or 60 min, a stored value snapping to the nearest): **Connect to live sync** ([live sync](live-sync.md)); the slider's steps are Never, the intervals, Always (`LiveConfig.ofStep`, `step`). What's stored is the user's choice; how live sync connects also depends on the roles (`LiveConfig.effective`: admins always, others at most every 30 s), and that is never written back. Missing in older records: the default |
 
 - Each group owns its defaults and limits. `copyWith` clamps values into
   range. Groups and the whole config have value equality.
