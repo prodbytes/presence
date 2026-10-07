@@ -8,7 +8,7 @@ import '../clips.dart' show ClipTrigger;
 import '../config.dart';
 
 /// Whether an automatic clip (motion, the schedule) can be taken now, shown
-/// beside the Clip button. Every clip, whatever took it, starts the
+/// by the Clip button's color. Every clip, whatever took it, starts the
 /// cooldown; the Clip button is never blocked by it.
 enum ClipReadinessState {
   /// No open camera.
@@ -33,8 +33,9 @@ class ClipReadiness {
     this.recording = false,
   });
 
-  /// During [ClipReadinessState.cooldown]: the latest clip's "after" part
-  /// is still being recorded.
+  /// Ready or in the cooldown: the latest clip's "after" part is still
+  /// being recorded (with automatic clips off there's no cooldown, but
+  /// the Clip button still shows the saving).
   final bool recording;
 
   final ClipReadinessState state;

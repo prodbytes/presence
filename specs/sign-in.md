@@ -78,7 +78,7 @@ there's no separate sign-in screen:
   sign-in at all, and everything below about signing in doesn't apply.
 - **Signed out (RBAC):** the anonymous user (`presence_anonymous`) may only
   sign in. The camera shows full screen, always recording as
-  usual, with **no buttons on it** (no Flip, Clip or readiness), and the
+  usual, with **no buttons on it** (no view, Flip or Clip button), and the
   **navigation is hidden**: the app bar has only
   **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
@@ -134,8 +134,8 @@ there's no separate sign-in screen:
     them.
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
-- **Signed in as a `presence_user`:** all the buttons: the camera's Flip, Clip and
-  readiness, the Camera / Events / Settings tabs and
+- **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
+  (with its readiness colors), the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email,
   this device's **connectivity**, the [cloud sync](cloud-sync.md) status,

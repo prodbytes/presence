@@ -339,14 +339,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return status;
   }
 
-  /// The message over the camera, a pill after the readiness pill, for
+  /// The message over the camera, a pill bottom left, for
   /// [HomeScreen.messageFor].
   late final CameraMessages _messages;
 
-  /// Shows [message]: on the Camera tab as a pill after the readiness one,
-  /// so nothing over the camera moves or is covered; a newer message
-  /// replaces it. On the other tabs, a snackbar if [elsewhere], else
-  /// nothing.
+  /// Shows [message]: on the Camera tab as a pill bottom left, so nothing
+  /// over the camera moves or is covered; a newer message replaces it. On
+  /// the other tabs, a snackbar if [elsewhere], else nothing.
   void _showMessage(CameraMessage message, {bool elsewhere = false}) {
     if (!_onCamera) {
       if (elsewhere) {
@@ -398,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ClipTrigger.manual => 'Clip started',
       ClipTrigger.all => 'Capture all',
     };
-    // After any clip, the readiness pill carries the cooldown.
+    // After any clip, the Clip button carries the cooldown.
     _showMessage(
       CameraMessage(
         icon: event.icon,
@@ -539,8 +538,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
           // Bottom left, across from Flip and Clip: a failed health check,
-          // the battery, whether a clip now would be complete, and after it
-          // the latest message. Signed out, only the message.
+          // the battery, and after it the latest message. Signed out, only
+          // the message.
           if (_onCamera && (_hasAccess || _messages.current != null))
             CameraStatus(
               rig: widget.rig,
