@@ -19,7 +19,8 @@ the end of its details ([One event](#one-event)).
   [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)), clear of
   the "Asked for a fresh grab" spinner (top right) and the label with its
   [presence dot](device-presence.md) (bottom). A cell smaller than 96 x
-  84 dp (`_Cell.deleteRoom`, many devices on a small phone) leaves the
+  84 dp (`DeviceGridCell.deleteRoom`,
+  [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart), many devices on a small phone) leaves the
   button out rather than overlap them; the device list still deletes.
   Its cell goes once the device is deleted.
 - Both ask first, in a dialog ([delete_device.dart](../presence_app/lib/delete_device.dart),
