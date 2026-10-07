@@ -17,20 +17,14 @@ class EventCopiesScope extends InheritedNotifier<EventCopies> {
 }
 
 /// How many copies of [event] there are, small and quiet: an icon and
-/// "3 copies" ("1 copy — not uploaded yet" for one held only here), with
-/// the holders in its tooltip ("This device, Cloud, pixel_ab12"; with live
-/// sync off, that other devices' copies are unknown). [detailed] (the
-/// event's details): the holders are listed after the count too. Nothing
-/// without an [EventCopiesScope].
+/// "3 copies", or "Not synced" when it's held nowhere but here, with the
+/// holders in its tooltip and screen-reader label ("This device, Cloud,
+/// pixel_ab12"; with live sync off, that other devices' copies are
+/// unknown). Nothing without an [EventCopiesScope].
 class EventCopiesBadge extends StatelessWidget {
-  const EventCopiesBadge({
-    super.key,
-    required this.event,
-    this.detailed = false,
-  });
+  const EventCopiesBadge({super.key, required this.event});
 
   final AppEvent event;
-  final bool detailed;
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +37,6 @@ class EventCopiesBadge extends StatelessWidget {
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;
     final style = theme.textTheme.labelSmall?.copyWith(color: color);
-    final text = detailed && summary.holders.isNotEmpty
-        ? '${summary.label}: ${summary.holders.join(', ')}'
-        : summary.label;
     return Tooltip(
       message: summary.tooltip,
       child: Semantics(
@@ -59,7 +50,9 @@ class EventCopiesBadge extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  summary.count > 1
+                  !summary.synced
+                      ? Icons.cloud_off_outlined
+                      : summary.count > 1
                       ? Icons.file_copy_outlined
                       : Icons.insert_drive_file_outlined,
                   size: 14,
@@ -68,10 +61,10 @@ class EventCopiesBadge extends StatelessWidget {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    text,
+                    summary.label,
                     key: Key('event-copies-text-${event.id}'),
                     overflow: TextOverflow.ellipsis,
-                    maxLines: detailed ? 2 : 1,
+                    maxLines: 1,
                     style: style,
                   ),
                 ),

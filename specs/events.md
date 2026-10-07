@@ -103,12 +103,12 @@
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.
 - **Copies.** On the same row, at the right, each card says how many
-  copies of the event there are (`EventCopiesBadge`): a small file icon
-  and "3 copies", "1 copy", or "1 copy — not uploaded yet" for one held
-  only on this device; its tooltip names the holders ("This device,
-  Cloud, loud_shy_kettle"), and adds that other devices' copies are
-  unknown while live sync is off. The clip player (the event's details)
-  shows the count with the holders under its title. It fits 320 dp. See
+  copies of the event there are (`EventCopiesBadge`): a small icon and
+  "3 copies" or "1 copy", or "Not synced" for one held nowhere but this
+  device (not in the cloud, no other device); its tooltip names the
+  holders ("This device, Cloud, loud_shy_kettle"), and adds that other
+  devices' copies are unknown while live sync is off. The clip player
+  (the event's details) shows the same label under its title. It fits 320 dp. See
   [Event copies](event-copies.md).
 - **Every device, by default; tap an event's device to see only it.**
   Above each event's card, small and quiet, is the **device it was taken
@@ -201,9 +201,9 @@
   is saved with the event and syncs in its [JSON](data-formats.md), so
   other devices show it too; events saved before it have none, and keep
   none.
-- **Deleted events show nowhere.** Deleting a device
-  ([Device deletion](device-deletion.md)) gives each of its events
-  `deletedAt` (`AppEvent.deletedAt`): a soft delete. The records stay in
+- **Deleted events show nowhere.** Deleting a device, or one event from
+  its details ([Device deletion](device-deletion.md)), gives each of
+  those events `deletedAt` (`AppEvent.deletedAt`): a soft delete. The records stay in
   storage and the cloud, so the deletion syncs, but deleted events are kept
   out of `EventLog` (not restored at launch, not added when fetched, taken
   out when a deleted copy arrives), so the timeline, its count, search and

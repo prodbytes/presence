@@ -496,7 +496,7 @@ In [presence_infra/](../presence_infra):
 - A reconciliation still encodes and hashes every stored event and clip
   record (letting frames through as it goes), once an hour.
 - A clip deleted on one device isn't deleted elsewhere: retention deletes
-  per device, and [device deletion](device-deletion.md) only hides events
+  per device, and [deleting a device or an event](device-deletion.md) only hides events
   (`deletedAt`), synced, without deleting anything.
 - Of a changed event, only its tags, suggestions and object tags are taken
   on: other fields another device changes (such as `clipState`) aren't,

@@ -29,6 +29,7 @@ import 'cloud/s3.dart';
 import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'delete_device.dart';
+import 'event_details.dart';
 import 'cameras/cameras.dart';
 import 'dot.dart';
 import 'events.dart';
@@ -341,6 +342,21 @@ class _PresenceAppState extends State<PresenceApp> {
     return deleted;
   }
 
+  /// Deletes one event of the signed-in profile on every device
+  /// (`Persistence.deleteEvent`); nothing without a profile (so not in
+  /// DEV).
+  Future<bool> _deleteEvent(AppEvent event) async {
+    final profile = _roles.profile;
+    if (profile == null) return false;
+    final deleted = await _persistence.deleteEvent(
+      event.id,
+      profileId: profile,
+    );
+    // Nor is it counted among the copies any more.
+    if (deleted) _copies.forget(event.id);
+    return deleted;
+  }
+
   void _joinHandled() {
     clearLaunchQuery();
     setState(() => _join = null);
@@ -491,39 +507,54 @@ class _PresenceAppState extends State<PresenceApp> {
         recognizer: _recognizer,
         child: EventCopiesScope(
           copies: _copies,
-          child: MaterialApp(
-            title: AppVersion.title,
-            debugShowCheckedModeBanner: false,
-            theme: gruvboxSoftDarkTheme(),
-            home: switch (_consented) {
-              // Nothing shows until the device's consent is known.
-              null => const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(
-                    key: Key('checking-consent'),
+          // The end of an event's details (the clip player): its map, its
+          // device and deleting it, signed in with a profile.
+          child: ListenableBuilder(
+            listenable: _roles,
+            builder: (context, app) => EventDetailsScope(
+              profileId: _roles.profile,
+              thisDevice: _deviceId,
+              live: _sync?.live,
+              log: _log,
+              tiles: widget.mapTiles,
+              deleteEvent: _deleteEvent,
+              now: widget.now,
+              child: app!,
+            ),
+            child: MaterialApp(
+              title: AppVersion.title,
+              debugShowCheckedModeBanner: false,
+              theme: gruvboxSoftDarkTheme(),
+              home: switch (_consented) {
+                // Nothing shows until the device's consent is known.
+                null => const Scaffold(
+                  body: Center(
+                    child: CircularProgressIndicator(
+                      key: Key('checking-consent'),
+                    ),
                   ),
                 ),
-              ),
-              false => ConsentScreen(onAgree: _agree),
-              true => HomeScreen(
-                log: _log,
-                rig: _rig,
-                config: _config,
-                auth: _auth,
-                roles: _roles,
-                membership: _membership,
-                profiles: _profiles,
-                sync: _sync,
-                deviceId: _deviceId,
-                location: _location,
-                mapTiles: widget.mapTiles,
-                battery: widget.battery,
-                join: _join,
-                onJoinHandled: _joinHandled,
-                tabMemory: widget.tabMemory,
-                deleteDevice: _deleteDevice,
-              ),
-            },
+                false => ConsentScreen(onAgree: _agree),
+                true => HomeScreen(
+                  log: _log,
+                  rig: _rig,
+                  config: _config,
+                  auth: _auth,
+                  roles: _roles,
+                  membership: _membership,
+                  profiles: _profiles,
+                  sync: _sync,
+                  deviceId: _deviceId,
+                  location: _location,
+                  mapTiles: widget.mapTiles,
+                  battery: widget.battery,
+                  join: _join,
+                  onJoinHandled: _joinHandled,
+                  tabMemory: widget.tabMemory,
+                  deleteDevice: _deleteDevice,
+                ),
+              },
+            ),
           ),
         ),
       ),

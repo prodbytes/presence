@@ -3783,7 +3783,52 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          [Clips](clips.md), [Subject recognition](recognition.md),
          [Android](android.md).
 
-299. **The device and profile IDs first in Settings, in two columns.**
+299. **The copies label: just "X copies" or "Not synced".** (2026-10-07)
+     - Asked: on the events' copy label, just say "X copies", or "Not
+       synced" for zero copies.
+     - Changed:
+       - The label is "Not synced" when no copy is held beyond this
+         device (not in the cloud, no other device holds it; it was "1
+         copy — not uploaded yet"), and otherwise "N copies" counting
+         every holder, this device included ("1 copy" in the singular).
+         A not-synced event shows a cloud-off icon.
+       - The event details (clip player) show the same label; the
+         holders, listed after the count there before, are in the tooltip
+         and screen-reader label, as on the cards (with the live-sync-off
+         note).
+       - Tests: the label for cloud-only, received-not-uploaded, here-only
+         and unknown events; the not-synced card's tooltip; the details'
+         label, tooltip and semantics.
+       - Specs: [Event copies](event-copies.md), [Events](events.md).
+
+300. **Event details: map, device and Delete event.** (2026-10-07)
+     - Asked (voice): in the event detail page, at the end, show the
+       event's map and device, and a delete button that deletes the event
+       from all devices.
+     - Changed: the clip player (the event's details) ends, after Tags,
+       with **Where** (a small, still 140 dp map of the event's location
+       with a pin, its coordinates and how the position was found; "No
+       location for this event" without one), **Device** (the recording
+       device's OS icon, ID, "this device" for this one, OS name, and
+       signed in its presence dot), and, signed in with the event's
+       profile, an error-colored **Delete event** button. It asks "Delete
+       this event? It will be hidden on every device."; Delete closes the
+       player and a snack bar says "Event deleted on every device". New
+       `Persistence.deleteEvent(id, profileId:)` soft-deletes the event
+       and the "Is this Rex?" suggestions about its clip the way device
+       deletion does (`deletedAt`, out of the event log, uploaded deleted
+       and published over live sync; a deleted copy wins and isn't
+       resurrected), sharing its code (`_softDelete`); the event's copies
+       are forgotten. Any device's event can be deleted, this one's too.
+       Not in DEV (no profile), as device deletion. New
+       `lib/event_details.dart` (`EventDetailsScope`, `EventMap`,
+       `EventDevice`, `DeleteEventDialog`) and
+       `test/event_details_test.dart`. Specs: [Clips](clips.md),
+       [Events](events.md), [Device deletion](device-deletion.md),
+       [Data formats](data-formats.md), [Cloud sync](cloud-sync.md),
+       [Event copies](event-copies.md).
+
+301. **The device and profile IDs first in Settings, in two columns.**
      (2026-10-07)
      - Asked: "On the management page, let device ID and profile ID be the
        first thing on the page"; then "make it two columns for the ids to
