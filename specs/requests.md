@@ -4005,7 +4005,47 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
 
-309. **A connectivity indicator in the account sheet.** (2026-10-07)
+309. **Device and profile IDs back to one column, last in Settings.**
+     (2026-10-07)
+     - Asked: move the device ID and profile ID back to one column, and
+       make them the last thing on the Settings page.
+     - Changed: the IDs left the top of Settings (where #238 put them in
+       two columns) for the very end, after the version, the health line
+       and Add a device: one centred line each, a bold label then the
+       selectable ID (`bodyMedium`, `onSurfaceVariant`), the ID wrapping
+       under its label when the line doesn't fit. Location is now the
+       first thing on the page. The two-column layout (`_Ids`) is gone.
+     - Tests: the settings test checks the IDs are the list's last child,
+       below the health line and Add a device, one column, inside the
+       screen with no overflow at 320 and 1280 dp, 1x and 2x text;
+       `add_device_test` checks Add a device sits between the health line
+       and the IDs and scrolls to the IDs to read them.
+     - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
+       [Add a device](add-device.md).
+
+310. **No delete button in the Camera tab's All grid.** (2026-10-07)
+     - Asked: "No need for the delete device button in the camera view;
+       only on the profile view is fine."
+     - Changed: the All grid's cells no longer have a delete button.
+       `DeviceGridCell` lost `onDelete`, `deleteTooltip`, `deleteKey` and
+       `deleteRoom` (and its size check); `CameraFeedsView` lost
+       `onDeleteDevice`, and `HomeScreen` no longer wires it. Devices are
+       still deleted from the account sheet's device list, unchanged.
+     - Tests: `device_delete_test.dart`'s two grid delete tests replaced
+       by one asserting no cell has a delete button; the account sheet's
+       deletion tests are unchanged.
+     - Specs: [Device deletion](device-deletion.md),
+       [Camera screen](camera.md).
+
+311. **About: Raspberry Pi, and no version.** (2026-10-07)
+     - Asked: on the About paragraph, add the Raspberry Pi and remove the
+       version.
+     - Changed: the paragraph now reads "a phone, tablet, laptop or
+       Raspberry Pi"; the open-source line is just "Presence is open
+       source:" (the version stays at the bottom of Settings). Specs:
+       [About](about.md).
+
+312. **A connectivity indicator in the account sheet.** (2026-10-07)
      - Asked: add a connectivity indicator to the profile page (the
        account sheet). The unattended phone showed as offline on other
        devices because live sync wasn't set up in its build, and nothing
