@@ -3800,3 +3800,30 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          and unknown events; the not-synced card's tooltip; the details'
          label, tooltip and semantics.
        - Specs: [Event copies](event-copies.md), [Events](events.md).
+
+300. **Event details: map, device and Delete event.** (2026-10-07)
+     - Asked (voice): in the event detail page, at the end, show the
+       event's map and device, and a delete button that deletes the event
+       from all devices.
+     - Changed: the clip player (the event's details) ends, after Tags,
+       with **Where** (a small, still 140 dp map of the event's location
+       with a pin, its coordinates and how the position was found; "No
+       location for this event" without one), **Device** (the recording
+       device's OS icon, ID, "this device" for this one, OS name, and
+       signed in its presence dot), and, signed in with the event's
+       profile, an error-colored **Delete event** button. It asks "Delete
+       this event? It will be hidden on every device."; Delete closes the
+       player and a snack bar says "Event deleted on every device". New
+       `Persistence.deleteEvent(id, profileId:)` soft-deletes the event
+       and the "Is this Rex?" suggestions about its clip the way device
+       deletion does (`deletedAt`, out of the event log, uploaded deleted
+       and published over live sync; a deleted copy wins and isn't
+       resurrected), sharing its code (`_softDelete`); the event's copies
+       are forgotten. Any device's event can be deleted, this one's too.
+       Not in DEV (no profile), as device deletion. New
+       `lib/event_details.dart` (`EventDetailsScope`, `EventMap`,
+       `EventDevice`, `DeleteEventDialog`) and
+       `test/event_details_test.dart`. Specs: [Clips](clips.md),
+       [Events](events.md), [Device deletion](device-deletion.md),
+       [Data formats](data-formats.md), [Cloud sync](cloud-sync.md),
+       [Event copies](event-copies.md).

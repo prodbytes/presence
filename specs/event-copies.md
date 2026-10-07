@@ -54,7 +54,8 @@ restore window at each full fetch (the first pass after a sign-in or
 restart, then hourly), which also sends acks not sent before (such as
 while live sync was off). Deleted events (`deletedAt`, see [deleting a
 device](devices-users-places.md)) are neither counted nor acked, are
-forgotten, and show no count. Deleting a device also drops it as a holder
+forgotten, and show no count (deleting one event from its details
+forgets it at once, `EventCopies.forget`). Deleting a device also drops it as a holder
 of every event (`EventCopies.forgetDevice`); it counts again only if it
 acks again.
 

@@ -48,13 +48,15 @@ their data.
   profile from the account sheet's device list or its All grid cell, after
   a confirmation: its events move to a deleted state (`deletedAt`), synced,
   and are hidden on every device; media stay; this device can't be
-  deleted, and a device that records again reappears.
+  deleted, and a device that records again reappears. One event is
+  deleted the same way from the end of its details (the clip player).
 - [Devices, users and places](devices-users-places.md): the device ID
   (`automatic_paranoid_gadget`) and user ID on every event, and a sign-in
   taking over the events recorded signed out; places (device groups) are
   defined, not built.
 - [Clips](clips.md): before + after clips, always-on recording on web, and
-  tagging people and pets by clicking them on the video, or with Auto.
+  tagging people and pets by clicking them on the video, or with Auto;
+  the details end with the event's map, its device and Delete event.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every
   3 hours (30 min to a day, in Settings, with a countdown).
