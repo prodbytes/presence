@@ -1,24 +1,10 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- First the device and profile IDs; then the sections, in order:
-  Location, Camera, Motion, Clips, Scheduled clips, Recognition, History,
-  Live sync (with live sync in the build), Advanced (admins only),
-  Subjects; then the version, health line and Add a device.
-- **The device and profile IDs, always, first**: the very top of the
-  page, above Location (the first section), seen without scrolling. Quiet
-  (`onSurfaceVariant`) and the same size as the version (`bodyMedium`,
-  14 sp), each a bold label over its ID, the IDs selectable to copy. **Two
-  columns**, Device left and Profile right, each ID wrapping within its
-  column; they **stack** (Profile under Device) only when a column would
-  be narrower than **120 dp at 1x text**, scaled with the system font
-  (240 dp at 2x). At 320 dp a column is 136 dp: two columns at 1x,
-  stacked at 2x; nothing overflows.
-  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
-    places](devices-users-places.md)), or *loading…* until it's known;
-  - **Profile** `huge_wavy_darter`, the signed-in account's
-    [profile](profiles.md), the same on every device; *none until signed
-    in* signed out, in DEV, and until the auth API answers a sign-in.
+- The sections, in order: Location, Camera, Motion, Clips, Scheduled
+  clips, Recognition, History, Live sync (with live sync in the build),
+  Advanced (admins only), Subjects; then the version, the health line,
+  Add a device, and last the device and profile IDs.
 - **Sliders change their setting when let go.** While one is dragged,
   its thumb and the value beside its name follow the finger; the setting
   changes once, on release (or on each keyboard or screen-reader step), so
@@ -107,8 +93,8 @@
   latest events its screen lists and maps, and each subject's on the
   Subjects map (see [Subjects](subjects.md)). Stored values are kept
   (raised to 10 if below).
-- **The build's version** is at the very bottom, centred, quiet
-  (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the top): only
+- **The build's version** is after the sections, centred, quiet
+  (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the bottom): only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
   as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
@@ -144,10 +130,21 @@
     history.
   - While a check fails, a warning icon pill shows over the camera too
     ([Navigation](navigation.md)).
-- **Add a device**, the last thing, under the health line, shown in place
+- **Add a device**, under the health line, shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
   user (see [Add a device](add-device.md)).
+- **The device and profile IDs, always, the last thing** on the page,
+  under Add a device, in **one column**: one centred line each, a bold
+  label then the ID, selectable to copy. Quiet (`onSurfaceVariant`) and
+  the same size as the version (`bodyMedium`, 14 sp). When a line doesn't
+  fit (e.g. 320 dp at 2x text), the ID wraps under its label; nothing
+  overflows.
+  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
+    places](devices-users-places.md)), or *loading…* until it's known;
+  - **Profile** `huge_wavy_darter`, the signed-in account's
+    [profile](profiles.md), the same on every device; *none until signed
+    in* signed out, in DEV, and until the auth API answers a sign-in.
 - **All settings are persistent, per device:** the whole `PresenceConfig`
   (clip lengths, brightness, the motion switch, threshold and cooldown,
   the schedule switch and interval, and the events per subject) is saved
