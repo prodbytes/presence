@@ -4036,3 +4036,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        deletion tests are unchanged.
      - Specs: [Device deletion](device-deletion.md),
        [Camera screen](camera.md).
+
+311. **About: Raspberry Pi, and no version.** (2026-10-07)
+     - Asked: on the About paragraph, add the Raspberry Pi and remove the
+       version.
+     - Changed: the paragraph now reads "a phone, tablet, laptop or
+       Raspberry Pi"; the open-source line is just "Presence is open
+       source:" (the version stays at the bottom of Settings). Specs:
+       [About](about.md).
