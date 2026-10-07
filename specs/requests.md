@@ -4044,3 +4044,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Raspberry Pi"; the open-source line is just "Presence is open
        source:" (the version stays at the bottom of Settings). Specs:
        [About](about.md).
+
+312. **A connectivity indicator in the account sheet.** (2026-10-07)
+     - Asked: add a connectivity indicator to the profile page (the
+       account sheet). The unattended phone showed as offline on other
+       devices because live sync wasn't set up in its build, and nothing
+       on it said so.
+     - Changed: under the email, a `ConnectivityIndicator`
+       ([lib/connectivity.dart](../presence_app/lib/connectivity.dart))
+       for this device: a dot and a headline, green only when the auth
+       API answers, cloud sync is set and live sync is connected; amber
+       when degraded (checking, connecting, idle with the countdown to
+       the next connection, live sync off or "isn't set up in this
+       build", cloud sync not set up); red when the API is unreachable
+       ("Offline: can't reach the server"), cloud sync failed or live
+       sync failed. It reuses the health checks
+       (`SystemHealth.statusOf` / `liveStatusOf`), asks the auth API
+       again when the sheet opens and on the health panel's interval,
+       and taps open each check's details. This device's presence dot
+       in the devices list now takes the same color and reason
+       (`ProfileDevices.thisPresence`). Cloud sync's routine 15 s
+       syncing passes stay green rather than flicker amber.
+     - Tests: new `connectivity_test.dart`: not set up, connected,
+       idle with a running countdown, connecting, failed (with the
+       error in the details), the API down then back, live updates, and
+       the account sheet at 320 dp with a 2x font (this device's dot
+       following the row). `flutter analyze` clean, `flutter test` and
+       `flutter build web` pass.
+     - Specs: [Sign-in](sign-in.md) (account sheet),
+       [Device presence](device-presence.md), [Live sync](live-sync.md).
