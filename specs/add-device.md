@@ -7,7 +7,8 @@ device of the same user
 
 ## Sharing (Settings)
 
-- **The last thing in Settings**, under the health line, shown in place
+- **Near the end of Settings**, under the health line and above the
+  device and profile IDs, shown in place
   (no dialog) once the device ID is known: an **Add a device** title with a
   QR-code icon, then
   - a **QR code** of the link, 200 px, dark on white with a quiet zone;

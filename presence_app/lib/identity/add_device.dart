@@ -5,10 +5,11 @@ import 'package:share_plus/share_plus.dart';
 
 import 'join_link.dart';
 
-/// The last thing in Settings: a QR code of [link] ([JoinLink.build]), to
-/// scan with another device, the link itself, and buttons to share or copy
-/// it. The other device opens Presence (the app, where it's installed and
-/// handles the link, or else the site) as a new device of the same user.
+/// Near the end of Settings (above the IDs): a QR code of [link]
+/// ([JoinLink.build]), to scan with another device, the link itself, and
+/// buttons to share or copy it. The other device opens Presence (the app,
+/// where it's installed and handles the link, or else the site) as a new
+/// device of the same user.
 class AddDeviceSection extends StatelessWidget {
   const AddDeviceSection({super.key, required this.link, this.email});
 
