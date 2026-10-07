@@ -70,8 +70,8 @@ owned by `CloudSync`:
 - **Receives** the profile's other devices' events: a message from this
   device's own ID is ignored; anything malformed, too big or not for this
   identity is dropped (see **Validation**). Messages are handed to cloud
-  sync one at a time, in order (`CloudSync._onLive`). One for an event a
-  pass is uploading right now (its frames and JSON, `_eventUploads`)
+  sync one at a time, in order (`_LiveBridge._onLive`). One for an event a
+  pass is uploading right now (its frames and JSON, `_Uploader.uploadOf`)
   waits for that upload, so the two can't cross: the pass never puts the
   older version back over the newer one. If the profile changes, the user
   signs out or sync stops while a message is being taken (its frames
@@ -95,7 +95,7 @@ owned by `CloudSync`:
     may repeat one) and changes nothing.
   - **Its clip comes from the bucket:** when the event's clip isn't here, a
     pass starts at once and looks for the clip's record and thumbnail
-    (`CloudSync._fetchWanted`). The clip stays **wanted** until it's here
+    (`_Fetcher.fetchWanted`). The clip stays **wanted** until it's here
     or the bucket is found not to have it: a fetch that fails (a network
     error) is tried again at the next pass, at most 5 times in a row, and
     doesn't fail the pass (rejected credentials do: the pass renews them).
@@ -281,7 +281,10 @@ query holds the session token.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `LiveSync`, `LiveConnection` (the transport), `LiveLink`, `LiveEvent`,
   `parse` and `metadataOf`; `ackCopied`, `parseCopied` and
-  `CopiedMessage` ([Event copies](event-copies.md)).
+  `CopiedMessage` ([Event copies](event-copies.md)). The connection loop
+  (`_loop`) connects (`_connectOnce`), subscribes (`_subscribe`), then
+  runs a scheduled connection (`_runScheduled`) or an always-on one
+  (`_runAlways`).
 - [lib/cloud/live_mqtt.dart](../presence_app/lib/cloud/live_mqtt.dart):
   `MqttLiveConnection`, on the `mqtt_client` package (pinned at 10.11.11):
   `MqttServerClient` with WebSockets on Android, iOS and desktop,
@@ -293,8 +296,12 @@ query holds the session token.
   (`LiveMode`, the steps).
 - [lib/cloud/sigv4.dart](../presence_app/lib/cloud/sigv4.dart):
   `presignWebSocket`.
-- `CloudSync` (`live`, `_startLive`, `_onLive`, `_eventUploads`,
-  `_fetchWanted`, `_rewantClips`) and
+- `CloudSync` (`live`), with `_LiveBridge` (`start`, `_onLive`) in
+  [cloud_sync_live.dart](../presence_app/lib/cloud/cloud_sync_live.dart),
+  `_Uploader.uploadOf` in
+  [cloud_sync_upload.dart](../presence_app/lib/cloud/cloud_sync_upload.dart)
+  and `_Fetcher` (`fetchWanted`, `rewantClips`) in
+  [cloud_sync_fetch.dart](../presence_app/lib/cloud/cloud_sync_fetch.dart), and
   `CloudConfig.iotEndpoint` / `liveStage`.
 
 ## Verified

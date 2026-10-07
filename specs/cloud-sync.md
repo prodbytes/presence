@@ -125,7 +125,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
     had (signed out, not in the cloud, offline), "Couldn't load this
     clip", and playing it again retries;
   - one download per recording at a time, shared by the background and
-    playback (`CloudSync._inFlight`).
+    playback (`_Recordings._inFlight`).
 - **Changes from other devices:** an event the device has that another
   device changed since (a tag added, renamed or removed, a suggestion
   confirmed, object tags) comes down again in the same pass, within the
@@ -275,7 +275,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
   device publishes is handed to `onRemote` at once (`RemoteRecords.live`),
   marked as synced with the sender's ETag, and its clip and thumbnail are
   fetched from the bucket by a pass started for them
-  (`CloudSync._fetchWanted`) once the clip is there. An event that arrives
+  (`_Fetcher.fetchWanted`) once the clip is there. An event that arrives
   both ways is handed over once.
 - **Copies** ([Event copies](event-copies.md)): `CloudSync.copies`
   (`EventCopies`, the app's instance) records whether this device and the
@@ -287,6 +287,30 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## How
 
+- **Code** ([lib/cloud/](../presence_app/lib/cloud)): `CloudSync`
+  ([cloud_sync.dart](../presence_app/lib/cloud/cloud_sync.dart)) is the
+  public API and runs the passes (when, backoff, stop and retry, the
+  profile and its epoch); its parts, one file each (`part of` the same
+  library, sharing its private state):
+  - [cloud_sync_pass.dart](../presence_app/lib/cloud/cloud_sync_pass.dart):
+    `_Pass`, one pass's session, store and profile, checked at each step;
+  - [cloud_sync_fetch.dart](../presence_app/lib/cloud/cloud_sync_fetch.dart):
+    `_Fetcher`, new and changed events, their clips and frames, wanted
+    clips, and the device's settings;
+  - [cloud_sync_upload.dart](../presence_app/lib/cloud/cloud_sync_upload.dart):
+    `_Uploader`, what goes up, and publishing it over live sync;
+  - [cloud_sync_recordings.dart](../presence_app/lib/cloud/cloud_sync_recordings.dart):
+    `_Recordings`, the background and playback downloads of recordings;
+  - [cloud_sync_live.dart](../presence_app/lib/cloud/cloud_sync_live.dart):
+    `_LiveBridge`, starting live sync and taking the events it brings;
+  - [cloud_sync_copies.dart](../presence_app/lib/cloud/cloud_sync_copies.dart):
+    `_CopyTracker`, who holds each event;
+  - [cloud_sync_keys.dart](../presence_app/lib/cloud/cloud_sync_keys.dart):
+    object keys, JSON and fingerprints.
+
+  `CloudSession`, `CloudBackend` and `AwsCloudBackend` are in
+  [cloud_backend.dart](../presence_app/lib/cloud/cloud_backend.dart)
+  (exported by `cloud_sync.dart`).
 - **Credentials** (`CognitoCredentials`):
   - `POST /api/auth/credentials` on the auth API, with the Google ID token,
     answers the profile's identity ID and a developer-identity token
