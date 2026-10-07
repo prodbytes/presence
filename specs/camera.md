@@ -145,7 +145,9 @@ sync all carry clips, and a still-only grab would need its own record
 everywhere.
 
 - **The request:** a **Capture all** event (`AppEvent.captureAll`, type
-  `capture_all`, grid icon), published on the device's event bus by
+  `capture_all`, grid icon), a **system event** (it has no video: hidden
+  in Monitoring while system events are, unlike the clips it asks for),
+  published on the device's event bus by
   `CameraRig.askAll` when the grid opens (signed in with cloud sync) or
   Clip is pressed with it showing. **Opening the grid asks at most once
   a minute** per device (`CameraRig.askAllEvery`): opening it again
@@ -205,7 +207,7 @@ everywhere.
   make one, a later one another; `askAll`'s minute; a press asks within
   the minute but not within 5 s of the last request; in the app, Clip
   20 s after opening All uploads a second request; the request survives
-  storage and counts as a grab).
+  storage and is a system event, not a grab).
 
 ## Known limitations
 

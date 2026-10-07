@@ -157,7 +157,7 @@ Android uses the standard dashcam technique instead
   nearest to it (found in the file's index with `MediaExtractor`, nothing
   decoded), each keyframe once, `ms` being its own time. Each is decoded
   alone (`OPTION_CLOSEST_SYNC`) by one `MediaMetadataRetriever` per call,
-  straight to at most `maxWidth` (default 640) px wide upright
+  straight to at most `maxWidth` (recognition asks 1280) px wide upright
   (`getScaledFrameAtTime`, Android 8.1+; scaled before turning on older
   ones), then turned upright, and returned as raw RGBA; frames that can't
   be read are left out. Bitmaps are recycled at once.

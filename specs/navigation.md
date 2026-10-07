@@ -35,6 +35,16 @@ in the app bar**, which flip between full screens.
   (`TabBar` + `TabBarView`). While a finger is on the Settings location
   map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
   are shown, so its live video isn't torn down.
+- **Every view change looks the same:** a sideways slide, 300 ms, eased
+  (`Curves.ease`, the tabs' own). The role-gated tabs (Log, Admin) are
+  tabs like the others: they only need the role to show, and flip in the
+  same way. A screen pushed over the tabs (a [subject's](subjects.md))
+  slides in from the right as the tabs slide out to the left, and back on
+  return (`TabSlidePageTransitionsBuilder` in `lib/theme.dart`, the
+  theme's page transition on every platform), instead of the platform's
+  own zoom or fade. Sheets (the account sheet) and dialogs (the clip
+  player) aren't view changes: they still rise over the screen.
+  Test: `theme_test.dart`.
 - **A browser refresh stays on the open tab** (Camera, Monitoring,
   Settings, Log or Admin; the Log and Admin only if the user still has
   them), remembered by name: each switch is remembered in the browser tab's

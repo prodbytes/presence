@@ -23,8 +23,9 @@ class MemoryStatus {
   }
 
   /// What recognition needs on top of the system's threshold: the models
-  /// and a frame's working memory.
-  static const int recognitionBytes = 64 << 20;
+  /// (26 MB of files), EfficientDet-Lite2's working memory (its scores
+  /// alone are 13.5 MB) and a 1280 px frame's.
+  static const int recognitionBytes = 96 << 20;
 
   /// The system says memory is low: it's killing background apps.
   final bool lowMemory;
