@@ -3827,3 +3827,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Events](events.md), [Device deletion](device-deletion.md),
        [Data formats](data-formats.md), [Cloud sync](cloud-sync.md),
        [Event copies](event-copies.md).
+
+301. **The device and profile IDs first in Settings, in two columns.**
+     (2026-10-07)
+     - Asked: "On the management page, let device ID and profile ID be the
+       first thing on the page"; then "make it two columns for the ids to
+       save space". The management page is read as Settings, where the
+       IDs were (at the very bottom); the Admin tab manages users and
+       vouchers, not this device, and has no device ID.
+     - Changed: the Device and Profile IDs moved from under the version
+       to the very top of Settings, above Location, side by side (Device
+       left, Profile right), each a label over its selectable ID, wrapping
+       within its column; stacked only when a column would be under 120 dp
+       at 1x text (scaled with the font: at 320 dp, two columns at 1x,
+       stacked at 2x). Same style (`bodyMedium`, `onSurfaceVariant`). The
+       version, health line and Add a device stay at the bottom; the
+       health line now sits under the version.
+     - Tests: the IDs come first (above the first section), in two columns
+       at 320 and 1280 dp at 1x and 1280 dp at 2x, stacked at 320 dp/2x,
+       within the screen; the add-device tests read the ID at the top; the
+       Log-switch tests scroll Settings at its edge (`scrollSettingsTo`).
+     - Specs: [Settings](settings.md), [Navigation](navigation.md).
