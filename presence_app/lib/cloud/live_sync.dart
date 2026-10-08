@@ -417,6 +417,9 @@ class LiveSync extends ChangeNotifier {
     return wake.future.whenComplete(timer.cancel);
   }
 
+  /// Connects for [_link], and again after each drop or failure (always
+  /// connected), or on schedule ([LiveMode.scheduled]), until the
+  /// generation it was started for ends.
   Future<void> _loop(int generation) async {
     bool current() => generation == _generation;
     while (current()) {
@@ -431,68 +434,21 @@ class LiveSync extends ChangeNotifier {
       _nextAt = null;
       _set(LiveSyncState.connecting);
       LiveConnection? connection;
-      var renewing = false;
       try {
-        final credentials = await link.credentials().timeout(
-          connectTimeout,
-          onTimeout: () => throw TimeoutException(
-            'credentials took too long',
-            connectTimeout,
-          ),
+        final connected = await _connectOnce(
+          link,
+          scheduled: scheduled,
+          current: current,
         );
-        if (!current()) return;
-        final url = SigV4Signer(region: region, service: 'iotdevicegateway')
-            .presignWebSocket(
-              host: endpoint,
-              credentials: credentials,
-              now: _clock.now(),
-            );
-        final connecting = _connect!(
-          url,
-          scheduled ? stableClientIdOf(link) : clientIdOf(link),
-          persistent: scheduled,
-        );
-        connection = await connecting.timeout(
-          connectTimeout,
-          onTimeout: () {
-            // One that connects after all is closed at once.
-            connecting
-                .then((c) => c.close())
-                .catchError((Object _) {})
-                .ignore();
-            throw TimeoutException('connecting took too long', connectTimeout);
-          },
-        );
+        if (connected == null) return;
+        final (credentials, opened) = connected;
+        connection = opened;
         if (!current()) {
           await connection.close();
           return;
         }
         _connection = connection;
-        final topic = topicOf(stage, link.identityId, eventsKind);
-        // Listening first: a persistent session's queued messages may come
-        // before the subscription is acknowledged.
-        final subscription = connection.messages.listen((m) {
-          _activity++;
-          _onMessage(link, m.$1, m.$2);
-        });
-        try {
-          await connection.subscribe(topic);
-        } catch (_) {
-          await subscription.cancel();
-          rethrow;
-        }
-        // Device presence: pings and pongs. Not needed for events, so one
-        // refused leaves the connection up (presence just isn't known).
-        for (final kind in const [requestsKind, acksKind]) {
-          try {
-            await connection.subscribe(topicOf(stage, link.identityId, kind));
-          } catch (e) {
-            debugPrint(
-              'Presence: live sync could not subscribe to $kind: '
-              '${redact(e)}',
-            );
-          }
-        }
+        final subscription = await _subscribe(link, connection);
         if (!current()) {
           await subscription.cancel();
           await connection.close();
@@ -508,52 +464,11 @@ class LiveSync extends ChangeNotifier {
         _failures = 0;
         _set(LiveSyncState.connected);
         await _flushOutbox(link, connection);
-        if (scheduled) {
-          await _drain(connection, current);
-          await subscription.cancel();
-          if (_connection == connection) _connection = null;
-          if (!current()) return;
-          // Even if dropped (another tab took the ID): the broker keeps
-          // the session either way.
-          await connection.close().catchError((Object _) {});
-          if (!current()) return;
-          final wait = nextWait();
-          _nextAt = _now().add(wait);
-          _set(LiveSyncState.idle);
-          // Until the next one, or a new event to send (at once if one
-          // came while this one was closing).
-          if (_outbox.isEmpty) await _sleep(wait);
-          continue;
-        }
-        // New credentials (and a newly signed URL) before these expire.
-        // Not when they're about to already: that would only loop.
-        Timer? renew;
-        if (credentials.expiration case final expiration?) {
-          final left = expiration.difference(_clock.now()) - renewBefore;
-          if (left > Duration.zero) {
-            renew = Timer(left, () {
-              renewing = true;
-              _wakeUp();
-            });
-          }
-        }
-        final wake = _wake = Completer<void>();
-        await Future.any([connection.done, wake.future]);
-        renew?.cancel();
-        await subscription.cancel();
-        if (_connection == connection) _connection = null;
-        if (!current()) return;
-        if (renewing) {
-          debugPrint('Presence: live sync renewing its connection');
-          await connection.close().catchError((Object _) {});
-          continue;
-        }
-        // Dropped: reconnect soon. Closed all the same, so the client's
-        // socket and timers go.
-        debugPrint('Presence: live sync disconnected; reconnecting');
-        await connection.close().catchError((Object _) {});
-        if (!current()) return;
-        _failures = 1;
+        final next = scheduled
+            ? await _runScheduled(connection, subscription, current)
+            : await _runAlways(credentials, connection, subscription, current);
+        if (next == _Next.stop) return;
+        if (next == _Next.connect) continue;
       } catch (e) {
         if (connection != null) {
           if (_connection == connection) _connection = null;
@@ -573,6 +488,145 @@ class LiveSync extends ChangeNotifier {
       }
       await _sleep(retryDelay);
     }
+  }
+
+  /// Gets [link]'s credentials, then connects with a URL signed with them
+  /// (with the stable client ID when [scheduled]), each within
+  /// [connectTimeout]. Null when the loop's generation ended ([current])
+  /// once the credentials came.
+  Future<(AwsCredentials, LiveConnection)?> _connectOnce(
+    LiveLink link, {
+    required bool scheduled,
+    required bool Function() current,
+  }) async {
+    final credentials = await link.credentials().timeout(
+      connectTimeout,
+      onTimeout: () =>
+          throw TimeoutException('credentials took too long', connectTimeout),
+    );
+    if (!current()) return null;
+    final url = SigV4Signer(region: region, service: 'iotdevicegateway')
+        .presignWebSocket(
+          host: endpoint,
+          credentials: credentials,
+          now: _clock.now(),
+        );
+    final connecting = _connect!(
+      url,
+      scheduled ? stableClientIdOf(link) : clientIdOf(link),
+      persistent: scheduled,
+    );
+    final connection = await connecting.timeout(
+      connectTimeout,
+      onTimeout: () {
+        // One that connects after all is closed at once.
+        connecting.then((c) => c.close()).catchError((Object _) {}).ignore();
+        throw TimeoutException('connecting took too long', connectTimeout);
+      },
+    );
+    return (credentials, connection);
+  }
+
+  /// Listens to [connection]'s messages, and subscribes to [link]'s events
+  /// (which must work) and to its pings and pongs (which may not).
+  Future<StreamSubscription<(String, Uint8List)>> _subscribe(
+    LiveLink link,
+    LiveConnection connection,
+  ) async {
+    final topic = topicOf(stage, link.identityId, eventsKind);
+    // Listening first: a persistent session's queued messages may come
+    // before the subscription is acknowledged.
+    final subscription = connection.messages.listen((m) {
+      _activity++;
+      _onMessage(link, m.$1, m.$2);
+    });
+    try {
+      await connection.subscribe(topic);
+    } catch (_) {
+      await subscription.cancel();
+      rethrow;
+    }
+    // Device presence: pings and pongs. Not needed for events, so one
+    // refused leaves the connection up (presence just isn't known).
+    for (final kind in const [requestsKind, acksKind]) {
+      try {
+        await connection.subscribe(topicOf(stage, link.identityId, kind));
+      } catch (e) {
+        debugPrint(
+          'Presence: live sync could not subscribe to $kind: '
+          '${redact(e)}',
+        );
+      }
+    }
+    return subscription;
+  }
+
+  /// A scheduled connection, once connected: stays while messages move
+  /// ([_drain]), closes, and waits for the next one (or for an event to
+  /// send). Then connects again, unless the generation ended.
+  Future<_Next> _runScheduled(
+    LiveConnection connection,
+    StreamSubscription<(String, Uint8List)> subscription,
+    bool Function() current,
+  ) async {
+    await _drain(connection, current);
+    await subscription.cancel();
+    if (_connection == connection) _connection = null;
+    if (!current()) return _Next.stop;
+    // Even if dropped (another tab took the ID): the broker keeps
+    // the session either way.
+    await connection.close().catchError((Object _) {});
+    if (!current()) return _Next.stop;
+    final wait = nextWait();
+    _nextAt = _now().add(wait);
+    _set(LiveSyncState.idle);
+    // Until the next one, or a new event to send (at once if one
+    // came while this one was closing).
+    if (_outbox.isEmpty) await _sleep(wait);
+    return _Next.connect;
+  }
+
+  /// An always-on connection, once connected: stays until it drops, the
+  /// loop is woken (to stop), or it's renewed before [credentials]
+  /// expire. A renewal connects again at once; a drop after
+  /// [retryDelay].
+  Future<_Next> _runAlways(
+    AwsCredentials credentials,
+    LiveConnection connection,
+    StreamSubscription<(String, Uint8List)> subscription,
+    bool Function() current,
+  ) async {
+    var renewing = false;
+    // New credentials (and a newly signed URL) before these expire.
+    // Not when they're about to already: that would only loop.
+    Timer? renew;
+    if (credentials.expiration case final expiration?) {
+      final left = expiration.difference(_clock.now()) - renewBefore;
+      if (left > Duration.zero) {
+        renew = Timer(left, () {
+          renewing = true;
+          _wakeUp();
+        });
+      }
+    }
+    final wake = _wake = Completer<void>();
+    await Future.any([connection.done, wake.future]);
+    renew?.cancel();
+    await subscription.cancel();
+    if (_connection == connection) _connection = null;
+    if (!current()) return _Next.stop;
+    if (renewing) {
+      debugPrint('Presence: live sync renewing its connection');
+      await connection.close().catchError((Object _) {});
+      return _Next.connect;
+    }
+    // Dropped: reconnect soon. Closed all the same, so the client's
+    // socket and timers go.
+    debugPrint('Presence: live sync disconnected; reconnecting');
+    await connection.close().catchError((Object _) {});
+    if (!current()) return _Next.stop;
+    _failures = 1;
+    return _Next.retry;
   }
 
   /// Stays connected while messages come (or go): until [drainQuiet]
@@ -1199,4 +1253,16 @@ class LiveSync extends ChangeNotifier {
     stop();
     super.dispose();
   }
+}
+
+/// What the connection loop does after a connection ends.
+enum _Next {
+  /// Ends: its generation is over.
+  stop,
+
+  /// Connects again at once.
+  connect,
+
+  /// Connects again after [LiveSync.retryDelay].
+  retry,
 }

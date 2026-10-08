@@ -441,12 +441,11 @@ class EventTimeline extends StatefulWidget {
   final EventFilters? filters;
 
   /// Whether [event] is a grab, shown even with system events hidden: a
-  /// clip, a Capture all request, or a suggestion about a clip ("Is this
-  /// Rex?"), which waits for an answer.
+  /// clip (Capture all's too) or a suggestion about a clip ("Is this
+  /// Rex?"), which waits for an answer. A Capture all request has no
+  /// video of its own: it's a system event.
   static bool isGrab(AppEvent event) =>
-      event is ClipRequested ||
-      event is SubjectSuggestion ||
-      event.type == AppEvent.captureAllType;
+      event is ClipRequested || event is SubjectSuggestion;
 
   /// [events] of [profileId], the signed-in account's profile (null
   /// signed out): its own, and those without a profile (recorded signed
@@ -482,11 +481,16 @@ class EventTimeline extends StatefulWidget {
   }) => showSystemEvents ? events : events.where(isGrab).toList();
 
   /// [events], only those matching [query] ([eventMatches]); blank, all.
-  static List<AppEvent> matching(List<AppEvent> events, String query) {
+  /// Events without a device ID (not saved yet) are [deviceId]'s.
+  static List<AppEvent> matching(
+    List<AppEvent> events,
+    String query, {
+    String? deviceId,
+  }) {
     if (query.trim().isEmpty) return events;
     return [
       for (final e in events)
-        if (eventMatches(e, query)) e,
+        if (eventMatches(e, query, deviceId: deviceId)) e,
     ];
   }
 
@@ -606,9 +610,9 @@ class _EventTimelineState extends State<EventTimeline> {
     bool hasIt(List<AppEvent> events) => events.any((e) => e.id == id);
     // Only the profile's events can show.
     if (hasIt(_view.mine)) {
-      // An event of another device than the one shown, opened from
-      // elsewhere: show every device.
-      if (!hasIt(_view.ofDevices)) _filters.onlyDevice.value = null;
+      // An event of another device than the one searched for, opened
+      // from elsewhere: show every device.
+      if (!hasIt(_view.ofDevices)) _filters.search.value = '';
       // A system event, with them hidden: show them.
       if (!hasIt(_view.ofKinds)) _filters.showSystemEvents.value = true;
       // An event the search hides: clear it.
@@ -681,8 +685,6 @@ class _EventTimelineState extends State<EventTimeline> {
         icon: Icons.notifications_none,
         message: view.mine.isEmpty
             ? 'No events'
-            : view.ofDevices.isEmpty
-            ? 'No events on ${_filters.onlyDevice.value}'
             : view.ofKinds.isEmpty
             ? 'No grabs yet: system events are hidden'
             : 'No events match "${_filters.search.value.trim()}"',
@@ -703,8 +705,8 @@ class _EventTimelineState extends State<EventTimeline> {
           final card = KeyedSubtree(
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
             // Above the card, the device it was taken on (tapping it
-            // shows only that device's events) and how many copies of it
-            // there are.
+            // searches for it: only that device's events show) and how
+            // many copies of it there are.
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -718,7 +720,7 @@ class _EventTimelineState extends State<EventTimeline> {
                           device: device,
                           thisDevice: device == widget.deviceId,
                           os: event.os,
-                          value: _filters.onlyDevice,
+                          value: _filters.search,
                         ),
                       ),
                     const SizedBox(width: 8),
@@ -789,13 +791,17 @@ class EventSearchScope extends InheritedNotifier<ValueNotifier<String>> {
 }
 
 /// The texts the Events search looks in for [event]: its title and detail,
-/// and for a clip its camera's label, the names tagged on it (not
-/// suggestions waiting for an answer) and its object tags (`cat`,
-/// `bicycle`…). Add a field here to make it
+/// the device it was taken on ([EventTimeline.deviceOf]: without a device
+/// ID, [deviceId], this device's), and for a clip its camera's label, the
+/// names tagged on it (not suggestions waiting for an answer) and its
+/// object tags (`cat`, `bicycle`…). Add a field here to make it
 /// searchable.
-Iterable<String> eventSearchFields(AppEvent event) sync* {
+Iterable<String> eventSearchFields(AppEvent event, {String? deviceId}) sync* {
   yield event.title;
   if (event.detail case final detail?) yield detail;
+  if (EventTimeline.deviceOf(event, deviceId) case final device?) {
+    yield device;
+  }
   final clip = switch (event) {
     ClipRequested() => event,
     SubjectSuggestion(:final clip) => clip,
@@ -822,10 +828,13 @@ Iterable<String> eventSearchFields(AppEvent event) sync* {
 /// Whether [event] matches the Events search [query]: one of its
 /// [eventSearchFields] contains it, ignoring case and the spaces around
 /// it. A blank query matches every event.
-bool eventMatches(AppEvent event, String query) {
+bool eventMatches(AppEvent event, String query, {String? deviceId}) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
-  return eventSearchFields(event).any((f) => f.toLowerCase().contains(q));
+  return eventSearchFields(
+    event,
+    deviceId: deviceId,
+  ).any((f) => f.toLowerCase().contains(q));
 }
 
 /// The events search at the top of the Monitoring tab: a search icon
@@ -1009,9 +1018,10 @@ class EventCount extends StatelessWidget {
 /// The device an event was taken on, small and quiet above its card in the
 /// timeline: its operating system's icon ([DeviceOs.iconOf]), its ID, this
 /// device's in bold, and the operating system's name ([os], left out on
-/// events recorded before events had one). Tapping it
-/// shows only that device's events ([value], the timeline's
-/// [EventFilters.onlyDevice]); tapped again, every device's.
+/// events recorded before events had one). Tapping it searches for the
+/// device ([value], the timeline's [EventFilters.search]): only its events
+/// show ([EventFilters.showDevice]); tapped again, the search clears and
+/// every device's show.
 class EventDeviceTag extends StatelessWidget {
   const EventDeviceTag({
     super.key,
@@ -1028,94 +1038,67 @@ class EventDeviceTag extends StatelessWidget {
 
   /// Whether [device] is this device.
   final bool thisDevice;
-  final ValueNotifier<String?> value;
+
+  /// The events search ([EventFilters.search]).
+  final ValueNotifier<String> value;
+
+  /// The tooltip of a device name that shows its events (here, and
+  /// `ShowDeviceEvents` elsewhere).
+  static const String showTooltip = "Show this device's events";
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final only = value.value == device;
+    final only = EventSearchScope.isActive(value.value, device);
     final color = only ? scheme.primary : scheme.onSurfaceVariant;
     return Tooltip(
-      message: only
-          ? 'Show the events of every device'
-          : thisDevice
-          ? 'Show only this device ($device)'
-          : 'Show only $device',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => value.value = only ? null : device,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 32),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(DeviceOs.iconOf(os), size: 14, color: color),
-                const SizedBox(width: 4),
-                Flexible(
-                  flex: 3,
-                  child: Text(
-                    device,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontWeight: thisDevice || only ? FontWeight.bold : null,
-                    ),
-                  ),
-                ),
-                if (os case final os?)
+      message: only ? "Show every device's events" : showTooltip,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => EventSearchScope.toggle(value, device),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(DeviceOs.iconOf(os), size: 14, color: color),
+                  const SizedBox(width: 4),
                   Flexible(
-                    flex: 2,
+                    flex: 3,
                     child: Text(
-                      ' · $os',
-                      key: const Key('event-device-os'),
+                      device,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(color: color),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: thisDevice || only ? FontWeight.bold : null,
+                      ),
                     ),
                   ),
-              ],
+                  if (os case final os?)
+                    Flexible(
+                      flex: 2,
+                      child: Text(
+                        ' · $os',
+                        key: const Key('event-device-os'),
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: color,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-/// The device filter at the top of the Monitoring tab, while an event's
-/// device ([EventDeviceTag]) shows only its events: a small chip with the
-/// device's ID and an x that shows every device again ([value] back to
-/// null). Nothing while every device shows.
-class DeviceFilterChip extends StatelessWidget {
-  const DeviceFilterChip({super.key, required this.value});
-
-  final ValueNotifier<String?> value;
-
-  /// The chip's widest; a long ID is cut short.
-  static const double maxWidth = 180;
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder(
-    valueListenable: value,
-    builder: (context, device, _) {
-      if (device == null) return const SizedBox.shrink();
-      return ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: maxWidth),
-        child: InputChip(
-          key: const Key('device-filter'),
-          visualDensity: VisualDensity.compact,
-          avatar: const Icon(Icons.devices_other, size: 16),
-          label: Text(device, overflow: TextOverflow.ellipsis),
-          tooltip: 'Showing only $device',
-          onPressed: () => value.value = null,
-          deleteButtonTooltipMessage: 'Show every device',
-          onDeleted: () => value.value = null,
-        ),
-      );
-    },
-  );
 }
 
 /// The small "Show system events" toggle in the Monitoring tab's top row,

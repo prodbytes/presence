@@ -43,10 +43,12 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   see [the map's view](#the-maps-view)), has the tiles' credit and
   **zoom buttons**, and
   tapping a dot opens its event in the Monitoring tab's events list.
-- **Devices:** the map shows every device's events, or only those of
-  the device picked by tapping an event's device in the Monitoring tab
-  (as the events list, `EventTimeline.ofDevices`). Picking or clearing a
-  device redraws the dots and fits the view to them again. A
+- **Devices:** the map shows every device's events, or, while the
+  Monitoring tab's search is a device's ID (set by tapping a device's
+  name), only that device's (as the events list, `EventView.device`,
+  `EventTimeline.ofDevices`); other searches don't change the map.
+  Searching for a device or clearing it redraws the dots and fits the
+  view to them again. A
   subject's own screen always shows every device.
 - **Names on the map:** beside each subject's newest located dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut
@@ -110,7 +112,8 @@ Monitoring) is a close-up (`closeUp`):
 ## A subject's screen
 
 - A full screen pushed over the tabs (back returns to Monitoring), titled
-  with the subject's name.
+  with the subject's name. It slides in sideways, as the tabs flip (see
+  [Navigation](navigation.md)).
 - **The map** (top three fifths): OpenStreetMap tiles with the credit, as on
   the Settings [location map](device-location.md), north up. **One dot per event**
   at the location the event recorded.

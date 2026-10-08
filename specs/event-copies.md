@@ -154,7 +154,9 @@ the cloud and the recording device.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `ackCopied`, `parseCopied`, `CopiedMessage`, `LiveLink.onCopied`.
 - [lib/cloud/cloud_sync.dart](../presence_app/lib/cloud/cloud_sync.dart):
-  `copies`, `copyOf`, `_noteCopies`, `_checkCopies`, `_onCopied`.
+  `copies`, `copyOf`; the checks and acks in `_CopyTracker`
+  ([cloud_sync_copies.dart](../presence_app/lib/cloud/cloud_sync_copies.dart):
+  `note`, `_check`, `onCopied`).
 - [lib/storage/event_store.dart](../presence_app/lib/storage/event_store.dart):
   `getClip`.
 

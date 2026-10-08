@@ -143,7 +143,8 @@ void main() {
     expect(restored.type, AppEvent.captureAllType);
     expect(restored.title, 'Capture all');
     expect(restored.deviceId, 'brave_fox');
-    expect(EventTimeline.isGrab(restored), isTrue);
+    // No video of its own: a system event, unlike the clips it asks for.
+    expect(EventTimeline.isGrab(restored), isFalse);
   });
 
   group('the Clip button, synced', () {
@@ -217,7 +218,7 @@ void main() {
     }
 
     Future<void> clip(WidgetTester tester) async {
-      await tester.tap(find.byTooltip('Clip'));
+      await tester.tap(find.byKey(const Key('clip')));
       await tester.pump(CameraRig.pastWait);
       await tester.pumpAndSettle();
       await finishRecording(tester);

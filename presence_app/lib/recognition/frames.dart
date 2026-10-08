@@ -25,9 +25,11 @@ abstract class ClipFrameSampler {
   /// video decoder on Android (`keyframesAt` on `presence/cameras`).
   factory ClipFrameSampler() = platform.PlatformFrameSampler;
 
-  /// How wide frames are at most, unless asked otherwise: twice the
-  /// detector's input, enough for faces.
-  static const int defaultMaxWidth = 640;
+  /// How wide frames are at most, unless asked otherwise: a 720p
+  /// recording whole. The detector shrinks it (or tiles of it), but faces
+  /// and looks are cropped from it at full size: far faces need every
+  /// pixel (under 9 px between the eyes, they can't be compared).
+  static const int defaultMaxWidth = 1280;
 
   bool get supported;
 

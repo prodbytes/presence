@@ -4,7 +4,9 @@ import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
+import '../device_events.dart';
 import '../cloud/live_sync.dart';
+import '../connectivity.dart';
 import '../device_presence.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
@@ -60,14 +62,18 @@ class AccountButton extends StatelessWidget {
             showDragHandle: true,
             // Room to scroll a long device list.
             isScrollControlled: true,
-            builder: (_) => AccountSheet(
-              auth: auth,
-              sync: sync,
-              roles: roles,
-              profiles: profiles,
-              log: log,
-              deviceId: deviceId,
-              deleteDevice: deleteDevice,
+            // A device's ID shows its events ([ShowDeviceEvents]).
+            builder: (_) => ShowDeviceEvents.capture(
+              context,
+              AccountSheet(
+                auth: auth,
+                sync: sync,
+                roles: roles,
+                profiles: profiles,
+                log: log,
+                deviceId: deviceId,
+                deleteDevice: deleteDevice,
+              ),
             ),
           ),
         );
@@ -148,7 +154,8 @@ class AccountSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return ListenableBuilder(
-      listenable: Listenable.merge([auth, ?roles, ?log]),
+      // Cloud and live sync too: this device's dot shows its connectivity.
+      listenable: Listenable.merge([auth, ?roles, ?log, ?sync, ?sync?.live]),
       builder: (context, _) {
         final user = auth.user;
         final error = auth.error;
@@ -194,6 +201,10 @@ class AccountSheet extends StatelessWidget {
                       user.email,
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
+                    if (roles case final roles?) ...[
+                      const SizedBox(height: 12),
+                      ConnectivityIndicator(roles: roles, sync: sync),
+                    ],
                     if (sync case final sync?) ...[
                       const SizedBox(height: 8),
                       CloudSyncStatus(sync: sync),
@@ -214,6 +225,13 @@ class AccountSheet extends StatelessWidget {
                           thisDevice: deviceId,
                           now: now,
                           live: sync?.live,
+                          thisPresence: switch (roles) {
+                            final roles? => Connectivity.of(
+                              roles,
+                              sync,
+                            ).presence,
+                            null => null,
+                          },
                           onDelete: switch (deleteDevice) {
                             final delete? =>
                               (id) => deleteDeviceAfterConfirming(
@@ -346,7 +364,8 @@ String exactTime(DateTime time) {
 
 /// The profile's ID and its devices, each with its operating system's
 /// icon and name and how long ago its latest event was (the exact time in
-/// a tooltip). IDs are selectable to copy.
+/// a tooltip). IDs are selectable to copy; a tapped device ID shows its
+/// events ([DeviceEventsLink]).
 class ProfileDevices extends StatelessWidget {
   const ProfileDevices({
     super.key,
@@ -356,7 +375,13 @@ class ProfileDevices extends StatelessWidget {
     this.now,
     this.onDelete,
     this.live,
+    this.thisPresence,
   });
+
+  /// [thisDevice]'s presence dot, when given: its connectivity
+  /// ([Connectivity.presence]), as the account sheet's indicator shows it.
+  /// Otherwise green while live sync is connected.
+  final DevicePresence? thisPresence;
 
   /// Live sync: which devices answer its pings, for each device's
   /// presence dot ([DevicePresence]).
@@ -428,19 +453,31 @@ class ProfileDevices extends StatelessWidget {
                       children: [
                         PresenceDot(
                           key: Key('presence-${device.id}'),
-                          presence: DevicePresence.of(
-                            answeredAt: live?.seenOf(device.id),
-                            lastEvent: device.lastEvent,
-                            now: at,
-                            liveAvailable: available,
-                            thisDevice: device.id == thisDevice,
-                            connected: live?.state == LiveSyncState.connected,
-                          ),
+                          presence: switch (thisPresence) {
+                            final presence? when device.id == thisDevice =>
+                              presence,
+                            _ => DevicePresence.of(
+                              answeredAt: live?.seenOf(device.id),
+                              lastEvent: device.lastEvent,
+                              now: at,
+                              liveAvailable: available,
+                              thisDevice: device.id == thisDevice,
+                              connected: live?.state == LiveSyncState.connected,
+                            ),
+                          },
                         ),
-                        SelectableText(
-                          device.id,
-                          key: Key('profile-device-id-${device.id}'),
-                          style: theme.textTheme.bodyLarge,
+                        DeviceEventsLink(
+                          device: device.id,
+                          builder: (context, onTap) => SelectableText(
+                            device.id,
+                            key: Key('profile-device-id-${device.id}'),
+                            onTap: onTap,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: onTap == null
+                                  ? null
+                                  : theme.colorScheme.primary,
+                            ),
+                          ),
                         ),
                         if (device.id == thisDevice)
                           Text('this device', style: muted),

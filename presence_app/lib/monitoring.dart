@@ -12,11 +12,10 @@ import 'subjects.dart';
 /// left, all events on the right, each clip's card showing its subjects in
 /// their colors. On a phone the map sits above the events. One compact row
 /// at the top: the events search ([EventSearch], an icon until tapped), its
-/// matching / all events count ([EventCount]) and, while the events show
-/// only one device's (picked by tapping an event's device,
-/// [EventDeviceTag]), a chip to show every device again
-/// ([DeviceFilterChip]), with the small "Show system events" toggle
-/// ([ShowSystemEvents]) in the same row. Tapping a dot on the map
+/// matching / all events count ([EventCount]), with the small "Show
+/// system events" toggle ([ShowSystemEvents]) in the same row. Tapping a
+/// device's name (an event's, [EventDeviceTag], or elsewhere,
+/// `ShowDeviceEvents`) searches for its ID: only its events show. Tapping a dot on the map
 /// scrolls the events to its event; tapping a subject's name opens the
 /// subject.
 class MonitoringView extends StatefulWidget {
@@ -132,8 +131,7 @@ class _MonitoringViewState extends State<MonitoringView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // One compact row: the search (an icon until tapped),
-                  // the count, the system events toggle and the device
-                  // filter, if any. The open
+                  // the count and the system events toggle. The open
                   // field gives up room on a narrow phone.
                   SizedBox(
                     height: 40,
@@ -149,9 +147,6 @@ class _MonitoringViewState extends State<MonitoringView> {
                           deviceId: widget.deviceId,
                         ),
                         ShowSystemEvents(value: _filters.showSystemEvents),
-                        Flexible(
-                          child: DeviceFilterChip(value: _filters.onlyDevice),
-                        ),
                       ],
                     ),
                   ),

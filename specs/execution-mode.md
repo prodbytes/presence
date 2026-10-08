@@ -34,7 +34,7 @@ separate setting, so a system with sign-in can't be opened by mistake.
 - The anonymous user is a **root** (every role, as the table says), so
   every feature shows: the Camera, Monitoring, Settings and Log tabs (the
   Log on by default here, and it can be turned off in Settings), and
-  the camera's Clip, Flip and readiness controls.
+  the camera's view, Flip and Clip (with its readiness colors) buttons.
 - What only makes sense with accounts is hidden: **Sign in with Google**,
   the account button and sheet, the sign-up icon and the **Admin** tab.
 - An outlined **"dev"** label sits on the left of the app bar (there's no

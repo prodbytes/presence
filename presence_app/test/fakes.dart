@@ -172,11 +172,11 @@ Future<void> revealSystemEvents(WidgetTester tester) async {
 /// Goes to the Camera tab, presses Clip, waits for the events to publish
 /// (up to CameraRig.pastWait), then shows the Events tab.
 Future<void> clipAndShowEvents(WidgetTester tester) async {
-  if (find.byTooltip('Clip').evaluate().isEmpty) {
+  if (find.byKey(const Key('clip')).evaluate().isEmpty) {
     await tester.tap(find.byTooltip('Camera'));
     await tester.pumpAndSettle();
   }
-  await tester.tap(find.byTooltip('Clip'));
+  await tester.tap(find.byKey(const Key('clip')));
   await tester.pump(CameraRig.pastWait);
   await tester.pumpAndSettle();
   await settleStorage(tester);

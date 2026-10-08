@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/settings.dart';
 
+import 'fakes.dart';
+
 void main() {
   late ConfigController config;
   setUp(() => config = ConfigController());
@@ -14,6 +16,7 @@ void main() {
     double width = 320,
     bool? logTabDefault = false,
     bool liveSync = false,
+    bool liveAdmin = false,
   }) async {
     tester.view.physicalSize = Size(width, 640);
     tester.view.devicePixelRatio = 1;
@@ -25,6 +28,7 @@ void main() {
             config: config,
             logTabDefault: logTabDefault,
             liveSync: liveSync,
+            liveAdmin: liveAdmin,
           ),
         ),
       ),
@@ -161,8 +165,8 @@ void main() {
     expect(find.text('Advanced', skipOffstage: false), findsNothing);
   });
 
-  testWidgets('Connect to live sync: a slider from Never to Always, every '
-      'minute by default; only with live sync', (tester) async {
+  testWidgets('Connect to live sync: a slider from Never to every 60 min, '
+      'every minute by default; only with live sync', (tester) async {
     await show(tester);
     expect(find.byKey(const Key('live-connect-slider')), findsNothing);
 
@@ -172,32 +176,73 @@ void main() {
     expect(find.text('Connect to live sync'), findsOneWidget);
     expect(find.text('Every 1 min'), findsOneWidget);
     final bar = find.descendant(of: slider, matching: find.byType(Slider));
-    expect(tester.widget<Slider>(bar).divisions, LiveConfig.steps - 1);
+    expect(tester.widget<Slider>(bar).divisions, LiveConfig.memberMaxStep);
 
-    // All the way left: Never; all the way right: Always.
+    // All the way left: Never; all the way right: every 60 min (Always
+    // is for admins).
     await tester.drag(bar, const Offset(-1000, 0));
     await tester.pumpAndSettle();
     expect(config.live, LiveConfig.never);
     expect(find.text('Never'), findsOneWidget);
     await tester.drag(bar, const Offset(1000, 0));
     await tester.pumpAndSettle();
-    expect(config.live, LiveConfig.always);
-    expect(find.text('Always'), findsOneWidget);
-    expect(
-      tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
-      contains('Stays connected'),
-    );
+    expect(config.live, const LiveConfig(every: Duration(minutes: 60)));
+    expect(find.text('Every 60 min'), findsOneWidget);
+    expect(find.text('Always'), findsNothing);
   });
 
-  for (final (width, scale, columns) in [
-    (320.0, 1.0, true),
-    (320.0, 2.0, false),
-    (1280.0, 1.0, true),
-    (1280.0, 2.0, true),
+  testWidgets('Connect to live sync: every 30 s the most often for members; '
+      'a saved Always shows as every 30 s', (tester) async {
+    config.update(
+      (x) => x.copyWith(live: const LiveConfig(every: Duration(seconds: 30))),
+    );
+    await show(tester, liveSync: true, logTabDefault: null);
+    final slider = find.byKey(const Key('live-connect-slider'));
+    await scrollTo(tester, slider);
+    expect(find.text('Every 30 s'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
+      contains('every 30 s'),
+    );
+
+    config.update((x) => x.copyWith(live: LiveConfig.always));
+    await tester.pumpAndSettle();
+    expect(find.text('Every 30 s'), findsOneWidget);
+    expect(find.text('Always'), findsNothing);
+    // What's saved stays: an admin's again would be Always.
+    expect(config.live, LiveConfig.always);
+  });
+
+  testWidgets('Connect to live sync: admins are always connected, the '
+      'slider locked at Always', (tester) async {
+    await show(tester, liveSync: true, liveAdmin: true, logTabDefault: null);
+    final slider = find.byKey(const Key('live-connect-slider'));
+    await scrollTo(tester, slider);
+    expect(find.text('Always'), findsOneWidget);
+    final bar = find.descendant(of: slider, matching: find.byType(Slider));
+    expect(tester.widget<Slider>(bar).onChanged, isNull);
+    expect(tester.widget<Slider>(bar).value, LiveConfig.steps - 1);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('live-connect-note'))).data,
+      contains('Always connected for admins'),
+    );
+    await tester.drag(bar, const Offset(-1000, 0));
+    await tester.pumpAndSettle();
+    // Unchanged: every minute, the default, saved for when they're not.
+    expect(config.live, const LiveConfig());
+    expect(find.text('Always'), findsOneWidget);
+  });
+
+  for (final (width, scale) in [
+    (320.0, 1.0),
+    (320.0, 2.0),
+    (1280.0, 1.0),
+    (1280.0, 2.0),
   ]) {
-    testWidgets('the device and profile IDs come first, bodyMedium, '
-        '${columns ? 'in two columns' : 'stacked'}, and fit '
-        '${width.round()} dp at ${scale}x text', (tester) async {
+    testWidgets('the device and profile IDs come last, bodyMedium, one '
+        'line each, and fit ${width.round()} dp at ${scale}x text', (
+      tester,
+    ) async {
       tester.view.physicalSize = Size(width, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -213,17 +258,35 @@ void main() {
                 config: config,
                 deviceId: 'automatic_paranoid_gadget',
                 profileId: 'automatic_paranoid_axolotl',
+                health: const Text('All good', key: Key('system-health')),
+                addDevice: const Text('Add a device', key: Key('add-device')),
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
-      // Shown without scrolling; the IDs never overflow (other rows may
-      // at 2x and 320 dp).
+      final ids = find.byKey(const Key('settings-ids'));
+      await scrollSettingsTo(tester, ids);
+      // The IDs never overflow (other rows may at 2x and 320 dp).
       final error = tester.takeException();
       if (scale == 1) expect(error, isNull);
       expect(error.toString(), isNot(contains('_IdLine')));
+
+      // The very last thing on the page: the list's last child, under
+      // the health line and Add a device.
+      final list = tester.widget<ListView>(
+        find.byKey(const Key('settings-page')),
+      );
+      final children =
+          (list.childrenDelegate as SliverChildListDelegate).children;
+      expect(children.last.key, const Key('settings-ids'));
+      for (final above in ['system-health', 'add-device']) {
+        expect(
+          tester.getTopLeft(ids).dy,
+          greaterThan(tester.getBottomLeft(find.byKey(Key(above))).dy),
+        );
+      }
 
       final body = Theme.of(tester.element(find.byType(SettingsView)))
           .textTheme;
@@ -233,47 +296,34 @@ void main() {
         final style = tester.widget<SelectableText>(id).style!;
         expect(style.fontSize, body.bodyMedium!.fontSize);
         expect(style.fontSize, greaterThan(body.bodySmall!.fontSize!));
-        // Inside the screen, not cut off, and visible at the top.
+        // Inside the screen, not cut off.
         expect(tester.getTopLeft(id).dx, greaterThanOrEqualTo(0));
         expect(tester.getTopRight(id).dx, lessThanOrEqualTo(width));
+        expect(tester.getTopLeft(id).dy, greaterThanOrEqualTo(0));
         expect(tester.getBottomLeft(id).dy, lessThanOrEqualTo(640));
       }
       expect(
         tester.widget<SelectableText>(device).data,
         'automatic_paranoid_gadget',
       );
-      // The first content: above the first section's title.
-      final ids = find.byKey(const Key('settings-ids'));
+      // One column: Profile under Device.
       expect(
-        tester.getBottomLeft(ids).dy,
-        lessThan(tester.getTopLeft(find.text('Camera')).dy),
+        tester.getTopLeft(profile).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(device).dy),
       );
-      expect(tester.getTopLeft(ids).dy, lessThanOrEqualTo(16));
-      if (columns) {
-        // Device left, Profile right, on the same line.
-        expect(tester.getTopLeft(device).dy, tester.getTopLeft(profile).dy);
-        expect(
-          tester.getTopRight(device).dx,
-          lessThan(tester.getTopLeft(profile).dx),
-        );
-      } else {
-        // Stacked: Profile under Device.
-        expect(
-          tester.getTopLeft(profile).dy,
-          greaterThan(tester.getBottomLeft(device).dy),
-        );
-      }
-      // Each label is above its ID, the same size.
+      // Each label at the ID's size, before it on its line, or above it
+      // when the line doesn't fit.
       for (final (label, id) in [('Device', device), ('Profile', profile)]) {
-        final text = find.text(label);
-        expect(tester.widget<Text>(text).style!.fontSize,
-            body.bodyMedium!.fontSize);
+        final text = find.text('$label ');
         expect(
-          tester.getBottomLeft(text).dy,
-          lessThanOrEqualTo(tester.getTopLeft(id).dy),
+          tester.widget<Text>(text).style!.fontSize,
+          body.bodyMedium!.fontSize,
         );
+        final sameLine =
+            tester.getTopRight(text).dx <= tester.getTopLeft(id).dx;
+        final under = tester.getBottomLeft(text).dy <= tester.getTopLeft(id).dy;
+        expect(sameLine || under, isTrue);
       }
     });
   }
-
 }

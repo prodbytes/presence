@@ -12,9 +12,10 @@
   [Devices, users and places](devices-users-places.md)).
 - **One filter model.** What the timeline shows is worked out in one
   place, `EventFilters` ([lib/event_filters.dart](../presence_app/lib/event_filters.dart)):
-  it holds the device picked (`onlyDevice`), the system events toggle
-  (`showSystemEvents`) and the search (`search`), and `viewOf` gives each
-  step's events (the profile's, of the device, of the kinds, matching the
+  it holds the system events toggle (`showSystemEvents`) and the search
+  (`search`, which a device's whole ID narrows to that device:
+  `searchedDevice`, `showDevice`), and `viewOf` gives each step's events
+  (the profile's, of the device searched for, of the kinds, matching the
   search). Each step's list is kept until its inputs change (a new event,
   a filter, a clip's tags while searching), so the timeline, the count and
   the map share one pass instead of filtering the whole history on every
@@ -35,23 +36,27 @@
   or pet nobody's named has a yellow **unidentified** flag, with
   **Identify** to name them.
 - **Search.** The events search (`EventSearch`) sits at the top left of
-  the Monitoring tab, in one compact row with the count and the device
-  filter chip. It's a **search icon button** (tooltip "Search events")
+  the Monitoring tab, in one compact row with the count and the system
+  events toggle. It's a **search icon button** (tooltip "Search events")
   until tapped; tapped, it opens into a **Search events** field (up to
   280 dp, narrower on a small phone), focused so the keyboard comes up.
   It folds back into the icon when it loses focus empty, when submitted
   empty, or with the **x** in the field, which clears it first; while it
   has text it stays open (and shows open when coming back to the tab with
   a search kept). Typing filters the timeline live, ignoring case and the spaces
-  around the text: an event shows if its **title**, **detail**, **camera
-  label** or, for a clip, **the name of someone tagged on it** or **one of
+  around the text: an event shows if its **title**, **detail**, **device
+  ID** (events not saved yet are this device's), **camera label** or, for a clip, **the name of someone tagged on it** or **one of
   its [object tags](recognition.md)** (`cat`, `bicycle`…) or **one of its
   [flags](event-flags.md)** (`unidentified`) contains the
   text. Suggestions waiting for an answer aren't tags, so they don't
   match a clip; the "Is this Rex?" event matches through its own title,
   and its clip's camera label. Blank, every event shows.
-  - The search works together with the device filter and the system
-    events toggle: an event shows only if it passes all three. With nothing matching, the timeline says
+  - The search works together with the system events toggle: an event
+    shows only if it passes both. A search that is a device's **whole
+    ID** (ignoring case and spaces around it), such as one set by tapping
+    a device name, shows **only that device's events**, on the timeline,
+    the count and the [subjects map](subjects.md); part of an ID matches
+    like any other text. With nothing matching, the timeline says
     `No events match "<text>"`.
   - The text stays while switching tabs, but not across restarts.
   - **Opening an event the search hides** from elsewhere clears it, so the
@@ -124,12 +129,12 @@
   devices' copies are unknown while live sync is off. The clip player
   (the event's details) shows the same label under its title. It fits 320 dp. See
   [Event copies](event-copies.md).
-- **Every device, by default; tap an event's device to see only it.**
+- **Every device, by default; tap a device's name to see only it.**
   Above each event's card, small and quiet, is the **device it was taken
   on** (`EventDeviceTag`): a device icon and the device ID, this device's
   in bold (events not saved yet, which have no device ID, are this
-  device's; before the device ID is known they have no tag). Its tooltip
-  says "Show only <device>".
+  device's; before the device ID is known they have no tag). It's a
+  button; its tooltip says "Show this device's events".
   - The icon is the event's **operating system**'s (`DeviceOs.iconOf`:
     Android, iPhone, Mac laptop, Windows desktop, a computer for Linux, a
     globe for the web), and after the ID comes its name, as in
@@ -137,37 +142,37 @@
     narrow phone (the ID gets three fifths of the room). Events saved
     before events recorded an OS show the generic device icon and no
     name.
-  - **Tapping it** shows only that device's events
-    (`EventFilters.onlyDevice`, `EventTimeline.ofDevices`) on the
-    timeline, the [subjects map](subjects.md) and the count; the tag of
-    the device shown turns the accent color, and tapping it again shows
-    every device.
-  - While one device is shown, a small chip with its ID and an **x**
-    (`DeviceFilterChip`, tooltip "Show every device") sits in the top row
-    after the count; tapping it or its x shows every device again. With
-    every device shown there's no chip.
+  - **Tapping it** sets the search to the device's ID
+    (`EventFilters.showDevice`): the field opens with it and only that
+    device's events show (`EventTimeline.ofDevices`) on the timeline, the
+    [subjects map](subjects.md) and the count; the tag of the device
+    searched for turns the accent color (tooltip "Show every device's
+    events"), and tapping it again clears the search. The search's x
+    clears it too.
+  - **Device names elsewhere do the same** (`ShowDeviceEvents`, see
+    [Navigation](navigation.md)): the device in an event's details, the
+    account sheet's device list and the All grid's labels.
   - Every device shows at launch, including devices whose events arrive
-    later (such as those fetched from the cloud). The choice stays while
+    later (such as those fetched from the cloud). The search stays while
     switching tabs, but not across restarts.
-  - Filtered with nothing left (say, the search hides that device's
-    events), the timeline says "No events on <device>".
   - **Opening an event of another device** from elsewhere (see below)
-    shows every device again, so the event can show.
-  - It replaced the devices dropdown (a checkbox per device and an All
-    devices line).
+    clears the search, so the event can show.
+  - It replaced a separate device filter (a chip in the top row), and
+    before it the devices dropdown.
 - **Show system events: on in DEV, off otherwise.** A small, discreet
   **toggle icon** (`ShowSystemEvents`, a dimmed gear outline, the accent
   color filled while on; no label, its tooltip says "Show system events"
   or "Hide system events"; a 40 dp target) in the Monitoring tab's
   **top row**, after the count, with the other filters, decides which events show:
   - **on:** every event, such as **Application started**, sign-ins and
-    sign-outs, the recording consent and other plain events;
+    sign-outs, the recording consent, the
+    [Capture all](camera.md#capture-all) requests (`capture_all`, which
+    have no video of their own) and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
-    requested, Motion detected, Scheduled clip, Startup clip, Capture
-    all), the [Capture all](camera.md#capture-all) requests
-    (`capture_all`), and the
-    [recognition](recognition.md) suggestions about them ("Is this Rex?",
-    `SubjectSuggestion`), which wait for an answer.
+    requested, Motion detected, Scheduled clip, Startup clip, and the
+    clips taken for a Capture all, titled "Capture all" with the grid
+    icon), and the [recognition](recognition.md) suggestions about them
+    ("Is this Rex?", `SubjectSuggestion`), which wait for an answer.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
     the execution mode is known. The choice stays while switching tabs, but
     not across restarts. It always shows, even before the device ID is
@@ -193,7 +198,7 @@
   - It's a **one-shot request**: handled once, by the timeline on screen
     or, if the tab isn't built yet, by the next one built, after its first
     frame. Coming back to the tab later doesn't open it again, so a
-    search, device or system events choice made since is kept. Asking
+    search or system events choice made since is kept. Asking
     again, even for the same event, opens it again.
 - On launch, the app pushes an **Application started** event.
 - Every event carries the **device** it was recorded on (`deviceId`) and
