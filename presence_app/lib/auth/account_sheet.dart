@@ -589,7 +589,9 @@ class UserAvatar extends StatelessWidget {
 }
 
 /// One line about cloud uploads: syncing, synced (and how many), or why not
-/// (with a Retry button once syncing has stopped).
+/// (with a Retry button once syncing has stopped). A free profile has no
+/// cloud backup: the line says its devices sync with each other instead,
+/// and that backup is Premium's.
 class CloudSyncStatus extends StatelessWidget {
   const CloudSyncStatus({super.key, required this.sync});
 
@@ -601,7 +603,14 @@ class CloudSyncStatus extends StatelessWidget {
     return ListenableBuilder(
       listenable: sync,
       builder: (context, _) {
+        final free = !sync.premium;
         final (icon, text, color) = switch (sync.state) {
+          CloudSyncState.syncing || CloudSyncState.synced when free => (
+            Icons.devices_outlined,
+            'Free: your devices sync with each other while online. '
+                'Cloud backup is Premium.',
+            scheme.onSurfaceVariant,
+          ),
           CloudSyncState.off => (
             Icons.cloud_off_outlined,
             'Cloud backup is off',

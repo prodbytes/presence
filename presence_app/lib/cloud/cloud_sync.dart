@@ -24,6 +24,7 @@ export 'cloud_backend.dart';
 
 part 'cloud_sync_copies.dart';
 part 'cloud_sync_fetch.dart';
+part 'cloud_sync_free.dart';
 part 'cloud_sync_keys.dart';
 part 'cloud_sync_live.dart';
 part 'cloud_sync_pass.dart';
@@ -140,6 +141,13 @@ enum CloudSyncState { off, syncing, synced, error }
 ///   still come from the bucket: a pass is started for them right away
 ///   (and again when the event changes, as its clip completes); recordings
 ///   follow the usual rules.
+/// - Only a **premium** profile ([premium]: `presence_premium`, from
+///   rbacr) syncs with the bucket, which refuses the others' credentials.
+///   A **free** profile's devices sync over [live] alone
+///   ([_LivePublisher]): each event saved here is published with its
+///   clip's record and thumbnail, and other devices' come in the same way;
+///   recordings, tagged frames, settings and history stay where they were
+///   made. A change of tier starts over, with new credentials.
 ///
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
@@ -320,6 +328,7 @@ class CloudSync extends ChangeNotifier {
   /// The parts of a pass, and what runs beside it (each in its own file).
   late final _Fetcher _fetcher = _Fetcher(this);
   late final _Uploader _uploader = _Uploader(this);
+  late final _LivePublisher _publisher = _LivePublisher(this);
   late final _Recordings _recordings = _Recordings(this);
   late final _LiveBridge _liveBridge = _LiveBridge(this);
   late final _CopyTracker _copyTracker = _CopyTracker(this);
@@ -378,13 +387,28 @@ class CloudSync extends ChangeNotifier {
     return auth.user == null ? null : roles.profile;
   }
 
+  /// Whether the profile syncs with the bucket ([RolesService.isPremium]);
+  /// otherwise over live sync alone. Without [roles] (tests), it does.
+  bool get premium => roles?.isPremium ?? true;
+
+  /// [premium] when the profile last started syncing.
+  bool? _premiumWas;
+
   void _onAuthChanged() {
     final profile = _syncProfile;
     if (profile == _owner) {
+      if (profile != null && _premiumWas != premium) {
+        // Premium came or went: new credentials (their tier tag), and the
+        // bucket or not.
+        _premiumWas = premium;
+        reconnect();
+        return;
+      }
       // Signed in again (a new ID token): try again after a stop.
       if (profile != null && stopped && auth.idToken != _stoppedFor) retry();
       return;
     }
+    _premiumWas = premium;
     _owner = profile;
     _stoppedFor = null;
     backend.reset();
@@ -591,6 +615,18 @@ class CloudSync extends ChangeNotifier {
     }
 
     try {
+      if (!premium) {
+        // Free: live sync only, never the bucket.
+        final session = await backend.connect(idToken);
+        _identity = session.prefix;
+        await _liveBridge.start(session, owner);
+        await _publisher.publish(owner, epoch, reconcile ? null : dirty);
+        if (epoch != _epoch) return;
+        _failures = 0;
+        _ticksToSkip = 0;
+        _set(CloudSyncState.synced);
+        return;
+      }
       try {
         await run(await backend.connect(idToken));
       } on S3Exception catch (e) {
@@ -687,9 +723,10 @@ class CloudSync extends ChangeNotifier {
   /// profile's folder into the `MediaStore`, for playing a clip fetched
   /// from the cloud whose recording isn't here yet. Returns whether it's
   /// stored now; false when signed out, or it isn't in the cloud, or the
-  /// download failed.
-  Future<bool> fetchRecording(String clipId, String mediaId) =>
-      _recordings.fetchRecording(clipId, mediaId);
+  /// download failed; and for a free profile, which has no bucket: its
+  /// recordings are only on the device that made them.
+  Future<bool> fetchRecording(String clipId, String mediaId) async =>
+      premium && await _recordings.fetchRecording(clipId, mediaId);
 
   /// The most clips a full fetch wants again ([_Fetcher.rewantClips]).
   static const int maxRewanted = 100;

@@ -176,7 +176,7 @@
 | Route | Who | Answer |
 |---|---|---|
 | `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (the subject's profile, made at its first sign-in) |
-| `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token"}` |
+| `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token", "tier"}`: the token tagged `tier` `premium` or `free` ([Premium and free](premium.md)) |
 | `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
 | `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |

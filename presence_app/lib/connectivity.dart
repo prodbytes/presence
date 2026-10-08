@@ -59,6 +59,10 @@ class Connectivity {
       switch (status.aws.$1) {
         // A pass runs every 15 s: syncing is the normal course, not a
         // reason to turn amber and back each time.
+        '✅' || '🔄' when sync?.premium == false => (
+          PresenceLevel.live,
+          'Free: devices sync over live sync',
+        ),
         '✅' || '🔄' => (PresenceLevel.live, 'Cloud sync on'),
         '❌' => (PresenceLevel.old, 'Cloud sync failed'),
         '⚠️' => (PresenceLevel.recent, 'Cloud sync is set up on one side only'),

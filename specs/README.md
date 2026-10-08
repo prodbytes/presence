@@ -68,6 +68,10 @@ their data.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
   sheet (the profile ID and its devices, from events) and the OAuth
   clients.
+- [Premium and free](premium.md): rbacr says who is premium (its
+  `premium` or `admin` role): premium profiles sync with the cloud (S3,
+  enforced by a `tier` tag on their credentials); free ones' devices sync
+  with each other over live sync only, clips' thumbnails in the messages.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (their
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the

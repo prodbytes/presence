@@ -113,9 +113,7 @@ void main() {
     expect(thumbnail.height, closeTo(thumbnail.width * 9 / 16, 0.5));
   });
 
-  testWidgets('the events column stays between 360 and 880 dp', (
-    tester,
-  ) async {
+  testWidgets('the events column stays between 360 and 880 dp', (tester) async {
     await show(tester, const Size(720, 800));
     expect(rectOf(tester, 'events-page').width, closeTo(396, 0.5));
     await show(tester, const Size(1600, 900));

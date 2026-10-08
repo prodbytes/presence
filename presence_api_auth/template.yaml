@@ -12,8 +12,9 @@ Description: >
   returns the execution mode and which settings are set; GET /health (no
   token) checks the dependencies. Roles: the root allowlist (RootDomains
   for that Google Workspace, RootEmails) gets every role; the UserRoles
-  table adds more (never presence_root); a linked account shares only its
-  owner's presence_user. Served under /api/* by the site's CloudFront.
+  table adds more (never presence_root); rbacr's premium or admin gives
+  presence_premium; a linked account shares only its owner's
+  presence_user and presence_premium. Served under /api/* by CloudFront.
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
@@ -78,12 +79,31 @@ Parameters:
       hd: list only Gmail or Workspace addresses, whose Google account
       nobody else can register. Empty by default; set it at deploy
       (scripts/deploy.sh), never in the repository.
+  RbacrUrl:
+    Type: String
+    Default: https://rbacr.nu01.com
+    Description: >
+      RBACR_URL: rbacr (github.com/prodbytes/rbacr), which says who is
+      premium: an email holding premium or admin in its presence system
+      gets presence_premium, so its credentials may use the bucket (cloud
+      sync). Everyone else's devices sync with each other over live sync
+      only.
+  RbacrToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: >
+      RBACR_TOKEN: an rbacr API token that may read the presence system's
+      roles (one owned by an admin of the system). Empty: nobody is
+      premium. Set it at deploy (scripts/deploy.sh, from the RBACR_TOKEN
+      secret), never in the repository.
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
+  HasRbacr: !Not [!Equals [!Ref RbacrToken, '']]
 
 Globals:
   Function:
@@ -286,6 +306,8 @@ Resources:
           # The root allowlist: its verified users get every role (Roles).
           PRESENCE_ROOT_DOMAINS: !Ref RootDomains
           PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
           # Decides the ExecutionMode: DEV when empty, else RBAC.
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
           # GET /api/auth/anonymous says whether these are set (Settings).
@@ -471,6 +493,8 @@ Resources:
           USER_ROLES_TABLE: !Ref UserRolesTable
           PRESENCE_ROOT_DOMAINS: !Ref RootDomains
           PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable
@@ -580,6 +604,7 @@ Resources:
       Environment:
         Variables:
           PRESENCE_VERSION: !Ref Version
+          RBACR_URL: !If [HasRbacr, !Ref RbacrUrl, '']
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket

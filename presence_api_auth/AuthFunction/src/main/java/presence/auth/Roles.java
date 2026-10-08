@@ -14,7 +14,10 @@ import java.util.stream.Collectors;
  * {@link #ROOT}, which only the allowlist gives. A subject linked to a
  * profile another account owns also gets {@link #USER} when the owner has
  * it (membership), never the owner's {@link #ADMIN} or {@link #ROOT}.
- * Returned sorted.
+ * {@link #PREMIUM} comes only from {@link Rbacr rbacr}, for an email that
+ * holds {@code premium} or {@code admin} in its {@code presence} system,
+ * and a linked subject shares its owner's, as the profile's cloud folder is
+ * one. Returned sorted.
  *
  * <p>The allowlist: a root <em>domain</em> ({@code PRESENCE_ROOT_DOMAINS})
  * counts only when the token's {@code hd} claim is that domain, i.e. the
@@ -41,6 +44,18 @@ public final class Roles {
      */
     public static final String ROOT = "presence_root";
 
+    /**
+     * Also syncs with the cloud (S3): its events, clips and settings go up
+     * and come down, and its credentials are tagged so (see {@link
+     * ProfileHandler}). Without it, a member's devices only tell each
+     * other about events over live sync. Given by rbacr alone ({@link
+     * #PREMIUM_FROM}), never by the roles table or the allowlist.
+     */
+    public static final String PREMIUM = "presence_premium";
+
+    /** The rbacr roles (in the {@code presence} system) that give {@link #PREMIUM}. */
+    static final Set<String> PREMIUM_FROM = Set.of("premium", "admin");
+
     /** What a root allowlist member gets. */
     static final Set<String> ROOT_ROLES = Set.of(ROOT, ADMIN, USER);
 
@@ -50,24 +65,33 @@ public final class Roles {
     private final Set<String> rootDomains;
     private final Set<String> rootEmails;
     private final Function<String, Set<String>> declared;
+    private final Function<String, Set<String>> rbacr;
+
+    /** Without rbacr: nobody is {@link #PREMIUM}. */
+    public Roles(Set<String> rootDomains, Set<String> rootEmails, Function<String, Set<String>> declared) {
+        this(rootDomains, rootEmails, declared, email -> Set.of());
+    }
 
     /**
      * @param rootDomains e.g. {@code nu01.com}; each matched exactly after the {@code @}, and against {@code hd}
      * @param rootEmails  single addresses, matched whole
      * @param declared    roles declared for a (lowercase) email, empty if none
+     * @param rbacr       the email's roles in rbacr's {@code presence} system, empty if none (or unknown)
      */
-    public Roles(Set<String> rootDomains, Set<String> rootEmails, Function<String, Set<String>> declared) {
+    public Roles(Set<String> rootDomains, Set<String> rootEmails, Function<String, Set<String>> declared,
+                 Function<String, Set<String>> rbacr) {
         this.rootDomains = normalized(rootDomains);
         this.rootEmails = normalized(rootEmails);
         this.declared = declared;
+        this.rbacr = rbacr;
     }
 
-    /** From the function's environment (see template.yaml): the allowlist and the UserRoles table. */
+    /** From the function's environment (see template.yaml): the allowlist, the UserRoles table and rbacr. */
     static Roles fromEnvironment() {
         var table = System.getenv("USER_ROLES_TABLE");
         var dynamo = Aws.dynamo();
         return new Roles(list(System.getenv("PRESENCE_ROOT_DOMAINS")), list(System.getenv("PRESENCE_ROOT_EMAILS")),
-                email -> UserRoles.declared(dynamo, table, email));
+                email -> UserRoles.declared(dynamo, table, email), Rbacr.fromEnvironment());
     }
 
     /** A comma-separated setting's non-blank items. */
@@ -103,7 +127,11 @@ public final class Roles {
         if (rootEmails.contains(normalized) || rootDomains.contains(domain) && domain.equals(workspace)) {
             roles.addAll(ROOT_ROLES);
         }
-        declared.apply(normalized).stream().filter(r -> !ROOT.equals(r)).forEach(roles::add);
+        // Premium is rbacr's to give, not the table's.
+        declared.apply(normalized).stream().filter(r -> !ROOT.equals(r) && !PREMIUM.equals(r)).forEach(roles::add);
+        if (rbacr.apply(normalized).stream().anyMatch(PREMIUM_FROM::contains)) {
+            roles.add(PREMIUM);
+        }
         return roles;
     }
 
@@ -116,8 +144,9 @@ public final class Roles {
      * The caller's roles, plus {@link #USER} when its account is linked to
      * {@code profile} (null when none), owned by another account that is a
      * member: one person, whichever of their accounts signs in, uses the
-     * app. Administration ({@link #ADMIN}, {@link #ROOT}) is never shared:
-     * each account gets it only from its own email.
+     * app; and {@link #PREMIUM} when the owner has it, as the profile's
+     * cloud folder is the owner's. Administration ({@link #ADMIN}, {@link
+     * #ROOT}) is never shared: each account gets it only from its own email.
      */
     public Set<String> of(Caller caller, Profiles.Profile profile) {
         var roles = new TreeSet<>(of(caller));
@@ -126,8 +155,12 @@ public final class Roles {
             return roles;
         }
         // The owner's email was verified when stored (Profiles keeps no other).
-        if (of(profile.ownerEmail(), true, profile.ownerHd()).contains(USER)) {
+        var owner = of(profile.ownerEmail(), true, profile.ownerHd());
+        if (owner.contains(USER)) {
             roles.add(USER);
+        }
+        if (owner.contains(PREMIUM)) {
+            roles.add(PREMIUM);
         }
         return roles;
     }
@@ -138,6 +171,7 @@ public final class Roles {
         roles.add(ANONYMOUS);
         if (mode == ExecutionMode.DEV) {
             roles.addAll(ROOT_ROLES);
+            roles.add(PREMIUM);
         }
         return roles;
     }

@@ -6,7 +6,8 @@ Description: >
   issues a developer-identity token for the profile's identity; the app
   trades it for temporary AWS credentials of the authenticated role, which
   may only read and write that identity's prefix in the user-data bucket
-  (presence-user-data stack), and use live sync: AWS IoT Core MQTT on that
+  (presence-user-data stack), and only when the token's tier principal tag
+  is premium (rbacr says so), and use live sync: AWS IoT Core MQTT on that
   identity's own topics, presence/<Stage>/<identity ID>/*, through the
   LivePolicy IoT policy the auth API attaches to each identity. Guests
   (unauthenticated identities) aren't allowed.
@@ -61,7 +62,12 @@ Resources:
           - Effect: Allow
             Principal:
               Federated: cognito-identity.amazonaws.com
-            Action: sts:AssumeRoleWithWebIdentity
+            # TagSession: the auth API's developer-identity tokens carry a
+            # tier principal tag (premium or free), which Cognito sets on
+            # the session; the bucket's statements below require premium.
+            Action:
+              - sts:AssumeRoleWithWebIdentity
+              - sts:TagSession
             Condition:
               StringEquals:
                 cognito-identity.amazonaws.com:aud: !Ref IdentityPool
@@ -73,7 +79,11 @@ Resources:
             Version: '2012-10-17'
             Statement:
               # Each profile reaches only <bucket>/<its identity ID>/..., whichever
-              # of its Google accounts signed in.
+              # of its Google accounts signed in; and only a premium one (the
+              # tier tag the auth API gives the token, from rbacr). Free
+              # profiles' devices sync over live sync alone. Credentials
+              # without the tag (Google sign-in straight to the pool, which
+              # the pool still accepts for GetId) reach nothing here.
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -82,11 +92,16 @@ Resources:
                   - ${BucketArn}/${!cognito-identity.amazonaws.com:sub}/*
                   - BucketArn:
                       Fn::ImportValue: !Sub ${UserDataStackName}-bucket-arn
+                Condition:
+                  StringEquals:
+                    aws:PrincipalTag/tier: premium
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource:
                   Fn::ImportValue: !Sub ${UserDataStackName}-bucket-arn
                 Condition:
+                  StringEquals:
+                    aws:PrincipalTag/tier: premium
                   StringLike:
                     s3:prefix:
                       - ${cognito-identity.amazonaws.com:sub}

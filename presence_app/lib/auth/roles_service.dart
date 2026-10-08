@@ -18,6 +18,14 @@ const adminRole = 'presence_admin';
 /// roots make admins. Comes with [adminRole] and [userRole].
 const rootRole = 'presence_root';
 
+/// Also syncs with the cloud (S3): events, clips, recordings and settings
+/// go up and come down, so a new device gets the history. Given by rbacr
+/// (premium or admin in its presence system), never by this app; the auth
+/// API tags the profile's credentials with it, and the bucket requires
+/// that. Without it, a member's devices tell each other about events over
+/// live sync only.
+const premiumRole = 'presence_premium';
+
 /// Nobody signed in: may only sign in (or, in [ExecutionMode.dev], has
 /// every role).
 const anonymousRole = 'presence_anonymous';
@@ -35,9 +43,10 @@ enum ExecutionMode {
 }
 
 /// Which of the settings the system expects the auth API has
-/// (`presence.auth.Settings`): an OIDC client, and AWS cloud sync (the
-/// identity pool and bucket). Null where it didn't say.
-typedef ApiSettings = ({bool? oidc, bool? aws});
+/// (`presence.auth.Settings`): an OIDC client, AWS cloud sync (the
+/// identity pool and bucket), and rbacr (who is premium). Null where it
+/// didn't say (an older API, for rbacr).
+typedef ApiSettings = ({bool? oidc, bool? aws, bool? rbacr});
 
 /// The execution mode, the anonymous user's roles and the API's settings.
 typedef AnonymousAccess = ({
@@ -135,7 +144,7 @@ class HttpRolesClient implements RolesClient {
     return (
       mode: mode,
       roles: roles is List ? [for (final r in roles) '$r'] : const <String>[],
-      settings: (oidc: flag('oidc'), aws: flag('aws')),
+      settings: (oidc: flag('oidc'), aws: flag('aws'), rbacr: flag('rbacr')),
     );
   }
 }
@@ -214,7 +223,7 @@ class RolesService extends ChangeNotifier {
   /// [checkApi]), if it didn't.
   String? get apiError => _apiError;
 
-  ApiSettings _apiSettings = (oidc: null, aws: null);
+  ApiSettings _apiSettings = (oidc: null, aws: null, rbacr: null);
 
   /// Which expected settings the auth API reported at start; unknown
   /// (null) until then, or if it didn't answer.
@@ -258,6 +267,10 @@ class RolesService extends ChangeNotifier {
 
   /// An admin who may also create Admin vouchers.
   bool get isRoot => isAdmin && _roles.contains(rootRole);
+
+  /// Has access and syncs with the cloud ([premiumRole]); a member without
+  /// it is free: live sync only.
+  bool get isPremium => hasAccess && _roles.contains(premiumRole);
 
   /// Checks the roles again (e.g. after asking for access).
   Future<void> refresh() async {
@@ -318,7 +331,7 @@ class RolesService extends ChangeNotifier {
         '${watch.elapsedMilliseconds} ms; checking again): $e',
       );
       _apiError = '$e';
-      const unknown = (oidc: null, aws: null);
+      const unknown = (oidc: null, aws: null, rbacr: null);
       access = oidcClient
           ? (
               mode: ExecutionMode.rbac,

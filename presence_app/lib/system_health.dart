@@ -15,11 +15,13 @@ import 'time_format.dart';
 /// One check's status: its emoji and what it means (the tooltip).
 typedef HealthPart = (String, String);
 
-/// The four checks at one moment: the auth API, AWS, OIDC and live sync.
+/// The checks at one moment: the auth API, AWS, OIDC, live sync and
+/// RBACR.
 typedef HealthStatus = ({
   HealthPart api,
   HealthPart aws,
   HealthPart oidc,
+  HealthPart rbacr,
   HealthPart live,
 });
 
@@ -84,7 +86,43 @@ class SystemHealth extends StatelessWidget {
           off: 'sign-in is off',
         ) ??
         ('✅', 'OIDC: Google sign-in set');
-    return (api: api, aws: aws, oidc: oidc, live: liveOf(sync));
+    return (
+      api: api,
+      aws: aws,
+      oidc: oidc,
+      rbacr: rbacrOf(roles),
+      live: liveOf(sync),
+    );
+  }
+
+  /// RBACR, which says who is premium (cloud sync), as the auth API
+  /// reports it ([ApiSettings.rbacr]): set, and whether this profile is
+  /// Premium or Free; ⚠️ when the API has cloud sync (AWS) but no RBACR, so
+  /// nobody can be premium; ⚪ when the API doesn't say (it hasn't answered,
+  /// or predates RBACR) and in DEV, where nobody signs in.
+  static HealthPart rbacrOf(RolesService roles) {
+    final settings = roles.apiSettings;
+    if (roles.mode == ExecutionMode.dev) {
+      return ('⚪', 'RBACR: not used in DEV mode (nobody signs in)');
+    }
+    return switch (settings.rbacr) {
+      null => ('⚪', "RBACR: the auth API doesn't say"),
+      false when settings.aws == true => (
+        '⚠️',
+        'RBACR: not set on the auth API; nobody can be premium, so no '
+            'profile syncs with the cloud',
+      ),
+      false => ('⚪', 'RBACR: not set; no cloud sync here anyway'),
+      true when !roles.hasAccess => ('✅', 'RBACR: set; says who is premium'),
+      true when roles.isPremium => (
+        '✅',
+        'RBACR: set; this profile is Premium (cloud backup)',
+      ),
+      true => (
+        '✅',
+        'RBACR: set; this profile is Free (its devices sync with each other)',
+      ),
+    };
   }
 
   /// Live sync's status: off without an IoT endpoint in this build (or
@@ -202,7 +240,13 @@ class HealthWarningPill extends StatelessWidget {
       oidcClient: oidcClient ?? hasOidcClient,
     );
     return [
-      for (final part in [status.api, status.aws, status.oidc, status.live])
+      for (final part in [
+        status.api,
+        status.aws,
+        status.oidc,
+        status.rbacr,
+        status.live,
+      ])
         if (healthPartFailed(part)) part.$2,
     ];
   }
@@ -289,6 +333,7 @@ _checks = [
   ('api', '🔌', 'Auth API', (s) => s.api),
   ('aws', '☁️', 'AWS', (s) => s.aws),
   ('oidc', '🔑', 'OIDC', (s) => s.oidc),
+  ('rbacr', '🛂', 'RBACR', (s) => s.rbacr),
   ('live', '📡', 'Live', (s) => s.live),
 ];
 

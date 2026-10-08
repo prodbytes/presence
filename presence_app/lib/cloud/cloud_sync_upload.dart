@@ -174,6 +174,7 @@ class _Uploader {
       final uploading = Completer<void>();
       _eventUploads[id] = uploading.future;
       Map<String, Object?>? published;
+      Map<String, Object?>? publishedClip;
       String? publishedKey;
       String? etag;
       try {
@@ -224,6 +225,11 @@ class _Uploader {
           published = (jsonDecode(utf8.decode(json)) as Map)
               .cast<String, Object?>();
           publishedKey = key;
+          // Its clip goes along, for the profile's devices without the
+          // bucket (an account linked to a free owner's profile).
+          if (record['clipId'] case final String clipId) {
+            publishedClip = await store.getClip(clipId);
+          }
         }
       } finally {
         if (_eventUploads[id] == uploading.future) _eventUploads.remove(id);
@@ -234,7 +240,12 @@ class _Uploader {
       if ((_sync.live, published, publishedKey, etag)
           case (final live?, final event?, final key?, final etag?)
           when pass.current) {
-        await live.publishEvent(event, key: key, etag: etag);
+        await live.publishEvent(
+          event,
+          key: key,
+          etag: etag,
+          clip: publishedClip,
+        );
       }
     }
     _sync._copyTracker.note(uploadedEvents).ignore();

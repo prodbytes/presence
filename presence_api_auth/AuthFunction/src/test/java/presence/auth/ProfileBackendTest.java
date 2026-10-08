@@ -24,6 +24,7 @@ class ProfileBackendTest {
     /** As Cognito, for an identity Google sign-in made: a profile ID links to it only beside its Google login. */
     private static final class Cognito implements CognitoIdentityClient {
         final List<Map<String, String>> calls = new ArrayList<>();
+        final List<Map<String, String>> tags = new ArrayList<>();
         String linkedProfile;
 
         @Override
@@ -31,6 +32,7 @@ class ProfileBackendTest {
                 GetOpenIdTokenForDeveloperIdentityRequest request) {
             var logins = request.logins();
             calls.add(logins);
+            tags.add(request.principalTags());
             var profile = logins.get(DEV);
             if (linkedProfile == null && "google-token".equals(logins.get(ProfileBackend.GOOGLE))) {
                 linkedProfile = profile;
@@ -66,6 +68,17 @@ class ProfileBackendTest {
         cognito.calls.clear();
         assertEquals("token", backend.openIdToken("us-east-1:id", "savvy_plaice", "member-token"));
         assertEquals(List.of(Map.of(DEV, "savvy_plaice")), cognito.calls);
+    }
+
+    @Test
+    void tokensCarryTheTierAsAPrincipalTag() {
+        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.PREMIUM);
+        // Both tries (unlinked, then with the Google login) are tagged.
+        assertEquals(List.of(Map.of("tier", "premium"), Map.of("tier", "premium")), cognito.tags);
+        cognito.tags.clear();
+        // Without a tier (a link code's token): free, never premium.
+        backend.openIdToken("us-east-1:id", "savvy_plaice", null);
+        assertEquals(List.of(Map.of("tier", "free")), cognito.tags);
     }
 
     /** AWS IoT's control plane: records AttachPolicy calls, or fails them. */

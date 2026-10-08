@@ -4204,3 +4204,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        wrapped around the app in `MaterialApp.builder`) and
        `test/barrel_roll_test.dart`.
      - Specs: [Events](events.md).
+
+319. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+     - Asked: improve role-based access control, starting with cloud (S3)
+       sync of events only for premium and admin users; free users sync
+       device to device over MQTT. Premium comes from rbacr
+       (github.com/prodbytes/rbacr, https://rbacr.nu01.com; its token in
+       `.env`), which also decides who is premium at release; free
+       members share events and thumbnails; their S3 data is left to
+       expire. Also: rbacr in the health checks.
+     - Changed: the auth API asks rbacr for the caller's roles in its
+       `presence` system (`Rbacr`: 2 s timeout, answers reused 60 s,
+       fails closed) and gives `presence_premium` for `premium` or
+       `admin` (a linked account shares its owner's). Credentials are
+       tagged `tier=premium|free` (Cognito principal tags), and the
+       identity role's S3 statements require `premium` (trust policy
+       allows `sts:TagSession`; deploy roles may update it). Free
+       profiles' app sync never touches S3: it publishes each event over
+       live sync with its clip's record and thumbnail (`clip` in the
+       message, at most 48 KB), and receivers store it. Tier changes start
+       sync over; `AccessDenied` renews credentials once. The account
+       sheet and connectivity say Free. RBACR in health: the API's
+       `/health` `rbacr` check, `settings.rbacr` in
+       `/api/auth/anonymous`, the app's 🛂 RBACR card, and the local
+       monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
+       secret) and checks `rbacr` in its smoke test. Tests: auth API
+       (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
+       RBACR health). Specs: [Premium and free](premium.md) (new),
+       [Membership](membership.md), [Cloud sync](cloud-sync.md),
+       [Live sync](live-sync.md), [Auth API](auth-api.md),
+       [Profiles](profiles.md), [Health check](health-check.md),
+       [Execution mode](execution-mode.md).
