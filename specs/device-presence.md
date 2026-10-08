@@ -35,7 +35,9 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
 - The reason is the dot's tooltip and its screen-reader label
   (`Semantics`). Ages read "5 s ago", "4 min ago", "3 h ago", "2 d ago"
   (`describeSince`).
-- **In the All grid** the dot leads each cell's label ("● brave_fox ·
+- **In the All grid** the cells are ordered by it: live devices first,
+  then the most recently active (see [All devices](camera.md#all-devices)).
+  The dot leads each cell's label ("● brave_fox ·
   5 min ago", "● <this device> · live"); the label's text still lets taps
   through to the cell's clip, the dot takes them for its tooltip. **In the
   devices list** it sits before the device ID, on the ID's line (which
