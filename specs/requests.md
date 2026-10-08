@@ -4166,7 +4166,46 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
 
-317. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+316. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+     - Asked: the grab (Clip) button's readiness color should be its text
+       color, not its background, in discreet colors.
+     - Changed: the background is one quiet neutral for every state
+       (Gruvbox `bg1` on the dark theme); the state shows in the label and
+       icon only, in muted colors: green `#A9B665` ready, amber `#D8A657`
+       cooldown, soft red `#EC8F82` saving, warm grey `#B0A08A` disabled
+       (was red-tinted). Light theme variants on `#F9F5D7`. All at least
+       4.5:1 (tested), dark ones muted (tested). Tests:
+       `readiness_test.dart`. Specs: [Navigation](navigation.md),
+       [Camera screen](camera.md).
+
+317. **Cameras ordered by activity, with online status.** (2026-10-07)
+     - Asked: in the camera section, order the cameras most recently
+       active first, with an online or offline indicator if possible,
+       checked by pinging over MQTT.
+     - Changed: the All grid's other devices are now ordered by activity
+       (`byActivity`): live devices first (answered a live-sync ping
+       within 90 s), then by when last heard from or last event, newest
+       first; ties by device ID. Among live devices their latest event
+       decides, so cells don't swap at every ping round. Cells slide to
+       their new place (300 ms). The online indicator was already there:
+       each cell's presence dot (green live, yellow seen within 24 h, red
+       older), from the MQTT pings the grid sends every 30 s. Tests:
+       `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
+       [Device presence](device-presence.md).
+
+318. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+     - Asked: "lets add an easter egg. if the user searches for "do a
+       barrel roll", roll the screen, like google".
+     - Changed: typing **do a barrel roll** (or "barrell", any case and
+       spacing) in the Monitoring tab's events search spins the whole
+       app one turn over 2 s, as Google's search does; once when the
+       text becomes the phrase, again on each submit; not during a turn
+       or with reduced motion. New `lib/barrel_roll.dart` (`BarrelRoll`,
+       wrapped around the app in `MaterialApp.builder`) and
+       `test/barrel_roll_test.dart`.
+     - Specs: [Events](events.md).
+
+319. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
      - Asked: improve role-based access control, starting with cloud (S3)
        sync of events only for premium and admin users; free users sync
        device to device over MQTT. Premium comes from rbacr
@@ -4196,4 +4235,3 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Live sync](live-sync.md), [Auth API](auth-api.md),
        [Profiles](profiles.md), [Health check](health-check.md),
        [Execution mode](execution-mode.md).
-
