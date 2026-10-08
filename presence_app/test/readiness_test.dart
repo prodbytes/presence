@@ -275,17 +275,38 @@ void main() {
       });
     }
 
-    test('green when ready, amber in the cooldown, red otherwise', () {
+    test('green when ready, amber in the cooldown, red saving, grey off', () {
       for (final brightness in Brightness.values) {
-        Color bg(ClipTone t) => ClipButtonColors.of(t, brightness).$1;
-        final ready = HSVColor.fromColor(bg(ClipTone.ready)).hue;
-        final cooldown = HSVColor.fromColor(bg(ClipTone.cooldown)).hue;
-        final recording = HSVColor.fromColor(bg(ClipTone.recording)).hue;
-        final disabled = HSVColor.fromColor(bg(ClipTone.disabled)).hue;
-        expect(ready, inInclusiveRange(55, 90));
-        expect(cooldown, inInclusiveRange(30, 50));
-        expect(recording, anyOf(lessThan(15), greaterThan(345)));
-        expect(disabled, anyOf(lessThan(15), greaterThan(345)));
+        Color fg(ClipTone t) => ClipButtonColors.of(t, brightness).$2;
+        HSVColor hsv(ClipTone t) => HSVColor.fromColor(fg(t));
+        expect(hsv(ClipTone.ready).hue, inInclusiveRange(55, 90));
+        expect(hsv(ClipTone.cooldown).hue, inInclusiveRange(30, 50));
+        expect(
+          hsv(ClipTone.recording).hue,
+          anyOf(lessThan(15), greaterThan(345)),
+        );
+        expect(hsv(ClipTone.disabled).saturation, lessThan(0.25));
+        // Muted on the dark theme (the app's), not Gruvbox's brightest.
+        // (The light theme's are deep shades, saturated by nature.)
+        if (brightness == Brightness.dark) {
+          for (final tone in ClipTone.values) {
+            expect(hsv(tone).saturation, lessThan(0.65), reason: '$tone');
+          }
+        }
+      }
+    });
+
+    test('the background is the same quiet neutral for every tone', () {
+      for (final brightness in Brightness.values) {
+        final backgrounds = {
+          for (final tone in ClipTone.values)
+            ClipButtonColors.of(tone, brightness).$1,
+        };
+        expect(backgrounds, {ClipButtonColors.background(brightness)});
+        expect(
+          HSVColor.fromColor(backgrounds.single).saturation,
+          lessThan(0.3),
+        );
       }
     });
   });
@@ -383,8 +404,9 @@ void main() {
     final clip = find.byKey(const Key('clip'));
     FloatingActionButton button(WidgetTester tester) =>
         tester.widget<FloatingActionButton>(clip);
-    Color? color(WidgetTester tester) => button(tester).backgroundColor;
-    Color tone(ClipTone t) => ClipButtonColors.of(t, Brightness.dark).$1;
+    // The tone is the label's and icon's color, not the background's.
+    Color? color(WidgetTester tester) => button(tester).foregroundColor;
+    Color tone(ClipTone t) => ClipButtonColors.of(t, Brightness.dark).$2;
 
     /// Motion past the warm-up: takes a motion clip.
     Future<void> move(WidgetTester tester, FakeCameraSource camera) async {

@@ -4165,3 +4165,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
+
+316. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+     - Asked: the grab (Clip) button's readiness color should be its text
+       color, not its background, in discreet colors.
+     - Changed: the background is one quiet neutral for every state
+       (Gruvbox `bg1` on the dark theme); the state shows in the label and
+       icon only, in muted colors: green `#A9B665` ready, amber `#D8A657`
+       cooldown, soft red `#EC8F82` saving, warm grey `#B0A08A` disabled
+       (was red-tinted). Light theme variants on `#F9F5D7`. All at least
+       4.5:1 (tested), dark ones muted (tested). Tests:
+       `readiness_test.dart`. Specs: [Navigation](navigation.md),
+       [Camera screen](camera.md).
+
