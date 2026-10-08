@@ -202,6 +202,8 @@ class AccountSheet extends StatelessWidget {
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
                     if (roles case final roles?) ...[
+                      const SizedBox(height: 8),
+                      AccountRoles(roles: roles),
                       const SizedBox(height: 12),
                       ConnectivityIndicator(roles: roles, sync: sync),
                     ],
@@ -584,6 +586,89 @@ class UserAvatar extends StatelessWidget {
       foregroundImage: photo == null ? null : NetworkImage(photo),
       onForegroundImageError: photo == null ? null : (_, _) {},
       child: Text(initial, style: TextStyle(fontSize: radius * 0.9)),
+    );
+  }
+}
+
+/// The signed-in user's roles, always shown under their email: a small
+/// chip per role, named for people ([labelOf]: Member, Admin, Root,
+/// Premium), the role's ID in its tooltip; "No roles yet" without any, and
+/// "Checking roles…" while the auth API is asked. The anonymous role isn't
+/// shown (it's everyone's before signing in).
+class AccountRoles extends StatelessWidget {
+  const AccountRoles({super.key, required this.roles});
+
+  final RolesService roles;
+
+  /// What a role is called here; another role keeps its ID.
+  static String labelOf(String role) => switch (role) {
+    userRole => 'Member',
+    adminRole => 'Admin',
+    rootRole => 'Root',
+    'presence_premium' => 'Premium',
+    _ => role,
+  };
+
+  /// The order they're shown in: as listed in [labelOf], then the others.
+  static int _rank(String role) => switch (role) {
+    userRole => 0,
+    'presence_premium' => 1,
+    adminRole => 2,
+    rootRole => 3,
+    _ => 4,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final style = Theme.of(context).textTheme.labelMedium;
+    final shown =
+        [
+          for (final role in roles.roles)
+            if (role != anonymousRole) role,
+        ]..sort((a, b) {
+          final byRank = _rank(a).compareTo(_rank(b));
+          return byRank != 0 ? byRank : a.compareTo(b);
+        });
+    Widget note(String text) =>
+        Text(text, style: style?.copyWith(color: scheme.onSurfaceVariant));
+    return Semantics(
+      container: true,
+      label: shown.isEmpty ? null : 'Roles: ${shown.map(labelOf).join(', ')}',
+      child: KeyedSubtree(
+        key: const Key('account-roles'),
+        child: switch (roles.state) {
+          AccessState.starting ||
+          AccessState.checking when shown.isEmpty => note('Checking roles…'),
+          _ when shown.isEmpty => note('No roles yet'),
+          _ => Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final role in shown)
+                Tooltip(
+                  message: role,
+                  excludeFromSemantics: true,
+                  child: Container(
+                    key: Key('account-role-$role'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: scheme.outlineVariant),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ExcludeSemantics(
+                      child: Text(labelOf(role), style: style),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        },
+      ),
     );
   }
 }

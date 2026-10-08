@@ -4165,3 +4165,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
+
+316. **The account sheet always shows the user's roles.** (2026-10-08)
+     - Asked: always show the user's roles in the profile view.
+     - Changed: the account sheet shows, under the email, a chip per role
+       (`AccountRoles`): Member, Premium, Admin, Root (another role keeps
+       its ID), the role ID as tooltip; "No roles yet" without any,
+       "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
+       Spec: [Sign-in](sign-in.md).
+
