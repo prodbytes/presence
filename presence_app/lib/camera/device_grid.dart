@@ -1,5 +1,6 @@
 /// The All grid's pieces: each other device's latest image
-/// ([latestByDevice]), the grid's shape ([gridColumns]) and its cells.
+/// ([latestByDevice]), their order ([byActivity]), the grid's shape
+/// ([gridColumns]) and its cells.
 library;
 
 import 'dart:math';
@@ -9,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import '../clips.dart' show ClipRequested;
 import '../device_events.dart';
+import '../device_presence.dart';
 import '../events.dart';
 
 /// Another device's latest event, and its latest image, for the grid.
@@ -56,6 +58,46 @@ List<DeviceLatest> latestByDevice(
   }
   return latest.values.toList()
     ..sort((a, b) => a.deviceId.compareTo(b.deviceId));
+}
+
+/// [devices] most recently active first, for the All grid: those live now
+/// (answered a ping within [DevicePresence.liveWithin], green) first, then
+/// the others by when they were last heard from over live sync
+/// ([seenOf]) or posted an event ([lastEvents]), whichever is later,
+/// newest first. Live devices all answer the same ping round within a
+/// second or so, so among them their latest event decides, and the cells
+/// don't swap places at every round. Ties by device ID.
+List<DeviceLatest> byActivity(
+  List<DeviceLatest> devices, {
+  DateTime? Function(String deviceId)? seenOf,
+  required Map<String, DateTime> lastEvents,
+  required DateTime now,
+  required bool liveAvailable,
+}) {
+  (bool, DateTime) rank(DeviceLatest d) {
+    final answered = seenOf?.call(d.deviceId);
+    final event = lastEvents[d.deviceId] ?? d.time;
+    final live =
+        DevicePresence.of(
+          answeredAt: answered,
+          lastEvent: event,
+          now: now,
+          liveAvailable: liveAvailable,
+        ).level ==
+        PresenceLevel.live;
+    if (live) return (true, event);
+    final heard = liveAvailable ? answered : null;
+    return (false, heard != null && heard.isAfter(event) ? heard : event);
+  }
+
+  final ranks = {for (final d in devices) d.deviceId: rank(d)};
+  return [...devices]..sort((a, b) {
+    final (aLive, aTime) = ranks[a.deviceId]!;
+    final (bLive, bTime) = ranks[b.deviceId]!;
+    if (aLive != bLive) return aLive ? -1 : 1;
+    final byTime = bTime.compareTo(aTime);
+    return byTime != 0 ? byTime : a.deviceId.compareTo(b.deviceId);
+  });
 }
 
 /// How many columns fit [count] cells in [size] with the biggest 16:9
