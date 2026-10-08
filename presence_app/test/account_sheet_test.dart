@@ -347,4 +347,58 @@ void main() {
       );
     });
   }
+
+  group('the roles', () {
+    Future<void> show(WidgetTester tester, FakeRolesClient client) async {
+      final auth = FakeAuthService();
+      final roles = RolesService(auth: auth, client: client);
+      addTearDown(roles.dispose);
+      await auth.signIn();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AccountSheet(auth: auth, roles: roles),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('always show, by name, the role in the tooltip', (
+      tester,
+    ) async {
+      await show(
+        tester,
+        FakeRolesClient(const [rootRole, userRole, adminRole, premiumRole]),
+      );
+      expect(find.byKey(const Key('account-roles')), findsOneWidget);
+      // Member first, then the others in order.
+      final chips = [
+        for (final role in [userRole, premiumRole, adminRole, rootRole])
+          tester.getTopLeft(find.byKey(Key('account-role-$role'))).dx,
+      ];
+      expect(chips, orderedEquals([...chips]..sort()));
+      expect(find.text('Member'), findsOneWidget);
+      expect(find.text('Premium'), findsOneWidget);
+      expect(find.text('Admin'), findsOneWidget);
+      expect(find.text('Root'), findsOneWidget);
+      expect(find.byTooltip('presence_admin'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.byKey(const Key('account-roles'))).label,
+        'Roles: Member, Premium, Admin, Root',
+      );
+    });
+
+    testWidgets('a member alone; an unknown role keeps its ID', (tester) async {
+      await show(tester, FakeRolesClient(const [userRole, 'presence_beta']));
+      expect(find.text('Member'), findsOneWidget);
+      expect(find.text('presence_beta'), findsOneWidget);
+      expect(find.text('Admin'), findsNothing);
+    });
+
+    testWidgets('none yet: says so, never hidden', (tester) async {
+      await show(tester, FakeRolesClient.none());
+      expect(find.text('No roles yet'), findsOneWidget);
+    });
+  });
 }

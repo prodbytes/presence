@@ -138,9 +138,16 @@ there's no separate sign-in screen:
   (with its readiness colors), the Camera / Events / Settings tabs and
   the **account button**, your avatar with the tooltip "Signed in as
   <name> · <email>". It opens a bottom sheet with avatar, name, email,
-  this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
+  the user's **roles**, this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
   the **profile** and its **devices**, and **Sign out**. Signing out closes the sheet, returns to the camera and
   hides the navigation again. The camera keeps running.
+  - **Roles**, always, right under the email (`AccountRoles`): a small
+    outlined chip per role the auth API gave, named for people (Member,
+    Premium, Admin, Root; another role keeps its ID), in that order, the
+    role's ID as each chip's tooltip, and "Roles: Member, Admin" for screen
+    readers. "No roles yet" without any (a signed-in account without
+    access), "Checking roles…" while the auth API is asked. The anonymous
+    role isn't shown.
   - **Connectivity** (`ConnectivityIndicator`,
     [lib/connectivity.dart](../presence_app/lib/connectivity.dart)), under
     the email: one rounded row, tinted in its color, with a dot and a
