@@ -87,8 +87,10 @@ void main() {
   /// The device tag above event [id]'s card.
   Finder tag(String id) => find.byKey(Key('event-device-$id'));
 
-  /// The chip at the top while only one device's events show.
-  Finder chip() => find.byKey(const Key('device-filter'));
+  /// The events search field, open with a device's ID once it's tapped.
+  Finder field() => find.byKey(const Key('event-search'));
+  String searched(WidgetTester tester) =>
+      tester.widget<TextField>(field()).controller!.text;
 
   /// The events count beside the search: (shown, all).
   (int, int) counts(WidgetTester tester) {
@@ -102,12 +104,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets("each event shows its device; tapping it shows only that "
-      "device's events, until the chip's x", (tester) async {
+  testWidgets("each event shows its device; tapping it searches for it: "
+      "only that device's events show, until tapped again", (tester) async {
     await launch(tester);
 
     expect(find.text('All devices'), findsNothing);
-    expect(chip(), findsNothing);
+    expect(field(), findsNothing);
     final (shown, all) = counts(tester);
     expect(shown, all);
     expect(
@@ -121,42 +123,61 @@ void main() {
       find.descendant(of: tag('e1'), matching: find.text(mine)),
     );
     expect(bold.style?.fontWeight, FontWeight.bold);
-    expect(find.byTooltip('Show only $there'), findsOneWidget);
+    expect(find.byTooltip("Show this device's events"), findsWidgets);
 
-    // Tapping the other device's tag shows only its events.
+    // Tapping the other device's tag searches for it: only its events.
     await tap(tester, tag('e2'));
+    expect(searched(tester), there);
     expect(find.text('Door opened there'), findsOneWidget);
     expect(find.text('Door opened here'), findsNothing);
     expect(find.text('Application started'), findsNothing);
     expect(counts(tester), (1, all));
-    expect(
-      find.descendant(of: chip(), matching: find.text(there)),
-      findsOneWidget,
-    );
+    expect(find.byTooltip("Show every device's events"), findsOneWidget);
 
-    // The choice stays while switching tabs.
+    // The search stays while switching tabs.
     await tap(tester, find.byTooltip('Settings'));
     await tap(tester, find.byTooltip('Monitoring'));
-    expect(chip(), findsOneWidget);
+    expect(searched(tester), there);
     expect(find.text('Door opened here'), findsNothing);
 
-    // The chip's x shows every device again.
-    await tap(tester, find.byTooltip('Show every device'));
-    expect(chip(), findsNothing);
+    // Tapped again, the search clears: every device's events.
+    await tap(tester, tag('e2'));
     expect(find.text('Door opened here'), findsOneWidget);
     expect(find.text('Door opened there'), findsOneWidget);
     expect(counts(tester), (all, all));
 
     // This device's tag shows only its events, events published since
-    // launch among them; tapped again, every device's.
+    // launch (no device ID yet) among them.
     await tap(tester, tag('e1'));
+    expect(searched(tester), mine);
     expect(find.text('Door opened here'), findsOneWidget);
     expect(find.text('Door opened there'), findsNothing);
     expect(find.text('Application started'), findsWidgets);
     expect(counts(tester), (all - 1, all));
-    await tap(tester, tag('e1'));
-    expect(chip(), findsNothing);
-    expect(find.text('Door opened there'), findsOneWidget);
+  });
+
+  test('a search for a whole device ID narrows to its events, ignoring '
+      'case; part of one matches events by their device too', () {
+    AppEvent at(String id, String? device) =>
+        AppEvent(icon: Icons.circle, title: 'Event $id')..deviceId = device;
+    final events = [
+      at('1', 'brave_quiet_lamp'),
+      at('2', 'loud_shy_kettle'),
+      at('3', null),
+    ];
+    expect(
+      EventFilters.searchedDevice(events, ' BRAVE_quiet_lamp '),
+      'brave_quiet_lamp',
+    );
+    expect(EventFilters.searchedDevice(events, 'brave'), isNull);
+    expect(
+      EventFilters.searchedDevice(events, 'here', deviceId: 'here'),
+      'here',
+      reason: 'events not saved yet are this device\'s',
+    );
+    expect(eventMatches(events[1], 'kettle'), isTrue);
+    expect(eventMatches(events[2], 'here', deviceId: 'here'), isTrue);
+    expect(eventMatches(events[0], 'kettle'), isFalse);
   });
 
   testWidgets("a new event shows while filtered, before it's saved", (

@@ -309,7 +309,10 @@ void main() {
 
     // Left of Clip, clear of the status pills.
     final all = tester.getRect(find.byTooltip('Show all devices'));
-    expect(all.right, lessThan(tester.getRect(find.byTooltip('Clip')).left));
+    expect(
+      all.right,
+      lessThan(tester.getRect(find.byKey(const Key('clip'))).left),
+    );
     expect(
       tester.getRect(find.byKey(const Key('camera-status'))).right,
       lessThan(all.left),

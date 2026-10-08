@@ -26,11 +26,18 @@ class SettingsView extends StatefulWidget {
     this.nextClip,
     this.logTabDefault,
     this.liveSync = false,
+    this.liveAdmin = false,
   });
 
   /// Whether this build has live sync (an IoT endpoint, and cloud sync):
   /// the **Live sync** section, with its **Connect to live sync** slider.
   final bool liveSync;
+
+  /// The user is an admin: live sync is always connected for them
+  /// ([LiveConfig.effective]), so the slider shows Always, locked. Others
+  /// may pick from Never to every 60 min (every 30 s the most often), and
+  /// a saved Always shows as every 30 s.
+  final bool liveAdmin;
 
   /// For admins, an **Advanced** section with a **Show the Log tab** switch, on by default when this is
   /// true (DEV); null hides the switch.
@@ -62,8 +69,8 @@ class SettingsView extends StatefulWidget {
   /// A status line under the version (the API, AWS, OIDC and Live).
   final Widget? health;
 
-  /// The last thing: opens a QR code and a Share button, to open Presence
-  /// on another device as a new device of the same user.
+  /// Above the IDs, at the end: opens a QR code and a Share button, to
+  /// open Presence on another device as a new device of the same user.
   final Widget? addDevice;
 
   /// The app's configuration; every control edits it.
@@ -114,6 +121,12 @@ class _SettingsViewState extends State<SettingsView> {
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         final recognition = config.recognition;
+        // How live sync connects for this user (admins: always; others:
+        // as saved, at most every 30 s), not just what's saved.
+        final live = config.live.effective(isAdmin: widget.liveAdmin);
+        final liveMax = widget.liveAdmin
+            ? LiveConfig.steps - 1
+            : LiveConfig.memberMaxStep;
         void setHistory(HistoryConfig Function(HistoryConfig) f) =>
             config.update((x) => x.copyWith(history: f(x.history)));
         void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
@@ -130,12 +143,7 @@ class _SettingsViewState extends State<SettingsView> {
           physics: _mapHeld ? const NeverScrollableScrollPhysics() : null,
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
-            // The very first thing: which device and profile this is, as
-            // the events and the auth API say (selectable, to copy).
-            // Always shown.
-            _Ids(deviceId: widget.deviceId, profileId: widget.profileId),
-            const SizedBox(height: 16),
-            // Then where this device is, its position and the map.
+            // First: where this device is, its position and the map.
             if (location != null) ...[
               Text('Location', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
@@ -367,16 +375,23 @@ class _SettingsViewState extends State<SettingsView> {
                 key: const Key('live-connect-slider'),
                 label: 'Connect to live sync',
                 format: (v) => LiveConfig.ofStep(v.round()).label,
-                value: config.live.step.toDouble(),
+                value: live.step.toDouble(),
                 min: 0,
-                max: (LiveConfig.steps - 1).toDouble(),
-                divisions: LiveConfig.steps - 1,
-                onChanged: (v) => config.update(
-                  (x) => x.copyWith(live: LiveConfig.ofStep(v.round())),
-                ),
+                max: liveMax.toDouble(),
+                divisions: liveMax,
+                // Locked for admins: always connected.
+                onChanged: widget.liveAdmin
+                    ? null
+                    : (v) => config.update(
+                        (x) => x.copyWith(live: LiveConfig.ofStep(v.round())),
+                      ),
               ),
               Text(
-                switch (config.live.mode) {
+                switch (live.mode) {
+                  _ when widget.liveAdmin =>
+                    'Always connected for admins, so this device is always '
+                        'reachable: other devices\' events arrive within a '
+                        'second.',
                   LiveMode.never =>
                     'Other devices\' events arrive with each sync (15 s), '
                         'and this device\'s reach them the same way.',
@@ -385,9 +400,9 @@ class _SettingsViewState extends State<SettingsView> {
                         'a second.',
                   LiveMode.scheduled =>
                     'Connects about every '
-                        '${config.live.every.inMinutes} min for what other '
-                        'devices sent meanwhile, and at once to send this '
-                        'device\'s events.',
+                        '${LiveConfig.formatEvery(live.every)} for what '
+                        'other devices sent meanwhile, and at once to send '
+                        'this device\'s events.',
                 },
                 key: const Key('live-connect-note'),
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -433,7 +448,7 @@ class _SettingsViewState extends State<SettingsView> {
                 'Presence ${AppVersion.version}',
                 key: const Key('app-version'),
                 textAlign: TextAlign.center,
-                // bodyMedium, as the IDs at the top: read out to check a
+                // bodyMedium, as the IDs at the bottom: read out to check a
                 // deploy landed.
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
@@ -448,6 +463,29 @@ class _SettingsViewState extends State<SettingsView> {
               const SizedBox(height: 32),
               addDevice,
             ],
+            // The very last thing: which device and profile this is, as
+            // the events and the auth API say (selectable, to copy), one
+            // line each. Always shown.
+            const SizedBox(height: 32),
+            Column(
+              key: const Key('settings-ids'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _IdLine(
+                  label: 'Device',
+                  id: widget.deviceId,
+                  missing: 'loading…',
+                  idKey: const Key('device-id'),
+                ),
+                _IdLine(
+                  label: 'Profile',
+                  id: widget.profileId,
+                  // A profile is the signed-in account's.
+                  missing: 'none until signed in',
+                  idKey: const Key('profile-id'),
+                ),
+              ],
+            ),
           ],
         );
       },
@@ -683,63 +721,9 @@ class _MotionMeter extends StatelessWidget {
 String _formatBrightness(double ev) =>
     ev == 0 ? '0 EV' : '${ev > 0 ? '+' : ''}${ev.toStringAsFixed(1)} EV';
 
-/// The device and profile IDs, side by side in two columns (Device left,
-/// Profile right), or stacked when a column would be narrower than
-/// [_Ids.minColumn] dp at 1x text (scaled with the text: 240 dp at 2x).
-/// At 320 dp the columns are 136 dp: two columns at 1x, stacked at 2x.
-class _Ids extends StatelessWidget {
-  const _Ids({required this.deviceId, required this.profileId});
-
-  final String? deviceId;
-  final String? profileId;
-
-  /// The narrowest readable column at 1x text, about 16 characters of
-  /// `bodyMedium`.
-  static const minColumn = 120.0;
-
-  static const _gap = 16.0;
-
-  @override
-  Widget build(BuildContext context) {
-    final device = _IdLine(
-      label: 'Device',
-      id: deviceId,
-      missing: 'loading…',
-      idKey: const Key('device-id'),
-    );
-    final profile = _IdLine(
-      label: 'Profile',
-      id: profileId,
-      // A profile is the signed-in account's.
-      missing: 'none until signed in',
-      idKey: const Key('profile-id'),
-    );
-    final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
-    return LayoutBuilder(
-      key: const Key('settings-ids'),
-      builder: (context, constraints) {
-        final column = (constraints.maxWidth - _gap) / 2;
-        if (column < minColumn * scale) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [device, const SizedBox(height: 8), profile],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: device),
-            const SizedBox(width: _gap),
-            Expanded(child: profile),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// "Device" over a selectable ID (keyed [idKey]), or [missing] in
-/// italics while there's no ID. The ID wraps within its column.
+/// "Device automatic_paranoid_gadget": a label and a selectable ID
+/// (keyed [idKey]), or [missing] in italics while there's no ID. When the
+/// line doesn't fit, the ID wraps under its label.
 class _IdLine extends StatelessWidget {
   const _IdLine({
     required this.label,
@@ -756,15 +740,16 @@ class _IdLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // bodyMedium, as the version at the bottom: IDs get read out and typed
-    // on other devices.
+    // bodyMedium, as the version above: IDs get read out and typed on
+    // other devices.
     final style = theme.textTheme.bodyMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text(label, style: style?.copyWith(fontWeight: FontWeight.w600)),
+        Text('$label ', style: style?.copyWith(fontWeight: FontWeight.w600)),
         switch (id) {
           final id? => SelectableText(id, key: idKey, style: style),
           null => Text(

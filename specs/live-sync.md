@@ -70,8 +70,8 @@ owned by `CloudSync`:
 - **Receives** the profile's other devices' events: a message from this
   device's own ID is ignored; anything malformed, too big or not for this
   identity is dropped (see **Validation**). Messages are handed to cloud
-  sync one at a time, in order (`CloudSync._onLive`). One for an event a
-  pass is uploading right now (its frames and JSON, `_eventUploads`)
+  sync one at a time, in order (`_LiveBridge._onLive`). One for an event a
+  pass is uploading right now (its frames and JSON, `_Uploader.uploadOf`)
   waits for that upload, so the two can't cross: the pass never puts the
   older version back over the newer one. If the profile changes, the user
   signs out or sync stops while a message is being taken (its frames
@@ -95,7 +95,7 @@ owned by `CloudSync`:
     may repeat one) and changes nothing.
   - **Its clip comes from the bucket:** when the event's clip isn't here, a
     pass starts at once and looks for the clip's record and thumbnail
-    (`CloudSync._fetchWanted`). The clip stays **wanted** until it's here
+    (`_Fetcher.fetchWanted`). The clip stays **wanted** until it's here
     or the bucket is found not to have it: a fetch that fails (a network
     error) is tried again at the next pass, at most 5 times in a row, and
     doesn't fail the pass (rejected credentials do: the pass renews them).
@@ -125,11 +125,31 @@ owned by `CloudSync`:
 
 The **Connect to live sync** setting ([Settings](settings.md), stored per
 device as `live: {mode, everyMs}`, see [Configuration](configuration.md))
-picks one of nine steps: **Never**, every **1, 2, 5, 10, 15, 30 or
-60 min**, or **Always**. The default is **every minute**. A change applies
-at once: the connection starts over in the new mode (`LiveSync.config`,
-set by the app from the setting at start, when it's restored, and on every
-change).
+picks one of ten steps: **Never**, every **30 s**, every **1, 2, 5, 10, 15,
+30 or 60 min**, or **Always**. The default is **every minute**.
+
+How live sync connects depends on the user's roles too
+(`LiveConfig.effective(isAdmin:)`; see [Membership](membership.md)):
+
+- **Admins** (`presence_admin`, so roots too) are **always connected**,
+  whatever the setting says, so their devices (often unattended) are
+  always reachable and their Live check shows ✅ connected. Their slider
+  shows Always, locked.
+- **Everyone else** (members) connects as set, but **at most every 30 s**:
+  Always isn't theirs, and a saved Always (or an interval under 30 s)
+  connects every 30 s. Their slider goes from Never to every 60 min. The
+  app can't tell a free member from a premium one (both have
+  `presence_user` only; vouchers grant roles, and payment isn't built), so
+  all members get these rules.
+- The saved setting is never rewritten for the roles: an admin who stops
+  being one gets their own choice back (clamped), and a member made admin
+  is always connected at once.
+
+A change applies at once: the connection starts over in the new mode
+(`LiveSync.config`, set by the app from the setting and the roles at
+start, when the setting is restored or changed, and when the roles change:
+sign-in, sign-out, a role granted or taken). Signed out, cloud sync and so
+live sync are off, as before.
 
 - **Always**: stays connected, reconnecting and renewing as above, with a
   clean session.
@@ -145,7 +165,9 @@ change).
   - **The wait** between connections is the interval plus a **random 0 to
     10 s**, picked anew each time (so 60–70 s for 1 min), so devices don't
     all connect in step (`LiveSync.nextWait`; the `Random` is injectable,
-    and tests seed it). AWS IoT keeps a persistent session for **1 h**
+    and tests seed it); every 30 s, that's 30–40 s, and with a connection
+    staying at least 3 s (at most 30 s) a device is connected at most
+    about half the time. AWS IoT keeps a persistent session for **1 h**
     after the device disconnects (the account default): every step fits,
     and the 60 min step waits 59 min plus the jitter so the session is
     still there.
@@ -264,7 +286,11 @@ The health line and the Log tab's health panel have a fourth check,
 endpoint) or off (Never), ✅ connected (with the events received and sent)
 or set and waiting for the first sync, ⏳ connecting, 💤 **idle** between
 scheduled connections ("Idle · next in 0:42 (every 1 min; …)", the panel's
-card counting down each second), ❌ failed (with the error). "Sent"
+card counting down each second), ❌ failed (with the error). The account
+sheet's **connectivity** row ([Sign-in](sign-in.md)) sums it up for this
+device with the API and cloud sync: green only while connected, amber
+when connecting, idle ("Live sync idle · next in 0:42"), off, or not set
+("Live sync isn't set up in this build"), red when failed. "Sent"
 (`LiveSync.sent`) counts events handed to the connection to publish at
 QoS 1, not the broker's acknowledgements (PUBACK), which aren't waited
 for: one sent just before a drop may not have arrived (the bucket still
@@ -281,7 +307,10 @@ query holds the session token.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `LiveSync`, `LiveConnection` (the transport), `LiveLink`, `LiveEvent`,
   `parse` and `metadataOf`; `ackCopied`, `parseCopied` and
-  `CopiedMessage` ([Event copies](event-copies.md)).
+  `CopiedMessage` ([Event copies](event-copies.md)). The connection loop
+  (`_loop`) connects (`_connectOnce`), subscribes (`_subscribe`), then
+  runs a scheduled connection (`_runScheduled`) or an always-on one
+  (`_runAlways`).
 - [lib/cloud/live_mqtt.dart](../presence_app/lib/cloud/live_mqtt.dart):
   `MqttLiveConnection`, on the `mqtt_client` package (pinned at 10.11.11):
   `MqttServerClient` with WebSockets on Android, iOS and desktop,
@@ -293,8 +322,12 @@ query holds the session token.
   (`LiveMode`, the steps).
 - [lib/cloud/sigv4.dart](../presence_app/lib/cloud/sigv4.dart):
   `presignWebSocket`.
-- `CloudSync` (`live`, `_startLive`, `_onLive`, `_eventUploads`,
-  `_fetchWanted`, `_rewantClips`) and
+- `CloudSync` (`live`), with `_LiveBridge` (`start`, `_onLive`) in
+  [cloud_sync_live.dart](../presence_app/lib/cloud/cloud_sync_live.dart),
+  `_Uploader.uploadOf` in
+  [cloud_sync_upload.dart](../presence_app/lib/cloud/cloud_sync_upload.dart)
+  and `_Fetcher` (`fetchWanted`, `rewantClips`) in
+  [cloud_sync_fetch.dart](../presence_app/lib/cloud/cloud_sync_fetch.dart), and
   `CloudConfig.iotEndpoint` / `liveStage`.
 
 ## Verified

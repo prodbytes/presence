@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'cloud/live_sync.dart';
+import 'device_events.dart';
 import 'device_presence.dart';
 import 'events.dart';
 import 'identity/device_os.dart';
@@ -241,7 +242,8 @@ class EventMap extends StatelessWidget {
 }
 
 /// The device that recorded the event: its operating system's icon
-/// ([DeviceOs.iconOf]), its ID (selectable), "this device" for this one,
+/// ([DeviceOs.iconOf]), its ID (selectable; tapped, it shows the device's
+/// events: [DeviceEventsLink]), "this device" for this one,
 /// and its operating system's name; signed in, its presence dot
 /// ([DevicePresence]) before the ID.
 class EventDevice extends StatelessWidget {
@@ -304,10 +306,16 @@ class EventDevice extends StatelessWidget {
                         ),
                       ),
                     ),
-                  SelectableText(
-                    device,
-                    key: const Key('event-device-id'),
-                    style: theme.textTheme.bodyLarge,
+                  DeviceEventsLink(
+                    device: device,
+                    builder: (context, onTap) => SelectableText(
+                      device,
+                      key: const Key('event-device-id'),
+                      onTap: onTap,
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        color: onTap == null ? null : theme.colorScheme.primary,
+                      ),
+                    ),
                   ),
                   if (device == thisDevice) Text('this device', style: muted),
                 ],

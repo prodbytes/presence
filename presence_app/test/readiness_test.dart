@@ -253,12 +253,126 @@ void main() {
     });
   });
 
-  group('readiness indicator and clip message', () {
+  group('ClipButtonColors', () {
+    double contrast(Color a, Color b) {
+      final la = a.computeLuminance(), lb = b.computeLuminance();
+      return (la > lb ? (la + 0.05) / (lb + 0.05) : (lb + 0.05) / (la + 0.05));
+    }
+
+    for (final brightness in Brightness.values) {
+      test('meet 4.5:1 contrast in the ${brightness.name} theme', () {
+        for (final tone in ClipTone.values) {
+          final (background, foreground) = ClipButtonColors.of(
+            tone,
+            brightness,
+          );
+          expect(
+            contrast(background, foreground),
+            greaterThanOrEqualTo(4.5),
+            reason: '$tone',
+          );
+        }
+      });
+    }
+
+    test('green when ready, amber in the cooldown, red saving, grey off', () {
+      for (final brightness in Brightness.values) {
+        Color fg(ClipTone t) => ClipButtonColors.of(t, brightness).$2;
+        HSVColor hsv(ClipTone t) => HSVColor.fromColor(fg(t));
+        expect(hsv(ClipTone.ready).hue, inInclusiveRange(55, 90));
+        expect(hsv(ClipTone.cooldown).hue, inInclusiveRange(30, 50));
+        expect(
+          hsv(ClipTone.recording).hue,
+          anyOf(lessThan(15), greaterThan(345)),
+        );
+        expect(hsv(ClipTone.disabled).saturation, lessThan(0.25));
+        // Muted on the dark theme (the app's), not Gruvbox's brightest.
+        // (The light theme's are deep shades, saturated by nature.)
+        if (brightness == Brightness.dark) {
+          for (final tone in ClipTone.values) {
+            expect(hsv(tone).saturation, lessThan(0.65), reason: '$tone');
+          }
+        }
+      }
+    });
+
+    test('the background is the same quiet neutral for every tone', () {
+      for (final brightness in Brightness.values) {
+        final backgrounds = {
+          for (final tone in ClipTone.values)
+            ClipButtonColors.of(tone, brightness).$1,
+        };
+        expect(backgrounds, {ClipButtonColors.background(brightness)});
+        expect(
+          HSVColor.fromColor(backgrounds.single).saturation,
+          lessThan(0.3),
+        );
+      }
+    });
+  });
+
+  test('with automatic clips off, the button is red while the clip saves, '
+      'then green', () async {
+    final bus = AppEventBus();
+    final camera = FakeCameraSource('Main', immediatePast: media);
+    final config = ConfigController();
+    config.update(
+      (c) => c.copyWith(
+        motion: c.motion.copyWith(enabled: false),
+        schedule: c.schedule.copyWith(enabled: false),
+      ),
+    );
+    final rig = CameraRig(
+      backend: openFakes([camera]),
+      config: config,
+      bus: bus,
+    );
+    addTearDown(() {
+      rig.dispose();
+      bus.close();
+    });
+    await rig.load();
+    expect(ClipButtonStatus.of(rig).tone, ClipTone.ready);
+    await rig.requestClips(bus);
+    // No cooldown to count down, but the clip is saving.
+    var status = ClipButtonStatus.of(rig);
+    expect(status.tone, ClipTone.recording);
+    expect(status.enabled, isTrue);
+    expect(status.countdown, isNull);
+    expect(status.status, 'Clip saving…');
+    camera.fullCompleters.last.complete(media);
+    await Future<void>.delayed(Duration.zero);
+    status = ClipButtonStatus.of(rig);
+    expect(status.tone, ClipTone.ready);
+    expect(status.status, 'Ready');
+  });
+
+  test('disabled reasons: no camera, camera off', () async {
+    final none = CameraRig(backend: openFakes([]), config: ConfigController());
+    addTearDown(none.dispose);
+    await none.load();
+    expect(ClipButtonStatus.of(none).tone, ClipTone.disabled);
+    expect(ClipButtonStatus.of(none).status, 'No camera');
+
+    final off = CameraRig(
+      backend: openFakes([FakeCameraSource('Main')]),
+      config: ConfigController(
+        const PresenceConfig(camera: CameraConfig(paused: true)),
+      ),
+    );
+    addTearDown(off.dispose);
+    await off.load();
+    expect(ClipButtonStatus.of(off).tone, ClipTone.disabled);
+    expect(ClipButtonStatus.of(off).status, 'Camera off');
+  });
+
+  group('the Clip button and clip messages', () {
     late DateTime now;
 
     Future<FakeCameraSource> pumpApp(
       WidgetTester tester, {
       Size size = const Size(1280, 800),
+      List<FakeCameraSource>? cameras,
     }) async {
       now = DateTime(2026, 9, 25, 12);
       tester.view.physicalSize = size;
@@ -268,7 +382,7 @@ void main() {
       await tester.pumpWidget(
         PresenceApp(
           consentGiven: true,
-          cameras: openFakes([camera]),
+          cameras: openFakes(cameras ?? [camera]),
           mediaIo: fakeMediaIo,
           now: () => now,
           auth: FakeAuthService.signedIn(),
@@ -279,7 +393,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await settleStorage(tester);
-      return camera;
+      return cameras?.first ?? camera;
     }
 
     Future<void> advance(WidgetTester tester, Duration d) async {
@@ -287,105 +401,65 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
 
-    testWidgets('sits bottom left, level with Clip, and starts Ready', (
-      tester,
-    ) async {
-      await pumpApp(tester);
+    final clip = find.byKey(const Key('clip'));
+    FloatingActionButton button(WidgetTester tester) =>
+        tester.widget<FloatingActionButton>(clip);
+    // The tone is the label's and icon's color, not the background's.
+    Color? color(WidgetTester tester) => button(tester).foregroundColor;
+    Color tone(ClipTone t) => ClipButtonColors.of(t, Brightness.dark).$2;
 
-      final pill = tester.getCenter(find.byKey(const Key('readiness')));
-      final clip = tester.getCenter(find.byTooltip('Clip'));
-      expect(pill.dx, lessThan(clip.dx));
-      expect(tester.getRect(find.byKey(const Key('readiness'))).left, 16);
-      expect((pill.dy - clip.dy).abs(), lessThan(1));
-      // No countdown on load (e.g. a page reload): countdowns start with a
-      // clip.
-      expect(find.byTooltip('Ready to clip'), findsOneWidget);
-      expect(find.textContaining(' s'), findsNothing);
-    });
-
-    testWidgets('the readiness pill is only its dot; the tooltip names it', (
-      tester,
-    ) async {
-      await pumpApp(tester);
-
-      final pill = find.byKey(const Key('readiness'));
-      expect(
-        find.descendant(of: pill, matching: find.byType(Text)),
-        findsNothing,
-      );
-      expect(find.text('Ready'), findsNothing);
-      expect(find.byTooltip('Ready to clip'), findsOneWidget);
-      expect(find.bySemanticsLabel('Ready to clip'), findsOneWidget);
-      // A round pill around the dot.
-      expect(tester.getSize(pill), const Size(40, 40));
-    });
-
-    testWidgets('fits on a 320 dp phone with the widest label', (tester) async {
-      now = DateTime(2026, 9, 25, 12);
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      final back = FakeCameraSource('Main', immediatePast: media);
-      final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
-      await tester.pumpWidget(
-        PresenceApp(
-          consentGiven: true,
-          cameras: openFakes([back, front]),
-          mediaIo: fakeMediaIo,
-          now: () => now,
-          auth: FakeAuthService.signedIn(),
-          rolesClient: FakeRolesClient(),
-          mapTiles: const SizedBox(),
-          locator: NoLocation(),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await settleStorage(tester);
-
-      // The pill clear of Flip and Clip, no overflow, with its widest
-      // label: the motion cooldown ("5:00").
+    /// Motion past the warm-up: takes a motion clip.
+    Future<void> move(WidgetTester tester, FakeCameraSource camera) async {
       for (var i = 0; i < 20; i++) {
         now = now.add(const Duration(milliseconds: 200));
-        back.motion.add(frame());
+        camera.motion.add(frame());
         await tester.pump();
       }
       for (var i = 0; i < 4; i++) {
         now = now.add(const Duration(milliseconds: 200));
-        back.motion.add(frame(x: (i % 2) * 30, y: 10, size: 24));
+        camera.motion.add(frame(x: (i % 2) * 30, y: 10, size: 24));
         await tester.pump();
       }
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('5:00'), findsOneWidget);
-      expect(find.byTooltip('Flip camera'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      final pill = tester.getRect(find.byKey(const Key('readiness')));
-      expect(pill.left, 16);
-      expect(pill.overlaps(tester.getRect(find.byTooltip('Clip'))), isFalse);
-      expect(
-        pill.overlaps(tester.getRect(find.byTooltip('Flip camera'))),
-        isFalse,
-      );
-    });
+    }
 
-    testWidgets('a Clip press pops a message; the pill counts down', (
+    testWidgets('starts green and Ready; no separate readiness pill', (
       tester,
     ) async {
+      await pumpApp(tester);
+
+      expect(find.byKey(const Key('readiness')), findsNothing);
+      expect(color(tester), tone(ClipTone.ready));
+      expect(button(tester).onPressed, isNotNull);
+      expect(find.descendant(of: clip, matching: find.text('Clip')), findsOne);
+      expect(find.byTooltip('Ready'), findsOneWidget);
+      // No countdown on load (e.g. a page reload): countdowns start with a
+      // clip.
+      expect(find.textContaining(' s'), findsNothing);
+      // Bottom right, as before.
+      expect(tester.getRect(clip).right, 1280 - 16);
+    });
+
+    testWidgets('a Clip press: red while saving, still pressable, then amber '
+        'with the countdown, then green', (tester) async {
       final camera = await pumpApp(tester);
       await advance(tester, const Duration(seconds: 16));
 
-      await tester.tap(find.byTooltip('Clip'));
+      await tester.tap(clip);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.text('Clip started · saving the next 10 s'), findsOneWidget);
-      // The cooldown, red while the clip's after part is still saving.
-      expect(find.text('5:00'), findsOneWidget);
+      // Red while the clip's after part is still saving, with the cooldown.
+      expect(color(tester), tone(ClipTone.recording));
+      expect(button(tester).onPressed, isNotNull);
+      expect(find.text('Clip · 5:00'), findsOneWidget);
       expect(
-        find.byTooltip('Clip saving; next automatic clip in 5:00'),
+        find.byTooltip('Clip saving… Next automatic clip in 5:00'),
         findsOneWidget,
       );
 
       await advance(tester, const Duration(seconds: 10));
-      expect(find.text('4:50'), findsOneWidget);
+      expect(find.text('Clip · 4:50'), findsOneWidget);
 
       // The message was brief (4 s).
       await tester.pump(const Duration(seconds: 5));
@@ -398,33 +472,103 @@ void main() {
       camera.fullCompleters.last.complete(media);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
+      // Amber, counting down, still pressable.
+      expect(color(tester), tone(ClipTone.cooldown));
+      expect(button(tester).onPressed, isNotNull);
       expect(find.byTooltip('Next automatic clip in 4:50'), findsOneWidget);
-      expect(find.bySemanticsLabel('Next automatic clip in 4:50'), findsOne);
+      expect(find.text('Clip · 4:50'), findsOneWidget);
+
+      // Below a minute, in seconds.
+      await advance(tester, const Duration(minutes: 4, seconds: 5));
+      expect(find.text('Clip · 45 s'), findsOneWidget);
 
       // Once the cooldown is over, the held-back startup clip is taken
       // (the schedule checks every 5 s), and counts down in turn.
-      now = now.add(const Duration(minutes: 5));
+      now = now.add(const Duration(minutes: 1));
       await tester.pump(CameraRig.scheduleCheck);
       await tester.pump(const Duration(milliseconds: 600));
       expect(camera.fullCompleters, hasLength(2));
-      expect(find.text('5:00'), findsOneWidget);
+      expect(find.text('Clip · 5:00'), findsOneWidget);
       camera.fullCompleters.last.complete(media);
 
-      // Ready (the dot alone) once that one's is over too.
+      // Green and Ready once that one's is over too.
       now = now.add(const Duration(minutes: 5));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.byTooltip('Ready to clip'), findsOneWidget);
-      expect(find.text('0 s'), findsNothing);
+      expect(color(tester), tone(ClipTone.ready));
+      expect(find.byTooltip('Ready'), findsOneWidget);
+      expect(find.descendant(of: clip, matching: find.text('Clip')), findsOne);
       await tester.pump(const Duration(seconds: 5));
       await settleStorage(tester);
     });
 
+    testWidgets('a press while the clip is saving takes another, as always', (
+      tester,
+    ) async {
+      final camera = await pumpApp(tester);
+      await advance(tester, const Duration(seconds: 16));
+      await tester.tap(clip);
+      await tester.pump(CameraRig.pastWait);
+      expect(color(tester), tone(ClipTone.recording));
+      await advance(tester, const Duration(seconds: 3));
+      await tester.tap(clip);
+      await tester.pump(CameraRig.pastWait);
+      expect(camera.fullCompleters, hasLength(2));
+      // The cooldown restarted from the second press.
+      expect(find.text('Clip · 5:00'), findsOneWidget);
+      for (final c in camera.fullCompleters) {
+        c.complete(media);
+      }
+      await tester.pump(const Duration(seconds: 5));
+      await settleStorage(tester);
+    });
+
+    for (final scale in [1.0, 2.0]) {
+      testWidgets('fits on a 320 dp phone with Flip, counting down, at '
+          '${scale}x text', (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final back = FakeCameraSource('Main', immediatePast: media);
+        final front = FakeCameraSource('Selfie', facing: CameraFacing.front);
+        await pumpApp(
+          tester,
+          size: const Size(320, 640),
+          cameras: [back, front],
+        );
+        await move(tester, back);
+        // The motion cooldown ("5:00"), with "Clip" when there's room, the
+        // icon alone when not even the time fits; the tooltip has it all.
+        if (scale == 1) {
+          expect(
+            find.descendant(of: clip, matching: find.textContaining('5:00')),
+            findsOneWidget,
+          );
+        }
+        expect(find.byTooltip('Next automatic clip in 5:00'), findsNothing);
+        expect(
+          find.byTooltip('Clip saving… Next automatic clip in 5:00'),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('Flip camera'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        final rect = tester.getRect(clip);
+        final flip = tester.getRect(find.byTooltip('Flip camera'));
+        final view = tester.getRect(find.byKey(const Key('show-all')));
+        expect(rect.right, lessThanOrEqualTo(320 - 16));
+        expect(view.left, greaterThanOrEqualTo(16));
+        expect(rect.overlaps(flip), isFalse);
+        expect(flip.overlaps(view), isFalse);
+        back.fullCompleters.last.complete(media);
+        await tester.pump(const Duration(seconds: 5));
+        await settleStorage(tester);
+      });
+    }
+
     for (final size in [const Size(320, 640), const Size(1280, 800)]) {
-      testWidgets('the message is a pill beside the readiness one, at '
-          '${size.width.toInt()} wide', (tester) async {
+      testWidgets('the message is a pill bottom left, clear of the buttons, '
+          'at ${size.width.toInt()} wide', (tester) async {
         await pumpApp(tester, size: size);
         await advance(tester, const Duration(seconds: 16));
-        await tester.tap(find.byTooltip('Clip'));
+        await tester.tap(clip);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 600));
 
@@ -432,12 +576,16 @@ void main() {
         expect(message, findsOneWidget);
         expect(find.byType(SnackBar), findsNothing);
         final pill = tester.getRect(message);
-        final readiness = tester.getRect(find.byKey(const Key('readiness')));
-        // On the same line, just after it.
-        expect(pill.center.dy, closeTo(readiness.center.dy, 1));
-        expect(pill.left, closeTo(readiness.right + 8, 1));
+        expect(pill.left, 16);
+        if (size.width < 600) {
+          // Stacked, just above the buttons' row.
+          expect(pill.bottom, lessThanOrEqualTo(tester.getRect(clip).top));
+        } else {
+          // Level with the buttons.
+          expect(pill.center.dy, closeTo(tester.getRect(clip).center.dy, 1));
+        }
         // Clear of Flip and Clip, and of the screen's edge.
-        expect(pill.overlaps(tester.getRect(find.byTooltip('Clip'))), isFalse);
+        expect(pill.overlaps(tester.getRect(clip)), isFalse);
         expect(pill.right, lessThanOrEqualTo(size.width - 16));
         expect(tester.takeException(), isNull);
 
@@ -475,7 +623,8 @@ void main() {
       expect(message, findsOneWidget);
       expect(find.text('Sign-in failed: popup closed'), findsOneWidget);
       expect(find.byType(SnackBar), findsNothing);
-      // Bottom left, as the only pill (no readiness signed out).
+      // Bottom left, as the only pill; no buttons signed out.
+      expect(clip, findsNothing);
       final pill = tester.getRect(message);
       expect(pill.left, 16);
       expect(pill.right, lessThanOrEqualTo(400 - 16));
@@ -485,45 +634,46 @@ void main() {
       await settleStorage(tester);
     });
 
-    testWidgets('a message moves nothing: readiness and Clip stay put', (
-      tester,
-    ) async {
+    testWidgets('a message moves nothing: Clip stays anchored', (tester) async {
       await pumpApp(tester, size: const Size(320, 640));
       await advance(tester, const Duration(seconds: 16));
-      final readiness = tester.getRect(find.byKey(const Key('readiness')));
-      final clip = tester.getRect(find.byTooltip('Clip'));
-      await tester.tap(find.byTooltip('Clip'));
+      final before = tester.getRect(clip);
+      await tester.tap(clip);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byKey(const Key('camera-message')), findsOneWidget);
-      // The readiness pill only widens for its countdown.
-      final after = tester.getRect(find.byKey(const Key('readiness')));
-      expect(after.topLeft, readiness.topLeft);
-      expect(after.height, readiness.height);
-      expect(tester.getRect(find.byTooltip('Clip')), clip);
+      // Clip only widens (leftwards) for its countdown.
+      final after = tester.getRect(clip);
+      expect(after.right, before.right);
+      expect(after.bottom, before.bottom);
+      expect(after.height, before.height);
       await settleStorage(tester);
     });
 
     testWidgets('motion clips pop their own message', (tester) async {
       final camera = await pumpApp(tester);
-      // Still frames through the warm-up, then a moving square.
-      for (var i = 0; i < 20; i++) {
-        now = now.add(const Duration(milliseconds: 200));
-        camera.motion.add(frame());
-        await tester.pump();
-      }
-      for (var i = 0; i < 4; i++) {
-        now = now.add(const Duration(milliseconds: 200));
-        camera.motion.add(frame(x: (i % 2) * 30, y: 10, size: 24));
-        await tester.pump();
-      }
-      await tester.pump(const Duration(milliseconds: 600));
+      await move(tester, camera);
       expect(
         find.text('Motion detected · saving the next 10 s'),
         findsOneWidget,
       );
-      // The pill counts down the motion cooldown (5 minutes by default).
-      expect(find.text('5:00'), findsOneWidget);
+      // Clip counts down the motion cooldown (5 minutes by default).
+      expect(find.text('Clip · 5:00'), findsOneWidget);
+      await settleStorage(tester);
+    });
+
+    testWidgets('disabled and red-tinted while the camera is off', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      // One, All, then None: the camera off.
+      await tester.tap(find.byKey(const Key('show-all')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('show-all')));
+      await tester.pumpAndSettle();
+      expect(button(tester).onPressed, isNull);
+      expect(color(tester), tone(ClipTone.disabled));
+      expect(find.byTooltip('Camera off'), findsOneWidget);
       await settleStorage(tester);
     });
   });
