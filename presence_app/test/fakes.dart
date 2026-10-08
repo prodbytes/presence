@@ -388,9 +388,10 @@ class FakeCloudSession implements CloudSession {
 }
 
 /// The auth API without HTTP: answers [roles] (changeable), or throws
-/// [error]. Records the tokens it was asked about.
+/// [error]. Records the tokens it was asked about. By default a premium
+/// member, who syncs with the cloud; `[userRole]` alone is a free one.
 class FakeRolesClient implements RolesClient {
-  FakeRolesClient([this.roles = const [userRole]]);
+  FakeRolesClient([this.roles = const [userRole, premiumRole]]);
 
   /// No roles: signed-in users only see their account and sign-up.
   FakeRolesClient.none() : this(const []);
@@ -406,7 +407,7 @@ class FakeRolesClient implements RolesClient {
   ExecutionMode mode = ExecutionMode.rbac;
 
   /// What `GET /api/auth/anonymous` says is set.
-  ApiSettings settings = (oidc: null, aws: null);
+  ApiSettings settings = (oidc: null, aws: null, rbacr: null);
 
   /// Makes the start check fail (the API is unreachable).
   Object? anonymousError;
@@ -426,7 +427,7 @@ class FakeRolesClient implements RolesClient {
     return (
       mode: mode,
       roles: mode == ExecutionMode.dev
-          ? const [anonymousRole, userRole, adminRole, rootRole]
+          ? const [anonymousRole, userRole, adminRole, rootRole, premiumRole]
           : const [anonymousRole],
       settings: settings,
     );

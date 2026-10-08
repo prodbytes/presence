@@ -17,9 +17,14 @@ class S3Exception implements Exception {
   final Duration? clockOffset;
 
   /// AWS refused the credentials (expired or revoked): get new ones.
+  /// Also AccessDenied: credentials issued before the profile became
+  /// premium (or before the bucket required the tier tag) lack the tag the
+  /// bucket asks for; new ones have it. A pass renews them once.
   bool get credentialsRejected =>
       statusCode == 403 &&
-      (body.contains('ExpiredToken') || body.contains('InvalidToken'));
+      (body.contains('ExpiredToken') ||
+          body.contains('InvalidToken') ||
+          body.contains('AccessDenied'));
 
   /// AWS refused the request as signed too far from its time (more than
   /// 15 min): the device's clock is off.

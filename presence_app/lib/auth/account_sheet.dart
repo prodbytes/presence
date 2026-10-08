@@ -605,14 +605,14 @@ class AccountRoles extends StatelessWidget {
     userRole => 'Member',
     adminRole => 'Admin',
     rootRole => 'Root',
-    'presence_premium' => 'Premium',
+    premiumRole => 'Premium',
     _ => role,
   };
 
   /// The order they're shown in: as listed in [labelOf], then the others.
   static int _rank(String role) => switch (role) {
     userRole => 0,
-    'presence_premium' => 1,
+    premiumRole => 1,
     adminRole => 2,
     rootRole => 3,
     _ => 4,
@@ -674,7 +674,9 @@ class AccountRoles extends StatelessWidget {
 }
 
 /// One line about cloud uploads: syncing, synced (and how many), or why not
-/// (with a Retry button once syncing has stopped).
+/// (with a Retry button once syncing has stopped). A free profile has no
+/// cloud backup: the line says its devices sync with each other instead,
+/// and that backup is Premium's.
 class CloudSyncStatus extends StatelessWidget {
   const CloudSyncStatus({super.key, required this.sync});
 
@@ -686,7 +688,14 @@ class CloudSyncStatus extends StatelessWidget {
     return ListenableBuilder(
       listenable: sync,
       builder: (context, _) {
+        final free = !sync.premium;
         final (icon, text, color) = switch (sync.state) {
+          CloudSyncState.syncing || CloudSyncState.synced when free => (
+            Icons.devices_outlined,
+            'Free: your devices sync with each other while online. '
+                'Cloud backup is Premium.',
+            scheme.onSurfaceVariant,
+          ),
           CloudSyncState.off => (
             Icons.cloud_off_outlined,
             'Cloud backup is off',

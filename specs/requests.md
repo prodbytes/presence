@@ -4166,11 +4166,80 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
 
-316. **The account sheet always shows the user's roles.** (2026-10-08)
+316. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+     - Asked: the grab (Clip) button's readiness color should be its text
+       color, not its background, in discreet colors.
+     - Changed: the background is one quiet neutral for every state
+       (Gruvbox `bg1` on the dark theme); the state shows in the label and
+       icon only, in muted colors: green `#A9B665` ready, amber `#D8A657`
+       cooldown, soft red `#EC8F82` saving, warm grey `#B0A08A` disabled
+       (was red-tinted). Light theme variants on `#F9F5D7`. All at least
+       4.5:1 (tested), dark ones muted (tested). Tests:
+       `readiness_test.dart`. Specs: [Navigation](navigation.md),
+       [Camera screen](camera.md).
+
+317. **Cameras ordered by activity, with online status.** (2026-10-07)
+     - Asked: in the camera section, order the cameras most recently
+       active first, with an online or offline indicator if possible,
+       checked by pinging over MQTT.
+     - Changed: the All grid's other devices are now ordered by activity
+       (`byActivity`): live devices first (answered a live-sync ping
+       within 90 s), then by when last heard from or last event, newest
+       first; ties by device ID. Among live devices their latest event
+       decides, so cells don't swap at every ping round. Cells slide to
+       their new place (300 ms). The online indicator was already there:
+       each cell's presence dot (green live, yellow seen within 24 h, red
+       older), from the MQTT pings the grid sends every 30 s. Tests:
+       `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
+       [Device presence](device-presence.md).
+
+318. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+     - Asked: "lets add an easter egg. if the user searches for "do a
+       barrel roll", roll the screen, like google".
+     - Changed: typing **do a barrel roll** (or "barrell", any case and
+       spacing) in the Monitoring tab's events search spins the whole
+       app one turn over 2 s, as Google's search does; once when the
+       text becomes the phrase, again on each submit; not during a turn
+       or with reduced motion. New `lib/barrel_roll.dart` (`BarrelRoll`,
+       wrapped around the app in `MaterialApp.builder`) and
+       `test/barrel_roll_test.dart`.
+     - Specs: [Events](events.md).
+
+319. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+     - Asked: improve role-based access control, starting with cloud (S3)
+       sync of events only for premium and admin users; free users sync
+       device to device over MQTT. Premium comes from rbacr
+       (github.com/prodbytes/rbacr, https://rbacr.nu01.com; its token in
+       `.env`), which also decides who is premium at release; free
+       members share events and thumbnails; their S3 data is left to
+       expire. Also: rbacr in the health checks.
+     - Changed: the auth API asks rbacr for the caller's roles in its
+       `presence` system (`Rbacr`: 2 s timeout, answers reused 60 s,
+       fails closed) and gives `presence_premium` for `premium` or
+       `admin` (a linked account shares its owner's). Credentials are
+       tagged `tier=premium|free` (Cognito principal tags), and the
+       identity role's S3 statements require `premium` (trust policy
+       allows `sts:TagSession`; deploy roles may update it). Free
+       profiles' app sync never touches S3: it publishes each event over
+       live sync with its clip's record and thumbnail (`clip` in the
+       message, at most 48 KB), and receivers store it. Tier changes start
+       sync over; `AccessDenied` renews credentials once. The account
+       sheet and connectivity say Free. RBACR in health: the API's
+       `/health` `rbacr` check, `settings.rbacr` in
+       `/api/auth/anonymous`, the app's 🛂 RBACR card, and the local
+       monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
+       secret) and checks `rbacr` in its smoke test. Tests: auth API
+       (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
+       RBACR health). Specs: [Premium and free](premium.md) (new),
+       [Membership](membership.md), [Cloud sync](cloud-sync.md),
+       [Live sync](live-sync.md), [Auth API](auth-api.md),
+       [Profiles](profiles.md), [Health check](health-check.md),
+       [Execution mode](execution-mode.md).
+
+320. **The account sheet always shows the user's roles.** (2026-10-08)
      - Asked: always show the user's roles in the profile view.
      - Changed: the account sheet shows, under the email, a chip per role
        (`AccountRoles`): Member, Premium, Admin, Root (another role keeps
        its ID), the role ID as tooltip; "No roles yet" without any,
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
-

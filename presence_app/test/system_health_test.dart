@@ -29,10 +29,84 @@ void main() {
       '"settings":{"oidc":true,"aws":false}}',
     );
     expect(access.mode, ExecutionMode.rbac);
-    expect(access.settings, (oidc: true, aws: false));
+    expect(access.settings, (oidc: true, aws: false, rbacr: null));
     // An API from before the report: unknown.
     final older = await answer('{"mode":"DEV","roles":[]}');
-    expect(older.settings, (oidc: null, aws: null));
+    expect(older.settings, (oidc: null, aws: null, rbacr: null));
+  });
+
+  test('the auth API reports whether RBACR is set', () async {
+    final client = HttpRolesClient(
+      Uri.parse('https://presence.test/'),
+      client: MockClient(
+        (_) async => http.Response(
+          '{"mode":"RBAC","roles":[],"settings":{"oidc":true,"aws":true,"rbacr":true}}',
+          200,
+        ),
+      ),
+    );
+    expect((await client.anonymous()).settings.rbacr, isTrue);
+  });
+
+  group('the RBACR check', () {
+    Future<RolesService> rolesWith(
+      ApiSettings settings, {
+      List<String> roles = const [userRole],
+    }) async {
+      final auth = FakeAuthService();
+      final service = RolesService(
+        auth: auth,
+        client: FakeRolesClient(roles)..settings = settings,
+        oidcClient: true,
+      );
+      addTearDown(service.dispose);
+      await auth.signIn();
+      for (var i = 0; i < 20 && service.mode == null; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      for (var i = 0; i < 20 && !service.hasAccess && roles.isNotEmpty; i++) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      return service;
+    }
+
+    test('set: says whether this profile is Premium or Free', () async {
+      const set = (oidc: true, aws: true, rbacr: true);
+      final free = SystemHealth.rbacrOf(await rolesWith(set));
+      expect(free.$1, '✅');
+      expect(free.$2, contains('Free'));
+      final premium = SystemHealth.rbacrOf(
+        await rolesWith(set, roles: const [userRole, premiumRole]),
+      );
+      expect(premium.$2, contains('Premium'));
+    });
+
+    test(
+      'missing where cloud sync is set: a warning, a failed check',
+      () async {
+        final roles = await rolesWith((oidc: true, aws: true, rbacr: false));
+        final part = SystemHealth.rbacrOf(roles);
+        expect(part.$1, '⚠️');
+        expect(healthPartFailed(part), isTrue);
+        expect(
+          HealthWarningPill.failedChecks(roles, null, oidcClient: true),
+          contains(part.$2),
+        );
+        // Without cloud sync, or an API that doesn't say: not a failure.
+        expect(
+          SystemHealth.rbacrOf(
+            await rolesWith((oidc: true, aws: false, rbacr: false)),
+          ).$1,
+          '⚪',
+        );
+        expect(
+          SystemHealth.rbacrOf(
+            await rolesWith((oidc: true, aws: true, rbacr: null)),
+          ).$1,
+          '⚪',
+        );
+      },
+    );
   });
 
   group('the health line', () {
@@ -68,7 +142,11 @@ void main() {
         .message!;
 
     testWidgets('set in the auth API and the build: ✅', (tester) async {
-      await pump(tester, api: (oidc: true, aws: false), oidcClient: true);
+      await pump(
+        tester,
+        api: (oidc: true, aws: false, rbacr: null),
+        oidcClient: true,
+      );
       expect(find.text('🔑 OIDC ✅'), findsOneWidget);
       // No cloud sync in this build, nor in the API.
       expect(find.text('☁️ AWS ⚪'), findsOneWidget);
@@ -79,7 +157,11 @@ void main() {
     });
 
     testWidgets('set on one side only: ⚠️, saying which', (tester) async {
-      await pump(tester, api: (oidc: false, aws: true), oidcClient: true);
+      await pump(
+        tester,
+        api: (oidc: false, aws: true, rbacr: null),
+        oidcClient: true,
+      );
       expect(find.text('🔑 OIDC ⚠️'), findsOneWidget);
       expect(
         tooltip(tester, 'oidc'),
@@ -93,7 +175,11 @@ void main() {
     });
 
     testWidgets('the API didn\'t say: the build decides', (tester) async {
-      await pump(tester, api: (oidc: null, aws: null), oidcClient: false);
+      await pump(
+        tester,
+        api: (oidc: null, aws: null, rbacr: null),
+        oidcClient: false,
+      );
       expect(find.text('🔑 OIDC ⚪'), findsOneWidget);
       expect(
         tooltip(tester, 'oidc'),
@@ -106,7 +192,8 @@ void main() {
     testWidgets('checks the auth API at open and every 60 s in RBAC', (
       tester,
     ) async {
-      final client = FakeRolesClient()..settings = (oidc: true, aws: false);
+      final client = FakeRolesClient()
+        ..settings = (oidc: true, aws: false, rbacr: null);
       final roles = RolesService(
         auth: FakeAuthService(),
         client: client,
@@ -158,7 +245,7 @@ void main() {
       // And back, with a setting changed.
       client
         ..anonymousError = null
-        ..settings = (oidc: false, aws: false);
+        ..settings = (oidc: false, aws: false, rbacr: null);
       await tester.pump(const Duration(seconds: 60));
       await tester.pump();
       expect(client.anonymousCalls, 4);
@@ -209,7 +296,7 @@ void main() {
     testWidgets('checks every 15 s in DEV', (tester) async {
       final client = FakeRolesClient()
         ..mode = ExecutionMode.dev
-        ..settings = (oidc: false, aws: false);
+        ..settings = (oidc: false, aws: false, rbacr: null);
       final roles = RolesService(
         auth: FakeAuthService(),
         client: client,
@@ -342,7 +429,8 @@ void main() {
       addTearDown(tester.view.reset);
       final roles = RolesService(
         auth: FakeAuthService(),
-        client: FakeRolesClient()..settings = (oidc: true, aws: true),
+        client: FakeRolesClient()
+          ..settings = (oidc: true, aws: true, rbacr: null),
         oidcClient: true,
       );
       addTearDown(roles.dispose);
@@ -362,6 +450,7 @@ void main() {
             api: i == 100 ? ('❌', 'Auth API: unreachable (x)') : ok.api,
             aws: ok.aws,
             oidc: ok.oidc,
+            rbacr: ok.rbacr,
             live: ok.live,
           )),
         );
@@ -410,16 +499,19 @@ void main() {
       final api = rect(tester, 'health-api');
       final aws = rect(tester, 'health-aws');
       final oidc = rect(tester, 'health-oidc');
+      final rbacr = rect(tester, 'health-rbacr');
       final live = rect(tester, 'health-live');
       final devices = rect(tester, 'health-devices');
       expect(aws.top, api.top);
       expect(aws.height, api.height);
       expect(oidc.top, greaterThan(api.bottom));
       expect(oidc.left, api.left);
-      expect(live.top, oidc.top);
-      expect(devices.top, greaterThan(oidc.bottom));
-      expect(devices.left, api.left);
-      expect(live.right, lessThanOrEqualTo(320));
+      expect(rbacr.top, oidc.top);
+      expect(live.top, greaterThan(oidc.bottom));
+      expect(live.left, api.left);
+      expect(devices.top, live.top);
+      expect(rbacr.right, lessThanOrEqualTo(320));
+      expect(devices.right, lessThanOrEqualTo(320));
     });
 
     testWidgets('the timeline starts at the newest run and scrolls back', (
@@ -498,6 +590,7 @@ void main() {
       api: ('✅', 'Auth API: answered'),
       aws: ('✅', 'AWS: synced'),
       oidc: ('✅', 'OIDC: set'),
+      rbacr: ('✅', 'RBACR: set'),
       live: part,
     ));
 

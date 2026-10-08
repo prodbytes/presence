@@ -369,17 +369,12 @@ void main() {
     ) async {
       await show(
         tester,
-        FakeRolesClient(const [
-          rootRole,
-          userRole,
-          adminRole,
-          'presence_premium',
-        ]),
+        FakeRolesClient(const [rootRole, userRole, adminRole, premiumRole]),
       );
       expect(find.byKey(const Key('account-roles')), findsOneWidget);
       // Member first, then the others in order.
       final chips = [
-        for (final role in [userRole, 'presence_premium', adminRole, rootRole])
+        for (final role in [userRole, premiumRole, adminRole, rootRole])
           tester.getTopLeft(find.byKey(Key('account-role-$role'))).dx,
       ];
       expect(chips, orderedEquals([...chips]..sort()));

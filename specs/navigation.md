@@ -84,7 +84,7 @@ in the app bar**, which flip between full screens.
   - The **Clip** trigger is an extended floating action button (bottom
     right), shown on the Camera tab with access (`ClipButton`,
     `lib/home/clip_button.dart`). It's also the **readiness indicator**:
-    its color says whether a clip can be taken (below), and it's
+    its label's color says whether a clip can be taken (below), and it's
     **disabled**, not hidden, when none can, so the reason is in its
     tooltip. With the **All** grid showing, it's **Capture all**: this camera takes
     a clip, and every press asks every other device of the profile for one
@@ -146,7 +146,7 @@ in the app bar**, which flip between full screens.
     say "Health check failed" and each failed check's explanation.
     **Tapping it** opens the Log tab's health panel when the Log tab is
     shown, Settings' health line otherwise. Gone once every check passes.
-  - **Clip readiness (the Clip button's color)** (`ClipButtonStatus` and
+  - **Clip readiness (the Clip button's text color)** (`ClipButtonStatus` and
     `ClipButtonColors` in `lib/home/clip_button.dart`, from
     `CameraRig.readiness`): the Clip button shows whether an automatic
     clip (motion, the schedule) can be taken now. The label stays short;
@@ -186,18 +186,22 @@ in the app bar**, which flip between full screens.
       pressed**, as before: a press takes another clip (its own *before*
       and *after* parts) and restarts the cooldown; `requestClips` has
       never held a press back.
-    - **Disabled** (red-tinted, flat, not pressable) when no clip can be
+    - **Disabled** (grey, flat, not pressable) when no clip can be
       taken, with the reason as its tooltip: "Camera off" (the view
       button's None), "No camera", "Camera starting…" (opening, or a
       flip), "Camera unavailable" (failed to open, or lost and being
       retried), else "Camera not ready".
 
-    Colors (Gruvbox): on the dark theme the app uses, green `#B8BB26`,
-    amber `#FABD2F` and red `#FB4934` with the darkest background
-    (`#1D2021`) as text; disabled `#4A2B28` with `#F2A39A`. A light theme
-    gets Gruvbox's faded green `#79740E`, a darker amber `#8F5902` and red
-    `#9D0006` with white text, and disabled `#F6DCD8` with `#8A1C12`.
-    Every pair is at least 4.5:1 (tested). The button refreshes twice a
+    Colors: **discreet**. The tone is only the **label's and icon's
+    color**; the background is the same quiet neutral for every state
+    (`ClipButtonColors.background`), so the button doesn't shout. On the
+    dark theme the app uses, Gruvbox `bg1` (`#3C3836`, a step darker than
+    Flip's) with Gruvbox Material's muted green `#A9B665`, amber
+    `#D8A657`, a soft red `#EC8F82`, and a warm grey `#B0A08A` when
+    disabled. A light theme gets Gruvbox's palest background `#F9F5D7`
+    with `#5F6A28`, `#8F5902`, `#A6453F` and `#6F6359`. Every pair is at
+    least 4.5:1 (tested), and the dark theme's are muted (saturation
+    under 0.65, tested). The button refreshes twice a
     second, rebuilding only when what it shows changes.
 
     - **The cooldown survives restarts and page reloads.** On launch, it's

@@ -148,10 +148,16 @@ final class ProfileBackend implements ProfileHandler.Backend {
 
     @Override
     public String openIdToken(String identityId, String profileId, String googleIdToken) {
+        return openIdToken(identityId, profileId, googleIdToken, ProfileHandler.FREE);
+    }
+
+    @Override
+    public String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
+        var tags = Map.of(ProfileHandler.TIER_TAG, tier);
         GetOpenIdTokenForDeveloperIdentityResponse result;
         try {
             // Once linked, the profile ID alone is the proof.
-            result = openIdToken(identityId, Map.of(developerProvider, profileId));
+            result = openIdToken(identityId, Map.of(developerProvider, profileId), tags);
         } catch (NotAuthorizedException e) {
             // Not linked yet: the identity was made by Google sign-in (GetId),
             // and Cognito links another login to it only beside one it has
@@ -159,7 +165,7 @@ final class ProfileBackend implements ProfileHandler.Backend {
             if (googleIdToken == null || googleIdToken.isBlank()) {
                 throw e;
             }
-            result = openIdToken(identityId, Map.of(developerProvider, profileId, GOOGLE, googleIdToken));
+            result = openIdToken(identityId, Map.of(developerProvider, profileId, GOOGLE, googleIdToken), tags);
         }
         if (!identityId.equals(result.identityId())) {
             // Never hand out another folder's credentials.
@@ -169,11 +175,18 @@ final class ProfileBackend implements ProfileHandler.Backend {
         return result.token();
     }
 
-    private GetOpenIdTokenForDeveloperIdentityResponse openIdToken(String identityId, Map<String, String> logins) {
+    /**
+     * The token, with {@code tags} as its principal tags: Cognito sets them
+     * on the session of the credentials it's traded for, where IAM reads
+     * them ({@code aws:PrincipalTag/tier}).
+     */
+    private GetOpenIdTokenForDeveloperIdentityResponse openIdToken(String identityId, Map<String, String> logins,
+                                                                   Map<String, String> tags) {
         return cognito.getOpenIdTokenForDeveloperIdentity(GetOpenIdTokenForDeveloperIdentityRequest.builder()
                 .identityPoolId(identityPoolId)
                 .identityId(identityId)
                 .logins(logins)
+                .principalTags(tags)
                 .build());
     }
 

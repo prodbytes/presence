@@ -24,12 +24,14 @@ add members. An account linked to another's profile shares its
 membership (`presence_user`) only, never `presence_admin` or
 `presence_root`.
 
-There's no free or premium tier among members: a voucher only grants a
-role (a partial discount grants nothing, as payment isn't built), so the
-app can't tell a paying member from another, and treats all members the
-same. Roles do set limits: **Connect to live sync** is always connected
-for admins, and at most every 30 s for members (see
-[Live sync](live-sync.md#when-it-connects)).
+Members are **premium** or **free** ([Premium and free](premium.md)):
+rbacr, the organisation's role manager, says who is premium
+(`presence_premium`, from its `premium` or `admin` role). Premium profiles
+sync with the cloud; free ones' devices sync with each other over live
+sync only. This app's vouchers grant membership or admin, not premium
+(premium is granted in rbacr, which has vouchers of its own). Roles also
+set limits: **Connect to live sync** is always connected for admins, and at
+most every 30 s for members (see [Live sync](live-sync.md#when-it-connects)).
 
 ## Asking for access
 

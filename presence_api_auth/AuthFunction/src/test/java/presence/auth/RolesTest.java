@@ -124,14 +124,14 @@ class RolesTest {
         assertEquals(200, response.getStatusCode());
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
         assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
-                + "\"settings\":{\"oidc\":true,\"aws\":false}}", response.getBody());
+                + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false}}", response.getBody());
     }
 
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
         var handler = new AuthHandler(roles, profiles(), ExecutionMode.DEV);
-        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_root\",\"presence_user\"],"
-                + "\"settings\":{\"oidc\":false,\"aws\":false}}",
+        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_premium\",\"presence_root\",\"presence_user\"],"
+                + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false}}",
                 handler.handleRequest(anonymous(), null).getBody());
     }
 
@@ -140,11 +140,13 @@ class RolesTest {
         var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC,
                 Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket"));
         assertTrue(handler.handleRequest(anonymous(), null).getBody()
-                .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true}}"));
+                .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":false}}"));
         assertEquals(new Settings(false, false), Settings.of(null, " ", ""));
         // AWS sync needs both the identity pool and the bucket.
         assertEquals(new Settings(true, false), Settings.of("id", "us-east-1:pool", null));
         assertEquals(new Settings(false, false), Settings.of("", null, "bucket"));
+        assertEquals(new Settings(true, true, true), Settings.of("id", "pool", "bucket", "rbacr_token"));
+        assertEquals(new Settings(true, true, false), Settings.of("id", "pool", "bucket", " "));
     }
 
     @Test

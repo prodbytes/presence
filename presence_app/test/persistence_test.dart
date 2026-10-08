@@ -580,7 +580,7 @@ void main() {
       connect: broker.connect,
     );
     final auth = FakeAuthService.signedIn();
-    final roles = FakeRolesClient(const [userRole, adminRole]);
+    final roles = FakeRolesClient(const [userRole, adminRole, premiumRole]);
     await launch(
       tester,
       cloud: FakeCloudBackend(),
@@ -600,7 +600,7 @@ void main() {
     // setting again, every minute, on a schedule.
     await auth.signOut();
     await tester.pumpAndSettle();
-    roles.roles = const [userRole];
+    roles.roles = const [userRole, premiumRole];
     await auth.signIn();
     await tester.pumpAndSettle();
     await settleStorage(tester);
@@ -623,7 +623,7 @@ void main() {
     // An admin again: always connected.
     await auth.signOut();
     await tester.pumpAndSettle();
-    roles.roles = const [userRole, adminRole];
+    roles.roles = const [userRole, adminRole, premiumRole];
     await auth.signIn();
     await tester.pumpAndSettle();
     await settleStorage(tester);
@@ -657,7 +657,7 @@ void main() {
       tester,
       cloud: cloud,
       live: live,
-      roles: FakeRolesClient(const [userRole, adminRole]),
+      roles: FakeRolesClient(const [userRole, adminRole, premiumRole]),
     );
     await settleStorage(tester);
     await tester.pumpAndSettle();

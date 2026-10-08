@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'annotations.dart';
+import 'barrel_roll.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'copies_badge.dart';
@@ -841,6 +842,7 @@ bool eventMatches(AppEvent event, String query, {String? deviceId}) {
 /// what's typed goes to [value] (the timeline's [EventFilters.search]) as
 /// it's typed. It folds back into the icon when it loses focus empty, or
 /// with its x, which clears it first; while it has text it stays open.
+/// "do a barrel roll" spins the screen ([BarrelRoll]).
 class EventSearch extends StatefulWidget {
   const EventSearch({super.key, required this.value});
 
@@ -932,9 +934,16 @@ class _EventSearchState extends State<EventSearch> {
         key: const Key('event-search'),
         controller: _controller,
         focusNode: _focus,
-        onChanged: (text) => widget.value.value = text,
+        onChanged: (text) {
+          // Rolls as the phrase is finished, not on every key after it.
+          if (BarrelRoll.asks(text) && !BarrelRoll.asks(widget.value.value)) {
+            BarrelRoll.roll(context);
+          }
+          widget.value.value = text;
+        },
         onSubmitted: (text) {
           if (text.isEmpty) _close();
+          if (BarrelRoll.asks(text)) BarrelRoll.roll(context);
         },
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(

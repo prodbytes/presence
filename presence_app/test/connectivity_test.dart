@@ -92,7 +92,7 @@ void main() {
     FakeAuthService? auth,
   }) async {
     client = FakeRolesClient()
-      ..settings = (oidc: true, aws: true)
+      ..settings = (oidc: true, aws: true, rbacr: null)
       ..anonymousError = apiError;
     roles = RolesService(
       auth: auth ?? FakeAuthService(),

@@ -89,6 +89,16 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
          */
         String openIdToken(String identityId, String profileId, String googleIdToken);
 
+        /**
+         * {@link #openIdToken(String, String, String)}, tagged with the
+         * profile's {@link #TIER_TAG} ({@link #PREMIUM} or {@link #FREE}):
+         * Cognito puts it on the credentials' session, and the role's S3
+         * permissions require {@link #PREMIUM} (presence_infra/identity.yaml).
+         */
+        default String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
+            return openIdToken(identityId, profileId, googleIdToken);
+        }
+
         /** Whether the identity's folder in the bucket holds nothing. */
         boolean folderEmpty(String identityId);
 
@@ -100,6 +110,15 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
          */
         void allowLiveSync(String identityId);
     }
+
+    /** The principal tag the credentials carry: whether they may use the bucket. */
+    static final String TIER_TAG = "tier";
+
+    /** {@link #TIER_TAG}'s value for {@link Roles#PREMIUM}: S3 and live sync. */
+    static final String PREMIUM = "premium";
+
+    /** {@link #TIER_TAG}'s value otherwise: live sync only. */
+    static final String FREE = "free";
 
     private final Roles roles;
     private final Profiles profiles;
@@ -156,14 +175,16 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return notConfigured();
         }
         var profile = profile(caller);
-        if (!isUser(caller, profile)) {
+        var granted = roles.of(caller, profile);
+        if (!granted.contains(Roles.USER)) {
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
-        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
+        var tier = granted.contains(Roles.PREMIUM) ? PREMIUM : FREE;
+        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken(), tier);
         backend.allowLiveSync(profile.identityId());
         return response(200, "{\"identityId\":" + Json.string(profile.identityId())
-                + ",\"token\":" + Json.string(token) + "}");
+                + ",\"token\":" + Json.string(token) + ",\"tier\":" + Json.string(tier) + "}");
     }
 
     private APIGatewayV2HTTPResponse linkCode(Caller caller) {

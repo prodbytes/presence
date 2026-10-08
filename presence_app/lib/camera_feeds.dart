@@ -132,11 +132,18 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                   profileId: widget.profileId,
                 )
               : const <String, DateTime>{};
+          final now = DateTime.now();
           final others = all
-              ? latestByDevice(
-                  log?.events ?? const [],
-                  thisDevice: widget.deviceId,
-                  profileId: widget.profileId,
+              ? byActivity(
+                  latestByDevice(
+                    log?.events ?? const [],
+                    thisDevice: widget.deviceId,
+                    profileId: widget.profileId,
+                  ),
+                  seenOf: live?.seenOf,
+                  lastEvents: lastEvents,
+                  now: now,
+                  liveAvailable: available,
                 )
               : const <DeviceLatest>[];
           final padding = MediaQuery.paddingOf(context);
@@ -163,7 +170,6 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       (i ~/ columns) * cell.height,
                     ) &
                     cell;
-                final now = DateTime.now();
                 return Stack(
                   children: [
                     // This device, live: top left in the grid.
@@ -190,8 +196,12 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       ),
                     ),
                     for (final (i, latest) in others.indexed)
-                      Positioned.fromRect(
+                      // A device whose place changes slides there, as the
+                      // tabs do.
+                      AnimatedPositioned.fromRect(
                         key: ValueKey(latest.deviceId),
+                        duration: kTabScrollDuration,
+                        curve: Curves.ease,
                         rect: rectOf(i + 1).deflate(1),
                         child: DeviceGridCell(
                           label:
