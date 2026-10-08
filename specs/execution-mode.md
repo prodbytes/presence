@@ -58,7 +58,8 @@ with Google** only; after sign-in, `GET /api/auth` decides the rest.
   (`presence.auth.ExecutionMode`). `scripts/deploy.sh` refuses to deploy
   without it, and its smoke test requires `/api/auth/anonymous` to answer
   exactly
-  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}`.
+  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`
+  (`"rbacr":false` when it deployed without an rbacr token).
 - DEV only changes what the app shows. The API's other routes still need a
   Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
   none passes), and cloud sync needs a Google sign-in.

@@ -40,6 +40,8 @@ class ProfileTest {
     private final Map<String, String> linked = new HashMap<>();
     private final Set<String> foldersWithData = new HashSet<>();
     private final List<String> tokensIssued = new ArrayList<>();
+    /** The tier each credentials token was tagged with, in order. */
+    private final List<String> tiers = new ArrayList<>();
     /** Identities the live-sync IoT policy was attached to, in order. */
     private final List<String> liveSyncAllowed = new ArrayList<>();
     private Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -90,6 +92,13 @@ class ProfileTest {
         }
 
         @Override
+        public String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
+            var token = openIdToken(identityId, profileId, googleIdToken);
+            tiers.add(tier);
+            return token;
+        }
+
+        @Override
         public boolean folderEmpty(String identityId) {
             return !foldersWithData.contains(identityId);
         }
@@ -100,8 +109,12 @@ class ProfileTest {
         }
     };
 
-    /** nu01.com gets both roles; julio@gmail.com and others none. */
-    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of());
+    /** rbacr's roles in the presence system, by email. */
+    private final Map<String, Set<String>> rbacr = new HashMap<>();
+
+    /** nu01.com gets both roles; julio@gmail.com and others none; premium from {@link #rbacr}. */
+    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of(),
+            e -> rbacr.getOrDefault(e, Set.of()));
 
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
@@ -124,7 +137,8 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
 
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\"}", response.getBody());
+        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\",\"tier\":\"free\"}",
+                response.getBody());
         var profile = profileOf("work");
         assertEquals("profile_1", profile.id());
         assertEquals(GOOGLE + "#work", profile.ownerSubject());
@@ -315,6 +329,57 @@ class ProfileTest {
                 Map.of("iss", GOOGLE, "sub", "work", "email", "julio@nu01.com", "email_verified", "false"));
         assertEquals(403, profiles.handleRequest(event, null).getStatusCode());
         assertTrue(store.links.isEmpty());
+    }
+
+    @Test
+    void credentialsAreTaggedPremiumOnlyWhenRbacrSaysSo() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        // A member rbacr knows nothing of: free, live sync only.
+        var free = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertEquals(200, free.getStatusCode());
+        assertTrue(free.getBody().endsWith(",\"tier\":\"free\"}"), free.getBody());
+        // rbacr's premium, or its admin: premium, the bucket too.
+        rbacr.put("julio@nu01.com", Set.of("free", "premium"));
+        var premium = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertTrue(premium.getBody().endsWith(",\"tier\":\"premium\"}"), premium.getBody());
+        rbacr.put("julio@nu01.com", Set.of("admin"));
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        // rbacr's free alone is free.
+        rbacr.put("julio@nu01.com", Set.of("free"));
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertEquals(List.of("free", "premium", "premium", "free"), tiers);
+        // GET /api/auth says so too.
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
+        assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":\"profile_1\",\"roles\":["
+                        + "\"presence_admin\",\"presence_premium\",\"presence_root\",\"presence_user\"]}",
+                auth.handleRequest(call("GET /api/auth", "work", "julio@nu01.com", null), null).getBody());
+    }
+
+    @Test
+    void aLinkedAccountSharesItsOwnersPremium() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        var code = linkCode("work", "julio@nu01.com");
+        profiles.handleRequest(call("POST /api/auth/profile/link", "home", "julio@gmail.com", code), null);
+
+        var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
+        assertTrue(response.getBody().endsWith(",\"tier\":\"premium\"}"), response.getBody());
+        // The owner's premium gone: the folder is free for both.
+        rbacr.remove("julio@nu01.com");
+        response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
+        assertTrue(response.getBody().endsWith(",\"tier\":\"free\"}"), response.getBody());
+    }
+
+    @Test
+    void premiumComesFromRbacrAloneNeverFromTheRolesTable() {
+        var tabled = new Roles(Set.of(), Set.of(), e -> Set.of(Roles.USER, Roles.PREMIUM));
+        assertEquals(Set.of(Roles.USER), tabled.of("ana@example.com", true, null));
+        // And not for an unverified email, whatever rbacr says.
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
+        rbacr.put("julio@gmail.com", Set.of("premium"));
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
+        assertEquals(Set.of(Roles.PREMIUM), roles.of("julio@gmail.com", true, null));
     }
 
     @Test

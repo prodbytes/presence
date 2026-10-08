@@ -52,6 +52,11 @@ an Athena table are in [Recording and data formats](data-formats.md).
   [Sign-in](sign-in.md) and [Membership](membership.md)). Sync starts once
   the roles check grants access and gives the profile; another profile
   (after a link) starts it over.
+- **Premium only:** everything on this page is for a **premium** profile
+  (`presence_premium`, from rbacr). A free profile's credentials can't
+  reach the bucket; its devices sync with each other over live sync alone,
+  each event published with its clip's record and thumbnail. A change of
+  tier starts the sync over. See [Premium and free](premium.md).
 - **This device's settings:** the first pass for a user (at start, sign-in
   or a user change) lists `devices/<deviceId>/` and, if the record is
   there, downloads it. It wins when it's newer, or when the local

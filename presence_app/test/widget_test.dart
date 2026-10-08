@@ -315,7 +315,7 @@ void main() {
     roles.answer.complete((
       mode: ExecutionMode.rbac,
       roles: [anonymousRole],
-      settings: (oidc: true, aws: false),
+      settings: (oidc: true, aws: false, rbacr: null),
     ));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

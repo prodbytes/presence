@@ -56,7 +56,10 @@ class _LiveBridge {
   /// isn't uploaded yet: this version wins, as with the bucket). Either is
   /// marked as synced, with the ETag the sender uploaded, so it's neither
   /// uploaded back nor downloaded again. Its clip and tagged frames come
-  /// from the bucket: a pass starts for them.
+  /// from the bucket: a pass starts for them. A free profile has no
+  /// bucket: nothing is marked, its clip comes from the message
+  /// ([LiveEvent.clip]) when the sender put it there, and its tagged
+  /// frames stay on the device that made them.
   ///
   /// It waits for an upload of the same event a pass is making
   /// ([_Uploader.uploadOf]), so the pass can't put this device's older version
@@ -95,8 +98,11 @@ class _LiveBridge {
     final synced = _sync._synced ??= await store.syncedKeys();
     final local = await store.getEvent(id);
 
+    final premium = _sync.premium;
+
     Future<void> settle() async {
-      if (!current()) return;
+      // Free: the bucket holds nothing, so nothing is marked as there.
+      if (!premium || !current()) return;
       final stored = await store.getEvent(id);
       if (stored == null || CloudSync.eventKey(stored) != key || !current()) {
         return;
@@ -120,7 +126,9 @@ class _LiveBridge {
     if (local == null) {
       if (_sync._handedOver.contains(id)) return;
       // The frames its tags use, if it has any yet.
-      final frames = await _liveFrames(event, const {});
+      final frames = premium
+          ? await _liveFrames(event, const {})
+          : const <String, Uint8List>{};
       if (frames.isNotEmpty) event['frames'] = frames;
       if (!current()) return;
       await _sync._deliver(RemoteRecords(events: [event], live: true));
@@ -135,7 +143,9 @@ class _LiveBridge {
             !_deletes(event, local)) {
           return;
         }
-        final frames = await _liveFrames(event, local);
+        final frames = premium
+            ? await _liveFrames(event, local)
+            : const <String, Uint8List>{};
         if (frames.isNotEmpty) event['frames'] = frames;
         if (!current()) return;
         await _sync._deliver(RemoteRecords(updated: [event], live: true));
@@ -154,8 +164,13 @@ class _LiveBridge {
       }
     }
     if (clipId is String && wantsClip && current()) {
-      _sync._fetcher.want(clipId, time);
-      _sync._schedule(immediately: true);
+      if (premium) {
+        _sync._fetcher.want(clipId, time);
+        _sync._schedule(immediately: true);
+      } else if (message.clip case final clip?) {
+        // Free: the clip as the sender put it in the message.
+        await _sync._deliver(RemoteRecords(clips: [clip], live: true));
+      }
     }
     if (current()) _sync._copyTracker.note({id}).ignore();
   }

@@ -70,6 +70,7 @@ check_api() {
         report 🔌 api ❌ "/api/auth/anonymous didn't answer"
         report 🔑 oidc ❌ "unknown: the API didn't answer"
         report 🪣 aws ❌ "unknown: the API didn't answer"
+        report 🛂 rbacr-api ❌ "unknown: the API didn't answer"
         return
     fi
     report 🔌 api ✅ "$mode mode"
@@ -77,7 +78,15 @@ check_api() {
         "GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role"
     setting "$body" 🪣 aws aws "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set: events sync to S3" \
         "COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3"
+    setting "$body" 🛂 rbacr-api rbacr "RBACR_TOKEN set: rbacr says who is premium (S3 sync)" \
+        "RBACR_TOKEN not set: nobody is premium, members sync over live sync only"
 }
+
+# rbacr itself (who is premium): its public /health, at RBACR_URL (the
+# environment, else .env, else https://rbacr.nu01.com). No token is sent.
+RBACR_URL="${RBACR_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_URL=//p' .env | tail -1)}"
+RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+check_rbacr() { ok_if 🛂 rbacr "$RBACR_URL/health" get 5 "$RBACR_URL/health"; }
 
 while true; do
     # Add more services here, one check_* function each.
@@ -86,5 +95,6 @@ while true; do
     check_cdn
     check_https
     check_api
+    check_rbacr
     sleep "$INTERVAL"
 done

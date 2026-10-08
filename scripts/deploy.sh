@@ -40,6 +40,12 @@
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
+#   RBACR_TOKEN  an rbacr API token that may read the presence system's
+#                roles: who is premium (cloud sync). Required, from the
+#                environment (the RBACR_TOKEN secret in CI) or .env, since
+#                a deploy without it would make nobody premium; set
+#                RBACR_TOKEN=none to deploy without rbacr on purpose.
+#   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com; also .env)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -125,6 +131,25 @@ if [[ ! "$PRESENCE_HEALTH_EMAILS" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+(,[A-Za-z0
 fi
 echo "    health alarm emails: $(tr ',' '\n' <<<"$PRESENCE_HEALTH_EMAILS" | grep -c .)"
 
+# rbacr, who says who's premium: from the environment, else .env. Never
+# logged. Required: an empty token would make nobody premium.
+for name in RBACR_TOKEN RBACR_URL; do
+  if [[ -z "${!name:-}" && -f .env ]]; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+done
+RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+if [[ -z "${RBACR_TOKEN:-}" ]]; then
+  echo "error: RBACR_TOKEN isn't set (environment or .env); RBACR_TOKEN=none deploys without rbacr (nobody premium)" >&2
+  exit 1
+fi
+[[ "$RBACR_TOKEN" == none ]] && RBACR_TOKEN=""
+if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]*$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+  echo "error: RBACR_TOKEN must be a token and RBACR_URL an https origin" >&2
+  exit 1
+fi
+echo "    rbacr: $RBACR_URL, $([[ -n "$RBACR_TOKEN" ]] && echo "with a token" || echo "none (nobody premium)")"
+
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
 aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
@@ -198,6 +223,7 @@ echo "==> deploying $AUTH_STACK"
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
       "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
+      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -243,7 +269,9 @@ check() {
   # must have every expected setting.
   local anonymous
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
-  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}' ]] \
+  # rbacr is set exactly when this deploy passed a token.
+  local rbacr_set; rbacr_set=$([[ -n "$RBACR_TOKEN" ]] && echo true || echo false)
+  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":'"$rbacr_set"'}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
   # What the Route 53 health check polls: every dependency must be ok, and
   # the API must be this release.

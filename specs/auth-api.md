@@ -21,13 +21,15 @@ site (`/api/*` in the CloudFront distribution; see
   token**): the [execution mode](execution-mode.md), the anonymous
   user's roles (in DEV every role) and which expected settings the stack
   has, `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings":
-  {"oidc": true, "aws": true}}`. The mode is DEV when the function has no
+  {"oidc": true, "aws": true, "rbacr": true}}`. The mode is DEV when the function has no
   `GOOGLE_WEB_CLIENT_ID`. Throttled to 20 requests/s (burst 50): see
   [Throttling and floods](#throttling-and-floods);
 - **Settings** (`Settings`): `oidc` is whether `GOOGLE_WEB_CLIENT_ID` is
   set, `aws` whether both `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET`
   are (template parameters `IdentityPoolId` and `UserDataBucket`, empty by
-  default). Only whether each is set is reported, never a value. The app
+  default), `rbacr` whether `RBACR_TOKEN` is (`RbacrToken`: who is premium,
+  see [Premium and free](premium.md)). Only whether each is set is
+  reported, never a value. The app
   shows them in its Settings health line (see [Settings
   screen](settings.md));
 - **`POST /api/auth/membership`** (`MembershipHandler`): a request for

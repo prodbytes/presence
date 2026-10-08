@@ -137,10 +137,8 @@ How live sync connects depends on the user's roles too
   shows Always, locked.
 - **Everyone else** (members) connects as set, but **at most every 30 s**:
   Always isn't theirs, and a saved Always (or an interval under 30 s)
-  connects every 30 s. Their slider goes from Never to every 60 min. The
-  app can't tell a free member from a premium one (both have
-  `presence_user` only; vouchers grant roles, and payment isn't built), so
-  all members get these rules.
+  connects every 30 s. Their slider goes from Never to every 60 min. Free
+  and premium members ([Premium and free](premium.md)) get the same rules.
 - The saved setting is never rewritten for the roles: an admin who stops
   being one gets their own choice back (clamped), and a member made admin
   is always connected at once.
@@ -213,19 +211,27 @@ live sync are off, as before.
     "key": "events/year=2026/day=279/<eventId>.json",
     "etag": "<MD5 of the event JSON uploaded, hex>",
     "event": { "id": "…", "type": "clip_requested", "time": 1791234567000,
-               "clipId": "…", "clipState": "partial", "annotations": […], … }
+               "clipId": "…", "clipState": "partial", "annotations": […], … },
+    "clip": { "id": "…", "eventId": "…", "state": "complete", "full": {…},
+              "thumbnail": "<base64 JPEG>", … }
   }
   ```
 
   - `deviceId` is the **sender**, `key` and `etag` the event's object in
     the bucket as uploaded (phase 2's deletion will refer to them),
     `event` the event record as uploaded.
-  - **Metadata only, never media:** `event` carries references (`clipId`,
-    `frameId`s in `annotations`, `cameraId`), never frames, thumbnails or
-    video. Before publishing, `LiveSync.metadataOf` removes `frames`,
-    `thumbnail`, `recording`, `bytes` and `data`, and any value that is
-    raw bytes (a byte array, or a list of more than 16 integers). The media
-    is always in the bucket.
+  - **The event's metadata, never its media:** `event` carries references
+    (`clipId`, `frameId`s in `annotations`, `cameraId`), never frames,
+    thumbnails or video. Before publishing, `LiveSync.metadataOf` removes
+    `frames`, `thumbnail`, `recording`, `bytes` and `data`, and any value
+    that is raw bytes (a byte array, or a list of more than 16 integers).
+  - **`clip`, its clip's record and thumbnail**, once the clip is complete
+    (`LiveSync.clipMessageOf`): the record without media bytes, with the
+    thumbnail as base64 when it's a JPEG or PNG of at most 48 KB. Its
+    recording and the tagged frames never go. A message that would pass
+    64 KB with it goes without it. Devices without the bucket (a
+    [free](premium.md) profile's) take the clip from here. Premium ones
+    take it from the bucket as before, where recordings and frames are.
 
 ### Validation
 
@@ -234,7 +240,10 @@ version 1 or `kind: event`, names another identity, has a `deviceId`,
 event `id` or `clipId` outside `[A-Za-z0-9_.:-]{1,128}` or containing
 `..` (they go into object keys), an event without an integer
 `time`, a `type` over 64 characters, or an `etag` that isn't 32 hex digits.
-Inline media in a received event is stripped the same way. Cloud sync then
+Inline media in a received event is stripped the same way. A `clip` that
+isn't the event's clip, isn't complete, has an unsafe ID, or has a
+thumbnail that isn't a JPEG or PNG of at most 48 KB (base64) is dropped,
+and the event is kept (`LiveSync.clipOf`). Cloud sync then
 also ignores an event of another `profileId`, and one older than the
 restore window, and gives the event the profile's ID. The IoT policy
 already keeps other profiles off the topic.
@@ -277,7 +286,9 @@ already keeps other profiles off the topic.
 
 Live sync is off, and everything syncs through the bucket as before, when
 the build has no `IOT_ENDPOINT` (local Floci, tests, a `.env` without it),
-when cloud sync is off, and while signed out.
+when cloud sync is off, and while signed out. For a free profile, live
+sync is the only sync ([Premium and free](premium.md)): without it, a free
+profile's devices don't sync at all.
 
 ## Status
 

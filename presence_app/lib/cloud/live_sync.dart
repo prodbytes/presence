@@ -76,6 +76,7 @@ class LiveEvent {
     required this.event,
     this.sentAt,
     this.etag,
+    this.clip,
   });
 
   /// The device that published it.
@@ -90,6 +91,12 @@ class LiveEvent {
 
   /// The ETag (MD5, hex) of the event's JSON as the sender uploaded it.
   final String? etag;
+
+  /// The event's clip, when the sender put it in the message (complete,
+  /// and small enough): its record as stored, with its thumbnail (JPEG or
+  /// PNG bytes), never its recording. Devices without the bucket (free)
+  /// take the clip from here.
+  final Map<String, Object?>? clip;
 }
 
 /// A ping or pong ([LiveSync.parsePresence]): who sent it, when (ms since
@@ -698,19 +705,23 @@ class LiveSync extends ChangeNotifier {
   }
 
   /// Publishes [event] (its record as uploaded to the bucket, at [key] with
-  /// ETag [etag]) for the profile's other devices. Its inline media is left
-  /// out ([metadataOf]). Returns whether it was sent: not when it's too
-  /// big, nor with live sync off (the bucket still has it). Always
-  /// connected, not while disconnected; on a schedule, between connections
-  /// it connects at once to send it (waiting up to [publishWait]).
+  /// ETag [etag]; or, without the bucket, as stored) for the profile's
+  /// other devices. Its inline media is left out ([metadataOf]). With
+  /// [clip] (its clip's record, with its thumbnail), the clip goes along
+  /// ([clipMessageOf]) when the message stays under [maxMessageBytes];
+  /// else the event goes alone. Returns whether it was sent: not when it's
+  /// too big, nor with live sync off. Always connected, not while
+  /// disconnected; on a schedule, between connections it connects at once
+  /// to send it (waiting up to [publishWait]).
   Future<bool> publishEvent(
     Map<String, Object?> event, {
     required String key,
     String? etag,
+    Map<String, Object?>? clip,
   }) async {
     final link = _link;
     if (link == null || !_canSend) return false;
-    final payload = Uint8List.fromList(
+    Uint8List payloadWith(Map<String, Object?>? inline) => Uint8List.fromList(
       utf8.encode(
         jsonEncode({
           'v': version,
@@ -721,9 +732,15 @@ class LiveSync extends ChangeNotifier {
           'key': key,
           'etag': ?etag,
           'event': metadataOf(event),
+          'clip': ?inline,
         }),
       ),
     );
+    final inline = clip == null ? null : clipMessageOf(clip);
+    var payload = payloadWith(inline);
+    if (inline != null && payload.length > maxMessageBytes) {
+      payload = payloadWith(null);
+    }
     if (payload.length > maxMessageBytes) {
       debugPrint(
         'Presence: live sync not sending event ${event['id']}: '
@@ -1158,6 +1175,75 @@ class LiveSync extends ChangeNotifier {
     'data',
   };
 
+  /// The most bytes a clip's thumbnail may have in a message.
+  static const int maxThumbnailBytes = 48 * 1024;
+
+  /// [clip] (a clip's record, as stored) for a message: a complete clip's
+  /// record without media bytes ([metadataOf]), with its thumbnail as
+  /// base64 when it has one of at most [maxThumbnailBytes]; null for a clip
+  /// that isn't complete, or isn't a clip.
+  static Map<String, Object?>? clipMessageOf(Map<String, Object?> clip) {
+    final parsed = Records.tryParseClip(clip, safeIds: true);
+    if (parsed == null || parsed['state'] != 'complete') return null;
+    final thumbnail = clip['thumbnail'];
+    final bytes = thumbnail is Uint8List
+        ? thumbnail
+        : thumbnail is List
+        ? Uint8List.fromList(thumbnail.cast<int>())
+        : null;
+    return {
+      ...metadataOf(parsed),
+      if (bytes != null && bytes.length <= maxThumbnailBytes && _isImage(bytes))
+        'thumbnail': base64Encode(bytes),
+    };
+  }
+
+  /// The clip in a message's [value] ([clipMessageOf]), for the event with
+  /// clip [clipId]: its record, with its thumbnail decoded; null when it
+  /// isn't one (not that clip, not complete, a thumbnail that isn't a JPEG
+  /// or PNG of at most [maxThumbnailBytes]).
+  static Map<String, Object?>? clipOf(
+    Object? value, {
+    required Object? clipId,
+  }) {
+    if (value is! Map || clipId is! String) return null;
+    final record = Map<String, Object?>.of(value.cast<String, Object?>());
+    final encoded = record.remove('thumbnail');
+    final parsed = Records.tryParseClip(metadataOf(record), safeIds: true);
+    if (parsed == null ||
+        parsed['id'] != clipId ||
+        parsed['state'] != 'complete') {
+      return null;
+    }
+    if (encoded != null) {
+      if (encoded is! String ||
+          encoded.length > (maxThumbnailBytes * 4 / 3).ceil() + 4) {
+        return null;
+      }
+      final Uint8List bytes;
+      try {
+        bytes = base64Decode(encoded);
+      } catch (_) {
+        return null;
+      }
+      if (bytes.length > maxThumbnailBytes || !_isImage(bytes)) return null;
+      parsed['thumbnail'] = bytes;
+    }
+    return parsed;
+  }
+
+  /// Whether [bytes] start as a JPEG or a PNG.
+  static bool _isImage(Uint8List bytes) =>
+      (bytes.length > 3 &&
+          bytes[0] == 0xFF &&
+          bytes[1] == 0xD8 &&
+          bytes[2] == 0xFF) ||
+      (bytes.length > 8 &&
+          bytes[0] == 0x89 &&
+          bytes[1] == 0x50 &&
+          bytes[2] == 0x4E &&
+          bytes[3] == 0x47);
+
   /// Whether [id] is safe as an event, clip, frame or device ID: it goes
   /// into object keys in the bucket ([Records.isSafeId]).
   static bool isSafeId(Object? id) => Records.isSafeId(id);
@@ -1212,6 +1298,8 @@ class LiveSync extends ChangeNotifier {
       event: record,
       sentAt: sentAt as int?,
       etag: etag as String?,
+      // A clip that isn't right is left out; the event still counts.
+      clip: clipOf(message['clip'], clipId: clipId),
     );
   }
 
