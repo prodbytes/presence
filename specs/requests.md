@@ -4193,3 +4193,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
        [Device presence](device-presence.md).
 
+318. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+     - Asked: "lets add an easter egg. if the user searches for "do a
+       barrel roll", roll the screen, like google".
+     - Changed: typing **do a barrel roll** (or "barrell", any case and
+       spacing) in the Monitoring tab's events search spins the whole
+       app one turn over 2 s, as Google's search does; once when the
+       text becomes the phrase, again on each submit; not during a turn
+       or with reduced motion. New `lib/barrel_roll.dart` (`BarrelRoll`,
+       wrapped around the app in `MaterialApp.builder`) and
+       `test/barrel_roll_test.dart`.
+     - Specs: [Events](events.md).
