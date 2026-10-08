@@ -1,9 +1,10 @@
 # Camera screen
 
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
-  Its color is the readiness: green when ready, amber with the time left
-  during the cooldown ("Clip · 4:59"), red while a clip is saving, and
-  red-tinted and disabled when no clip can be taken (see
+  Its label's (and icon's) color is the readiness, discreet, on a
+  neutral background: green when ready, amber with the time left during
+  the cooldown ("Clip · 4:59"), red while a clip is saving, and grey and
+  disabled when no clip can be taken (see
   [Navigation](navigation.md)). With the All grid showing, it asks every device for one
   ([Capture all](#capture-all) below), as opening the grid does.
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
@@ -15,7 +16,7 @@
   camera off.
   - **None** closes the camera (`CameraRig.setPaused`): nothing is
     recorded, no motion, scheduled or Capture all clips are taken, and
-    Flip is hidden and Clip is disabled (red-tinted, tooltip "Camera
+    Flip is hidden and Clip is disabled (grey, tooltip "Camera
     off"). The camera shows "Camera off / Nothing is recorded until you
     turn it on." with **Turn on**.
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
