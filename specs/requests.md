@@ -4487,3 +4487,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+
+326. **Status pills at the top of the camera.** (2026-10-10)
+     - Asked: move the pills (battery, temperature, …) to the top of the
+       screen, so they're not layered over the buttons.
+     - Changed: the camera's status pills (health warning, battery,
+       temperature, message) sit top left, 8 px under the app bar, in one
+       row that wraps where it doesn't fit (they were bottom left, stacked
+       above the buttons on phones). The All grid starts below a row of
+       pills (`CameraFeedsView.topInset`). Fixed on the way: the grid
+       counted the app bar's height twice (it's already in the body's top
+       padding), starting 56 px lower than meant. Tests:
+       `device_location_test.dart`, `readiness_test.dart`,
+       `camera_all_test.dart`. Specs: [Navigation](navigation.md),
+       [Device location and battery](device-location.md),
+       [Camera](camera.md).

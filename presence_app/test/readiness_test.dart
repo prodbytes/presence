@@ -564,7 +564,7 @@ void main() {
     }
 
     for (final size in [const Size(320, 640), const Size(1280, 800)]) {
-      testWidgets('the message is a pill bottom left, clear of the buttons, '
+      testWidgets('the message is a pill top left, clear of the buttons, '
           'at ${size.width.toInt()} wide', (tester) async {
         await pumpApp(tester, size: size);
         await advance(tester, const Duration(seconds: 16));
@@ -577,13 +577,9 @@ void main() {
         expect(find.byType(SnackBar), findsNothing);
         final pill = tester.getRect(message);
         expect(pill.left, 16);
-        if (size.width < 600) {
-          // Stacked, just above the buttons' row.
-          expect(pill.bottom, lessThanOrEqualTo(tester.getRect(clip).top));
-        } else {
-          // Level with the buttons.
-          expect(pill.center.dy, closeTo(tester.getRect(clip).center.dy, 1));
-        }
+        // At the top, under the app bar, far from the buttons.
+        expect(pill.top, greaterThanOrEqualTo(kToolbarHeight + 8));
+        expect(pill.bottom, lessThan(size.height / 2));
         // Clear of Flip and Clip, and of the screen's edge.
         expect(pill.overlaps(tester.getRect(clip)), isFalse);
         expect(pill.right, lessThanOrEqualTo(size.width - 16));
