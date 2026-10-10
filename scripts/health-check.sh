@@ -2,8 +2,8 @@
 # Continuous health monitor: every HEALTH_CHECK_INTERVAL seconds (15 by
 # default), one line per run: the time, then each check as its emoji, a
 # short label and ✅ (ok) / ❌ (failed) / ⚪ (not set), separated by " · ":
-#   🏠 Index · 🌐 Web · ☁️ CDN · 🔒 HTTPS · 🔌 API · 🔑 OIDC · 🪣 AWS ·
-#   🛂 RBACR (the API's rbacr setting) · 💎 RBACR svc (rbacr's /health)
+#   🏠 Index · 🌐 Web · 🚚 CDN · 🔒 HTTPS · 🔌 API · 🔑 OIDC · ☁️ AWS ·
+#   👮 RBACR (the API's rbacr setting) · 💎 RBACR svc (rbacr's /health)
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
 set -uo pipefail
 
@@ -39,7 +39,7 @@ check_web() { ok_if "🌐 Web" get 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}
 
 # The CloudFront distribution in Floci, addressed by its alias in the Host
 # header (so it works where *.localhost doesn't resolve).
-check_cdn() { ok_if "☁️ CDN" get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
+check_cdn() { ok_if "🚚 CDN" get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
 
 # HTTPS through the CDN on the public local name (the Google sign-in origin),
 # validating the certificate against mkcert's CA (not the system trust store,
@@ -65,8 +65,8 @@ setting() {
 
 # The auth API through the CDN (GET /api/auth/anonymous, no token): it
 # answers with its execution mode, and whether the OIDC client (🔑
-# GOOGLE_WEB_CLIENT_ID), the AWS cloud-sync settings (🪣
-# COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET) and rbacr (🛂 RBACR_TOKEN)
+# GOOGLE_WEB_CLIENT_ID), the AWS cloud-sync settings (☁️
+# COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET) and rbacr (👮 RBACR_TOKEN)
 # are set (presence.auth.Settings). Those are only known when the API
 # answers, so they're ❌ when it doesn't.
 check_api() {
@@ -76,14 +76,14 @@ check_api() {
     if [[ -z "$mode" ]]; then
         report "🔌 API" ❌
         report "🔑 OIDC" ❌
-        report "🪣 AWS" ❌
-        report "🛂 RBACR" ❌
+        report "☁️ AWS" ❌
+        report "👮 RBACR" ❌
         return
     fi
     report "🔌 API" ✅
     setting "$body" "🔑 OIDC" oidc
-    setting "$body" "🪣 AWS" aws
-    setting "$body" "🛂 RBACR" rbacr
+    setting "$body" "☁️ AWS" aws
+    setting "$body" "👮 RBACR" rbacr
 }
 
 # rbacr itself (who is premium): its public /health, at RBACR_URL (the

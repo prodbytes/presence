@@ -63,12 +63,12 @@
     (`HEALTH_CHECK_INTERVAL`), **one line per run**: the time, then each
     check as its emoji, a short label and ✅ (ok) / ❌ (failed) / ⚪ (not
     set), separated by ` · `, with no reasons. In order: 🏠 Index (the
-    site index), 🌐 Web (the web app), ☁️ CDN, 🔒 HTTPS (the CDN over
+    site index), 🌐 Web (the web app), 🚚 CDN, 🔒 HTTPS (the CDN over
     HTTPS), 🔌 API (the auth API through the CDN, `/api/auth/anonymous`),
     then from the API's answer 🔑 OIDC
-    (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), 🪣 AWS
+    (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
     (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
-    shipped to S3) and 🛂 RBACR (`RBACR_TOKEN` set, or ⚪ nobody premium),
+    shipped to S3) and 👮 RBACR (`RBACR_TOKEN` set, or ⚪ nobody premium),
     all three ❌ when the API doesn't answer; last 💎 RBACR svc, rbacr's
     own `/health`. For example: `🏠 Index ✅ · … · 🔑 OIDC ⚪ · …`.
     Sourcing the script defines `run_checks` (one pass) without starting

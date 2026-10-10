@@ -4226,7 +4226,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        sync over; `AccessDenied` renews credentials once. The account
        sheet and connectivity say Free. RBACR in health: the API's
        `/health` `rbacr` check, `settings.rbacr` in
-       `/api/auth/anonymous`, the app's 🛂 RBACR card, and the local
+       `/api/auth/anonymous`, the app's 👮 RBACR card, and the local
        monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
        secret) and checks `rbacr` in its smoke test. Tests: auth API
        (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
@@ -4293,8 +4293,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `scripts/health-check.sh` now prints one line per pass:
        the time, then `<emoji> <label> ✅|❌|⚪` per check joined by ` · `
        (as the Settings health line), with no reasons. Follow-up: each
-       icon got a short label (`🏠 Index`, `🔌 API`, `🛂 RBACR`, …). rbacr's own `/health` got
-       its own icon, 💎, apart from the API's 🛂 rbacr setting. The pass
+       icon got a short label (`🏠 Index`, `🔌 API`, `👮 RBACR`, …); AWS is ☁️ (as in the
+       app's Settings line, was 🪣), so the CDN is 🚚, and RBACR is 👮 (was
+       🛂). rbacr's own `/health` got
+       its own icon, 💎, apart from the API's 👮 rbacr setting. The pass
        is a `run_checks` function; sourcing the script defines it without
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
