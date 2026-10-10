@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_log.dart';
 import '../battery.dart';
+import '../auth/account_sheet.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
 import '../auth/membership_client.dart';
@@ -132,7 +133,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// The tabs to show, in [HomeTab] order.
   List<HomeTab> get _shownTabs =>
-      HomeTab.shown(log: _showLog, admin: _showAdmin);
+      HomeTab.shown(log: _showLog, admin: _showAdmin, account: _showAccount);
+
+  /// The Account tab shows signed in, not in DEV (there are no accounts).
+  bool get _showAccount => !_dev && _signedIn;
 
   bool get _onCamera => _tabs.current == HomeTab.camera;
 
@@ -286,6 +290,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Signing out hides the navigation, so go back to the camera. Sign-in
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
+    // Signing in or out adds or removes the Account tab.
+    _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
     _tabs.restore(hasAccess: _hasAccess);
     final error = widget.auth.error;
@@ -540,6 +546,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     canCreateAdmins: widget.roles.isRoot,
                   ),
                 ),
+              // Who's signed in, the profile's devices, sign-out and about:
+              // the account sheet, as a page of the tabs.
+              if (_tabs.shows(HomeTab.account))
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: AccountSheet(
+                          key: const Key('account-page'),
+                          auth: widget.auth,
+                          sync: widget.sync,
+                          roles: widget.roles,
+                          profiles: widget.profiles,
+                          log: widget.log,
+                          deviceId: widget.deviceId,
+                          deleteDevice: widget.deleteDevice,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           // Bottom left, across from Flip and Clip: a failed health check,
@@ -587,7 +617,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
       // The tabs, with access; signed out, the camera shows alone.
-      bottomNavigationBar: _hasAccess ? HomeNavigationBar(tabs: _tabs) : null,
+      bottomNavigationBar: _hasAccess
+          ? HomeNavigationBar(tabs: _tabs, user: widget.auth.user)
+          : null,
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
           ? CameraButtons(

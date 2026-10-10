@@ -109,6 +109,8 @@ class SignInAction extends StatelessWidget {
 
 /// Sign in with Google, or show who is signed in, their profile and its
 /// devices, and offer sign-out; then what Presence is ([AboutParagraph]).
+/// A bottom sheet from [AccountButton] (signed in without access), or the
+/// Account tab's page.
 class AccountSheet extends StatelessWidget {
   const AccountSheet({
     super.key,
@@ -268,10 +270,11 @@ class AccountSheet extends StatelessWidget {
                       key: const Key('sign-out'),
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
-                      // Close the sheet first: signing out swaps the whole
-                      // app for the sign-in screen.
+                      // Close the sheet first (as a page of the tabs there's
+                      // nothing to close): signing out swaps the whole app
+                      // for the sign-in screen.
                       onPressed: () {
-                        Navigator.of(context).pop();
+                        Navigator.of(context).maybePop();
                         auth.signOut();
                       },
                     ),

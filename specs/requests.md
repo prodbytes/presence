@@ -4286,3 +4286,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        they shifted down). Tests: `widget_test.dart` (the feed card, the
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
+
+325. **The account as a bottom-bar tab.** (2026-10-10)
+     - Asked: move the profile icon to the bottom navigation bar as well,
+       and make it open just like the other panes.
+     - Changed: a new last tab, **Account** (`HomeTab.account`), shown
+       signed in (not DEV): its icon is the user's avatar, ringed in the
+       accent color while open, tooltip "Signed in as …"; it opens the
+       account sheet's content as a page of the tabs, named "Account" in
+       the app bar. The app bar's account button is gone with access; it
+       stays, with its bottom sheet, for a signed-in user without access.
+       Sign-out only closes a sheet when there is one. Tests:
+       `widget_test.dart` (the tab, its page, sign-out), the tab counts and
+       the account-sheet tests moved to the tab. Specs:
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [About](about.md).

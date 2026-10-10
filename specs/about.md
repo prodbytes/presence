@@ -4,10 +4,11 @@ What Presence is, as a short paragraph at the **end of the account sheet**
 (`AboutParagraph` in [lib/about.dart](../presence_app/lib/about.dart)).
 There's no About button or screen any more, and no call to become a member.
 
-- **Where:** the last thing in the [account sheet](sign-in.md), under a
+- **Where:** the last thing in the [account sheet](sign-in.md) (the
+  Account tab's page, or the sheet signed in without access), under a
   divider, after Sign out (or after the sign-in button or the "sign-in is
-  unavailable" note). The account button isn't shown in DEV or to a
-  signed-out user who can sign in, so there it isn't shown either.
+  unavailable" note). Neither is shown in DEV or to a signed-out user who
+  can sign in, so there it isn't shown either.
 - **Content**, small and quiet (`bodySmall`, muted):
   - one paragraph: Presence turns a phone, tablet, laptop or Raspberry Pi
     ([Raspberry Pi](raspberry-pi.md)) into an

@@ -12,10 +12,10 @@ import '../home_tabs.dart';
 import 'dev_mode_label.dart';
 
 /// The home screen's app bar: on the left the open screen's name, bold
-/// (none over the camera), and the "dev" label in DEV; on the right the
-/// account button, or, without access, only sign-in (signed out) or sign-up
-/// and the account (signed in without a role). The tabs are in the bottom
-/// navigation bar ([HomeNavigationBar]). Clear over the camera, with a scrim
+/// (none over the camera), and the "dev" label in DEV; on the right, only
+/// without access: sign-in (signed out), or sign-up and the account button
+/// (signed in without a role). The tabs, the Account tab among them, are in
+/// the bottom navigation bar ([HomeNavigationBar]). Clear over the camera, with a scrim
 /// keeping the buttons readable.
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeAppBar({
@@ -114,21 +114,8 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
             deleteDevice: deleteDevice,
           ),
           const SizedBox(width: 4),
-        ] else ...[
-          // Account (who's signed in, sign out, about): an action, not a
-          // tab.
-          if (!dev)
-            AccountButton(
-              auth: auth,
-              sync: sync,
-              roles: roles,
-              profiles: profiles,
-              log: log,
-              deviceId: deviceId,
-              deleteDevice: deleteDevice,
-            ),
-          const SizedBox(width: 4),
         ],
+        // With access, the account is the navigation bar's Account tab.
       ],
     );
   }
