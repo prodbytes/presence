@@ -4675,3 +4675,29 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `ProfileBackendTest` (the admin tag). Specs: [Feedback and
        Help](feedback.md), [Auth API](auth-api.md), [Health
        check](health-check.md).
+
+344. **`/health` in its own module.** (2026-10-10)
+     - Asked: move `GET /health` out of the auth API into its own module,
+       as part of slimming the auth API, keeping its checks, answer and
+       status codes so the Route 53 health check keeps working.
+     - Changed: new `presence_health/` (Maven project `HealthFunction`,
+       Java 25, the auth API's AWS SDK versions; SAM template with its own
+       HTTP API), deployed per stage as `presence-health` and
+       `presence-rc-health` with the stage's permissions boundary.
+       `presence.health.HealthHandler` is the old handler, made
+       self-contained, with its tests. It reads the auth API's table names
+       from new exports of the auth API stack (`<stack>-UserRolesTable`
+       and the other five; `LinkCodesTableName` is a new output) and gets
+       the settings and rbacr's URL (never its token) from
+       `scripts/deploy.sh`, which deploys it right after the auth API and
+       passes its `ApiDomain` to the site. The auth API loses
+       `HealthFunction`, its `/health` route and throttle, its `Version`
+       parameter and the `HasRbacr` condition. `site.yaml` routes
+       `/health` (still uncached) to a new `health` origin
+       (`HealthApiDomainName`). Nothing changed in the GitHub deploy
+       policies (the stacks, functions and roles are `<prefix>-*`). Not
+       deployed into Floci, as before. Specs: [Health
+       check](health-check.md), [Production deploy](deploy.md), [Auth
+       API](auth-api.md), [Local CDN](local-cdn.md),
+       [Premium](premium.md), [Maintenance](maintenance.md),
+       [README](README.md).

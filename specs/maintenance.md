@@ -77,7 +77,8 @@ shows **no UI at all** to anyone but admins: only a sorry message.
   [Maintenance.java](../presence_api_auth/AuthFunction/src/main/java/presence/auth/Maintenance.java)).
   On demand, encrypted. The roles function (`AuthFunction`) may only
   `GetItem` it (a consistent read); the admin function may `GetItem` and
-  `PutItem`. It's in the health check's table list.
+  `PutItem`. It's in the health check's table list (the auth API stack
+  exports it as `<stack>-SystemTable` for `presence_health`).
 - **The deploy's smoke test** checks that `/api/auth/anonymous` reports a
   maintenance state, then leaves it out of the exact comparison, so a
   release deploys whether maintenance is on or off.

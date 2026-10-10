@@ -1,7 +1,7 @@
 # presence_api_auth
 
 The Presence auth API: an [AWS SAM](https://aws.amazon.com/serverless/sam/)
-application with three Java 25 Lambdas (`java25`, arm64) behind one API
+application with four Java 25 Lambdas (`java25`, arm64) behind one API
 Gateway **HTTP API**, served under **`/api/auth`** by the site's CloudFront
 distribution.
 
@@ -81,3 +81,6 @@ sam build
 
 `scripts/deploy.sh` deploys it as `presence-auth-api` (or
 `presence-rc-auth-api` with `STAGE=rc`), passing the site's web client ID.
+Its outputs export the tables' names (`<stack>-UserRolesTable` and so on)
+for the health check, [presence_health](../presence_health) (`GET
+/health`), which `deploy.sh` deploys right after it.

@@ -8,8 +8,8 @@ Description: >
   and maintenance mode; /api/auth/credentials and /api/auth/profile/* give a
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
-  returns the execution mode and which settings are set; GET /health (no
-  token) checks the dependencies. Every role comes from rbacr (its
+  returns the execution mode and which settings are set (GET /health is
+  presence_health, which imports the tables' exports). Every role comes from rbacr (its
   presence system: free, premium, admin; its roots get all; users
   subscribe at nu01.com), and vouchers grant there. A linked account
   shares only its owner's presence_user and presence_premium. Served under
@@ -17,13 +17,6 @@ Description: >
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
-  Version:
-    Type: String
-    Default: ''
-    Description: >
-      The release deployed (X.Y.Z, from scripts/deploy.sh), reported by
-      GET /health as "version". Empty locally: /health then leaves it out.
-    AllowedPattern: '([0-9]+\.[0-9]+\.[0-9]+)?'
   GoogleWebClientId:
     Type: String
     Default: ''
@@ -82,8 +75,8 @@ Parameters:
     NoEcho: true
     Description: >
       RBACR_TOKEN: an rbacr API token owned by an rbacr root, which may ask
-      about anyone's roles and grant them. Empty: nobody has a role, and
-      /health fails. Set it at deploy (scripts/deploy.sh, from the
+      about anyone's roles and grant them. Empty: nobody has a role (and
+      presence_health's rbacr check fails). Set it at deploy (scripts/deploy.sh, from the
       RBACR_TOKEN secret), never in the repository.
   RbacrSystem:
     Type: String
@@ -98,7 +91,6 @@ Conditions:
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
   HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
-  HasRbacr: !Not [!Equals [!Ref RbacrToken, '']]
 
 Globals:
   Function:
@@ -256,11 +248,6 @@ Resources:
         # a per-IP rate rule (AWS WAF on the CloudFront distribution) would
         # isolate it; see specs/auth-api.md.
         "GET /api/auth/anonymous":
-          ThrottlingBurstLimit: 50
-          ThrottlingRateLimit: 20
-        # Public (no token): Route 53's health checkers, from several
-        # regions every 30 s. Answers are reused for 20 s (HealthHandler).
-        "GET /health":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
         # Link codes: slow enough that guessing one (40 bits) is hopeless.
@@ -555,79 +542,40 @@ Resources:
             Path: /api/auth/profile/devices/remove
             Method: post
 
-  # GET /health: whether every dependency answers (presence.auth.HealthHandler),
-  # polled by the site's Route 53 health check. Read-only: it only
-  # describes the tables, heads the bucket and describes the pool.
-  HealthFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: AuthFunction
-      Handler: presence.auth.HealthHandler::handleRequest
-      # More memory, more CPU: a cold start must still answer Route 53 in time.
-      MemorySize: 1024
-      Environment:
-        Variables:
-          PRESENCE_VERSION: !Ref Version
-          RBACR_URL: !If [HasRbacr, !Ref RbacrUrl, '']
-          GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
-          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
-          USER_DATA_BUCKET: !Ref UserDataBucket
-          HEALTH_TABLES: !Join
-            - ','
-            - - !Ref UserRolesTable
-              - !Ref ProfilesTable
-              - !Ref ProfileSubjectsTable
-              - !Ref VoucherTable
-              - !Ref LinkCodesTable
-              - !Ref SystemTable
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action: dynamodb:DescribeTable
-              Resource:
-                - !GetAtt UserRolesTable.Arn
-                - !GetAtt ProfilesTable.Arn
-                - !GetAtt ProfileSubjectsTable.Arn
-                - !GetAtt VoucherTable.Arn
-                - !GetAtt LinkCodesTable.Arn
-                - !GetAtt SystemTable.Arn
-            # HeadBucket needs ListBucket; the bucket only ("none" when unset).
-            - Effect: Allow
-              Action: s3:ListBucket
-              Resource: !Sub
-                - "arn:${AWS::Partition}:s3:::${Bucket}"
-                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
-            - Effect: Allow
-              Action: cognito-identity:DescribeIdentityPool
-              Resource: !Sub
-                - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
-                - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
-      Events:
-        Health:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /health
-            Method: get
-            Auth:
-              Authorizer: NONE
-
 Outputs:
+  # The tables' exports (<stack>-<Table>): presence_health imports them to
+  # check the tables (DescribeTable). While it does, CloudFormation refuses
+  # to change or remove them.
   ApiDomain:
     Description: The HTTP API's host name (the site distribution's /api/* origin)
     Value: !Sub "${AuthHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
   UserRolesTableName:
     Description: The voucher lockout per user (email -> voucherMisses); its old roles are rbacr's now
     Value: !Ref UserRolesTable
+    Export:
+      Name: !Sub ${AWS::StackName}-UserRolesTable
   ProfilesTableName:
     Description: Profiles (id -> createdAt, lastSignInAt)
     Value: !Ref ProfilesTable
+    Export:
+      Name: !Sub ${AWS::StackName}-ProfilesTable
   ProfileSubjectsTableName:
     Description: Which profile each subject signs in to (iss#sub -> profileId)
     Value: !Ref ProfileSubjectsTable
+    Export:
+      Name: !Sub ${AWS::StackName}-ProfileSubjectsTable
   VoucherTableName:
     Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
     Value: !Ref VoucherTable
+    Export:
+      Name: !Sub ${AWS::StackName}-VoucherTable
+  LinkCodesTableName:
+    Description: One-time link codes (sha256(code) -> profileId, expiresAt)
+    Value: !Ref LinkCodesTable
+    Export:
+      Name: !Sub ${AWS::StackName}-LinkCodesTable
   SystemTableName:
     Description: The system's state (maintenance -> on, message, since, by)
     Value: !Ref SystemTable
+    Export:
+      Name: !Sub ${AWS::StackName}-SystemTable

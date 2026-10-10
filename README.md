@@ -168,6 +168,7 @@ display), then opens https://presence.nu01.com in the browser instead.
 |---|---|---|
 | App ([presence_app/](presence_app)) | [Flutter](https://flutter.dev) (Dart): web, Android, iOS and Linux from one codebase | `web` (browser camera and recording APIs), native recording layers (Camera2 on Android, AVFoundation on iOS), `video_player`, `idb_shim` (IndexedDB storage), `google_sign_in`, `http`, `crypto` |
 | Auth API ([presence_api_auth/](presence_api_auth)) | Java 25 on AWS Lambda, deployed with [AWS SAM](https://aws.amazon.com/serverless/sam/) | AWS Lambda Java core/events, AWS SDK v2 (DynamoDB), JUnit 5; built with Maven |
+| Health check ([presence_health/](presence_health)) | Java 25 on AWS Lambda (`GET /health`), deployed with AWS SAM | AWS Lambda Java core/events, AWS SDK v2 (DynamoDB, S3, Cognito Identity), JUnit 5; built with Maven |
 | Infrastructure ([presence_infra/](presence_infra)) | AWS CloudFormation | CloudFront, S3, API Gateway (HTTP API), Cognito identity pools, DynamoDB, ACM, Route 53 |
 | Local cloud ([presence_floci/](presence_floci)) | [Floci](https://floci.io/), a local AWS emulator, in Docker | A local CloudFront in front of the app, the index page and the API |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [Dev Container](https://containers.dev/) | process-compose for the services, GitHub Actions for CI/CD |
@@ -477,7 +478,8 @@ below), then deploys the stacks in this order:
 2. `presence-identity`: the Cognito identity pool, and live sync's IoT
    policy.
 3. The auth API with SAM (`presence-auth-api`), uploaded to the stage's
-   own artifact bucket.
+   own artifact bucket, then its health check (`presence-health`,
+   `GET /health`), which imports the auth API's table names.
 4. `presence-web`: the certificate, the bucket, CloudFront (with its
    security headers) and the DNS records, and the `/health` check.
 
@@ -534,7 +536,8 @@ contribute:
 
 1. Fork the repo, or create a branch from an up-to-date `main`.
 2. Make one change per pull request, with its tests. Run `flutter test` in
-   `presence_app/` and `mvn test` in `presence_api_auth/AuthFunction/`.
+   `presence_app/` and `mvn test` in `presence_api_auth/AuthFunction/`
+   and `presence_health/HealthFunction/`.
 3. Update the matching feature spec in [specs/](specs/) and add an entry to
    [specs/requests.md](specs/requests.md).
 4. Open a pull request against `main`.
@@ -550,6 +553,8 @@ https://presence.nu01.com.
 - [presence_infra/README.md](presence_infra/README.md): the AWS
   infrastructure.
 - [presence_api_auth/README.md](presence_api_auth/README.md): the auth API.
+- [presence_health/README.md](presence_health/README.md): the `/health`
+  check.
 - [presence_floci/README.md](presence_floci/README.md): the local CDN.
 
 ### How the dev container is built
