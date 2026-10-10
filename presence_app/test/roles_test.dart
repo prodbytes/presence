@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/app_log.dart';
+import 'package:presence_app/home/home_navigation_bar.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/auth/voucher_code.dart';
@@ -344,7 +345,9 @@ void main() {
       FakeRolesClient roles, [
       FakeMembershipClient? membership,
     ]) async {
-      tester.view.physicalSize = const Size(1280, 800);
+      // Tall enough for the Admin page's voucher list above the navigation
+      // bar.
+      tester.view.physicalSize = const Size(1280, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main');
@@ -369,8 +372,8 @@ void main() {
       final membership = FakeMembershipClient();
       await launch(tester, roles, membership);
 
-      expect(find.byType(TabBar), findsNothing);
-      expect(find.byTooltip('Clip'), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
+      expect(find.byKey(const Key('clip')), findsNothing);
       expect(find.byType(FloatingActionButton), findsNothing);
       expect(find.byKey(const Key('account-button')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
@@ -398,7 +401,7 @@ void main() {
       roles.roles = ['viewer'];
       await tester.tap(find.byKey(const Key('check-access')));
       await tester.pumpAndSettle();
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
 
       // An administrator grants presence_user: checking again unlocks
       // everything.
@@ -408,8 +411,8 @@ void main() {
       Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
           .pop();
       await tester.pumpAndSettle();
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.byTooltip('Clip'), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
+      expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
@@ -458,7 +461,7 @@ void main() {
       await tester.tap(redeem);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('voucher-error')), findsOneWidget);
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
 
       // The right one grants its role, and the roles are checked again.
       await tester.enterText(
@@ -473,7 +476,7 @@ void main() {
       Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
           .pop();
       await tester.pumpAndSettle();
-      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
@@ -511,7 +514,7 @@ void main() {
     });
 
     group('the Log tab', () {
-      final logTab = find.byIcon(Icons.receipt_long);
+      final logTab = find.byTooltip('Log');
       const message = 'Presence: cloud sync failed: S3 HTTP 403: denied';
 
       Future<void> open(
@@ -576,10 +579,12 @@ void main() {
       ) async {
         await open(tester, FakeRolesClient([userRole, adminRole]));
         final adminTab = find.byTooltip('Admin');
-        TabController tabs() =>
-            tester.widget<TabBar>(find.byType(TabBar)).controller!;
+        TabController tabs() => tester
+            .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
+            .controller;
         await toggleLog(tester);
-        expect(tabs().length, 5);
+        // With Account, last.
+        expect(tabs().length, 6);
         expect(
           tester.getCenter(logTab).dx,
           lessThan(tester.getCenter(adminTab).dx),
@@ -595,7 +600,7 @@ void main() {
 
         // The Log tab hidden again: the Admin tab takes its place.
         await toggleLog(tester);
-        expect(tabs().length, 4);
+        expect(tabs().length, 5);
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
         expect(tabs().index, 3);
@@ -946,15 +951,15 @@ void main() {
 
     testWidgets('a presence_user: everything but Admin', (tester) async {
       await launch(tester, FakeRolesClient([userRole]));
-      expect(find.byType(TabBar), findsOneWidget);
-      expect(find.byTooltip('Clip'), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
+      expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
       expect(find.byTooltip('Admin'), findsNothing);
     });
 
     testWidgets('an admin without presence_user gets nothing', (tester) async {
       await launch(tester, FakeRolesClient([adminRole]));
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
       expect(find.byTooltip('Admin'), findsNothing);
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
@@ -978,7 +983,7 @@ void main() {
           ),
         ]);
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
 
       await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
@@ -1000,8 +1005,9 @@ void main() {
 
     group('the Admin tab', () {
       final adminTab = find.byTooltip('Admin');
-      TabController tabs(WidgetTester tester) =>
-          tester.widget<TabBar>(find.byType(TabBar)).controller!;
+      TabController tabs(WidgetTester tester) => tester
+          .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
+          .controller;
 
       testWidgets('an admin flips to it like the other tabs: no back button', (
         tester,
@@ -1023,17 +1029,31 @@ void main() {
         // In the tab bar, after Settings and before the account button.
         expect(adminTab, findsOneWidget);
         expect(
-          find.descendant(of: find.byType(TabBar), matching: adminTab),
+          find.descendant(
+            of: find.byType(HomeNavigationBar),
+            matching: adminTab,
+          ),
           findsOneWidget,
         );
-        expect(tabs(tester).length, 4, reason: 'the Log tab is hidden');
+        expect(
+          tabs(tester).length,
+          5,
+          reason: 'the Log tab is hidden; Account is last',
+        );
+        // In the navigation bar, after Settings and before Account.
         final settings = tester.getCenter(find.byTooltip('Settings'));
         final admin = tester.getCenter(adminTab);
-        final account = tester.getCenter(
-          find.byKey(const Key('account-button')),
-        );
         expect(settings.dx, lessThan(admin.dx));
-        expect(admin.dx, lessThan(account.dx));
+        expect(
+          admin.dx,
+          lessThan(
+            tester.getCenter(find.byKey(const Key('account-button'))).dx,
+          ),
+        );
+        expect(
+          tester.getRect(find.byType(HomeNavigationBar)).contains(admin),
+          isTrue,
+        );
 
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
@@ -1045,25 +1065,16 @@ void main() {
         // A page of the tabs, not a screen over them.
         expect(find.byType(BackButton), findsNothing);
         expect(find.byTooltip('Back'), findsNothing);
-        expect(find.byType(TabBar), findsOneWidget);
+        expect(find.byType(HomeNavigationBar), findsOneWidget);
         expect(find.byKey(const Key('account-button')), findsOneWidget);
 
-        // Swiping flips back to Settings, and on to the Admin tab again
-        // (low on the page, off the Settings map, which takes drags; on
-        // Settings, in its right margin, off the sliders, which do too).
-        await tester.flingFrom(
-          const Offset(640, 760),
-          const Offset(300, 0),
-          1000,
-        );
+        // The navigation bar flips back to Settings, and on to the Admin
+        // tab again.
+        await tester.tap(find.byTooltip('Settings'));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('settings-page')), findsOneWidget);
         expect(find.byKey(const Key('admin-view')), findsNothing);
-        await tester.flingFrom(
-          const Offset(1272, 760),
-          const Offset(-300, 0),
-          1000,
-        );
+        await tester.tap(adminTab);
         await tester.pumpAndSettle();
         expect(tabs(tester).index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
@@ -1155,7 +1166,7 @@ void main() {
       tester,
     ) async {
       await launch(tester, FakeRolesClient()..error = RolesException(503));
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
   });

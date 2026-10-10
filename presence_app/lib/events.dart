@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'annotations.dart';
+import 'barrel_roll.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'copies_badge.dart';
@@ -480,11 +481,16 @@ class EventTimeline extends StatefulWidget {
   }) => showSystemEvents ? events : events.where(isGrab).toList();
 
   /// [events], only those matching [query] ([eventMatches]); blank, all.
-  static List<AppEvent> matching(List<AppEvent> events, String query) {
+  /// Events without a device ID (not saved yet) are [deviceId]'s.
+  static List<AppEvent> matching(
+    List<AppEvent> events,
+    String query, {
+    String? deviceId,
+  }) {
     if (query.trim().isEmpty) return events;
     return [
       for (final e in events)
-        if (eventMatches(e, query)) e,
+        if (eventMatches(e, query, deviceId: deviceId)) e,
     ];
   }
 
@@ -604,9 +610,9 @@ class _EventTimelineState extends State<EventTimeline> {
     bool hasIt(List<AppEvent> events) => events.any((e) => e.id == id);
     // Only the profile's events can show.
     if (hasIt(_view.mine)) {
-      // An event of another device than the one shown, opened from
-      // elsewhere: show every device.
-      if (!hasIt(_view.ofDevices)) _filters.onlyDevice.value = null;
+      // An event of another device than the one searched for, opened
+      // from elsewhere: show every device.
+      if (!hasIt(_view.ofDevices)) _filters.search.value = '';
       // A system event, with them hidden: show them.
       if (!hasIt(_view.ofKinds)) _filters.showSystemEvents.value = true;
       // An event the search hides: clear it.
@@ -654,11 +660,19 @@ class _EventTimelineState extends State<EventTimeline> {
     final newest = _view.shown.firstOrNull?.id;
     final arrived = newest != null && newest != _newest;
     _newest = newest;
+    // How long the list was, so a card added at the top while reading
+    // further down can be scrolled past: the cards read stay put.
+    final extent = _scroll.hasClients ? _scroll.position.maxScrollExtent : null;
     setState(() {});
     if (!arrived) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
-      if (_scroll.offset > EventTimeline.followNewWithin) return;
+      if (_scroll.offset > EventTimeline.followNewWithin) {
+        final p = _scroll.position;
+        final grew = extent == null ? 0.0 : p.maxScrollExtent - extent;
+        if (grew > 0) _scroll.jumpTo(p.pixels + grew);
+        return;
+      }
       _scroll.animateTo(
         0,
         duration: const Duration(milliseconds: 250),
@@ -679,8 +693,6 @@ class _EventTimelineState extends State<EventTimeline> {
         icon: Icons.notifications_none,
         message: view.mine.isEmpty
             ? 'No events'
-            : view.ofDevices.isEmpty
-            ? 'No events on ${_filters.onlyDevice.value}'
             : view.ofKinds.isEmpty
             ? 'No grabs yet: system events are hidden'
             : 'No events match "${_filters.search.value.trim()}"',
@@ -694,42 +706,41 @@ class _EventTimelineState extends State<EventTimeline> {
         controller: _scroll,
         padding: widget.padding,
         itemCount: events.length,
-        separatorBuilder: (context, i) => const SizedBox(height: 4),
+        separatorBuilder: (context, i) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final event = events[i];
           final device = EventTimeline.deviceOf(event, widget.deviceId);
           final card = KeyedSubtree(
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
-            // Above the card, the device it was taken on (tapping it
-            // shows only that device's events) and how many copies of it
-            // there are.
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (device != null)
-                      Flexible(
-                        child: EventDeviceTag(
-                          key: Key('event-device-${event.id}'),
-                          device: device,
-                          thisDevice: device == widget.deviceId,
-                          os: event.os,
-                          value: _filters.onlyDevice,
-                        ),
-                      ),
-                    const SizedBox(width: 8),
+            // One card per event, as in a feed: a header with the device
+            // it was taken on (tapping it searches for it: only that
+            // device's events show) and how many copies of it there are,
+            // then the event's own card, square, so its thumbnail runs
+            // edge to edge under the header.
+            child: FeedCard(
+              header: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (device != null)
                     Flexible(
-                      child: EventCopiesBadge(
-                        key: Key('event-copies-${event.id}'),
-                        event: event,
+                      child: EventDeviceTag(
+                        key: Key('event-device-${event.id}'),
+                        device: device,
+                        thisDevice: device == widget.deviceId,
+                        os: event.os,
+                        value: _filters.search,
                       ),
                     ),
-                  ],
-                ),
-                event.buildCard(context),
-              ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: EventCopiesBadge(
+                      key: Key('event-copies-${event.id}'),
+                      event: event,
+                    ),
+                  ),
+                ],
+              ),
+              child: event.buildCard(context),
             ),
           );
           if (event.id != _highlighted) return card;
@@ -787,13 +798,17 @@ class EventSearchScope extends InheritedNotifier<ValueNotifier<String>> {
 }
 
 /// The texts the Events search looks in for [event]: its title and detail,
-/// and for a clip its camera's label, the names tagged on it (not
-/// suggestions waiting for an answer) and its object tags (`cat`,
-/// `bicycle`…). Add a field here to make it
+/// the device it was taken on ([EventTimeline.deviceOf]: without a device
+/// ID, [deviceId], this device's), and for a clip its camera's label, the
+/// names tagged on it (not suggestions waiting for an answer) and its
+/// object tags (`cat`, `bicycle`…). Add a field here to make it
 /// searchable.
-Iterable<String> eventSearchFields(AppEvent event) sync* {
+Iterable<String> eventSearchFields(AppEvent event, {String? deviceId}) sync* {
   yield event.title;
   if (event.detail case final detail?) yield detail;
+  if (EventTimeline.deviceOf(event, deviceId) case final device?) {
+    yield device;
+  }
   final clip = switch (event) {
     ClipRequested() => event,
     SubjectSuggestion(:final clip) => clip,
@@ -820,10 +835,13 @@ Iterable<String> eventSearchFields(AppEvent event) sync* {
 /// Whether [event] matches the Events search [query]: one of its
 /// [eventSearchFields] contains it, ignoring case and the spaces around
 /// it. A blank query matches every event.
-bool eventMatches(AppEvent event, String query) {
+bool eventMatches(AppEvent event, String query, {String? deviceId}) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
-  return eventSearchFields(event).any((f) => f.toLowerCase().contains(q));
+  return eventSearchFields(
+    event,
+    deviceId: deviceId,
+  ).any((f) => f.toLowerCase().contains(q));
 }
 
 /// The events search at the top of the Monitoring tab: a search icon
@@ -831,6 +849,7 @@ bool eventMatches(AppEvent event, String query) {
 /// what's typed goes to [value] (the timeline's [EventFilters.search]) as
 /// it's typed. It folds back into the icon when it loses focus empty, or
 /// with its x, which clears it first; while it has text it stays open.
+/// "do a barrel roll" spins the screen ([BarrelRoll]).
 class EventSearch extends StatefulWidget {
   const EventSearch({super.key, required this.value});
 
@@ -922,16 +941,30 @@ class _EventSearchState extends State<EventSearch> {
         key: const Key('event-search'),
         controller: _controller,
         focusNode: _focus,
-        onChanged: (text) => widget.value.value = text,
+        onChanged: (text) {
+          // Rolls as the phrase is finished, not on every key after it.
+          if (BarrelRoll.asks(text) && !BarrelRoll.asks(widget.value.value)) {
+            BarrelRoll.roll(context);
+          }
+          widget.value.value = text;
+        },
         onSubmitted: (text) {
           if (text.isEmpty) _close();
+          if (BarrelRoll.asks(text)) BarrelRoll.roll(context);
         },
         textInputAction: TextInputAction.search,
+        // Filled and rounded, with no outline, as phone apps' search
+        // fields are.
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search events',
           prefixIcon: const Icon(Icons.search, size: 20),
-          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+          border: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+            borderSide: BorderSide.none,
+          ),
           suffixIcon: IconButton(
             key: const Key('event-search-clear'),
             tooltip: 'Clear search',
@@ -999,9 +1032,10 @@ class EventCount extends StatelessWidget {
 /// The device an event was taken on, small and quiet above its card in the
 /// timeline: its operating system's icon ([DeviceOs.iconOf]), its ID, this
 /// device's in bold, and the operating system's name ([os], left out on
-/// events recorded before events had one). Tapping it
-/// shows only that device's events ([value], the timeline's
-/// [EventFilters.onlyDevice]); tapped again, every device's.
+/// events recorded before events had one). Tapping it searches for the
+/// device ([value], the timeline's [EventFilters.search]): only its events
+/// show ([EventFilters.showDevice]); tapped again, the search clears and
+/// every device's show.
 class EventDeviceTag extends StatelessWidget {
   const EventDeviceTag({
     super.key,
@@ -1018,94 +1052,67 @@ class EventDeviceTag extends StatelessWidget {
 
   /// Whether [device] is this device.
   final bool thisDevice;
-  final ValueNotifier<String?> value;
+
+  /// The events search ([EventFilters.search]).
+  final ValueNotifier<String> value;
+
+  /// The tooltip of a device name that shows its events (here, and
+  /// `ShowDeviceEvents` elsewhere).
+  static const String showTooltip = "Show this device's events";
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final only = value.value == device;
+    final only = EventSearchScope.isActive(value.value, device);
     final color = only ? scheme.primary : scheme.onSurfaceVariant;
     return Tooltip(
-      message: only
-          ? 'Show the events of every device'
-          : thisDevice
-          ? 'Show only this device ($device)'
-          : 'Show only $device',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: () => value.value = only ? null : device,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 32),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(DeviceOs.iconOf(os), size: 14, color: color),
-                const SizedBox(width: 4),
-                Flexible(
-                  flex: 3,
-                  child: Text(
-                    device,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: color,
-                      fontWeight: thisDevice || only ? FontWeight.bold : null,
-                    ),
-                  ),
-                ),
-                if (os case final os?)
+      message: only ? "Show every device's events" : showTooltip,
+      child: Semantics(
+        button: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => EventSearchScope.toggle(value, device),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 32),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(DeviceOs.iconOf(os), size: 14, color: color),
+                  const SizedBox(width: 4),
                   Flexible(
-                    flex: 2,
+                    flex: 3,
                     child: Text(
-                      ' · $os',
-                      key: const Key('event-device-os'),
+                      device,
                       overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(color: color),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: color,
+                        fontWeight: thisDevice || only ? FontWeight.bold : null,
+                      ),
                     ),
                   ),
-              ],
+                  if (os case final os?)
+                    Flexible(
+                      flex: 2,
+                      child: Text(
+                        ' · $os',
+                        key: const Key('event-device-os'),
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: color,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-/// The device filter at the top of the Monitoring tab, while an event's
-/// device ([EventDeviceTag]) shows only its events: a small chip with the
-/// device's ID and an x that shows every device again ([value] back to
-/// null). Nothing while every device shows.
-class DeviceFilterChip extends StatelessWidget {
-  const DeviceFilterChip({super.key, required this.value});
-
-  final ValueNotifier<String?> value;
-
-  /// The chip's widest; a long ID is cut short.
-  static const double maxWidth = 180;
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder(
-    valueListenable: value,
-    builder: (context, device, _) {
-      if (device == null) return const SizedBox.shrink();
-      return ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: maxWidth),
-        child: InputChip(
-          key: const Key('device-filter'),
-          visualDensity: VisualDensity.compact,
-          avatar: const Icon(Icons.devices_other, size: 16),
-          label: Text(device, overflow: TextOverflow.ellipsis),
-          tooltip: 'Showing only $device',
-          onPressed: () => value.value = null,
-          deleteButtonTooltipMessage: 'Show every device',
-          onDeleted: () => value.value = null,
-        ),
-      );
-    },
-  );
 }
 
 /// The small "Show system events" toggle in the Monitoring tab's top row,
@@ -1135,6 +1142,45 @@ class ShowSystemEvents extends StatelessWidget {
       );
     },
   );
+}
+
+/// An event in the feed (the Monitoring timeline): one rounded card, a
+/// header row on top ([header]: the device and the copies) and the event's
+/// own card under it ([child]), drawn square and borderless so the two read
+/// as one card.
+class FeedCard extends StatelessWidget {
+  const FeedCard({super.key, required this.header, required this.child});
+
+  final Widget header;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card.filled(
+      key: const Key('feed-card'),
+      margin: EdgeInsets.zero,
+      color: theme.colorScheme.surfaceContainerHighest,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+            child: header,
+          ),
+          Theme(
+            data: theme.copyWith(
+              cardTheme: theme.cardTheme.copyWith(
+                shape: const RoundedRectangleBorder(),
+              ),
+            ),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class EventCard extends StatelessWidget {

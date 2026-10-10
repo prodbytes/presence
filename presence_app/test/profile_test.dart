@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:idb_shim/idb_shim.dart';
 import 'package:presence_app/auth/profile_client.dart';
+import 'package:presence_app/home/home_navigation_bar.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/cognito.dart';
@@ -284,7 +285,7 @@ void main() {
       final roles = FakeRolesClient.none();
       final profiles = FakeProfileClient();
       await launch(tester, roles, profiles);
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
 
       await tester.tap(find.byKey(const Key('sign-up')));
       await tester.pumpAndSettle();
@@ -318,7 +319,7 @@ void main() {
       Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
           .pop();
       await tester.pumpAndSettle();
-      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
     });
 
     testWidgets('a member makes a code and unlinks an account', (tester) async {

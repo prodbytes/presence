@@ -9,10 +9,12 @@ import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/live_sync.dart';
 import 'package:presence_app/cloud/sigv4.dart';
 import 'package:presence_app/config.dart';
+import 'package:presence_app/crypto/media_seal.dart';
 import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
 
 import 'fakes.dart';
+import 'sealed.dart';
 
 /// A connection to the broker, in memory.
 class FakeLiveConnection implements LiveConnection {
@@ -247,6 +249,9 @@ void main() {
     late LiveSync live;
     late List<LiveEvent> received;
 
+    // This device's media key, as CloudSync gives it.
+    final mediaKey = MediaKeys.encode(Uint8List.fromList(List.filled(32, 3)));
+
     LiveLink link({
       String deviceId = 'this_device_one',
       AwsCredentials creds = credentials,
@@ -255,6 +260,7 @@ void main() {
       deviceId: deviceId,
       credentials: () async => creds,
       onEvent: (e) async => received.add(e),
+      mediaKey: mediaKey,
     );
 
     setUp(() {
@@ -323,6 +329,8 @@ void main() {
       expect(message, containsPair('etag', 'b' * 32));
       expect(message, containsPair('key', 'events/year=1970/day=001/e-1.json'));
       expect(message['event'], {'id': 'e-1', 'time': 5, 'clipId': 'c-1'});
+      // With the key that opens this device's sealed media elsewhere.
+      expect(message, containsPair('mediaKey', mediaKey));
       expect(live.sent, 1);
     });
 
@@ -659,6 +667,52 @@ void main() {
       }
     });
 
+    testWidgets('every 30 s, with the real timings: drains for 3 s, idles '
+        '30 to 40 s, and connects again with the same session', (tester) async {
+      var clock = DateTime.utc(2026, 10, 7, 12);
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: const LiveConfig(every: Duration(seconds: 30)),
+        now: () => clock,
+        random: Random(7),
+      );
+      addTearDown(live.dispose);
+      Future<void> advance(Duration d) async {
+        const step = Duration(milliseconds: 500);
+        for (var t = Duration.zero; t < d; t += step) {
+          clock = clock.add(step);
+          await tester.pump(step);
+          // A cancelled subscription's future completes in the root
+          // zone, outside the fake time: let it.
+          await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+        }
+      }
+
+      live.start(link());
+      await advance(const Duration(milliseconds: 500));
+      expect(live.state, LiveSyncState.connected);
+      expect(broker.persistent.single, isTrue);
+      // Quiet for 3 s: idle until the next, 30 s plus up to 10 s on.
+      await advance(const Duration(seconds: 4));
+      expect(live.state, LiveSyncState.idle);
+      expect(broker.last.closed, isTrue);
+      final left = live.untilNext!;
+      expect(left, greaterThan(const Duration(seconds: 25)));
+      expect(left, lessThanOrEqualTo(const Duration(seconds: 40)));
+      await advance(left + const Duration(seconds: 1));
+      expect(broker.connections, hasLength(2));
+      expect(broker.persistent, [true, true]);
+      expect(broker.clientIds.toSet(), {'$identity-this_device_one'});
+      await advance(const Duration(seconds: 4));
+      expect(live.state, LiveSyncState.idle);
+      // Twice more within the next 80 s, never closer than 30 s apart.
+      await advance(const Duration(seconds: 80));
+      expect(broker.connections, hasLength(4));
+      live.stop();
+    });
+
     test('a change of the setting applies at once', () async {
       final live = make(LiveConfig.always)..start(link());
       await until(() => live.state == LiveSyncState.connected);
@@ -788,7 +842,7 @@ void main() {
             {'name': 'Rex', 'frameId': 'f1'},
           ],
           'frames': {
-            'f1': Uint8List.fromList([1, 2, 3]),
+            'f1': sealed([1, 2, 3]),
           },
         };
         await store.putEvent(record);
@@ -803,11 +857,12 @@ void main() {
         final event = message['event']! as Map;
         expect(event['id'], 'new-event');
         expect(event.containsKey('frames'), isFalse);
-        // The frame itself is in the bucket.
-        expect(
-          backend.uploads.keys,
-          contains('$identity/${CloudSync.frameKeyOf('new-clip', 'f1')}'),
-        );
+        // The frame itself is in the bucket, sealed.
+        final frame = backend
+            .uploads['$identity/${CloudSync.frameKeyOf('new-clip', 'f1')}'];
+        expect(frame, isNotNull);
+        expect(frame!.contentType, CloudSync.sealedType);
+        expect(opened(frame.bytes), [1, 2, 3]);
       },
     );
 
@@ -824,20 +879,23 @@ void main() {
       final key = CloudSync.eventKey(event);
       final uploadedBefore = sync.uploaded;
 
-      // Inline media in the message is dropped.
-      broker.last.deliver(
-        eventsTopic,
-        messageOf({
+      // Inline media in the message is dropped; the sender's media key is
+      // taken, to open its sealed images.
+      final phoneKey = Uint8List.fromList(List.filled(32, 5));
+      broker.last.deliver(eventsTopic, {
+        ...messageOf({
           ...event,
           'thumbnail': List.filled(100, 1),
         }, etag: CloudSync.etagOf(bytes)),
-      );
+        'mediaKey': MediaKeys.encode(phoneKey),
+      });
       await until(() => remote.isNotEmpty);
       await live.drained;
       expect(remote.single.live, isTrue);
       expect(remote.single.events.single['id'], 'from-phone');
       expect(remote.single.events.single.containsKey('thumbnail'), isFalse);
       expect(await store.getEvent('from-phone'), isNotNull);
+      expect(MediaSeal.instance.keys.keyOf('other_device_one'), phoneKey);
 
       // The phone's upload lands in the bucket; passes run.
       backend.uploads['$identity/$key'] = (
@@ -891,12 +949,12 @@ void main() {
         contentType: 'application/json',
       );
       backend.uploads['$identity/media/remote-clip.jpg'] = (
-        bytes: Uint8List.fromList([9, 9]),
-        contentType: 'image/jpeg',
+        bytes: sealed([9, 9]),
+        contentType: CloudSync.sealedType,
       );
       backend.uploads['$identity/media/remote-clip.webm'] = (
-        bytes: Uint8List.fromList([1]),
-        contentType: 'video/webm',
+        bytes: sealed([1]),
+        contentType: CloudSync.sealedType,
       );
       final complete = {...event, 'clipState': 'complete'};
       broker.last.deliver(eventsTopic, messageOf(complete));
@@ -906,7 +964,8 @@ void main() {
       final clips = remote.firstWhere((r) => r.clips.isNotEmpty);
       expect(clips.live, isTrue);
       expect(clips.clips.single['id'], 'remote-clip');
-      expect(clips.clips.single['thumbnail'], [9, 9]);
+      // Held sealed, as it came.
+      expect(opened(clips.clips.single['thumbnail']! as Uint8List), [9, 9]);
       // The recording isn't downloaded with it (on demand, or later).
       expect(backend.downloads, isNot(contains('media/remote-clip.webm')));
     });
@@ -962,7 +1021,7 @@ void main() {
 
       // Its clip completes here: the next pass uploads the recording
       // first, and that takes a while.
-      await IdbMediaStore(store).saveBytes('raced-full', Uint8List(4));
+      await IdbMediaStore(store).saveBytes('raced-full', sealed(Uint8List(4)));
       await store.putClip({
         'id': 'raced-clip',
         'eventId': 'raced',
@@ -1060,12 +1119,12 @@ void main() {
         contentType: 'application/json',
       );
       backend.uploads['$identity/media/$clipId.jpg'] = (
-        bytes: Uint8List.fromList([9, 9]),
-        contentType: 'image/jpeg',
+        bytes: sealed([9, 9]),
+        contentType: CloudSync.sealedType,
       );
       backend.uploads['$identity/media/$clipId.webm'] = (
-        bytes: Uint8List.fromList([1]),
-        contentType: 'video/webm',
+        bytes: sealed([1]),
+        contentType: CloudSync.sealedType,
       );
     }
 

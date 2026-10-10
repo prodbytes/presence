@@ -9,6 +9,8 @@ import 'package:presence_app/events.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A clip that saw [objects] (first at 1 s, then a second apart), with
 /// [names] tagged by someone and [suggested] waiting for an answer.
 ClipRequested clipWith(
@@ -195,7 +197,7 @@ void main() {
 
       // Naming them in the player (as under "Name subject") clears it.
       final a = event.annotations;
-      a.add('Rex', 0.5, 0.5, frame: a.newFrame(onePixelPng, 2000));
+      a.add('Rex', 0.5, 0.5, frame: testFrame(onePixelPng, 2000));
       await tester.pump();
       expect(find.byKey(const Key('identify-hint')), findsNothing);
       await tester.tap(find.byTooltip('Close'));

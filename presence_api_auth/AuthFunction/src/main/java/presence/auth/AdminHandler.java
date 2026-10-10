@@ -36,7 +36,8 @@ import static presence.auth.Http.response;
  *   <li>{@code GET /api/auth/membership}: the pending membership requests,
  *       oldest first, as {@code {"requests": [{email, name, message, requestedAt}]}};</li>
  *   <li>{@code POST /api/auth/membership/grant}: gives the email in the
- *       (plain-text) body the {@code presence_user} role and drops its request;</li>
+ *       (plain-text) body the {@code presence_user} role (an rbacr grant
+ *       of {@code free}, {@link Roles#GRANTED_AS}) and drops its request;</li>
  *   <li>{@code POST /api/auth/membership/dismiss}: hides the email's request.
  *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
@@ -65,12 +66,12 @@ import static presence.auth.Http.response;
  */
 public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
-    /** Where membership requests and granted roles are kept. */
+    /** Where membership requests are kept, and roles granted. */
     interface Backend {
         /** The requests that weren't dismissed. */
         List<MembershipHandler.Request> requests();
 
-        /** Adds {@code role} to the email's roles in the UserRoles table. */
+        /** Grants the email {@code role} (one of {@link Roles#GRANTED_AS}'s) in rbacr. */
         void grant(String email, String role);
 
         /** Removes the email's request (after a grant). */
@@ -92,7 +93,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
         this(Roles.fromEnvironment(), Profiles.fromEnvironment()::existing,
-                dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), System.getenv("USER_ROLES_TABLE")),
+                dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), Rbacr.fromEnvironment()),
                 VoucherHandler.dynamoStore(System.getenv("VOUCHER_TABLE")),
                 Clock.systemUTC());
     }
@@ -274,7 +275,8 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 + ",\"requestedAt\":" + Json.string(r.requestedAt().toString()) + "}";
     }
 
-    static Backend dynamoBackend(String membershipTable, String rolesTable) {
+    /** Requests in {@code membershipTable}, grants in {@code rbacr}. */
+    static Backend dynamoBackend(String membershipTable, Rbacr rbacr) {
         var dynamo = Aws.dynamo();
         return new Backend() {
             @Override
@@ -297,7 +299,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
 
             @Override
             public void grant(String email, String role) {
-                UserRoles.grant(dynamo, rolesTable, email, Set.of(role));
+                rbacr.grant(email, Roles.GRANTED_AS.get(role));
             }
 
             @Override

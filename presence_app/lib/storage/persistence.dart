@@ -12,6 +12,7 @@ import '../cloud/cloud_sync.dart' show CloudSync, DeviceSettings;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
+import '../crypto/media_seal.dart';
 import '../identity/device_id.dart';
 import '../identity/device_os.dart';
 import '../location/device_location.dart';
@@ -49,12 +50,16 @@ class Persistence implements DeviceSettings {
     String? os,
     DateTime Function()? now,
     MediaStore Function(EventStore store)? mediaStore,
+    MediaSeal? seal,
   }) : _store = factory.then(EventStore.open),
+       seal = seal ?? MediaSeal.instance,
        _now = now ?? DateTime.now,
        os = os ?? DeviceOs.current {
     _media = _store.then(mediaStore ?? platform.newDefaultMediaStore);
     _media.ignore();
-    _deviceId = _store.then((store) => store.deviceId(DeviceId.generate));
+    _identity = _store.then(_loadIdentity);
+    _identity.ignore();
+    _deviceId = _identity.then((identity) => identity.id);
     _deviceId.ignore();
     _subscription = bus.stream.listen(_onEvent);
     // Errors surface through the operations that await the store.
@@ -112,7 +117,51 @@ class Persistence implements DeviceSettings {
 
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
+  late final Future<DeviceIdentity> _identity;
   late final Future<String> _deviceId;
+
+  /// Seals what this device records and opens what its profile's devices
+  /// recorded: given this device's key, and the others' it learned.
+  final MediaSeal seal;
+
+  /// Settings-store key of the other devices' media keys.
+  static const String _keysKey = 'keys';
+
+  /// This device's ID and key (made together, the first time), handed to
+  /// [seal] with the other devices' keys saved here. An older version's
+  /// unsealed events, clips and recordings are gone by then
+  /// ([EventStore.deviceIdentity]).
+  Future<DeviceIdentity> _loadIdentity(EventStore store) async {
+    final identity = await store.deviceIdentity(
+      DeviceId.generate,
+      SealFormat.newKey,
+    );
+    if (identity.purged) {
+      debugPrint(
+        'Presence: deleted the events and recordings stored unencrypted',
+      );
+      try {
+        final media = await _media;
+        await media.delete(await media.ids());
+      } catch (e) {
+        debugPrint('Presence: could not delete unencrypted recordings: $e');
+      }
+    }
+    final keys = seal.keys;
+    keys.setOwn(identity.id, identity.key);
+    final saved = await store.getSettings(_keysKey);
+    keys.restore({
+      for (final MapEntry(:key, :value) in (saved ?? const {}).entries)
+        key: ?MediaKeys.decode(value),
+    });
+    keys.onAdded = (deviceId, key) => _track(() async {
+      final all = {...?await store.getSettings(_keysKey)};
+      all[deviceId] = MediaKeys.encode(key);
+      await store.putSettings(_keysKey, all);
+    }());
+    return identity;
+  }
+
   EventLog? _log;
   Future<void>? _restoring;
   late final StreamSubscription<AppEvent> _subscription;
@@ -201,6 +250,8 @@ class Persistence implements DeviceSettings {
       if (!_configLoaded.isCompleted) _configLoaded.complete();
     }
 
+    // An older version's unsealed history is deleted first.
+    await _identity;
     final records = await store.allEvents();
     // Deleted events (`deleteDevice`) stay stored, shown nowhere.
     final history = await _loadHistory(store, [
@@ -855,6 +906,8 @@ class Persistence implements DeviceSettings {
     final location = (await _store).getSettings(_locationKey);
     return {
       'deviceId': await _deviceId,
+      // The profile's other devices open this one's media with it.
+      'mediaKey': MediaKeys.encode((await _identity).key),
       'profileId': ?_settingsProfile,
       'updatedAt': _configUpdatedAt,
       'config': config.config.toJson(),

@@ -133,7 +133,7 @@ the cloud and the recording device.
 - **The holders** are in the tooltip and the screen-reader label, this
   device first, then the cloud, then devices: "This device, Cloud,
   loud_shy_kettle" ("This device" for one not synced).
-- **Event cards** (the Monitoring timeline): on the row above each card,
+- **Event cards** (the Monitoring timeline): in each card's header row,
   at the right of the device tag, a small icon and the label. It fits a
   320 dp phone (the device tag and the label share the row, each cut short
   with an ellipsis if needed).
@@ -154,7 +154,9 @@ the cloud and the recording device.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `ackCopied`, `parseCopied`, `CopiedMessage`, `LiveLink.onCopied`.
 - [lib/cloud/cloud_sync.dart](../presence_app/lib/cloud/cloud_sync.dart):
-  `copies`, `copyOf`, `_noteCopies`, `_checkCopies`, `_onCopied`.
+  `copies`, `copyOf`; the checks and acks in `_CopyTracker`
+  ([cloud_sync_copies.dart](../presence_app/lib/cloud/cloud_sync_copies.dart):
+  `note`, `_check`, `onCopied`).
 - [lib/storage/event_store.dart](../presence_app/lib/storage/event_store.dart):
   `getClip`.
 

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
+import '../crypto/seal_format.dart';
 import '../storage/records.dart';
 import 'sigv4.dart';
 
@@ -54,10 +55,16 @@ class LiveLink {
     required this.credentials,
     required this.onEvent,
     this.onCopied,
+    this.mediaKey,
   });
 
   final String identityId;
   final String deviceId;
+
+  /// This device's media key (`MediaKeys`), sent with each event it
+  /// publishes: devices without the bucket learn it there, to open the
+  /// clip's sealed thumbnail.
+  final String? mediaKey;
   final Future<AwsCredentials> Function() credentials;
   final Future<void> Function(LiveEvent event) onEvent;
 
@@ -76,10 +83,16 @@ class LiveEvent {
     required this.event,
     this.sentAt,
     this.etag,
+    this.clip,
+    this.mediaKey,
   });
 
   /// The device that published it.
   final String deviceId;
+
+  /// The sender's media key, when it sent it (base64; see
+  /// `MediaKeys.decode`).
+  final String? mediaKey;
   final String identityId;
 
   /// The event's record, as uploaded to the bucket (its metadata only).
@@ -90,6 +103,12 @@ class LiveEvent {
 
   /// The ETag (MD5, hex) of the event's JSON as the sender uploaded it.
   final String? etag;
+
+  /// The event's clip, when the sender put it in the message (complete,
+  /// and small enough): its record as stored, with its thumbnail (sealed
+  /// bytes), never its recording. Devices without the bucket (free)
+  /// take the clip from here.
+  final Map<String, Object?>? clip;
 }
 
 /// A ping or pong ([LiveSync.parsePresence]): who sent it, when (ms since
@@ -417,6 +436,9 @@ class LiveSync extends ChangeNotifier {
     return wake.future.whenComplete(timer.cancel);
   }
 
+  /// Connects for [_link], and again after each drop or failure (always
+  /// connected), or on schedule ([LiveMode.scheduled]), until the
+  /// generation it was started for ends.
   Future<void> _loop(int generation) async {
     bool current() => generation == _generation;
     while (current()) {
@@ -431,68 +453,21 @@ class LiveSync extends ChangeNotifier {
       _nextAt = null;
       _set(LiveSyncState.connecting);
       LiveConnection? connection;
-      var renewing = false;
       try {
-        final credentials = await link.credentials().timeout(
-          connectTimeout,
-          onTimeout: () => throw TimeoutException(
-            'credentials took too long',
-            connectTimeout,
-          ),
+        final connected = await _connectOnce(
+          link,
+          scheduled: scheduled,
+          current: current,
         );
-        if (!current()) return;
-        final url = SigV4Signer(region: region, service: 'iotdevicegateway')
-            .presignWebSocket(
-              host: endpoint,
-              credentials: credentials,
-              now: _clock.now(),
-            );
-        final connecting = _connect!(
-          url,
-          scheduled ? stableClientIdOf(link) : clientIdOf(link),
-          persistent: scheduled,
-        );
-        connection = await connecting.timeout(
-          connectTimeout,
-          onTimeout: () {
-            // One that connects after all is closed at once.
-            connecting
-                .then((c) => c.close())
-                .catchError((Object _) {})
-                .ignore();
-            throw TimeoutException('connecting took too long', connectTimeout);
-          },
-        );
+        if (connected == null) return;
+        final (credentials, opened) = connected;
+        connection = opened;
         if (!current()) {
           await connection.close();
           return;
         }
         _connection = connection;
-        final topic = topicOf(stage, link.identityId, eventsKind);
-        // Listening first: a persistent session's queued messages may come
-        // before the subscription is acknowledged.
-        final subscription = connection.messages.listen((m) {
-          _activity++;
-          _onMessage(link, m.$1, m.$2);
-        });
-        try {
-          await connection.subscribe(topic);
-        } catch (_) {
-          await subscription.cancel();
-          rethrow;
-        }
-        // Device presence: pings and pongs. Not needed for events, so one
-        // refused leaves the connection up (presence just isn't known).
-        for (final kind in const [requestsKind, acksKind]) {
-          try {
-            await connection.subscribe(topicOf(stage, link.identityId, kind));
-          } catch (e) {
-            debugPrint(
-              'Presence: live sync could not subscribe to $kind: '
-              '${redact(e)}',
-            );
-          }
-        }
+        final subscription = await _subscribe(link, connection);
         if (!current()) {
           await subscription.cancel();
           await connection.close();
@@ -508,52 +483,11 @@ class LiveSync extends ChangeNotifier {
         _failures = 0;
         _set(LiveSyncState.connected);
         await _flushOutbox(link, connection);
-        if (scheduled) {
-          await _drain(connection, current);
-          await subscription.cancel();
-          if (_connection == connection) _connection = null;
-          if (!current()) return;
-          // Even if dropped (another tab took the ID): the broker keeps
-          // the session either way.
-          await connection.close().catchError((Object _) {});
-          if (!current()) return;
-          final wait = nextWait();
-          _nextAt = _now().add(wait);
-          _set(LiveSyncState.idle);
-          // Until the next one, or a new event to send (at once if one
-          // came while this one was closing).
-          if (_outbox.isEmpty) await _sleep(wait);
-          continue;
-        }
-        // New credentials (and a newly signed URL) before these expire.
-        // Not when they're about to already: that would only loop.
-        Timer? renew;
-        if (credentials.expiration case final expiration?) {
-          final left = expiration.difference(_clock.now()) - renewBefore;
-          if (left > Duration.zero) {
-            renew = Timer(left, () {
-              renewing = true;
-              _wakeUp();
-            });
-          }
-        }
-        final wake = _wake = Completer<void>();
-        await Future.any([connection.done, wake.future]);
-        renew?.cancel();
-        await subscription.cancel();
-        if (_connection == connection) _connection = null;
-        if (!current()) return;
-        if (renewing) {
-          debugPrint('Presence: live sync renewing its connection');
-          await connection.close().catchError((Object _) {});
-          continue;
-        }
-        // Dropped: reconnect soon. Closed all the same, so the client's
-        // socket and timers go.
-        debugPrint('Presence: live sync disconnected; reconnecting');
-        await connection.close().catchError((Object _) {});
-        if (!current()) return;
-        _failures = 1;
+        final next = scheduled
+            ? await _runScheduled(connection, subscription, current)
+            : await _runAlways(credentials, connection, subscription, current);
+        if (next == _Next.stop) return;
+        if (next == _Next.connect) continue;
       } catch (e) {
         if (connection != null) {
           if (_connection == connection) _connection = null;
@@ -573,6 +507,145 @@ class LiveSync extends ChangeNotifier {
       }
       await _sleep(retryDelay);
     }
+  }
+
+  /// Gets [link]'s credentials, then connects with a URL signed with them
+  /// (with the stable client ID when [scheduled]), each within
+  /// [connectTimeout]. Null when the loop's generation ended ([current])
+  /// once the credentials came.
+  Future<(AwsCredentials, LiveConnection)?> _connectOnce(
+    LiveLink link, {
+    required bool scheduled,
+    required bool Function() current,
+  }) async {
+    final credentials = await link.credentials().timeout(
+      connectTimeout,
+      onTimeout: () =>
+          throw TimeoutException('credentials took too long', connectTimeout),
+    );
+    if (!current()) return null;
+    final url = SigV4Signer(region: region, service: 'iotdevicegateway')
+        .presignWebSocket(
+          host: endpoint,
+          credentials: credentials,
+          now: _clock.now(),
+        );
+    final connecting = _connect!(
+      url,
+      scheduled ? stableClientIdOf(link) : clientIdOf(link),
+      persistent: scheduled,
+    );
+    final connection = await connecting.timeout(
+      connectTimeout,
+      onTimeout: () {
+        // One that connects after all is closed at once.
+        connecting.then((c) => c.close()).catchError((Object _) {}).ignore();
+        throw TimeoutException('connecting took too long', connectTimeout);
+      },
+    );
+    return (credentials, connection);
+  }
+
+  /// Listens to [connection]'s messages, and subscribes to [link]'s events
+  /// (which must work) and to its pings and pongs (which may not).
+  Future<StreamSubscription<(String, Uint8List)>> _subscribe(
+    LiveLink link,
+    LiveConnection connection,
+  ) async {
+    final topic = topicOf(stage, link.identityId, eventsKind);
+    // Listening first: a persistent session's queued messages may come
+    // before the subscription is acknowledged.
+    final subscription = connection.messages.listen((m) {
+      _activity++;
+      _onMessage(link, m.$1, m.$2);
+    });
+    try {
+      await connection.subscribe(topic);
+    } catch (_) {
+      await subscription.cancel();
+      rethrow;
+    }
+    // Device presence: pings and pongs. Not needed for events, so one
+    // refused leaves the connection up (presence just isn't known).
+    for (final kind in const [requestsKind, acksKind]) {
+      try {
+        await connection.subscribe(topicOf(stage, link.identityId, kind));
+      } catch (e) {
+        debugPrint(
+          'Presence: live sync could not subscribe to $kind: '
+          '${redact(e)}',
+        );
+      }
+    }
+    return subscription;
+  }
+
+  /// A scheduled connection, once connected: stays while messages move
+  /// ([_drain]), closes, and waits for the next one (or for an event to
+  /// send). Then connects again, unless the generation ended.
+  Future<_Next> _runScheduled(
+    LiveConnection connection,
+    StreamSubscription<(String, Uint8List)> subscription,
+    bool Function() current,
+  ) async {
+    await _drain(connection, current);
+    await subscription.cancel();
+    if (_connection == connection) _connection = null;
+    if (!current()) return _Next.stop;
+    // Even if dropped (another tab took the ID): the broker keeps
+    // the session either way.
+    await connection.close().catchError((Object _) {});
+    if (!current()) return _Next.stop;
+    final wait = nextWait();
+    _nextAt = _now().add(wait);
+    _set(LiveSyncState.idle);
+    // Until the next one, or a new event to send (at once if one
+    // came while this one was closing).
+    if (_outbox.isEmpty) await _sleep(wait);
+    return _Next.connect;
+  }
+
+  /// An always-on connection, once connected: stays until it drops, the
+  /// loop is woken (to stop), or it's renewed before [credentials]
+  /// expire. A renewal connects again at once; a drop after
+  /// [retryDelay].
+  Future<_Next> _runAlways(
+    AwsCredentials credentials,
+    LiveConnection connection,
+    StreamSubscription<(String, Uint8List)> subscription,
+    bool Function() current,
+  ) async {
+    var renewing = false;
+    // New credentials (and a newly signed URL) before these expire.
+    // Not when they're about to already: that would only loop.
+    Timer? renew;
+    if (credentials.expiration case final expiration?) {
+      final left = expiration.difference(_clock.now()) - renewBefore;
+      if (left > Duration.zero) {
+        renew = Timer(left, () {
+          renewing = true;
+          _wakeUp();
+        });
+      }
+    }
+    final wake = _wake = Completer<void>();
+    await Future.any([connection.done, wake.future]);
+    renew?.cancel();
+    await subscription.cancel();
+    if (_connection == connection) _connection = null;
+    if (!current()) return _Next.stop;
+    if (renewing) {
+      debugPrint('Presence: live sync renewing its connection');
+      await connection.close().catchError((Object _) {});
+      return _Next.connect;
+    }
+    // Dropped: reconnect soon. Closed all the same, so the client's
+    // socket and timers go.
+    debugPrint('Presence: live sync disconnected; reconnecting');
+    await connection.close().catchError((Object _) {});
+    if (!current()) return _Next.stop;
+    _failures = 1;
+    return _Next.retry;
   }
 
   /// Stays connected while messages come (or go): until [drainQuiet]
@@ -644,19 +717,23 @@ class LiveSync extends ChangeNotifier {
   }
 
   /// Publishes [event] (its record as uploaded to the bucket, at [key] with
-  /// ETag [etag]) for the profile's other devices. Its inline media is left
-  /// out ([metadataOf]). Returns whether it was sent: not when it's too
-  /// big, nor with live sync off (the bucket still has it). Always
-  /// connected, not while disconnected; on a schedule, between connections
-  /// it connects at once to send it (waiting up to [publishWait]).
+  /// ETag [etag]; or, without the bucket, as stored) for the profile's
+  /// other devices. Its inline media is left out ([metadataOf]). With
+  /// [clip] (its clip's record, with its thumbnail), the clip goes along
+  /// ([clipMessageOf]) when the message stays under [maxMessageBytes];
+  /// else the event goes alone. Returns whether it was sent: not when it's
+  /// too big, nor with live sync off. Always connected, not while
+  /// disconnected; on a schedule, between connections it connects at once
+  /// to send it (waiting up to [publishWait]).
   Future<bool> publishEvent(
     Map<String, Object?> event, {
     required String key,
     String? etag,
+    Map<String, Object?>? clip,
   }) async {
     final link = _link;
     if (link == null || !_canSend) return false;
-    final payload = Uint8List.fromList(
+    Uint8List payloadWith(Map<String, Object?>? inline) => Uint8List.fromList(
       utf8.encode(
         jsonEncode({
           'v': version,
@@ -666,10 +743,17 @@ class LiveSync extends ChangeNotifier {
           'sentAt': _now().millisecondsSinceEpoch,
           'key': key,
           'etag': ?etag,
+          'mediaKey': ?link.mediaKey,
           'event': metadataOf(event),
+          'clip': ?inline,
         }),
       ),
     );
+    final inline = clip == null ? null : clipMessageOf(clip);
+    var payload = payloadWith(inline);
+    if (inline != null && payload.length > maxMessageBytes) {
+      payload = payloadWith(null);
+    }
     if (payload.length > maxMessageBytes) {
       debugPrint(
         'Presence: live sync not sending event ${event['id']}: '
@@ -1104,6 +1188,67 @@ class LiveSync extends ChangeNotifier {
     'data',
   };
 
+  /// The most bytes a clip's thumbnail may have in a message.
+  static const int maxThumbnailBytes = 48 * 1024;
+
+  /// [clip] (a clip's record, as stored) for a message: a complete clip's
+  /// record without media bytes ([metadataOf]), with its thumbnail as
+  /// base64 when it has one of at most [maxThumbnailBytes]; null for a clip
+  /// that isn't complete, or isn't a clip.
+  static Map<String, Object?>? clipMessageOf(Map<String, Object?> clip) {
+    final parsed = Records.tryParseClip(clip, safeIds: true);
+    if (parsed == null || parsed['state'] != 'complete') return null;
+    final thumbnail = clip['thumbnail'];
+    final bytes = thumbnail is Uint8List
+        ? thumbnail
+        : thumbnail is List
+        ? Uint8List.fromList(thumbnail.cast<int>())
+        : null;
+    return {
+      ...metadataOf(parsed),
+      if (bytes != null &&
+          bytes.length <= maxThumbnailBytes &&
+          SealFormat.isSealed(bytes))
+        'thumbnail': base64Encode(bytes),
+    };
+  }
+
+  /// The clip in a message's [value] ([clipMessageOf]), for the event with
+  /// clip [clipId]: its record, with its thumbnail decoded; null when it
+  /// isn't one (not that clip, not complete, a thumbnail that isn't sealed
+  /// or has more than [maxThumbnailBytes]).
+  static Map<String, Object?>? clipOf(
+    Object? value, {
+    required Object? clipId,
+  }) {
+    if (value is! Map || clipId is! String) return null;
+    final record = Map<String, Object?>.of(value.cast<String, Object?>());
+    final encoded = record.remove('thumbnail');
+    final parsed = Records.tryParseClip(metadataOf(record), safeIds: true);
+    if (parsed == null ||
+        parsed['id'] != clipId ||
+        parsed['state'] != 'complete') {
+      return null;
+    }
+    if (encoded != null) {
+      if (encoded is! String ||
+          encoded.length > (maxThumbnailBytes * 4 / 3).ceil() + 4) {
+        return null;
+      }
+      final Uint8List bytes;
+      try {
+        bytes = base64Decode(encoded);
+      } catch (_) {
+        return null;
+      }
+      if (bytes.length > maxThumbnailBytes || !SealFormat.isSealed(bytes)) {
+        return null;
+      }
+      parsed['thumbnail'] = bytes;
+    }
+    return parsed;
+  }
+
   /// Whether [id] is safe as an event, clip, frame or device ID: it goes
   /// into object keys in the bucket ([Records.isSafeId]).
   static bool isSafeId(Object? id) => Records.isSafeId(id);
@@ -1136,7 +1281,9 @@ class LiveSync extends ChangeNotifier {
     final event = message['event'];
     final etag = message['etag'];
     final sentAt = message['sentAt'];
+    final mediaKey = message['mediaKey'];
     if (event is! Map ||
+        (mediaKey != null && (mediaKey is! String || mediaKey.length > 64)) ||
         (etag != null && (etag is! String || !_etagPattern.hasMatch(etag))) ||
         (sentAt != null && sentAt is! int)) {
       return null;
@@ -1158,6 +1305,9 @@ class LiveSync extends ChangeNotifier {
       event: record,
       sentAt: sentAt as int?,
       etag: etag as String?,
+      mediaKey: mediaKey as String?,
+      // A clip that isn't right is left out; the event still counts.
+      clip: clipOf(message['clip'], clipId: clipId),
     );
   }
 
@@ -1199,4 +1349,16 @@ class LiveSync extends ChangeNotifier {
     stop();
     super.dispose();
   }
+}
+
+/// What the connection loop does after a connection ends.
+enum _Next {
+  /// Ends: its generation is over.
+  stop,
+
+  /// Connects again at once.
+  connect,
+
+  /// Connects again after [LiveSync.retryDelay].
+  retry,
 }

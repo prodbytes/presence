@@ -1,24 +1,19 @@
 # Settings screen
 
 - The **Settings** tab, **full width** (no 560 px readable width).
-- First the device and profile IDs; then the sections, in order:
-  Location, Camera, Motion, Clips, Scheduled clips, Recognition, History,
-  Live sync (with live sync in the build), Advanced (admins only),
-  Subjects; then the version, health line and Add a device.
-- **The device and profile IDs, always, first**: the very top of the
-  page, above Location (the first section), seen without scrolling. Quiet
-  (`onSurfaceVariant`) and the same size as the version (`bodyMedium`,
-  14 sp), each a bold label over its ID, the IDs selectable to copy. **Two
-  columns**, Device left and Profile right, each ID wrapping within its
-  column; they **stack** (Profile under Device) only when a column would
-  be narrower than **120 dp at 1x text**, scaled with the system font
-  (240 dp at 2x). At 320 dp a column is 136 dp: two columns at 1x,
-  stacked at 2x; nothing overflows.
-  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
-    places](devices-users-places.md)), or *loading…* until it's known;
-  - **Profile** `huge_wavy_darter`, the signed-in account's
-    [profile](profiles.md), the same on every device; *none until signed
-    in* signed out, in DEV, and until the auth API answers a sign-in.
+- The sections, in order: Location, Camera, Motion, Clips, Scheduled
+  clips, Recognition, History, Live sync (with live sync in the build),
+  Advanced (admins only), Subjects; then the version, the health line,
+  Add a device, and last the device and profile IDs.
+- **Each section is a group** (`SettingsSection` in
+  [lib/settings.dart](../presence_app/lib/settings.dart)), as in most
+  phone apps' settings (Strava was the reference): its name as a short
+  **bold heading** (`titleMedium`, weight 700), 16 dp in, then its
+  controls on a **block a step lighter than the page** (a `Card`, bg1),
+  **edge to edge** and square, with the controls 16 dp in; 16 dp of page
+  between groups. The version, health line, Add a device and the IDs
+  follow the groups on the page itself, 16 dp in. Test:
+  `settings_test.dart` (at 320 and 1280 dp).
 - **Sliders change their setting when let go.** While one is dragged,
   its thumb and the value beside its name follow the finger; the setting
   changes once, on release (or on each keyboard or screen-reader step), so
@@ -79,13 +74,15 @@
   - A **Tag objects in new clips** switch (default on), "Human, cat, dog,
     bicycle, bottle… for search": the [object tags](recognition.md).
     Disabled the same way where there's no runtime.
-  - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
-    default **85 %**, off while the subjects switch is. Under it, "Less
+  - **Tag automatically when at least** 50–95 % sure, in 5 % steps,
+    default **90 %**, off while the subjects switch is. Under it, "Less
     sure than that, it asks you whether it's them.": there's no separate
-    "Ask me" level any more; anyone recognized below it (from 30 %, the
+    "Ask me" level any more; anyone recognized below it (from 50 %, the
     floor) is asked about.
   - Stored as `recognition: {enabled, objects, autoTag}`; an `ask` value
-    in older records is ignored.
+    in older records is ignored. A stored 85 % (the old default, never
+    changed) reads as the new 90 %; a stored level under 50 % reads as
+    50 %.
 - **History** section (see [Event retention](event-retention.md)): **Keep
   events for**, 1–90 days in 1-day steps, default **2 weeks**, shown as
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older
@@ -93,12 +90,20 @@
   and every 3 hours. Stored as `history: {keepMs}`.
 - **Live sync** section, for everyone, shown when the build has
   [live sync](live-sync.md) (an IoT endpoint and cloud sync): **Connect to
-  live sync**, a slider of nine steps, **Never**, every **1, 2, 5, 10, 15,
-  30, 60 min**, **Always**, default **every 1 min**, shown as "Never",
-  "Every 1 min" … "Always", with a note on what it does. A change applies
-  at once. Stored as `live: {mode, everyMs}`. It's here, not in Advanced
-  (admins only), because it's about every user's devices and their data
-  use.
+  live sync**, a slider of **Never**, every **30 s**, every **1, 2, 5, 10,
+  15, 30, 60 min**, **Always**, default **every 1 min**, shown as "Never",
+  "Every 30 s", "Every 1 min" … "Always", with a note on what it does. A
+  change applies at once. Stored as `live: {mode, everyMs}`. It depends on
+  the roles (`SettingsView.liveAdmin`, see [live sync](live-sync.md#when-it-connects)):
+  - **members** slide from Never to every 60 min (every 30 s the most
+    often); a saved Always shows, and connects, as every 30 s;
+  - **admins** see **Always**, locked (the slider disabled), with the
+    note "Always connected for admins, so this device is always reachable:
+    other devices' events arrive within a second." Their saved setting is
+    kept for if they stop being admins.
+
+  It's here, not in Advanced (admins only), because it's about every
+  user's devices and their data use.
 - **Advanced** section, for admins only (everyone in DEV): **Show the Log
   tab**, on by default in DEV and off otherwise. Stored as `log: {show}`,
   unset until flipped (see [Log](log.md)).
@@ -107,8 +112,8 @@
   latest events its screen lists and maps, and each subject's on the
   Subjects map (see [Subjects](subjects.md)). Stored values are kept
   (raised to 10 if below).
-- **The build's version** is at the very bottom, centred, quiet
-  (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the top): only
+- **The build's version** is after the sections, centred, quiet
+  (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the bottom): only
   `X.Y.Z`, e.g. "Presence 0.4.202610011900", with no `-RC`/`-GA` suffix.
   `scripts/make.sh` compiles it in as `PRESENCE_VERSION` (the same version
   as `--build-name`). The dev servers (`scripts/flutter-web.sh`,
@@ -134,7 +139,8 @@
     events arrive with each sync; ✅ connected (the tooltip counts the
     events received and sent), or set and waiting for the first sync; ⏳
     connecting; 💤 idle between scheduled connections (the tooltip: "idle
-    · next in 0:42 (every 1 min; …)"); ❌ the connection failed (the
+    · next in 0:42 (every 1 min; …)", or "every 30 s"); admins, always
+    connected, show ✅; ❌ the connection failed (the
     error; it retries, and the bucket still syncs everything). Idle and
     off aren't failures;
   - when the API didn't answer, or is older and doesn't report settings,
@@ -144,10 +150,21 @@
     history.
   - While a check fails, a warning icon pill shows over the camera too
     ([Navigation](navigation.md)).
-- **Add a device**, the last thing, under the health line, shown in place
+- **Add a device**, under the health line, shown in place
   (no dialog): a QR code of a link, the link, and **Share** and **Copy
   link**, to open Presence on another device as a new device of the same
   user (see [Add a device](add-device.md)).
+- **The device and profile IDs, always, the last thing** on the page,
+  under Add a device, in **one column**: one centred line each, a bold
+  label then the ID, selectable to copy. Quiet (`onSurfaceVariant`) and
+  the same size as the version (`bodyMedium`, 14 sp). When a line doesn't
+  fit (e.g. 320 dp at 2x text), the ID wraps under its label; nothing
+  overflows.
+  - **Device** `automatic_paranoid_gadget` (see [Devices, users and
+    places](devices-users-places.md)), or *loading…* until it's known;
+  - **Profile** `huge_wavy_darter`, the signed-in account's
+    [profile](profiles.md), the same on every device; *none until signed
+    in* signed out, in DEV, and until the auth API answers a sign-in.
 - **All settings are persistent, per device:** the whole `PresenceConfig`
   (clip lengths, brightness, the motion switch, threshold and cooldown,
   the schedule switch and interval, and the events per subject) is saved

@@ -1,21 +1,36 @@
 # Camera screen
 
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
-  With the All grid showing, it asks every device for one
+  Its label's (and icon's) color is the readiness, discreet, on a
+  neutral background: green when ready, amber with the time left during
+  the cooldown ("Clip · 4:59"), red while a clip is saving, and grey and
+  disabled when no clip can be taken (see
+  [Navigation](navigation.md)). With the All grid showing, it asks every device for one
   ([Capture all](#capture-all) below), as opening the grid does.
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
-  (`CameraRig`), so they stay open, and keep recording, across rebuilds.
+  (`CameraRig`, [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)), so they stay open, and keep recording, across rebuilds.
+- **Screen off** (Android only, an icon-only button left of the view
+  button, tooltip "Turn the screen off (capture goes on)") saves battery:
+  the screen is the biggest drain on an unattended phone. A tap covers
+  the app in black ("Capturing with the screen off. Tap to wake.", faint),
+  and the app (`ScreenOff`, `screenOff` on `presence/device`) stops
+  keeping the screen on, drops it to its lowest brightness and stops the
+  preview. The system's screen timeout then turns the screen off for
+  real; recording, motion clips and sync go on, as with the power button
+  (see [Android](android.md)). A tap on the cover undoes it all. Apps
+  can't turn the screen off at once without device-admin rights, so the
+  timeout does it. It isn't saved: a restart keeps the screen on. Test:
+  `screen_off_test.dart`.
 - **The view button** (One / All / None, an icon-only button, see
   [Navigation](navigation.md)) chooses what the Camera tab shows: **One**, this camera full screen;
   **All**, the grid ([All devices](#all-devices) below); **None**, the
   camera off.
   - **None** closes the camera (`CameraRig.setPaused`): nothing is
     recorded, no motion, scheduled or Capture all clips are taken, and
-    Flip and Clip are hidden. The camera shows "Camera off / Nothing is
-    recorded until you turn it on." with **Turn on**, and the readiness
-    pill is a gray dot whose tooltip says "Camera off: nothing is
-    recorded".
+    Flip is hidden and Clip is disabled (grey, tooltip "Camera
+    off"). The camera shows "Camera off / Nothing is recorded until you
+    turn it on." with **Turn on**.
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
     camera's retries) but the button (None → One) or Turn on.
   - Pausing and resuming run one after the other: a resume waits for the
@@ -90,17 +105,28 @@ profile (`CameraFeedsView.showAll`,
   reason as tooltip and screen-reader label. The grid pings the devices
   when it shows and every 30 s while it does (see [Device
   presence](device-presence.md)).
-- **Then one cell per other device**, sorted by device ID so cells don't
-  move (`latestByDevice`): the thumbnail of its newest clip, shown whole,
+- **Then one cell per other device**, **most recently active first**
+  (`byActivity`, [lib/camera/device_grid.dart](../presence_app/lib/camera/device_grid.dart)): those **live** now (green: answered a ping within 90 s)
+  first, then the others by when they were last heard from over live
+  sync or posted an event, whichever is later, newest first; ties by
+  device ID. Live devices all answer the same ping round within a moment,
+  so among them their latest event decides, and cells don't swap at
+  every round. As devices' activity changes (a pong, a new clip, one
+  going quiet), the cells move, sliding to their new place (300 ms, as
+  the tabs). Without live sync, events alone decide. Each cell
+  (`latestByDevice`) shows the thumbnail of its newest clip, shown whole,
   labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
   player.
-- **Deleting a device:** each other device's cell has a delete button,
-  top left (tooltip "Delete <device ID>"); after a confirmation naming the
-  device and its number of events, every event of it is hidden on every
-  device ("all events emptied") and its cell goes. This device's cell has
-  none. See [Device deletion](device-deletion.md).
+- **A cell's label shows the device's events:** tapping the label (this
+  device's too) switches to Monitoring with the search set to the
+  device's ID (tooltip "Show this device's events"; see
+  [Navigation](navigation.md)); the rest of the cell keeps opening the
+  clip. Without access the label lets taps through to the cell.
+- **No delete button:** the cells don't delete devices; that's done from
+  the account sheet's device list ([Device deletion](device-deletion.md)).
+  A deleted device's cell goes.
 - **Which devices:** those in the event log with a device ID other than
   this one's, from the signed-in account's [profile](profiles.md)'s events
   only (signed out and in DEV, every event's). Other devices' events reach
@@ -114,7 +140,7 @@ profile (`CameraFeedsView.showAll`,
   Nothing new is uploaded or fetched for it.
 - **Layout:** the columns that give the biggest 16:9 cells
   (`gridColumns`); the cells fill the screen below the app bar and above
-  the buttons (88 px kept clear), 1 px apart.
+  the buttons (the navigation bar is below them) (88 px kept clear), 1 px apart.
 - **Opening the grid asks for fresh grabs:** entering All (One → All)
   sends a [Capture all](#capture-all) request, so every other device of
   the profile takes a clip and the grid soon shows what each sees now,
@@ -129,8 +155,9 @@ profile (`CameraFeedsView.showAll`,
   in the grid always asks again (see Capture all).
 - The grid and the camera alone are the same widget tree, so switching
   never rebuilds or reopens the camera's preview, and recording goes on.
-- Tests: `camera_all_test.dart` (which devices and images, the grid's
-  places, the same preview across switches, the button, the spinner on
+- Tests: `camera_all_test.dart` (which devices and images, the order
+  (live first, latest activity, ties, without live sync), the grid's
+  places and a device moving ahead once it takes a clip, the same preview across switches, the button, the spinner on
   older images while asked for fresh ones) and
   `camera_pause_test.dart` (the view button's cycle, the camera closed and
   no clips while off, Turn on, the setting kept).
@@ -172,7 +199,9 @@ everywhere.
 - **On the others:** each other device of the profile, if the request
   came from another device and is within **5 minutes** of its clock
   either way (`CameraRig.captureAllWithin`), takes a clip of its own on
-  its open camera, trigger `all` (`CameraRig.answerCaptureAll`). A
+  its open camera, trigger `all` (`CameraRig.answerCaptureAll`; the
+  rate limits and seen request IDs are `CaptureAll`,
+  [lib/camera/capture_all.dart](../presence_app/lib/camera/capture_all.dart)). A
   request is answered **once**, however it arrives: cloud sync hands a
   live event over once and doesn't download it again from the bucket,
   and the rig also remembers the request IDs it has seen (the latest
@@ -184,7 +213,7 @@ everywhere.
   or none) skips it. Received requests were validated as any live or
   bucket event is (the profile's own folder or topic, safe IDs, size).
 - Like any clip, a Capture all clip (asked here or answered) isn't held
-  back by the cooldown but starts it on that device: its readiness pill
+  back by the cooldown but starts it on that device: its Clip button
   counts down, and its motion and scheduled clips wait for the end
   ([Navigation](navigation.md)).
 - That clip uploads with the device's next pass, and the asking device's

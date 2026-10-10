@@ -11,10 +11,12 @@ import 'package:presence_app/monitoring.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A clip with [names] tagged, and a thumbnail.
 ClipRequested tagged(List<String> names, {int minutesAgo = 0}) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }
@@ -113,9 +115,7 @@ void main() {
     expect(thumbnail.height, closeTo(thumbnail.width * 9 / 16, 0.5));
   });
 
-  testWidgets('the events column stays between 360 and 880 dp', (
-    tester,
-  ) async {
+  testWidgets('the events column stays between 360 and 880 dp', (tester) async {
     await show(tester, const Size(720, 800));
     expect(rectOf(tester, 'events-page').width, closeTo(396, 0.5));
     await show(tester, const Size(1600, 900));

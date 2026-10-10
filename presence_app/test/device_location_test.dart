@@ -586,9 +586,14 @@ void main() {
       // The first section, above Camera.
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
+      // (The navigation bar's Camera label is not the section's.)
+      final camera = find.descendant(
+        of: find.byKey(const Key('settings-page')),
+        matching: find.text('Camera'),
+      );
       expect(
         tester.getTopLeft(find.text('Location')).dy,
-        lessThan(tester.getTopLeft(find.text('Camera')).dy),
+        lessThan(tester.getTopLeft(camera).dy),
       );
       expect(
         tester.getTopLeft(find.text('Location')).dy,
@@ -855,7 +860,7 @@ void main() {
     });
 
     for (final size in [const Size(320, 640), const Size(1280, 800)]) {
-      testWidgets('battery and readiness sit bottom left, clear of Flip and '
+      testWidgets('the battery sits bottom left, clear of Flip and '
           'Clip, at ${size.width.toInt()} wide', (tester) async {
         await launch(
           tester,
@@ -869,20 +874,17 @@ void main() {
           )),
         );
         final status = tester.getRect(find.byKey(const Key('camera-status')));
-        final readiness = tester.getRect(find.byKey(const Key('readiness')));
-        final clip = tester.getRect(find.byTooltip('Clip'));
+        final clip = tester.getRect(find.byKey(const Key('clip')));
         final flip = tester.getRect(find.byTooltip('Flip camera'));
         expect(status.left, 16);
         expect(status.overlaps(clip), isFalse);
         expect(status.overlaps(flip), isFalse);
         if (size.width < 600) {
-          // Stacked just above the buttons' row, the readiness lowest.
+          // Stacked just above the buttons' row.
           expect(status.bottom, lessThanOrEqualTo(clip.top));
-          final battery = tester.getRect(find.byKey(const Key('battery')));
-          expect(battery.bottom, lessThan(readiness.top));
         } else {
           // In a row, level with the buttons.
-          expect(readiness.bottom, closeTo(clip.bottom, 8));
+          expect(status.center.dy, closeTo(clip.center.dy, 1));
           expect(status.right, lessThan(flip.left));
         }
         expect(tester.takeException(), isNull);

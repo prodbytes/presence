@@ -45,9 +45,11 @@ services:
       # they're set (the app's health line).
       COGNITO_IDENTITY_POOL_ID: ${COGNITO_IDENTITY_POOL_ID:-}
       USER_DATA_BUCKET: ${USER_DATA_BUCKET:-}
-      # The auth API's root allowlist (empty: the template's defaults).
-      PRESENCE_ROOT_DOMAINS: ${PRESENCE_ROOT_DOMAINS:-}
-      PRESENCE_ROOT_EMAILS: ${PRESENCE_ROOT_EMAILS:-}
+      # rbacr, which gives the auth API's roles (empty token: nobody has
+      # one). A secret: passed to the stack, never logged.
+      RBACR_URL: ${RBACR_URL:-}
+      RBACR_TOKEN: ${RBACR_TOKEN:-}
+      RBACR_SYSTEM: ${RBACR_SYSTEM:-}
       # Lambda containers are named presence-lambda-*, so shutdown can find
       # them (process-compose.yaml).
       FLOCI_SERVICES_LAMBDA_CONTAINER_NAME_PREFIX: presence-lambda

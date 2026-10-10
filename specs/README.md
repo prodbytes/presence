@@ -25,8 +25,8 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on, Admin for signed-in admins), and the full-screen Camera tab
-  with its view (One / All / None), Clip, Flip and readiness controls.
+- [Navigation](navigation.md): bottom navigation bar (Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
+  with its view (One / All / None), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
 - [Theme](theme.md): the Gruvbox dark palette.
@@ -37,7 +37,8 @@ their data.
   every device, asked through cloud sync.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the
   subjects and the events.
-- [Events](events.md): the event timeline and the app-wide event bus.
+- [Events](events.md): the event timeline and the app-wide event bus;
+  searching "do a barrel roll" spins the screen.
 - [Event flags](event-flags.md): flags on an event's card, worked out from
   its data; a yellow **unidentified** flag on a clip showing a person or
   pet (cat, dog) nobody's named, with **Identify** to name them.
@@ -67,6 +68,10 @@ their data.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
   sheet (the profile ID and its devices, from events) and the OAuth
   clients.
+- [Premium and free](premium.md): rbacr says who is premium (its
+  `premium` or `admin` role): premium profiles sync with the cloud (S3,
+  enforced by a `tier` tag on their credentials); free ones' devices sync
+  with each other over live sync only, clips' thumbnails in the messages.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (their
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
@@ -98,6 +103,12 @@ their data.
   S3, and each device's settings per profile (restored at sign-in), with
   credentials for their profile (the auth API, then a Cognito identity
   pool).
+- [Media encryption](encryption.md): every image and recording sealed
+  with its device's key (AES-256-GCM), made with the device ID, before
+  it's stored or sent; the profile's devices share their keys through
+  their settings in the cloud (and live sync); what was stored
+  unencrypted is deleted, on the device and in the cloud. Event metadata
+  isn't encrypted.
 - [Live sync](live-sync.md): new and changed events reach the profile's
   other devices within a second over MQTT (AWS IoT Core, WebSockets signed
   with the profile's credentials), metadata only; S3 keeps everything, and
@@ -137,12 +148,12 @@ their data.
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's
   [profile](profiles.md) and roles
-  (`presence_user`, `presence_admin`, and `presence_root` for the root
-  allowlist: `PRESENCE_ROOT_DOMAINS`, `PRESENCE_ROOT_EMAILS`),
+  (`presence_user`, `presence_premium`, `presence_admin`, and
+  `presence_root` for rbacr's roots, all from rbacr),
   `GET /api/auth/anonymous` (the
   execution mode and which settings are set, no token), the
   membership and voucher routes and the [profile](profiles.md) routes (SAM,
-  Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
+  Java 25; Google JWT authorizer; roles and grants in rbacr).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

@@ -16,12 +16,17 @@ import 'package:presence_app/identity/device_id.dart';
 import 'package:presence_app/identity/device_os.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/main.dart';
+import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/settings.dart';
+import 'package:presence_app/system_health.dart';
 import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'fakes.dart';
 import 'live_sync_test.dart' show FakeBroker, eventsTopic, messageOf;
 import 'motion_test.dart' show frame;
+
+import 'sealed.dart';
 
 void main() {
   late IdbFactory storage;
@@ -39,6 +44,7 @@ void main() {
     LiveSync? live,
     FakeAuthService? auth,
     String profile = 'automatic_paranoid_axolotl',
+    FakeRolesClient? roles,
   }) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -53,7 +59,7 @@ void main() {
         mediaIo: fakeMediaIo,
         now: () => clock,
         auth: auth ?? FakeAuthService.signedIn(),
-        rolesClient: FakeRolesClient()..profile = profile,
+        rolesClient: (roles ?? FakeRolesClient())..profile = profile,
         cloud: cloud,
         live: live,
         mapTiles: const SizedBox(),
@@ -106,16 +112,21 @@ void main() {
   ClipRequested clipEvent(WidgetTester tester) =>
       tester.widget<ClipEventCard>(find.byType(ClipEventCard)).event;
 
-  final past = ClipMedia(
-    url: 'blob:past',
-    start: Duration(seconds: 2),
-    end: Duration(seconds: 17),
-  );
-  final full = ClipMedia(
-    url: 'blob:full',
-    start: Duration(seconds: 10),
-    end: Duration(seconds: 40),
-  );
+  // Fresh for each test: saving one lets go of its live URL.
+  late ClipMedia past;
+  late ClipMedia full;
+  setUp(() {
+    past = ClipMedia(
+      url: 'blob:past',
+      start: Duration(seconds: 2),
+      end: Duration(seconds: 17),
+    );
+    full = ClipMedia(
+      url: 'blob:full',
+      start: Duration(seconds: 10),
+      end: Duration(seconds: 40),
+    );
+  });
 
   testWidgets('events survive a refresh, newest first', (tester) async {
     await launch(tester);
@@ -223,7 +234,7 @@ void main() {
     // The full recording (its stored bytes), thumbnail and details.
     final video = cloud.uploads['$prefix/media/$clipId.webm'];
     expect(video, isNotNull);
-    expect(String.fromCharCodes(video!.bytes), 'blob:full');
+    expect(String.fromCharCodes(opened(video!.bytes)), 'blob:full');
     expect(cloud.uploads, contains('$prefix/media/$clipId.jpg'));
     // The record, alone with other JSON in its day partition.
     final record = cloud.uploads.keys.singleWhere(
@@ -565,6 +576,70 @@ void main() {
     live.stop();
   });
 
+  testWidgets('live sync follows the roles: admins always connected, '
+      'members as set but at most every 30 s; the setting is kept', (
+    tester,
+  ) async {
+    final broker = FakeBroker();
+    final live = LiveSync(
+      endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+      region: 'us-east-1',
+      connect: broker.connect,
+    );
+    final auth = FakeAuthService.signedIn();
+    final roles = FakeRolesClient(const [userRole, adminRole, premiumRole]);
+    await launch(
+      tester,
+      cloud: FakeCloudBackend(),
+      live: live,
+      auth: auth,
+      roles: roles,
+    );
+    // An admin: always connected, though set to every minute (the
+    // default), and so shown connected.
+    expect(live.config, LiveConfig.always);
+    expect(live.state, LiveSyncState.connected);
+    expect(broker.persistent.last, isFalse);
+    expect(SystemHealth.liveStatusOf(live).$1, '✅');
+    expect(SystemHealth.liveStatusOf(live).$2, startsWith('Live: connected'));
+
+    // No longer an admin (signed in again with fewer roles): their own
+    // setting again, every minute, on a schedule.
+    await auth.signOut();
+    await tester.pumpAndSettle();
+    roles.roles = const [userRole, premiumRole];
+    await auth.signIn();
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(live.config, const LiveConfig());
+    expect(broker.persistent.last, isTrue);
+
+    // A member set to Always connects every 30 s instead; the setting
+    // stays Always.
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    final config = tester
+        .widget<SettingsView>(find.byType(SettingsView))
+        .config;
+    config.update((x) => x.copyWith(live: LiveConfig.always));
+    await tester.pumpAndSettle();
+    expect(live.config, const LiveConfig(every: Duration(seconds: 30)));
+    expect(config.live, LiveConfig.always);
+
+    // An admin again: always connected.
+    await auth.signOut();
+    await tester.pumpAndSettle();
+    roles.roles = const [userRole, adminRole, premiumRole];
+    await auth.signIn();
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    expect(live.config, LiveConfig.always);
+    expect(live.state, LiveSyncState.connected);
+    live.stop();
+  });
+
   testWidgets('an event another device publishes shows at once; its clip '
       'and thumbnail follow from the cloud', (tester) async {
     final cloud = FakeCloudBackend();
@@ -584,7 +659,13 @@ void main() {
       ),
     );
     seed.close();
-    await launch(tester, cloud: cloud, live: live);
+    // An admin's: members connect at most every 30 s.
+    await launch(
+      tester,
+      cloud: cloud,
+      live: live,
+      roles: FakeRolesClient(const [userRole, adminRole, premiumRole]),
+    );
     await settleStorage(tester);
     await tester.pumpAndSettle();
     expect(live.config, LiveConfig.always);
@@ -647,12 +728,12 @@ void main() {
       contentType: 'application/json',
     );
     cloud.uploads['$prefix/media/live-clip.jpg'] = (
-      bytes: onePixelPng,
-      contentType: 'image/jpeg',
+      bytes: sealed(onePixelPng),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/media/live-clip.webm'] = (
-      bytes: Uint8List.fromList('live-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('live-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     broker.last.deliver(
       eventsTopic,
@@ -666,7 +747,7 @@ void main() {
     final shown = clipEvent(tester).clip;
     expect(shown.awaitingRemote, isFalse);
     expect(shown.id, 'live-clip');
-    expect(shown.thumbnail, onePixelPng);
+    expect(opened(shown.thumbnail!), onePixelPng);
     expect(inEvents(find.text('Garage')), findsOneWidget);
   });
 
@@ -700,8 +781,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/media/remote-clip.webm'] = (
-      bytes: Uint8List.fromList('remote-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('remote-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/events/remote-event.json'] = (
       bytes: json({
@@ -762,8 +843,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/media/remote-clip.webm'] = (
-      bytes: Uint8List.fromList('remote-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('remote-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/events/remote-event.json'] = (
       bytes: json({
@@ -800,7 +881,7 @@ void main() {
     );
     final store = await run(tester, EventStore.open(storage));
     expect(
-      await run(tester, store.getMedia('remote-clip-full')),
+      opened((await run(tester, store.getMedia('remote-clip-full')))!),
       'remote-video'.codeUnits,
     );
   });
@@ -848,8 +929,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/${CloudSync.frameKeyOf('remote-clip', 'f1')}'] = (
-      bytes: onePixelPng,
-      contentType: 'image/jpeg',
+      bytes: sealed(onePixelPng),
+      contentType: CloudSync.sealedType,
     );
 
     await launch(tester, cloud: cloud);
@@ -973,7 +1054,7 @@ void main() {
         ('Ana', frameId, 7400),
       ]);
       expect(restored.items.last.x, closeTo(0.75, 0.01));
-      expect(restored.frames[frameId]!.jpeg, onePixelPng);
+      expect(opened(restored.frames[frameId]!.sealed), onePixelPng);
       final eventId = clipEvent(tester).id;
       final record = await run(
         tester,
@@ -1482,8 +1563,8 @@ void main() {
     await refresh(tester, cameras: [camera]);
     await tester.pump(const Duration(milliseconds: 600));
 
-    // The pill shows exactly what's left of the 5-minute cooldown.
-    expect(find.text('3:00'), findsOneWidget);
+    // The Clip button shows exactly what's left of the 5-minute cooldown.
+    expect(find.text('Clip · 3:00'), findsOneWidget);
 
     // Motion stays blocked until the cooldown ends…
     await frames(camera, List.filled(20, frame()));
@@ -1510,10 +1591,10 @@ void main() {
     // A Clip press (not motion).
     clock = clock.add(const Duration(seconds: 2));
     final pressedAt = clock;
-    await tester.tap(find.byTooltip('Clip'));
+    await tester.tap(find.byKey(const Key('clip')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('5:00'), findsOneWidget);
+    expect(find.text('Clip · 5:00'), findsOneWidget);
     camera.fullCompleters.last.complete(media);
     await settleStorage(tester);
 
@@ -1542,7 +1623,7 @@ void main() {
     camera = FakeCameraSource('Main', immediatePast: media);
     await refresh(tester, cameras: [camera]);
     await tester.pump(const Duration(milliseconds: 600));
-    expect(find.text('3:00'), findsOneWidget);
+    expect(find.text('Clip · 3:00'), findsOneWidget);
     await settleStorage(tester);
   });
 
@@ -1585,7 +1666,7 @@ void main() {
 
     // What recognition does when it's unsure.
     final event = clipEvent(tester);
-    final frame = event.annotations.newFrame(onePixelPng, 12000);
+    final frame = testFrame(onePixelPng, 12000);
     final entry = event.annotations.add(
       'Ana',
       0.4,

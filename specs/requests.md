@@ -3963,3 +3963,515 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Raspberry Pi camera](raspberry-pi.md), [Install URL](install-url.md),
        [Auth API](auth-api.md), [Dev environment](dev-environment.md),
        [Local CDN](local-cdn.md).
+
+306. **The home screen split out of `main.dart`.** (2026-10-07)
+     - Asked: break up `presence_app/lib/main.dart` (about 1700 lines)
+       without changing behaviour.
+     - Changed: a pure refactor. `lib/main.dart` keeps `main()` and
+       `PresenceApp` (the app's services and their wiring); the home
+       screen moved to `lib/home/`: `home_screen.dart` (`HomeScreen`),
+       `home_app_bar.dart` (`HomeAppBar`, was `_HomeAppBar`),
+       `camera_buttons.dart` (`CameraButtons`, was `_CameraButtons`, and
+       `CameraViewMode`), `camera_status.dart` (`CameraStatus`, was
+       `_CameraStatus`, and `ReadinessIndicator`), `camera_messages.dart`
+       (`CameraMessage`, `CameraMessagePill`, and a new `CameraMessages`
+       notifier that holds the message and its 4 s timer, which
+       `HomeScreen` kept itself) and `dev_mode_label.dart`
+       (`DevModeLabel`). `main.dart` re-exports every public name it had,
+       so imports of `package:presence_app/main.dart` still find them.
+     - Tests: unchanged; all pass.
+     - Specs: [Navigation](navigation.md).
+
+307. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
+     - Asked: a pure refactor, no behaviour change: split the 1,347-line
+       `lib/clips.dart` into the model, the timeline card and the player
+       dialog, breaking the player's ~300-line `build` into section
+       widgets; and share the playback logic the native and web
+       `ClipPlayerView`s repeat, only if the load-race fixes stay intact
+       and tests prove the two equivalent.
+     - Changed: `lib/clips/clip_model.dart` (`VideoClip`, `ClipTrigger`,
+       `ClipRequested`, `formatClipTime`), `clip_card.dart`
+       (`ClipEventCard`), `clip_labels.dart` (`ClipObjectTags`,
+       `OpenAtLabel`, `RemoveLabelButton`), `clip_player_dialog.dart`
+       (`showClipPlayer`, `ClipPlayerDialog`, now built from
+       `_SubjectsSection`, `_FrameRow`, `_SubjectChip` and `_TagsSection`)
+       and `frame_tagger.dart` (`FrameTagger`, was `_FrameTagger`).
+       `lib/clips.dart` re-exports them, so importers are unchanged. The
+       two `ClipPlayerView`s were left as they are: the web one has no
+       tests (the tests run on the VM) and the native one's loading isn't
+       exercised (no `video_player` fake), so no test could prove a
+       shared controller equivalent; what they share is short
+       (`_start`, `_showFull`, `_onClipChanged`), while their loading and
+       stale-load guards differ by platform.
+     - Tests: unchanged; all pass.
+     - Specs: [Clips](clips.md) (new Code section, the player's file).
+
+308. **Split `camera_feeds.dart` (refactor, no behaviour change).**
+     (2026-10-07)
+     - Asked: split `presence_app/lib/camera_feeds.dart` (1327 lines;
+       `CameraRig` mixed the camera's lifecycle, the brightness restart,
+       the motion trigger, the cooldown and schedule, and Capture all,
+       beside the All grid's widgets) without changing behaviour.
+     - Changed: `lib/camera_feeds.dart` (332 lines) keeps
+       `CameraFeedsView`, `FeedMessage` and `describeCameraError`, and
+       re-exports the rest, so it's still the one import.
+       `lib/camera/camera_rig.dart` (698): `CameraRig` (opening, the open
+       generation, pause, lost-camera retry, brightness restart, timers,
+       `requestClips`). `lib/camera/auto_clip_policy.dart` (138):
+       `ClipReadiness`, `AutoClipPolicy` (cooldown end, next scheduled
+       clip, its countdown, startup/scheduled due) and `MotionTrigger`
+       (frames in a row over the threshold), pure of time and settings.
+       `lib/camera/capture_all.dart` (89): `CaptureAll`, the ask and
+       answer rate limits and the seen request IDs. `lib/camera/device_grid.dart`
+       (249): `DeviceLatest`, `latestByDevice`, `gridColumns`,
+       `describeAge` and the grid's cells (`_Cell` is now `DeviceGridCell`,
+       `_DeviceImage` `DeviceImage`). `CameraRig`'s constants
+       (`motionFramesToTrigger`, `captureAllWithin`, `askAllEvery`,
+       `pressAllEvery`, `answerAllEvery`) stay, naming the moved ones.
+     - Tests: unchanged and passing; new `auto_clip_policy_test.dart`
+       covers `AutoClipPolicy`, `MotionTrigger` and `CaptureAll` alone.
+     - Specs: code pointers in [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Navigation](navigation.md), [Device deletion](device-deletion.md).
+
+309. **Cloud sync split into parts, without a change in behaviour.**
+     (2026-10-07)
+     - Asked: split `lib/cloud/cloud_sync.dart` (one `CloudSync` class of
+       2252 lines) into cohesive parts without changing behaviour, keeping
+       its public API; and split `LiveSync._loop` if safe.
+     - Changed: `CloudSync` stays the public API and runs the passes;
+       its parts are `part of` the same library (they share its private
+       state): `_Pass` (`cloud_sync_pass.dart`), `_Fetcher`
+       (`cloud_sync_fetch.dart`), `_Uploader` (`cloud_sync_upload.dart`),
+       `_Recordings` (`cloud_sync_recordings.dart`), `_LiveBridge`
+       (`cloud_sync_live.dart`), `_CopyTracker` (`cloud_sync_copies.dart`)
+       and the key helpers (`cloud_sync_keys.dart`). Each part owns its
+       own state (damaged objects and wanted clips, uploads under way,
+       recording downloads, the live identity, the copy checks).
+       `CloudSession`, `CloudBackend` and `AwsCloudBackend` moved to
+       `cloud_backend.dart`, exported by `cloud_sync.dart`, so imports
+       don't change. `LiveSync._loop` now calls `_connectOnce`,
+       `_subscribe`, `_runScheduled` and `_runAlways`; its shared `_wake`
+       completer is unchanged.
+     - Tests: none changed; `flutter analyze` clean, `flutter test` and
+       `flutter build web` pass.
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Event copies](event-copies.md).
+
+310. **Device and profile IDs back to one column, last in Settings.**
+     (2026-10-07)
+     - Asked: move the device ID and profile ID back to one column, and
+       make them the last thing on the Settings page.
+     - Changed: the IDs left the top of Settings (where #238 put them in
+       two columns) for the very end, after the version, the health line
+       and Add a device: one centred line each, a bold label then the
+       selectable ID (`bodyMedium`, `onSurfaceVariant`), the ID wrapping
+       under its label when the line doesn't fit. Location is now the
+       first thing on the page. The two-column layout (`_Ids`) is gone.
+     - Tests: the settings test checks the IDs are the list's last child,
+       below the health line and Add a device, one column, inside the
+       screen with no overflow at 320 and 1280 dp, 1x and 2x text;
+       `add_device_test` checks Add a device sits between the health line
+       and the IDs and scrolls to the IDs to read them.
+     - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
+       [Add a device](add-device.md).
+
+311. **No delete button in the Camera tab's All grid.** (2026-10-07)
+     - Asked: "No need for the delete device button in the camera view;
+       only on the profile view is fine."
+     - Changed: the All grid's cells no longer have a delete button.
+       `DeviceGridCell` lost `onDelete`, `deleteTooltip`, `deleteKey` and
+       `deleteRoom` (and its size check); `CameraFeedsView` lost
+       `onDeleteDevice`, and `HomeScreen` no longer wires it. Devices are
+       still deleted from the account sheet's device list, unchanged.
+     - Tests: `device_delete_test.dart`'s two grid delete tests replaced
+       by one asserting no cell has a delete button; the account sheet's
+       deletion tests are unchanged.
+     - Specs: [Device deletion](device-deletion.md),
+       [Camera screen](camera.md).
+
+312. **About: Raspberry Pi, and no version.** (2026-10-07)
+     - Asked: on the About paragraph, add the Raspberry Pi and remove the
+       version.
+     - Changed: the paragraph now reads "a phone, tablet, laptop or
+       Raspberry Pi"; the open-source line is just "Presence is open
+       source:" (the version stays at the bottom of Settings). Specs:
+       [About](about.md).
+
+313. **A connectivity indicator in the account sheet.** (2026-10-07)
+     - Asked: add a connectivity indicator to the profile page (the
+       account sheet). The unattended phone showed as offline on other
+       devices because live sync wasn't set up in its build, and nothing
+       on it said so.
+     - Changed: under the email, a `ConnectivityIndicator`
+       ([lib/connectivity.dart](../presence_app/lib/connectivity.dart))
+       for this device: a dot and a headline, green only when the auth
+       API answers, cloud sync is set and live sync is connected; amber
+       when degraded (checking, connecting, idle with the countdown to
+       the next connection, live sync off or "isn't set up in this
+       build", cloud sync not set up); red when the API is unreachable
+       ("Offline: can't reach the server"), cloud sync failed or live
+       sync failed. It reuses the health checks
+       (`SystemHealth.statusOf` / `liveStatusOf`), asks the auth API
+       again when the sheet opens and on the health panel's interval,
+       and taps open each check's details. This device's presence dot
+       in the devices list now takes the same color and reason
+       (`ProfileDevices.thisPresence`). Cloud sync's routine 15 s
+       syncing passes stay green rather than flicker amber.
+     - Tests: new `connectivity_test.dart`: not set up, connected,
+       idle with a running countdown, connecting, failed (with the
+       error in the details), the API down then back, live updates, and
+       the account sheet at 320 dp with a 2x font (this device's dot
+       following the row). `flutter analyze` clean, `flutter test` and
+       `flutter build web` pass.
+     - Specs: [Sign-in](sign-in.md) (account sheet),
+       [Device presence](device-presence.md), [Live sync](live-sync.md).
+
+314. **One Clip button that is also the readiness indicator.** (2026-10-07)
+     - Asked: merge the readiness indicator and the grab (Clip) button:
+       greenish when ready, yellow during the cooldown with the time left
+       in the label, red when disabled or recording a clip.
+     - Changed: the separate readiness pill (`ReadinessIndicator`) is
+       gone; `ClipButton` (`lib/home/clip_button.dart`) replaces the old
+       Clip FAB and carries it. **Green**, "Clip", tooltip "Ready";
+       **amber** during the cooldown, "Clip · 4:59" / "Clip · 45 s"
+       (the time alone where that doesn't fit, the icon alone with very
+       large text), tooltip "Next automatic clip in 4:28"; **red** while
+       the latest clip's after part is saving, tooltip "Clip saving…"
+       (plus the countdown), now also with automatic clips off
+       (`ClipReadiness.recording` is set when ready too); **red-tinted
+       and disabled** when no clip can be taken, with the reason as the
+       tooltip ("Camera off", "No camera", "Camera starting…", "Camera
+       unavailable", "Camera not ready"). Clip used to be hidden then; it
+       now always shows with access. Presses during the cooldown and
+       while saving still take a clip and restart the cooldown (kept);
+       in the All grid a press still asks every device. Colors meet
+       4.5:1 on dark and light themes; the countdown is not a live
+       region. The status pills keep the health warning, battery,
+       temperature and message.
+     - Tests: `readiness_test.dart` asserts the button's colors, labels
+       and tooltips (ready, saving, cooldown, disabled), contrast on both
+       themes, a press while saving, 320 dp with Flip at 1x and 2x text;
+       other tests find Clip by its key (`Key('clip')`) and expect it
+       disabled, not missing, without a camera or with the camera off.
+     - Specs: [Navigation](navigation.md), [Camera screen](camera.md),
+       [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [README](README.md).
+
+315. **Live sync by role: admins always connected, others every 30 s at
+     most.** (2026-10-07)
+     - Asked: let user roles have different limits on **Connect to live
+       sync**: free and premium users default to every 1 min, at most
+       every 30 s; admins stay connected.
+     - Changed: the app can't tell free from premium users (both are
+       members, `presence_user`; vouchers only grant roles, and payment
+       isn't built), so every non-admin user gets the same rules. A
+       **30 s** step joins the slider (Never, every 30 s, 1, 2, 5, 10,
+       15, 30, 60 min, Always: ten steps). How live sync connects is
+       `LiveConfig.effective(isAdmin:)` of the saved setting and the
+       roles: **admins** (`presence_admin`, so roots too) are always
+       connected, whatever is saved; **members** connect as saved, but
+       Always (or anything under 30 s) becomes every 30 s, and their
+       slider stops at every 60 min. The app applies it at start, on each
+       change of the setting, and on each change of the roles (sign-in,
+       sign-out, a role granted or taken); the saved setting isn't
+       rewritten, so a former admin gets their own choice back (clamped).
+       For admins the slider shows Always, locked, with "Always connected
+       for admins…".
+     - Tests: `effective` for both; the 30 s step and label; a scheduled
+       connection every 30 s with the real timings (3 s drain, 30–40 s
+       waits, the same persistent session); the slider's range for
+       members, a saved Always shown as every 30 s, the locked slider for
+       admins; the app switching live when the roles change; the Live
+       check's ✅ for an admin and its 30 s countdown.
+     - Specs: [Live sync](live-sync.md), [Settings](settings.md),
+       [Configuration](configuration.md), [Membership](membership.md).
+
+316. **Device names lead to the device's events in Monitoring.**
+     (2026-10-07)
+     - Asked: when device names are clicked, navigate to the Monitoring
+       view with the search on that device name.
+     - Changed: every device name is a button (tooltip "Show this
+       device's events"): an event card's device (`EventDeviceTag`), the
+       device in an event's details (`EventDevice`), the account sheet's
+       device list (`ProfileDevices`) and the All grid's labels
+       (`DeviceGridCell.device`). A tap closes what's open over the tabs
+       (player, sheet, subject's screen), switches to Monitoring and sets
+       the events search to the device's ID through one app-level scope,
+       `ShowDeviceEvents` (`lib/device_events.dart`), put by the home
+       screen and passed on to dialogs and sheets with `capture`. The
+       search now matches device IDs (`eventSearchFields`), and a search
+       that is a device's whole ID shows only that device's events on the
+       timeline, the count and the subjects map
+       (`EventFilters.searchedDevice`, `showDevice`). That replaces the
+       separate device filter (`EventFilters.onlyDevice` and its chip,
+       `DeviceFilterChip`): the card's device tag now toggles the search.
+       Selectable IDs stay selectable (`SelectableText.onTap`). Without
+       access the names are plain and do nothing.
+     - Tests: new `device_events_test.dart` (account sheet, grid label,
+       event details, card; 320 dp; no access; the link's button and
+       tooltip); `events_filter_test.dart`, `events_search_test.dart`,
+       `subjects_test.dart` and `device_os_test.dart` moved from the
+       device chip to the search.
+     - Specs: [Events](events.md), [Monitoring](monitoring.md),
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [Camera screen](camera.md), [Clips](clips.md),
+       [Subjects](subjects.md).
+
+317. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+     - Asked: the grab (Clip) button's readiness color should be its text
+       color, not its background, in discreet colors.
+     - Changed: the background is one quiet neutral for every state
+       (Gruvbox `bg1` on the dark theme); the state shows in the label and
+       icon only, in muted colors: green `#A9B665` ready, amber `#D8A657`
+       cooldown, soft red `#EC8F82` saving, warm grey `#B0A08A` disabled
+       (was red-tinted). Light theme variants on `#F9F5D7`. All at least
+       4.5:1 (tested), dark ones muted (tested). Tests:
+       `readiness_test.dart`. Specs: [Navigation](navigation.md),
+       [Camera screen](camera.md).
+
+318. **Cameras ordered by activity, with online status.** (2026-10-07)
+     - Asked: in the camera section, order the cameras most recently
+       active first, with an online or offline indicator if possible,
+       checked by pinging over MQTT.
+     - Changed: the All grid's other devices are now ordered by activity
+       (`byActivity`): live devices first (answered a live-sync ping
+       within 90 s), then by when last heard from or last event, newest
+       first; ties by device ID. Among live devices their latest event
+       decides, so cells don't swap at every ping round. Cells slide to
+       their new place (300 ms). The online indicator was already there:
+       each cell's presence dot (green live, yellow seen within 24 h, red
+       older), from the MQTT pings the grid sends every 30 s. Tests:
+       `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
+       [Device presence](device-presence.md).
+
+319. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+     - Asked: "lets add an easter egg. if the user searches for "do a
+       barrel roll", roll the screen, like google".
+     - Changed: typing **do a barrel roll** (or "barrell", any case and
+       spacing) in the Monitoring tab's events search spins the whole
+       app one turn over 2 s, as Google's search does; once when the
+       text becomes the phrase, again on each submit; not during a turn
+       or with reduced motion. New `lib/barrel_roll.dart` (`BarrelRoll`,
+       wrapped around the app in `MaterialApp.builder`) and
+       `test/barrel_roll_test.dart`.
+     - Specs: [Events](events.md).
+
+320. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+     - Asked: improve role-based access control, starting with cloud (S3)
+       sync of events only for premium and admin users; free users sync
+       device to device over MQTT. Premium comes from rbacr
+       (github.com/prodbytes/rbacr, https://rbacr.nu01.com; its token in
+       `.env`), which also decides who is premium at release; free
+       members share events and thumbnails; their S3 data is left to
+       expire. Also: rbacr in the health checks.
+     - Changed: the auth API asks rbacr for the caller's roles in its
+       `presence` system (`Rbacr`: 2 s timeout, answers reused 60 s,
+       fails closed) and gives `presence_premium` for `premium` or
+       `admin` (a linked account shares its owner's). Credentials are
+       tagged `tier=premium|free` (Cognito principal tags), and the
+       identity role's S3 statements require `premium` (trust policy
+       allows `sts:TagSession`; deploy roles may update it). Free
+       profiles' app sync never touches S3: it publishes each event over
+       live sync with its clip's record and thumbnail (`clip` in the
+       message, at most 48 KB), and receivers store it. Tier changes start
+       sync over; `AccessDenied` renews credentials once. The account
+       sheet and connectivity say Free. RBACR in health: the API's
+       `/health` `rbacr` check, `settings.rbacr` in
+       `/api/auth/anonymous`, the app's 👮 RBACR card, and the local
+       monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
+       secret) and checks `rbacr` in its smoke test. Tests: auth API
+       (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
+       RBACR health). Specs: [Premium and free](premium.md) (new),
+       [Membership](membership.md), [Cloud sync](cloud-sync.md),
+       [Live sync](live-sync.md), [Auth API](auth-api.md),
+       [Profiles](profiles.md), [Health check](health-check.md),
+       [Execution mode](execution-mode.md).
+
+321. **The account sheet always shows the user's roles.** (2026-10-08)
+     - Asked: always show the user's roles in the profile view.
+     - Changed: the account sheet shows, under the email, a chip per role
+       (`AccountRoles`): Member, Premium, Admin, Root (another role keeps
+       its ID), the role ID as tooltip; "No roles yet" without any,
+       "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
+       Spec: [Sign-in](sign-in.md).
+
+322. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+     - Asked: still too many wrong recognitions; increase the expected
+       confidence threshold.
+     - Changed: subjects are tagged automatically from **90 %** (default;
+       was 85 %; a device left at 85 % moves to 90 %), and asked about
+       from **50 %** (was 30 %; also the slider's minimum, so it reads
+       50–95 %). Object tags need a score of **0.6** on a frame (was 0.5)
+       and 0.8 to count from a single frame (was 0.7); people and pets
+       are detected from 0.5 (was 0.4). Tests: `recognition_test.dart`,
+       `settings_test.dart`. Specs: [Subject recognition](recognition.md),
+       [Settings screen](settings.md), [Configuration](configuration.md).
+
+323. **Bottom navigation, Strava-style layout.** (2026-10-10)
+     - Asked: improve the look and feel; instead of the top navigation
+       bar, use a bottom navigation bar, as is more common on phones, with
+       Strava's UI as the reference for layout and components (keeping
+       the Gruvbox colors).
+     - Changed: the tabs moved from the app bar to a bottom navigation
+       bar (`HomeNavigationBar`, a Material `NavigationBar`): icon over
+       label, the open tab filled and in yellow with a bold label, no
+       indicator pill, 64 dp, flat with a hairline on top; hidden signed
+       out. The app bar now names the open screen, bold and on the left
+       (none over the camera), with the account on the right. Tabs no
+       longer swipe: only a tap flips. The camera fills the screen above
+       the bar. Snackbars float above the bar. Tests: `widget_test.dart`
+       (the bar, the screen's name, no swiping), the rest moved to the
+       bar. Specs: [Navigation](navigation.md), [Theme](theme.md),
+       [Monitoring](monitoring.md), [Membership](membership.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [Camera](camera.md),
+       [Subjects](subjects.md).
+
+324. **Settings in grouped sections.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: group the Settings
+       screen's sections.
+     - Changed: each Settings section (`SettingsSection`) is a bold
+       heading over an edge-to-edge block a step lighter than the page
+       (bg1), the controls 16 dp in, 16 dp between groups; the version,
+       health line, Add a device and IDs follow on the page. Tests:
+       `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
+       [Settings](settings.md).
+
+325. **Monitoring as a feed.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: make Monitoring a
+       feed of event cards, with a rounded, filled search field.
+     - Changed: each timeline entry is one card (`FeedCard`): the device
+       and copies as its header row, the event's own card square inside
+       it; cards 12 dp apart (were 4). The events search field is filled
+       and rounded with no outline. A new event arriving while reading
+       further down now scrolls the list on by the new card's height, so
+       the cards being read don't move (taller cards had exposed that
+       they shifted down). Tests: `widget_test.dart` (the feed card, the
+       search field). Specs: [Events](events.md),
+       [Event copies](event-copies.md).
+
+326. **Every role from rbacr.** (2026-10-10)
+     - Asked: migrate authorization from the auth API (`presence_api_auth`)
+       to rbacr, so everything about authorization is an rbacr call. Roles
+       map `free` to member and `admin` to admin; vouchers stay here for
+       now (rbacr will get creating and redeeming for another address);
+       the old roles table is copied into rbacr.
+     - Changed: `Roles` takes every role from rbacr's `presence` system
+       (`RBACR_SYSTEM`): `free`, `premium` or `admin` gives
+       `presence_user`, `premium` or `admin` `presence_premium`, `admin`
+       `presence_admin`, and an rbacr root (its root list) all four with
+       `presence_root`. `Rbacr` asks once per email (`POST /api/roles`, no
+       `systemId`, so `globalRoles` says root), and grants (`POST
+       /api/systems/:id/grants`): an approved membership grants `free`, a
+       redeemed voucher `free` or `admin` (its answer lists the app's
+       roles that gives). Gone: the root allowlist (`RootDomains`,
+       `RootEmails`, `PRESENCE_ROOT_*` in deploy, CI, Floci and `.env`),
+       and reading or writing `UserRolesTable`'s roles, which now holds
+       only the voucher lockout (and its IAM is cut to that). Without an
+       rbacr token nobody has a role: `deploy.sh` requires one (no more
+       `RBACR_TOKEN=none`), `/health`'s `rbacr` check fails without it,
+       and the app's 🛂 RBACR card warns. The local Floci stack gets
+       `RBACR_*` from `.env`. New `scripts/migrate-roles-to-rbacr.sh`
+       copies the table's roles into rbacr (dry run by default). Tests:
+       `RolesTest`, `RbacrTest`, `MembershipTest`, `VoucherTest`,
+       `ProfileTest`, `ProfilesTest`, `UserRolesTest`, app
+       `system_health_test.dart`. Specs: [Auth API](auth-api.md),
+       [Membership](membership.md), [Premium and free](premium.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md),
+       [Health check](health-check.md), [Execution mode](execution-mode.md),
+       [Deploy](deploy.md), [Local CDN](local-cdn.md).
+
+327. **Local cloud sync fails: say why.** (2026-10-10)
+     - Asked: the local app says cloud sync is failing; check the logs and
+       improve them if needed.
+     - Found: the local auth API runs in Floci, which has no Cognito
+       Identity, so `POST /api/auth/credentials` fails (`GetId ... not
+       supported by floci`) whenever `.env` sets an identity pool (a known
+       limitation, see [Profiles](profiles.md)). The health monitor still
+       said 🪣 aws ✅ "events sync to S3".
+     - Changed: the health monitor asks Floci for Cognito Identity and,
+       without it, reports 🪣 aws ❌ with the reason and what to do. The
+       auth API's cause for an `UnknownOperationException` names the
+       emulator and the missing service, and says it works only against
+       AWS (the RC or production), instead of "(a local AWS emulator?)".
+       Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
+       [Profiles](profiles.md).
+
+328. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+     - Asked: move the profile icon to the bottom navigation bar as well,
+       and make it open just like the other panes; then call it Profile
+       (it was first named Account).
+     - Changed: a new last tab, **Profile** (`HomeTab.profile`), shown
+       signed in (not DEV): its icon is the user's avatar, ringed in the
+       accent color while open, tooltip "Signed in as …"; it opens the
+       account sheet's content as a page of the tabs, named "Profile" in
+       the app bar. The app bar's account button is gone with access; it
+       stays, with its bottom sheet, for a signed-in user without access.
+       Sign-out only closes a sheet when there is one. Tests:
+       `widget_test.dart` (the tab, its page, sign-out), the tab counts and
+       the account-sheet tests moved to the tab. Specs:
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [About](about.md).
+
+329. **Screen off to save battery.** (2026-10-10)
+     - Asked: a good way to save battery on Android; whether the screen
+       can be turned off while capture goes on, and if so a button for
+       it in the camera view.
+     - Changed: capture already went on with the screen off (the capture
+       service and its wake lock), but the app kept the screen on. A new
+       icon-only **Screen off** button on the Camera tab (Android only)
+       covers the app in black, stops keeping the screen on, drops it to
+       the lowest brightness and pauses the preview, so the system's
+       timeout turns the screen off; a tap brings it back. Tests:
+       `screen_off_test.dart`. Specs: [Camera](camera.md),
+
+330. **One health-check line per run.** (2026-10-10)
+     - Asked: make the health check script print only one line per run,
+       one icon per check with a status flag.
+     - Changed: `scripts/health-check.sh` now prints one line per pass:
+       the time, then `<emoji> <label> ✅|❌|⚪` per check joined by ` · `
+       (as the Settings health line), with no reasons. Follow-up: each
+       icon got a short label (`🏠 Index`, `🔌 API`, `👮 RBACR`, …); AWS is ☁️ (as in the
+       app's Settings line, was 🪣), so the CDN is 🚚, and RBACR is 👮 (was
+       🛂). rbacr's own `/health` got
+       its own icon, 💎, apart from the API's 👮 rbacr setting. The pass
+       is a `run_checks` function; sourcing the script defines it without
+       starting the loop. Specs: [Dev environment](dev-environment.md),
+       [Premium and free](premium.md); README sample updated.
+
+331. **Encrypt every image and recording with a key per device.**
+     (2026-10-10)
+     - Asked: generate a symmetric key for each device together with its
+       device ID; encrypt every image with it before it's stored or sent,
+       so all images in storage and in transit are encrypted (in the
+       spec); event metadata (times, subjects, tags) needn't be. Then:
+       delete the existing unencrypted data and events, always encrypt,
+       and share the keys with the profile's other devices so they open
+       each other's events, through the devices' settings in S3.
+     - Changed: an AES-256 key per device, made with the device ID in one
+       transaction (`EventStore.deviceIdentity`). Thumbnails, tagged
+       frames and recordings are sealed (`SealFormat`: chunked
+       AES-256-GCM, the key's device ID in the header) when they're made
+       or saved, and opened only in memory (`SealedImage`) or into a
+       temporary file deleted after playing or searching (`MediaUrls`
+       now tracks files off the web). Native recordings are
+       `clips/<id>.sealed`. Cloud sync and live sync move only sealed
+       media (S3 type `application/octet-stream`); unsealed images are
+       never sent and are skipped when received. Keys: `mediaKey` in
+       `devices/<id>/settings.json`, read for the profile's other devices
+       on the first pass, hourly and when one is missing; also in each
+       live event message (free profiles have no bucket); kept locally in
+       `keys`. Unencrypted data is deleted: on the device, when an older
+       install gets its key; in the cloud, once per device and profile,
+       everything under `events/`, `clips/` and `media/` older than the
+       profile's `encryption.json` marker. Infra: `s3:DeleteObject` on the
+       profile's folder, `DELETE` in the bucket's CORS. Package:
+       `cryptography`. Tests: `media_seal_test.dart`,
+       `encryption_test.dart`, and fixtures sealed across the suite.
+       Specs: [Media encryption](encryption.md) (new),
+       [Devices, users and places](devices-users-places.md),
+       [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Android](android.md).

@@ -78,9 +78,10 @@ there's no separate sign-in screen:
   sign-in at all, and everything below about signing in doesn't apply.
 - **Signed out (RBAC):** the anonymous user (`presence_anonymous`) may only
   sign in. The camera shows full screen, always recording as
-  usual, with **no buttons on it** (no Flip, Clip or readiness), and the
-  **navigation is hidden**: the app bar has only
-  **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip
+  usual, with **no buttons on it** (no view, Flip or Clip button), and the
+  **navigation is hidden**: no bottom navigation bar, and the app bar
+  has only **Sign in with Google**. Nothing is uploaded. You can't switch
+  to Monitoring or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
   `renderButton` with FedCM, medium size to fit the app bar), as Google
   Identity Services requires. On Android and iOS it's an app button that
@@ -110,10 +111,8 @@ there's no separate sign-in screen:
   - **With `presence_admin` too,** an **Admin** icon also shows, left of
     the account button (see [Membership](membership.md)). With
     `presence_root` as well (`RolesService.isRoot`), its voucher form also
-    offers Admin codes. A root on a root domain (`nu01.com`) must sign in
-    with that domain's Google Workspace account (the ID token's `hd`); a
-    personal Google account registered with a `nu01.com` address gets no
-    root roles (see [Auth API](auth-api.md)).
+    offers Admin codes. Every role comes from rbacr, roots from its root
+    list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
     icon. The icon opens "Request access", where the user writes a message
@@ -134,13 +133,53 @@ there's no separate sign-in screen:
     them.
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
-- **Signed in as a `presence_user`:** all the buttons: the camera's Flip, Clip and
-  readiness, the Camera / Events / Settings tabs and
-  the **account button**, your avatar with the tooltip "Signed in as
-  <name> · <email>". It opens a bottom sheet with avatar, name, email, the
-  [cloud sync](cloud-sync.md) status, the **profile** and its **devices**,
-  and **Sign out**. Signing out closes the sheet, returns to the camera and
-  hides the navigation again. The camera keeps running.
+- **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
+  (with its readiness colors), the tabs and, last among them, the
+  **Profile** tab: your avatar with the tooltip "Signed in as
+  <name> · <email>" (see [Navigation](navigation.md)). It opens, as a
+  page of the tabs, the **account sheet**'s content: avatar, name, email,
+  the user's **roles**, this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
+  the **profile** and its **devices**, and **Sign out**. Signing out returns to the camera and
+  hides the navigation again (closing the sheet, where it's one: signed
+  in without access, the app bar's account button still opens it as a
+  bottom sheet). The camera keeps running.
+  - **Roles**, always, right under the email (`AccountRoles`): a small
+    outlined chip per role the auth API gave, named for people (Member,
+    Premium, Admin, Root; another role keeps its ID), in that order, the
+    role's ID as each chip's tooltip, and "Roles: Member, Admin" for screen
+    readers. "No roles yet" without any (a signed-in account without
+    access), "Checking roles…" while the auth API is asked. The anonymous
+    role isn't shown.
+  - **Connectivity** (`ConnectivityIndicator`,
+    [lib/connectivity.dart](../presence_app/lib/connectivity.dart)), under
+    the email: one rounded row, tinted in its color, with a dot and a
+    headline for **this device**, built from the health checks
+    (`SystemHealth.statusOf`, the same as the Log tab's
+    [health panel](log.md)): the auth API, cloud sync (AWS) and
+    [live sync](live-sync.md). The worst check decides (`Connectivity.of`):
+    - 🟢 **green** only when the auth API answers, cloud sync is set (or
+      syncing: its 15 s passes don't flicker it) and live sync is
+      **connected**: "Online · live sync connected";
+    - 🟡 **amber** when degraded: checking the API ("Checking the
+      connection…"), "Connecting to live sync…", "Live sync idle · next
+      in 0:42" (counting down each second), "Live sync connects once
+      synced", "Live sync is off" (Never), "Live sync isn't set up in
+      this build" (no `IOT_ENDPOINT`), "Cloud sync isn't set up in this
+      build", or set on one side only;
+    - 🔴 **red** when a check failed: "Offline: can't reach the server"
+      (the auth API didn't answer), "Cloud sync failed", "Live sync
+      failed". Among checks of the same color, the API speaks first, then
+      cloud sync, then live sync.
+
+    Tapping it expands (and collapses) each check's line with its emoji
+    and explanation, the error included ("❌ Live: failed (…)"), and a
+    note that other devices see this one live only while live sync is
+    connected. Its tooltip and screen-reader label (a button, with its
+    expanded state) read "Connectivity: <headline>" and the three
+    explanations. It asks the auth API again (`RolesService.checkApi`)
+    when the sheet opens and every 15 s (DEV) or 60 s (RBAC) while it's
+    open, and updates as the checks change. It fits 320 dp at a 2x
+    system font (the headline wraps).
   - **Profile:** the [profile](profiles.md) ID
     (`automatic_paranoid_axolotl`), the profile's only name, selectable to
     copy, in `titleMedium` (16 sp).
@@ -150,7 +189,10 @@ there's no separate sign-in screen:
     devices and linked accounts' devices show. This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
-    long. Each ID is selectable, in `bodyLarge` (16 sp); "this device"
+    long. Each ID is selectable, in `bodyLarge` (16 sp); with access it's
+    in the accent color and a tap **shows the device's events**: the
+    sheet closes and Monitoring opens with the search set to the ID (see
+    [Navigation](navigation.md)); "this device"
     sits beside it, or under it when they don't fit on one line (at 320
     dp with a 2x system font). A device shows only once one of its
     events has synced here, and drops off when its events age out of
@@ -179,7 +221,9 @@ there's no separate sign-in screen:
       this device while connected to live sync), yellow (heard from or an
       event within 24 h), red (older, or never), with the reason ("Live —
       answered 5 s ago", "Last seen 3 h ago") as tooltip and screen-reader
-      label; without live sync, yellow or red from the latest event, and
+      label. **This device's** dot is the connectivity row's color, with
+      its headline as the reason ("This device — Live sync failed"),
+      updating with it (`ProfileDevices.thisPresence`). Without live sync, yellow or red from the latest event, and
       the reason says live status is unavailable. The list pings the
       devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with

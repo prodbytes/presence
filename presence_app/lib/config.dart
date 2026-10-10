@@ -458,6 +458,10 @@ enum LiveMode {
 /// [LiveConfig.every] ([LiveMode.scheduled]), or [LiveMode.always]. Kept per
 /// device. The slider's steps are [steps]: Never, then [intervals], then
 /// Always.
+///
+/// What it's set to isn't always how live sync connects: that depends on
+/// the user's roles too ([effective]). Admins are always connected; other
+/// users (members) connect at most every 30 s, so Always isn't theirs.
 @immutable
 class LiveConfig {
   /// Not clamped (tests use short intervals); [fromJson] and [ofStep]
@@ -471,6 +475,7 @@ class LiveConfig {
   /// persistent session expiry (1 h), so the broker still holds what
   /// arrived while the device was away.
   static const List<Duration> intervals = [
+    Duration(seconds: 30),
     Duration(minutes: 1),
     Duration(minutes: 2),
     Duration(minutes: 5),
@@ -482,13 +487,37 @@ class LiveConfig {
 
   static const Duration defaultEvery = Duration(minutes: 1);
 
+  /// The most often a member (not an admin) connects: what Always becomes
+  /// for them ([effective]).
+  static const Duration memberMinEvery = Duration(seconds: 30);
+
   /// How many steps the slider has: Never, the [intervals], Always.
-  static const int steps = 2 + 7;
+  static const int steps = 2 + 8;
+
+  /// The last step a member may pick: the slowest interval (Always, the
+  /// step after it, is for admins).
+  static const int memberMaxStep = steps - 2;
 
   final LiveMode mode;
 
   /// Between scheduled connections ([LiveMode.scheduled] only).
   final Duration every;
+
+  /// How live sync connects with this setting, for a user who [isAdmin]
+  /// or not. Admins: [always], whatever it's set to, so their (often
+  /// unattended) devices are always reachable. Others: as set, but Always
+  /// becomes every [memberMinEvery], and nothing more often than that.
+  /// The setting itself is kept, so an admin who stops being one gets
+  /// their own choice back (clamped).
+  LiveConfig effective({required bool isAdmin}) {
+    if (isAdmin) return always;
+    return switch (mode) {
+      LiveMode.never => this,
+      LiveMode.always => const LiveConfig(every: memberMinEvery),
+      LiveMode.scheduled =>
+        every < memberMinEvery ? const LiveConfig(every: memberMinEvery) : this,
+    };
+  }
 
   /// This setting's step on the slider: 0 is Never, the last is Always.
   int get step => switch (mode) {
@@ -504,12 +533,18 @@ class LiveConfig {
     return LiveConfig(every: intervals[step - 1]);
   }
 
-  /// The step's label: "Never", "1 min", "60 min", "Always".
+  /// The step's label: "Never", "Every 30 s", "Every 60 min", "Always".
   String get label => switch (mode) {
     LiveMode.never => 'Never',
     LiveMode.always => 'Always',
-    LiveMode.scheduled => 'Every ${_snap(every).inMinutes} min',
+    LiveMode.scheduled => 'Every ${formatEvery(_snap(every))}',
   };
+
+  /// [every] as "30 s" under a minute, else "5 min".
+  static String formatEvery(Duration every) =>
+      every < const Duration(minutes: 1)
+      ? '${every.inSeconds} s'
+      : '${every.inMinutes} min';
 
   /// [d] as the nearest of [intervals].
   static Duration _snap(Duration d) =>
@@ -584,14 +619,23 @@ class RecognitionConfig {
     this.autoTag = defaultAutoTag,
   });
 
-  static const double minConfidence = 0.3;
+  static const double minConfidence = 0.5;
   static const double maxConfidence = 0.95;
   static const double step = 0.05;
-  static const double defaultAutoTag = 0.85;
 
-  /// Under this confidence a match isn't asked about: a face scoring 30 %
-  /// has a cosine of 0.45, where different people mostly score (see
-  /// `faceConfidence`), so asking would mostly be about strangers.
+  /// 90 %: a face's cosine of 0.615, a person's look's of 0.79 (see
+  /// `faceConfidence`, `lookConfidence`). It was 85 %, which tagged too
+  /// many strangers as someone known.
+  static const double defaultAutoTag = 0.90;
+
+  /// The default before it was raised: a device still on it (never
+  /// changed) takes the new [defaultAutoTag].
+  static const double oldDefaultAutoTag = 0.85;
+
+  /// Under this confidence a match isn't asked about: a face scoring 50 %
+  /// has a cosine of 0.475, above 99.9 % of different people's (LFW), a
+  /// person's look 0.675 (see `faceConfidence`, `lookConfidence`); lower,
+  /// asking would mostly be about strangers.
   static const double askFloor = minConfidence;
 
   final bool enabled;
@@ -617,13 +661,19 @@ class RecognitionConfig {
   };
 
   /// Records from before always asking also have an `ask` level; it's
-  /// ignored.
-  factory RecognitionConfig.fromJson(Map<String, Object?> json) =>
-      const RecognitionConfig().copyWith(
-        enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
-        objects: json['objects'] is bool ? json['objects']! as bool : null,
-        autoTag: _num(json['autoTag']),
-      );
+  /// ignored. One left at the [oldDefaultAutoTag] takes the
+  /// [defaultAutoTag]; one under [minConfidence] is raised to it.
+  factory RecognitionConfig.fromJson(Map<String, Object?> json) {
+    final autoTag = _num(json['autoTag']);
+    return const RecognitionConfig().copyWith(
+      enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
+      objects: json['objects'] is bool ? json['objects']! as bool : null,
+      autoTag:
+          autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
+          ? defaultAutoTag
+          : autoTag,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

@@ -18,6 +18,8 @@ import 'package:presence_app/subjects.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A stored clip from [minutesAgo] minutes before noon, at [lat], with
 /// [names] tagged on one frame.
 ClipRequested clipWith(
@@ -28,7 +30,7 @@ ClipRequested clipWith(
   String id = '',
 }) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }
@@ -71,7 +73,7 @@ void main() {
       // Tagged twice in one clip still counts once; newest event first.
       expect(rex.sightings.map((s) => s.event.id), ['event-10', 'event-30']);
       expect(rex.name, 'rex', reason: 'as written on the latest event');
-      expect(rex.latest.frame?.jpeg, onePixelPng);
+      expect(opened(rex.latest.frame!.sealed), onePixelPng);
     });
 
     test('dots fade from the newest to the oldest', () {
@@ -482,7 +484,7 @@ void main() {
     });
 
     testWidgets("the map shows every device until an event's device is "
-        'tapped, with the events', (tester) async {
+        'tapped (searched for), with the events', (tester) async {
       log.addHistory([
         // Close together: both in view at street level.
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
@@ -505,30 +507,30 @@ void main() {
       );
       await tester.pumpAndSettle();
       final here = find.byKey(const Key('event-device-event-1'));
-      final chip = find.byKey(const Key('device-filter'));
+      final search = find.byKey(const Key('event-search'));
       final rex = find.byKey(const Key('subjects-dot-rex-event-1'));
       final ana = find.byKey(const Key('subjects-dot-ana-event-2'));
       final events = find.byKey(const Key('events-page'));
       Finder card(String name) =>
           find.descendant(of: events, matching: find.text(name));
 
-      expect(chip, findsNothing);
+      expect(search, findsNothing);
       expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
 
       await tester.tap(here);
       await tester.pumpAndSettle();
-      expect(chip, findsOneWidget);
+      expect(tester.widget<TextField>(search).controller!.text, 'here');
       expect(rex, findsOneWidget);
       expect(ana, findsNothing);
       expect(find.byKey(const Key('subjects-label-ana')), findsNothing);
       expect(card('Rex'), findsOneWidget);
       expect(card('Ana'), findsNothing);
 
-      await tester.tap(find.byTooltip('Show every device'));
+      await tester.tap(find.byTooltip('Clear search'));
       await tester.pumpAndSettle();
-      expect(chip, findsNothing);
+      expect(search, findsNothing);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
     });
@@ -653,6 +655,8 @@ void main() {
       );
       final slider = find.byKey(const Key('subject-events-slider'));
       await tester.scrollUntilVisible(slider, 100);
+      await tester.ensureVisible(slider);
+      await tester.pumpAndSettle();
       expect(find.text('How many events to load at once'), findsOneWidget);
       expect(find.text('100'), findsOneWidget);
       // Below every other setting, the Advanced section's too.

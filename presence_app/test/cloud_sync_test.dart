@@ -14,6 +14,7 @@ import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
 
 import 'fakes.dart';
+import 'sealed.dart';
 
 void main() {
   late EventStore store;
@@ -41,13 +42,13 @@ void main() {
       'clipId': 'c1',
       'clipState': 'complete',
     });
-    await store.putMedia('c1-full', Uint8List.fromList([1, 2, 3]));
+    await store.putMedia('c1-full', sealed([1, 2, 3]));
     await store.putClip({
       'id': 'c1',
       'eventId': 'e2',
       'cameraId': 'cam',
       'state': 'complete',
-      'thumbnail': Uint8List.fromList([9, 9]),
+      'thumbnail': sealed([9, 9]),
       'full': {
         'mediaId': 'c1-full',
         'startMs': 0,
@@ -104,8 +105,9 @@ void main() {
         'us-east-1:identity/events/year=1970/day=001/e2.json',
       });
       final video = backend.uploads['us-east-1:identity/media/c1.webm']!;
-      expect(video.bytes, [1, 2, 3]);
-      expect(video.contentType, 'video/webm;codecs=vp8,opus');
+      expect(opened(video.bytes), [1, 2, 3]);
+      // Sealed: its type is in the clip's record, not on the object.
+      expect(video.contentType, CloudSync.sealedType);
       final details = jsonDecode(
         utf8.decode(
           backend
@@ -196,7 +198,7 @@ void main() {
       'time': 5,
       'clipId': 'c5',
     });
-    await store.putMedia('c5-full', Uint8List.fromList([5, 5]));
+    await store.putMedia('c5-full', sealed([5, 5]));
     await store.putClip({
       'id': 'c5',
       'eventId': 'e5',
@@ -216,7 +218,7 @@ void main() {
       '$p/clips/year=1970/day=001/c5.json',
       '$p/events/year=1970/day=001/e5.json',
     });
-    expect(backend.uploads['$p/media/c5.mp4']!.bytes, [5, 5]);
+    expect(opened(backend.uploads['$p/media/c5.mp4']!.bytes), [5, 5]);
 
     // Named but unchanged: nothing goes up.
     backend.uploads.clear();
@@ -420,7 +422,7 @@ void main() {
       'clipId': 'c3',
       'userId': '2',
     });
-    await store.putMedia('c3-full', Uint8List.fromList([4]));
+    await store.putMedia('c3-full', sealed([4]));
     await store.putClip({
       'id': 'c3',
       'eventId': 'other',
@@ -494,12 +496,12 @@ void main() {
           contentType: 'application/json',
         );
         backend.uploads['$prefix/media/r1.mp4'] = (
-          bytes: Uint8List.fromList([7, 7, 7]),
-          contentType: 'video/mp4',
+          bytes: sealed([7, 7, 7]),
+          contentType: CloudSync.sealedType,
         );
         backend.uploads['$prefix/media/r1.jpg'] = (
-          bytes: Uint8List.fromList([5]),
-          contentType: 'image/jpeg',
+          bytes: sealed([5]),
+          contentType: CloudSync.sealedType,
         );
         backend.uploads['$prefix/events/re1.json'] = (
           bytes: json({
@@ -541,9 +543,11 @@ void main() {
         // Events in the profile's folder are the profile's.
         expect(remote.single.events.map((e) => e['profileId']).toSet(), {'1'});
         expect(remote.single.clips.single['id'], 'r1');
-        expect(remote.single.clips.single['thumbnail'], [5]);
+        expect(opened(remote.single.clips.single['thumbnail']! as Uint8List), [
+          5,
+        ]);
         // The recording is stored as it's downloaded, not handed over.
-        expect(await store.getMedia('r1-full'), [7, 7, 7]);
+        expect(opened((await store.getMedia('r1-full'))!), [7, 7, 7]);
         expect(
           backend.downloads,
           containsAll([
@@ -597,8 +601,8 @@ void main() {
           contentType: 'application/json',
         );
         backend.uploads['$prefix/media/$id.webm'] = (
-          bytes: Uint8List.fromList([1]),
-          contentType: 'video/webm',
+          bytes: sealed([1]),
+          contentType: CloudSync.sealedType,
         );
       }
 
@@ -645,7 +649,7 @@ void main() {
 
       expect(remote.single.events.map((e) => e['id']), ['new']);
       expect(remote.single.clips.map((c) => c['id']), ['c-new']);
-      expect(await store.getMedia('c-new-full'), [1]);
+      expect(opened((await store.getMedia('c-new-full'))!), [1]);
       expect(await store.getMedia('c-old-full'), isNull);
       expect(
         backend.downloads.where((k) => k.contains('old')),
@@ -829,7 +833,11 @@ void main() {
       test('another device\'s new event comes down on the next pass, '
           'which lists only today and yesterday', () async {
         await start();
-        expect(backend.listings.first, 'events/', reason: 'first: all');
+        expect(
+          backend.listings.where((p) => p != 'devices/').first,
+          'events/',
+          reason: 'first: all',
+        );
 
         uploadedElsewhere(
           'from-phone',
@@ -1070,12 +1078,12 @@ void main() {
           contentType: 'application/json',
         );
         backend.uploads['$prefix/media/$id.mp4'] = (
-          bytes: Uint8List.fromList([n, n]),
-          contentType: 'video/mp4',
+          bytes: sealed([n, n]),
+          contentType: CloudSync.sealedType,
         );
         backend.uploads['$prefix/media/$id.jpg'] = (
-          bytes: Uint8List.fromList([n]),
-          contentType: 'image/jpeg',
+          bytes: sealed([n]),
+          contentType: CloudSync.sealedType,
         );
         final event = {
           'id': 'e-$id',
@@ -1136,11 +1144,16 @@ void main() {
           'e-r2',
           'e-r1',
         ]);
-        expect(remote.expand((r) => r.clips).map((c) => c['thumbnail']), [
-          [3],
-          [2],
-          [1],
-        ]);
+        expect(
+          remote
+              .expand((r) => r.clips)
+              .map((c) => opened(c['thumbnail']! as Uint8List)),
+          [
+            [3],
+            [2],
+            [1],
+          ],
+        );
         for (final downloaded in downloadedAtDelivery) {
           expect(downloaded.where(isRecording), isEmpty);
         }
@@ -1150,8 +1163,8 @@ void main() {
           'media/r2.mp4',
           'media/r1.mp4',
         ]);
-        expect(await store.getMedia('r1-full'), [1, 1]);
-        expect(await store.getMedia('r3-full'), [3, 3]);
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
+        expect(opened((await store.getMedia('r3-full'))!), [3, 3]);
         final synced = await store.syncedKeys();
         expect(synced['$prefix/media/r1.mp4'], 'r1-full');
         expect(synced.keys.where((k) => k.startsWith('fetch:')), isEmpty);
@@ -1175,7 +1188,7 @@ void main() {
         expect(remote.single.events.map((e) => e['id']), ['e-r2', 'e-r1']);
         expect(sync.state, CloudSyncState.synced);
         // The other one came down.
-        expect(await store.getMedia('r1-full'), [1, 1]);
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
         expect(await store.getMedia('r2-full'), isNull);
         final synced = await store.syncedKeys();
         expect(synced['fetch:$prefix/media/r2.mp4'], '2:r2-full');
@@ -1195,7 +1208,7 @@ void main() {
         changes.add({});
         await sync.idle();
         expect(backend.downloads.where(isRecording), ['media/r2.mp4']);
-        expect(await store.getMedia('r2-full'), [2, 2]);
+        expect(opened((await store.getMedia('r2-full'))!), [2, 2]);
         expect(
           (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
           isEmpty,
@@ -1211,7 +1224,7 @@ void main() {
         );
         await start(prefetch: true);
         expect(backend.resets, greaterThan(0));
-        expect(await store.getMedia('r1-full'), [1, 1]);
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
         expect(
           (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
           isEmpty,
@@ -1234,7 +1247,7 @@ void main() {
         // Played: downloaded then, and synced.
         expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
         expect(backend.downloads.where(isRecording), ['media/r1.mp4']);
-        expect(await store.getMedia('r1-full'), [1, 1]);
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
         final synced = await store.syncedKeys();
         expect(synced['$prefix/media/r1.mp4'], 'r1-full');
         expect(synced.containsKey('fetch:$prefix/media/r1.mp4'), isFalse);
@@ -1359,7 +1372,7 @@ void main() {
           ],
         }),
       );
-      put('media/cg/frames/../evil.jpg', Uint8List.fromList([6]));
+      put('media/cg/frames/../evil.jpg', sealed([6]));
       // Its clip's recording reference has no media ID: the clip comes
       // without it.
       put(
@@ -1515,7 +1528,7 @@ void main() {
           },
         ],
         'frames': {
-          'f1': Uint8List.fromList([9, 8, 7]),
+          'f1': sealed([9, 8, 7]),
         },
       });
       await auth.signIn();
@@ -1523,8 +1536,8 @@ void main() {
 
       const prefix = 'us-east-1:identity';
       final frame = backend.uploads['$prefix/media/c1/frames/f1.jpg'];
-      expect(frame?.bytes, [9, 8, 7]);
-      expect(frame?.contentType, 'image/jpeg');
+      expect(opened(frame!.bytes), [9, 8, 7]);
+      expect(frame.contentType, CloudSync.sealedType);
       final eventKey = backend.uploads.keys.singleWhere(
         (k) => k.endsWith('/t1.json'),
       );
@@ -1551,7 +1564,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await otherSync.idle();
       final event = fetched.single.events.singleWhere((e) => e['id'] == 't1');
-      expect((event['frames'] as Map)['f1'], [9, 8, 7]);
+      expect(opened((event['frames'] as Map)['f1'] as Uint8List), [9, 8, 7]);
       otherSync.dispose();
       other.close();
     },
@@ -1664,8 +1677,11 @@ void main() {
       expect(backend.uploads.keys, contains(key));
       changes.add(null);
       await withSettings.idle();
+      // Its own folder once; and every device's, once, for their media
+      // keys (on the first pass and each full fetch).
       expect(backend.listings.where((l) => l.startsWith('devices/')), [
         'devices/dev-1/',
+        'devices/',
       ]);
 
       final before = backend.uploads[key]!.bytes;

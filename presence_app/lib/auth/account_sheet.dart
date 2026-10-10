@@ -4,7 +4,9 @@ import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
+import '../device_events.dart';
 import '../cloud/live_sync.dart';
+import '../connectivity.dart';
 import '../device_presence.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
@@ -60,14 +62,18 @@ class AccountButton extends StatelessWidget {
             showDragHandle: true,
             // Room to scroll a long device list.
             isScrollControlled: true,
-            builder: (_) => AccountSheet(
-              auth: auth,
-              sync: sync,
-              roles: roles,
-              profiles: profiles,
-              log: log,
-              deviceId: deviceId,
-              deleteDevice: deleteDevice,
+            // A device's ID shows its events ([ShowDeviceEvents]).
+            builder: (_) => ShowDeviceEvents.capture(
+              context,
+              AccountSheet(
+                auth: auth,
+                sync: sync,
+                roles: roles,
+                profiles: profiles,
+                log: log,
+                deviceId: deviceId,
+                deleteDevice: deleteDevice,
+              ),
             ),
           ),
         );
@@ -103,6 +109,8 @@ class SignInAction extends StatelessWidget {
 
 /// Sign in with Google, or show who is signed in, their profile and its
 /// devices, and offer sign-out; then what Presence is ([AboutParagraph]).
+/// A bottom sheet from [AccountButton] (signed in without access), or the
+/// Profile tab's page.
 class AccountSheet extends StatelessWidget {
   const AccountSheet({
     super.key,
@@ -148,7 +156,8 @@ class AccountSheet extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return ListenableBuilder(
-      listenable: Listenable.merge([auth, ?roles, ?log]),
+      // Cloud and live sync too: this device's dot shows its connectivity.
+      listenable: Listenable.merge([auth, ?roles, ?log, ?sync, ?sync?.live]),
       builder: (context, _) {
         final user = auth.user;
         final error = auth.error;
@@ -194,6 +203,12 @@ class AccountSheet extends StatelessWidget {
                       user.email,
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
+                    if (roles case final roles?) ...[
+                      const SizedBox(height: 8),
+                      AccountRoles(roles: roles),
+                      const SizedBox(height: 12),
+                      ConnectivityIndicator(roles: roles, sync: sync),
+                    ],
                     if (sync case final sync?) ...[
                       const SizedBox(height: 8),
                       CloudSyncStatus(sync: sync),
@@ -214,6 +229,13 @@ class AccountSheet extends StatelessWidget {
                           thisDevice: deviceId,
                           now: now,
                           live: sync?.live,
+                          thisPresence: switch (roles) {
+                            final roles? => Connectivity.of(
+                              roles,
+                              sync,
+                            ).presence,
+                            null => null,
+                          },
                           onDelete: switch (deleteDevice) {
                             final delete? =>
                               (id) => deleteDeviceAfterConfirming(
@@ -248,10 +270,11 @@ class AccountSheet extends StatelessWidget {
                       key: const Key('sign-out'),
                       icon: const Icon(Icons.logout),
                       label: const Text('Sign out'),
-                      // Close the sheet first: signing out swaps the whole
-                      // app for the sign-in screen.
+                      // Close the sheet first (as a page of the tabs there's
+                      // nothing to close): signing out swaps the whole app
+                      // for the sign-in screen.
                       onPressed: () {
-                        Navigator.of(context).pop();
+                        Navigator.of(context).maybePop();
                         auth.signOut();
                       },
                     ),
@@ -346,7 +369,8 @@ String exactTime(DateTime time) {
 
 /// The profile's ID and its devices, each with its operating system's
 /// icon and name and how long ago its latest event was (the exact time in
-/// a tooltip). IDs are selectable to copy.
+/// a tooltip). IDs are selectable to copy; a tapped device ID shows its
+/// events ([DeviceEventsLink]).
 class ProfileDevices extends StatelessWidget {
   const ProfileDevices({
     super.key,
@@ -356,7 +380,13 @@ class ProfileDevices extends StatelessWidget {
     this.now,
     this.onDelete,
     this.live,
+    this.thisPresence,
   });
+
+  /// [thisDevice]'s presence dot, when given: its connectivity
+  /// ([Connectivity.presence]), as the account sheet's indicator shows it.
+  /// Otherwise green while live sync is connected.
+  final DevicePresence? thisPresence;
 
   /// Live sync: which devices answer its pings, for each device's
   /// presence dot ([DevicePresence]).
@@ -428,19 +458,31 @@ class ProfileDevices extends StatelessWidget {
                       children: [
                         PresenceDot(
                           key: Key('presence-${device.id}'),
-                          presence: DevicePresence.of(
-                            answeredAt: live?.seenOf(device.id),
-                            lastEvent: device.lastEvent,
-                            now: at,
-                            liveAvailable: available,
-                            thisDevice: device.id == thisDevice,
-                            connected: live?.state == LiveSyncState.connected,
-                          ),
+                          presence: switch (thisPresence) {
+                            final presence? when device.id == thisDevice =>
+                              presence,
+                            _ => DevicePresence.of(
+                              answeredAt: live?.seenOf(device.id),
+                              lastEvent: device.lastEvent,
+                              now: at,
+                              liveAvailable: available,
+                              thisDevice: device.id == thisDevice,
+                              connected: live?.state == LiveSyncState.connected,
+                            ),
+                          },
                         ),
-                        SelectableText(
-                          device.id,
-                          key: Key('profile-device-id-${device.id}'),
-                          style: theme.textTheme.bodyLarge,
+                        DeviceEventsLink(
+                          device: device.id,
+                          builder: (context, onTap) => SelectableText(
+                            device.id,
+                            key: Key('profile-device-id-${device.id}'),
+                            onTap: onTap,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: onTap == null
+                                  ? null
+                                  : theme.colorScheme.primary,
+                            ),
+                          ),
                         ),
                         if (device.id == thisDevice)
                           Text('this device', style: muted),
@@ -551,8 +593,93 @@ class UserAvatar extends StatelessWidget {
   }
 }
 
+/// The signed-in user's roles, always shown under their email: a small
+/// chip per role, named for people ([labelOf]: Member, Admin, Root,
+/// Premium), the role's ID in its tooltip; "No roles yet" without any, and
+/// "Checking roles…" while the auth API is asked. The anonymous role isn't
+/// shown (it's everyone's before signing in).
+class AccountRoles extends StatelessWidget {
+  const AccountRoles({super.key, required this.roles});
+
+  final RolesService roles;
+
+  /// What a role is called here; another role keeps its ID.
+  static String labelOf(String role) => switch (role) {
+    userRole => 'Member',
+    adminRole => 'Admin',
+    rootRole => 'Root',
+    premiumRole => 'Premium',
+    _ => role,
+  };
+
+  /// The order they're shown in: as listed in [labelOf], then the others.
+  static int _rank(String role) => switch (role) {
+    userRole => 0,
+    premiumRole => 1,
+    adminRole => 2,
+    rootRole => 3,
+    _ => 4,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final style = Theme.of(context).textTheme.labelMedium;
+    final shown =
+        [
+          for (final role in roles.roles)
+            if (role != anonymousRole) role,
+        ]..sort((a, b) {
+          final byRank = _rank(a).compareTo(_rank(b));
+          return byRank != 0 ? byRank : a.compareTo(b);
+        });
+    Widget note(String text) =>
+        Text(text, style: style?.copyWith(color: scheme.onSurfaceVariant));
+    return Semantics(
+      container: true,
+      label: shown.isEmpty ? null : 'Roles: ${shown.map(labelOf).join(', ')}',
+      child: KeyedSubtree(
+        key: const Key('account-roles'),
+        child: switch (roles.state) {
+          AccessState.starting ||
+          AccessState.checking when shown.isEmpty => note('Checking roles…'),
+          _ when shown.isEmpty => note('No roles yet'),
+          _ => Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final role in shown)
+                Tooltip(
+                  message: role,
+                  excludeFromSemantics: true,
+                  child: Container(
+                    key: Key('account-role-$role'),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: scheme.outlineVariant),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ExcludeSemantics(
+                      child: Text(labelOf(role), style: style),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        },
+      ),
+    );
+  }
+}
+
 /// One line about cloud uploads: syncing, synced (and how many), or why not
-/// (with a Retry button once syncing has stopped).
+/// (with a Retry button once syncing has stopped). A free profile has no
+/// cloud backup: the line says its devices sync with each other instead,
+/// and that backup is Premium's.
 class CloudSyncStatus extends StatelessWidget {
   const CloudSyncStatus({super.key, required this.sync});
 
@@ -564,7 +691,14 @@ class CloudSyncStatus extends StatelessWidget {
     return ListenableBuilder(
       listenable: sync,
       builder: (context, _) {
+        final free = !sync.premium;
         final (icon, text, color) = switch (sync.state) {
+          CloudSyncState.syncing || CloudSyncState.synced when free => (
+            Icons.devices_outlined,
+            'Free: your devices sync with each other while online. '
+                'Cloud backup is Premium.',
+            scheme.onSurfaceVariant,
+          ),
           CloudSyncState.off => (
             Icons.cloud_off_outlined,
             'Cloud backup is off',

@@ -34,11 +34,11 @@ separate setting, so a system with sign-in can't be opened by mistake.
 - The anonymous user is a **root** (every role, as the table says), so
   every feature shows: the Camera, Monitoring, Settings and Log tabs (the
   Log on by default here, and it can be turned off in Settings), and
-  the camera's Clip, Flip and readiness controls.
+  the camera's view, Flip and Clip (with its readiness colors) buttons.
 - What only makes sense with accounts is hidden: **Sign in with Google**,
   the account button and sheet, the sign-up icon and the **Admin** tab.
-- An outlined **"dev"** label sits on the left of the app bar (there's no
-  title), in 14 sp
+- An outlined **"dev"** label sits on the left of the app bar, after the
+  screen's name (alone over the camera, which has no name), in 14 sp
   text (`labelLarge`; it was 11 sp, `labelSmall`). When
   the build has a version, it shows it too: **"dev 0.4.202610011728"**
   (`DevModeLabel`, from `AppVersion.version`). Where there's no room, as on
@@ -58,7 +58,9 @@ with Google** only; after sign-in, `GET /api/auth` decides the rest.
   (`presence.auth.ExecutionMode`). `scripts/deploy.sh` refuses to deploy
   without it, and its smoke test requires `/api/auth/anonymous` to answer
   exactly
-  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true}}`.
+  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`
+  (it also refuses to deploy without an rbacr token, which gives every
+  role).
 - DEV only changes what the app shows. The API's other routes still need a
   Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
   none passes), and cloud sync needs a Google sign-in.

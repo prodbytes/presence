@@ -74,6 +74,82 @@ void main() {
     });
   });
 
+  group('byActivity', () {
+    final noon = DateTime(2026, 10, 4, 12);
+    DeviceLatest device(String id, int minutesAgo) => DeviceLatest(
+      deviceId: id,
+      time: noon.subtract(Duration(minutes: minutesAgo)),
+    );
+    List<String> order(
+      List<DeviceLatest> devices, {
+      Map<String, DateTime> answered = const {},
+      Map<String, DateTime> lastEvents = const {},
+      bool liveAvailable = true,
+    }) => byActivity(
+      devices,
+      seenOf: (id) => answered[id],
+      lastEvents: lastEvents,
+      now: noon,
+      liveAvailable: liveAvailable,
+    ).map((d) => d.deviceId).toList();
+
+    test('the latest event first, ties by device', () {
+      expect(
+        order([
+          device('a', 30),
+          device('b', 5),
+          device('c', 60),
+          device('d', 5),
+        ]),
+        ['b', 'd', 'a', 'c'],
+      );
+      // Its latest event of any kind, not only its image's.
+      expect(
+        order(
+          [device('a', 30), device('b', 5)],
+          lastEvents: {'a': noon.subtract(const Duration(minutes: 1))},
+        ),
+        ['a', 'b'],
+      );
+    });
+
+    test('live devices first, then whoever was heard from last', () {
+      final devices = [
+        device('old_cam', 600),
+        device('quiet', 120),
+        device('recent', 10),
+        device('live_a', 900),
+        device('live_b', 300),
+      ];
+      expect(
+        order(
+          devices,
+          answered: {
+            // Both answered the last ping round: live, the newer event
+            // first, whoever's pong came a moment later.
+            'live_a': noon.subtract(const Duration(seconds: 5)),
+            'live_b': noon.subtract(const Duration(seconds: 6)),
+            // Heard from an hour ago: ahead of a clip two hours old, not
+            // of one ten minutes old.
+            'quiet': noon.subtract(const Duration(hours: 1)),
+          },
+        ),
+        ['live_b', 'live_a', 'recent', 'quiet', 'old_cam'],
+      );
+    });
+
+    test('without live sync, events alone decide', () {
+      expect(
+        order(
+          [device('a', 30), device('b', 5)],
+          answered: {'a': noon},
+          liveAvailable: false,
+        ),
+        ['b', 'a'],
+      );
+    });
+  });
+
   test('gridColumns fits 16:9 cells', () {
     const wide = Size(1600, 900);
     expect(gridColumns(1, wide), 1);
@@ -156,7 +232,7 @@ void main() {
       expect(find.byTooltip('Asked for a fresh grab'), findsNothing);
     });
 
-    testWidgets('this camera top left, then each device\'s latest image', (
+    testWidgets('this camera top left, then each device, latest active first', (
       tester,
     ) async {
       await show(tester, all: true);
@@ -168,11 +244,21 @@ void main() {
       final owl = tester.getRect(
         find.byKey(const Key('device-image-zesty_owl')),
       );
-      // Two columns of two at 1280×(800 − bars): live, fox / owl.
-      expect(live.left, lessThan(fox.left));
-      expect(live.top, closeTo(fox.top, 1));
-      expect(owl.top, greaterThan(live.bottom - 1));
-      expect(owl.left, closeTo(live.left, 1));
+      // Two columns of two at 1280×(800 − bars): live, owl (its clip a
+      // minute old) / fox (three minutes).
+      expect(live.left, lessThan(owl.left));
+      expect(live.top, closeTo(owl.top, 1));
+      expect(fox.top, greaterThan(live.bottom - 1));
+      expect(fox.left, closeTo(live.left, 1));
+
+      // The fox takes a clip: it moves ahead of the owl, sliding there.
+      log.addHistory([clipOf('brave_fox')]);
+      await tester.pumpAndSettle();
+      final foxNow = tester.getRect(
+        find.byKey(const Key('device-image-brave_fox')),
+      );
+      expect(foxNow.top, closeTo(live.top, 1));
+      expect(foxNow.left, greaterThan(live.left));
       // Clear of the app bar.
       expect(live.top, greaterThanOrEqualTo(kToolbarHeight));
       expect(find.text('this_device · live'), findsOneWidget);
@@ -223,7 +309,10 @@ void main() {
 
     // Left of Clip, clear of the status pills.
     final all = tester.getRect(find.byTooltip('Show all devices'));
-    expect(all.right, lessThan(tester.getRect(find.byTooltip('Clip')).left));
+    expect(
+      all.right,
+      lessThan(tester.getRect(find.byKey(const Key('clip'))).left),
+    );
     expect(
       tester.getRect(find.byKey(const Key('camera-status'))).right,
       lessThan(all.left),

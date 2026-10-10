@@ -157,9 +157,11 @@ jobs:
           STAGE: rc
           TAG: ${{ steps.tag.outputs.tag }}
           HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
-          # The root allowlist (empty: nu01.com, no single emails).
-          PRESENCE_ROOT_DOMAINS: ${{ vars.PRESENCE_ROOT_DOMAINS }}
-          PRESENCE_ROOT_EMAILS: ${{ vars.PRESENCE_ROOT_EMAILS }}
+          # rbacr, which keeps every role (a root's token): a secret, masked
+          # in logs. Unset URL and system: rbacr.nu01.com, presence.
+          RBACR_TOKEN: ${{ secrets.RBACR_TOKEN }}
+          RBACR_URL: ${{ vars.RBACR_URL }}
+          RBACR_SYSTEM: ${{ vars.RBACR_SYSTEM }}
           # Unset: scripts/deploy.sh's default, julio+health@nu01.com.
           PRESENCE_HEALTH_EMAILS: ${{ vars.PRESENCE_HEALTH_EMAILS }}
         run: bash scripts/deploy.sh

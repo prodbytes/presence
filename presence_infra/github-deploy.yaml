@@ -106,12 +106,14 @@ Resources:
                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*
                   - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*/index/*
               # The stage's user-data bucket (the authenticated role's own
-              # prefix; the auth API only lists it).
+              # prefix; the auth API only lists it). DeleteObject: each device
+              # deletes, once, what was stored unencrypted (specs/encryption.md).
               - Sid: UserData
                 Effect: Allow
                 Action:
                   - s3:GetObject
                   - s3:PutObject
+                  - s3:DeleteObject
                 Resource: !Sub arn:${AWS::Partition}:s3:::${Prefix}-user-data-*/*
               - Sid: UserDataList
                 Effect: Allow
@@ -324,6 +326,9 @@ Resources:
                 Action:
                   - iam:GetRole
                   - iam:DeleteRole
+                  # The identity role's trust policy (sts:TagSession for
+                  # the tier tag) changes with presence_infra/identity.yaml.
+                  - iam:UpdateAssumeRolePolicy
                   - iam:TagRole
                   - iam:UntagRole
                   - iam:DetachRolePolicy

@@ -83,13 +83,13 @@ the camera. (There used to be a Device tab for both; it's gone.)
   makes the map follow the device again. The zoom buttons don't count as
   moving it.
 - **A drag on the map moves the map**: while a finger (or the mouse) is
-  down on it, the Settings list doesn't scroll and the tabs don't swipe
-  (`onMapHeld`). Elsewhere in Settings, both work as usual.
+  down on it, the Settings list doesn't scroll (`onMapHeld`; the tabs
+  never swipe). Elsewhere in Settings, both work as usual.
 
 ## Battery, over the camera
 
 - Over the Camera tab, **bottom left**, across from Flip and Clip, in the
-  same pill style as the readiness indicator
+  same pill style as the camera's messages
   ([lib/battery_pills.dart](../presence_app/lib/battery_pills.dart),
   [lib/status_pill.dart](../presence_app/lib/status_pill.dart)); see
   [Navigation](navigation.md) for the layout. Only with access, like the

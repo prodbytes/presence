@@ -8,6 +8,7 @@ import '../annotations.dart';
 import '../cameras/camera_source.dart';
 import '../clips.dart';
 import '../config.dart';
+import '../crypto/media_seal.dart';
 import '../events.dart';
 import '../subjects.dart';
 import 'frames.dart';
@@ -133,7 +134,7 @@ class SubjectRecognizer {
   /// On how many frames an object must be seen to be tagged, unless it's
   /// seen once at [sureObject] or more.
   static const int objectFrames = 2;
-  static const double sureObject = 0.7;
+  static const double sureObject = 0.8;
 
   static const int defaultMaxPending = 3;
   static const Duration defaultMemoryRetryAfter = Duration(seconds: 30);
@@ -631,7 +632,16 @@ class SubjectRecognizer {
   ) async {
     if (_references.containsKey(tag.id)) return _references[tag.id];
     final frame = clip.annotations.frames[tag.frameId];
-    final image = frame == null ? null : await _decode(frame.jpeg);
+    final Uint8List? jpeg;
+    try {
+      jpeg = frame == null ? null : await MediaSeal.instance.open(frame.sealed);
+    } catch (e) {
+      // Another device's frame whose key hasn't come yet: tried again
+      // next time.
+      debugPrint('Presence: could not open the frame of tag ${tag.id}: $e');
+      return null;
+    }
+    final image = jpeg == null ? null : await _decode(jpeg);
     final seen = image == null
         ? const <Seen>[]
         : (await vision.analyse(image, faces: true)).seen;

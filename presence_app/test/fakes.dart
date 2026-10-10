@@ -172,11 +172,11 @@ Future<void> revealSystemEvents(WidgetTester tester) async {
 /// Goes to the Camera tab, presses Clip, waits for the events to publish
 /// (up to CameraRig.pastWait), then shows the Events tab.
 Future<void> clipAndShowEvents(WidgetTester tester) async {
-  if (find.byTooltip('Clip').evaluate().isEmpty) {
+  if (find.byKey(const Key('clip')).evaluate().isEmpty) {
     await tester.tap(find.byTooltip('Camera'));
     await tester.pumpAndSettle();
   }
-  await tester.tap(find.byTooltip('Clip'));
+  await tester.tap(find.byKey(const Key('clip')));
   await tester.pump(CameraRig.pastWait);
   await tester.pumpAndSettle();
   await settleStorage(tester);
@@ -254,6 +254,26 @@ class FakeAuthService extends AuthService {
 /// Records uploads; can be told to fail.
 class FakeCloudBackend implements CloudBackend {
   final uploads = <String, ({Uint8List bytes, String contentType})>{};
+
+  /// When each object was last written (S3's time), by [now].
+  final modified = <String, DateTime>{};
+
+  /// S3's clock.
+  DateTime Function() now = () => DateTime.now().toUtc();
+
+  /// The keys deleted, relative to the folder, in order.
+  final deletes = <String>[];
+
+  /// Thrown by every delete() while set.
+  Object? failDelete;
+
+  /// When the folder's media was first sealed: the time of its
+  /// `encryption.json` marker, kept apart from [uploads]. Long ago by
+  /// default, so nothing is purged; null, no marker yet (the next pass
+  /// writes it, at [now]).
+  DateTime? sealedSince = DateTime.utc(2000);
+
+  static const String markerKey = 'encryption.json';
   final tokens = <String>[];
   final downloads = <String>[];
 
@@ -343,6 +363,41 @@ class FakeCloudSession implements CloudSession {
     if (backend.failEveryPut case final e?) throw e;
     await backend.beforePut?.call(key);
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
+    backend.modified['$prefix/$key'] = backend.now();
+  }
+
+  @override
+  Future<bool> putIfNew(String key, Uint8List bytes, String contentType) async {
+    if (key == FakeCloudBackend.markerKey) {
+      if (backend.sealedSince != null) return false;
+      backend.sealedSince = backend.now();
+      return true;
+    }
+    if (backend.uploads.containsKey('$prefix/$key')) return false;
+    await put(key, bytes, contentType);
+    return true;
+  }
+
+  /// Not counted in [FakeCloudBackend.listings].
+  @override
+  Future<Map<String, DateTime>> listModified([String under = '']) async {
+    if (under == FakeCloudBackend.markerKey) {
+      return {under: ?backend.sealedSince};
+    }
+    return {
+      for (final key in backend.uploads.keys)
+        if (key.startsWith('$prefix/$under'))
+          key.substring(prefix.length + 1):
+              backend.modified[key] ?? DateTime.utc(2000),
+    };
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    if (backend.failDelete case final e?) throw e;
+    backend.deletes.add(key);
+    backend.uploads.remove('$prefix/$key');
+    backend.modified.remove('$prefix/$key');
   }
 
   @override
@@ -388,9 +443,10 @@ class FakeCloudSession implements CloudSession {
 }
 
 /// The auth API without HTTP: answers [roles] (changeable), or throws
-/// [error]. Records the tokens it was asked about.
+/// [error]. Records the tokens it was asked about. By default a premium
+/// member, who syncs with the cloud; `[userRole]` alone is a free one.
 class FakeRolesClient implements RolesClient {
-  FakeRolesClient([this.roles = const [userRole]]);
+  FakeRolesClient([this.roles = const [userRole, premiumRole]]);
 
   /// No roles: signed-in users only see their account and sign-up.
   FakeRolesClient.none() : this(const []);
@@ -406,7 +462,7 @@ class FakeRolesClient implements RolesClient {
   ExecutionMode mode = ExecutionMode.rbac;
 
   /// What `GET /api/auth/anonymous` says is set.
-  ApiSettings settings = (oidc: null, aws: null);
+  ApiSettings settings = (oidc: null, aws: null, rbacr: null);
 
   /// Makes the start check fail (the API is unreachable).
   Object? anonymousError;
@@ -426,7 +482,7 @@ class FakeRolesClient implements RolesClient {
     return (
       mode: mode,
       roles: mode == ExecutionMode.dev
-          ? const [anonymousRole, userRole, adminRole, rootRole]
+          ? const [anonymousRole, userRole, adminRole, rootRole, premiumRole]
           : const [anonymousRole],
       settings: settings,
     );

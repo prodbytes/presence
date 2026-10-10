@@ -11,6 +11,8 @@ import 'package:presence_app/monitoring.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A clip from [camera], with [names] tagged and [suggested] only
 /// suggested.
 ClipRequested clipOf(
@@ -20,7 +22,7 @@ ClipRequested clipOf(
   required int minute,
 }) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }
@@ -404,13 +406,12 @@ void main() {
       final icon = tester.getRect(opener());
       expect(icon.left, closeTo(12, 0.5));
 
-      // A device filter joins the row.
+      // A tapped device searches for it: the field opens with its ID.
       await tester.tap(find.byKey(const Key('event-device-door')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      final chip = tester.getRect(find.byKey(const Key('device-filter')));
-      expect(chip.right, lessThanOrEqualTo(width - 12));
-      expect(chip.center.dy, closeTo(icon.center.dy, 1));
+      expect(tester.widget<TextField>(field()).controller!.text, 'this_device');
+      expect(tester.getRect(field()).right, lessThanOrEqualTo(width - 12));
 
       // Open, with a long search, the field shares the row.
       await type(tester, 'a long search that is wider than the field');
@@ -420,10 +421,6 @@ void main() {
       final counts = tester.getRect(find.byKey(const Key('event-count')));
       expect(counts.left, greaterThan(search.right));
       expect(counts.center.dy, closeTo(search.center.dy, 1));
-      expect(
-        tester.getRect(find.byKey(const Key('device-filter'))).right,
-        lessThanOrEqualTo(width - 12),
-      );
       expect(
         tester.getRect(find.byKey(const Key('event-search-clear'))).right,
         lessThanOrEqualTo(search.right),
@@ -457,9 +454,8 @@ void main() {
       expect(find.byKey(const Key('event-highlight')), findsOneWidget);
       expect(tester.takeException(), isNull);
 
-      // Then a search that hides it, a device picked, system events off.
+      // Then a search that hides it, system events off.
       await type(tester, 'rex');
-      await tester.tap(find.byKey(const Key('event-device-event-3')));
       await tester.tap(system());
       await tester.pumpAndSettle();
       expect(titles(tester), ['Clip requested']);
@@ -469,10 +465,8 @@ void main() {
       await show(tester, filters: filters);
       expect(tester.takeException(), isNull);
       expect(filters.search.value, 'rex');
-      expect(filters.onlyDevice.value, 'this_device');
       expect(filters.showSystemEvents.value, isFalse);
       expect(tester.widget<TextField>(field()).controller!.text, 'rex');
-      expect(find.byKey(const Key('device-filter')), findsOneWidget);
       expect(titles(tester), ['Clip requested']);
       expect(find.byKey(const Key('event-highlight')), findsNothing);
     });

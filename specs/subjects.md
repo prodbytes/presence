@@ -43,10 +43,12 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   see [the map's view](#the-maps-view)), has the tiles' credit and
   **zoom buttons**, and
   tapping a dot opens its event in the Monitoring tab's events list.
-- **Devices:** the map shows every device's events, or only those of
-  the device picked by tapping an event's device in the Monitoring tab
-  (as the events list, `EventTimeline.ofDevices`). Picking or clearing a
-  device redraws the dots and fits the view to them again. A
+- **Devices:** the map shows every device's events, or, while the
+  Monitoring tab's search is a device's ID (set by tapping a device's
+  name), only that device's (as the events list, `EventView.device`,
+  `EventTimeline.ofDevices`); other searches don't change the map.
+  Searching for a device or clearing it redraws the dots and fits the
+  view to them again. A
   subject's own screen always shows every device.
 - **Names on the map:** beside each subject's newest located dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut
@@ -173,8 +175,8 @@ Monitoring) is a close-up (`closeUp`):
   date line; the subjects map follows the newest as events load and
   arrive, stays put once dragged, also through a resize, and a nearly
   antipodal dot doesn't break it.
-  `widget_test.dart`: the four tabs in order, and an admin's app bar fits
-  on a 320 dp phone.
+  `widget_test.dart`: the tabs in order in the bottom navigation bar, and
+  an admin's fits on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations

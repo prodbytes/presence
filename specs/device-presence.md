@@ -21,14 +21,23 @@ drawn by `PresenceDot` (10 dp, Gruvbox colors):
   never. Reason "Last seen 4 d ago" or "Never seen".
 - **This device** is green while connected to live sync ("Live — this
   device, connected to live sync"); otherwise yellow ("This device — not
-  connected to live sync now", or "… — live status unavailable").
+  connected to live sync now", or "… — live status unavailable"). In the
+  account sheet's devices list it follows the sheet's
+  [connectivity](sign-in.md) row instead (`Connectivity.presence`, passed
+  as `ProfileDevices.thisPresence`): green only when the auth API answers,
+  cloud sync is set and live sync is connected; yellow when degraded
+  (connecting, idle, live sync not set up or off); red when the API,
+  cloud sync or live sync failed; the reason is the row's headline ("This
+  device — Live sync isn't set up in this build").
 - **Without live sync** (no `IOT_ENDPOINT`, Never, signed out, no cloud
   sync): nothing can answer, so nothing is green: yellow or red from the
   latest event, the reason ending "· live status unavailable".
 - The reason is the dot's tooltip and its screen-reader label
   (`Semantics`). Ages read "5 s ago", "4 min ago", "3 h ago", "2 d ago"
   (`describeSince`).
-- **In the All grid** the dot leads each cell's label ("● brave_fox ·
+- **In the All grid** the cells are ordered by it: live devices first,
+  then the most recently active (see [All devices](camera.md#all-devices)).
+  The dot leads each cell's label ("● brave_fox ·
   5 min ago", "● <this device> · live"); the label's text still lets taps
   through to the cell's clip, the dot takes them for its tooltip. **In the
   devices list** it sits before the device ID, on the ID's line (which

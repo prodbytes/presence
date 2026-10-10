@@ -218,7 +218,7 @@ void main() {
     }
 
     Future<void> clip(WidgetTester tester) async {
-      await tester.tap(find.byTooltip('Clip'));
+      await tester.tap(find.byKey(const Key('clip')));
       await tester.pump(CameraRig.pastWait);
       await tester.pumpAndSettle();
       await finishRecording(tester);

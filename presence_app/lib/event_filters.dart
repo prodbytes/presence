@@ -2,46 +2,55 @@ import 'package:flutter/foundation.dart';
 
 import 'events.dart';
 
-/// What the Monitoring tab shows of the [EventLog], in one place: the one
-/// device picked ([onlyDevice]), the "Show system events" toggle
-/// ([showSystemEvents]) and the search ([search]), plus the event asked to
-/// be opened ([focus]). Kept by the home screen so the choices survive the
+/// What the Monitoring tab shows of the [EventLog], in one place: the "Show
+/// system events" toggle ([showSystemEvents]) and the search ([search]),
+/// which a device's ID narrows to that device's events ([showDevice]),
+/// plus the event asked to be opened ([focus]). Kept by the home screen so the choices survive the
 /// tab being rebuilt; the timeline, the count and the subjects map all read
 /// the same [viewOf], so they always agree.
 ///
-/// Notifies when [onlyDevice], [showSystemEvents] or [search] change;
+/// Notifies when [showSystemEvents] or [search] change;
 /// [focusRequests] notifies, separately, when an event is asked for.
 class EventFilters extends ChangeNotifier {
-  EventFilters({
-    String? onlyDevice,
-    bool showSystemEvents = true,
-    String search = '',
-  }) : onlyDevice = ValueNotifier(onlyDevice),
-       showSystemEvents = ValueNotifier(showSystemEvents),
-       search = ValueNotifier(search) {
+  EventFilters({bool showSystemEvents = true, String search = ''})
+    : showSystemEvents = ValueNotifier(showSystemEvents),
+      search = ValueNotifier(search) {
     for (final part in _parts) {
       part.addListener(notifyListeners);
     }
   }
-
-  /// The one device whose events show, set by tapping an event's device
-  /// ([EventDeviceTag]) and cleared with the [DeviceFilterChip]; null,
-  /// every device's.
-  final ValueNotifier<String?> onlyDevice;
 
   /// Whether system events show ([ShowSystemEvents]): on, every event; off,
   /// only grabs ([EventTimeline.isGrab]).
   final ValueNotifier<bool> showSystemEvents;
 
   /// The [EventSearch] text: only the events it matches ([eventMatches])
-  /// show; blank, every one.
+  /// show; blank, every one. A device's whole ID shows only that device's
+  /// events ([showDevice]).
   final ValueNotifier<String> search;
 
-  List<ValueNotifier<Object?>> get _parts => [
-    onlyDevice,
-    showSystemEvents,
-    search,
-  ];
+  List<ValueNotifier<Object?>> get _parts => [showSystemEvents, search];
+
+  /// Searches for [device]'s ID: only its events show (a tapped device
+  /// name: [EventDeviceTag], or `ShowDeviceEvents` from elsewhere).
+  void showDevice(String device) => search.value = device.trim();
+
+  /// The device the search names, ignoring case and the spaces around it,
+  /// if one of [events] was taken on it ([EventTimeline.deviceOf]); null
+  /// otherwise.
+  static String? searchedDevice(
+    List<AppEvent> events,
+    String query, {
+    String? deviceId,
+  }) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return null;
+    for (final e in events) {
+      final device = EventTimeline.deviceOf(e, deviceId);
+      if (device != null && device.toLowerCase() == q) return device;
+    }
+    return null;
+  }
 
   // Focus: a one-shot request. Each [focus] call is a new request, handled
   // once ([takeFocus]), so a timeline built again later (the tab shown
@@ -73,6 +82,8 @@ class EventFilters extends ChangeNotifier {
 
   // Memoized steps of [viewOf], each kept until what it's worked out from
   // changes, so the timeline, the count and the map share one pass.
+  (Object, String?, String)? _searchedKey;
+  String? _searched;
   (Object, String?, String?)? _devicesKey;
   List<AppEvent> _ofDevices = const [];
   (Object, bool)? _kindsKey;
@@ -84,20 +95,27 @@ class EventFilters extends ChangeNotifier {
   /// list is kept and reused until its inputs change):
   ///
   /// - [EventView.mine]: [profileId]'s events ([EventLog.eventsOf]);
-  /// - [EventView.ofDevices]: of them, [onlyDevice]'s, events without a
-  ///   device ID being [deviceId]'s;
+  /// - [EventView.ofDevices]: of them, with the [search] a device's ID
+  ///   ([searchedDevice]), that device's, events without a device ID being
+  ///   [deviceId]'s;
   /// - [EventView.ofKinds]: of them, only grabs unless [showSystemEvents];
   /// - [EventView.shown]: of them, those matching [search], matched again
   ///   when a clip's tags change ([EventLog.annotationsVersion]).
   EventView viewOf(EventLog log, {String? deviceId, String? profileId}) {
     final mine = log.eventsOf(profileId);
-    final devicesKey = (mine, deviceId, onlyDevice.value);
+    final query = search.value;
+    final searchedKey = (mine, deviceId, query);
+    if (!_sameKey(searchedKey, _searchedKey)) {
+      _searchedKey = searchedKey;
+      _searched = searchedDevice(mine, query, deviceId: deviceId);
+    }
+    final devicesKey = (mine, deviceId, _searched);
     if (!_sameKey(devicesKey, _devicesKey)) {
       _devicesKey = devicesKey;
       _ofDevices = EventTimeline.ofDevices(
         mine,
         deviceId: deviceId,
-        onlyDevice: onlyDevice.value,
+        onlyDevice: _searched,
       );
     }
     final kindsKey = (_ofDevices, showSystemEvents.value);
@@ -108,13 +126,12 @@ class EventFilters extends ChangeNotifier {
         showSystemEvents: showSystemEvents.value,
       );
     }
-    final query = search.value;
     // Tags matter only while searching.
     final tags = query.trim().isEmpty ? -1 : log.annotationsVersion;
     final shownKey = (_ofKinds, query, tags);
     if (!_sameKey(shownKey, _shownKey)) {
       _shownKey = shownKey;
-      _shown = EventTimeline.matching(_ofKinds, query);
+      _shown = EventTimeline.matching(_ofKinds, query, deviceId: deviceId);
     }
     return EventView(
       all: log.events,
@@ -122,6 +139,7 @@ class EventFilters extends ChangeNotifier {
       ofDevices: _ofDevices,
       ofKinds: _ofKinds,
       shown: _shown,
+      device: _searched,
     );
   }
 
@@ -156,6 +174,7 @@ class EventView {
     required this.ofDevices,
     required this.ofKinds,
     required this.shown,
+    this.device,
   });
 
   /// Every event in the log.
@@ -164,7 +183,7 @@ class EventView {
   /// The signed-in profile's events ([EventTimeline.ofProfile]).
   final List<AppEvent> mine;
 
-  /// [mine], of the device picked, or of every device.
+  /// [mine], of the device searched for ([device]), or of every device.
   final List<AppEvent> ofDevices;
 
   /// [ofDevices], only the grabs while system events are hidden.
@@ -172,6 +191,9 @@ class EventView {
 
   /// [ofKinds], only those matching the search: what the timeline shows.
   final List<AppEvent> shown;
+
+  /// The device the search names ([EventFilters.searchedDevice]), if any.
+  final String? device;
 }
 
 /// A [ChangeNotifier] that notifies when [fire]d.
