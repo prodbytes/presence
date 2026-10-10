@@ -586,9 +586,14 @@ void main() {
       // The first section, above Camera.
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
+      // (The navigation bar's Camera label is not the section's.)
+      final camera = find.descendant(
+        of: find.byKey(const Key('settings-page')),
+        matching: find.text('Camera'),
+      );
       expect(
         tester.getTopLeft(find.text('Location')).dy,
-        lessThan(tester.getTopLeft(find.text('Camera')).dy),
+        lessThan(tester.getTopLeft(camera).dy),
       );
       expect(
         tester.getTopLeft(find.text('Location')).dy,

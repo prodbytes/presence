@@ -3,28 +3,37 @@ import 'package:flutter/material.dart';
 
 import 'tab_memory.dart';
 
-/// The top-level destinations, as tabs in the app bar.
+/// The top-level destinations, in the bottom navigation bar.
 enum HomeTab {
-  camera('Camera', Icons.videocam),
-  monitoring('Monitoring', Icons.monitor_heart),
-  settings('Settings', Icons.settings),
+  camera('Camera', Icons.videocam_outlined, Icons.videocam),
+  monitoring('Monitoring', Icons.monitor_heart_outlined, Icons.monitor_heart),
+  settings('Settings', Icons.settings_outlined, Icons.settings),
 
   /// Admins only, when Settings' switch shows it (on by default in DEV,
   /// whose anonymous user is a root); after the always-shown tabs, so they
   /// keep their index.
-  log('Log', Icons.receipt_long),
+  log('Log', Icons.receipt_long_outlined, Icons.receipt_long),
 
   /// Signed-in admins only (not DEV: there are no accounts): membership
   /// requests and voucher codes (`AdminView`). Last; with the Log tab
   /// hidden it takes the Log's place, so map a tab to its controller index
   /// through the shown tabs ([HomeTabs.indexOf]), never by [HomeTab.index]
   /// alone.
-  admin('Admin', Icons.admin_panel_settings);
+  admin(
+    'Admin',
+    Icons.admin_panel_settings_outlined,
+    Icons.admin_panel_settings,
+  );
 
-  const HomeTab(this.label, this.icon);
+  const HomeTab(this.label, this.icon, this.selectedIcon);
 
   final String label;
+
+  /// Outlined, while another tab is open.
   final IconData icon;
+
+  /// Filled, while this tab is open.
+  final IconData selectedIcon;
 
   /// The tabs shown, in [HomeTab] order: the Log tab with [log], the Admin
   /// tab with [admin], the others always.
@@ -39,8 +48,8 @@ enum HomeTab {
   ];
 }
 
-/// The home screen's tabs: which show ([tabs]), the [controller] the tab
-/// bar and its pages share, and the tab remembered across refreshes
+/// The home screen's tabs: which show ([tabs]), the [controller] the
+/// navigation bar and its pages share, and the tab remembered across refreshes
 /// ([TabMemory]), opened once there's access ([restore]).
 class HomeTabs {
   HomeTabs({
@@ -58,14 +67,15 @@ class HomeTabs {
   /// Where the open tab is remembered.
   final TabMemory memory;
 
-  /// Called on every change of the controller (a tab picked, a swipe).
+  /// Called on every change of the controller (a tab picked).
   final VoidCallback onChanged;
 
-  /// The controller for the [tabs]: what the tab bar and its pages show.
+  /// The controller for the [tabs]: what the navigation bar and its pages
+  /// show.
   late TabController controller;
 
-  /// The tabs [controller] was made for, in order, so the tab bar and its
-  /// pages always match the controller's length.
+  /// The tabs [controller] was made for, in order, so the navigation bar and
+  /// its pages always match the controller's length.
   late List<HomeTab> tabs;
 
   /// The tab open before a refresh, until it can show ([restore]).
@@ -74,7 +84,7 @@ class HomeTabs {
   /// The open tab.
   HomeTab get current => tabs[controller.index];
 
-  /// [tab]'s index in the tab bar, or -1 when it isn't shown.
+  /// [tab]'s index in the navigation bar, or -1 when it isn't shown.
   int indexOf(HomeTab tab) => tabs.indexOf(tab);
 
   /// Whether [tab] is shown.
@@ -118,7 +128,7 @@ class HomeTabs {
         .take(old.index + 1)
         .lastWhere(shown.contains, orElse: () => HomeTab.camera);
     controller = _newController(shown, stay);
-    // The tab bar lets go of it in this frame's build.
+    // The pages let go of it in this frame's build.
     WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
     return true;
   }

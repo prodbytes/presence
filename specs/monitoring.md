@@ -6,11 +6,11 @@ the separate Events and Subjects tabs.
 
 ## The tab
 
-- Second in the app bar, after **Camera** and before **Settings** (the
-  `monitor_heart` icon, tooltip "Monitoring"; see
-  [Navigation](navigation.md)).
-- Swiping between tabs is off here: a sideways drag moves the map. Tap
-  the tabs to leave.
+- Second in the bottom navigation bar, after **Camera** and before
+  **Settings** (the `monitor_heart` icon, label and tooltip "Monitoring";
+  see [Navigation](navigation.md)).
+- A sideways drag moves the map (no tab swipes anywhere). Tap the
+  navigation bar to leave.
 
 ## Layout
 
