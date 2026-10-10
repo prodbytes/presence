@@ -54,8 +54,8 @@ class SettingsView extends StatefulWidget {
   /// The location map's tiles; defaults to OpenStreetMap.
   final Widget? tiles;
 
-  /// Told while the location map is held, so the tabs don't swipe away
-  /// under a drag on it ([LocationSettings.onMapHeld]).
+  /// Told while the location map is held, so nothing around it scrolls
+  /// away under a drag on it ([LocationSettings.onMapHeld]).
   final ValueChanged<bool>? onMapHeld;
 
   /// This device's ID, always shown first, at the top ("loading…" until

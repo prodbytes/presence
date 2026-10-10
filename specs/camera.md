@@ -128,7 +128,7 @@ profile (`CameraFeedsView.showAll`,
   Nothing new is uploaded or fetched for it.
 - **Layout:** the columns that give the biggest 16:9 cells
   (`gridColumns`); the cells fill the screen below the app bar and above
-  the buttons (88 px kept clear), 1 px apart.
+  the buttons (the navigation bar is below them) (88 px kept clear), 1 px apart.
 - **Opening the grid asks for fresh grabs:** entering All (One → All)
   sends a [Capture all](#capture-all) request, so every other device of
   the profile takes a clip and the grid soon shows what each sees now,
