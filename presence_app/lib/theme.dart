@@ -73,6 +73,52 @@ ThemeData gruvboxSoftDarkTheme() {
       },
     ),
     scaffoldBackgroundColor: scheme.surface,
+    // The screen's name, bold and on the left; flat, the page's color.
+    appBarTheme: const AppBarTheme(
+      centerTitle: false,
+      backgroundColor: Gruvbox.bg0Soft,
+      foregroundColor: Gruvbox.fg,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleTextStyle: TextStyle(
+        color: Gruvbox.fg,
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+    // The bottom navigation bar: flat and compact, every label shown, the
+    // open tab marked by its color (no pill behind the icon).
+    navigationBarTheme: NavigationBarThemeData(
+      height: 64,
+      elevation: 0,
+      backgroundColor: Gruvbox.bg0Soft,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: Colors.transparent,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      iconTheme: WidgetStateProperty.resolveWith(
+        (states) => IconThemeData(
+          size: 24,
+          color: states.contains(WidgetState.selected)
+              ? Gruvbox.yellow
+              : Gruvbox.fg4,
+        ),
+      ),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontSize: 12,
+          overflow: TextOverflow.ellipsis,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          color: states.contains(WidgetState.selected)
+              ? Gruvbox.yellow
+              : Gruvbox.fg4,
+        ),
+      ),
+    ),
+    // Messages float above the navigation bar instead of covering it.
+    snackBarTheme: const SnackBarThemeData(behavior: SnackBarBehavior.floating),
     cardTheme: const CardThemeData(color: Gruvbox.bg1, elevation: 0),
     dividerTheme: const DividerThemeData(color: Gruvbox.bg2),
     tooltipTheme: const TooltipThemeData(

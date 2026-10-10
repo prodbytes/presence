@@ -79,8 +79,9 @@ there's no separate sign-in screen:
 - **Signed out (RBAC):** the anonymous user (`presence_anonymous`) may only
   sign in. The camera shows full screen, always recording as
   usual, with **no buttons on it** (no view, Flip or Clip button), and the
-  **navigation is hidden**: the app bar has only
-  **Sign in with Google**. Nothing is uploaded. You can't switch or swipe to Events or Settings, and the clip
+  **navigation is hidden**: no bottom navigation bar, and the app bar
+  has only **Sign in with Google**. Nothing is uploaded. You can't switch
+  to Monitoring or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
   `renderButton` with FedCM, medium size to fit the app bar), as Google
   Identity Services requires. On Android and iOS it's an app button that
