@@ -205,3 +205,8 @@ The whole `.claude/` folder is git-ignored: each checkout keeps its own
 commands) and `.claude/worktrees/` (the worktrees agents work in). Neither
 is shared through git, so approving a command never leaves a change to
 commit.
+
+[.vscode/settings.json](../.vscode/settings.json) keeps the agent worktrees
+out of VS Code. It turns off worktree detection, and it skips `.claude` when
+scanning for repositories, so Source Control lists only this repo. It also
+hides `.claude/worktrees` from the Explorer, search and the file watcher.

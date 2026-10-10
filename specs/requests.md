@@ -4519,4 +4519,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `.gitignore` ignores `.claude/`, and
        `.claude/settings.json` is no longer tracked (each checkout keeps
        its own copy). Agent worktrees under `.claude/worktrees/` no longer
-       show as untracked. Specs: [Dev environment](dev-environment.md).
+       show as untracked. [.vscode/settings.json](../.vscode/settings.json)
+       stops VS Code from listing those worktrees as repositories in Source
+       Control, and hides them from the Explorer, search and the file
+       watcher. Specs: [Dev environment](dev-environment.md).
