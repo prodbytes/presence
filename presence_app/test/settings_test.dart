@@ -59,6 +59,32 @@ void main() {
   });
 
   for (final width in [320.0, 1280.0]) {
+    testWidgets('settings come in groups: a bold heading over a full-width '
+        'block, at ${width.round()} wide', (tester) async {
+      await show(tester, width: width);
+      final sections = find.byType(SettingsSection);
+      expect(sections, findsWidgets);
+      final camera = find.widgetWithText(SettingsSection, 'Camera');
+      expect(camera, findsOneWidget);
+      // The heading is bold, 16 dp in.
+      final heading = find.descendant(
+        of: camera,
+        matching: find.text('Camera'),
+      );
+      expect(tester.widget<Text>(heading).style?.fontWeight, FontWeight.w700);
+      expect(tester.getTopLeft(heading).dx, 16);
+      // Its controls on a block a step lighter than the page, edge to
+      // edge, square, with the controls 16 dp in.
+      final block = find.descendant(of: camera, matching: find.byType(Card));
+      expect(tester.getRect(block).left, 0);
+      expect(tester.getRect(block).right, width);
+      expect(tester.widget<Card>(block).shape, const RoundedRectangleBorder());
+      final slider = find.byKey(const Key('brightness-slider'));
+      expect(find.descendant(of: block, matching: slider), findsOneWidget);
+      expect(tester.getTopLeft(slider).dx, 16);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('clip sliders sit side by side, at ${width.round()} wide', (
       tester,
     ) async {

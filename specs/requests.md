@@ -4263,3 +4263,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
        [Device location](device-location.md), [Camera](camera.md),
        [Subjects](subjects.md).
+
+322. **Settings in grouped sections.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: group the Settings
+       screen's sections.
+     - Changed: each Settings section (`SettingsSection`) is a bold
+       heading over an edge-to-edge block a step lighter than the page
+       (bg1), the controls 16 dp in, 16 dp between groups; the version,
+       health line, Add a device and IDs follow on the page. Tests:
+       `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
+       [Settings](settings.md).
