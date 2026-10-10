@@ -345,9 +345,9 @@ void main() {
       FakeRolesClient roles, [
       FakeMembershipClient? membership,
     ]) async {
-      // Tall enough for the Admin page's voucher list above the navigation
-      // bar.
-      tester.view.physicalSize = const Size(1280, 900);
+      // Tall enough for the Admin page's voucher list, under its
+      // maintenance card, above the navigation bar.
+      tester.view.physicalSize = const Size(1280, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main');
@@ -583,7 +583,8 @@ void main() {
             .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
             .controller;
         await toggleLog(tester);
-        expect(tabs().length, 5);
+        // With Account, last.
+        expect(tabs().length, 6);
         expect(
           tester.getCenter(logTab).dx,
           lessThan(tester.getCenter(adminTab).dx),
@@ -599,7 +600,7 @@ void main() {
 
         // The Log tab hidden again: the Admin tab takes its place.
         await toggleLog(tester);
-        expect(tabs().length, 4);
+        expect(tabs().length, 5);
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
         expect(tabs().index, 3);
@@ -1034,11 +1035,21 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(tabs(tester).length, 4, reason: 'the Log tab is hidden');
-        // Last in the navigation bar, after Settings.
+        expect(
+          tabs(tester).length,
+          5,
+          reason: 'the Log tab is hidden; Account is last',
+        );
+        // In the navigation bar, after Settings and before Account.
         final settings = tester.getCenter(find.byTooltip('Settings'));
         final admin = tester.getCenter(adminTab);
         expect(settings.dx, lessThan(admin.dx));
+        expect(
+          admin.dx,
+          lessThan(
+            tester.getCenter(find.byKey(const Key('account-button'))).dx,
+          ),
+        );
         expect(
           tester.getRect(find.byType(HomeNavigationBar)).contains(admin),
           isTrue,

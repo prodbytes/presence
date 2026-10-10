@@ -32,7 +32,9 @@ import 'home/home_screen.dart';
 import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
+import 'maintenance.dart';
 import 'recognition/recognizer.dart';
+import 'screen_off.dart';
 import 'tab_memory.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
@@ -78,7 +80,12 @@ class PresenceApp extends StatefulWidget {
     this.battery,
     this.links,
     this.recognizer,
+    this.screenOff,
   });
+
+  /// Overrides the Screen off button's screen control (used by tests);
+  /// defaults to the platform's ([ScreenOff]).
+  final ScreenOff? screenOff;
 
   /// Makes the recognizer that searches each new clip (used by tests, with
   /// fake models); defaults to [SubjectRecognizer] with the real ones.
@@ -153,6 +160,7 @@ class _PresenceAppState extends State<PresenceApp> {
   // history, settings and open cameras outlive any single screen.
   final _bus = AppEventBus();
   final _config = ConfigController();
+  late final _screenOff = widget.screenOff ?? ScreenOff();
   late final EventLog _log;
   late final Persistence _persistence;
 
@@ -175,6 +183,8 @@ class _PresenceAppState extends State<PresenceApp> {
     _roles = RolesService(
       auth: _auth,
       client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
+      // Maintenance mode reaches a running app within a minute.
+      maintenanceCheckInterval: const Duration(minutes: 1),
     );
     final mediaIo = widget.mediaIo;
     _persistence = Persistence(
@@ -561,8 +571,11 @@ class _PresenceAppState extends State<PresenceApp> {
               title: AppVersion.title,
               debugShowCheckedModeBanner: false,
               theme: gruvboxSoftDarkTheme(),
-              // The "do a barrel roll" search spins everything.
-              builder: (context, app) => BarrelRoll(child: app!),
+              // The "do a barrel roll" search spins everything. In
+              // maintenance mode, only admins get past the sorry message.
+              builder: (context, app) => BarrelRoll(
+                child: MaintenanceGate(roles: _roles, child: app!),
+              ),
               home: switch (_consented) {
                 // Nothing shows until the device's consent is known.
                 null => const Scaffold(
@@ -590,6 +603,7 @@ class _PresenceAppState extends State<PresenceApp> {
                   onJoinHandled: _joinHandled,
                   tabMemory: widget.tabMemory,
                   deleteDevice: _deleteDevice,
+                  screenOff: _screenOff,
                 ),
               },
             ),

@@ -860,8 +860,8 @@ void main() {
     });
 
     for (final size in [const Size(320, 640), const Size(1280, 800)]) {
-      testWidgets('the battery sits bottom left, clear of Flip and '
-          'Clip, at ${size.width.toInt()} wide', (tester) async {
+      testWidgets('the battery sits top left, under the app bar, clear of '
+          'the buttons, at ${size.width.toInt()} wide', (tester) async {
         await launch(
           tester,
           FakeLocator(),
@@ -877,16 +877,17 @@ void main() {
         final clip = tester.getRect(find.byKey(const Key('clip')));
         final flip = tester.getRect(find.byTooltip('Flip camera'));
         expect(status.left, 16);
+        // Just under the app bar, in one row (battery and temperature).
+        expect(status.top, kToolbarHeight + 8);
+        expect(status.height, 40);
+        // Nowhere near the buttons at the bottom.
         expect(status.overlaps(clip), isFalse);
         expect(status.overlaps(flip), isFalse);
-        if (size.width < 600) {
-          // Stacked just above the buttons' row.
-          expect(status.bottom, lessThanOrEqualTo(clip.top));
-        } else {
-          // In a row, level with the buttons.
-          expect(status.center.dy, closeTo(clip.center.dy, 1));
-          expect(status.right, lessThan(flip.left));
-        }
+        expect(status.bottom, lessThan(flip.top));
+        expect(
+          status.bottom,
+          lessThan(tester.getRect(find.byKey(const Key('show-all'))).top),
+        );
         expect(tester.takeException(), isNull);
       });
     }

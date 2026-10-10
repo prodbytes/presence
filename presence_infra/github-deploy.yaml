@@ -1,11 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
+# Fn::ForEach: one set of policies and one artifact bucket per stage, from a
+# single definition (deploy with CAPABILITY_AUTO_EXPAND).
+Transform: AWS::LanguageExtensions
 Description: >
   presence-github-deploy: lets GitHub Actions deploy Presence. An OIDC
   identity provider for token.actions.githubusercontent.com, a production
   role that only *GA tag runs can assume, and a release-candidate role for
-  *RC* tag runs and manual runs from main, limited to the presence-rc-*
-  resources and the rc.presence.nu01.com records. Deployed once,
-  by hand (see presence_infra/README.md).
+  *RC* tag runs and manual runs from main. Per stage (prod: presence-*,
+  rc: presence-rc-*), from one definition: the deploy policies, the
+  permissions boundary every role the stage's stacks create must carry, and
+  the bucket SAM uploads the auth API's code to. Deployed by an
+  administrator, by hand (see presence_infra/README.md).
 
 Parameters:
   GitHubRepository:
@@ -30,6 +35,22 @@ Parameters:
     Default: 'true'
     Description: false when the account already has the GitHub OIDC provider
 
+# One entry per stage, keyed by its resource-name prefix (every stack,
+# bucket, function, table, role and policy of the stage starts with it).
+# Stage is the presence:stage tag on the resources that have no name to
+# scope by (CloudFront distributions, ACM certificates, Cognito identity
+# pools); Domain is the site, whose records (and subdomains' records) the
+# stage may change. prod's prefix also covers presence-rc-* and
+# presence-sh: the production role is the more trusted one.
+Mappings:
+  Stages:
+    presence:
+      Stage: prod
+      Domain: presence.nu01.com
+    presence-rc:
+      Stage: rc
+      Domain: rc.presence.nu01.com
+
 Conditions:
   CreateProvider: !Equals [!Ref CreateOidcProvider, 'true']
 
@@ -41,6 +62,575 @@ Resources:
       Url: https://token.actions.githubusercontent.com
       ClientIdList:
         - sts.amazonaws.com
+
+  Fn::ForEach::Stages:
+    - Prefix
+    - [presence, presence-rc]
+    - # The ceiling of every IAM role the stage's stacks create (the auth
+      # API's function roles, the identity pool's authenticated role): the
+      # deploy role can only create or change roles that carry it, so a
+      # deploy can never make a role that reaches past the stage's own
+      # resources, or another stage's.
+      AppBoundary&{Prefix}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ${Prefix}-app-boundary
+          Description: !Sub Permissions boundary of the roles in the ${Prefix}-* stacks (presence-github-deploy)
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # The functions' logs (AWSLambdaBasicExecutionRole).
+              - Sid: FunctionLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*:*
+              # The auth API's tables.
+              - Sid: Tables
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:BatchGetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:ConditionCheckItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*
+                  - !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*/index/*
+              # The stage's user-data bucket (the authenticated role's own
+              # prefix; the auth API only lists it). DeleteObject: each device
+              # deletes, once, what was stored unencrypted (specs/encryption.md).
+              - Sid: UserData
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${Prefix}-user-data-*/*
+              - Sid: UserDataList
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${Prefix}-user-data-*
+              # The stage's identity pool only, by its presence:stage tag:
+              # an RC function can't mint tokens for production's pool.
+              # IfExists, so this can never break sign-in if Cognito leaves
+              # the key out; once a pool carries its tag (identity.yaml),
+              # another stage's functions are refused.
+              - Sid: IdentityPool
+                Effect: Allow
+                Action:
+                  - cognito-identity:GetOpenIdTokenForDeveloperIdentity
+                  - cognito-identity:DescribeIdentityPool
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Condition:
+                  StringEqualsIfExists:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              # GetId has no resource to scope (it takes the pool as a parameter).
+              - Sid: IdentityLookup
+                Effect: Allow
+                Action: cognito-identity:GetId
+                Resource: '*'
+              # Live sync: the auth API attaches the IoT policy (AttachPolicy
+              # can't be scoped to an identity), and signed-in users use
+              # their stage's topics.
+              - Sid: LiveSyncAttach
+                Effect: Allow
+                Action: iot:AttachPolicy
+                Resource: '*'
+              - Sid: LiveSyncConnect
+                Effect: Allow
+                Action: iot:Connect
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:client/*
+              - Sid: LiveSyncTopics
+                Effect: Allow
+                Action:
+                  - iot:Publish
+                  - iot:Receive
+                Resource: !Sub
+                  - arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/presence/${Stage}/*
+                  - Stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: LiveSyncSubscribe
+                Effect: Allow
+                Action: iot:Subscribe
+                Resource: !Sub
+                  - arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/presence/${Stage}/*
+                  - Stage: !FindInMap [Stages, !Ref Prefix, Stage]
+
+      # Where sam deploy uploads the auth API's code and template
+      # (scripts/deploy.sh: --s3-bucket), one bucket per stage instead of
+      # SAM's shared aws-sam-cli-managed-default bucket: the RC role can't
+      # write production's artifacts.
+      ArtifactBucket&{Prefix}:
+        Type: AWS::S3::Bucket
+        DeletionPolicy: Retain
+        UpdateReplacePolicy: Retain
+        Properties:
+          BucketName: !Sub ${Prefix}-sam-artifacts-${AWS::AccountId}
+          BucketEncryption:
+            ServerSideEncryptionConfiguration:
+              - ServerSideEncryptionByDefault:
+                  SSEAlgorithm: AES256
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: true
+            BlockPublicPolicy: true
+            IgnorePublicAcls: true
+            RestrictPublicBuckets: true
+          OwnershipControls:
+            Rules:
+              - ObjectOwnership: BucketOwnerEnforced
+          LifecycleConfiguration:
+            Rules:
+              # A deploy only needs its own upload; old ones are clutter.
+              - Id: expire-old-artifacts
+                Status: Enabled
+                ExpirationInDays: 30
+              - Id: abort-incomplete-uploads
+                Status: Enabled
+                AbortIncompleteMultipartUpload:
+                  DaysAfterInitiation: 1
+
+      # The stage's stacks: CloudFormation, S3, Lambda, the HTTP API,
+      # DynamoDB, IAM roles (with the boundary), IoT policies.
+      DeployPolicy&{Prefix}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ${Prefix}-github-deploy-stacks
+          Description: !Sub What the ${Prefix} deploy role may do to the ${Prefix}-* stacks (1 of 2)
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Stacks
+                Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-*/*
+              - Sid: StackReads
+                Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:ListStacks
+                  - cloudformation:ListExports
+                Resource: '*'
+              # SAM (the auth API) and Fn::ForEach (site.yaml)
+              - Sid: Transforms
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
+              # The site, user-data and install-script buckets, and the
+              # stage's SAM artifact bucket (below, its settings stay the
+              # administrator's).
+              - Sid: Buckets
+                Effect: Allow
+                Action: s3:*
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${Prefix}-*
+                  - !Sub arn:${AWS::Partition}:s3:::${Prefix}-*/*
+              # The auth API's functions: what CloudFormation's
+              # AWS::Lambda::Function and ::Permission handlers call.
+              - Sid: Functions
+                Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:PublishVersion
+                  - lambda:ListVersionsByFunction
+                  - lambda:GetFunctionCodeSigningConfig
+                  - lambda:PutFunctionCodeSigningConfig
+                  - lambda:DeleteFunctionCodeSigningConfig
+                  - lambda:GetFunctionConcurrency
+                  - lambda:PutFunctionConcurrency
+                  - lambda:DeleteFunctionConcurrency
+                  - lambda:GetFunctionRecursionConfig
+                  - lambda:PutFunctionRecursionConfig
+                  - lambda:GetFunctionScalingConfig
+                  - lambda:PutFunctionScalingConfig
+                  - lambda:GetRuntimeManagementConfig
+                  - lambda:PutRuntimeManagementConfig
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:GetPolicy
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-*
+              # HTTP APIs have only IDs, no names to scope by (see
+              # specs/deploy.md: not separated by stage).
+              - Sid: HttpApis
+                Effect: Allow
+                Action:
+                  - apigateway:GET
+                  - apigateway:POST
+                  - apigateway:PUT
+                  - apigateway:PATCH
+                  - apigateway:DELETE
+                Resource:
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
+                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
+              - Sid: Tables
+                Effect: Allow
+                Action:
+                  - dynamodb:CreateTable
+                  - dynamodb:UpdateTable
+                  - dynamodb:DeleteTable
+                  - dynamodb:DescribeTable
+                  - dynamodb:DescribeContinuousBackups
+                  - dynamodb:UpdateContinuousBackups
+                  # The auth API's link codes expire by TTL.
+                  - dynamodb:DescribeTimeToLive
+                  - dynamodb:UpdateTimeToLive
+                  - dynamodb:TagResource
+                  - dynamodb:UntagResource
+                  - dynamodb:ListTagsOfResource
+                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*
+              # IAM: roles are created and given permissions only with the
+              # stage's boundary on them.
+              - Sid: RolesWithBoundary
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:PutRolePermissionsBoundary
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-*
+                Condition:
+                  StringEquals:
+                    iam:PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${Prefix}-app-boundary
+              # The only managed policy the stacks attach (SAM's function roles).
+              - Sid: RoleManagedPolicies
+                Effect: Allow
+                Action: iam:AttachRolePolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-*
+                Condition:
+                  StringEquals:
+                    iam:PermissionsBoundary: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${Prefix}-app-boundary
+                    iam:PolicyARN: !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+              # Reading, tagging and taking permissions away need no boundary.
+              - Sid: Roles
+                Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  # The identity role's trust policy (sts:TagSession for
+                  # the tier tag) changes with presence_infra/identity.yaml.
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:DetachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-*
+              - Sid: PassRoles
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${Prefix}-*
+                Condition:
+                  StringEquals:
+                    iam:PassedToService:
+                      - lambda.amazonaws.com
+                      - cognito-identity.amazonaws.com
+              # scripts/deploy.sh checks the boundary exists before deploying.
+              - Sid: Boundary
+                Effect: Allow
+                Action: iam:GetPolicy
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${Prefix}-app-boundary
+              # Live sync (identity.yaml): the IoT policy attached to each
+              # identity, and the account's IoT data endpoint for the app's
+              # build (scripts/deploy.sh).
+              - Sid: IotPolicies
+                Effect: Allow
+                Action:
+                  - iot:CreatePolicy
+                  - iot:DeletePolicy
+                  - iot:GetPolicy
+                  - iot:CreatePolicyVersion
+                  - iot:DeletePolicyVersion
+                  - iot:GetPolicyVersion
+                  - iot:ListPolicyVersions
+                  - iot:SetDefaultPolicyVersion
+                  - iot:ListTargetsForPolicy
+                  - iot:TagResource
+                  - iot:UntagResource
+                  - iot:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:policy/${Prefix}-*
+              - Sid: IotEndpoint
+                Effect: Allow
+                Action: iot:DescribeEndpoint
+                Resource: '*'
+              # Never this stack, its roles, or a role's boundary.
+              - Sid: DenyDeployStack
+                Effect: Deny
+                Action: cloudformation:*
+                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/presence-github-deploy/*
+              - Sid: DenyDeployRoles
+                Effect: Deny
+                Action: iam:*
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-github-deploy*
+              - Sid: DenyRemovingBoundaries
+                Effect: Deny
+                Action: iam:DeleteRolePermissionsBoundary
+                Resource: '*'
+              - Sid: DenyArtifactBucketSettings
+                Effect: Deny
+                Action:
+                  - s3:DeleteBucket
+                  - s3:PutBucketPolicy
+                  - s3:DeleteBucketPolicy
+                  - s3:PutBucketAcl
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutLifecycleConfiguration
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::presence-sam-artifacts-${AWS::AccountId}
+                  - !Sub arn:${AWS::Partition}:s3:::presence-rc-sam-artifacts-${AWS::AccountId}
+
+      # The site: CloudFront, its certificate, DNS records and health check,
+      # and the identity pool. Resources without names to scope by are
+      # scoped by their presence:stage tag (site.yaml, identity.yaml,
+      # presence_sh/template.yaml).
+      EdgePolicy&{Prefix}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ${Prefix}-github-deploy-edge
+          Description: !Sub What the ${Prefix} deploy role may do to the ${Prefix} site and identity pool (2 of 2)
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # The site's health check (site.yaml): Route 53 health checks
+              # have no names to scope by, so any in the account.
+              - Sid: HealthCheckCreate
+                Effect: Allow
+                Action: route53:CreateHealthCheck
+                Resource: '*'
+              - Sid: HealthChecks
+                Effect: Allow
+                Action:
+                  - route53:GetHealthCheck
+                  - route53:UpdateHealthCheck
+                  - route53:DeleteHealthCheck
+                  - route53:ChangeTagsForResource
+                  - route53:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:route53:::healthcheck/*
+              - Sid: Alarms
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-*
+              - Sid: Topics
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:GetTopicAttributes
+                  - sns:SetTopicAttributes
+                  - sns:Subscribe
+                  - sns:Unsubscribe
+                  - sns:GetSubscriptionAttributes
+                  - sns:ListSubscriptionsByTopic
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-*
+              # DNS: only the stage's site and the names under it (the
+              # certificates' _<token> validation records; prod's also
+              # sh.presence.nu01.com), never the zone's other records.
+              - Sid: Records
+                Effect: Allow
+                Action: route53:ChangeResourceRecordSets
+                Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
+                Condition:
+                  ForAllValues:StringLike:
+                    route53:ChangeResourceRecordSetsNormalizedRecordNames:
+                      - !FindInMap [Stages, !Ref Prefix, Domain]
+                      - !Sub
+                        - '*.${Domain}'
+                        - Domain: !FindInMap [Stages, !Ref Prefix, Domain]
+              - Sid: Zone
+                Effect: Allow
+                Action:
+                  - route53:ListResourceRecordSets
+                  - route53:GetHostedZone
+                Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
+              - Sid: ZoneReads
+                Effect: Allow
+                Action:
+                  - route53:GetChange
+                  - route53:ListHostedZones
+                Resource: '*'
+              # CloudFront: reading is harmless; creating can't touch what
+              # exists (an alias already in use is refused).
+              - Sid: CloudFrontReads
+                Effect: Allow
+                Action:
+                  - cloudfront:Get*
+                  - cloudfront:List*
+                  - cloudfront:Describe*
+                Resource: '*'
+              - Sid: CloudFrontCreate
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateDistribution
+                  - cloudfront:CreateFunction
+                  - cloudfront:CreateOriginAccessControl
+                  - cloudfront:CreateResponseHeadersPolicy
+                Resource: '*'
+              # Origin access controls and response headers policies have
+              # only IDs and take no tags: not separated by stage (see
+              # specs/deploy.md).
+              - Sid: CloudFrontUntaggable
+                Effect: Allow
+                Action:
+                  - cloudfront:UpdateOriginAccessControl
+                  - cloudfront:DeleteOriginAccessControl
+                  - cloudfront:UpdateResponseHeadersPolicy
+                  - cloudfront:DeleteResponseHeadersPolicy
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:origin-access-control/*
+                  - !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:response-headers-policy/*
+              # Functions by name (${AWS::StackName}-app-index, ...).
+              - Sid: CloudFrontFunctions
+                Effect: Allow
+                Action:
+                  - cloudfront:UpdateFunction
+                  - cloudfront:PublishFunction
+                  - cloudfront:DeleteFunction
+                  - cloudfront:TestFunction
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/${Prefix}-*
+              # Distributions by their presence:stage tag.
+              - Sid: Distributions
+                Effect: Allow
+                Action:
+                  - cloudfront:UpdateDistribution
+                  - cloudfront:UpdateDistributionWithStagingConfig
+                  - cloudfront:DeleteDistribution
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              # Tagging: only with the stage's tag, on a resource that has it
+              # or no tag yet (a new one), and never removing it.
+              - Sid: CloudFrontTag
+                Effect: Allow
+                Action: cloudfront:TagResource
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+                Condition:
+                  StringEquals:
+                    aws:RequestTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  StringEqualsIfExists:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: CloudFrontUntag
+                Effect: Allow
+                Action: cloudfront:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys: presence:stage
+              # ACM: the same, by the certificate's tag.
+              - Sid: CertificateReads
+                Effect: Allow
+                Action:
+                  - acm:RequestCertificate
+                  - acm:DescribeCertificate
+                  - acm:ListCertificates
+                  - acm:ListTagsForCertificate
+                Resource: '*'
+              - Sid: Certificates
+                Effect: Allow
+                Action:
+                  - acm:DeleteCertificate
+                  - acm:UpdateCertificateOptions
+                Resource: !Sub arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: CertificateTag
+                Effect: Allow
+                Action: acm:AddTagsToCertificate
+                Resource: !Sub arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*
+                Condition:
+                  StringEquals:
+                    aws:RequestTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  StringEqualsIfExists:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: CertificateUntag
+                Effect: Allow
+                Action: acm:RemoveTagsFromCertificate
+                Resource: !Sub arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys: presence:stage
+              # Cognito identity pools (identity.yaml), by the pool's tag.
+              # SetIdentityPoolRoles has no resource to scope (see
+              # specs/deploy.md); PassRole still limits it to the stage's roles.
+              - Sid: IdentityPoolReads
+                Effect: Allow
+                Action:
+                  - cognito-identity:CreateIdentityPool
+                  - cognito-identity:ListIdentityPools
+                  - cognito-identity:SetIdentityPoolRoles
+                Resource: '*'
+              - Sid: IdentityPoolDescribe
+                Effect: Allow
+                Action:
+                  - cognito-identity:DescribeIdentityPool
+                  - cognito-identity:GetIdentityPoolRoles
+                  - cognito-identity:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+              - Sid: IdentityPools
+                Effect: Allow
+                Action:
+                  - cognito-identity:UpdateIdentityPool
+                  - cognito-identity:DeleteIdentityPool
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: IdentityPoolTag
+                Effect: Allow
+                Action: cognito-identity:TagResource
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Condition:
+                  StringEquals:
+                    aws:RequestTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  StringEqualsIfExists:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              - Sid: IdentityPoolUntag
+                Effect: Allow
+                Action: cognito-identity:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringNotEquals:
+                    aws:TagKeys: presence:stage
 
   DeployRole:
     Type: AWS::IAM::Role
@@ -64,203 +654,10 @@ Resources:
                 token.actions.githubusercontent.com:sub:
                   - !Sub repo:${GitHubImmutableRepository}:ref:refs/tags/*GA
                   - !Sub repo:${GitHubRepository}:ref:refs/tags/*GA
-      Policies:
-        - PolicyName: deploy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # CloudFormation: the Presence stacks
-              - Effect: Allow
-                Action: cloudformation:*
-                Resource:
-                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/presence-*/*
-              - Effect: Allow
-                Action:
-                  - cloudformation:ValidateTemplate
-                  - cloudformation:GetTemplateSummary
-                  - cloudformation:ListStacks
-                Resource: '*'
-              # S3: the site and user-data buckets
-              - Effect: Allow
-                Action: s3:*
-                Resource:
-                  - arn:aws:s3:::presence-*
-                  - arn:aws:s3:::presence-*/*
-              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
-              # the Serverless transform, the function, its HTTP API and the
-              # roles table.
-              - Effect: Allow
-                Action: cloudformation:*
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-sam-cli-managed-default/*
-              - Effect: Allow
-                Action: cloudformation:CreateChangeSet
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
-              - Effect: Allow
-                Action: s3:*
-                Resource:
-                  - arn:aws:s3:::aws-sam-cli-managed-default-*
-                  - arn:aws:s3:::aws-sam-cli-managed-default-*/*
-              - Effect: Allow
-                Action: lambda:*
-                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:presence-*
-              - Effect: Allow
-                Action:
-                  - apigateway:GET
-                  - apigateway:POST
-                  - apigateway:PUT
-                  - apigateway:PATCH
-                  - apigateway:DELETE
-                  # Creating an HTTP API stage tags it (SAM's httpapi:createdBy).
-                  - apigateway:TagResource
-                  - apigateway:UntagResource
-                Resource:
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
-              - Effect: Allow
-                Action:
-                  - dynamodb:CreateTable
-                  - dynamodb:UpdateTable
-                  - dynamodb:DeleteTable
-                  - dynamodb:DescribeTable
-                  - dynamodb:DescribeContinuousBackups
-                  - dynamodb:UpdateContinuousBackups
-                  # The auth API's link codes expire by TTL.
-                  - dynamodb:DescribeTimeToLive
-                  - dynamodb:UpdateTimeToLive
-                  - dynamodb:TagResource
-                  - dynamodb:UntagResource
-                  - dynamodb:ListTagsOfResource
-                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-*
-              # IAM: the identity pool's authenticated role (identity.yaml)
-              - Effect: Allow
-                Action:
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:UpdateRole
-                  # The identity role's trust policy (sts:TagSession for
-                  # the tier tag) changes with presence_infra/identity.yaml.
-                  - iam:UpdateAssumeRolePolicy
-                  - iam:TagRole
-                  - iam:UntagRole
-                  - iam:AttachRolePolicy
-                  - iam:DetachRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:GetRolePolicy
-                  - iam:ListRolePolicies
-                  - iam:ListAttachedRolePolicies
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-*
-              - Effect: Allow
-                Action: iam:PassRole
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-*
-                Condition:
-                  StringEquals:
-                    iam:PassedToService:
-                      - lambda.amazonaws.com
-                      - cognito-identity.amazonaws.com
-              # User data: the Cognito identity pool (presence_infra/identity.yaml)
-              - Effect: Allow
-                Action:
-                  - cognito-identity:CreateIdentityPool
-                  - cognito-identity:DescribeIdentityPool
-                  - cognito-identity:UpdateIdentityPool
-                  - cognito-identity:DeleteIdentityPool
-                  - cognito-identity:SetIdentityPoolRoles
-                  - cognito-identity:GetIdentityPoolRoles
-                  - cognito-identity:TagResource
-                  - cognito-identity:UntagResource
-                  - cognito-identity:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
-              # Live sync (identity.yaml): the IoT policy attached to each
-              # identity, and the account's IoT data endpoint for the app's
-              # build (scripts/deploy.sh).
-              - Effect: Allow
-                Action:
-                  - iot:CreatePolicy
-                  - iot:DeletePolicy
-                  - iot:GetPolicy
-                  - iot:CreatePolicyVersion
-                  - iot:DeletePolicyVersion
-                  - iot:GetPolicyVersion
-                  - iot:ListPolicyVersions
-                  - iot:SetDefaultPolicyVersion
-                  - iot:ListTargetsForPolicy
-                  - iot:TagResource
-                  - iot:UntagResource
-                  - iot:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:policy/presence-*
-              - Effect: Allow
-                Action: iot:DescribeEndpoint
-                Resource: '*'
-              - Effect: Allow
-                Action: cloudformation:ListExports
-                Resource: '*'
-              # The site's health check (site.yaml): its Fn::ForEach transform,
-              # the Route 53 health check, its alarm and the email topic.
-              # Health checks have no names to scope by, so any in the account.
-              - Effect: Allow
-                Action: cloudformation:CreateChangeSet
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
-              - Effect: Allow
-                Action: route53:CreateHealthCheck
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - route53:GetHealthCheck
-                  - route53:UpdateHealthCheck
-                  - route53:DeleteHealthCheck
-                  - route53:ChangeTagsForResource
-                  - route53:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:route53:::healthcheck/*
-              - Effect: Allow
-                Action:
-                  - cloudwatch:PutMetricAlarm
-                  - cloudwatch:DeleteAlarms
-                  - cloudwatch:DescribeAlarms
-                  - cloudwatch:TagResource
-                  - cloudwatch:UntagResource
-                  - cloudwatch:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:presence-*
-              - Effect: Allow
-                Action:
-                  - sns:CreateTopic
-                  - sns:DeleteTopic
-                  - sns:GetTopicAttributes
-                  - sns:SetTopicAttributes
-                  - sns:Subscribe
-                  - sns:Unsubscribe
-                  - sns:GetSubscriptionAttributes
-                  - sns:ListSubscriptionsByTopic
-                  - sns:TagResource
-                  - sns:UntagResource
-                  - sns:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-*
-              # The site: CloudFront, its certificate and DNS records
-              - Effect: Allow
-                Action: cloudfront:*
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - acm:RequestCertificate
-                  - acm:DescribeCertificate
-                  - acm:DeleteCertificate
-                  - acm:ListCertificates
-                  - acm:AddTagsToCertificate
-                  - acm:ListTagsForCertificate
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - route53:ChangeResourceRecordSets
-                  - route53:ListResourceRecordSets
-                  - route53:GetHostedZone
-                Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
-              - Effect: Allow
-                Action:
-                  - route53:GetChange
-                  - route53:ListHostedZones
-                Resource: '*'
+      # The presence stage's policies (Fn::ForEach above).
+      ManagedPolicyArns:
+        - !Ref DeployPolicypresence
+        - !Ref EdgePolicypresence
 
   RcDeployRole:
     Type: AWS::IAM::Role
@@ -286,213 +683,10 @@ Resources:
                   - !Sub repo:${GitHubImmutableRepository}:ref:refs/heads/main
                   - !Sub repo:${GitHubRepository}:ref:refs/tags/*RC*
                   - !Sub repo:${GitHubRepository}:ref:refs/heads/main
-      Policies:
-        - PolicyName: deploy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              # CloudFormation: the Presence stacks
-              - Effect: Allow
-                Action: cloudformation:*
-                Resource:
-                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/presence-rc-*/*
-              - Effect: Allow
-                Action:
-                  - cloudformation:ValidateTemplate
-                  - cloudformation:GetTemplateSummary
-                  - cloudformation:ListStacks
-                Resource: '*'
-              # S3: the site and user-data buckets
-              - Effect: Allow
-                Action: s3:*
-                Resource:
-                  - arn:aws:s3:::presence-rc-*
-                  - arn:aws:s3:::presence-rc-*/*
-              # The auth API (presence_api_auth, SAM): SAM's artifact stack and bucket,
-              # the Serverless transform, the function, its HTTP API and the
-              # roles table.
-              - Effect: Allow
-                Action: cloudformation:*
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/aws-sam-cli-managed-default/*
-              - Effect: Allow
-                Action: cloudformation:CreateChangeSet
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31
-              - Effect: Allow
-                Action: s3:*
-                Resource:
-                  - arn:aws:s3:::aws-sam-cli-managed-default-*
-                  - arn:aws:s3:::aws-sam-cli-managed-default-*/*
-              - Effect: Allow
-                Action: lambda:*
-                Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:presence-rc-*
-              - Effect: Allow
-                Action:
-                  - apigateway:GET
-                  - apigateway:POST
-                  - apigateway:PUT
-                  - apigateway:PATCH
-                  - apigateway:DELETE
-                  # Creating an HTTP API stage tags it (SAM's httpapi:createdBy).
-                  - apigateway:TagResource
-                  - apigateway:UntagResource
-                Resource:
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/*
-                  - !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}::/tags/*
-              - Effect: Allow
-                Action:
-                  - dynamodb:CreateTable
-                  - dynamodb:UpdateTable
-                  - dynamodb:DeleteTable
-                  - dynamodb:DescribeTable
-                  - dynamodb:DescribeContinuousBackups
-                  - dynamodb:UpdateContinuousBackups
-                  # The auth API's link codes expire by TTL.
-                  - dynamodb:DescribeTimeToLive
-                  - dynamodb:UpdateTimeToLive
-                  - dynamodb:TagResource
-                  - dynamodb:UntagResource
-                  - dynamodb:ListTagsOfResource
-                Resource: !Sub arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/presence-rc-*
-              # IAM: the identity pool's authenticated role (identity.yaml)
-              - Effect: Allow
-                Action:
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:DeleteRole
-                  - iam:UpdateRole
-                  # The identity role's trust policy (sts:TagSession for
-                  # the tier tag) changes with presence_infra/identity.yaml.
-                  - iam:UpdateAssumeRolePolicy
-                  - iam:TagRole
-                  - iam:UntagRole
-                  - iam:AttachRolePolicy
-                  - iam:DetachRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:DeleteRolePolicy
-                  - iam:GetRolePolicy
-                  - iam:ListRolePolicies
-                  - iam:ListAttachedRolePolicies
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-rc-*
-              - Effect: Allow
-                Action: iam:PassRole
-                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/presence-rc-*
-                Condition:
-                  StringEquals:
-                    iam:PassedToService:
-                      - lambda.amazonaws.com
-                      - cognito-identity.amazonaws.com
-              # User data: the Cognito identity pool (presence_infra/identity.yaml)
-              - Effect: Allow
-                Action:
-                  - cognito-identity:CreateIdentityPool
-                  - cognito-identity:DescribeIdentityPool
-                  - cognito-identity:UpdateIdentityPool
-                  - cognito-identity:DeleteIdentityPool
-                  - cognito-identity:SetIdentityPoolRoles
-                  - cognito-identity:GetIdentityPoolRoles
-                  - cognito-identity:TagResource
-                  - cognito-identity:UntagResource
-                  - cognito-identity:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
-              # Live sync (identity.yaml): the IoT policy attached to each
-              # identity, and the account's IoT data endpoint for the app's
-              # build (scripts/deploy.sh).
-              - Effect: Allow
-                Action:
-                  - iot:CreatePolicy
-                  - iot:DeletePolicy
-                  - iot:GetPolicy
-                  - iot:CreatePolicyVersion
-                  - iot:DeletePolicyVersion
-                  - iot:GetPolicyVersion
-                  - iot:ListPolicyVersions
-                  - iot:SetDefaultPolicyVersion
-                  - iot:ListTargetsForPolicy
-                  - iot:TagResource
-                  - iot:UntagResource
-                  - iot:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:policy/presence-rc-*
-              - Effect: Allow
-                Action: iot:DescribeEndpoint
-                Resource: '*'
-              - Effect: Allow
-                Action: cloudformation:ListExports
-                Resource: '*'
-              # The site's health check (site.yaml): its Fn::ForEach transform,
-              # the Route 53 health check, its alarm and the email topic.
-              # Health checks have no names to scope by, so any in the account.
-              - Effect: Allow
-                Action: cloudformation:CreateChangeSet
-                Resource: !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:aws:transform/LanguageExtensions
-              - Effect: Allow
-                Action: route53:CreateHealthCheck
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - route53:GetHealthCheck
-                  - route53:UpdateHealthCheck
-                  - route53:DeleteHealthCheck
-                  - route53:ChangeTagsForResource
-                  - route53:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:route53:::healthcheck/*
-              - Effect: Allow
-                Action:
-                  - cloudwatch:PutMetricAlarm
-                  - cloudwatch:DeleteAlarms
-                  - cloudwatch:DescribeAlarms
-                  - cloudwatch:TagResource
-                  - cloudwatch:UntagResource
-                  - cloudwatch:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:presence-rc-*
-              - Effect: Allow
-                Action:
-                  - sns:CreateTopic
-                  - sns:DeleteTopic
-                  - sns:GetTopicAttributes
-                  - sns:SetTopicAttributes
-                  - sns:Subscribe
-                  - sns:Unsubscribe
-                  - sns:GetSubscriptionAttributes
-                  - sns:ListSubscriptionsByTopic
-                  - sns:TagResource
-                  - sns:UntagResource
-                  - sns:ListTagsForResource
-                Resource: !Sub arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:presence-rc-*
-              # The site: CloudFront, its certificate and DNS records
-              - Effect: Allow
-                Action: cloudfront:*
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - acm:RequestCertificate
-                  - acm:DescribeCertificate
-                  - acm:DeleteCertificate
-                  - acm:ListCertificates
-                  - acm:AddTagsToCertificate
-                  - acm:ListTagsForCertificate
-                Resource: '*'
-              - Effect: Allow
-                Action:
-                  - route53:ListResourceRecordSets
-                  - route53:GetHostedZone
-                Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
-              # Records may change only for rc.presence.nu01.com and its ACM
-              # validation name (_<token>.rc.presence.nu01.com): never prod's.
-              - Effect: Allow
-                Action: route53:ChangeResourceRecordSets
-                Resource: !Sub arn:${AWS::Partition}:route53:::hostedzone/${HostedZoneId}
-                Condition:
-                  ForAllValues:StringLike:
-                    route53:ChangeResourceRecordSetsNormalizedRecordNames:
-                      - rc.presence.nu01.com
-                      - '*.rc.presence.nu01.com'
-
-              - Effect: Allow
-                Action:
-                  - route53:GetChange
-                  - route53:ListHostedZones
-                Resource: '*'
+      # The presence-rc stage's policies (Fn::ForEach above).
+      ManagedPolicyArns:
+        - !Ref DeployPolicypresencerc
+        - !Ref EdgePolicypresencerc
 
 Outputs:
   DeployRoleArn:
@@ -501,3 +695,15 @@ Outputs:
   RcDeployRoleArn:
     Description: Set as the repository variable AWS_DEPLOY_RC_ROLE_ARN
     Value: !GetAtt RcDeployRole.Arn
+  AppBoundaryArn:
+    Description: The prod stacks' roles' permissions boundary (scripts/deploy.sh passes it as PermissionsBoundary)
+    Value: !Ref AppBoundarypresence
+  RcAppBoundaryArn:
+    Description: The RC stacks' roles' permissions boundary
+    Value: !Ref AppBoundarypresencerc
+  ArtifactBucketName:
+    Description: Where sam deploy uploads the prod auth API (scripts/deploy.sh)
+    Value: !Ref ArtifactBucketpresence
+  RcArtifactBucketName:
+    Description: Where sam deploy uploads the RC auth API
+    Value: !Ref ArtifactBucketpresencerc

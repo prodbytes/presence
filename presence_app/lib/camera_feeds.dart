@@ -66,8 +66,12 @@ class CameraFeedsView extends StatefulWidget {
   /// then.
   final bool active;
 
-  /// Room kept clear under the grid for the status pills, Flip and Clip.
+  /// Room kept clear under the grid for the view button, Flip and Clip.
   static const double bottomInset = 88;
+
+  /// Room kept clear above the grid, under the app bar, for a row of status
+  /// pills (`CameraStatus.rowHeight`), so they don't cover the top cells.
+  static const double topInset = 8 + 40 + 8;
 
   @override
   State<CameraFeedsView> createState() => _CameraFeedsViewState();
@@ -151,11 +155,12 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
           // The same tree with or without the grid, so switching doesn't
           // rebuild the camera's preview.
           return Padding(
-            // The grid stays clear of the app bar above and the buttons
-            // below; the camera alone fills the screen.
+            // The grid stays clear of the app bar (in the top padding: the
+            // body runs behind it) and the status pills above and the
+            // buttons below; the camera alone fills the screen.
             padding: all
                 ? EdgeInsets.only(
-                    top: padding.top + kToolbarHeight,
+                    top: padding.top + CameraFeedsView.topInset,
                     bottom: padding.bottom + CameraFeedsView.bottomInset,
                   )
                 : EdgeInsets.zero,

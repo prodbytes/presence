@@ -88,7 +88,7 @@ the camera. (There used to be a Device tab for both; it's gone.)
 
 ## Battery, over the camera
 
-- Over the Camera tab, **bottom left**, across from Flip and Clip, in the
+- Over the Camera tab, **top left**, under the app bar, in the
   same pill style as the camera's messages
   ([lib/battery_pills.dart](../presence_app/lib/battery_pills.dart),
   [lib/status_pill.dart](../presence_app/lib/status_pill.dart)); see
@@ -257,9 +257,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
     "full", and is hidden without a reading; the temperature pill shows
     to one decimal, turns to the error color from 45 °C, and is hidden
     where it isn't reported;
-  - on a 320 dp phone and a 1280 px desktop, the pills sit bottom left
-    and touch neither Flip nor Clip: stacked above the buttons' row on
-    the phone, level with them on the desktop.
+  - on a 320 dp phone and a 1280 px desktop, the pills sit top left, 8 px
+    under the app bar, in one row, and touch none of the buttons.
 - Web release and Android debug builds compile. The battery and its
   temperature haven't been read on a phone, nor in a browser, yet.
 

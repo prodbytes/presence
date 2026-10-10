@@ -34,9 +34,12 @@ but doesn't run.
   - the browser resolves it to loopback, so the page's
     `ws://dev.presence.localhost:8080/app/…` connects to the dev server
     directly.
-- The image is the dated nightly `nightly-09242026-compat`: Floci 2.1.0
-  forwards no viewer headers to custom origins (not even `Authorization`).
-  Move to the next release once it ships.
+- The image is the dated nightly `nightly-09242026-compat`, pinned by its
+  digest (`@sha256:eb725a12…`, the multi-arch index), since the container
+  gets the Docker socket: Floci 2.1.0 forwards no viewer headers to custom
+  origins (not even `Authorization`). Move to the next release once it
+  ships, with its digest (`docker buildx imagetools inspect
+  floci/floci:<tag>`).
 - The Flutter web server binds `127.0.0.1`, not `localhost`. Dart binds
   `localhost` to IPv6 `[::1]` only, which Docker Desktop's host gateway
   can't reach (Floci got a 502). Browsers still reach it at
@@ -140,12 +143,16 @@ roles, membership requests and the Admin tab work locally without AWS:
   template's. `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
-- **Roles** follow the template: the root allowlist (`@nu01.com`, plus
-  `PRESENCE_ROOT_DOMAINS` and `PRESENCE_ROOT_EMAILS` from `.env`, which
-  `process-compose.yaml` passes to Floci) gets `presence_root`,
-  `presence_admin` and `presence_user`, and everyone else starts with none.
-  Storage is `memory`, so every start begins with empty tables: grants and
-  requests don't survive a restart.
+- **Roles** follow the template, from **rbacr's RC**
+  (https://rc.rbacr.nu01.com, its own database), never GA rbacr, which
+  prod uses: `.env`'s `RBACR_RC_URL` (default the RC), `RBACR_RC_TOKEN`
+  (a token of an RC root) and `RBACR_RC_SYSTEM` (default `presence`),
+  which `process-compose.yaml` passes to Floci as the stack's rbacr. The
+  hook warns when a client is set but no token, as nobody would then have
+  a role. An admin's grants and redeemed vouchers locally are grants in
+  the RC. The local monitor checks the RC's `/health`. Storage is
+  `memory`, so every start begins with empty tables: requests and vouchers
+  don't survive a restart (rbacr's grants do).
 - The hook runs past Floci's default 30 s, so compose sets
   `FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` to 180, and the process's readiness
   allows 6 minutes (the first run builds and pulls the Lambda image).

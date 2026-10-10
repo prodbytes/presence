@@ -7,7 +7,8 @@ import 'roles_service.dart';
 import 'voucher_code.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
-/// `presence_admin`): the pending membership requests, each with **Grant
+/// `presence_admin`): maintenance mode's switch, with the sorry screen's
+/// message; the pending membership requests, each with **Grant
 /// access** (gives it the `presence_user` role) and **Dismiss**; then the
 /// voucher codes, which grant a role to whoever redeems them, with a form
 /// to create one. A page of the home screen's tabs, like Settings: no
@@ -19,6 +20,7 @@ class AdminView extends StatefulWidget {
     required this.auth,
     required this.membership,
     this.canCreateAdmins = false,
+    this.onMaintenanceSwitched,
   });
 
   final AuthService auth;
@@ -27,6 +29,10 @@ class AdminView extends StatefulWidget {
   /// Whether the user is a `presence_root`, who may also create Admin
   /// vouchers; admins create Member ones only.
   final bool canCreateAdmins;
+
+  /// After maintenance mode is switched: the app asks the auth API again,
+  /// so it follows at once.
+  final Future<void> Function()? onMaintenanceSwitched;
 
   @override
   State<AdminView> createState() => _AdminViewState();
@@ -37,6 +43,9 @@ class _AdminViewState extends State<AdminView> {
   String? _error;
   List<Voucher>? _vouchers;
   String? _vouchersError;
+  MaintenanceSwitch? _maintenance;
+  String? _maintenanceError;
+  bool _switching = false;
 
   /// Emails with a grant or dismissal in flight, and voucher codes being
   /// deleted.
@@ -57,8 +66,21 @@ class _AdminViewState extends State<AdminView> {
     setState(() {
       _error = null;
       _vouchersError = null;
+      _maintenanceError = null;
     });
     await Future.wait([
+      () async {
+        try {
+          final state = await widget.membership.maintenance(token);
+          if (mounted) setState(() => _maintenance = state);
+        } catch (e) {
+          if (mounted) {
+            setState(
+              () => _maintenanceError = 'Couldn\'t load maintenance mode ($e).',
+            );
+          }
+        }
+      }(),
       () async {
         try {
           final requests = await widget.membership.list(token);
@@ -153,6 +175,40 @@ class _AdminViewState extends State<AdminView> {
     }
   }
 
+  /// Switches maintenance mode; true if it was.
+  Future<bool> _switchMaintenance(bool on, String message) async {
+    final token = widget.auth.idToken;
+    if (token == null) return false;
+    setState(() => _switching = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final state = await widget.membership.setMaintenance(
+        token,
+        on: on,
+        message: message,
+      );
+      if (mounted) setState(() => _maintenance = state);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            on
+                ? 'Maintenance mode is on: everyone else sees the sorry message'
+                : 'Maintenance mode is off',
+          ),
+        ),
+      );
+      await widget.onMaintenanceSwitched?.call();
+      return true;
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Couldn\'t switch maintenance mode ($e)')),
+      );
+      return false;
+    } finally {
+      if (mounted) setState(() => _switching = false);
+    }
+  }
+
   Future<void> _delete(Voucher voucher) async {
     final token = widget.auth.idToken;
     if (token == null) return;
@@ -206,7 +262,7 @@ class _AdminViewState extends State<AdminView> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Membership requests',
+                      'Maintenance mode',
                       style: theme.textTheme.titleLarge,
                     ),
                   ),
@@ -218,6 +274,20 @@ class _AdminViewState extends State<AdminView> {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              switch ((_maintenance, _maintenanceError)) {
+                (_, final error?) => status(error, error: true),
+                (null, _) => loading,
+                (final state?, _) => _MaintenanceCard(
+                  // A fresh message field for each state loaded.
+                  key: ValueKey(state),
+                  state: state,
+                  busy: _switching,
+                  onSwitch: _switchMaintenance,
+                ),
+              },
+              const SizedBox(height: 24),
+              Text('Membership requests', style: theme.textTheme.titleLarge),
               const SizedBox(height: 8),
               ...switch ((requests, _error)) {
                 (_, final error?) => [status(error, error: true)],
@@ -282,6 +352,104 @@ class _AdminViewState extends State<AdminView> {
       ),
     );
   }
+}
+
+/// Maintenance mode's switch: while it's on, everyone but admins sees only
+/// a sorry message, with the [message] typed here.
+class _MaintenanceCard extends StatefulWidget {
+  const _MaintenanceCard({
+    super.key,
+    required this.state,
+    required this.busy,
+    required this.onSwitch,
+  });
+
+  final MaintenanceSwitch state;
+  final bool busy;
+  final Future<bool> Function(bool on, String message) onSwitch;
+
+  @override
+  State<_MaintenanceCard> createState() => _MaintenanceCardState();
+}
+
+class _MaintenanceCardState extends State<_MaintenanceCard> {
+  late final _message = TextEditingController(text: widget.state.state.message);
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (:state, :by) = widget.state;
+    final since = state.since?.toLocal();
+    final when = since == null
+        ? null
+        : '${since.year}-${_two(since.month)}-${_two(since.day)} '
+              '${_two(since.hour)}:${_two(since.minute)}';
+    return Card(
+      key: const Key('maintenance-card'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SwitchListTile(
+              key: const Key('maintenance-switch'),
+              contentPadding: EdgeInsets.zero,
+              title: Text(state.on ? 'On' : 'Off'),
+              subtitle: Text(
+                [
+                  state.on
+                      ? 'Everyone but admins sees only the sorry message.'
+                      : 'Turn on to show everyone but admins only a sorry '
+                            'message.',
+                  if (when != null)
+                    '${state.on ? 'On' : 'Off'} since $when'
+                        '${by.isEmpty ? '' : ' ($by)'}.',
+                ].join(' '),
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              value: state.on,
+              onChanged: widget.busy
+                  ? null
+                  : (on) => widget.onSwitch(on, on ? _message.text : ''),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const Key('maintenance-message-field'),
+              controller: _message,
+              enabled: !widget.busy,
+              maxLength: 500,
+              minLines: 1,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Message (optional)',
+                hintText: 'We expect to be back by noon.',
+                helperText: 'Shown under the sorry message.',
+              ),
+            ),
+            if (state.on)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  key: const Key('maintenance-update-message'),
+                  onPressed: widget.busy
+                      ? null
+                      : () => widget.onSwitch(true, _message.text),
+                  child: const Text('Update message'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _two(int n) => n.toString().padLeft(2, '0');
 }
 
 class _RequestCard extends StatelessWidget {

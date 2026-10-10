@@ -16,7 +16,7 @@ and emails when it fails or recovers.
   - **`settings`**: an OIDC client (so RBAC mode), the identity pool and
     the user-data bucket are configured (as in `GET /api/auth/anonymous`);
   - **`dynamodb`**: every auth API table (`UserRoles`, `Profiles`,
-    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, listed in
+    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, `System`, listed in
     `HEALTH_TABLES`) is `ACTIVE`;
   - **`s3`**: the [cloud sync](cloud-sync.md) user-data bucket answers
     `HeadBucket`;
@@ -24,10 +24,11 @@ and emails when it fails or recovers.
   - **`google`**: Google's token signing keys
     (`https://www.googleapis.com/oauth2/v3/certs`) load. The HTTP API's
     JWT authorizer needs them to check every sign-in;
-  - **`rbacr`** (only with an rbacr token: `RBACR_URL` set on
-    `HealthFunction`): rbacr's own `/health` answers 200. Without rbacr
-    nobody is premium ([Premium and free](premium.md)).
-- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok"},"version":"0.6.202610061200"}`
+  - **`rbacr`**: rbacr's own `/health` answers 200. It fails when the
+    stack has no rbacr token (`RBACR_URL` is set on `HealthFunction` only
+    with one; the token itself isn't): rbacr gives every role ([Auth
+    API](auth-api.md)), so without it nobody who signs in has one.
+- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok","rbacr":"ok"},"version":"0.6.202610061200"}`
   when every check passes. Otherwise **503**, with `"status":"fail"` and
   the failing checks as `"fail"`.
 - **`version`** is the release deployed (`X.Y.Z`, as in
@@ -43,7 +44,7 @@ and emails when it fails or recovers.
   checkers don't each call every service.
 - The function has 1024 MB of memory, which gives it more CPU, so a cold
   start still answers in time. Its permissions are read-only:
-  `dynamodb:DescribeTable` on the six tables, `s3:ListBucket` on the
+  `dynamodb:DescribeTable` on the seven tables, `s3:ListBucket` on the
   bucket and `cognito-identity:DescribeIdentityPool` on the pool.
 - **AWS only.** The local [Floci](local-cdn.md) API has no `/health`
   route. The identity pool and bucket in `.env` are AWS's, which the

@@ -5,7 +5,10 @@
 #   tag as a prerelease; *GA tags (e.g. 1.2.0-GA) as the latest full
 #   release. scripts/release-rc.sh and scripts/release-ga.sh push them.
 # - Manual dispatch releases the chosen tag, creating it on the dispatched
-#   commit if it doesn't exist yet.
+#   commit if it doesn't exist yet (an existing tag must name that commit).
+#   Only a dispatch from main, of a commit on main, may publish a full
+#   release; from any other ref it's always a prerelease, never "latest".
+# - *GA and *RC* tags must name a commit on main (checked before building).
 # - Pull requests that change the build only build (no release), so a broken
 #   build shows up before a tag does.
 #
@@ -52,6 +55,8 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.47.5"
+  # The commit that tag names: the clone is checked against it.
+  FLUTTER_COMMIT: 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
 
 jobs:
   prepare:
@@ -61,9 +66,12 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       version_z: ${{ steps.version.outputs.version_z }}
       build_number: ${{ steps.version.outputs.build_number }}
+      prerelease: ${{ steps.trust.outputs.prerelease }}
     steps:
+      # Full history, so the commit can be checked against main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - id: tag
@@ -91,6 +99,49 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Release tag: $tag"
+
+      # Where the release may come from, and whether it's a prerelease:
+      # - a pushed *GA or *RC* tag must name a commit on main; *GA is a
+      #   full release, anything else a prerelease;
+      # - a manual run publishes a full release only when asked, from main,
+      #   of a commit on main; an existing tag must name the dispatched commit.
+      - id: trust
+        name: Check the release's commit
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          INPUT_PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          commit="$(git rev-parse HEAD)"
+          on_main=false
+          if git merge-base --is-ancestor "$commit" origin/main; then on_main=true; fi
+          prerelease=true
+          case "$EVENT" in
+            pull_request) ;;
+            push)
+              if [[ "$TAG" == *GA || "$TAG" == *RC* ]] && [[ "$on_main" != true ]]; then
+                echo "::error::$TAG ($commit) isn't on main; GA and RC releases are cut only from main"
+                exit 1
+              fi
+              [[ "$TAG" == *GA ]] && prerelease=false
+              ;;
+            workflow_dispatch)
+              if existing="$(git rev-parse --verify --quiet "refs/tags/$TAG^{commit}")" && [[ "$existing" != "$commit" ]]; then
+                echo "::error::Tag $TAG is $existing, not the dispatched commit $commit; dispatch from the tag instead"
+                exit 1
+              fi
+              if [[ "$INPUT_PRERELEASE" == false ]]; then
+                if [[ "$REF" == refs/heads/main || "$REF" == refs/tags/* ]] && [[ "$on_main" == true ]]; then
+                  prerelease=false
+                else
+                  echo "::warning::$REF ($commit) isn't main: publishing $TAG as a prerelease"
+                fi
+              fi
+              ;;
+          esac
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Commit $commit, on main: $on_main, prerelease: $prerelease"
 
       # One version for every platform's build. A tag that carries X.Y.Z
       # (e.g. 1.0.202609261530-RC) keeps its Z, and its X.Y must match the
@@ -173,6 +224,11 @@ jobs:
         run: |
           git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
             https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          got="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          if [[ "$got" != "$FLUTTER_COMMIT" ]]; then
+            echo "::error::Flutter $FLUTTER_VERSION is $got, not the pinned $FLUTTER_COMMIT"
+            exit 1
+          fi
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
       - name: Show the toolchain
@@ -244,7 +300,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.tag }}
-          PRERELEASE: ${{ (github.event_name == 'push' && !endsWith(github.ref_name, 'GA')) || (github.event_name != 'push' && inputs.prerelease) }}
+          # Decided (and checked against main) in prepare.
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
         run: |
           ls -l dist
           title="presence-$TAG"
@@ -253,6 +310,10 @@ jobs:
             gh release edit "$TAG" --title "$title"
           else
             flags=(--title "$title" --generate-notes --target "$GITHUB_SHA")
-            [[ "$PRERELEASE" == true ]] && flags+=(--prerelease)
+            if [[ "$PRERELEASE" == false ]]; then
+              flags+=(--latest)
+            else
+              flags+=(--prerelease --latest=false)
+            fi
             gh release create "$TAG" "${flags[@]}" dist/*
           fi

@@ -36,7 +36,8 @@ import static presence.auth.Http.response;
  *   <li>{@code GET /api/auth/membership}: the pending membership requests,
  *       oldest first, as {@code {"requests": [{email, name, message, requestedAt}]}};</li>
  *   <li>{@code POST /api/auth/membership/grant}: gives the email in the
- *       (plain-text) body the {@code presence_user} role and drops its request;</li>
+ *       (plain-text) body the {@code presence_user} role (an rbacr grant
+ *       of {@code free}, {@link Roles#GRANTED_AS}) and drops its request;</li>
  *   <li>{@code POST /api/auth/membership/dismiss}: hides the email's request.
  *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
@@ -58,19 +59,25 @@ import static presence.auth.Http.response;
  *       (403 otherwise) and a random code (400 for a chosen one);</li>
  *   <li>{@code POST /api/auth/vouchers/delete}: deletes the voucher whose code
  *       is the body; a presence_admin one only for a {@code presence_root}
- *       caller (403 otherwise).</li>
+ *       caller (403 otherwise);</li>
+ *   <li>{@code GET /api/auth/maintenance}: the {@link Maintenance} state, with
+ *       who switched it, as {@code {on, message, since, by}};</li>
+ *   <li>{@code POST /api/auth/maintenance}: switches it, from the
+ *       form-encoded body {@code on} ({@code true} or {@code false}) and
+ *       optionally {@code message} (up to {@link Maintenance#MAX_MESSAGE}
+ *       characters), and answers the new state.</li>
  * </ul>
  * A linked account shares its profile owner's membership, never the
  * owner's administration: the caller's own email must make it an admin.
  */
 public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
-    /** Where membership requests and granted roles are kept. */
+    /** Where membership requests are kept, and roles granted. */
     interface Backend {
         /** The requests that weren't dismissed. */
         List<MembershipHandler.Request> requests();
 
-        /** Adds {@code role} to the email's roles in the UserRoles table. */
+        /** Grants the email {@code role} (one of {@link Roles#GRANTED_AS}'s) in rbacr. */
         void grant(String email, String role);
 
         /** Removes the email's request (after a grant). */
@@ -87,13 +94,15 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     private final Function<String, Profiles.Profile> linked;
     private final Backend backend;
     private final VoucherHandler.Store vouchers;
+    private final Maintenance.Store maintenance;
     private final Clock clock;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
         this(Roles.fromEnvironment(), Profiles.fromEnvironment()::existing,
-                dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), System.getenv("USER_ROLES_TABLE")),
+                dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), Rbacr.fromEnvironment()),
                 VoucherHandler.dynamoStore(System.getenv("VOUCHER_TABLE")),
+                Maintenance.dynamoStore(System.getenv("SYSTEM_TABLE")),
                 Clock.systemUTC());
     }
 
@@ -107,10 +116,16 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
      */
     AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
                  VoucherHandler.Store vouchers, Clock clock) {
+        this(roles, linked, backend, vouchers, Maintenance.memory(), clock);
+    }
+
+    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
+                 VoucherHandler.Store vouchers, Maintenance.Store maintenance, Clock clock) {
         this.roles = roles;
         this.linked = linked;
         this.backend = backend;
         this.vouchers = vouchers;
+        this.maintenance = maintenance;
         this.clock = clock;
     }
 
@@ -172,6 +187,8 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 }
                 yield response(200, "{\"code\":" + Json.string(code) + "}");
             }
+            case "GET /api/auth/maintenance" -> response(200, maintenance.get().toJson());
+            case "POST /api/auth/maintenance" -> setMaintenance(event, caller.verifiedEmail());
             default -> response(404, "{\"error\":\"no such route\"}");
         };
     }
@@ -260,6 +277,25 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         return response(500, "{\"error\":\"couldn't pick a free code\"}");
     }
 
+    private APIGatewayV2HTTPResponse setMaintenance(APIGatewayV2HTTPEvent event, String by) {
+        var body = Http.bodyText(event, 12 * Maintenance.MAX_MESSAGE);
+        var form = VoucherHandler.form(body == null ? "" : body);
+        var on = form.getOrDefault("on", "");
+        if (!on.equals("true") && !on.equals("false")) {
+            return response(400, "{\"error\":\"on must be true or false\"}");
+        }
+        var message = Maintenance.cleanMessage(form.get("message"));
+        if (message == null) {
+            return response(400, "{\"error\":\"message must be at most " + Maintenance.MAX_MESSAGE
+                    + " characters\"}");
+        }
+        var state = new Maintenance(on.equals("true"), message,
+                clock.instant().truncatedTo(ChronoUnit.MILLIS), by == null ? "" : by);
+        maintenance.set(state);
+        System.err.println("presence: maintenance mode " + (state.on() ? "on" : "off") + " by " + state.by());
+        return response(200, state.toJson());
+    }
+
     /** One address: something@domain, at most 254 characters, no spaces or commas. */
     static boolean validEmail(String email) {
         var at = email.lastIndexOf('@');
@@ -274,7 +310,8 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 + ",\"requestedAt\":" + Json.string(r.requestedAt().toString()) + "}";
     }
 
-    static Backend dynamoBackend(String membershipTable, String rolesTable) {
+    /** Requests in {@code membershipTable}, grants in {@code rbacr}. */
+    static Backend dynamoBackend(String membershipTable, Rbacr rbacr) {
         var dynamo = Aws.dynamo();
         return new Backend() {
             @Override
@@ -297,7 +334,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
 
             @Override
             public void grant(String email, String role) {
-                UserRoles.grant(dynamo, rolesTable, email, Set.of(role));
+                rbacr.grant(email, Roles.GRANTED_AS.get(role));
             }
 
             @Override

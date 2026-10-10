@@ -82,23 +82,25 @@ void main() {
     });
 
     test(
-      'missing where cloud sync is set: a warning, a failed check',
+      'missing: a warning, a failed check, cloud sync or not',
       () async {
         final roles = await rolesWith((oidc: true, aws: true, rbacr: false));
         final part = SystemHealth.rbacrOf(roles);
         expect(part.$1, '⚠️');
+        expect(part.$2, contains('nobody who signs in has a role'));
         expect(healthPartFailed(part), isTrue);
         expect(
           HealthWarningPill.failedChecks(roles, null, oidcClient: true),
           contains(part.$2),
         );
-        // Without cloud sync, or an API that doesn't say: not a failure.
+        // Roles come from RBACR alone, so no cloud sync doesn't excuse it.
         expect(
           SystemHealth.rbacrOf(
             await rolesWith((oidc: true, aws: false, rbacr: false)),
           ).$1,
-          '⚪',
+          '⚠️',
         );
+        // An API that doesn't say: not a failure.
         expect(
           SystemHealth.rbacrOf(
             await rolesWith((oidc: true, aws: true, rbacr: null)),

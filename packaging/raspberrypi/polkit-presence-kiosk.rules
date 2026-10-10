@@ -1,0 +1,32 @@
+// Presence camera kiosk: the presence user (Chromium in the kiosk, on the
+// active seat0 session) may not power off, reboot or suspend the machine,
+// change its network, or mount, format or unlock disks. logind allows
+// the active session's user some of these without asking; this refuses
+// them, so a compromised page or browser can't. Installed by the presence
+// package in /usr/share/polkit-1/rules.d/ (polkit 0.106 or newer).
+polkit.addRule(function (action, subject) {
+  if (subject.user !== "presence") {
+    return polkit.Result.NOT_HANDLED;
+  }
+  var id = action.id;
+  var denied = [
+    // Power: power-off, reboot, halt, suspend, hibernate (and their
+    // -multiple-sessions and -ignore-inhibit variants), and boot settings.
+    /^org\.freedesktop\.login1\.(power-off|reboot|halt|suspend|hibernate|set-reboot|set-wall-message|set-self-linger|set-user-linger)/,
+    // Network: NetworkManager, wpa_supplicant, systemd-networkd and
+    // systemd-resolved, ModemManager.
+    /^org\.freedesktop\.NetworkManager\./,
+    /^fi\.w1\.wpa_supplicant1/,
+    /^org\.freedesktop\.network1\./,
+    /^org\.freedesktop\.resolve1\./,
+    /^org\.freedesktop\.ModemManager1\./,
+    // Storage: UDisks2 (mount, format, unlock, power off drives).
+    /^org\.freedesktop\.udisks2\./
+  ];
+  for (var i = 0; i < denied.length; i++) {
+    if (denied[i].test(id)) {
+      return polkit.Result.NO;
+    }
+  }
+  return polkit.Result.NOT_HANDLED;
+});

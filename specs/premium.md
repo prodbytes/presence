@@ -7,7 +7,7 @@ other over [live sync](live-sync.md) (MQTT) only, and only the profile's
 **first 2 devices** show each other's events. The account sheet says which
 the account is, and how to sign up for Premium (at nu01.com).
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role manager,
-decides who is premium.
+decides who is premium, as it decides every role ([Auth API](auth-api.md)).
 
 ## Who is premium
 
@@ -15,29 +15,28 @@ decides who is premium.
   (rbacr adds `admin` to every system). An email holding **`premium` or
   `admin`** there is premium. That includes holding it through a grant to
   its domain, a global grant, an implied role, or being an rbacr root. Its
-  `free` role, or no role at all, is free.
+  `free` role alone is a free member; no role at all, no member.
 - The auth API asks rbacr (`Rbacr`,
   [presence_api_auth](../presence_api_auth/AuthFunction/src/main/java/presence/auth/Rbacr.java))
-  with an API token, server-side. It sends `POST /api/roles {"email",
-  "systemId": "presence"}`, with the email in the body and never the URL,
-  then turns the answer into the role **`presence_premium`** (`Roles.PREMIUM`)
-  next to the app's own roles. `GET /api/auth` lists it, so the app knows
+  with a root's API token, server-side. It sends `POST /api/roles
+  {"email"}`, with the email in the body and never the URL, and reads the
+  `presence` system's roles from the answer, which it turns into
+  **`presence_premium`** (`Roles.PREMIUM`) next to the app's other roles
+  (all of them rbacr's). `GET /api/auth` lists it, so the app knows
   (`RolesService.isPremium`).
-- **Only rbacr gives it.** It is never taken from the roles table, never
-  from the root allowlist, and never for an unverified email. In
+- **Only rbacr gives it**, and never for an unverified email. In
   [DEV](execution-mode.md) the anonymous user has every role, `presence_premium`
   included, but nothing syncs there.
 - **A linked account** ([profiles](profiles.md)) shares its profile owner's
   premium, as it shares the owner's membership: the profile's cloud folder
   is one. It's also premium on its own when rbacr says so of its own email.
 - **Fails closed.** If rbacr doesn't answer in time (2 s), refuses the
-  token, or answers something that isn't a list of roles, the email is not
-  premium. Answers are reused for **60 s** per Lambda instance; errors are
+  token, or answers something that isn't an answer, the email has no
+  roles at all, premium included. Answers are reused for **60 s** per Lambda instance; errors are
   never reused. A grant or revocation in rbacr shows within about a minute.
   The credentials already issued last up to an hour.
-- **Without a token** (`RbacrToken` empty), nobody is premium.
-  `scripts/deploy.sh` refuses to deploy without `RBACR_TOKEN`; deploying with
-  no rbacr on purpose takes `RBACR_TOKEN=none`.
+- **Without a token** (`RbacrToken` empty), nobody has a role.
+  `scripts/deploy.sh` refuses to deploy without `RBACR_TOKEN`.
 - Who is premium on release day is rbacr's to say. On 2026-10-08 its
   `presence` system had a single grant, `admin` to `@nu01.com`, so only
   nu01.com accounts were premium. Everyone else becomes free until granted
@@ -206,9 +205,9 @@ they publish, receive and store events as before. Their events are
 - **`GET /api/auth/anonymous`** reports `"rbacr": true|false` in its
   settings, as for `oidc` and `aws`, and `scripts/deploy.sh`'s smoke test
   expects `true` when it deployed a token.
-- **`scripts/health-check.sh`** (the local monitor) shows 🛂 `rbacr-api`
-  (the local API's setting) and 🛂 `rbacr` (rbacr's `/health`, at
-  `RBACR_URL`; no token sent).
+- **`scripts/health-check.sh`** (the local monitor) shows 👮 RBACR (the
+  local API's rbacr setting) and 💎 RBACR svc (rbacr's `/health`, at `RBACR_URL`; no token
+  sent) on its one line per run.
 
 ## Configuration
 

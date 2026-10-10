@@ -10,6 +10,11 @@
 # variable AWS_DEPLOY_ROLE_ARN. The Google web client ID is the repository
 # variable GOOGLE_WEB_CLIENT_ID (a public identifier, compiled into the app).
 #
+# Before anything else, it checks that the tag names a release
+# (X.Y.Z-GA) and that its commit is on main: a GA tag pushed on another
+# branch's commit is refused (see specs/release.md for the tag rulesets
+# that also limit who may push one).
+#
 # The Release workflow runs on the same tags and publishes the binaries.
 name: Deploy
 
@@ -29,6 +34,9 @@ concurrency:
 
 env:
   FLUTTER_VERSION: "3.47.5"
+  # The commit that tag names: the clone is checked against it.
+  FLUTTER_COMMIT: 6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+  SAM_CLI_VERSION: "1.165.0"
   AWS_REGION: us-east-1
 
 jobs:
@@ -38,9 +46,35 @@ jobs:
     # (repo:…:ref:refs/tags/X.Y.Z-GA), which the deploy role trusts, to the
     # environment name.
     steps:
+      # Full history, so the tag's commit can be checked against main.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Check the tag is a release on main
+        env:
+          TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+-GA$ ]]; then
+            echo "::error::$TAG isn't a release tag (X.Y.Z-GA)"
+            exit 1
+          fi
+          commit="$(git rev-parse "refs/tags/$TAG^{commit}")"
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::$TAG ($commit) isn't on main; only commits on main are deployed"
+            exit 1
+          fi
+          echo "$TAG is $commit, on main"
+          # Signed tags are expected (scripts/tag-release.sh); warn only, so
+          # a key GitHub doesn't know yet can't block a release.
+          object="$(git rev-parse "refs/tags/$TAG")"
+          verified="$(gh api "repos/$GH_REPO/git/tags/$object" --jq .verification.verified 2>/dev/null || echo unknown)"
+          if [[ "$verified" != true ]]; then
+            echo "::warning::$TAG isn't a signed tag GitHub could verify ($verified)"
+          fi
 
       # The auth API (presence_api_auth) is a Java 25 Lambda, built and deployed with SAM.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -51,11 +85,17 @@ jobs:
       - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
         with:
           use-installer: true
+          version: ${{ env.SAM_CLI_VERSION }}
 
       - name: Install Flutter ${{ env.FLUTTER_VERSION }}
         run: |
           git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" \
             https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          got="$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)"
+          if [[ "$got" != "$FLUTTER_COMMIT" ]]; then
+            echo "::error::Flutter $FLUTTER_VERSION is $got, not the pinned $FLUTTER_COMMIT"
+            exit 1
+          fi
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
 
       - name: Show the toolchain
@@ -82,12 +122,11 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           HOSTED_ZONE_ID: ${{ vars.HOSTED_ZONE_ID }}
-          # The root allowlist (empty: nu01.com, no single emails).
-          PRESENCE_ROOT_DOMAINS: ${{ vars.PRESENCE_ROOT_DOMAINS }}
-          PRESENCE_ROOT_EMAILS: ${{ vars.PRESENCE_ROOT_EMAILS }}
-          # rbacr, who says who's premium (cloud sync): a secret, masked in logs.
+          # rbacr, which keeps every role (a root's token): a secret, masked
+          # in logs. Unset URL and system: rbacr.nu01.com, presence.
           RBACR_TOKEN: ${{ secrets.RBACR_TOKEN }}
           RBACR_URL: ${{ vars.RBACR_URL }}
+          RBACR_SYSTEM: ${{ vars.RBACR_SYSTEM }}
           # Unset: scripts/deploy.sh's default, julio+health@nu01.com.
           PRESENCE_HEALTH_EMAILS: ${{ vars.PRESENCE_HEALTH_EMAILS }}
         run: bash scripts/deploy.sh
