@@ -4487,3 +4487,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+
+333. **Commit everything: the local certificates stay out.** (2026-10-10)
+     - Asked: commit every pending change, with PRs.
+     - Found: a worktree showed `presence_floci/certs` as untracked: the
+       main folder's mkcert certificate and private key, linked in. The
+       ignore rule (`presence_floci/certs/`) only matched a folder.
+     - Changed: `.gitignore` ignores `presence_floci/certs` as a
+       folder or a link, so the key can't be committed from a worktree.
