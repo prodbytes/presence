@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../camera_feeds.dart';
 import 'clip_button.dart';
 
-/// The Camera tab's floating buttons, bottom right: Screen off (where the
-/// platform can, [onScreenOff]), the view button (One, All, None), Flip
-/// and Clip. Flip is hidden when it can't act; Clip
+/// The Camera tab's floating buttons, bottom right: the mode button (One,
+/// All, Unattended where the platform can turn the screen off, Stopped),
+/// Flip and Clip. Flip is hidden when it can't act; Clip
 /// ([ClipButton]) always shows, colored by whether a clip can be taken,
 /// and disabled when none can.
 class CameraButtons extends StatelessWidget {
@@ -15,7 +15,8 @@ class CameraButtons extends StatelessWidget {
     required this.showAll,
     required this.onNextViewMode,
     required this.onClip,
-    this.onScreenOff,
+    this.unattended = false,
+    this.canUnattend = false,
   });
 
   final CameraRig rig;
@@ -25,8 +26,11 @@ class CameraButtons extends StatelessWidget {
   final VoidCallback onNextViewMode;
   final VoidCallback onClip;
 
-  /// Darkens the screen while capture goes on; null hides the button.
-  final VoidCallback? onScreenOff;
+  /// The mode is Unattended: the screen off, capture going on.
+  final bool unattended;
+
+  /// The platform can turn the screen off, so the cycle has Unattended.
+  final bool canUnattend;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +43,7 @@ class CameraButtons extends StatelessWidget {
       builder: (context, _) {
         final viewMode = CameraViewMode.of(
           paused: rig.paused,
+          unattended: unattended,
           showAll: showAll,
         );
         final flips = rig.devices.length > 1 && !rig.paused;
@@ -46,42 +51,39 @@ class CameraButtons extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: 12,
           children: [
-            if (onScreenOff != null)
-              FloatingActionButton(
-                key: const Key('screen-off'),
-                heroTag: 'screen-off',
-                tooltip: 'Turn the screen off (capture goes on)',
-                backgroundColor: scheme.surfaceContainerHigh,
-                foregroundColor: scheme.onSurface,
-                onPressed: onScreenOff,
-                child: const Icon(Icons.brightness_2_outlined),
-              ),
-            // Shows what's on screen (One, All, None); a tap moves on to the
-            // next. Highlighted for All, and for None, the camera off. Icon
-            // only: the tooltip and screen readers name it.
+            // Shows the mode (One, All, Unattended, Stopped); a tap moves
+            // on to the next. Highlighted for All and Unattended, and for
+            // Stopped, the camera off. Icon only: the tooltip and screen
+            // readers name it.
             FloatingActionButton(
               key: const Key('show-all'),
               heroTag: 'show-all',
               tooltip: switch (viewMode) {
                 CameraViewMode.one => 'Show all devices',
-                CameraViewMode.all => 'Turn the camera off',
-                CameraViewMode.none => 'Turn the camera on',
+                CameraViewMode.all when canUnattend =>
+                  'Turn the screen off (capture goes on)',
+                CameraViewMode.all ||
+                CameraViewMode.unattended => 'Turn the camera off',
+                CameraViewMode.stopped => 'Turn the camera on',
               },
               backgroundColor: switch (viewMode) {
                 CameraViewMode.one => scheme.surfaceContainerHigh,
                 CameraViewMode.all => scheme.secondaryContainer,
-                CameraViewMode.none => scheme.errorContainer,
+                CameraViewMode.unattended => scheme.tertiaryContainer,
+                CameraViewMode.stopped => scheme.errorContainer,
               },
               foregroundColor: switch (viewMode) {
                 CameraViewMode.one => scheme.onSurface,
                 CameraViewMode.all => scheme.onSecondaryContainer,
-                CameraViewMode.none => scheme.onErrorContainer,
+                CameraViewMode.unattended => scheme.onTertiaryContainer,
+                CameraViewMode.stopped => scheme.onErrorContainer,
               },
               onPressed: onNextViewMode,
               child: Icon(switch (viewMode) {
                 CameraViewMode.one => Icons.crop_square,
                 CameraViewMode.all => Icons.grid_view,
-                CameraViewMode.none => Icons.videocam_off,
+                CameraViewMode.unattended => Icons.brightness_2_outlined,
+                CameraViewMode.stopped => Icons.videocam_off,
               }),
             ),
             if (flips)
@@ -97,11 +99,7 @@ class CameraButtons extends StatelessWidget {
             ClipButton(
               rig: rig,
               onPressed: onClip,
-              maxWidth:
-                  room -
-                  (56 + 12) -
-                  (flips ? 56 + 12 : 0) -
-                  (onScreenOff != null ? 56 + 12 : 0),
+              maxWidth: room - (56 + 12) - (flips ? 56 + 12 : 0),
             ),
           ],
         );
@@ -110,7 +108,7 @@ class CameraButtons extends StatelessWidget {
   }
 }
 
-/// What the Camera tab shows, chosen with its view button.
+/// What the Camera tab shows and does, chosen with its mode button.
 enum CameraViewMode {
   /// This device's camera, full screen.
   one,
@@ -118,14 +116,23 @@ enum CameraViewMode {
   /// This device's camera in a grid with every other device's image.
   all,
 
-  /// Nothing: the camera is off ([CameraRig.paused]).
-  none;
+  /// The screen off (`ScreenOff`) while capture, clips and the
+  /// network go on.
+  unattended,
 
-  /// What shows with the camera [paused] or not and the All grid asked for
-  /// ([showAll]).
-  static CameraViewMode of({required bool paused, required bool showAll}) =>
-      paused
-      ? CameraViewMode.none
+  /// Nothing: the camera is off ([CameraRig.paused]).
+  stopped;
+
+  /// The mode with the camera [paused] or not, the screen off asked for
+  /// ([unattended]) and the All grid asked for ([showAll]).
+  static CameraViewMode of({
+    required bool paused,
+    bool unattended = false,
+    required bool showAll,
+  }) => paused
+      ? CameraViewMode.stopped
+      : unattended
+      ? CameraViewMode.unattended
       : showAll
       ? CameraViewMode.all
       : CameraViewMode.one;

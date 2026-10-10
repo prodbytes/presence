@@ -62,7 +62,7 @@ Android uses the standard dashcam technique instead
   on the S40 (back camera 0 ↔ front camera 1).
 - **Keeps capturing untouched, with the screen off:** the screen stays on
   while the app is shown (`FLAG_KEEP_SCREEN_ON`), but it may go off (the
-  power button, a covering app, or the camera's **Screen off** button);
+  power button, a covering app, or the camera's **Unattended** mode);
   recording, motion clips and sync go on:
   - **Screen off** (`screenOff` `{off}` on `presence/device`): clears
     `FLAG_KEEP_SCREEN_ON`, sets the window's brightness to

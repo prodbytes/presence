@@ -67,8 +67,8 @@ class HomeScreen extends StatefulWidget {
     this.screenOff,
   });
 
-  /// Darkens the screen while capture goes on (the camera's Screen off
-  /// button), where the platform can.
+  /// Darkens the screen while capture goes on (the mode button's
+  /// Unattended), where the platform can.
   final ScreenOff? screenOff;
 
   /// Deletes another of the profile's devices: from the account sheet's
@@ -121,6 +121,10 @@ class HomeScreen extends StatefulWidget {
   /// How long a message over the camera stays.
   static const Duration messageFor = Duration(seconds: 4);
 
+  /// How long the screen stays on after a tap wakes it in Unattended,
+  /// counted from the last touch, before it goes dark again.
+  static const Duration wakeFor = Duration(seconds: 30);
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -158,30 +162,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// with every other device's latest image.
   bool _showAll = false;
 
-  /// The Screen off button was tapped: a black cover hides everything
-  /// until a tap brings the screen back.
+  /// The mode button's Unattended: the screen off while capture goes on.
+  bool _unattended = false;
+
+  /// Unattended, a black cover hides everything; a tap lifts it for a
+  /// look ([HomeScreen.wakeFor]), still Unattended.
   bool _dark = false;
 
+  Timer? _wakeTimer;
+
+  bool get _canUnattend => widget.screenOff?.supported ?? false;
+
   void _setDark(bool dark) {
+    _wakeTimer?.cancel();
     setState(() => _dark = dark);
     widget.screenOff?.set(dark);
+    if (!dark && _unattended) _darkLater();
   }
 
-  /// What the view button shows: One (this camera), All (the grid) or None
-  /// (the camera off: [CameraRig.paused], kept in the settings).
-  CameraViewMode get _viewMode =>
-      CameraViewMode.of(paused: widget.rig.paused, showAll: _showAll);
+  /// Woken in Unattended, the screen goes dark again after
+  /// [HomeScreen.wakeFor]; every touch starts the wait over.
+  void _darkLater() {
+    _wakeTimer?.cancel();
+    _wakeTimer = Timer(HomeScreen.wakeFor, () => _setDark(true));
+  }
 
-  /// One → All → None → One.
+  /// What the mode button shows: One (this camera), All (the grid),
+  /// Unattended (the screen off) or Stopped (the camera off:
+  /// [CameraRig.paused], kept in the settings).
+  CameraViewMode get _viewMode => CameraViewMode.of(
+    paused: widget.rig.paused,
+    unattended: _unattended,
+    showAll: _showAll,
+  );
+
+  /// One → All → Unattended (where the screen can go off) → Stopped → One.
   void _nextViewMode() {
     switch (_viewMode) {
       case CameraViewMode.one:
         setState(() => _showAll = true);
         _askForGrabs();
+      case CameraViewMode.all when _canUnattend:
+        // The grid's images aren't seen with the screen off.
+        setState(() {
+          _showAll = false;
+          _unattended = true;
+        });
+        _setDark(true);
       case CameraViewMode.all:
         setState(() => _showAll = false);
         widget.rig.setPaused(true);
-      case CameraViewMode.none:
+      case CameraViewMode.unattended:
+        _wakeTimer?.cancel();
+        setState(() => _unattended = false);
+        if (_dark) _setDark(false);
+        widget.rig.setPaused(true);
+      case CameraViewMode.stopped:
         widget.rig.setPaused(false);
     }
   }
@@ -391,6 +427,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _clipEvents?.cancel();
     _messages.dispose();
     _refreshingTimer?.cancel();
+    _wakeTimer?.cancel();
     _filtersOrNull?.dispose();
     _batteryOrNull?.dispose();
     _tabs.dispose();
@@ -457,7 +494,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       onShow: _hasAccess ? _showDeviceEvents : null,
       child: _scaffold(context, joinStatus),
     );
-    if (!_dark) return screen;
+    if (!_dark) {
+      return _unattended
+          ? Listener(onPointerDown: (_) => _darkLater(), child: screen)
+          : screen;
+    }
     return Stack(
       children: [
         screen,
@@ -664,17 +705,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               showAll: _showAll,
               onNextViewMode: _nextViewMode,
               onClip: _clip,
-              onScreenOff: widget.screenOff?.supported ?? false
-                  ? () => _setDark(true)
-                  : null,
+              unattended: _unattended,
+              canUnattend: _canUnattend,
             )
           : null,
     );
   }
 }
 
-/// Covers the app in black while the screen is off ([HomeScreen.screenOff]),
-/// with a faint hint; a tap anywhere brings the screen back. Seen only
+/// Covers the app in black while the screen is off (the mode button's
+/// Unattended, [HomeScreen.screenOff]), with a faint hint; a tap anywhere
+/// brings the screen back for a look, still Unattended. Seen only
 /// before the system's timeout turns the screen off, or after the power
 /// button wakes it.
 class _ScreenOffCover extends StatelessWidget {

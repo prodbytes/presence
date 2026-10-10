@@ -4584,3 +4584,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        stops VS Code from listing those worktrees as repositories in Source
        Control, and hides them from the Explorer, search and the file
        watcher. Specs: [Dev environment](dev-environment.md).
+
+338. **Screen off is a mode of the mode button.** (2026-10-10)
+     - Asked: make "screen off" another option of the mode button, not a
+       button of its own, so it cycles between normal (one camera), all
+       (all devices), unattended (screen off, still capturing and on the
+       network) and stopped (nothing captured).
+     - Changed: the separate Screen off button is gone. The view button
+       is now the mode button, cycling One → All → Unattended → Stopped
+       → One (Unattended only where the screen can be turned off:
+       Android). Unattended is the old Screen off (moon icon, tertiary
+       colors); Stopped is the old None. A tap on the black cover wakes
+       the screen for a look, still Unattended, and it goes dark again
+       after 30 s without a touch (`HomeScreen.wakeFor`); woken, the
+       button moves on to Stopped. Test: `screen_off_test.dart`. Specs:
+       [Camera](camera.md), [Navigation](navigation.md),
+       [Android](android.md), [Configuration](configuration.md),
+       [README](README.md).

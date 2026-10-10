@@ -10,41 +10,46 @@
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`, [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)), so they stay open, and keep recording, across rebuilds.
-- **Screen off** (Android only, an icon-only button left of the view
-  button, tooltip "Turn the screen off (capture goes on)") saves battery:
-  the screen is the biggest drain on an unattended phone. A tap covers
-  the app in black ("Capturing with the screen off. Tap to wake.", faint),
-  and the app (`ScreenOff`, `screenOff` on `presence/device`) stops
-  keeping the screen on, drops it to its lowest brightness and stops the
-  preview. The system's screen timeout then turns the screen off for
-  real; recording, motion clips and sync go on, as with the power button
-  (see [Android](android.md)). A tap on the cover undoes it all. Apps
-  can't turn the screen off at once without device-admin rights, so the
-  timeout does it. It isn't saved: a restart keeps the screen on. Test:
-  `screen_off_test.dart`.
-- **The view button** (One / All / None, an icon-only button, see
-  [Navigation](navigation.md)) chooses what the Camera tab shows: **One**, this camera full screen;
-  **All**, the grid ([All devices](#all-devices) below); **None**, the
-  camera off.
-  - **None** closes the camera (`CameraRig.setPaused`): nothing is
+- **The mode button** (One / All / Unattended / Stopped, an icon-only
+  button, see [Navigation](navigation.md)) chooses what the Camera tab
+  shows and does: **One**, this camera full screen; **All**, the grid
+  ([All devices](#all-devices) below); **Unattended** (Android only), the
+  screen off while capture goes on; **Stopped**, the camera off.
+  - **Unattended** saves battery: the screen is the biggest drain on an
+    unattended phone. It covers the app in black ("Capturing with the
+    screen off. Tap to wake.", faint), and the app (`ScreenOff`,
+    `screenOff` on `presence/device`) stops keeping the screen on, drops
+    it to its lowest brightness and stops the preview. The system's
+    screen timeout then turns the screen off for real; recording, motion
+    clips and the network (sync, presence, Capture all) go on, as with
+    the power button (see [Android](android.md)). Apps can't turn the
+    screen off at once without device-admin rights, so the timeout does
+    it. A tap on the cover wakes the screen for a look, still
+    Unattended: the camera alone and the buttons show, and after 30 s
+    without a touch (`HomeScreen.wakeFor`; every touch starts it over)
+    the cover comes back. Woken, the button moves on to Stopped. Where
+    the screen can't be turned off (web, iOS, desktop), the cycle skips
+    Unattended. It isn't saved: a restart starts at One, the screen on.
+    Test: `screen_off_test.dart`.
+  - **Stopped** closes the camera (`CameraRig.setPaused`): nothing is
     recorded, no motion, scheduled or Capture all clips are taken, and
     Flip is hidden and Clip is disabled (grey, tooltip "Camera
     off"). The camera shows "Camera off / Nothing is recorded until you
     turn it on." with **Turn on**.
   - Nothing reopens it (Retry, the app returning to the foreground, a lost
-    camera's retries) but the button (None → One) or Turn on.
+    camera's retries) but the button (Stopped → One) or Turn on.
   - Pausing and resuming run one after the other: a resume waits for the
     pause before it to close the camera (phones allow one open camera). A
     pause doesn't wait for a camera still opening: that open is stale
     (`CameraRig`'s open generation, bumped by every open and close), and
-    whatever it opens is closed at once, so pressing None and One while
+    whatever it opens is closed at once, so pressing Stopped and One while
     the camera opens never leaves two cameras open, and a stale open's
     error never shows.
   - It's a camera setting (`camera.paused`), saved with the device's
     settings, so it lasts across restarts, including the Android
     watchdog's; One and All aren't kept (One at launch).
 - One camera shows at a time, full screen (see [Navigation](navigation.md)).
-  The view button's **All** puts it in the top-left cell of a grid with every other device's
+  The mode button's **All** puts it in the top-left cell of a grid with every other device's
   latest image ([All devices](#all-devices) below).
 - **Audio is captured.** Cameras rarely have their own microphone, so every
   camera records the default microphone, each with its own copy of the
@@ -92,7 +97,7 @@
 
 ## All devices
 
-The view button's **All** on the Camera tab (see
+The mode button's **All** on the Camera tab (see
 [Navigation](navigation.md)) shows a grid of every device in the
 profile (`CameraFeedsView.showAll`,
 [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)):
@@ -163,7 +168,7 @@ profile (`CameraFeedsView.showAll`,
   (live first, latest activity, ties, without live sync), the grid's
   places and a device moving ahead once it takes a clip, the same preview across switches, the button, the spinner on
   older images while asked for fresh ones) and
-  `camera_pause_test.dart` (the view button's cycle, the camera closed and
+  `camera_pause_test.dart` (the mode button's cycle, the camera closed and
   no clips while off, Turn on, the setting kept).
 
 ## Capture all
