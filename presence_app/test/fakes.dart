@@ -587,35 +587,6 @@ class FakeMembershipClient implements MembershipClient {
   Future<List<Voucher>> vouchers(String idToken) async => List.of(codes);
 
   @override
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  }) async {
-    if (error case final e?) throw e;
-    final chosen = code?.trim().toUpperCase() ?? '';
-    if (codes.any((v) => v.code == chosen)) throw RolesException(409);
-    final voucher = Voucher(
-      code: chosen.isNotEmpty
-          ? chosen
-          : 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
-      role: role,
-      startsAt: startsAt,
-      expiresAt: expiresAt,
-      maxUses: maxUses,
-      uses: 0,
-      createdAt: DateTime.now(),
-      discount: discount,
-    );
-    codes.insert(0, voucher);
-    return voucher;
-  }
-
-  @override
   Future<void> deleteVoucher(String idToken, String code) async {
     if (error case final e?) throw e;
     codes.removeWhere((v) => v.code == code);

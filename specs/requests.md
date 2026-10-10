@@ -4622,3 +4622,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera](camera.md), [Navigation](navigation.md),
        [Cloud sync](cloud-sync.md), [Android](android.md),
        [Configuration](configuration.md).
+
+341. **No voucher creation form: codes are made in rbacr.** (2026-10-10)
+     - Asked: remove the voucher creation form; that will be done in rbacr.
+     - Changed: the Admin tab's Voucher codes section has no form any
+       more, only the list (with Copy code and Delete) and a line saying
+       codes are created in rbacr. Gone with it: `MembershipClient
+       .createVoucher`, the code suggestion and season helpers
+       (`voucher_code.dart` keeps only the redeem field's length), and
+       `AdminView.canCreateAdmins`. The auth API's `POST
+       /api/auth/vouchers` stays, for now the only way to make a code.
+       Tests: `roles_test.dart` (list and delete, no form);
+       `voucher_code_test.dart` removed. Specs:
+       [Membership](membership.md), [README](README.md).

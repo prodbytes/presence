@@ -137,20 +137,6 @@ abstract class MembershipClient {
   /// Every voucher, newest first (admins only).
   Future<List<Voucher>> vouchers(String idToken);
 
-  /// Creates a voucher (admins only) with [code], or a random code when
-  /// it's null or blank, valid from [startsAt] (now when null) until
-  /// [expiresAt], and a [discount] in percent. Throws
-  /// [RolesException] 409 when [code] is taken.
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  });
-
   /// Deletes the voucher [code] (admins only).
   Future<void> deleteVoucher(String idToken, String code);
 
@@ -261,36 +247,6 @@ class HttpMembershipClient implements MembershipClient {
     for (final v in await _getList('/api/auth/vouchers', idToken, 'vouchers'))
       Voucher.fromJson(v),
   ];
-
-  @override
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  }) async {
-    final response = await _post(
-      '/api/auth/vouchers',
-      idToken,
-      Uri(
-        queryParameters: {
-          'role': role,
-          if (startsAt != null) 'startsAt': startsAt.toUtc().toIso8601String(),
-          'expiresAt': expiresAt.toUtc().toIso8601String(),
-          'maxUses': '$maxUses',
-          'discount': '$discount',
-          if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
-        },
-      ).query,
-      contentType: 'application/x-www-form-urlencoded',
-    );
-    return Voucher.fromJson(
-      (jsonDecode(response.body) as Map).cast<String, Object?>(),
-    );
-  }
 
   @override
   Future<void> deleteVoucher(String idToken, String code) =>
