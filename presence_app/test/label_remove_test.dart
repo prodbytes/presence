@@ -13,6 +13,8 @@ import 'package:presence_app/subjects.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A located clip from [minute] past noon with [names] tagged on one frame
 /// and [objects] seen on it.
 ClipRequested clipOf(
@@ -23,7 +25,7 @@ ClipRequested clipOf(
   final annotations = ClipAnnotations(const [], const {}, [
     for (final o in objects) ObjectTag(label: o, ms: 1000, score: 0.8),
   ]);
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }
@@ -54,8 +56,8 @@ void main() {
   group('ClipAnnotations', () {
     test('removeName drops every tag of the name, not suggestions', () {
       final annotations = ClipAnnotations();
-      final one = annotations.newFrame(onePixelPng, 100);
-      final two = annotations.newFrame(onePixelPng, 200);
+      final one = testFrame(onePixelPng, 100);
+      final two = testFrame(onePixelPng, 200);
       annotations
         ..add('Rex', 0.1, 0.1, frame: one)
         ..add(' rex ', 0.2, 0.2, frame: two)

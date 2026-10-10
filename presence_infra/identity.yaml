@@ -84,10 +84,15 @@ Resources:
               # profiles' devices sync over live sync alone. Credentials
               # without the tag (Google sign-in straight to the pool, which
               # the pool still accepts for GetId) reach nothing here.
+              # DeleteObject: each device deletes, once, what the folder held
+              # before media was sealed (see specs/encryption.md). The
+              # bucket is versioned, so a deleted object stays an old
+              # version for 30 days.
               - Effect: Allow
                 Action:
                   - s3:PutObject
                   - s3:GetObject
+                  - s3:DeleteObject
                 Resource: !Sub
                   - ${BucketArn}/${!cognito-identity.amazonaws.com:sub}/*
                   - BucketArn:

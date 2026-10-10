@@ -143,8 +143,9 @@ Android uses the standard dashcam technique instead
   `_CAMERA` and `_MICROPHONE` types), `WAKE_LOCK` and
   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, for capturing untouched.
 - **Storage:** metadata goes in a persistent sembast database (via
-  `idb_shim`) in the app's private storage. Recordings are MP4 files in the
-  app's private `clips/` folder, not database rows, because sembast keeps
+  `idb_shim`) in the app's private storage. Recordings are sealed MP4 files
+  (`<id>.sealed`, see [Media encryption](encryption.md)) in the app's
+  private `clips/` folder, not database rows, because sembast keeps
   its whole database in memory. If private storage is unavailable, data is
   kept in memory for the session.
 - **App Links:** the manifest's `autoVerify` intent filter takes

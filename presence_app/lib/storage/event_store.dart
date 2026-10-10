@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:idb_shim/idb_shim.dart';
@@ -11,8 +12,12 @@ import 'package:idb_shim/idb_shim.dart';
 /// | `events`   | `id`, index `time`| type, title, time, camera ID, clip ID, device ID, user ID, location |
 /// | `clips`    | `id`, index `eventId` | camera, window, media IDs, thumbnail |
 /// | `media`    | media ID          | recording bytes                         |
-/// | `settings` | name              | the config; `device`: this device's ID; `location`: its location; `copies`: who holds each event (`EventCopies`) |
+/// | `settings` | name              | the config; `device`: this device's ID and media key; `keys`: other devices' media keys; `location`: its location; `copies`: who holds each event (`EventCopies`) |
 /// | `synced`   | object key        | fingerprint of what was uploaded (v2)   |
+/// This device's ID, its media key, and whether making the key deleted the
+/// unsealed data an older version stored ([EventStore.deviceIdentity]).
+typedef DeviceIdentity = ({String id, Uint8List key, bool purged});
+
 class EventStore {
   EventStore._(this._db);
 
@@ -182,25 +187,69 @@ class EventStore {
   /// This device's ID (the `device` settings record), made with [generate]
   /// and saved the first time. Read and written in one transaction, so two
   /// tabs opening at once agree on it.
-  Future<String> deviceId(String Function() generate) =>
-      _generatedId(_deviceKey, generate);
+  Future<String> deviceId(String Function() generate) async =>
+      (await deviceIdentity(generate, _noKey)).id;
+
+  static Uint8List _noKey() => Uint8List(0);
 
   static const String _deviceKey = 'device';
 
-  /// The `{id}` settings record [key], made with [generate] and saved the
-  /// first time. Read and written in one transaction, so two tabs opening
-  /// at once agree on it.
-  Future<String> _generatedId(String key, String Function() generate) async {
-    final txn = _db.transaction(settings, idbModeReadWrite);
+  /// This device's ID and media key (`MediaSeal`): the `{id, key}`
+  /// settings record, made with [generateId] and [generateKey] the first
+  /// time, together. Read and written in one transaction, so two tabs
+  /// opening at once agree on them.
+  ///
+  /// A device with an ID and no key ran a version that stored media
+  /// unsealed: its key is made now, and in the same transaction every
+  /// event, clip and recording it stored, and what it remembers of the
+  /// cloud, are deleted ([DeviceIdentity.purged]). A [generateKey] that
+  /// gives no bytes makes no key (tests of the ID alone).
+  Future<DeviceIdentity> deviceIdentity(
+    String Function() generateId,
+    Uint8List Function() generateKey,
+  ) async {
+    final txn = _db.transactionList([
+      settings,
+      events,
+      clips,
+      media,
+      synced,
+    ], idbModeReadWrite);
     final store = txn.objectStore(settings);
-    final saved = await store.getObject(key);
+    final saved = await store.getObject(_deviceKey);
     var id = saved is Map ? saved['id'] : null;
+    var key = saved is Map ? _keyOf(saved['key']) : null;
+    var purged = false;
     if (id is! String || id.isEmpty) {
-      id = generate();
-      await store.put({'id': id}, key);
+      id = generateId();
+      key = generateKey();
+    } else if (key == null) {
+      key = generateKey();
+      if (key.isNotEmpty) {
+        purged = true;
+        for (final name in [events, clips, media, synced]) {
+          await txn.objectStore(name).clear();
+        }
+      }
+    }
+    if (saved is! Map || saved['id'] != id || _keyOf(saved['key']) == null) {
+      await store.put({
+        'id': id,
+        if (key.isNotEmpty) 'key': base64Encode(key),
+      }, _deviceKey);
     }
     await txn.completed;
-    return id;
+    return (id: id, key: key, purged: purged);
+  }
+
+  static Uint8List? _keyOf(Object? value) {
+    if (value is! String) return null;
+    try {
+      final key = base64Decode(value);
+      return key.isEmpty ? null : key;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// What's already uploaded to the cloud (see `CloudSync`): each object
