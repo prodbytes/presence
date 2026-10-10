@@ -106,10 +106,11 @@ check_api() {
     setting "$body" "👮 RBACR" rbacr
 }
 
-# rbacr itself (which gives every role): its public /health, at RBACR_URL (the
-# environment, else .env, else https://rbacr.nu01.com). No token is sent.
-RBACR_URL="${RBACR_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_URL=//p' .env | tail -1)}"
-RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+# rbacr's RC (which gives the local stack's roles): its public /health, at
+# RBACR_RC_URL (the environment, else .env, else https://rc.rbacr.nu01.com).
+# No token is sent.
+RBACR_URL="${RBACR_RC_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_RC_URL=//p' .env | tail -1)}"
+RBACR_URL="${RBACR_URL:-https://rc.rbacr.nu01.com}"
 check_rbacr() { ok_if "💎 RBACR svc" get 5 "$RBACR_URL/health"; }
 
 # run_checks: one pass over every check, printed as one line.

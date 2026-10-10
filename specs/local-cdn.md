@@ -140,13 +140,14 @@ roles, membership requests and the Admin tab work locally without AWS:
   template's. `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
-- **Roles** follow the template: they come from rbacr, at `RBACR_URL`
-  with `RBACR_TOKEN` and `RBACR_SYSTEM` from `.env` (which
-  `process-compose.yaml` passes to Floci; the hook warns when a client is
-  set but no token, as nobody would then have a role). That is the real
-  rbacr unless `.env` names another: **an admin's grants and redeemed
-  vouchers locally are real grants there**, so point `RBACR_SYSTEM` (or
-  `RBACR_URL`, such as a local rbacr) elsewhere to test them. Storage is
+- **Roles** follow the template, from **rbacr's RC**
+  (https://rc.rbacr.nu01.com, its own database), never GA rbacr, which
+  prod uses: `.env`'s `RBACR_RC_URL` (default the RC), `RBACR_RC_TOKEN`
+  (a token of an RC root) and `RBACR_RC_SYSTEM` (default `presence`),
+  which `process-compose.yaml` passes to Floci as the stack's rbacr. The
+  hook warns when a client is set but no token, as nobody would then have
+  a role. An admin's grants and redeemed vouchers locally are grants in
+  the RC. The local monitor checks the RC's `/health`. Storage is
   `memory`, so every start begins with empty tables: requests and vouchers
   don't survive a restart (rbacr's grants do).
 - The hook runs past Floci's default 30 s, so compose sets

@@ -136,7 +136,9 @@ with an optional `tag` input, deploys that version to
 - The Google web client ID comes from the repository variable
   `GOOGLE_WEB_CLIENT_ID`, and rbacr's from the repository secret
   `RBACR_TOKEN` (a root's token) and the variables `RBACR_URL` and
-  `RBACR_SYSTEM` (unset: `https://rbacr.nu01.com`, `presence`); see
+  `RBACR_SYSTEM` (unset: `https://rbacr.nu01.com`, GA rbacr, and
+  `presence`). Prod accepts only GA rbacr; local development uses rbacr's
+  RC ([Local CDN](local-cdn.md)); see
   [Auth API](auth-api.md). Who is a root is rbacr's root list, not a
   deploy setting (the old `PRESENCE_ROOT_DOMAINS` and
   `PRESENCE_ROOT_EMAILS` variables are unused and can be deleted).
