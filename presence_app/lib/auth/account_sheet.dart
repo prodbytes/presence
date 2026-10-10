@@ -642,50 +642,78 @@ class UserAvatar extends StatelessWidget {
 }
 
 /// The signed-in user's roles, always shown under their email: a small
-/// chip per role, named for people ([labelOf]: Member, Admin, Root,
-/// Premium), the role's ID in its tooltip; "No roles yet" without any, and
-/// "Checking roles…" while the auth API is asked. The anonymous role isn't
-/// shown (it's everyone's before signing in).
+/// chip for their access, as rbacr's `presence` system gives it ([accessOf]:
+/// Free Access, Premium Access or Admin Access, the rbacr role in its
+/// tooltip), then one per other role ([labelOf]: Root, or the role's ID);
+/// "No roles yet" without any, and "Checking roles…" while the auth API is
+/// asked. The anonymous role isn't shown (it's everyone's before signing
+/// in).
 class AccountRoles extends StatelessWidget {
   const AccountRoles({super.key, required this.roles});
 
   final RolesService roles;
 
-  /// What a role is called here; another role keeps its ID.
-  static String labelOf(String role) => switch (role) {
-    userRole => 'Member',
-    adminRole => 'Admin',
-    rootRole => 'Root',
-    premiumRole => 'Premium',
-    _ => role,
+  /// The rbacr role (`free`, `premium` or `admin`) that gave [held], the
+  /// app's roles: the auth API turns `admin` into member, premium and
+  /// admin, `premium` into member and premium, `free` into member. Null
+  /// without membership.
+  static String? accessOf(List<String> held) => held.contains(adminRole)
+      ? 'admin'
+      : held.contains(premiumRole)
+      ? 'premium'
+      : held.contains(userRole)
+      ? 'free'
+      : null;
+
+  /// What an rbacr [access] role is called here.
+  static String accessLabel(String access) => switch (access) {
+    'admin' => 'Admin Access',
+    'premium' => 'Premium Access',
+    _ => 'Free Access',
   };
 
-  /// The order they're shown in: as listed in [labelOf], then the others.
-  static int _rank(String role) => switch (role) {
-    userRole => 0,
-    premiumRole => 1,
-    adminRole => 2,
-    rootRole => 3,
-    _ => 4,
+  /// The roles [accessOf] stands for, which get no chip of their own.
+  static const _accessRoles = {userRole, premiumRole, adminRole};
+
+  /// What another role is called here; an unknown one keeps its ID.
+  static String labelOf(String role) => switch (role) {
+    rootRole => 'Root',
+    _ => role,
   };
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(context).textTheme.labelMedium;
-    final shown =
+    final access = accessOf(roles.roles);
+    final others =
         [
           for (final role in roles.roles)
-            if (role != anonymousRole) role,
+            if (role != anonymousRole && !_accessRoles.contains(role)) role,
         ]..sort((a, b) {
-          final byRank = _rank(a).compareTo(_rank(b));
-          return byRank != 0 ? byRank : a.compareTo(b);
+          // Root first, then the others by ID.
+          final byRoot = (a == rootRole ? 0 : 1).compareTo(
+            b == rootRole ? 0 : 1,
+          );
+          return byRoot != 0 ? byRoot : a.compareTo(b);
         });
+    final shown = [
+      if (access != null)
+        (
+          key: 'account-access',
+          label: accessLabel(access),
+          tip: 'rbacr: $access',
+        ),
+      for (final role in others)
+        (key: 'account-role-$role', label: labelOf(role), tip: role),
+    ];
     Widget note(String text) =>
         Text(text, style: style?.copyWith(color: scheme.onSurfaceVariant));
     return Semantics(
       container: true,
-      label: shown.isEmpty ? null : 'Roles: ${shown.map(labelOf).join(', ')}',
+      label: shown.isEmpty
+          ? null
+          : 'Roles: ${shown.map((chip) => chip.label).join(', ')}',
       child: KeyedSubtree(
         key: const Key('account-roles'),
         child: switch (roles.state) {
@@ -697,12 +725,12 @@ class AccountRoles extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final role in shown)
+              for (final chip in shown)
                 Tooltip(
-                  message: role,
+                  message: chip.tip,
                   excludeFromSemantics: true,
                   child: Container(
-                    key: Key('account-role-$role'),
+                    key: Key(chip.key),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 2,
@@ -712,7 +740,7 @@ class AccountRoles extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: ExcludeSemantics(
-                      child: Text(labelOf(role), style: style),
+                      child: Text(chip.label, style: style),
                     ),
                   ),
                 ),

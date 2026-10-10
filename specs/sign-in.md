@@ -144,12 +144,18 @@ there's no separate sign-in screen:
   in without access, the app bar's account button still opens it as a
   bottom sheet). The camera keeps running.
   - **Roles**, always, right under the email (`AccountRoles`): a small
-    outlined chip per role the auth API gave, named for people (Member,
-    Premium, Admin, Root; another role keeps its ID), in that order, the
-    role's ID as each chip's tooltip, and "Roles: Member, Admin" for screen
-    readers. "No roles yet" without any (a signed-in account without
-    access), "Checking roles…" while the auth API is asked. The anonymous
-    role isn't shown.
+    outlined chip with the account's **access**, as rbacr's `presence`
+    system gives it ([Premium and free](premium.md)): **Free Access**,
+    **Premium Access** or **Admin Access**, with the rbacr role
+    ("rbacr: admin") as its tooltip. The auth API sends the app's roles,
+    not rbacr's, so the app reads the rbacr role back from them (admin
+    if `presence_admin`, else premium if `presence_premium`, else free if
+    `presence_user`). A linked account shows its profile owner's premium
+    ([Profiles](profiles.md)). After it, a chip per other role: **Root**,
+    or another role's ID, with the ID as its tooltip. "Roles: Admin
+    Access, Root" for screen readers. "No roles yet" without any (a
+    signed-in account without access), "Checking roles…" while the auth
+    API is asked. The anonymous role isn't shown.
   - **Connectivity** (`ConnectivityIndicator`,
     [lib/connectivity.dart](../presence_app/lib/connectivity.dart)), under
     the email: one rounded row, tinted in its color, with a dot and a

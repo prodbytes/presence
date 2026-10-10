@@ -364,7 +364,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('always show, by name, the role in the tooltip', (
+    testWidgets('the access from rbacr, then root, the role in the tooltip', (
       tester,
     ) async {
       await show(
@@ -372,35 +372,37 @@ void main() {
         FakeRolesClient(const [rootRole, userRole, adminRole, premiumRole]),
       );
       expect(find.byKey(const Key('account-roles')), findsOneWidget);
-      // Member first, then the others in order.
-      final chips = [
-        for (final role in [userRole, premiumRole, adminRole, rootRole])
-          tester.getTopLeft(find.byKey(Key('account-role-$role'))).dx,
-      ];
-      expect(chips, orderedEquals([...chips]..sort()));
-      expect(find.text('Member'), findsOneWidget);
-      // A chip; the plan's box under the devices names it too.
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('account-roles')),
-          matching: find.text('Premium'),
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Admin'), findsOneWidget);
+      expect(find.text('Admin Access'), findsOneWidget);
+      expect(find.text('Member'), findsNothing);
       expect(find.text('Root'), findsOneWidget);
-      expect(find.byTooltip('presence_admin'), findsOneWidget);
+      // Access first, then root.
+      expect(
+        tester.getTopLeft(find.byKey(const Key('account-access'))).dx,
+        lessThan(
+          tester.getTopLeft(find.byKey(Key('account-role-$rootRole'))).dx,
+        ),
+      );
+      expect(find.byTooltip('rbacr: admin'), findsOneWidget);
+      expect(find.byTooltip('presence_root'), findsOneWidget);
       expect(
         tester.getSemantics(find.byKey(const Key('account-roles'))).label,
-        'Roles: Member, Premium, Admin, Root',
+        'Roles: Admin Access, Root',
       );
     });
 
-    testWidgets('a member alone; an unknown role keeps its ID', (tester) async {
+    testWidgets('premium from rbacr: Premium Access', (tester) async {
+      await show(tester, FakeRolesClient(const [userRole, premiumRole]));
+      expect(find.text('Premium Access'), findsOneWidget);
+      expect(find.byTooltip('rbacr: premium'), findsOneWidget);
+    });
+
+    testWidgets('free alone: Free Access; an unknown role keeps its ID', (
+      tester,
+    ) async {
       await show(tester, FakeRolesClient(const [userRole, 'presence_beta']));
-      expect(find.text('Member'), findsOneWidget);
+      expect(find.text('Free Access'), findsOneWidget);
       expect(find.text('presence_beta'), findsOneWidget);
-      expect(find.text('Admin'), findsNothing);
+      expect(find.text('Admin Access'), findsNothing);
     });
 
     testWidgets('none yet: says so, never hidden', (tester) async {

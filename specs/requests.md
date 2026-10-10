@@ -4622,3 +4622,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera](camera.md), [Navigation](navigation.md),
        [Cloud sync](cloud-sync.md), [Android](android.md),
        [Configuration](configuration.md).
+
+342. **Free, Premium or Admin Access in the profile view.** (2026-10-10)
+     - Asked: in the profile view, show "Free Access", "Premium Access" or
+       "Admin Access" instead of "Member", using the role fetched from
+       rbacr.
+     - Changed: the roles under the email (`AccountRoles`) start with one
+       access chip in place of the Member, Premium and Admin chips. It
+       reads the rbacr `presence` role back from the app's roles, as the
+       auth API maps them: admin, else premium, else free. Its tooltip
+       names it ("rbacr: premium"). Root and unknown roles keep their own
+       chips. Tests: `account_sheet_test.dart`. Specs:
+       [Sign-in](sign-in.md).
