@@ -11,6 +11,8 @@ import 'package:presence_app/monitoring.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A clip from [camera], with [names] tagged and [suggested] only
 /// suggested.
 ClipRequested clipOf(
@@ -20,7 +22,7 @@ ClipRequested clipOf(
   required int minute,
 }) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }

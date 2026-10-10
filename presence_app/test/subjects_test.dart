@@ -18,6 +18,8 @@ import 'package:presence_app/subjects.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A stored clip from [minutesAgo] minutes before noon, at [lat], with
 /// [names] tagged on one frame.
 ClipRequested clipWith(
@@ -28,7 +30,7 @@ ClipRequested clipWith(
   String id = '',
 }) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }
@@ -71,7 +73,7 @@ void main() {
       // Tagged twice in one clip still counts once; newest event first.
       expect(rex.sightings.map((s) => s.event.id), ['event-10', 'event-30']);
       expect(rex.name, 'rex', reason: 'as written on the latest event');
-      expect(rex.latest.frame?.jpeg, onePixelPng);
+      expect(opened(rex.latest.frame!.sealed), onePixelPng);
     });
 
     test('dots fade from the newest to the oldest', () {
@@ -653,6 +655,8 @@ void main() {
       );
       final slider = find.byKey(const Key('subject-events-slider'));
       await tester.scrollUntilVisible(slider, 100);
+      await tester.ensureVisible(slider);
+      await tester.pumpAndSettle();
       expect(find.text('How many events to load at once'), findsOneWidget);
       expect(find.text('100'), findsOneWidget);
       // Below every other setting, the Advanced section's too.

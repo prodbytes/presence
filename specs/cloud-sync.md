@@ -27,11 +27,12 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 | Object | Content |
 |---|---|
-| `<identityId>/media/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), with its MIME type |
-| `<identityId>/media/<clipId>.jpg` | the thumbnail |
-| `<identityId>/media/<clipId>/frames/<frameId>.jpg` | each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
+| `<identityId>/media/<clipId>.webm` or `.mp4` | the clip's recording (the full clip, or the before part if the after part was cut short), sealed ([Media encryption](encryption.md)) |
+| `<identityId>/media/<clipId>.jpg` | the thumbnail, sealed |
+| `<identityId>/media/<clipId>/frames/<frameId>.jpg` | sealed, each frame people or pets were tagged on (see [Clips](clips.md#naming-people-and-pets)), uploaded once; the event JSON refers to it by `frameId`, and a fetch downloads the frames its tags use |
 | `<identityId>/clips/year=<YYYY>/day=<DDD>/<clipId>.json` | the clip record: camera, window, lengths, state, media reference; in its event's day partition (the event's `time`, which is the clip's `requestedAt`) |
-| `<identityId>/devices/<deviceId>/settings.json` | the device's settings for this profile: `{deviceId, profileId, updatedAt, config, location}`, every Settings value and the location set on the map (see [Configuration](configuration.md)) |
+| `<identityId>/devices/<deviceId>/settings.json` | the device's settings for this profile: `{deviceId, mediaKey, profileId, updatedAt, config, location}`, every Settings value, the location set on the map (see [Configuration](configuration.md)) and the device's media key, which the profile's other devices read to open its media ([Media encryption](encryption.md)) |
+| `<identityId>/encryption.json` | the marker of when the profile's media was first sealed: each device deletes, once, what's older under `events/`, `clips/` and `media/` ([Media encryption](encryption.md#deleting-unencrypted-data)) |
 | `<identityId>/events/year=<YYYY>/day=<DDD>/<eventId>.json` | each of the user's event records (type, title, detail, time, camera, device and user IDs, the device's location, clip ID and state, and for clips the named people and pets, `annotations`, each with its position and `frameId`, without the frame images, and the object tags, `objectTags`), partitioned by the UTC day of the year of its time (`day=001` to `day=366`), Hive-style so tools such as Athena can prune by partition |
 
 - What a device uploaded under the old layout (`clips/<clipId>.webm`,
@@ -39,6 +40,15 @@ an Athena table are in [Recording and data formats](data-formats.md).
   as uploaded: it isn't sent again under the new keys.
 
 ## When
+
+- **Sealed media only:** thumbnails, tagged frames and recordings go up
+  and come down sealed, as stored, never opened on the way; an unsealed
+  one is never uploaded, and one downloaded is skipped. Each pass first
+  deletes, once per device and profile, what the folder held before media
+  was sealed (`encryption.json`), and reads the media keys of the
+  profile's other devices from their settings: on the first pass, at each
+  full fetch, and after an image wouldn't open for want of its key. See
+  [Media encryption](encryption.md).
 
 - **Only the profile's own:** a pass uploads the events whose
   `profileId` is the signed-in account's [profile](profiles.md), and only
@@ -416,7 +426,7 @@ In [presence_infra/](../presence_infra):
       before a read, which would break the fetch after sign-in;
     - objects under 128 KB, such as event JSON, stay in the Frequent tier
       with no monitoring fee.
-  - CORS allows `GET`, `PUT` and `HEAD` from `https://presence.nu01.com`,
+  - CORS allows `GET`, `PUT`, `HEAD` and `DELETE` from `https://presence.nu01.com`,
     `https://local.presence.nu01.com:8443` and `http://localhost:8080`.
 - **`identity.yaml`**, stack `presence-identity`: the identity pool (the
   stack output `IdentityPoolId`, `COGNITO_IDENTITY_POOL_ID` in the private
@@ -425,11 +435,12 @@ In [presence_infra/](../presence_infra):
     profiles, plus Google (`accounts.google.com` = the web client ID), which
     the API's `GetId` uses to find pre-profile identities. No guests, no
     classic flow.
-  - Its authenticated role may only `PutObject` and `GetObject` (upload and
-    fetch) in
+  - Its authenticated role may only `PutObject`, `GetObject` and
+    `DeleteObject` (upload, fetch, and the one-time deletion of what was
+    stored unencrypted, see [Media encryption](encryption.md)) in
     `<bucket>/${cognito-identity.amazonaws.com:sub}/*`, and `ListBucket` on
-    that prefix. No deletes. That `sub` is the profile's identity, the same
-    for all its linked accounts.
+    that prefix. That `sub` is the profile's identity, the same for all its
+    linked accounts.
   - For [live sync](live-sync.md), the role may also connect to AWS IoT
     with client IDs starting with that identity and publish, receive and
     subscribe on `presence/<Stage>/<identity>/*`; the `presence-live-sync`

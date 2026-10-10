@@ -3,6 +3,8 @@
 /// ([gridColumns]) and its cells.
 library;
 
+import '../crypto/sealed_image.dart';
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -264,11 +266,10 @@ class DeviceImage extends StatelessWidget {
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       );
     }
-    return Image.memory(
+    return SealedImage(
       image,
       key: Key('device-image-${latest.deviceId}'),
       fit: BoxFit.contain,
-      gaplessPlayback: true,
     );
   }
 }

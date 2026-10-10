@@ -229,6 +229,10 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
   /// The file [_controller] plays.
   String? _path;
 
+  /// The recording [_path] is held from ([ClipMedia.acquireUrl]): an
+  /// opened copy of a sealed recording is deleted once let go.
+  ClipMedia? _pathOf;
+
   /// Counts loads: one finishing after a newer one began is stale.
   int _loadGeneration = 0;
   ClipMedia? _current;
@@ -297,14 +301,18 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     final generation = ++_loadGeneration;
     bool stale() => !mounted || generation != _loadGeneration;
     VideoPlayerController? opening;
-    final String path;
+    String? path;
     try {
-      path = await media.resolveUrl();
-      if (stale()) return;
+      path = await media.acquireUrl();
+      if (stale()) {
+        media.releaseUrl(path);
+        return;
+      }
       opening = VideoPlayerController.file(File(path));
       await opening.initialize();
     } catch (_) {
       opening?.dispose();
+      if (path != null) media.releaseUrl(path);
       if (!stale()) {
         setState(() {
           _loading = false;
@@ -314,31 +322,40 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
       return;
     }
     final controller = opening;
-    if (stale()) {
+    final held = path;
+    void drop() {
       controller.dispose();
+      media.releaseUrl(held);
+    }
+
+    if (stale()) {
+      drop();
       return;
     }
     setState(() => _loading = false);
     await controller.seekTo(at);
     if (stale()) {
-      controller.dispose();
+      drop();
       return;
     }
     controller.addListener(_onTick);
     if (play) await controller.play();
     if (stale()) {
-      controller
-        ..removeListener(_onTick)
-        ..dispose();
+      controller.removeListener(_onTick);
+      drop();
       return;
     }
     final old = _controller;
+    final oldPath = _path;
+    final oldMedia = _pathOf;
     setState(() {
       _controller = controller;
-      _path = path;
+      _path = held;
+      _pathOf = media;
     });
     old?.removeListener(_onTick);
     old?.dispose();
+    if (oldPath != null) oldMedia?.releaseUrl(oldPath);
   }
 
   void _onTick() {
@@ -412,6 +429,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
     _clip.removeListener(_onClipChanged);
     _controller?.removeListener(_onTick);
     _controller?.dispose();
+    if (_path case final path?) _pathOf?.releaseUrl(path);
     super.dispose();
   }
 

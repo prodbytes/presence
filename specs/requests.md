@@ -4256,3 +4256,80 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart`. Specs: [Subject recognition](recognition.md),
        [Settings screen](settings.md), [Configuration](configuration.md).
 
+322. **Bottom navigation, Strava-style layout.** (2026-10-10)
+     - Asked: improve the look and feel; instead of the top navigation
+       bar, use a bottom navigation bar, as is more common on phones, with
+       Strava's UI as the reference for layout and components (keeping
+       the Gruvbox colors).
+     - Changed: the tabs moved from the app bar to a bottom navigation
+       bar (`HomeNavigationBar`, a Material `NavigationBar`): icon over
+       label, the open tab filled and in yellow with a bold label, no
+       indicator pill, 64 dp, flat with a hairline on top; hidden signed
+       out. The app bar now names the open screen, bold and on the left
+       (none over the camera), with the account on the right. Tabs no
+       longer swipe: only a tap flips. The camera fills the screen above
+       the bar. Snackbars float above the bar. Tests: `widget_test.dart`
+       (the bar, the screen's name, no swiping), the rest moved to the
+       bar. Specs: [Navigation](navigation.md), [Theme](theme.md),
+       [Monitoring](monitoring.md), [Membership](membership.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [Camera](camera.md),
+       [Subjects](subjects.md).
+
+323. **Settings in grouped sections.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: group the Settings
+       screen's sections.
+     - Changed: each Settings section (`SettingsSection`) is a bold
+       heading over an edge-to-edge block a step lighter than the page
+       (bg1), the controls 16 dp in, 16 dp between groups; the version,
+       health line, Add a device and IDs follow on the page. Tests:
+       `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
+       [Settings](settings.md).
+
+324. **Monitoring as a feed.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: make Monitoring a
+       feed of event cards, with a rounded, filled search field.
+     - Changed: each timeline entry is one card (`FeedCard`): the device
+       and copies as its header row, the event's own card square inside
+       it; cards 12 dp apart (were 4). The events search field is filled
+       and rounded with no outline. A new event arriving while reading
+       further down now scrolls the list on by the new card's height, so
+       the cards being read don't move (taller cards had exposed that
+       they shifted down). Tests: `widget_test.dart` (the feed card, the
+       search field). Specs: [Events](events.md),
+       [Event copies](event-copies.md).
+
+325. **Encrypt every image and recording with a key per device.**
+     (2026-10-10)
+     - Asked: generate a symmetric key for each device together with its
+       device ID; encrypt every image with it before it's stored or sent,
+       so all images in storage and in transit are encrypted (in the
+       spec); event metadata (times, subjects, tags) needn't be. Then:
+       delete the existing unencrypted data and events, always encrypt,
+       and share the keys with the profile's other devices so they open
+       each other's events, through the devices' settings in S3.
+     - Changed: an AES-256 key per device, made with the device ID in one
+       transaction (`EventStore.deviceIdentity`). Thumbnails, tagged
+       frames and recordings are sealed (`SealFormat`: chunked
+       AES-256-GCM, the key's device ID in the header) when they're made
+       or saved, and opened only in memory (`SealedImage`) or into a
+       temporary file deleted after playing or searching (`MediaUrls`
+       now tracks files off the web). Native recordings are
+       `clips/<id>.sealed`. Cloud sync and live sync move only sealed
+       media (S3 type `application/octet-stream`); unsealed images are
+       never sent and are skipped when received. Keys: `mediaKey` in
+       `devices/<id>/settings.json`, read for the profile's other devices
+       on the first pass, hourly and when one is missing; also in each
+       live event message (free profiles have no bucket); kept locally in
+       `keys`. Unencrypted data is deleted: on the device, when an older
+       install gets its key; in the cloud, once per device and profile,
+       everything under `events/`, `clips/` and `media/` older than the
+       profile's `encryption.json` marker. Infra: `s3:DeleteObject` on the
+       profile's folder, `DELETE` in the bucket's CORS. Package:
+       `cryptography`. Tests: `media_seal_test.dart`,
+       `encryption_test.dart`, and fixtures sealed across the suite.
+       Specs: [Media encryption](encryption.md) (new),
+       [Devices, users and places](devices-users-places.md),
+       [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Android](android.md).

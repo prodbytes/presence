@@ -133,7 +133,7 @@ the cloud and the recording device.
 - **The holders** are in the tooltip and the screen-reader label, this
   device first, then the cloud, then devices: "This device, Cloud,
   loud_shy_kettle" ("This device" for one not synced).
-- **Event cards** (the Monitoring timeline): on the row above each card,
+- **Event cards** (the Monitoring timeline): in each card's header row,
   at the right of the device tag, a small icon and the label. It fits a
   320 dp phone (the device tag and the label share the row, each cut short
   with an ellipsis if needed).

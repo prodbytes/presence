@@ -254,6 +254,26 @@ class FakeAuthService extends AuthService {
 /// Records uploads; can be told to fail.
 class FakeCloudBackend implements CloudBackend {
   final uploads = <String, ({Uint8List bytes, String contentType})>{};
+
+  /// When each object was last written (S3's time), by [now].
+  final modified = <String, DateTime>{};
+
+  /// S3's clock.
+  DateTime Function() now = () => DateTime.now().toUtc();
+
+  /// The keys deleted, relative to the folder, in order.
+  final deletes = <String>[];
+
+  /// Thrown by every delete() while set.
+  Object? failDelete;
+
+  /// When the folder's media was first sealed: the time of its
+  /// `encryption.json` marker, kept apart from [uploads]. Long ago by
+  /// default, so nothing is purged; null, no marker yet (the next pass
+  /// writes it, at [now]).
+  DateTime? sealedSince = DateTime.utc(2000);
+
+  static const String markerKey = 'encryption.json';
   final tokens = <String>[];
   final downloads = <String>[];
 
@@ -343,6 +363,41 @@ class FakeCloudSession implements CloudSession {
     if (backend.failEveryPut case final e?) throw e;
     await backend.beforePut?.call(key);
     backend.uploads['$prefix/$key'] = (bytes: bytes, contentType: contentType);
+    backend.modified['$prefix/$key'] = backend.now();
+  }
+
+  @override
+  Future<bool> putIfNew(String key, Uint8List bytes, String contentType) async {
+    if (key == FakeCloudBackend.markerKey) {
+      if (backend.sealedSince != null) return false;
+      backend.sealedSince = backend.now();
+      return true;
+    }
+    if (backend.uploads.containsKey('$prefix/$key')) return false;
+    await put(key, bytes, contentType);
+    return true;
+  }
+
+  /// Not counted in [FakeCloudBackend.listings].
+  @override
+  Future<Map<String, DateTime>> listModified([String under = '']) async {
+    if (under == FakeCloudBackend.markerKey) {
+      return {under: ?backend.sealedSince};
+    }
+    return {
+      for (final key in backend.uploads.keys)
+        if (key.startsWith('$prefix/$under'))
+          key.substring(prefix.length + 1):
+              backend.modified[key] ?? DateTime.utc(2000),
+    };
+  }
+
+  @override
+  Future<void> delete(String key) async {
+    if (backend.failDelete case final e?) throw e;
+    backend.deletes.add(key);
+    backend.uploads.remove('$prefix/$key');
+    backend.modified.remove('$prefix/$key');
   }
 
   @override

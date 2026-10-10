@@ -25,7 +25,7 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on, Admin for signed-in admins), and the full-screen Camera tab
+- [Navigation](navigation.md): bottom navigation bar (Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
   with its view (One / All / None), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
@@ -103,6 +103,12 @@ their data.
   S3, and each device's settings per profile (restored at sign-in), with
   credentials for their profile (the auth API, then a Cognito identity
   pool).
+- [Media encryption](encryption.md): every image and recording sealed
+  with its device's key (AES-256-GCM), made with the device ID, before
+  it's stored or sent; the profile's devices share their keys through
+  their settings in the cloud (and live sync); what was stored
+  unencrypted is deleted, on the device and in the cloud. Event metadata
+  isn't encrypted.
 - [Live sync](live-sync.md): new and changed events reach the profile's
   other devices within a second over MQTT (AWS IoT Core, WebSockets signed
   with the profile's credentials), metadata only; S3 keeps everything, and

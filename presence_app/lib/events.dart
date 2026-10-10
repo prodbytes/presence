@@ -660,11 +660,19 @@ class _EventTimelineState extends State<EventTimeline> {
     final newest = _view.shown.firstOrNull?.id;
     final arrived = newest != null && newest != _newest;
     _newest = newest;
+    // How long the list was, so a card added at the top while reading
+    // further down can be scrolled past: the cards read stay put.
+    final extent = _scroll.hasClients ? _scroll.position.maxScrollExtent : null;
     setState(() {});
     if (!arrived) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients) return;
-      if (_scroll.offset > EventTimeline.followNewWithin) return;
+      if (_scroll.offset > EventTimeline.followNewWithin) {
+        final p = _scroll.position;
+        final grew = extent == null ? 0.0 : p.maxScrollExtent - extent;
+        if (grew > 0) _scroll.jumpTo(p.pixels + grew);
+        return;
+      }
       _scroll.animateTo(
         0,
         duration: const Duration(milliseconds: 250),
@@ -698,42 +706,41 @@ class _EventTimelineState extends State<EventTimeline> {
         controller: _scroll,
         padding: widget.padding,
         itemCount: events.length,
-        separatorBuilder: (context, i) => const SizedBox(height: 4),
+        separatorBuilder: (context, i) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final event = events[i];
           final device = EventTimeline.deviceOf(event, widget.deviceId);
           final card = KeyedSubtree(
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
-            // Above the card, the device it was taken on (tapping it
-            // searches for it: only that device's events show) and how
-            // many copies of it there are.
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    if (device != null)
-                      Flexible(
-                        child: EventDeviceTag(
-                          key: Key('event-device-${event.id}'),
-                          device: device,
-                          thisDevice: device == widget.deviceId,
-                          os: event.os,
-                          value: _filters.search,
-                        ),
-                      ),
-                    const SizedBox(width: 8),
+            // One card per event, as in a feed: a header with the device
+            // it was taken on (tapping it searches for it: only that
+            // device's events show) and how many copies of it there are,
+            // then the event's own card, square, so its thumbnail runs
+            // edge to edge under the header.
+            child: FeedCard(
+              header: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (device != null)
                     Flexible(
-                      child: EventCopiesBadge(
-                        key: Key('event-copies-${event.id}'),
-                        event: event,
+                      child: EventDeviceTag(
+                        key: Key('event-device-${event.id}'),
+                        device: device,
+                        thisDevice: device == widget.deviceId,
+                        os: event.os,
+                        value: _filters.search,
                       ),
                     ),
-                  ],
-                ),
-                event.buildCard(context),
-              ],
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: EventCopiesBadge(
+                      key: Key('event-copies-${event.id}'),
+                      event: event,
+                    ),
+                  ),
+                ],
+              ),
+              child: event.buildCard(context),
             ),
           );
           if (event.id != _highlighted) return card;
@@ -946,11 +953,18 @@ class _EventSearchState extends State<EventSearch> {
           if (BarrelRoll.asks(text)) BarrelRoll.roll(context);
         },
         textInputAction: TextInputAction.search,
+        // Filled and rounded, with no outline, as phone apps' search
+        // fields are.
         decoration: InputDecoration(
           isDense: true,
           hintText: 'Search events',
           prefixIcon: const Icon(Icons.search, size: 20),
-          border: const OutlineInputBorder(),
+          filled: true,
+          fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+          border: const OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+            borderSide: BorderSide.none,
+          ),
           suffixIcon: IconButton(
             key: const Key('event-search-clear'),
             tooltip: 'Clear search',
@@ -1128,6 +1142,45 @@ class ShowSystemEvents extends StatelessWidget {
       );
     },
   );
+}
+
+/// An event in the feed (the Monitoring timeline): one rounded card, a
+/// header row on top ([header]: the device and the copies) and the event's
+/// own card under it ([child]), drawn square and borderless so the two read
+/// as one card.
+class FeedCard extends StatelessWidget {
+  const FeedCard({super.key, required this.header, required this.child});
+
+  final Widget header;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card.filled(
+      key: const Key('feed-card'),
+      margin: EdgeInsets.zero,
+      color: theme.colorScheme.surfaceContainerHighest,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+            child: header,
+          ),
+          Theme(
+            data: theme.copyWith(
+              cardTheme: theme.cardTheme.copyWith(
+                shape: const RoundedRectangleBorder(),
+              ),
+            ),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class EventCard extends StatelessWidget {

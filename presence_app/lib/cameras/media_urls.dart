@@ -4,10 +4,12 @@ import 'media_urls_none.dart'
     if (dart.library.js_interop) 'media_urls_web.dart'
     as platform;
 
-/// In-memory recording URLs (on web, Blob object URLs: each holds its
-/// recording's bytes in the page's memory until revoked) and who uses
-/// them, so each is revoked once nothing needs it. An unattended browser
-/// records clips for days: without this, every clip stayed in memory.
+/// Unsealed recording URLs and who uses them, so each is revoked once
+/// nothing needs it. On web they're Blob object URLs, each holding its
+/// recording's bytes in the page's memory until revoked: an unattended
+/// browser records clips for days, and without this every clip stayed in
+/// memory. Elsewhere they're files (a live recording, or an opened copy of
+/// a sealed one), and revoking one deletes it: recordings are kept sealed.
 ///
 /// A URL is revoked when it has no owners and no users:
 /// - an *owner* is a live recording not yet saved ([own] / [disown]);
@@ -17,8 +19,7 @@ import 'media_urls_none.dart'
 /// A URL made to play a stored recording ([loaded]) has no owner: it's
 /// revoked when its last user lets go, and loaded again next time.
 ///
-/// URLs it was never told about (file paths on Android) are left alone;
-/// on Android it tracks nothing ([MediaUrls.none]).
+/// URLs it was never told about are left alone.
 class MediaUrls {
   MediaUrls({required this._revoke}) : _enabled = true;
 
@@ -27,8 +28,8 @@ class MediaUrls {
 
   static void _ignore(String _) {}
 
-  /// The app's: tracks Blob URLs on web, nothing elsewhere. Tests replace
-  /// it to count revokes.
+  /// The app's: tracks Blob URLs on web, files elsewhere. Tests replace it
+  /// to count revokes.
   static MediaUrls instance = platform.hasMediaUrls
       ? MediaUrls(revoke: platform.revokeMediaUrl)
       : MediaUrls.none();

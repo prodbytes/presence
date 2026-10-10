@@ -139,7 +139,7 @@ void main() {
   ) async {
     // Tagged before, on her photo, on her face.
     final reference = ClipAnnotations();
-    final frame = reference.newFrame(
+    final frame = await reference.newFrame(
       await File(path('hopper_1.jpg')).readAsBytes(),
       0,
     );

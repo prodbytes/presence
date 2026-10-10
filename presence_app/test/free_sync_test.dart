@@ -11,11 +11,15 @@ import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
 
 import 'fakes.dart';
+import 'sealed.dart';
 import 'live_sync_test.dart' show FakeBroker, eventsTopic, messageOf, until;
 
 /// A JPEG's first bytes, then filler: what a thumbnail looks like.
 Uint8List jpeg([int length = 64]) =>
     Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, ...List.filled(length - 4, 7)]);
+
+/// A thumbnail as clips hold it: a JPEG of [length] bytes, sealed.
+Uint8List thumbnail([int length = 64]) => sealed(jpeg(length));
 
 Map<String, Object?> clipRecord({
   String id = 'clip-1',
@@ -34,32 +38,40 @@ Map<String, Object?> clipRecord({
 void main() {
   group('a clip in a live message', () {
     test('goes as its record and its thumbnail, never its recording', () {
+      final thumb = thumbnail();
       final message = LiveSync.clipMessageOf({
-        ...clipRecord(thumbnail: jpeg()),
+        ...clipRecord(thumbnail: thumb),
         'recording': Uint8List(100),
       })!;
       expect(message['id'], 'clip-1');
       expect(message.containsKey('recording'), isFalse);
-      expect(message['thumbnail'], base64Encode(jpeg()));
+      // Sealed, as held.
+      expect(message['thumbnail'], base64Encode(thumb));
       // And comes back as it was.
       final clip = LiveSync.clipOf(message, clipId: 'clip-1')!;
-      expect(clip['thumbnail'], jpeg());
+      expect(clip['thumbnail'], thumb);
+      expect(opened(clip['thumbnail']! as Uint8List), jpeg());
       expect((clip['full']! as Map)['mediaId'], 'clip-1-full');
     });
 
-    test('only a complete clip, the event\'s, with a small image', () {
+    test('only a complete clip, the event\'s, with a small sealed image', () {
       expect(LiveSync.clipMessageOf(clipRecord(state: 'partial')), isNull);
-      // Too big, or not an image: the clip goes without it.
+      // Too big, not sealed (even a JPEG), or not an image: the clip goes
+      // without it.
       final big = LiveSync.clipMessageOf(
-        clipRecord(thumbnail: jpeg(LiveSync.maxThumbnailBytes + 1)),
+        clipRecord(thumbnail: thumbnail(LiveSync.maxThumbnailBytes + 1)),
       )!;
       expect(big.containsKey('thumbnail'), isFalse);
+      final unsealed = LiveSync.clipMessageOf(clipRecord(thumbnail: jpeg()))!;
+      expect(unsealed.containsKey('thumbnail'), isFalse);
       final notImage = LiveSync.clipMessageOf(
         clipRecord(thumbnail: Uint8List.fromList([1, 2, 3, 4, 5])),
       )!;
       expect(notImage.containsKey('thumbnail'), isFalse);
 
-      final message = LiveSync.clipMessageOf(clipRecord(thumbnail: jpeg()))!;
+      final message = LiveSync.clipMessageOf(
+        clipRecord(thumbnail: thumbnail()),
+      )!;
       // Another clip's, or not complete: refused.
       expect(LiveSync.clipOf(message, clipId: 'clip-2'), isNull);
       expect(
@@ -70,7 +82,14 @@ void main() {
         LiveSync.clipOf({...message, 'id': '../x'}, clipId: '../x'),
         isNull,
       );
-      // A thumbnail that isn't one: refused.
+      // A thumbnail that isn't one, or isn't sealed: refused.
+      expect(
+        LiveSync.clipOf({
+          ...message,
+          'thumbnail': base64Encode(jpeg()),
+        }, clipId: 'clip-1'),
+        isNull,
+      );
       expect(
         LiveSync.clipOf({
           ...message,
@@ -88,7 +107,7 @@ void main() {
       expect(
         LiveSync.clipOf({
           ...message,
-          'thumbnail': base64Encode(jpeg(LiveSync.maxThumbnailBytes + 1)),
+          'thumbnail': base64Encode(thumbnail(LiveSync.maxThumbnailBytes + 1)),
         }, clipId: 'clip-1'),
         isNull,
       );
@@ -211,15 +230,16 @@ void main() {
       await sync.idle();
       expect(broker.last.published, hasLength(1));
 
-      // Its clip completes: again, with the clip and its thumbnail.
-      await store.putClip(clipRecord(thumbnail: jpeg()));
+      // Its clip completes: again, with the clip and its thumbnail, sealed.
+      final thumb = thumbnail();
+      await store.putClip(clipRecord(thumbnail: thumb));
       changes.add({'event-1'});
       await sync.idle();
       await until(() => broker.last.published.length == 2);
       sent = broker.last.sent.last;
       final clip = sent['clip']! as Map;
       expect(clip['id'], 'clip-1');
-      expect(clip['thumbnail'], base64Encode(jpeg()));
+      expect(clip['thumbnail'], base64Encode(thumb));
       expect(backend.uploads, isEmpty);
     });
 
@@ -234,13 +254,14 @@ void main() {
       };
       broker.last.deliver(eventsTopic, {
         ...messageOf(event),
-        'clip': LiveSync.clipMessageOf(clipRecord(thumbnail: jpeg())),
+        'clip': LiveSync.clipMessageOf(clipRecord(thumbnail: thumbnail())),
       });
       await until(() => remote.any((r) => r.clips.isNotEmpty));
       await sync.idle();
       expect(remote.first.events.single['id'], 'remote-event');
       final clip = remote.firstWhere((r) => r.clips.isNotEmpty).clips.single;
-      expect(clip['thumbnail'], jpeg());
+      // Held sealed, as it came.
+      expect(opened(clip['thumbnail']! as Uint8List), jpeg());
       expect(await store.getClip('clip-1'), isNotNull);
       expect(backend.downloads, isEmpty);
       expect(backend.listings, isEmpty);
