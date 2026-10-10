@@ -4317,3 +4317,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Profiles](profiles.md), [Sign-in](sign-in.md),
        [Health check](health-check.md), [Execution mode](execution-mode.md),
        [Deploy](deploy.md), [Local CDN](local-cdn.md).
+
+325. **Local development on rbacr's RC, prod on GA rbacr.** (2026-10-10)
+     - Asked: rbacr already handles root roles; for now, make local
+       development use RC rbacr and prod use GA rbacr.
+     - Changed: the local Floci stack takes its rbacr from `.env`'s new
+       `RBACR_RC_URL` (default https://rc.rbacr.nu01.com), `RBACR_RC_TOKEN`
+       and `RBACR_RC_SYSTEM` (`process-compose.yaml`, `05-auth-api.sh`),
+       so local grants go to the RC, and the GA token in `RBACR_TOKEN`
+       stays for deploys. The local monitor checks the RC's `/health`.
+       `scripts/deploy.sh` refuses a prod deploy whose `RBACR_URL` isn't
+       https://rbacr.nu01.com. Specs: [Local CDN](local-cdn.md),
+       [Auth API](auth-api.md), [Deploy](deploy.md).

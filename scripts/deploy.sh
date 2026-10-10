@@ -40,7 +40,8 @@
 #                it; rbacr's root list makes roots), and memberships and
 #                vouchers grant there. Required, from the environment (the
 #                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
-#   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com; also .env)
+#   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
+#                the only one prod accepts; also .env)
 #   RBACR_SYSTEM the rbacr system of the app's roles (default presence; also .env)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
@@ -127,6 +128,11 @@ fi
 if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]+$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$
       || ! "$RBACR_SYSTEM" =~ ^[a-z0-9][a-z0-9_.:-]{0,62}$ ]]; then
   echo "error: RBACR_TOKEN must be a token, RBACR_URL an https origin and RBACR_SYSTEM an rbacr system ID" >&2
+  exit 1
+fi
+# Prod's roles are GA rbacr's, never the RC's (local development's).
+if [[ "$STAGE" == prod && "$RBACR_URL" != https://rbacr.nu01.com ]]; then
+  echo "error: prod uses GA rbacr (https://rbacr.nu01.com), not $RBACR_URL" >&2
   exit 1
 fi
 echo "    rbacr: $RBACR_URL, system $RBACR_SYSTEM, with a token"

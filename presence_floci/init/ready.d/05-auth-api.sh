@@ -46,17 +46,17 @@ esac
 aws s3 mb s3://presence-local-sam >/dev/null
 aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
-# rbacr, from .env: the roles of whoever signs in (RBAC mode). Its grants
-# (an admin approving a request, a voucher) go to that rbacr too, so point
-# RBACR_URL or RBACR_SYSTEM elsewhere to keep local tests out of the real one.
+# rbacr's RC (rc.rbacr.nu01.com, its own database), from .env's RBACR_RC_*:
+# the roles of whoever signs in (RBAC mode). Its grants (an admin approving
+# a request, a voucher) go there too, never to GA rbacr, which prod uses.
 if [ -n "$CLIENT_ID" ] && [ -z "${RBACR_TOKEN:-}" ]; then
-  echo "presence: RBACR_TOKEN isn't set (.env); nobody who signs in has a role" >&2
+  echo "presence: RBACR_RC_TOKEN isn't set (.env); nobody who signs in has a role" >&2
 fi
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file /tmp/presence-auth-api.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$CLIENT_ID" "Architecture=$ARCH" \
     "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" \
-    "RbacrUrl=${RBACR_URL:-https://rbacr.nu01.com}" "RbacrToken=${RBACR_TOKEN:-}" \
+    "RbacrUrl=${RBACR_URL:-https://rc.rbacr.nu01.com}" "RbacrToken=${RBACR_TOKEN:-}" \
     "RbacrSystem=${RBACR_SYSTEM:-presence}" >/dev/null
 
 function_arn() { # function_arn <logical ID>

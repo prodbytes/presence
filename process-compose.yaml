@@ -51,7 +51,7 @@ processes:
     # So is the auth API build, which Floci deploys (05-auth-api.sh), with
     # GOOGLE_WEB_CLIENT_ID from .env for its JWT authorizer, and cloud
     # sync's pool and bucket for its health report.
-    command: bash scripts/local-certs.sh && bash scripts/build-auth-api.sh && GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env 2>/dev/null | tail -1)" COGNITO_IDENTITY_POOL_ID="$(sed -n 's/^COGNITO_IDENTITY_POOL_ID=//p' .env 2>/dev/null | tail -1)" USER_DATA_BUCKET="$(sed -n 's/^USER_DATA_BUCKET=//p' .env 2>/dev/null | tail -1)" RBACR_URL="$(sed -n 's/^RBACR_URL=//p' .env 2>/dev/null | tail -1)" RBACR_TOKEN="$(sed -n 's/^RBACR_TOKEN=//p' .env 2>/dev/null | tail -1)" RBACR_SYSTEM="$(sed -n 's/^RBACR_SYSTEM=//p' .env 2>/dev/null | tail -1)" docker compose -f presence_floci/compose.yaml up floci
+    command: bash scripts/local-certs.sh && bash scripts/build-auth-api.sh && GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env 2>/dev/null | tail -1)" COGNITO_IDENTITY_POOL_ID="$(sed -n 's/^COGNITO_IDENTITY_POOL_ID=//p' .env 2>/dev/null | tail -1)" USER_DATA_BUCKET="$(sed -n 's/^USER_DATA_BUCKET=//p' .env 2>/dev/null | tail -1)" RBACR_URL="$(sed -n 's/^RBACR_RC_URL=//p' .env 2>/dev/null | tail -1)" RBACR_TOKEN="$(sed -n 's/^RBACR_RC_TOKEN=//p' .env 2>/dev/null | tail -1)" RBACR_SYSTEM="$(sed -n 's/^RBACR_RC_SYSTEM=//p' .env 2>/dev/null | tail -1)" docker compose -f presence_floci/compose.yaml up floci
     environment:
       - FLOCI_HTTPS_PORT=${FLOCI_HTTPS_PORT:-8443}
     shutdown:

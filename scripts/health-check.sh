@@ -78,14 +78,15 @@ check_api() {
         "GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role"
     setting "$body" 🪣 aws aws "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set: events sync to S3" \
         "COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3"
-    setting "$body" 🛂 rbacr-api rbacr "RBACR_TOKEN set: rbacr gives the roles" \
-        "RBACR_TOKEN not set: nobody who signs in has a role"
+    setting "$body" 🛂 rbacr-api rbacr "RBACR_RC_TOKEN set: rbacr's RC gives the roles" \
+        "RBACR_RC_TOKEN not set: nobody who signs in has a role"
 }
 
-# rbacr itself (which gives every role): its public /health, at RBACR_URL (the
-# environment, else .env, else https://rbacr.nu01.com). No token is sent.
-RBACR_URL="${RBACR_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_URL=//p' .env | tail -1)}"
-RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+# rbacr's RC (which gives the local stack's roles): its public /health, at
+# RBACR_RC_URL (the environment, else .env, else https://rc.rbacr.nu01.com).
+# No token is sent.
+RBACR_URL="${RBACR_RC_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_RC_URL=//p' .env | tail -1)}"
+RBACR_URL="${RBACR_URL:-https://rc.rbacr.nu01.com}"
 check_rbacr() { ok_if 🛂 rbacr "$RBACR_URL/health" get 5 "$RBACR_URL/health"; }
 
 while true; do
