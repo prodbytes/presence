@@ -355,6 +355,30 @@ class CloudSync extends ChangeNotifier {
   /// Whether syncing has stopped after credentials failed (see [retry]).
   bool get stopped => _stoppedFor != null;
 
+  /// The camera's Stopped mode: no passes, no live sync and no recording
+  /// downloads, until [setHalted] lifts it. Kept apart from [stopped],
+  /// which is about failed credentials.
+  bool get halted => _halted;
+  bool _halted = false;
+
+  /// Halts all syncing ([halted]), or resumes it: as at a sign-in, a pass
+  /// at once and the periodic ones.
+  void setHalted(bool halted) {
+    if (halted == _halted || _disposed) return;
+    _halted = halted;
+    if (halted) {
+      debugPrint('Presence: sync halted (Stopped)');
+      _timer?.cancel();
+      _periodic?.cancel();
+      _liveBridge.stop();
+    } else if (_owner != null && !stopped) {
+      debugPrint('Presence: sync resumed');
+      _startPeriodic();
+      _schedule(immediately: true);
+    }
+    notifyListeners();
+  }
+
   /// The profile's devices and how many of them show their events
   /// ([DeviceSlots]), as the auth API listed them with the latest
   /// credentials; null until then, signed out, or from an API that doesn't
@@ -508,7 +532,7 @@ class CloudSync extends ChangeNotifier {
     if (profile == null) {
       _timer?.cancel();
       _set(CloudSyncState.off);
-    } else {
+    } else if (!_halted) {
       _startPeriodic();
       _schedule(immediately: true);
     }
@@ -598,7 +622,7 @@ class CloudSync extends ChangeNotifier {
 
   /// Syncs again after credentials failed and syncing [stopped].
   void retry() {
-    if (_owner == null || _disposed) return;
+    if (_owner == null || _disposed || _halted) return;
     if (stopped) {
       _stoppedFor = null;
       _startPeriodic();
@@ -608,7 +632,7 @@ class CloudSync extends ChangeNotifier {
   }
 
   void _schedule({bool immediately = false}) {
-    if (_disposed || _syncProfile == null || stopped) return;
+    if (_disposed || _syncProfile == null || stopped || _halted) return;
     _timer?.cancel();
     _timer = Timer(immediately ? Duration.zero : debounce, _startNow);
   }
@@ -633,7 +657,7 @@ class CloudSync extends ChangeNotifier {
   }
 
   void _startNow() {
-    if (stopped) return;
+    if (stopped || _halted) return;
     if (_running != null) {
       _again = true;
       return;

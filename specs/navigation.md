@@ -127,23 +127,27 @@ account.
     a clip, and every press asks every other device of the profile for one
     too (unless a request went out in the last 5 s; see
     [Camera screen](camera.md#capture-all)); otherwise only this camera.
-  - **The view button** sits left of Flip, shown with access whether or
+  - **The mode button** sits left of Flip, shown with access whether or
     not a camera is open. A round floating action button with only an
-    icon, no text label: its icon and colors say what the tab shows, its
-    tooltip and screen-reader label what a tap does, and a tap moves on,
-    One → All → None → One:
-    - **One** (a square; quiet): this camera, full screen. Tooltip "Show
-      all devices". It's the state at launch, unless the camera was left
-      off.
-    - **All** (a grid; highlighted): this device's camera in the top-left
-      cell and every other device of the profile with its latest image
-      (see [Camera screen](camera.md#all-devices)) and a [presence
+    icon, no text label: its icon and colors say the mode, its tooltip
+    what a tap does, and a tap moves on, Normal → All → Unattended →
+    Stopped → Normal (see [Camera screen](camera.md)). There's no Screen
+    off button any more: it's the Unattended mode.
+    - **Normal** (a square; quiet): this camera, full screen. Tooltip
+      "Show all devices". It's the mode at launch, unless the device was
+      left Stopped.
+    - **All** (a grid; the secondary colors): this device's camera in the
+      top-left cell and every other device of the profile with its latest
+      image (see [Camera screen](camera.md#all-devices)) and a [presence
       dot](device-presence.md) on each. Opening it asks every device for
       a fresh grab (at most once a minute; see [Camera
-      screen](camera.md#capture-all)). Tooltip "Turn the camera off".
-    - **None** (a crossed-out camera; in the error colors): the camera
-      off, nothing recorded (see [Camera screen](camera.md)). Tooltip
-      "Turn the camera on".
+      screen](camera.md#capture-all)). Tooltip "Go unattended: screen
+      off, still capturing".
+    - **Unattended** (a moon; the tertiary colors): the screen dark,
+      capturing and syncing on; seen woken, after a tap on the dark
+      screen. Tooltip "Stop: no capturing or syncing".
+    - **Stopped** (a stop sign; the error colors): no capturing and no
+      syncing. Tooltip "Back to normal: this camera".
   - **Flip camera** (the camera-switch icon) sits just left of Clip, as a
     quieter secondary button. It's shown only when the device has more than
     one camera. It switches back ↔ front where the camera's facing is known
@@ -154,7 +158,7 @@ account.
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
   - **Status pills, top left**, just under the app bar, so they never
-    sit over the view button, Flip or Clip at the bottom
+    sit over the mode button, Flip or Clip at the bottom
     (`CameraStatus` in `lib/home/camera_status.dart`): a **health
     warning** while a health check fails, the **battery**, its
     **temperature** (Android) and, after them for 4 s, the latest
@@ -225,8 +229,8 @@ account.
       and *after* parts) and restarts the cooldown; `requestClips` has
       never held a press back.
     - **Disabled** (grey, flat, not pressable) when no clip can be
-      taken, with the reason as its tooltip: "Camera off" (the view
-      button's None), "No camera", "Camera starting…" (opening, or a
+      taken, with the reason as its tooltip: "Camera off" (the mode
+      button's Stopped), "No camera", "Camera starting…" (opening, or a
       flip), "Camera unavailable" (failed to open, or lost and being
       retried), else "Camera not ready".
 

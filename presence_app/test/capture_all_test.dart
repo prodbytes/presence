@@ -298,11 +298,17 @@ void main() {
             .where((e) => e['type'] == AppEvent.captureAllType)
             .length;
 
-    /// All → None → One → All.
+    /// All → Unattended (woken) → Stopped → Normal → All.
     Future<void> reopenAll(WidgetTester tester) async {
-      await tester.tap(find.byTooltip('Turn the camera off'));
+      await tester.tap(
+        find.byTooltip('Go unattended: screen off, still capturing'),
+      );
       await tester.pump();
-      await tester.tap(find.byTooltip('Turn the camera on'));
+      await tester.tap(find.byKey(const Key('screen-off-cover')));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Stop: no capturing or syncing'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Back to normal: this camera'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Show all devices'));
       await tester.pump();

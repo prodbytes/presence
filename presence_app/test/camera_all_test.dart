@@ -331,15 +331,21 @@ void main() {
       ),
     );
 
-    // All → None (the camera off) → One.
-    await tester.tap(find.byTooltip('Turn the camera off'));
+    // All → Unattended (woken) → Stopped (the camera off) → Normal.
+    await tester.tap(
+      find.byTooltip('Go unattended: screen off, still capturing'),
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('screen-off-cover')));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Stop: no capturing or syncing'));
     await tester.pump();
     expect(find.textContaining('· live'), findsNothing);
     expect(find.byKey(const Key('camera-paused')), findsOneWidget);
-    await tester.tap(find.byTooltip('Turn the camera on'));
+    await tester.tap(find.byTooltip('Back to normal: this camera'));
     await tester.pump();
     expect(find.byKey(const Key('camera-paused')), findsNothing);
     expect(find.byTooltip('Show all devices'), findsOneWidget);
-    expect(find.text('One'), findsNothing);
+    expect(find.text('Normal'), findsNothing);
   });
 }

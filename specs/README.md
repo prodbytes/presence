@@ -26,13 +26,13 @@ their data.
 **App**
 
 - [Navigation](navigation.md): bottom navigation bar (Help for signed-in members, Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
-  with its view (One / All / None), Flip and Clip buttons (Clip's color is its readiness).
+  with its mode button (Normal / All / Unattended / Stopped), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
 - [Theme](theme.md): the Gruvbox dark palette.
 - [Camera screen](camera.md): opening cameras, audio capture and states;
-  the view button (One / All / None: this camera, the All grid, or the
-  camera off); the All grid: this camera top left, then every device in the
+  the mode button (Normal / All / Unattended / Stopped: this camera, the
+  All grid, the screen off while capturing, or no capturing or syncing); the All grid: this camera top left, then every device in the
   profile with its latest image; Clip there is Capture all, a clip on
   every device, asked through cloud sync.
 - [Monitoring](monitoring.md): one tab with the subjects' map, the

@@ -7,7 +7,7 @@ import 'package:presence_app/screen_off.dart';
 import 'camera_pause_test.dart' show pumpGate;
 import 'fakes.dart';
 
-/// Records what the Screen off button asks of the platform.
+/// Records what the Unattended mode asks of the platform.
 class FakeScreenOff implements ScreenOff {
   FakeScreenOff({this.supported = true});
 
@@ -38,33 +38,65 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Screen off darkens the app until a tap', (tester) async {
-    final screen = FakeScreenOff();
-    await pumpApp(tester, screen);
+  final mode = find.byKey(const Key('camera-mode'));
+  final cover = find.byKey(const Key('screen-off-cover'));
 
-    final button = find.byKey(const Key('screen-off'));
-    expect(button, findsOneWidget);
-    expect(
-      find.byTooltip('Turn the screen off (capture goes on)'),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('screen-off-cover')), findsNothing);
-
-    await tester.tap(button);
+  Future<void> tap(WidgetTester tester, Finder finder) async {
+    await tester.tap(finder);
     await tester.pumpAndSettle();
-    expect(screen.calls, [true]);
-    expect(find.byKey(const Key('screen-off-cover')), findsOneWidget);
-    expect(find.textContaining('Tap to wake'), findsOneWidget);
+  }
 
-    await tester.tap(find.byKey(const Key('screen-off-cover')));
-    await tester.pumpAndSettle();
-    expect(screen.calls, [true, false]);
-    expect(find.byKey(const Key('screen-off-cover')), findsNothing);
+  testWidgets('Screen off is the Unattended mode, not a button of its own', (
+    tester,
+  ) async {
+    await pumpApp(tester, FakeScreenOff());
+    expect(find.byKey(const Key('screen-off')), findsNothing);
+    expect(mode, findsOneWidget);
   });
 
-  testWidgets('no Screen off button where the platform can\'t', (tester) async {
+  testWidgets('Unattended darkens the screen; a tap wakes it a while', (
+    tester,
+  ) async {
+    final screen = FakeScreenOff();
+    await pumpApp(tester, screen);
+    await tap(tester, mode); // All
+    expect(cover, findsNothing);
+    await tap(tester, mode); // Unattended
+    expect(screen.calls, [true]);
+    expect(cover, findsOneWidget);
+    expect(find.textContaining('Tap to wake'), findsOneWidget);
+
+    // Woken, still Unattended.
+    await tap(tester, cover);
+    expect(screen.calls, [true, false]);
+    expect(cover, findsNothing);
+    expect(find.byTooltip('Stop: no capturing or syncing'), findsOneWidget);
+
+    // Touches keep it on; 15 s without one, it's dark again.
+    await tester.pump(const Duration(seconds: 10));
+    await tester.tapAt(const Offset(200, 200));
+    await tester.pump(const Duration(seconds: 10));
+    expect(cover, findsNothing);
+    await tester.pump(const Duration(seconds: 6));
+    expect(cover, findsOneWidget);
+    expect(screen.calls, [true, false, true]);
+
+    // Woken and moved on: Stopped, the screen back for good.
+    await tap(tester, cover);
+    await tap(tester, mode);
+    expect(cover, findsNothing);
+    expect(screen.calls.last, isFalse);
+    expect(find.byTooltip('Back to normal: this camera'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 20));
+    expect(cover, findsNothing);
+  });
+
+  testWidgets('Unattended covers the screen where it can\'t go off', (
+    tester,
+  ) async {
     await pumpApp(tester, FakeScreenOff(supported: false));
-    expect(find.byKey(const Key('show-all')), findsOneWidget);
-    expect(find.byKey(const Key('screen-off')), findsNothing);
+    await tap(tester, mode);
+    await tap(tester, mode);
+    expect(cover, findsOneWidget);
   });
 }
