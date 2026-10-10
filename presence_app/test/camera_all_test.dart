@@ -307,15 +307,15 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
 
-    // Left of Clip, clear of the status pills.
+    // Left of Clip; the status pills are at the top, clear of it.
     final all = tester.getRect(find.byTooltip('Show all devices'));
     expect(
       all.right,
       lessThan(tester.getRect(find.byKey(const Key('clip'))).left),
     );
     expect(
-      tester.getRect(find.byKey(const Key('camera-status'))).right,
-      lessThan(all.left),
+      tester.getRect(find.byKey(const Key('camera-status'))).bottom,
+      lessThan(all.top),
     );
 
     await tester.tap(find.byTooltip('Show all devices'));
@@ -323,6 +323,13 @@ void main() {
     expect(find.textContaining('· live'), findsOneWidget);
     final live = tester.getRect(find.byKey(const Key('preview-Main')));
     expect(live.width, lessThan(1280));
+    // The grid starts below the status pills, so they cover no cell.
+    expect(
+      live.top,
+      greaterThanOrEqualTo(
+        tester.getRect(find.byKey(const Key('camera-status'))).bottom,
+      ),
+    );
 
     // All → None (the camera off) → One.
     await tester.tap(find.byTooltip('Turn the camera off'));

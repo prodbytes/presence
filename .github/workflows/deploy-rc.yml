@@ -76,7 +76,7 @@ jobs:
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Deploying ${tag:-main's commit} to rc.presence.nu01.com"
+          echo "Deploying ${tag:-the commit on main} to rc.presence.nu01.com"
 
       # Full history, so the commit can be checked against main. A tag is
       # checked out as refs/tags/<tag>, so a branch or SHA of that name
