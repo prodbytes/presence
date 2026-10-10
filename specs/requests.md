@@ -4622,3 +4622,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera](camera.md), [Navigation](navigation.md),
        [Cloud sync](cloud-sync.md), [Android](android.md),
        [Configuration](configuration.md).
+
+341. **Sign up only for free members, in the profile view.** (2026-10-10)
+     - Asked: in the profile view, only show the sign-up call to a free
+       member; a premium or admin account doesn't need it.
+     - Changed: the account sheet's plan box (`PlanNotice`) counts an
+       admin as Premium (`roles.isPremium || roles.isAdmin`), so its
+       "Sign up at nu01.com" button and the sign-up text show only for a
+       free member. The auth API already made every admin premium; this
+       keeps the profile view right when an admin's roles lack
+       `presence_premium`. Test: `device_slots_test.dart`. Specs:
+       [Premium and free](premium.md).
