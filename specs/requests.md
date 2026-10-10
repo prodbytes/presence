@@ -4487,8 +4487,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+333. **Feedback and Help.** (2026-10-10)
+     - Asked: in the navigation bar, a new view, Feedback and Help, where
+       users submit messages; admins see and reply to them.
+     - Changed: a **Help** tab (after Settings; the app bar says "Feedback
+       & Help", via a new `HomeTab.title`) for signed-in members, not in
+       DEV: their conversation with the administrators as chat bubbles,
+       with a Message field and Send (`HelpView`, `lib/feedback/`). The
+       Admin tab gained a **Feedback** section between the requests and
+       the vouchers: every conversation, the latest active first, marked
+       awaiting a reply or answered, opening on the conversation and a
+       Reply field. Auth API: `FeedbackHandler` with `GET`/`POST
+       /api/auth/feedback` (members; 2000 characters, 20 a day, throttled
+       1/s) and `GET /api/auth/feedback/threads`, `POST
+       /api/auth/feedback/reply` (admins), a new `FeedbackTable` (email +
+       sentAt), in the health check's tables and Floci's local routes.
+       Members aren't told which admin replied. Tests: `FeedbackTest`,
+       `feedback_test.dart`; `roles_test.dart`'s tab indices moved by
+       one. Specs: [Feedback and Help](feedback.md) (new),
+       [Navigation](navigation.md), [Membership](membership.md),
+       [Auth API](auth-api.md), [Health check](health-check.md).
 
-333. **Tell free and premium users apart, and limit their devices.**
+334. **Tell free and premium users apart, and limit their devices.**
      (2026-10-10)
      - Asked: differentiate free and premium users, said clearly with a
        message in the profile screen; free users sync up to 2 devices,
@@ -4520,7 +4540,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Sign-in](sign-in.md), [Monitoring](monitoring.md),
        [Device deletion](device-deletion.md), [README](README.md).
 
-334. **Maintenance mode.** (2026-10-10)
+335. **Maintenance mode.** (2026-10-10)
      - Asked: let admins put the system in maintenance mode; while it's
        on, no UI is shown at all, just a sorry message.
      - Changed: a `SystemTable` in the auth API keeps the state
@@ -4541,7 +4561,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Membership](membership.md), [Execution mode](execution-mode.md),
        [Production deploy](deploy.md), [Health check](health-check.md).
 
-335. **Commit everything: the local certificates stay out.** (2026-10-10)
+336. **Commit everything: the local certificates stay out.** (2026-10-10)
      - Asked: commit every pending change, with PRs.
      - Found: a worktree showed `presence_floci/certs` as untracked: the
        main folder's mkcert certificate and private key, linked in. The
@@ -4549,7 +4569,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `.gitignore` ignores `presence_floci/certs` as a
        folder or a link, so the key can't be committed from a worktree.
 
-336. **Deploy RC failed at its first step: fixed.** (2026-10-10)
+337. **Deploy RC failed at its first step: fixed.** (2026-10-10)
      - Found: the `0.6.202610101329-RC` Deploy RC run stopped in "Resolve
        the tag" with `unexpected EOF while looking for matching '`: its
        message `${tag:-main's commit}` has an apostrophe inside a
@@ -4559,7 +4579,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        workflow's `run:` scripts now pass `bash -n`. Spec: none (the
        workflow's behavior is unchanged).
 
-337. **Status pills at the top of the camera.** (2026-10-10)
+338. **Status pills at the top of the camera.** (2026-10-10)
      - Asked: move the pills (battery, temperature, …) to the top of the
        screen, so they're not layered over the buttons.
      - Changed: the camera's status pills (health warning, battery,
@@ -4574,7 +4594,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location and battery](device-location.md),
        [Camera](camera.md).
 
-335. **Keep `.claude/` out of git.** (2026-10-10)
+339. **Keep `.claude/` out of git.** (2026-10-10)
      - Asked: there were many `.claude` changes showing in git; put them
        all in `.gitignore`.
      - Changed: `.gitignore` ignores `.claude/`, and
@@ -4585,7 +4605,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Control, and hides them from the Explorer, search and the file
        watcher. Specs: [Dev environment](dev-environment.md).
 
-338. **Screen off as a mode of the mode button.** (2026-10-10)
+340. **Screen off as a mode of the mode button.** (2026-10-10)
      - Asked: make "screen off" an option of the camera's mode button
        instead of a button of its own, so the button flips between Normal
        (one camera), All (all devices), Unattended (the screen off but

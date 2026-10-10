@@ -8,6 +8,8 @@ import '../auth/account_sheet.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
 import '../auth/membership_client.dart';
+import '../feedback/feedback_client.dart';
+import '../feedback/help_view.dart';
 import '../auth/plan_notice.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
@@ -37,8 +39,9 @@ import 'home_navigation_bar.dart';
 /// The app's one screen: a bottom navigation bar ([HomeNavigationBar])
 /// flips between the camera (the start tab), monitoring (the subjects'
 /// map, the subjects and the event stream), the settings (with the device's
-/// location map), for admins who turned it on the log, and for signed-in
-/// admins the Admin page (membership requests and vouchers). Only a tap
+/// location map), for signed-in members Feedback and Help, for admins who
+/// turned it on the log, and for signed-in admins the Admin page
+/// (membership requests, feedback and vouchers). Only a tap
 /// flips: there's no swiping between them, as in most phone apps, so a
 /// sideways drag on a map or a list stays there.
 ///
@@ -54,6 +57,7 @@ class HomeScreen extends StatefulWidget {
     required this.auth,
     required this.roles,
     required this.membership,
+    required this.feedback,
     required this.profiles,
     this.sync,
     this.deviceId,
@@ -106,6 +110,10 @@ class HomeScreen extends StatefulWidget {
   /// Admin tab.
   final MembershipClient membership;
 
+  /// Feedback and Help: members write on the Help tab, admins answer on
+  /// the Admin tab.
+  final FeedbackClient feedback;
+
   /// The user's linked Google accounts (account and sign-up sheets).
   final ProfileClient profiles;
 
@@ -138,9 +146,17 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// accounts).
   bool get _showAdmin => !_dev && widget.roles.isAdmin;
 
+  /// The Help tab shows for signed-in members, not in DEV (there are no
+  /// accounts to write from).
+  bool get _showHelp => !_dev && _hasAccess;
+
   /// The tabs to show, in [HomeTab] order.
-  List<HomeTab> get _shownTabs =>
-      HomeTab.shown(log: _showLog, admin: _showAdmin, profile: _showProfile);
+  List<HomeTab> get _shownTabs => HomeTab.shown(
+    help: _showHelp,
+    log: _showLog,
+    admin: _showAdmin,
+    profile: _showProfile,
+  );
 
   /// The Profile tab shows signed in, not in DEV (there are no accounts).
   bool get _showProfile => !_dev && _signedIn;
@@ -606,6 +622,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   liveAdmin: widget.roles.isAdmin,
                 ),
               ),
+              if (_tabs.shows(HomeTab.help))
+                SafeArea(
+                  child: HelpView(auth: widget.auth, feedback: widget.feedback),
+                ),
               if (_tabs.shows(HomeTab.log))
                 SafeArea(
                   child: LogView(
@@ -626,6 +646,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: AdminView(
                     auth: widget.auth,
                     membership: widget.membership,
+                    feedback: widget.feedback,
                     canCreateAdmins: widget.roles.isRoot,
                     // The app follows a switch at once, not at its next check.
                     onMaintenanceSwitched: widget.roles.checkApi,

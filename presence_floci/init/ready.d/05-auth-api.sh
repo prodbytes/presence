@@ -101,6 +101,10 @@ if [ -n "$CLIENT_ID" ]; then
   route "GET /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers/delete" AdminFunction "$authorizer"
+  route "GET /api/auth/feedback" FeedbackFunction "$authorizer"
+  route "POST /api/auth/feedback" FeedbackFunction "$authorizer"
+  route "GET /api/auth/feedback/threads" FeedbackFunction "$authorizer"
+  route "POST /api/auth/feedback/reply" FeedbackFunction "$authorizer"
   route "GET /api/auth/maintenance" AdminFunction "$authorizer"
   route "POST /api/auth/maintenance" AdminFunction "$authorizer"
   # Profiles. Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the

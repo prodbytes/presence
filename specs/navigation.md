@@ -9,7 +9,9 @@ account.
 - **Bottom navigation bar** (`HomeNavigationBar`,
   `lib/home/home_navigation_bar.dart`, a Material `NavigationBar`): one
   destination per tab, each an **icon over its label**, in order
-  **Camera**, **Monitoring** and **Settings**, and for admins
+  **Camera**, **Monitoring** and **Settings**; for signed-in members
+  (not DEV: there are no accounts) **Help**, Feedback and Help (see
+  [Feedback and Help](feedback.md)); for admins
   (`presence_admin`, so everyone in DEV, where the anonymous user is a
   root) a fourth, **Log**, when Settings' **Show the Log tab** switch is
   on: on by default in DEV, off otherwise (see [Log](log.md)); for
@@ -33,20 +35,24 @@ account.
     theme's `navigationBarTheme` ([Theme](theme.md)).
   - Each destination's tooltip and screen-reader label is the tab's name
     (Profile's says who's signed in), with at least a 48 dp touch target:
-    an admin's six tabs fit a 320 dp phone.
+    an admin's seven tabs fit a 320 dp phone (labels are kept short for
+    that: "Help", not "Feedback & Help").
   - **Signed out**, or signed in without access, there's no navigation
     bar: the camera shows alone (see [Sign-in](sign-in.md)).
-  - The Log, Admin and Profile tabs come and go as the roles, the switch
-    or signing in and out change
+  - The Help, Log, Admin and Profile tabs come and go as sign-in, the
+    roles or the switch change
     (the tab controller is rebuilt, staying on the open tab, or on the
     nearest tab before it if that one goes: Settings for the Log). A tab's
     controller index is its place among the shown tabs (`indexOf`), not
-    its `HomeTab.index`: with the Log hidden, the Admin tab is the fourth.
+    its `HomeTab.index`: with the Log hidden, the Admin tab is the fifth
+    (after Help).
     (The Device tab is gone: its map is a section of Settings, and the
     battery shows over the camera.)
 - **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
-  - **On the left, the open screen's name**, bold (22 sp, weight 700),
-    left-aligned ("Monitoring", "Settings", "Log", "Admin", "Profile"). **No name
+  - **On the left, the open screen's name** (`HomeTab.title`), bold
+    (22 sp, weight 700), left-aligned ("Monitoring", "Settings",
+    "Feedback & Help", "Log", "Admin", "Profile"): the tab's label, unless
+    it has a longer name, as Help does. **No name
     over the camera.** In DEV the "dev" label follows it (alone over the
     camera; see [Execution mode](execution-mode.md)).
   - **On the right, only without access:** signed out, **Sign in**;
@@ -66,7 +72,7 @@ account.
 - **Every view change looks the same:** a sideways slide, 300 ms, eased
   (`Curves.ease`, the tabs' own). The role-gated tabs (Log, Admin) are
   tabs like the others: they only need the role to show, and flip in the
-  same way. A screen pushed over the tabs (a [subject's](subjects.md))
+  same way, and so does Help. A screen pushed over the tabs (a [subject's](subjects.md))
   slides in from the right as the tabs slide out to the left, and back on
   return (`TabSlidePageTransitionsBuilder` in `lib/theme.dart`, the
   theme's page transition on every platform), instead of the platform's
@@ -74,8 +80,8 @@ account.
   player) aren't view changes: they still rise over the screen.
   Test: `theme_test.dart`.
 - **A browser refresh stays on the open tab** (Camera, Monitoring,
-  Settings, Log or Admin; the Log and Admin only if the user still has
-  them), remembered by name: each switch is remembered in the browser tab's
+  Settings, Help, Log or Admin; Help, the Log and Admin only if the user
+  still has them), remembered by name: each switch is remembered in the browser tab's
   `sessionStorage` (`presence.tab`, `lib/tab_memory.dart`), and the app
   opens on it again once the tabs can show (access is known only after the
   roles load; signed out, it stays on the camera and keeps the memory for

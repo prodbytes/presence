@@ -1,6 +1,6 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: six Java 25
+[presence_api_auth/](../presence_api_auth) is a SAM application: seven Java 25
 Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
 site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)), plus the public **`GET /health`**
@@ -38,6 +38,13 @@ site (`/api/*` in the CloudFront distribution; see
   access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
   **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
   Admin tab's. See [Membership](membership.md);
+- **`GET /api/auth/feedback`** and **`POST /api/auth/feedback`**
+  (`FeedbackHandler`, members): the caller's conversation with the
+  administrators and a new message (plain text, up to 2000 characters, 20
+  a day; throttled to 1 request/s, burst 5); **`GET
+  /api/auth/feedback/threads`** and **`POST …/feedback/reply`** (admins:
+  both roles): every conversation, and a reply (form-encoded `email` and
+  `message`). See [Feedback and Help](feedback.md#the-api);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
   [...], "discount": 100}` when its discount is 100%; 402 `{"error",
@@ -133,7 +140,8 @@ site (`/api/*` in the CloudFront distribution; see
     `scripts/migrate-roles-to-rbacr.sh` copies the table's roles into
     rbacr (`presence_user` as `free`, `presence_admin` as `admin`); the
     API no longer reads them.
-- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`, and
+- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`,
+  `FeedbackTable`, and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
@@ -150,6 +158,9 @@ site (`/api/*` in the CloudFront distribution; see
   - the admin function may scan, update and delete in `MembershipTable`,
     put, scan and delete in `VoucherTable`, and get items from both
     profile tables;
+  - the feedback function may get items from `UserRolesTable` and both
+    profile tables, and query, scan and put in `FeedbackTable` (messages
+    are never changed or deleted);
   - the roles, voucher, admin and profile functions have `RBACR_TOKEN`, a
     root's rbacr token: whoever can read their configuration can manage
     rbacr as that root. It's a `NoEcho` parameter, never in the
@@ -188,7 +199,7 @@ address uses up a route's budget for everyone:
   the bill), so it stays;
 - the token routes need a valid Google ID token for the web client, which
   anyone can get with a free Google account, so their limits (1 request/s
-  for membership requests, vouchers and link codes) can be used up the
+  for membership requests, vouchers, link codes and feedback) can be used up the
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
@@ -196,7 +207,7 @@ CloudFront distribution, scoped to `/api/*` and `/health`), which blocks
 one address's flood without touching anyone else. It isn't deployed: WAF
 costs a monthly fee per web ACL and rule plus a per-request charge, which
 is an infrastructure and cost decision. Until then the per-route limits,
-the voucher lockout per email and the membership cooldown per email are
+the voucher lockout per email, the membership cooldown per email and the daily feedback limit per member are
 what slow abuse.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
   `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
@@ -243,6 +254,7 @@ what slow abuse.
     bodies, the hourly cooldown;
   - the admin routes: 403 without both roles, listing, grant, dismiss
     (which keeps the cooldown), bad emails, unknown routes;
+  - feedback (`FeedbackTest`): see [Feedback and Help](feedback.md#tests);
   - profile names are cleaned to one short line;
   - vouchers: the code format and loose typing, chosen codes; admins
     only; creation's role, start, expiry, uses, code and discount checks

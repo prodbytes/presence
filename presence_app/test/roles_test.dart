@@ -345,9 +345,10 @@ void main() {
       FakeRolesClient roles, [
       FakeMembershipClient? membership,
     ]) async {
-      // Tall enough for the Admin page's voucher list, under its
-      // maintenance card, above the navigation bar.
-      tester.view.physicalSize = const Size(1280, 1200);
+      // Tall enough for the Admin page's voucher list (below the
+      // maintenance card, the requests and the feedback) above the
+      // navigation bar.
+      tester.view.physicalSize = const Size(1280, 1300);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main');
@@ -358,6 +359,7 @@ void main() {
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,
           membershipClient: membership ?? FakeMembershipClient(),
+          feedbackClient: FakeFeedbackClient(),
           mapTiles: const SizedBox(),
           locator: NoLocation(),
         ),
@@ -583,8 +585,8 @@ void main() {
             .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
             .controller;
         await toggleLog(tester);
-        // With Account, last.
-        expect(tabs().length, 6);
+        // With Help, and Profile last.
+        expect(tabs().length, 7, reason: 'with Help');
         expect(
           tester.getCenter(logTab).dx,
           lessThan(tester.getCenter(adminTab).dx),
@@ -600,10 +602,10 @@ void main() {
 
         // The Log tab hidden again: the Admin tab takes its place.
         await toggleLog(tester);
-        expect(tabs().length, 5);
+        expect(tabs().length, 6, reason: 'with Help and Profile');
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(tabs().index, 3);
+        expect(tabs().index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
@@ -1037,10 +1039,10 @@ void main() {
         );
         expect(
           tabs(tester).length,
-          5,
-          reason: 'the Log tab is hidden; Account is last',
+          6,
+          reason: 'with Help; the Log tab is hidden; Profile is last',
         );
-        // In the navigation bar, after Settings and before Account.
+        // In the navigation bar, after Settings and before Profile.
         final settings = tester.getCenter(find.byTooltip('Settings'));
         final admin = tester.getCenter(adminTab);
         expect(settings.dx, lessThan(admin.dx));
@@ -1058,7 +1060,7 @@ void main() {
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
         // Where the Log tab would be: indices map through the shown tabs.
-        expect(tabs(tester).index, 3);
+        expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
         expect(find.text('Night shift'), findsOneWidget);
         expect(find.text('Voucher codes'), findsOneWidget);
@@ -1076,7 +1078,7 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsNothing);
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(tabs(tester).index, 3);
+        expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
@@ -1133,7 +1135,7 @@ void main() {
         expect(memory.tab, 'admin', reason: 'not the Log at its index');
 
         await open(memory);
-        expect(tabs(tester).index, 3);
+        expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
