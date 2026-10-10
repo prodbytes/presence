@@ -886,7 +886,7 @@ void main() {
         expect(status.bottom, lessThan(flip.top));
         expect(
           status.bottom,
-          lessThan(tester.getRect(find.byKey(const Key('show-all'))).top),
+          lessThan(tester.getRect(find.byKey(const Key('camera-mode'))).top),
         );
         expect(tester.takeException(), isNull);
       });

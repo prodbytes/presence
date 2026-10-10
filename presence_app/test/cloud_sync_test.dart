@@ -170,6 +170,43 @@ void main() {
     });
   });
 
+  test('halted (the camera Stopped), nothing syncs until it resumes', () async {
+    await auth.signIn();
+    await sync.idle();
+    backend.uploads.clear();
+
+    sync.setHalted(true);
+    expect(sync.halted, isTrue);
+    await store.putEvent({
+      'userId': '1',
+      'profileId': '1',
+      'id': 'e4',
+      'type': 'x',
+      'title': 'While stopped',
+      'time': 4,
+    });
+    changes.add(null);
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+
+    // Resumed: a pass at once takes it.
+    sync.setHalted(false);
+    await sync.idle();
+    expect(backend.uploads.keys, {
+      'us-east-1:identity/events/year=1970/day=001/e4.json',
+    });
+  });
+
+  test('signing in while halted waits for the resume', () async {
+    sync.setHalted(true);
+    await auth.signIn();
+    await sync.idle();
+    expect(backend.uploads, isEmpty);
+    sync.setHalted(false);
+    await sync.idle();
+    expect(backend.uploads, isNotEmpty);
+  });
+
   test('a pass uploads only the events named as changed, with their '
       'clips; recordings are streamed', () async {
     const p = 'us-east-1:identity';

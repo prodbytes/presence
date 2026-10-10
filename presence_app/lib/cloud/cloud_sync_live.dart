@@ -22,10 +22,13 @@ class _LiveBridge {
   Future<void> start(CloudSession session, String owner) async {
     final live = _sync.live;
     if (live == null || !live.enabled || _liveFor == session.prefix) return;
+    // Stopped: a pass that was running when it came doesn't connect.
+    if (_sync._halted) return;
     if (session.credentials == null) return;
     _liveFor = session.prefix;
     final deviceId = await _sync._deviceId;
     if (_sync._disposed ||
+        _sync._halted ||
         _sync._owner != owner ||
         _liveFor != session.prefix) {
       return;

@@ -41,6 +41,14 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## When
 
+- **Halted while the camera is Stopped** (the mode button's Stopped,
+  `camera.paused`; see [Camera screen](camera.md)): `CloudSync.setHalted`
+  cancels the pending and periodic passes, stops [live sync](live-sync.md)
+  and the recording downloads, and nothing starts again (not a change,
+  a sign-in or Retry) until it's left: then a pass runs at once and the
+  periodic ones resume. A pass already running finishes, but doesn't
+  connect live sync. A device restarted Stopped starts halted.
+
 - **Sealed media only:** thumbnails, tagged frames and recordings go up
   and come down sealed, as stored, never opened on the way; an unsealed
   one is never uploaded, and one downloaded is skipped. Each pass first

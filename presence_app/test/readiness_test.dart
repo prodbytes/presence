@@ -552,7 +552,7 @@ void main() {
         expect(tester.takeException(), isNull);
         final rect = tester.getRect(clip);
         final flip = tester.getRect(find.byTooltip('Flip camera'));
-        final view = tester.getRect(find.byKey(const Key('show-all')));
+        final view = tester.getRect(find.byKey(const Key('camera-mode')));
         expect(rect.right, lessThanOrEqualTo(320 - 16));
         expect(view.left, greaterThanOrEqualTo(16));
         expect(rect.overlaps(flip), isFalse);
@@ -662,10 +662,14 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester);
-      // One, All, then None: the camera off.
-      await tester.tap(find.byKey(const Key('show-all')));
+      // Normal, All, Unattended (woken), then Stopped: the camera off.
+      await tester.tap(find.byKey(const Key('camera-mode')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('show-all')));
+      await tester.tap(find.byKey(const Key('camera-mode')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('screen-off-cover')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('camera-mode')));
       await tester.pumpAndSettle();
       expect(button(tester).onPressed, isNull);
       expect(color(tester), tone(ClipTone.disabled));

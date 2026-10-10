@@ -6,7 +6,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | Group | Values (default, range) |
 |---|---|
 | `clip` (`ClipConfig`) | `before` (5 s, 5–60 s, 5 s steps), `after` (10 s, 5–60 s) |
-| `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps), `paused` (false: the view button's None, the camera off; see [Camera screen](camera.md)), `chosen` (none: the camera last picked with Flip, `{id, label, facing}`, reopened at launch; see [Navigation](navigation.md)) |
+| `camera` (`CameraConfig`) | `brightness` (+1 EV, −2 to +2 in ½ EV steps), `paused` (false: the mode button's Stopped, the camera off and syncing halted; see [Camera screen](camera.md)), `chosen` (none: the camera last picked with Flip, `{id, label, facing}`, reopened at launch; see [Navigation](navigation.md)) |
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (15 % of the picture, 1–50 %), `cooldown` (5 min, 1–60 min) |
 | `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (180 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
 | `subjects` (`SubjectsConfig`) | `mapEvents` (100, 10–500 in steps of 10): "How many events to load at once", events per subject on the [subjects](subjects.md) screens |

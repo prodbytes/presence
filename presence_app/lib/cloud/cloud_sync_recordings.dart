@@ -29,7 +29,10 @@ class _Recordings {
   /// Starts the background download of pending recordings, unless it's
   /// running already or this platform downloads them only when played.
   void start() {
-    if (!_sync.prefetchRecordings || _prefetching != null || _sync._disposed) {
+    if (!_sync.prefetchRecordings ||
+        _prefetching != null ||
+        _sync._disposed ||
+        _sync._halted) {
       return;
     }
     final owner = _sync._owner;

@@ -42,7 +42,7 @@ import 'storage/persistence.dart';
 import 'storage/retention.dart';
 import 'theme.dart';
 
-export 'home/camera_buttons.dart' show CameraViewMode;
+export 'home/camera_buttons.dart' show CameraMode;
 export 'home/camera_messages.dart' show CameraMessage, CameraMessagePill;
 export 'home/clip_button.dart'
     show ClipButton, ClipButtonColors, ClipButtonStatus, ClipTone;
@@ -308,6 +308,14 @@ class _PresenceAppState extends State<PresenceApp> {
     if (_sync case final sync?) {
       sync.addListener(_applyDeviceSlots);
       _log.addListener(_noticeDevices);
+    }
+    // The camera's Stopped mode (its pause, kept in the settings) stops
+    // syncing too: no passes and no live sync until it's left. Now (a
+    // device restarted Stopped stays quiet), and whenever it changes.
+    if (_sync case final sync?) {
+      void applyHalt() => sync.setHalted(_config.config.camera.paused);
+      applyHalt();
+      _config.addListener(applyHalt);
     }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.

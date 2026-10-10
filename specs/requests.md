@@ -4584,3 +4584,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        stops VS Code from listing those worktrees as repositories in Source
        Control, and hides them from the Explorer, search and the file
        watcher. Specs: [Dev environment](dev-environment.md).
+
+338. **Screen off as a mode of the mode button.** (2026-10-10)
+     - Asked: make "screen off" an option of the camera's mode button
+       instead of a button of its own, so the button flips between Normal
+       (one camera), All (all devices), Unattended (the screen off but
+       still capturing and syncing) and Stopped (no capturing or any
+       activity).
+     - Changed: the view button (One / All / None) is the **mode button**,
+       Normal → All → Unattended → Stopped → Normal; the Screen off button
+       is gone. Unattended is the old screen off (the black cover, and on
+       Android the screen let go off); a tap wakes it, still Unattended,
+       and it's dark again 15 s after the last touch, so the button can
+       move on to Stopped. Stopped is the old None (the camera closed,
+       kept across restarts) and now also halts cloud sync, live sync and
+       recording downloads (`CloudSync.setHalted`). Specs:
+       [Camera](camera.md), [Navigation](navigation.md),
+       [Cloud sync](cloud-sync.md), [Android](android.md),
+       [Configuration](configuration.md).

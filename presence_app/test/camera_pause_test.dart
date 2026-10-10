@@ -228,7 +228,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('google-sign-in')));
       await tester.pumpAndSettle();
-      final button = find.byKey(const Key('show-all'));
+      final button = find.byKey(const Key('camera-mode'));
       // Icon only: no text, the tooltip says what a tap does.
       IconData? label() => tester
           .widget<Icon>(
@@ -239,7 +239,7 @@ void main() {
         find.descendant(of: button, matching: find.byType(Text)),
         findsNothing,
       );
-      for (final text in ['One', 'All', 'None']) {
+      for (final text in ['Normal', 'All', 'Unattended', 'Stopped']) {
         expect(find.text(text), findsNothing);
       }
       expect(find.byTooltip('Show all devices'), findsOneWidget);
@@ -248,14 +248,29 @@ void main() {
       await tester.tap(button);
       await tester.pumpAndSettle();
       expect(label(), Icons.grid_view);
-      expect(find.byTooltip('Turn the camera off'), findsOneWidget);
+      expect(
+        find.byTooltip('Go unattended: screen off, still capturing'),
+        findsOneWidget,
+      );
       expect(find.textContaining('· live'), findsOneWidget);
 
-      // None: the camera off, the single view, Clip disabled.
+      // Unattended: the screen dark, the camera still on.
       await tester.tap(button);
       await tester.pumpAndSettle();
-      expect(label(), Icons.videocam_off);
-      expect(find.byTooltip('Turn the camera on'), findsOneWidget);
+      expect(find.byKey(const Key('screen-off-cover')), findsOneWidget);
+      expect(camera.disposed, isFalse);
+      // A tap wakes it, still Unattended.
+      await tester.tap(find.byKey(const Key('screen-off-cover')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('screen-off-cover')), findsNothing);
+      expect(label(), Icons.brightness_2_outlined);
+      expect(find.byTooltip('Stop: no capturing or syncing'), findsOneWidget);
+
+      // Stopped: the camera off, the single view, Clip disabled.
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(label(), Icons.stop_circle_outlined);
+      expect(find.byTooltip('Back to normal: this camera'), findsOneWidget);
       expect(camera.disposed, isTrue);
       expect(find.byKey(const Key('camera-paused')), findsOneWidget);
       expect(find.textContaining('· live'), findsNothing);
@@ -264,7 +279,7 @@ void main() {
       expect(find.byTooltip('Camera off'), findsOneWidget);
       expect(find.text('Off'), findsNothing);
 
-      // Back to One: the camera reopens.
+      // Back to Normal: the camera reopens.
       await tester.tap(button);
       await tester.pumpAndSettle();
       expect(label(), Icons.crop_square);
