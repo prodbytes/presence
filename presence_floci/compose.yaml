@@ -45,8 +45,9 @@ services:
       # they're set (the app's health line).
       COGNITO_IDENTITY_POOL_ID: ${COGNITO_IDENTITY_POOL_ID:-}
       USER_DATA_BUCKET: ${USER_DATA_BUCKET:-}
-      # rbacr, which gives the auth API's roles (empty token: nobody has
-      # one). A secret: passed to the stack, never logged.
+      # rbacr's RC, which gives the local auth API's roles (process-compose
+      # passes .env's RBACR_RC_*; empty token: nobody has one). A secret:
+      # passed to the stack, never logged.
       RBACR_URL: ${RBACR_URL:-}
       RBACR_TOKEN: ${RBACR_TOKEN:-}
       RBACR_SYSTEM: ${RBACR_SYSTEM:-}

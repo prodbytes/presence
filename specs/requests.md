@@ -4383,7 +4383,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Health check](health-check.md), [Execution mode](execution-mode.md),
        [Deploy](deploy.md), [Local CDN](local-cdn.md).
 
-327. **Local cloud sync fails: say why.** (2026-10-10)
+327. **Local development on rbacr's RC, prod on GA rbacr.** (2026-10-10)
+     - Asked: rbacr already handles root roles; for now, make local
+       development use RC rbacr and prod use GA rbacr.
+     - Changed: the local Floci stack takes its rbacr from `.env`'s new
+       `RBACR_RC_URL` (default https://rc.rbacr.nu01.com), `RBACR_RC_TOKEN`
+       and `RBACR_RC_SYSTEM` (`process-compose.yaml`, `05-auth-api.sh`),
+       so local grants go to the RC, and the GA token in `RBACR_TOKEN`
+       stays for deploys. The local monitor checks the RC's `/health`.
+       `scripts/deploy.sh` refuses a prod deploy whose `RBACR_URL` isn't
+       https://rbacr.nu01.com. Specs: [Local CDN](local-cdn.md),
+       [Auth API](auth-api.md), [Deploy](deploy.md).
+
+328. **Local cloud sync fails: say why.** (2026-10-10)
      - Asked: the local app says cloud sync is failing; check the logs and
        improve them if needed.
      - Found: the local auth API runs in Floci, which has no Cognito
@@ -4399,7 +4411,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
        [Profiles](profiles.md).
 
-328. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+329. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
      - Asked: move the profile icon to the bottom navigation bar as well,
        and make it open just like the other panes; then call it Profile
        (it was first named Account).
@@ -4415,7 +4427,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [About](about.md).
 
-329. **Screen off to save battery.** (2026-10-10)
+330. **Screen off to save battery.** (2026-10-10)
      - Asked: a good way to save battery on Android; whether the screen
        can be turned off while capture goes on, and if so a button for
        it in the camera view.
@@ -4427,7 +4439,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        timeout turns the screen off; a tap brings it back. Tests:
        `screen_off_test.dart`. Specs: [Camera](camera.md),
 
-330. **One health-check line per run.** (2026-10-10)
+331. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4441,7 +4453,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-331. **Encrypt every image and recording with a key per device.**
+332. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

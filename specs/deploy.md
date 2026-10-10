@@ -259,9 +259,14 @@ order):
 ### Settings
 
 - The Google web client ID comes from the repository variable
-  `GOOGLE_WEB_CLIENT_ID`, and the auth API's root allowlist from
-  `PRESENCE_ROOT_DOMAINS` (unset: `nu01.com`) and `PRESENCE_ROOT_EMAILS`
-  (unset: none); see [Auth API](auth-api.md).
+  `GOOGLE_WEB_CLIENT_ID`, and rbacr's from the repository secret
+  `RBACR_TOKEN` (a root's token) and the variables `RBACR_URL` and
+  `RBACR_SYSTEM` (unset: `https://rbacr.nu01.com`, GA rbacr, and
+  `presence`). Prod accepts only GA rbacr; local development uses rbacr's
+  RC ([Local CDN](local-cdn.md)); see
+  [Auth API](auth-api.md). Who is a root is rbacr's root list, not a
+  deploy setting (the old `PRESENCE_ROOT_DOMAINS` and
+  `PRESENCE_ROOT_EMAILS` variables are unused and can be deleted).
 - **Local development syncs with the prod bucket and pool:** the prod
   user-data bucket's CORS allows `https://local.presence.nu01.com:8443` and
   `http://localhost:8080`, and the dev app uses prod's

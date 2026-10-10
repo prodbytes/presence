@@ -205,7 +205,9 @@ what slow abuse.
   [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas and
   tables, deployed from this template at every start, behind an HTTP
   API with the same Google JWT authorizer. Nothing local reaches AWS; the
-  roles still come from the rbacr `.env` names.
+  roles come from rbacr's RC (https://rc.rbacr.nu01.com, `RBACR_RC_*` in
+  `.env`), while prod's come from GA rbacr (https://rbacr.nu01.com):
+  `deploy.sh` refuses any other rbacr for prod.
 - **Tests** (JUnit, `mvn test`):
   - profiles (`ProfilesTest`): found by subject, created and linked at a
     first sign-in, never a repeated ID, races; see
