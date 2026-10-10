@@ -11,10 +11,12 @@ import 'package:presence_app/monitoring.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A clip with [names] tagged, and a thumbnail.
 ClipRequested tagged(List<String> names, {int minutesAgo = 0}) {
   final annotations = ClipAnnotations();
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }

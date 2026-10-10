@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import '../crypto/sealed_image.dart';
+
 import 'package:flutter/material.dart';
 
 import '../event_flags.dart';
@@ -140,11 +142,10 @@ class _Thumbnail extends StatelessWidget {
         child: Icon(Icons.videocam, size: 40, color: scheme.onSurfaceVariant),
       );
     }
-    return Image.memory(
+    return SealedImage(
       image,
       key: const Key('clip-thumbnail'),
       fit: BoxFit.cover,
-      gaplessPlayback: true,
     );
   }
 }

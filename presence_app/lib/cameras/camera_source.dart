@@ -68,7 +68,7 @@ class ClipMedia {
   /// plays it).
   void persisted(Future<String> Function() load) {
     final url = _url;
-    // Untracked (a file on Android): stays as it is.
+    // Untracked: stays as it is.
     if (url == null || !MediaUrls.instance.isLive(url)) return;
     _stored = _StoredUrl(load);
     _url = null;

@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../config.dart';
+import '../crypto/seal_format.dart';
 import '../storage/records.dart';
 import 'sigv4.dart';
 
@@ -54,10 +55,16 @@ class LiveLink {
     required this.credentials,
     required this.onEvent,
     this.onCopied,
+    this.mediaKey,
   });
 
   final String identityId;
   final String deviceId;
+
+  /// This device's media key (`MediaKeys`), sent with each event it
+  /// publishes: devices without the bucket learn it there, to open the
+  /// clip's sealed thumbnail.
+  final String? mediaKey;
   final Future<AwsCredentials> Function() credentials;
   final Future<void> Function(LiveEvent event) onEvent;
 
@@ -77,10 +84,15 @@ class LiveEvent {
     this.sentAt,
     this.etag,
     this.clip,
+    this.mediaKey,
   });
 
   /// The device that published it.
   final String deviceId;
+
+  /// The sender's media key, when it sent it (base64; see
+  /// `MediaKeys.decode`).
+  final String? mediaKey;
   final String identityId;
 
   /// The event's record, as uploaded to the bucket (its metadata only).
@@ -93,8 +105,8 @@ class LiveEvent {
   final String? etag;
 
   /// The event's clip, when the sender put it in the message (complete,
-  /// and small enough): its record as stored, with its thumbnail (JPEG or
-  /// PNG bytes), never its recording. Devices without the bucket (free)
+  /// and small enough): its record as stored, with its thumbnail (sealed
+  /// bytes), never its recording. Devices without the bucket (free)
   /// take the clip from here.
   final Map<String, Object?>? clip;
 }
@@ -731,6 +743,7 @@ class LiveSync extends ChangeNotifier {
           'sentAt': _now().millisecondsSinceEpoch,
           'key': key,
           'etag': ?etag,
+          'mediaKey': ?link.mediaKey,
           'event': metadataOf(event),
           'clip': ?inline,
         }),
@@ -1193,15 +1206,17 @@ class LiveSync extends ChangeNotifier {
         : null;
     return {
       ...metadataOf(parsed),
-      if (bytes != null && bytes.length <= maxThumbnailBytes && _isImage(bytes))
+      if (bytes != null &&
+          bytes.length <= maxThumbnailBytes &&
+          SealFormat.isSealed(bytes))
         'thumbnail': base64Encode(bytes),
     };
   }
 
   /// The clip in a message's [value] ([clipMessageOf]), for the event with
   /// clip [clipId]: its record, with its thumbnail decoded; null when it
-  /// isn't one (not that clip, not complete, a thumbnail that isn't a JPEG
-  /// or PNG of at most [maxThumbnailBytes]).
+  /// isn't one (not that clip, not complete, a thumbnail that isn't sealed
+  /// or has more than [maxThumbnailBytes]).
   static Map<String, Object?>? clipOf(
     Object? value, {
     required Object? clipId,
@@ -1226,23 +1241,13 @@ class LiveSync extends ChangeNotifier {
       } catch (_) {
         return null;
       }
-      if (bytes.length > maxThumbnailBytes || !_isImage(bytes)) return null;
+      if (bytes.length > maxThumbnailBytes || !SealFormat.isSealed(bytes)) {
+        return null;
+      }
       parsed['thumbnail'] = bytes;
     }
     return parsed;
   }
-
-  /// Whether [bytes] start as a JPEG or a PNG.
-  static bool _isImage(Uint8List bytes) =>
-      (bytes.length > 3 &&
-          bytes[0] == 0xFF &&
-          bytes[1] == 0xD8 &&
-          bytes[2] == 0xFF) ||
-      (bytes.length > 8 &&
-          bytes[0] == 0x89 &&
-          bytes[1] == 0x50 &&
-          bytes[2] == 0x4E &&
-          bytes[3] == 0x47);
 
   /// Whether [id] is safe as an event, clip, frame or device ID: it goes
   /// into object keys in the bucket ([Records.isSafeId]).
@@ -1276,7 +1281,9 @@ class LiveSync extends ChangeNotifier {
     final event = message['event'];
     final etag = message['etag'];
     final sentAt = message['sentAt'];
+    final mediaKey = message['mediaKey'];
     if (event is! Map ||
+        (mediaKey != null && (mediaKey is! String || mediaKey.length > 64)) ||
         (etag != null && (etag is! String || !_etagPattern.hasMatch(etag))) ||
         (sentAt != null && sentAt is! int)) {
       return null;
@@ -1298,6 +1305,7 @@ class LiveSync extends ChangeNotifier {
       event: record,
       sentAt: sentAt as int?,
       etag: etag as String?,
+      mediaKey: mediaKey as String?,
       // A clip that isn't right is left out; the event still counts.
       clip: clipOf(message['clip'], clipId: clipId),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../crypto/sealed_image.dart';
 import '../annotations.dart';
 import '../cameras/cameras.dart';
 import '../copies_badge.dart';
@@ -112,15 +113,22 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
       // A failed grab is no frame: the button must come back either way.
       debugPrint('Presence: could not grab the frame: $e');
     }
-    if (!mounted) return null;
-    setState(() {
-      _grabbing = false;
-      if (captured != null) {
-        _frame = _annotations.newFrame(
+    TagFrame? frame;
+    if (captured != null) {
+      try {
+        frame = await _annotations.newFrame(
           captured.jpeg,
           captured.position.inMilliseconds,
         );
+      } catch (e) {
+        debugPrint('Presence: could not seal the frame: $e');
+        captured = null;
       }
+    }
+    if (!mounted) return null;
+    setState(() {
+      _grabbing = false;
+      if (frame != null) _frame = frame;
     });
     if (captured == null) {
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(
@@ -524,12 +532,11 @@ class _FrameRow extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: Image.memory(
-                    frame.jpeg,
+                  child: SealedImage(
+                    frame.sealed,
                     width: 96,
                     height: 54,
                     fit: BoxFit.cover,
-                    gaplessPlayback: true,
                   ),
                 ),
                 Text(formatClipTime(frame.ms), style: textTheme.labelSmall),

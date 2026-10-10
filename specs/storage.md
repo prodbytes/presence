@@ -10,7 +10,9 @@ with the mapping in
 On **web**, all app data is in IndexedDB, as described below. On
 **Android**, the same stores live in a sembast database on disk, and
 recordings are files instead of `media` rows (see [Android](android.md)).
-Everything goes through `EventStore` and `MediaStore`.
+Everything goes through `EventStore` and `MediaStore`. **Every image and
+recording is stored sealed** (encrypted with the device's key), and opened
+only to be shown, played or searched: see [Media encryption](encryption.md).
 
 **Why IndexedDB (not drift/SQLite or `localStorage`):**
 - `localStorage` holds only ~5 MB of strings. One 30 s clip is ~10 MB per
@@ -27,9 +29,9 @@ Everything goes through `EventStore` and `MediaStore`.
 |-------|-----|-------|
 | `cameras` | `id` (the browser's media device ID for the camera) | label, last seen |
 | `events` | `id`, with an index on `time` | type, title, detail, time, camera ID, device ID, user ID, and for clips the clip ID and `clipState` (`partial` / `complete`) |
-| `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
-| `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes |
-| `settings` | name (`config`, `device`, `location`, `consent`) | `config`: the whole `PresenceConfig` as versioned JSON, with when it last changed (`updatedAt`) and the profile it was last synced with (`profileId`); also kept in S3 per profile and device, with the location set on the map, see [Configuration](configuration.md) (the older flat `clip` record is read once, on upgrade); `device`: this device's ID ([Devices, users and places](devices-users-places.md)); `location`: where it is ([Device location](device-location.md)); `consent`: its recording consent, with a verification hash ([Recording consent](consent.md)) |
+| `clips` | `id`, with an index on `eventId` | event ID, camera ID and label, before/after lengths, state, thumbnail (sealed JPEG bytes), and a media reference for the before part or the full clip (media ID, window start/end, format) |
+| `media` | media ID (`<clipId>-past` or `<clipId>-full`) | recording bytes, sealed |
+| `settings` | name (`config`, `device`, `location`, `consent`) | `config`: the whole `PresenceConfig` as versioned JSON, with when it last changed (`updatedAt`) and the profile it was last synced with (`profileId`); also kept in S3 per profile and device, with the location set on the map, see [Configuration](configuration.md) (the older flat `clip` record is read once, on upgrade); `device`: this device's ID and media key ([Devices, users and places](devices-users-places.md), [Media encryption](encryption.md)); `keys`: the profile's other devices' media keys; `sealed`: the cloud folders whose unencrypted data this device deleted; `location`: where it is ([Device location](device-location.md)); `consent`: its recording consent, with a verification hash ([Recording consent](consent.md)) |
 | `synced` | S3 object key | a fingerprint of what was uploaded there, and under `etag:<key>` an event's ETag as last uploaded or downloaded ([cloud sync](cloud-sync.md)); an event's entries and its clip's go when [retention](event-retention.md) deletes them |
 
 **References:** each event has a stable `id`, and events from a camera carry
@@ -59,7 +61,7 @@ skipped and logged, and the rest of the history comes back; a clip whose
 recording reference is damaged shows without it. Saved settings that
 can't be read leave the defaults, and changes are saved from then on.
 Recordings are stored under IDs of `[A-Za-z0-9_-]` only (on Android they
-name the file, `<id>.mp4`); any other is refused. Events imported from
+name the file, `<id>.sealed`); any other is refused. Events imported from
 the cloud (`Persistence.importRemote`) are checked the same way before
 they're stored, and only the clips they show are read to show them. Stored clips are playable. Their recordings load
 from IndexedDB the first time they're played, not all at startup. A clip

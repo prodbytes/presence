@@ -53,6 +53,7 @@ dependencies:
   url_launcher: ^6.3.3
   # Live sync: MQTT over WebSockets to AWS IoT Core (pinned).
   mqtt_client: 10.11.11
+  cryptography: 2.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
