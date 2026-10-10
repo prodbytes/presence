@@ -67,6 +67,13 @@
     reports OIDC (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off) and
     AWS (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪
     nothing shipped to S3); both are ❌ when the API doesn't answer.
+    With both set, it also asks Floci whether it implements Cognito
+    Identity (an unsigned `GetId` for a made-up pool): Floci answers
+    `UnknownOperationException`, so AWS is ❌ "set, but Floci has no
+    Cognito Identity (GetId): the local auth API can't issue credentials,
+    so the app's cloud sync fails here", with what to do (test it on the
+    RC, or remove them from `.env` to turn it off). If Floci ever
+    implements it, the line goes back to ✅ by itself.
 
   The health monitor waits until the web server, Floci and the index all
   pass

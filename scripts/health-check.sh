@@ -58,6 +58,20 @@ setting() {
     fi
 }
 
+# Whether Floci implements Cognito Identity, which the local auth API calls
+# for cloud-sync credentials (POST /api/auth/credentials: GetId). It asks
+# Floci itself (an unsigned GetId for a made-up pool): an emulator without
+# the service answers UnknownOperationException; anything else (a real
+# error about the pool) means it's there.
+floci_has_cognito_identity() {
+    local answer
+    answer="$(curl -s --max-time 5 -X POST "$FLOCI/" \
+        -H 'Content-Type: application/x-amz-json-1.1' \
+        -H 'X-Amz-Target: AWSCognitoIdentityService.GetId' \
+        -d '{"IdentityPoolId":"us-east-1:00000000-0000-0000-0000-000000000000"}')"
+    [[ "$answer" != *UnknownOperationException* ]]
+}
+
 # The auth API through the CDN (GET /api/auth/anonymous, no token): its
 # execution mode, and whether the OIDC client and the AWS cloud-sync
 # settings are set (presence.auth.Settings). OIDC and AWS are only known
@@ -76,8 +90,12 @@ check_api() {
     report 🔌 api ✅ "$mode mode"
     setting "$body" 🔑 oidc oidc "GOOGLE_WEB_CLIENT_ID set: sign-in on" \
         "GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role"
-    setting "$body" 🪣 aws aws "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set: events sync to S3" \
-        "COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3"
+    if [[ "$body" == *'"aws":true'* ]] && ! floci_has_cognito_identity; then
+        report 🪣 aws ❌ "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set, but Floci has no Cognito Identity (GetId): the local auth API can't issue credentials, so the app's cloud sync fails here. Test it on the RC, or remove them from .env to turn it off"
+    else
+        setting "$body" 🪣 aws aws "COGNITO_IDENTITY_POOL_ID and USER_DATA_BUCKET set: events sync to S3" \
+            "COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3"
+    fi
     setting "$body" 🛂 rbacr-api rbacr "RBACR_TOKEN set: rbacr says who is premium (S3 sync)" \
         "RBACR_TOKEN not set: nobody is premium, members sync over live sync only"
 }

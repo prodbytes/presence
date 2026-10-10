@@ -190,7 +190,9 @@
   code and HTTP status (`CognitoIdentity GetId: AccessDeniedException
   (HTTP 400)`), or the exception's type for other failures. An
   `UnknownOperationException`, which AWS itself never answers to the SDK,
-  adds "the endpoint doesn't implement it (a local AWS emulator?)".
+  adds "the endpoint doesn't implement it: a local AWS emulator (Floci, in
+  the local stack) has no <service>, so this works only against AWS (the
+  RC or production)".
   `requestId` is the Lambda request ID, which finds the full error in the
   function's log (`presence: <route> failed (request <id>): <cause>:
   <exception>`). AWS's message, which names ARNs, isn't sent. Without an
@@ -338,8 +340,11 @@ deleted, and the contents live only in AWS.
 - **Not locally with Floci:** Floci (the local AWS) has no Cognito
   Identity: with an identity pool set in `.env`, `/api/auth/credentials`
   fails with `CognitoIdentity GetId: UnknownOperationException (HTTP 400);
-  the endpoint doesn't implement it (a local AWS emulator?)`, so cloud
-  sync doesn't work on the local stack. Production and RC call AWS.
+  the endpoint doesn't implement it: a local AWS emulator (Floci, in the
+  local stack) has no CognitoIdentity, so this works only against AWS
+  (the RC or production)`, so cloud sync doesn't work on the local stack.
+  The health monitor says so too (🪣 aws ❌, see
+  [Dev environment](dev-environment.md)). Production and RC call AWS.
 
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay

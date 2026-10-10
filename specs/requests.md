@@ -4286,3 +4286,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        they shifted down). Tests: `widget_test.dart` (the feed card, the
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
+
+324. **Local cloud sync fails: say why.** (2026-10-10)
+     - Asked: the local app says cloud sync is failing; check the logs and
+       improve them if needed.
+     - Found: the local auth API runs in Floci, which has no Cognito
+       Identity, so `POST /api/auth/credentials` fails (`GetId ... not
+       supported by floci`) whenever `.env` sets an identity pool (a known
+       limitation, see [Profiles](profiles.md)). The health monitor still
+       said 🪣 aws ✅ "events sync to S3".
+     - Changed: the health monitor asks Floci for Cognito Identity and,
+       without it, reports 🪣 aws ❌ with the reason and what to do. The
+       auth API's cause for an `UnknownOperationException` names the
+       emulator and the missing service, and says it works only against
+       AWS (the RC or production), instead of "(a local AWS emulator?)".
+       Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
+       [Profiles](profiles.md).

@@ -466,7 +466,9 @@ class ProfileTest {
         });
 
         assertEquals("CognitoIdentity GetId: UnknownOperationException (HTTP 400); "
-                + "the endpoint doesn't implement it (a local AWS emulator?)", Aws.cause(e));
+                + "the endpoint doesn't implement it: a local AWS emulator (Floci, in the local"
+                + " stack) has no CognitoIdentity, so this works only against AWS (the RC or"
+                + " production)", Aws.cause(e));
     }
 
     @Test
