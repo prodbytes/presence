@@ -445,5 +445,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Premium'), findsWidgets);
     expect(find.byKey(const Key('plan-sign-up')), findsNothing);
+
+    // An admin isn't asked to sign up, even without the premium role.
+    client.roles = const [userRole, adminRole];
+    await roles.refresh();
+    await tester.pumpAndSettle();
+    expect(find.text('Premium'), findsWidgets);
+    expect(find.byKey(const Key('plan-sign-up')), findsNothing);
   });
 }

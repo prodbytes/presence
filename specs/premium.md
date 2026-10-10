@@ -162,7 +162,9 @@ they publish, receive and store events as before. Their events are
 
 - **The account sheet** ([Sign-in](sign-in.md)), under the profile's
   devices, a box with the plan (`PlanNotice`,
-  [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)):
+  [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)). It's
+  Premium for `isPremium` or `isAdmin`, so only a free member is asked to
+  sign up; an admin never is, even if its roles lack `presence_premium`:
   - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
     and up to 50 devices sync."
   - **Free**: "Free: up to 2 devices sync with each other while online.
