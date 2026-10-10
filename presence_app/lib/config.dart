@@ -668,8 +668,7 @@ class RecognitionConfig {
     return const RecognitionConfig().copyWith(
       enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
       objects: json['objects'] is bool ? json['objects']! as bool : null,
-      autoTag:
-          autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
+      autoTag: autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
           ? defaultAutoTag
           : autoTag,
     );

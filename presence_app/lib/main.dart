@@ -12,6 +12,7 @@ import 'barrel_roll.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'auth/membership_client.dart';
+import 'feedback/feedback_client.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
@@ -73,6 +74,7 @@ class PresenceApp extends StatefulWidget {
     this.live,
     this.rolesClient,
     this.membershipClient,
+    this.feedbackClient,
     this.profileClient,
     this.consentGiven = false,
     this.locator,
@@ -116,6 +118,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides membership requests (used by tests); defaults to
   /// `/api/auth/membership`.
   final MembershipClient? membershipClient;
+
+  /// Overrides Feedback and Help (used by tests); defaults to
+  /// `/api/auth/feedback`.
+  final FeedbackClient? feedbackClient;
 
   /// Overrides the profile routes (used by tests); defaults to
   /// `/api/auth/profile`.
@@ -505,6 +511,8 @@ class _PresenceAppState extends State<PresenceApp> {
   late final RolesService _roles;
   late final MembershipClient _membership =
       widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
+  late final FeedbackClient _feedback =
+      widget.feedbackClient ?? HttpFeedbackClient(ApiConfig.baseUrl);
   late final ProfileClient _profiles =
       widget.profileClient ?? HttpProfileClient(ApiConfig.baseUrl);
   CloudSync? _sync;
@@ -593,6 +601,7 @@ class _PresenceAppState extends State<PresenceApp> {
                   auth: _auth,
                   roles: _roles,
                   membership: _membership,
+                  feedback: _feedback,
                   profiles: _profiles,
                   sync: _sync,
                   deviceId: _deviceId,
