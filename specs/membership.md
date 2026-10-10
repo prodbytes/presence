@@ -1,7 +1,7 @@
 # Membership
 
-Who may use Presence, how people ask, and the voucher codes that let them
-in without asking. Roles come from
+Who may use Presence, how people get access (they subscribe at
+nu01.com), and the voucher codes that let them in too. Roles come from
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role
 manager, through the [auth API](auth-api.md); its `presence` system's
 roles, in brackets below:
@@ -17,11 +17,10 @@ roles, in brackets below:
 Roots are **rbacr's roots**: the addresses and domains on rbacr's root
 list (`@nu01.com` by default), configured in rbacr, not here. They get
 every role, and nothing else gives `presence_root`. Everyone else starts
-unknown, and gets roles from an administrator's grant or a voucher code
-here (rbacr grants of `free` or `admin`), or from rbacr directly (its
-pages, its own vouchers, and its Substack sync, which gives `premium`).
-So in presence admins are made only by roots, and admins can only add
-members. An account linked to another's profile shares its membership
+unknown, and gets roles by subscribing at nu01.com, from a voucher code
+redeemed here (rbacr grants of `free` or `admin`), or from rbacr directly
+(its pages, its own vouchers, and its Substack sync, which gives
+`premium`). So in presence admins are made only by roots. An account linked to another's profile shares its membership
 (`presence_user`) and premium only, never `presence_admin` or
 `presence_root`.
 
@@ -32,19 +31,18 @@ admin, not premium alone. Roles also
 set limits: **Connect to live sync** is always connected for admins, and at
 most every 30 s for members (see [Live sync](live-sync.md#when-it-connects)).
 
-## Asking for access
+## Getting access: subscribe
 
+Nobody asks for access any more (2026-10-10): **users subscribe at
+nu01.com** to become members (Free) or Premium, and rbacr gives the role.
 The **Sign up** icon (`SignUpButton`, [lib/auth/account_sheet.dart](../presence_app/lib/auth/account_sheet.dart))
-opens "Request access":
+opens "Subscribe" (`SignUpSheet`):
 
-- a **Message** field (up to 1000 characters) and **Send request**,
-  disabled while the message is blank. It posts the trimmed message as
-  plain text to `POST /api/auth/membership` with the Google ID token;
-- once sent, the sheet says "Request sent" and that an administrator will
-  review it;
-- a second request within the hour is refused (409), and the sheet says
-  so; throttling (429) says to try again in a minute; other failures show
-  their error;
+- "<email> doesn't have access to Presence yet. Subscribe at nu01.com:
+  Free, or Premium for cloud backup and more devices. Then check again
+  here.", and **Subscribe at nu01.com**, which opens https://nu01.com
+  (`DeviceSlots.signUp`) in the browser, or copies the link where it
+  can't open;
 - **Voucher code** and **Redeem** (below a divider, "Have a voucher code?
   Redeem it to get in right away."): disabled while the field is blank;
   Enter redeems too. It posts the code as plain text to
@@ -57,13 +55,13 @@ opens "Request access":
   as long as a chosen code may be. Too many tries (429: the route's
   throttle, or 10 wrong codes from this email within an hour) says "Too
   many tries. Wait a while and try again.";
-- **Check again** re-asks `GET /api/auth`, so a granted user gets in
-  without signing out.
+- **Check again** re-asks `GET /api/auth`, so a user who just subscribed
+  gets in without signing out.
 
-The API keeps one request per email in `MembershipTable` (email, Google
-profile name cleaned to one line of 100 characters, message, time in epoch
-milliseconds). No notification is sent: administrators see pending
-requests when they open the Admin tab.
+The auth API's request routes (`POST /api/auth/membership`, and the
+Admin's list, grant and dismiss) are gone with `MembershipHandler`. Its
+table (`MembershipTable`) leaves the auth API's stack but is kept in AWS
+(`DeletionPolicy: Retain`), with the requests sent before.
 
 ## Voucher codes
 
@@ -137,24 +135,13 @@ with the app bar naming it "Admin", with no back button, and a browser refresh c
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,
-up to 720 dp wide, with four sections: the [maintenance mode](maintenance.md#switching-it)
-card (with Reload by its heading), the membership requests, the
-members' [feedback](feedback.md#on-the-admin-tab) (their Help tab
-conversations, with a Reply field each) and the voucher codes. It loads
-them each time it's opened.
+up to 720 dp wide, with three sections: the [maintenance mode](maintenance.md#switching-it)
+card (with Reload by its heading), the members'
+[feedback](feedback.md#on-the-admin-tab) (their Help tab conversations,
+with a Reply field each) and the voucher codes. It loads them each time
+it's opened.
 
-**Membership requests:**
-
-- the pending requests, oldest first, as cards: name, email, date and
-  message;
-- **Grant access** grants that email rbacr's `free` (`presence_user`),
-  for good, and removes the request; if rbacr refuses or doesn't answer,
-  it fails (502) and the request stays. **Dismiss** hides it: the row stays, marked
-  `dismissed`, so the requester still waits out the hour before asking
-  again. A message confirms either;
-- "No pending requests." when there are none.
-
-**Feedback**, after the requests: every member's conversation, the
+**Feedback**, after maintenance mode: every member's conversation, the
 latest active first, each saying whether it awaits a reply; opened, the
 whole conversation and **Reply**. See [Feedback and
 Help](feedback.md#on-the-admin-tab).
@@ -162,7 +149,7 @@ Help](feedback.md#on-the-admin-tab).
 **Voucher codes**, after the feedback:
 
 - no form: **codes are created in rbacr**, not here. A line under the
-  heading says so: "Whoever redeems a code on the Request access sheet
+  heading says so: "Whoever redeems a code on the Sign up sheet
   gets its role at once. Codes are created in rbacr.";
 - every voucher, newest first, as cards: the code (selectable, monospace;
   struck through with "Expired", "Used up" or "Not yet valid" when it
@@ -183,10 +170,7 @@ is the app's client (a fake in tests).
 
 ## Known limitations
 
-- Administrators aren't told about new requests; they have to open the
-  Admin tab.
-- A request's **Grant access** gives `presence_user` only.
-  `presence_admin` comes from a root's Admin voucher or a grant of
+- `presence_admin` comes from a root's Admin voucher or a grant of
   `admin` in rbacr, for the account's own email: never from the owner of
   a profile the account is linked to.
 - Taking a role back, a domain or time-limited grant, and the root list
@@ -214,9 +198,5 @@ is the app's client (a fake in tests).
   administrator creates, not for thousands.
 - There is no way to revoke access from the app; remove the role in the
   table.
-- A user granted by an administrator sees it only after **Check again**
-  or a new sign-in (a voucher re-checks at once).
-- Anyone with a Google account can send a request (once an hour per
-  email). The route's throttle (1 a second, burst 5) is shared, so a flood
-  can delay real requests (see [Throttling and
-  floods](auth-api.md#throttling-and-floods)).
+- A user who just subscribed sees it only after **Check again** or a new
+  sign-in (a voucher re-checks at once).

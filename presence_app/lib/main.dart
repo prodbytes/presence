@@ -115,8 +115,8 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the maps' tiles (used by tests); defaults to OpenStreetMap.
   final Widget? mapTiles;
 
-  /// Overrides membership requests (used by tests); defaults to
-  /// `/api/auth/membership`.
+  /// Overrides the membership routes (vouchers, maintenance; used by
+  /// tests); defaults to the auth API's.
   final MembershipClient? membershipClient;
 
   /// Overrides Feedback and Help (used by tests); defaults to

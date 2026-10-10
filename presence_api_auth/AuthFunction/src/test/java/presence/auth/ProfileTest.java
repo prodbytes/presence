@@ -254,7 +254,7 @@ class ProfileTest {
         assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
         // And the Admin routes, which never make a profile: no admin.
-        var admin = new AdminHandler(roles, new Profiles(store)::existing, null, new VoucherTest.MemoryStore(), clock);
+        var admin = new AdminHandler(roles, new Profiles(store)::existing, new VoucherTest.MemoryStore(), clock);
         assertEquals(403, admin.handleRequest(call("GET /api/auth/vouchers", "home", "julio@gmail.com", null), null)
                 .getStatusCode());
         assertEquals(200, admin.handleRequest(call("GET /api/auth/vouchers", "work", "julio@nu01.com", null), null)

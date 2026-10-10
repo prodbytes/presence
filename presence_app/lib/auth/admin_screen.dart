@@ -9,13 +9,12 @@ import 'roles_service.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
 /// `presence_admin`): maintenance mode's switch, with the sorry screen's
-/// message; the pending membership requests, each with **Grant
-/// access** (gives it the `presence_user` role) and **Dismiss**; the
-/// members' Feedback and Help conversations, each with a Reply field; then
-/// the voucher codes, which grant a role to whoever redeems them (created
-/// in rbacr; here they're listed and deleted). A page of the home screen's tabs, like Settings: no
-/// scaffold or app bar of its own; Reload sits by the first heading, and
-/// pulling down reloads too.
+/// message; the members' Feedback and Help conversations, each with a
+/// Reply field; then the voucher codes, which grant a role to whoever
+/// redeems them (created in rbacr; here they're listed and deleted).
+/// Nobody asks for access here: people subscribe at nu01.com. A page of
+/// the home screen's tabs, like Settings: no scaffold or app bar of its
+/// own; Reload sits by the first heading, and pulling down reloads too.
 class AdminView extends StatefulWidget {
   const AdminView({
     super.key,
@@ -38,8 +37,6 @@ class AdminView extends StatefulWidget {
 }
 
 class _AdminViewState extends State<AdminView> {
-  List<MembershipRequest>? _requests;
-  String? _error;
   List<Voucher>? _vouchers;
   String? _vouchersError;
   List<FeedbackThread>? _threads;
@@ -61,11 +58,10 @@ class _AdminViewState extends State<AdminView> {
   Future<void> _load() async {
     final token = widget.auth.idToken;
     if (token == null) {
-      setState(() => _error = 'Not signed in.');
+      setState(() => _maintenanceError = 'Not signed in.');
       return;
     }
     setState(() {
-      _error = null;
       _vouchersError = null;
       _threadsError = null;
       _maintenanceError = null;
@@ -81,14 +77,6 @@ class _AdminViewState extends State<AdminView> {
               () => _maintenanceError = 'Couldn\'t load maintenance mode ($e).',
             );
           }
-        }
-      }(),
-      () async {
-        try {
-          final requests = await widget.membership.list(token);
-          if (mounted) setState(() => _requests = requests);
-        } catch (e) {
-          if (mounted) setState(() => _error = 'Couldn\'t load requests ($e).');
         }
       }(),
       () async {
@@ -112,37 +100,6 @@ class _AdminViewState extends State<AdminView> {
         }
       }(),
     ]);
-  }
-
-  Future<void> _act(MembershipRequest request, {required bool grant}) async {
-    final token = widget.auth.idToken;
-    if (token == null) return;
-    setState(() => _busy.add(request.email));
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      if (grant) {
-        await widget.membership.grant(token, request.email);
-      } else {
-        await widget.membership.dismiss(token, request.email);
-      }
-      if (!mounted) return;
-      setState(() => _requests?.remove(request));
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            grant
-                ? '${request.email} can now use Presence'
-                : 'Dismissed ${request.email}',
-          ),
-        ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t update ${request.email} ($e)')),
-      );
-    } finally {
-      if (mounted) setState(() => _busy.remove(request.email));
-    }
   }
 
   /// Answers [thread] with [text]; true if it was sent.
@@ -246,7 +203,6 @@ class _AdminViewState extends State<AdminView> {
       padding: EdgeInsets.all(16),
       child: Center(child: CircularProgressIndicator()),
     );
-    final requests = _requests;
     final vouchers = _vouchers;
     final threads = _threads;
     final now = DateTime.now();
@@ -288,28 +244,6 @@ class _AdminViewState extends State<AdminView> {
                 ),
               },
               const SizedBox(height: 24),
-              Text('Membership requests', style: theme.textTheme.titleLarge),
-              const SizedBox(height: 8),
-              ...switch ((requests, _error)) {
-                (_, final error?) => [status(error, error: true)],
-                (null, _) => [loading],
-                (final list?, _) when list.isEmpty => [
-                  status('No pending requests.'),
-                ],
-                (final list?, _) => [
-                  for (final request in list)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _RequestCard(
-                        request: request,
-                        busy: _busy.contains(request.email),
-                        onGrant: () => _act(request, grant: true),
-                        onDismiss: () => _act(request, grant: false),
-                      ),
-                    ),
-                ],
-              },
-              const SizedBox(height: 24),
               Text('Feedback', style: theme.textTheme.titleLarge),
               const SizedBox(height: 4),
               Text(
@@ -342,7 +276,7 @@ class _AdminViewState extends State<AdminView> {
               Text('Voucher codes', style: theme.textTheme.titleLarge),
               const SizedBox(height: 4),
               Text(
-                'Whoever redeems a code on the Request access sheet gets '
+                'Whoever redeems a code on the Sign up sheet gets '
                 'its role at once. Codes are created in rbacr.',
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
@@ -468,72 +402,6 @@ class _MaintenanceCardState extends State<_MaintenanceCard> {
   }
 
   static String _two(int n) => n.toString().padLeft(2, '0');
-}
-
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({
-    required this.request,
-    required this.busy,
-    required this.onGrant,
-    required this.onDismiss,
-  });
-
-  final MembershipRequest request;
-  final bool busy;
-  final VoidCallback onGrant;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final when = MaterialLocalizations.of(context)
-        .formatShortDate(request.requestedAt.toLocal());
-    return Card(
-      key: Key('request-${request.email}'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
-          children: [
-            Text(
-              request.name.isEmpty ? request.email : request.name,
-              style: theme.textTheme.titleMedium,
-            ),
-            Text(
-              request.name.isEmpty ? when : '${request.email} · $when',
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
-            SelectableText(request.message),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              spacing: 8,
-              children: busy
-                  ? const [
-                      SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ]
-                  : [
-                      TextButton(
-                        key: Key('dismiss-${request.email}'),
-                        onPressed: onDismiss,
-                        child: const Text('Dismiss'),
-                      ),
-                      FilledButton(
-                        key: Key('grant-${request.email}'),
-                        onPressed: onGrant,
-                        child: const Text('Grant access'),
-                      ),
-                    ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 /// The role a voucher grants, as the Admin screen names it.

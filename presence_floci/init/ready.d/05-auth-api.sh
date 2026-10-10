@@ -93,10 +93,6 @@ if [ -n "$CLIENT_ID" ]; then
     --jwt-configuration "Issuer=https://accounts.google.com,Audience=$CLIENT_ID" \
     --query AuthorizerId --output text)
   route "GET /api/auth" AuthFunction "$authorizer"
-  route "POST /api/auth/membership" MembershipFunction "$authorizer"
-  route "GET /api/auth/membership" AdminFunction "$authorizer"
-  route "POST /api/auth/membership/grant" AdminFunction "$authorizer"
-  route "POST /api/auth/membership/dismiss" AdminFunction "$authorizer"
   route "POST /api/auth/voucher" VoucherFunction "$authorizer"
   route "GET /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers" AdminFunction "$authorizer"

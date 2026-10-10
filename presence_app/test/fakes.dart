@@ -517,37 +517,9 @@ class FakeRolesClient implements RolesClient {
   }
 }
 
-/// Membership requests kept in memory; [granted] records the grants.
+/// Vouchers and maintenance mode kept in memory.
 class FakeMembershipClient implements MembershipClient {
-  final requests = <MembershipRequest>[];
-  final sent = <String>[];
-  final granted = <String>[];
   Object? error;
-
-  @override
-  Future<void> request(String idToken, String message) async {
-    if (error case final e?) throw e;
-    sent.add(message);
-  }
-
-  @override
-  Future<List<MembershipRequest>> list(String idToken) async {
-    if (error case final e?) throw e;
-    return List.of(requests);
-  }
-
-  @override
-  Future<void> grant(String idToken, String email) async {
-    if (error case final e?) throw e;
-    granted.add(email);
-    requests.removeWhere((r) => r.email == email);
-  }
-
-  @override
-  Future<void> dismiss(String idToken, String email) async {
-    if (error case final e?) throw e;
-    requests.removeWhere((r) => r.email == email);
-  }
 
   /// The vouchers, newest first; [redeemed] records the codes redeemed, and
   /// [onRedeem] runs after a valid one (e.g. to grant the role).

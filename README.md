@@ -416,8 +416,8 @@ opening it if `devbox install` fails with HTTP 403.
 
 [Floci](https://floci.io/) is a local AWS emulator. `devbox services up`
 deploys into it on every start (process `4-floci`,
-[presence_floci/](presence_floci)), so sign-in, roles, membership requests
-and the Admin screen work without an AWS account:
+[presence_floci/](presence_floci)), so sign-in, roles, vouchers and
+the Admin screen work without an AWS account:
 
 - the **auth API** ([presence_api_auth/](presence_api_auth)) as the stack
   `presence-local-auth-api`: its Lambdas (run as `presence-lambda-*`

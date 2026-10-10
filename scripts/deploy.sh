@@ -49,8 +49,8 @@
 #                <prefix>-sam-artifacts-<account>)
 #   RBACR_TOKEN  an rbacr API token owned by an rbacr root: rbacr keeps every
 #                role (who may use the app, sync with the cloud, administer
-#                it; rbacr's root list makes roots), and memberships and
-#                vouchers grant there. Required, from the environment (the
+#                it; rbacr's root list makes roots), and subscriptions (at
+#                nu01.com) and vouchers grant there. Required, from the environment (the
 #                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
 #   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
 #                the only one prod accepts; also .env)

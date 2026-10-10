@@ -3,18 +3,17 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   presence_api_auth (stacks presence-auth-api and presence-rc-auth-api):
   GET /api/auth returns the signed-in user's profile (found by the token's
-  subject, or made at the first sign-in) and roles; POST
-  /api/auth/membership asks for access and POST /api/auth/voucher redeems a
-  voucher code; the Admin routes (presence_admin) approve requests and
-  manage vouchers; /api/auth/credentials and /api/auth/profile/* give a
+  subject, or made at the first sign-in) and roles; POST /api/auth/voucher
+  redeems a voucher code; the Admin routes (presence_admin) manage vouchers
+  and maintenance mode; /api/auth/credentials and /api/auth/profile/* give a
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
   returns the execution mode and which settings are set; GET /health (no
   token) checks the dependencies. Every role comes from rbacr (its
-  presence system: free, premium, admin; its roots get all), and
-  memberships and vouchers grant there. A linked account shares only its
-  owner's presence_user and presence_premium. Served under /api/* by
-  CloudFront.
+  presence system: free, premium, admin; its roots get all; users
+  subscribe at nu01.com), and vouchers grant there. A linked account
+  shares only its owner's presence_user and presence_premium. Served under
+  /api/* by CloudFront.
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
@@ -75,8 +74,8 @@ Parameters:
     Description: >
       RBACR_URL: rbacr (github.com/prodbytes/rbacr), which keeps every
       role: who may use the app (free), sync with the cloud (premium),
-      administer it (admin) or is a root (rbacr's root list). Membership
-      grants and vouchers grant there.
+      administer it (admin) or is a root (rbacr's root list). Subscriptions
+      (at nu01.com) and vouchers grant there.
   RbacrToken:
     Type: String
     Default: ''
@@ -184,25 +183,6 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Membership requests, one per user: {"email", "name", "message",
-  # "requestedAt" (epoch ms), "dismissed"?}. Like UserRoles, it holds people's emails: AWS only.
-  MembershipTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: email
-          AttributeType: S
-      KeySchema:
-        - AttributeName: email
-          KeyType: HASH
-      SSESpecification:
-        SSEEnabled: true
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-
   # Voucher codes: {"code": "XXXX-XXXX-XXXX" or chosen ("AUTUMN-OTTER-4821"),
   # "role", "expiresAt" (epoch ms), "maxUses", "uses", "redeemedBy" (SS of
   # emails), "createdBy", "createdAt" (epoch ms), "discount" (percent)}. Holds emails and live codes: AWS only.
@@ -284,11 +264,7 @@ Resources:
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      # Anyone with a Google account can post membership requests: keep it slow.
       RouteSettings:
-        "POST /api/auth/membership":
-          ThrottlingBurstLimit: 5
-          ThrottlingRateLimit: 1
         # Slows down guessing codes (random ones have 60 bits; chosen ones at
         # least 10 letters and digits), with VoucherHandler's per-email
         # lockout (10 wrong codes an hour).
@@ -393,27 +369,6 @@ Resources:
             Auth:
               Authorizer: NONE
 
-  MembershipFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: AuthFunction
-      Handler: presence.auth.MembershipHandler::handleRequest
-      Environment:
-        Variables:
-          MEMBERSHIP_TABLE: !Ref MembershipTable
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action: dynamodb:PutItem
-              Resource: !GetAtt MembershipTable.Arn
-      Events:
-        Request:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/membership
-            Method: post
-
   VoucherFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -457,11 +412,10 @@ Resources:
       Handler: presence.auth.AdminHandler::handleRequest
       Environment:
         Variables:
-          # Checks the caller's roles and grants memberships in rbacr.
+          # Checks the caller's roles in rbacr.
           RBACR_URL: !Ref RbacrUrl
           RBACR_TOKEN: !Ref RbacrToken
           RBACR_SYSTEM: !Ref RbacrSystem
-          MEMBERSHIP_TABLE: !Ref MembershipTable
           VOUCHER_TABLE: !Ref VoucherTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
@@ -474,13 +428,6 @@ Resources:
               Resource:
                 - !GetAtt ProfileSubjectsTable.Arn
                 - !GetAtt ProfilesTable.Arn
-            # Lists, dismisses (a flag) and, after a grant, removes requests.
-            - Effect: Allow
-              Action:
-                - dynamodb:Scan
-                - dynamodb:UpdateItem
-                - dynamodb:DeleteItem
-              Resource: !GetAtt MembershipTable.Arn
             # Creates (only new codes), lists and deletes vouchers (a
             # presence_admin one only for a root: a conditional delete).
             - Effect: Allow
@@ -496,24 +443,6 @@ Resources:
                 - dynamodb:PutItem
               Resource: !GetAtt SystemTable.Arn
       Events:
-        List:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/membership
-            Method: get
-        Grant:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/membership/grant
-            Method: post
-        Dismiss:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/membership/dismiss
-            Method: post
         ListVouchers:
           Type: HttpApi
           Properties:
@@ -738,7 +667,6 @@ Resources:
             - - !Ref UserRolesTable
               - !Ref ProfilesTable
               - !Ref ProfileSubjectsTable
-              - !Ref MembershipTable
               - !Ref VoucherTable
               - !Ref LinkCodesTable
               - !Ref FeedbackTable
@@ -751,7 +679,6 @@ Resources:
                 - !GetAtt UserRolesTable.Arn
                 - !GetAtt ProfilesTable.Arn
                 - !GetAtt ProfileSubjectsTable.Arn
-                - !GetAtt MembershipTable.Arn
                 - !GetAtt VoucherTable.Arn
                 - !GetAtt LinkCodesTable.Arn
                 - !GetAtt FeedbackTable.Arn
@@ -790,9 +717,6 @@ Outputs:
   ProfileSubjectsTableName:
     Description: Which profile each subject signs in to (iss#sub -> profileId)
     Value: !Ref ProfileSubjectsTable
-  MembershipTableName:
-    Description: Membership requests (email -> message, requestedAt)
-    Value: !Ref MembershipTable
   VoucherTableName:
     Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
     Value: !Ref VoucherTable

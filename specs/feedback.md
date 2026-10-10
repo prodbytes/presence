@@ -41,7 +41,7 @@ navigation bar's label is the short "Help", so six tabs still fit a
 
 ## On the Admin tab
 
-The Admin tab's **Feedback** section, between the membership requests and
+The Admin tab's **Feedback** section, between maintenance mode and
 the voucher codes (see [Membership](membership.md#the-admin-tab)), lists
 every conversation, **the latest active first** (by its newest message),
 as cards (`FeedbackThreadCard`,

@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -196,6 +197,22 @@ class FeedbackTest {
         assertEquals(400, feedback.handleRequest(route("POST /api/auth/feedback/reply", "boss@nu01.com",
                 reply("ana@example.com", "x".repeat(FeedbackHandler.MAX_MESSAGE + 1))), null).getStatusCode());
         assertEquals(1, messages.size());
+    }
+
+    @Test
+    void namesAreOneShortLine() {
+        assertEquals("Ana  Bob", FeedbackHandler.cleanName(" Ana\n\rBob\u0007"));
+        assertEquals(100, FeedbackHandler.cleanName("x".repeat(500)).length());
+        assertEquals("", FeedbackHandler.cleanName(null));
+    }
+
+    @Test
+    void base64BodiesAreDecoded() {
+        var event = route("POST /api/auth/feedback", "ana@example.com",
+                Base64.getEncoder().encodeToString("Olá".getBytes(StandardCharsets.UTF_8)));
+        event.setIsBase64Encoded(true);
+        assertEquals(201, feedback.handleRequest(event, null).getStatusCode());
+        assertEquals("Olá", messages.getFirst().message());
     }
 
     @Test

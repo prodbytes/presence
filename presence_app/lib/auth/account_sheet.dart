@@ -795,8 +795,8 @@ class CloudSyncStatus extends StatelessWidget {
   }
 }
 
-/// Signed in without access: the sign-up icon. Its sheet lets the user ask
-/// for membership with a message, redeem a voucher code, and check again.
+/// Signed in without access: the sign-up icon. Its sheet sends the user to
+/// subscribe at nu01.com, lets them redeem a voucher code, and check again.
 class SignUpButton extends StatelessWidget {
   const SignUpButton({
     super.key,
@@ -804,12 +804,16 @@ class SignUpButton extends StatelessWidget {
     required this.roles,
     required this.membership,
     this.profiles,
+    this.openLink,
   });
 
   final AuthService auth;
   final RolesService roles;
   final MembershipClient membership;
   final ProfileClient? profiles;
+
+  /// Opens the subscription page; [launchLink] by default.
+  final LinkOpener? openLink;
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -819,18 +823,22 @@ class SignUpButton extends StatelessWidget {
     onPressed: () => showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      // Room for the keyboard under the message field.
+      // Room for the keyboard under the voucher field.
       isScrollControlled: true,
       builder: (_) => SignUpSheet(
         auth: auth,
         roles: roles,
         membership: membership,
         profiles: profiles,
+        openLink: openLink,
       ),
     ),
   );
 }
 
+/// What a signed-in user without access sees: subscribe at nu01.com (where
+/// plans, Free and Premium, are taken), redeem a voucher code, link an
+/// account that has access, or check again.
 class SignUpSheet extends StatefulWidget {
   const SignUpSheet({
     super.key,
@@ -838,7 +846,8 @@ class SignUpSheet extends StatefulWidget {
     required this.roles,
     required this.membership,
     this.profiles,
-  });
+    LinkOpener? openLink,
+  }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
   final RolesService roles;
@@ -847,32 +856,26 @@ class SignUpSheet extends StatefulWidget {
   /// When given, a member's other account can link to it instead.
   final ProfileClient? profiles;
 
-  /// The auth API's limit.
-  static const int maxMessage = 1000;
+  /// Opens the subscription page.
+  final LinkOpener openLink;
 
   @override
   State<SignUpSheet> createState() => _SignUpSheetState();
 }
 
 class _SignUpSheetState extends State<SignUpSheet> {
-  final _message = TextEditingController();
   final _code = TextEditingController();
-  bool _sending = false;
-  bool _sent = false;
-  String? _error;
   bool _redeeming = false;
   String? _codeError;
 
   @override
   void initState() {
     super.initState();
-    _message.addListener(() => setState(() {}));
     _code.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    _message.dispose();
     _code.dispose();
     super.dispose();
   }
@@ -912,34 +915,6 @@ class _SignUpSheetState extends State<SignUpSheet> {
     }
   }
 
-  Future<void> _send() async {
-    final token = widget.auth.idToken;
-    final message = _message.text.trim();
-    if (token == null || message.isEmpty) return;
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
-    try {
-      await widget.membership.request(token, message);
-      if (mounted) setState(() => _sent = true);
-    } on RolesException catch (e) {
-      if (mounted) {
-        setState(
-          () => _error = switch (e.statusCode) {
-            409 => 'You already sent a request. Try again in an hour.',
-            429 => 'Too many requests right now. Try again in a minute.',
-            _ => 'Couldn\'t send the request ($e).',
-          },
-        );
-      }
-    } catch (e) {
-      if (mounted) setState(() => _error = 'Couldn\'t send the request.');
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -961,49 +936,25 @@ class _SignUpSheetState extends State<SignUpSheet> {
             spacing: 12,
             children: [
               Icon(Icons.person_add_alt_1, size: 40, color: scheme.primary),
-              Text('Request access', style: theme.textTheme.titleLarge),
-              if (_sent)
-                Text(
-                  'Request sent. An administrator will review it; check '
-                  'again once they have.',
-                  key: const Key('membership-sent'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scheme.onSurfaceVariant),
-                )
-              else ...[
-                Text(
-                  '$email doesn\'t have access to Presence yet. Tell the '
-                  'administrators who you are and why you need it.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: scheme.onSurfaceVariant),
+              Text('Subscribe', style: theme.textTheme.titleLarge),
+              Text(
+                '$email doesn\'t have access to Presence yet. Subscribe at '
+                'nu01.com: Free, or Premium for cloud backup and more '
+                'devices. Then check again here.',
+                key: const Key('subscribe-text'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              FilledButton.icon(
+                key: const Key('subscribe'),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Subscribe at nu01.com'),
+                onPressed: () => openOrCopyLink(
+                  context,
+                  DeviceSlots.signUp,
+                  widget.openLink,
                 ),
-                TextField(
-                  key: const Key('membership-message'),
-                  controller: _message,
-                  enabled: !_sending,
-                  minLines: 3,
-                  maxLines: 6,
-                  maxLength: SignUpSheet.maxMessage,
-                  decoration: const InputDecoration(
-                    labelText: 'Message',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (_error case final error?)
-                  Text(
-                    error,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: scheme.error),
-                  ),
-                _sending
-                    ? const CircularProgressIndicator()
-                    : FilledButton.icon(
-                        key: const Key('send-membership'),
-                        icon: const Icon(Icons.send),
-                        label: const Text('Send request'),
-                        onPressed: _message.text.trim().isEmpty ? null : _send,
-                      ),
-              ],
+              ),
               const Divider(),
               Text(
                 'Have a voucher code? Redeem it to get in right away.',

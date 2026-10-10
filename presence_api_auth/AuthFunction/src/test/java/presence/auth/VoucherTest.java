@@ -141,24 +141,6 @@ class VoucherTest {
     private final AdminHandler admin = new AdminHandler(
             // rbacr: the grants, and boss@nu01.com on its root list.
             new Roles(e -> e.equals("boss@nu01.com") ? Set.of(Rbacr.ROOT) : granted.getOrDefault(e, Set.of())),
-            new AdminHandler.Backend() {
-                @Override
-                public List<MembershipHandler.Request> requests() {
-                    return List.of();
-                }
-
-                @Override
-                public void grant(String email, String role) {
-                }
-
-                @Override
-                public void remove(String email) {
-                }
-
-                @Override
-                public void dismiss(String email) {
-                }
-            },
             store, clock);
 
     @Test

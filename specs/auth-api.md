@@ -34,10 +34,9 @@ site (`/api/*` in the CloudFront distribution; see
   reported, never a value. The app
   shows them in its Settings health line (see [Settings
   screen](settings.md));
-- **`POST /api/auth/membership`** (`MembershipHandler`): a request for
-  access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
-  **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
-  Admin tab's. See [Membership](membership.md);
+- No request-for-access routes: people subscribe at nu01.com (the
+  membership request routes and `MembershipHandler` were removed on
+  2026-10-10). See [Membership](membership.md);
 - **`GET /api/auth/feedback`** and **`POST /api/auth/feedback`**
   (`FeedbackHandler`, members): the caller's conversation with the
   administrators and a new message (plain text, up to 2000 characters, 20
@@ -96,8 +95,8 @@ site (`/api/*` in the CloudFront distribution; see
   (`RBACR_SYSTEM`):
   - **`presence_user`** uses the app; **`presence_premium`** also syncs
     with the cloud ([Premium and free](premium.md)); **`presence_admin`**
-    also approves membership requests and creates Member vouchers;
-    **`presence_root`** also creates Admin vouchers;
+    also uses the Admin tab (maintenance mode, feedback, vouchers);
+    **`presence_root`** also sees and deletes Admin vouchers;
     **`presence_anonymous`** is nobody signed in;
   - they're rbacr's roles, mapped: rbacr's `free`, `premium` or `admin`
     gives `presence_user`; `premium` or `admin` gives `presence_premium`;
@@ -140,23 +139,24 @@ site (`/api/*` in the CloudFront distribution; see
     `scripts/migrate-roles-to-rbacr.sh` copies the table's roles into
     rbacr (`presence_user` as `free`, `presence_admin` as `admin`); the
     API no longer reads them.
-- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`,
-  `FeedbackTable`, and
+- **The tables** (`UserRolesTable`, `VoucherTable`, `FeedbackTable`,
+  and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
   `LinkCodesTable` holds short-lived link codes (hashed, with a TTL), and
   `SystemTable` the system's own state ([maintenance mode](maintenance.md)).
   `UserRolesTable` now holds only the voucher lockout's counts (and the
-  roles from before rbacr, unread).
+  roles from before rbacr, unread). `MembershipTable`, with the access
+  requests sent before 2026-10-10, left the stack but is kept in AWS
+  (`DeletionPolicy: Retain`).
 - **Least privilege:**
   - the roles function may only get and put in `ProfileSubjectsTable`,
     and get, put and update in `ProfilesTable`;
-  - the membership function may only put items in `MembershipTable`;
   - the voucher function may get and update items in `VoucherTable` and
     in `UserRolesTable` (the lockout);
-  - the admin function may scan, update and delete in `MembershipTable`,
-    put, scan and delete in `VoucherTable`, and get items from both
+  - the admin function may put, scan and delete in `VoucherTable`, get
+    and put in `SystemTable` (maintenance mode), and get items from both
     profile tables;
   - the feedback function may get items from `UserRolesTable` and both
     profile tables, and query, scan and put in `FeedbackTable` (messages
@@ -199,7 +199,7 @@ address uses up a route's budget for everyone:
   the bill), so it stays;
 - the token routes need a valid Google ID token for the web client, which
   anyone can get with a free Google account, so their limits (1 request/s
-  for membership requests, vouchers, link codes and feedback) can be used up the
+  for vouchers, link codes and feedback) can be used up the
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
@@ -250,10 +250,8 @@ what slow abuse.
     answer in RBAC and DEV, with its settings (AWS needs both the pool and
     the bucket);
   - the handler's JSON: profile, roles, no roles, no claims, escaping;
-  - membership requests: verified email, empty and long messages, base64
-    bodies, the hourly cooldown;
-  - the admin routes: 403 without both roles, listing, grant, dismiss
-    (which keeps the cooldown), bad emails, unknown routes;
+  - the admin routes: 403 without both roles, vouchers, maintenance,
+    unknown routes;
   - feedback (`FeedbackTest`): see [Feedback and Help](feedback.md#tests);
   - profile names are cleaned to one short line;
   - vouchers: the code format and loose typing, chosen codes; admins
