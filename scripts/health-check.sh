@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Continuous health monitor: every HEALTH_CHECK_INTERVAL seconds (15 by
-# default), one line per run: the time, then each check as its emoji and
-# ✅ (ok) / ❌ (failed) / ⚪ (not set), separated by " · ":
-#   🏠 index · 🌐 web · ☁️ cdn · 🔒 https · 🔌 api · 🔑 oidc · 🪣 aws ·
-#   🛂 rbacr-api (the API's rbacr setting) · 💎 rbacr (rbacr's /health)
+# default), one line per run: the time, then each check as its emoji, a
+# short label and ✅ (ok) / ❌ (failed) / ⚪ (not set), separated by " · ":
+#   🏠 Index · 🌐 Web · ☁️ CDN · 🔒 HTTPS · 🔌 API · 🔑 OIDC · 🪣 AWS ·
+#   🛂 RBACR (the API's rbacr setting) · 💎 RBACR svc (rbacr's /health)
 # Runs via `devbox services up` (see process-compose.yaml) or standalone.
 set -uo pipefail
 
@@ -11,15 +11,15 @@ INTERVAL="${HEALTH_CHECK_INTERVAL:-15}"
 FLOCI="http://localhost:${FLOCI_PORT:-4566}"
 CDN_ALIAS="${PRESENCE_CDN_ALIAS:-presence.localhost}"
 
-# This run's results, one "<emoji> <status emoji>" each.
+# This run's results, one "<emoji> <label> <status emoji>" each.
 RESULTS=()
 
-# report <emoji> <status emoji>: adds a check's result to this run's line.
+# report "<emoji> <label>" <status emoji>: adds a check's result to this run's line.
 report() {
     RESULTS+=("$1 $2")
 }
 
-# ok_if <emoji> <command...>: ✅ when the command succeeds.
+# ok_if "<emoji> <label>" <command...>: ✅ when the command succeeds.
 ok_if() {
     local emoji=$1
     shift
@@ -33,13 +33,13 @@ get() {
     curl -fs -o /dev/null --max-time "$timeout" "$@"
 }
 
-check_index() { ok_if 🏠 get 5 "http://localhost:${INDEX_PORT:-8081}/"; }
+check_index() { ok_if "🏠 Index" get 5 "http://localhost:${INDEX_PORT:-8081}/"; }
 
-check_web() { ok_if 🌐 get 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; }
+check_web() { ok_if "🌐 Web" get 5 "http://localhost:${FLUTTER_WEB_PORT:-8080}/app/"; }
 
 # The CloudFront distribution in Floci, addressed by its alias in the Host
 # header (so it works where *.localhost doesn't resolve).
-check_cdn() { ok_if ☁️ get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
+check_cdn() { ok_if "☁️ CDN" get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
 
 # HTTPS through the CDN on the public local name (the Google sign-in origin),
 # validating the certificate against mkcert's CA (not the system trust store,
@@ -48,11 +48,11 @@ check_cdn() { ok_if ☁️ get 10 -H "Host: $CDN_ALIAS" "$FLOCI/app/"; }
 MKCERT_CA="$(mkcert -CAROOT 2>/dev/null)/rootCA.pem"
 check_https() {
     local host="${PRESENCE_PUBLIC_HOST:-local.presence.nu01.com}" port="${FLOCI_HTTPS_PORT:-8443}"
-    ok_if 🔒 get 10 --cacert "$MKCERT_CA" \
+    ok_if "🔒 HTTPS" get 10 --cacert "$MKCERT_CA" \
         --resolve "$host:$port:127.0.0.1" "https://$host:$port/app/"
 }
 
-# setting <body> <emoji> <json key>: ✅ set, ⚪ not set, ❌ not reported.
+# setting <body> "<emoji> <label>" <json key>: ✅ set, ⚪ not set, ❌ not reported.
 setting() {
     if [[ "$1" == *"\"$3\":true"* ]]; then
         report "$2" ✅
@@ -74,23 +74,23 @@ check_api() {
     body="$(curl -fs --max-time 10 -H "Host: $CDN_ALIAS" "$FLOCI/api/auth/anonymous")"
     mode="$(sed -n 's/.*"mode":"\([A-Z]*\)".*/\1/p' <<<"$body")"
     if [[ -z "$mode" ]]; then
-        report 🔌 ❌
-        report 🔑 ❌
-        report 🪣 ❌
-        report 🛂 ❌
+        report "🔌 API" ❌
+        report "🔑 OIDC" ❌
+        report "🪣 AWS" ❌
+        report "🛂 RBACR" ❌
         return
     fi
-    report 🔌 ✅
-    setting "$body" 🔑 oidc
-    setting "$body" 🪣 aws
-    setting "$body" 🛂 rbacr
+    report "🔌 API" ✅
+    setting "$body" "🔑 OIDC" oidc
+    setting "$body" "🪣 AWS" aws
+    setting "$body" "🛂 RBACR" rbacr
 }
 
 # rbacr itself (who is premium): its public /health, at RBACR_URL (the
 # environment, else .env, else https://rbacr.nu01.com). No token is sent.
 RBACR_URL="${RBACR_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_URL=//p' .env | tail -1)}"
 RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
-check_rbacr() { ok_if 💎 get 5 "$RBACR_URL/health"; }
+check_rbacr() { ok_if "💎 RBACR svc" get 5 "$RBACR_URL/health"; }
 
 # run_checks: one pass over every check, printed as one line.
 run_checks() {

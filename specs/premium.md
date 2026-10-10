@@ -139,8 +139,8 @@ The bucket enforces it, not just the app:
 - **`GET /api/auth/anonymous`** reports `"rbacr": true|false` in its
   settings, as for `oidc` and `aws`, and `scripts/deploy.sh`'s smoke test
   expects `true` when it deployed a token.
-- **`scripts/health-check.sh`** (the local monitor) shows 🛂 (the local
-  API's rbacr setting) and 💎 (rbacr's `/health`, at `RBACR_URL`; no token
+- **`scripts/health-check.sh`** (the local monitor) shows 🛂 RBACR (the
+  local API's rbacr setting) and 💎 RBACR svc (rbacr's `/health`, at `RBACR_URL`; no token
   sent) on its one line per run.
 
 ## Configuration

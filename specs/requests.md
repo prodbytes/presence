@@ -4291,8 +4291,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
-       the time, then `<emoji> ✅|❌|⚪` per check joined by ` · ` (as the
-       Settings health line), with no reasons. rbacr's own `/health` got
+       the time, then `<emoji> <label> ✅|❌|⚪` per check joined by ` · `
+       (as the Settings health line), with no reasons. Follow-up: each
+       icon got a short label (`🏠 Index`, `🔌 API`, `🛂 RBACR`, …). rbacr's own `/health` got
        its own icon, 💎, apart from the API's 🛂 rbacr setting. The pass
        is a `run_checks` function; sourcing the script defines it without
        starting the loop. Specs: [Dev environment](dev-environment.md),

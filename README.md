@@ -334,13 +334,13 @@ That starts these services, wired up in
 
 A `health-check` monitor logs one line every 15 s (set
 `HEALTH_CHECK_INTERVAL` to change it): the time, then each check as its
-emoji and ✅ ok / ❌ failed / ⚪ not set. The checks are 🏠 index, 🌐 web
-app, ☁️ CDN, 🔒 HTTPS, 🔌 auth API, then the API's settings 🔑 OIDC, 🪣
-AWS and 🛂 rbacr, and last 💎 rbacr's `/health`. Without `.env` it looks
+emoji, a short label and ✅ ok / ❌ failed / ⚪ not set. The checks are 🏠
+Index, 🌐 Web app, ☁️ CDN, 🔒 HTTPS, 🔌 auth API, then the API's settings
+🔑 OIDC, 🪣 AWS and 🛂 RBACR, and last 💎 RBACR svc (rbacr's `/health`). Without `.env` it looks
 like this:
 
 ```
-2026-10-10 12:35:54 🏠 ✅ · 🌐 ✅ · ☁️ ✅ · 🔒 ✅ · 🔌 ✅ · 🔑 ⚪ · 🪣 ⚪ · 🛂 ⚪ · 💎 ✅
+2026-10-10 12:35:54 🏠 Index ✅ · 🌐 Web ✅ · ☁️ CDN ✅ · 🔒 HTTPS ✅ · 🔌 API ✅ · 🔑 OIDC ⚪ · 🪣 AWS ⚪ · 🛂 RBACR ⚪ · 💎 RBACR svc ✅
 ```
 
 Stop everything with `devbox services stop`. To run only the app, use
