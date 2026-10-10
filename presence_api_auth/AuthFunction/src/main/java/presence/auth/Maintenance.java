@@ -15,14 +15,20 @@ import static presence.auth.Attrs.text;
 
 /**
  * Maintenance mode: while it's on, the app shows nothing but a sorry
- * message, to everyone but admins. Admins switch it on and off
- * ({@link AdminHandler}); {@code GET /api/auth/anonymous} tells every app
+ * message, to everyone but admins. <b>rbacr decides it</b> ({@link Flag}):
+ * the {@code presence} system's maintenance flag, and, when rbacr can't be
+ * reached (or can't say), maintenance automatically, since nobody's roles
+ * can be known then. Roots switch the flag ({@link AdminHandler}, or in
+ * rbacr itself); {@code GET /api/auth/anonymous} tells every app
  * ({@link AuthHandler}).
  *
- * @param on      whether the system is in maintenance
+ * <p>This record is what presence keeps besides the flag ({@link Store}):
+ * the last switch made here, with the sorry screen's message.
+ *
+ * @param on      whether that switch put the system in maintenance
  * @param message what the sorry screen says besides the default, or empty
- * @param since   when it was last switched, or null if it never was
- * @param by      the admin's email who switched it, or empty
+ * @param since   when it was last switched here, or null if it never was
+ * @param by      the root's email who switched it, or empty
  */
 public record Maintenance(boolean on, String message, Instant since, String by) {
 
@@ -32,7 +38,72 @@ public record Maintenance(boolean on, String message, Instant since, String by) 
     /** Never switched on. */
     static final Maintenance OFF = new Maintenance(false, "", null, "");
 
-    /** Where the state is kept. */
+    /** Why the system is in maintenance, as {@code GET /api/auth/anonymous} says. */
+    static final String SWITCHED = "rbacr";
+
+    /** rbacr didn't answer (or couldn't say): maintenance until it does. */
+    static final String UNREACHABLE = "rbacr-unreachable";
+
+    /** The maintenance flag, from rbacr. */
+    interface Flag {
+        /** Whether the system is in maintenance; null when it can't be told (rbacr unreachable). */
+        Boolean get();
+
+        /** @throws IllegalStateException when it can't be switched */
+        void set(boolean on);
+    }
+
+    /** rbacr's flag on its system ({@link Rbacr#maintenance}). */
+    static Flag rbacr(Rbacr rbacr) {
+        return new Flag() {
+            @Override
+            public Boolean get() {
+                return rbacr.maintenance();
+            }
+
+            @Override
+            public void set(boolean on) {
+                rbacr.setMaintenance(on);
+            }
+        };
+    }
+
+    /** A flag in memory, off at first (tests, and handlers made without rbacr). */
+    static Flag memoryFlag() {
+        var flag = new AtomicReference<Boolean>(false);
+        return new Flag() {
+            @Override
+            public Boolean get() {
+                return flag.get();
+            }
+
+            @Override
+            public void set(boolean on) {
+                flag.set(on);
+            }
+        };
+    }
+
+    /**
+     * The state every app is told: off, on (rbacr's flag, with the message
+     * of the switch made here, if that one put it on) or on because rbacr
+     * can't say.
+     *
+     * @param flag   rbacr's answer, null when it can't say
+     * @param stored the last switch made here
+     */
+    static String publicJson(Boolean flag, Maintenance stored) {
+        if (flag == null) {
+            return new Maintenance(true, "", null, "").toPublicJson(UNREACHABLE);
+        }
+        if (!flag) {
+            return OFF.toPublicJson(null);
+        }
+        // Switched on in rbacr itself, the message here is an older switch's.
+        return (stored.on() ? stored : new Maintenance(true, "", null, "")).toPublicJson(SWITCHED);
+    }
+
+    /** Where the last switch made here is kept. */
     interface Store {
         /** The current state; {@link #OFF} if it was never set. */
         Maintenance get();
@@ -42,17 +113,29 @@ public record Maintenance(boolean on, String message, Instant since, String by) 
 
     /**
      * As {@code GET /api/auth/anonymous} answers it, for anyone: without
-     * who switched it. {@code {"on":true,"message":"...","since":<epoch ms>}}.
+     * who switched it. {@code {"on":true,"message":"...","since":<epoch ms>,
+     * "reason":"rbacr"}}.
+     *
+     * @param reason why it's on ({@link #SWITCHED}, {@link #UNREACHABLE}), or null
      */
-    String toPublicJson() {
+    String toPublicJson(String reason) {
         return "{\"on\":" + on + ",\"message\":" + Json.string(message)
-                + (since == null ? "" : ",\"since\":" + since.toEpochMilli()) + "}";
+                + (since == null ? "" : ",\"since\":" + since.toEpochMilli())
+                + (reason == null ? "" : ",\"reason\":" + Json.string(reason)) + "}";
     }
 
-    /** As the admin routes answer it: also who switched it. */
-    String toJson() {
-        var json = toPublicJson();
-        return json.substring(0, json.length() - 1) + ",\"by\":" + Json.string(by) + "}";
+    /**
+     * As the admin routes answer it: whether the system is in maintenance
+     * ({@code flag}, from rbacr: on when it can't say), with the last switch
+     * made here and who made it, and whether rbacr answered
+     * ({@code "rbacr": true}).
+     */
+    String toJson(Boolean flag) {
+        var on = flag == null || flag;
+        var json = new Maintenance(on, message, since, by).toPublicJson(
+                flag == null ? UNREACHABLE : on ? SWITCHED : null);
+        return json.substring(0, json.length() - 1) + ",\"by\":" + Json.string(by)
+                + ",\"rbacr\":" + (flag != null) + "}";
     }
 
     /**

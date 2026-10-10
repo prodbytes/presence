@@ -80,10 +80,11 @@ void main() {
     expect(find.byType(HomeScreen), findsOneWidget);
   });
 
-  testWidgets('an admin keeps the app, under a strip, and switches it off', (
+  testWidgets('a root keeps the app, under a strip, and switches it off', (
     tester,
   ) async {
-    final roles = FakeRolesClient([userRole, adminRole])..maintenance = on;
+    final roles = FakeRolesClient([userRole, adminRole, rootRole])
+      ..maintenance = on;
     final membership = FakeMembershipClient()
       ..switched = (state: on, by: 'boss@nu01.com')
       ..onMaintenance = (state) => roles.maintenance = state;
@@ -114,6 +115,24 @@ void main() {
     ));
     expect(roles.maintenance.on, isTrue);
     expect(find.byKey(const Key('maintenance-strip')), findsOneWidget);
+  });
+
+  testWidgets('an admin who isn\'t a root sees it but can\'t switch it', (
+    tester,
+  ) async {
+    final roles = FakeRolesClient([userRole, adminRole]);
+    final membership = FakeMembershipClient();
+    await open(tester, roles, membership: membership);
+    await tester.tap(find.byTooltip('Admin'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Only roots switch it.'), findsOneWidget);
+    final toggle = tester.widget<SwitchListTile>(
+      find.byKey(const Key('maintenance-switch')),
+    );
+    expect(toggle.onChanged, isNull);
+    await tester.tap(find.byKey(const Key('maintenance-switch')));
+    await tester.pumpAndSettle();
+    expect(membership.switched.state.on, isFalse);
   });
 
   group('the API client', () {

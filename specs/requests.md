@@ -4573,3 +4573,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `camera_all_test.dart`. Specs: [Navigation](navigation.md),
        [Device location and battery](device-location.md),
        [Camera](camera.md).
+
+334. **rbacr decides maintenance mode, with its health check.**
+     (2026-10-10)
+     - Asked: if rbacr isn't reachable, put the system in maintenance mode
+       automatically; if it is, let rbacr say whether the system is in
+       maintenance or standard mode. Then: check for maintenance along
+       with the health check; if rbacr's health check fails or rbacr
+       reports maintenance, enter it.
+     - Changed: `Rbacr.maintenance()` runs rbacr's health check
+       (`GET /health`, no token, as the API's `/health` does) and, if it
+       passes, reads the presence system's flag (`GET /api/systems/presence`,
+       rbacr's R11); a failed check or an unusable answer is maintenance
+       (`"reason": "rbacr-unreachable"`), the flag on is
+       `"reason": "rbacr"`; reused 10 s. `GET /api/auth/anonymous`
+       reports it (never in DEV), and `SystemTable` now only keeps the
+       last switch made here with its message. `POST /api/auth/maintenance`
+       is roots only and PATCHes rbacr's flag first (rbacr's flag takes
+       admins' roles, so only roots keep the app and can switch it off);
+       the Admin card disables the switch for other admins, and a root's
+       app applies a switch at once. `scripts/maintenance.sh` now switches
+       rbacr's flag with the rbacr root token and shows rbacr's health and
+       flag. The rbacr client sends GET and PATCH too. Tests:
+       `RbacrTest`, `MaintenanceTest`, `maintenance_test.dart`. Specs:
+       [Maintenance mode](maintenance.md), [Auth API](auth-api.md),
+       [Execution mode](execution-mode.md).

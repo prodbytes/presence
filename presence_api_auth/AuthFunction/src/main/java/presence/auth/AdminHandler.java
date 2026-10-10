@@ -60,9 +60,13 @@ import static presence.auth.Http.response;
  *   <li>{@code POST /api/auth/vouchers/delete}: deletes the voucher whose code
  *       is the body; a presence_admin one only for a {@code presence_root}
  *       caller (403 otherwise);</li>
- *   <li>{@code GET /api/auth/maintenance}: the {@link Maintenance} state, with
- *       who switched it, as {@code {on, message, since, by}};</li>
- *   <li>{@code POST /api/auth/maintenance}: switches it, from the
+ *   <li>{@code GET /api/auth/maintenance}: the {@link Maintenance} state
+ *       (rbacr's flag, on when rbacr can't say), with the last switch made
+ *       here and who made it, as {@code {on, message, since, reason, by,
+ *       rbacr}};</li>
+ *   <li>{@code POST /api/auth/maintenance}: for a {@code presence_root}
+ *       only (403 otherwise: in maintenance rbacr gives admins no role, so
+ *       only a root could switch it off), switches rbacr's flag, from the
  *       form-encoded body {@code on} ({@code true} or {@code false}) and
  *       optionally {@code message} (up to {@link Maintenance#MAX_MESSAGE}
  *       characters), and answers the new state.</li>
@@ -95,6 +99,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     private final Backend backend;
     private final VoucherHandler.Store vouchers;
     private final Maintenance.Store maintenance;
+    private final Maintenance.Flag flag;
     private final Clock clock;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
@@ -103,6 +108,7 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), Rbacr.fromEnvironment()),
                 VoucherHandler.dynamoStore(System.getenv("VOUCHER_TABLE")),
                 Maintenance.dynamoStore(System.getenv("SYSTEM_TABLE")),
+                Maintenance.rbacr(Rbacr.fromEnvironment()),
                 Clock.systemUTC());
     }
 
@@ -116,16 +122,19 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
      */
     AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
                  VoucherHandler.Store vouchers, Clock clock) {
-        this(roles, linked, backend, vouchers, Maintenance.memory(), clock);
+        this(roles, linked, backend, vouchers, Maintenance.memory(), Maintenance.memoryFlag(), clock);
     }
 
+    /** @param flag rbacr's maintenance flag on the system */
     AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
-                 VoucherHandler.Store vouchers, Maintenance.Store maintenance, Clock clock) {
+                 VoucherHandler.Store vouchers, Maintenance.Store maintenance, Maintenance.Flag flag,
+                 Clock clock) {
         this.roles = roles;
         this.linked = linked;
         this.backend = backend;
         this.vouchers = vouchers;
         this.maintenance = maintenance;
+        this.flag = flag;
         this.clock = clock;
     }
 
@@ -187,8 +196,10 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
                 }
                 yield response(200, "{\"code\":" + Json.string(code) + "}");
             }
-            case "GET /api/auth/maintenance" -> response(200, maintenance.get().toJson());
-            case "POST /api/auth/maintenance" -> setMaintenance(event, caller.verifiedEmail());
+            case "GET /api/auth/maintenance" -> response(200, maintenance.get().toJson(flag.get()));
+            case "POST /api/auth/maintenance" -> root
+                    ? setMaintenance(event, caller.verifiedEmail())
+                    : response(403, "{\"error\":\"only presence_root switches maintenance mode\"}");
             default -> response(404, "{\"error\":\"no such route\"}");
         };
     }
@@ -291,9 +302,11 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         }
         var state = new Maintenance(on.equals("true"), message,
                 clock.instant().truncatedTo(ChronoUnit.MILLIS), by == null ? "" : by);
+        // rbacr first: it decides; then the message, which only goes with it.
+        flag.set(state.on());
         maintenance.set(state);
         System.err.println("presence: maintenance mode " + (state.on() ? "on" : "off") + " by " + state.by());
-        return response(200, state.toJson());
+        return response(200, state.toJson(state.on()));
     }
 
     /** One address: something@domain, at most 254 characters, no spaces or commas. */

@@ -22,10 +22,23 @@ class RbacrTest {
     private Rbacr.Reply reply = new Rbacr.Reply(200, "{\"email\":\"ana@example.com\",\"globalRoles\":[],"
             + "\"roles\":{\"other\":[\"admin\"],\"presence\":[\"free\",\"premium\"]}}");
     private Exception fails;
+    /** rbacr's health check: its status, or why it doesn't answer; how often it was asked. */
+    private int healthStatus = 200;
+    private Exception healthFails;
+    private int health;
 
     private final Rbacr rbacr = new Rbacr(URI.create("https://rbacr.example"), "rbacr_secret", "presence",
-            (uri, token, body) -> {
-                asked.add(uri + " " + token + " " + body);
+            (method, uri, token, body) -> {
+                if (uri.getPath().equals("/health")) {
+                    // rbacr's public health check: never with the token.
+                    assertNull(token);
+                    if (healthFails != null) {
+                        throw healthFails;
+                    }
+                    health++;
+                    return new Rbacr.Reply(healthStatus, "{\"status\":\"ok\"}");
+                }
+                asked.add((method.equals("POST") ? "" : method + " ") + uri + " " + token + " " + body);
                 if (fails != null) {
                     throw fails;
                 }
@@ -89,11 +102,13 @@ class RbacrTest {
         fails = new IOException("timed out");
         assertThrows(IllegalStateException.class, () -> rbacr.grant("ana@example.com", "free"));
         // Unconfigured: nobody has roles, nothing is granted.
-        var none = new Rbacr(URI.create("https://rbacr.example"), null, "presence", (u, t, b) -> {
+        var none = new Rbacr(URI.create("https://rbacr.example"), null, "presence", (m, u, t, b) -> {
             throw new AssertionError("asked rbacr without a token");
         }, Clock.systemUTC());
         assertEquals(Set.of(), none.apply("ana@example.com"));
         assertThrows(IllegalStateException.class, () -> none.grant("ana@example.com", "free"));
+        assertNull(none.maintenance(), "unconfigured: it can't say");
+        assertThrows(IllegalStateException.class, () -> none.setMaintenance(true));
     }
 
     @Test
@@ -142,5 +157,70 @@ class RbacrTest {
         assertNull(Rbacr.roles("{\"globalRoles\":[],\"roles\":{\"presence\":\"free\"}}", "presence"));
         assertNull(Rbacr.roles("{\"globalRoles\":[1],\"roles\":{}}", "presence"));
         assertNull(Rbacr.roles(null, "presence"));
+    }
+
+    @Test
+    void asksTheSystemsMaintenanceFlagAndReusesItBriefly() {
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"name\":\"Presence\",\"roles\":[\"free\"],"
+                + "\"implies\":{},\"maintenance\":true}");
+        assertEquals(true, rbacr.maintenance());
+        assertEquals(List.of("GET https://rbacr.example/api/systems/presence rbacr_secret null"), asked);
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"maintenance\":false}");
+        assertEquals(true, rbacr.maintenance(), "reused");
+        now = now.plus(Rbacr.MODE_CACHE_FOR);
+        assertEquals(false, rbacr.maintenance());
+        assertEquals(2, asked.size());
+    }
+
+    @Test
+    void cantTellTheFlagWhenRbacrIsDownRefusesOrAnswersSomethingElse() {
+        fails = new IOException("timed out");
+        assertNull(rbacr.maintenance());
+        // Reused too: a down rbacr isn't waited for at every app start.
+        fails = null;
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"maintenance\":false}");
+        assertNull(rbacr.maintenance());
+        for (var answer : List.of(new Rbacr.Reply(503, "{}"), new Rbacr.Reply(401, "{\"error\":\"no\"}"),
+                new Rbacr.Reply(200, "{\"id\":\"other\",\"maintenance\":false}"), new Rbacr.Reply(200, "nope"))) {
+            now = now.plus(Rbacr.MODE_CACHE_FOR);
+            reply = answer;
+            assertNull(rbacr.maintenance(), answer.toString());
+        }
+        // An rbacr from before maintenance mode: the system, without the flag.
+        now = now.plus(Rbacr.MODE_CACHE_FOR);
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"roles\":[]}");
+        assertEquals(false, rbacr.maintenance());
+    }
+
+    @Test
+    void aFailingHealthCheckIsMaintenanceWithoutAskingTheFlag() {
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"maintenance\":false}");
+        assertEquals(false, rbacr.maintenance());
+        assertEquals(1, health, "the health check, with the flag");
+        healthStatus = 503;
+        now = now.plus(Rbacr.MODE_CACHE_FOR);
+        assertNull(rbacr.maintenance());
+        healthStatus = 200;
+        healthFails = new IOException("timed out");
+        now = now.plus(Rbacr.MODE_CACHE_FOR);
+        assertNull(rbacr.maintenance());
+        assertEquals(1, asked.size(), "the flag isn't asked of an unhealthy rbacr");
+        healthFails = null;
+        now = now.plus(Rbacr.MODE_CACHE_FOR);
+        assertEquals(false, rbacr.maintenance());
+    }
+
+    @Test
+    void switchesTheFlag() {
+        reply = new Rbacr.Reply(200, "{\"id\":\"presence\",\"maintenance\":true}");
+        rbacr.setMaintenance(true);
+        assertEquals(List.of("PATCH https://rbacr.example/api/systems/presence rbacr_secret {\"maintenance\":true}"),
+                asked);
+        assertEquals(true, rbacr.maintenance(), "known from the switch");
+        assertEquals(1, asked.size());
+        reply = new Rbacr.Reply(403, "{}");
+        assertThrows(IllegalStateException.class, () -> rbacr.setMaintenance(false));
+        fails = new IOException("timed out");
+        assertThrows(IllegalStateException.class, () -> rbacr.setMaintenance(false));
     }
 }

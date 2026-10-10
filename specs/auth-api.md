@@ -20,7 +20,8 @@ site (`/api/*` in the CloudFront distribution; see
 - **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a
   token**): the [execution mode](execution-mode.md), the anonymous
   user's roles (in DEV every role) and which expected settings the stack
-  has, and whether the system is in [maintenance](maintenance.md),
+  has, and whether the system is in [maintenance](maintenance.md) (on
+  when rbacr fails its health check, else rbacr's flag; never in DEV),
   `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings":
   {"oidc": true, "aws": true, "rbacr": true}, "maintenance": {"on": false,
   "message": ""}}`. The mode is DEV when the function has no
@@ -59,10 +60,11 @@ site (`/api/*` in the CloudFront distribution; see
   A `presence_admin` voucher's code is listed (`"code": null, "hidden":
   true` otherwise) and deleted (403 otherwise) only for a
   `presence_root`. See [Membership](membership.md#voucher-codes);
-- **`GET /api/auth/maintenance`** and **`POST /api/auth/maintenance`**
-  (`AdminHandler`, admins only): maintenance mode's state with who
-  switched it, and its switch (form-encoded `on`, `message`). See
-  [Maintenance mode](maintenance.md#the-api);
+- **`GET /api/auth/maintenance`** (`AdminHandler`, admins) and
+  **`POST /api/auth/maintenance`** (roots only): maintenance mode's state,
+  which rbacr decides (its health check, then its flag on the system), and
+  its switch, which PATCHes rbacr's flag (form-encoded `on`, `message`).
+  See [Maintenance mode](maintenance.md#the-api);
 - **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
   (`ProfileHandler`): a Cognito developer-identity token for the user's
   profile (and, with `IotPolicyName` set, the [live-sync](live-sync.md) IoT

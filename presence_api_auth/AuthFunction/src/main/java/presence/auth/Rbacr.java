@@ -30,7 +30,14 @@ import java.util.regex.Pattern;
  *       global grants, implied roles, and every role for its roots. {@code
  *       root} can't be a role in an rbacr system, so the two never mix up;</li>
  *   <li>{@link #grant}: gives an email a role in the system, for good
- *       ({@code POST /api/systems/:id/grants}).</li>
+ *       ({@code POST /api/systems/:id/grants});</li>
+ *   <li>{@link #maintenance}: whether the system is in maintenance: rbacr
+ *       must pass its health check ({@code GET /health}, as {@link
+ *       HealthHandler}'s {@code rbacr} check), and then its system's flag
+ *       (rbacr's R11, {@code GET /api/systems/:id}) says; and
+ *       {@link #setMaintenance} switches it ({@code PATCH}). While it's
+ *       on, rbacr gives nobody a role in the system; roots keep their
+ *       global {@link #ROOT}.</li>
  * </ul>
  *
  * <p>It fails closed: when rbacr can't answer (down, slow, refusing the
@@ -42,6 +49,13 @@ final class Rbacr implements Function<String, Set<String>> {
 
     /** How long an answer is reused. */
     static final Duration CACHE_FOR = Duration.ofSeconds(60);
+
+    /**
+     * How long the system's maintenance flag is reused, answered or not:
+     * every app start asks it, and an admin's switch reaches every
+     * function instance within it.
+     */
+    static final Duration MODE_CACHE_FOR = Duration.ofSeconds(10);
 
     /** How long rbacr may take: a sign-in or credentials request waits for it. */
     static final Duration TIMEOUT = Duration.ofSeconds(2);
@@ -57,6 +71,7 @@ final class Rbacr implements Function<String, Set<String>> {
     private static final Pattern ROLE_MAP = Pattern.compile("\"roles\"\\s*:\\s*\\{([^}]*)\\}");
     private static final Pattern ENTRY = Pattern.compile("\\s*" + NAME + "\\s*:\\s*\\[([^\\]]*)\\]\\s*(,|$)");
     private static final Pattern ROLE = Pattern.compile(NAME);
+    private static final Pattern MAINTENANCE = Pattern.compile("\"maintenance\"\\s*:\\s*(true|false)");
 
     private final URI base;
     private final String token;
@@ -68,10 +83,16 @@ final class Rbacr implements Function<String, Set<String>> {
     private record Answer(Set<String> roles, Instant at) {
     }
 
-    /** POSTs a JSON body to rbacr and returns the status and body. */
+    /** The maintenance flag, null when rbacr couldn't say, and when it was asked. */
+    private record Mode(Boolean maintenance, Instant at) {
+    }
+
+    private volatile Mode mode;
+
+    /** Sends a request ({@code GET}: no body; else a JSON body) to rbacr and returns the status and body. */
     @FunctionalInterface
     interface Transport {
-        Reply post(URI uri, String token, String body) throws Exception;
+        Reply send(String method, URI uri, String token, String body) throws Exception;
     }
 
     record Reply(int status, String body) {
@@ -108,14 +129,19 @@ final class Rbacr implements Function<String, Set<String>> {
     /** The JDK's HTTP client, within {@link #TIMEOUT}. */
     static Transport http() {
         var client = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
-        return (uri, token, body) -> {
-            var response = client.send(HttpRequest.newBuilder(uri)
-                            .timeout(TIMEOUT)
-                            .header("authorization", "Bearer " + token)
-                            .header("content-type", "application/json")
-                            .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
-                            .build(),
-                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        return (method, uri, token, body) -> {
+            var request = HttpRequest.newBuilder(uri).timeout(TIMEOUT);
+            // Not to its public health check.
+            if (token != null) {
+                request.header("authorization", "Bearer " + token);
+            }
+            if (body == null) {
+                request.method(method, HttpRequest.BodyPublishers.noBody());
+            } else {
+                request.header("content-type", "application/json")
+                        .method(method, HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
+            }
+            var response = client.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             return new Reply(response.statusCode(), response.body());
         };
     }
@@ -133,7 +159,7 @@ final class Rbacr implements Function<String, Set<String>> {
             return cached.roles();
         }
         try {
-            var reply = transport.post(base.resolve("/api/roles"), token,
+            var reply = transport.send("POST", base.resolve("/api/roles"), token,
                     "{\"email\":" + Json.string(normalized) + "}");
             var roles = reply.status() == 200 ? roles(reply.body(), system) : null;
             if (roles == null) {
@@ -165,7 +191,7 @@ final class Rbacr implements Function<String, Set<String>> {
         var normalized = normalize(email);
         Reply reply;
         try {
-            reply = transport.post(base.resolve("/api/systems/" + system + "/grants"), token,
+            reply = transport.send("POST", base.resolve("/api/systems/" + system + "/grants"), token,
                     "{\"role\":" + Json.string(role) + ",\"grantee\":" + Json.string(normalized) + "}");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -179,6 +205,88 @@ final class Rbacr implements Function<String, Set<String>> {
         if (reply.status() != 201) {
             throw new IllegalStateException("rbacr refused a grant of " + role + ": HTTP " + reply.status());
         }
+    }
+
+    /**
+     * Whether rbacr has the system in maintenance: {@code true} or {@code
+     * false}, or null when it can't say: not configured, failing its health
+     * check ({@code GET /health} not 200: down, slow, unhealthy), or
+     * then not answering the flag (refusing the token, an answer that isn't
+     * the system). Reused for
+     * {@link #MODE_CACHE_FOR}, null answers too, so a down rbacr isn't
+     * waited for at every app start.
+     */
+    Boolean maintenance() {
+        if (token == null) {
+            return null;
+        }
+        var now = clock.instant();
+        var cached = mode;
+        if (cached != null && now.isBefore(cached.at().plus(MODE_CACHE_FOR))) {
+            return cached.maintenance();
+        }
+        Boolean answer = null;
+        try {
+            var health = transport.send("GET", base.resolve("/health"), null, null);
+            if (health.status() != 200) {
+                System.err.println("rbacr: health check failed (HTTP " + health.status() + "): maintenance");
+                mode = new Mode(null, now);
+                return null;
+            }
+            var reply = transport.send("GET", base.resolve("/api/systems/" + system), token, null);
+            answer = reply.status() == 200 ? maintenance(reply.body(), system) : null;
+            if (answer == null) {
+                System.err.println("rbacr: no maintenance flag for the system: HTTP " + reply.status());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            System.err.println("rbacr: no answer about maintenance (its health check or flag): " + e);
+        }
+        mode = new Mode(answer, now);
+        return answer;
+    }
+
+    /**
+     * Puts the system in maintenance, or ends it ({@code PATCH
+     * /api/systems/:id {"maintenance": on}}; only a root's token may).
+     *
+     * @throws IllegalStateException when rbacr isn't configured or doesn't switch it
+     */
+    void setMaintenance(boolean on) {
+        if (token == null) {
+            throw new IllegalStateException("rbacr isn't configured (RBACR_TOKEN)");
+        }
+        Reply reply;
+        try {
+            reply = transport.send("PATCH", base.resolve("/api/systems/" + system), token,
+                    "{\"maintenance\":" + on + "}");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("interrupted switching maintenance in rbacr", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("rbacr didn't answer a maintenance switch", e);
+        } finally {
+            mode = null;
+        }
+        if (reply.status() / 100 != 2) {
+            throw new IllegalStateException("rbacr refused to switch maintenance: HTTP " + reply.status());
+        }
+        mode = new Mode(on, clock.instant());
+    }
+
+    /**
+     * The flag in an answer of {@code GET /api/systems/:id}, {@code {"id":
+     * "<system>", ..., "maintenance": true}}: false when it has none (an
+     * rbacr from before maintenance mode); null when it isn't {@code
+     * system}'s.
+     */
+    static Boolean maintenance(String body, String system) {
+        if (body == null || !Pattern.compile("\"id\"\\s*:\\s*\"" + Pattern.quote(system) + "\"").matcher(body).find()) {
+            return null;
+        }
+        var flag = MAINTENANCE.matcher(body);
+        return flag.find() && flag.group(1).equals("true");
     }
 
     private static String normalize(String email) {

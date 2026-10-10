@@ -20,8 +20,9 @@ separate setting, so a system with sign-in can't be opened by mistake.
   client ID, else RBAC**. A production build always has one, so it can't
   fall back to DEV.
 - The answer also says whether the system is in
-  [maintenance](maintenance.md); the app asks again every minute
-  (`maintenanceCheckInterval`) to follow it.
+  [maintenance](maintenance.md) (rbacr decides, with its health check);
+  the app asks again every minute (`maintenanceCheckInterval`) to follow
+  it.
 - An unanswered start check is **checked again** (`RolesService.checkApi`,
   15 s timeout) after 5 s, 15 s, 30 s and then every minute, until the
   API answers, so the health line's ❌ clears on its own. The mode stays

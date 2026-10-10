@@ -30,9 +30,9 @@ class AdminView extends StatefulWidget {
   /// vouchers; admins create Member ones only.
   final bool canCreateAdmins;
 
-  /// After maintenance mode is switched: the app asks the auth API again,
-  /// so it follows at once.
-  final Future<void> Function()? onMaintenanceSwitched;
+  /// After maintenance mode is switched, with its new state: the app
+  /// follows at once, not at its next check.
+  final void Function(MaintenanceState state)? onMaintenanceSwitched;
 
   @override
   State<AdminView> createState() => _AdminViewState();
@@ -197,7 +197,7 @@ class _AdminViewState extends State<AdminView> {
           ),
         ),
       );
-      await widget.onMaintenanceSwitched?.call();
+      widget.onMaintenanceSwitched?.call(state.state);
       return true;
     } catch (e) {
       messenger.showSnackBar(
@@ -284,6 +284,9 @@ class _AdminViewState extends State<AdminView> {
                   state: state,
                   busy: _switching,
                   onSwitch: _switchMaintenance,
+                  // In maintenance rbacr gives admins no role: only roots
+                  // could switch it off.
+                  canSwitch: widget.canCreateAdmins,
                 ),
               },
               const SizedBox(height: 24),
@@ -362,11 +365,15 @@ class _MaintenanceCard extends StatefulWidget {
     required this.state,
     required this.busy,
     required this.onSwitch,
+    this.canSwitch = false,
   });
 
   final MaintenanceSwitch state;
   final bool busy;
   final Future<bool> Function(bool on, String message) onSwitch;
+
+  /// Whether this admin is a root, who alone switches it.
+  final bool canSwitch;
 
   @override
   State<_MaintenanceCard> createState() => _MaintenanceCardState();
@@ -404,9 +411,12 @@ class _MaintenanceCardState extends State<_MaintenanceCard> {
               subtitle: Text(
                 [
                   state.on
-                      ? 'Everyone but admins sees only the sorry message.'
-                      : 'Turn on to show everyone but admins only a sorry '
+                      ? 'Everyone but roots sees only the sorry message.'
+                      : 'Turn on to show everyone but roots only a sorry '
                             'message.',
+                  'It\'s rbacr\'s maintenance flag on Presence, and on '
+                      'by itself while rbacr fails its health check.',
+                  if (!widget.canSwitch) 'Only roots switch it.',
                   if (when != null)
                     '${state.on ? 'On' : 'Off'} since $when'
                         '${by.isEmpty ? '' : ' ($by)'}.',
@@ -414,7 +424,7 @@ class _MaintenanceCardState extends State<_MaintenanceCard> {
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               value: state.on,
-              onChanged: widget.busy
+              onChanged: widget.busy || !widget.canSwitch
                   ? null
                   : (on) => widget.onSwitch(on, on ? _message.text : ''),
             ),
@@ -422,7 +432,7 @@ class _MaintenanceCardState extends State<_MaintenanceCard> {
             TextField(
               key: const Key('maintenance-message-field'),
               controller: _message,
-              enabled: !widget.busy,
+              enabled: !widget.busy && widget.canSwitch,
               maxLength: 500,
               minLines: 1,
               maxLines: 3,
@@ -437,7 +447,7 @@ class _MaintenanceCardState extends State<_MaintenanceCard> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   key: const Key('maintenance-update-message'),
-                  onPressed: widget.busy
+                  onPressed: widget.busy || !widget.canSwitch
                       ? null
                       : () => widget.onSwitch(true, _message.text),
                   child: const Text('Update message'),

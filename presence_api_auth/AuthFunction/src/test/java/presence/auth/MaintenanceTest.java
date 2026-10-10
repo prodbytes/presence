@@ -26,56 +26,132 @@ class MaintenanceTest {
 
     private final Maintenance.Store store = Maintenance.memory();
 
+    /** rbacr's flag on the presence system: null when rbacr can't be reached. */
+    private Boolean rbacr = false;
+    private final Maintenance.Flag flag = new Maintenance.Flag() {
+        @Override
+        public Boolean get() {
+            return rbacr;
+        }
+
+        @Override
+        public void set(boolean on) {
+            if (rbacr == null) {
+                throw new IllegalStateException("rbacr didn't answer a maintenance switch");
+            }
+            rbacr = on;
+        }
+    };
+
     private final AdminHandler admin = new AdminHandler(roles, subject -> null, null,
-            new VoucherTest.MemoryStore(), store, Clock.fixed(NOW, ZoneOffset.UTC));
+            new VoucherTest.MemoryStore(), store, flag, Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final AuthHandler auth = new AuthHandler(roles, RolesTest.profiles(), ExecutionMode.RBAC,
-            new Settings(true, true, true), store);
+            new Settings(true, true, true), store, flag);
 
-    @Test
-    void anAdminSwitchesItOnAndEveryAppIsTold() {
-        var response = admin.handleRequest(
-                route("POST /api/auth/maintenance", "adam@example.com", "on=true&message=Back+at+3pm"), null);
-        assertEquals(200, response.getStatusCode());
-        assertEquals("{\"on\":true,\"message\":\"Back at 3pm\",\"since\":" + NOW.toEpochMilli()
-                + ",\"by\":\"adam@example.com\"}", response.getBody());
-
-        // The public answer doesn't say who.
-        var anonymous = auth.handleRequest(RolesTest.anonymous(), null).getBody();
-        assertTrue(anonymous.endsWith(",\"maintenance\":{\"on\":true,\"message\":\"Back at 3pm\",\"since\":"
-                + NOW.toEpochMilli() + "}}"), anonymous);
-        assertFalse(anonymous.contains("adam"));
-
-        assertEquals(response.getBody(),
-                admin.handleRequest(route("GET /api/auth/maintenance", "boss@nu01.com", null), null).getBody());
-
-        admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", "on=false"), null);
-        assertFalse(store.get().on());
-        assertEquals("", store.get().message());
-        assertEquals("boss@nu01.com", store.get().by());
+    private String anonymous() {
+        var body = auth.handleRequest(RolesTest.anonymous(), null).getBody();
+        return body.substring(body.indexOf(",\"maintenance\":") + ",\"maintenance\":".length(), body.length() - 1);
     }
 
     @Test
-    void onlyAdminsSwitchIt() {
+    void rbacrDecides() {
+        assertEquals("{\"on\":false,\"message\":\"\"}", anonymous());
+        // A root switched it on in rbacr itself: no message from here.
+        rbacr = true;
+        assertEquals("{\"on\":true,\"message\":\"\",\"reason\":\"rbacr\"}", anonymous());
+        rbacr = false;
+        assertEquals("{\"on\":false,\"message\":\"\"}", anonymous());
+    }
+
+    @Test
+    void anUnreachableRbacrIsMaintenance() {
+        rbacr = null;
+        assertEquals("{\"on\":true,\"message\":\"\",\"reason\":\"rbacr-unreachable\"}", anonymous());
+        // Not an older switch's message: that's not why it's on.
+        store.set(new Maintenance(true, "Back at 3pm", NOW, "boss@nu01.com"));
+        assertEquals("{\"on\":true,\"message\":\"\",\"reason\":\"rbacr-unreachable\"}", anonymous());
+        // Not in DEV, which asks no rbacr.
+        var dev = new AuthHandler(roles, RolesTest.profiles(), ExecutionMode.DEV,
+                new Settings(false, false, false), store, flag);
+        assertTrue(dev.handleRequest(RolesTest.anonymous(), null).getBody()
+                .endsWith(",\"maintenance\":{\"on\":false,\"message\":\"\"}}"));
+    }
+
+    @Test
+    void aRootSwitchesRbacrsFlagAndEveryAppIsTold() {
+        var response = admin.handleRequest(
+                route("POST /api/auth/maintenance", "boss@nu01.com", "on=true&message=Back+at+3pm"), null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals(true, rbacr);
+        assertEquals("{\"on\":true,\"message\":\"Back at 3pm\",\"since\":" + NOW.toEpochMilli()
+                + ",\"reason\":\"rbacr\",\"by\":\"boss@nu01.com\",\"rbacr\":true}", response.getBody());
+
+        // The public answer doesn't say who.
+        assertEquals("{\"on\":true,\"message\":\"Back at 3pm\",\"since\":" + NOW.toEpochMilli()
+                + ",\"reason\":\"rbacr\"}", anonymous());
+        assertEquals(response.getBody(),
+                admin.handleRequest(route("GET /api/auth/maintenance", "boss@nu01.com", null), null).getBody());
+
+        // Switched off in rbacr itself: off, whatever was switched here.
+        rbacr = false;
+        assertEquals("{\"on\":false,\"message\":\"\"}", anonymous());
+
+        rbacr = true;
+        admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", "on=false"), null);
+        assertEquals(false, rbacr);
+        assertFalse(store.get().on());
+        assertEquals("", store.get().message());
+        // On again in rbacr itself: not when, and no message from here.
+        rbacr = true;
+        assertEquals("{\"on\":true,\"message\":\"\",\"reason\":\"rbacr\"}", anonymous());
+    }
+
+    @Test
+    void anAdminSeesItButOnlyRootsSwitchIt() {
+        rbacr = true;
+        var seen = admin.handleRequest(route("GET /api/auth/maintenance", "adam@example.com", null), null);
+        assertEquals(200, seen.getStatusCode());
+        assertTrue(seen.getBody().startsWith("{\"on\":true,"));
+        var response = admin.handleRequest(route("POST /api/auth/maintenance", "adam@example.com", "on=false"), null);
+        assertEquals(403, response.getStatusCode());
+        assertEquals(true, rbacr);
+    }
+
+    @Test
+    void othersCantSeeOrSwitchIt() {
         for (var email : new String[]{"pat@example.com", "ana@example.com"}) {
-            var response = admin.handleRequest(route("POST /api/auth/maintenance", email, "on=true"), null);
-            assertEquals(403, response.getStatusCode());
+            assertEquals(403, admin.handleRequest(route("POST /api/auth/maintenance", email, "on=true"), null)
+                    .getStatusCode());
             assertEquals(403, admin.handleRequest(route("GET /api/auth/maintenance", email, null), null)
                     .getStatusCode());
         }
-        assertFalse(store.get().on());
+        assertEquals(false, rbacr);
+    }
+
+    @Test
+    void anAdminSeesWhenRbacrCantSay() {
+        rbacr = null;
+        var body = admin.handleRequest(route("GET /api/auth/maintenance", "boss@nu01.com", null), null).getBody();
+        assertTrue(body.contains("\"on\":true,"), body);
+        assertTrue(body.contains("\"reason\":\"rbacr-unreachable\""), body);
+        assertTrue(body.endsWith(",\"rbacr\":false}"), body);
+        // And a switch fails without changing anything here.
+        var response = admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", "on=false"), null);
+        assertEquals(502, response.getStatusCode());
+        assertEquals(Maintenance.OFF, store.get());
     }
 
     @Test
     void theFormIsChecked() {
-        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "adam@example.com", "on=yes"), null)
+        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", "on=yes"), null)
                 .getStatusCode());
-        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "adam@example.com", ""), null)
+        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", ""), null)
                 .getStatusCode());
         var tooLong = "on=true&message=" + "a".repeat(Maintenance.MAX_MESSAGE + 1);
-        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "adam@example.com", tooLong), null)
+        assertEquals(400, admin.handleRequest(route("POST /api/auth/maintenance", "boss@nu01.com", tooLong), null)
                 .getStatusCode());
-        assertFalse(store.get().on());
+        assertEquals(false, rbacr);
     }
 
     @Test
@@ -86,7 +162,7 @@ class MaintenanceTest {
     }
 
     @Test
-    void anUnreadableStateIsOffSoTheStartCheckStillAnswers() {
+    void anUnreadableMessageCostsOnlyTheMessage() {
         var failing = new Maintenance.Store() {
             @Override
             public Maintenance get() {
@@ -97,10 +173,11 @@ class MaintenanceTest {
             public void set(Maintenance state) {
             }
         };
+        rbacr = true;
         var response = new AuthHandler(roles, RolesTest.profiles(), ExecutionMode.RBAC,
-                new Settings(true, true, true), failing).handleRequest(RolesTest.anonymous(), null);
+                new Settings(true, true, true), failing, flag).handleRequest(RolesTest.anonymous(), null);
         assertEquals(200, response.getStatusCode());
-        assertTrue(response.getBody().endsWith(",\"maintenance\":{\"on\":false,\"message\":\"\"}}"));
+        assertTrue(response.getBody().endsWith(",\"maintenance\":{\"on\":true,\"message\":\"\",\"reason\":\"rbacr\"}}"));
     }
 
     private static APIGatewayV2HTTPEvent route(String routeKey, String email, String body) {

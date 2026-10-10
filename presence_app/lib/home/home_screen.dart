@@ -580,7 +580,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     membership: widget.membership,
                     canCreateAdmins: widget.roles.isRoot,
                     // The app follows a switch at once, not at its next check.
-                    onMaintenanceSwitched: widget.roles.checkApi,
+                    onMaintenanceSwitched: widget.roles.maintenanceSwitched,
                   ),
                 ),
               // Who's signed in, the profile's devices, sign-out and about:

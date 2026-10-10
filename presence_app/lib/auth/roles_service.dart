@@ -488,6 +488,14 @@ class RolesService extends ChangeNotifier {
     });
   }
 
+  /// An admin switched maintenance mode here: applied at once (the auth
+  /// API's answers may lag by a few seconds), until the next check.
+  void maintenanceSwitched(MaintenanceState state) {
+    if (_disposed) return;
+    _setMaintenance(state);
+    notifyListeners();
+  }
+
   void _setMaintenance(MaintenanceState state) {
     if (state.on != _maintenance.on) {
       debugPrint('Presence: maintenance mode ${state.on ? 'on' : 'off'}');

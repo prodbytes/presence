@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'auth/roles_service.dart';
 import 'theme.dart';
 
-/// Maintenance mode (`RolesService.maintenance`) over the whole app: while
-/// it's on, everyone but admins sees [MaintenanceScreen] instead of the
-/// app, whose screens (and any dialog or sheet open on them) close; they
-/// come back fresh when it's switched off. Admins keep the app, under a
-/// strip saying the system is in maintenance, so they can switch it off on
-/// the Admin tab.
+/// Maintenance mode (`RolesService.maintenance`, rbacr's flag on the
+/// system, or on while rbacr fails its health check) over the whole app:
+/// while it's on, everyone without the admin role sees [MaintenanceScreen]
+/// instead of the app, whose screens (and any dialog or sheet open on them)
+/// close; they come back fresh when it's switched off. In maintenance rbacr
+/// gives nobody a role in the system but its roots, who keep every role:
+/// so roots keep the app, under a strip saying the system is in
+/// maintenance, and can switch it off on the Admin tab.
 class MaintenanceGate extends StatelessWidget {
   const MaintenanceGate({super.key, required this.roles, required this.child});
 
@@ -48,7 +50,7 @@ class MaintenanceGate extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Maintenance mode is on: only admins see the app.',
+                          'Maintenance mode is on: only roots see the app.',
                           style: const TextStyle(color: Gruvbox.bg0Hard),
                         ),
                       ),
