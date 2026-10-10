@@ -4273,3 +4273,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        health line, Add a device and IDs follow on the page. Tests:
        `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
        [Settings](settings.md).
+
+323. **Monitoring as a feed.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: make Monitoring a
+       feed of event cards, with a rounded, filled search field.
+     - Changed: each timeline entry is one card (`FeedCard`): the device
+       and copies as its header row, the event's own card square inside
+       it; cards 12 dp apart (were 4). The events search field is filled
+       and rounded with no outline. A new event arriving while reading
+       further down now scrolls the list on by the new card's height, so
+       the cards being read don't move (taller cards had exposed that
+       they shifted down). Tests: `widget_test.dart` (the feed card, the
+       search field). Specs: [Events](events.md),
+       [Event copies](event-copies.md).

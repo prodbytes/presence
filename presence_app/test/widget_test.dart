@@ -502,6 +502,84 @@ void main() {
     );
   });
 
+  testWidgets('each event is one feed card, its device in its header', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    addTearDown(() {
+      log.dispose();
+      bus.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gruvboxSoftDarkTheme(),
+        home: Scaffold(
+          body: EventTimeline(log: log, deviceId: 'calm_red_fox'),
+        ),
+      ),
+    );
+    bus.publish(AppEvent(icon: Icons.circle, title: 'First'));
+    bus.publish(AppEvent(icon: Icons.circle, title: 'Second'));
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const Key('feed-card'));
+    expect(cards, findsNWidgets(2));
+    final first = cards.first;
+    // The device and the event's own card are inside one card, the
+    // device on top.
+    final device = find.descendant(
+      of: first,
+      matching: find.textContaining('calm_red_fox'),
+    );
+    expect(device, findsWidgets);
+    final event = find.descendant(of: first, matching: find.byType(EventCard));
+    expect(event, findsOneWidget);
+    expect(
+      tester.getRect(device.first).bottom,
+      lessThanOrEqualTo(tester.getRect(event).top),
+    );
+    // The inner card is square, so the two read as one.
+    final inner = tester.widget<Card>(
+      find.descendant(of: event, matching: find.byType(Card)),
+    );
+    expect(
+      Theme.of(tester.element(event)).cardTheme.shape,
+      const RoundedRectangleBorder(),
+    );
+    expect(inner.margin, EdgeInsets.zero);
+    // Room between cards.
+    expect(
+      tester.getRect(cards.at(1)).top - tester.getRect(cards.first).bottom,
+      12,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the events search is filled and rounded, no outline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gruvboxSoftDarkTheme(),
+        home: Scaffold(body: EventSearch(value: ValueNotifier(''))),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('event-search-open')));
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('event-search')),
+    );
+    final decoration = field.decoration!;
+    expect(decoration.filled, isTrue);
+    final border = decoration.border! as OutlineInputBorder;
+    expect(border.borderSide, BorderSide.none);
+    expect(border.borderRadius, const BorderRadius.all(Radius.circular(20)));
+  });
+
   testWidgets('timeline lists newest first and scrolls', (tester) async {
     final bus = AppEventBus();
     final log = EventLog(bus.stream);

@@ -1,9 +1,14 @@
 # Events
 
 - Events appear on the [Monitoring](monitoring.md) tab, beside the subjects'
-  map (under it on phones), in a vertically scrolling timeline, newest at the top. Each
-  entry is just a card, with no dot or rail beside it, and cards are 4 px
-  apart.
+  map (under it on phones), in a vertically scrolling timeline, newest at the top: a
+  **feed**, as in Strava's. Each entry is **one card** (`FeedCard`, key
+  `feed-card`, rounded, bg2), with no dot or rail beside it: a **header
+  row** on top with the device it was taken on and its copies, then the
+  event's own card (`EventCard`, the clip's, a suggestion's), drawn
+  square inside it (the theme's card shape, overridden) so the two read
+  as one and a clip's thumbnail runs edge to edge under the header. Cards
+  are 12 dp apart. Test: `widget_test.dart`.
 - **Only the signed-in profile's events show** (`EventTimeline.ofProfile`):
   its own and those without a profile (recorded signed out, or not saved
   yet). Another profile's events left on the device don't show in the
@@ -40,6 +45,8 @@
   events toggle. It's a **search icon button** (tooltip "Search events")
   until tapped; tapped, it opens into a **Search events** field (up to
   280 dp, narrower on a small phone), focused so the keyboard comes up.
+  The field is **filled and rounded** (`surfaceContainerHigh`, 20 dp
+  corners) with **no outline**, as phone apps' search fields are.
   It folds back into the icon when it loses focus empty, when submitted
   empty, or with the **x** in the field, which clears it first; while it
   has text it stays open (and shows open when coming back to the tab with
@@ -130,7 +137,7 @@
   (the event's details) shows the same label under its title. It fits 320 dp. See
   [Event copies](event-copies.md).
 - **Every device, by default; tap a device's name to see only it.**
-  Above each event's card, small and quiet, is the **device it was taken
+  In each event's card header, small and quiet, is the **device it was taken
   on** (`EventDeviceTag`): a device icon and the device ID, this device's
   in bold (events not saved yet, which have no device ID, are this
   device's; before the device ID is known they have no tag). It's a
@@ -185,7 +192,8 @@
 - When a new event arrives at the top, the timeline scrolls back up to
   show it, but only when it's scrolled less than 200 dp down
   (`EventTimeline.followNewWithin`): further down, the user is reading
-  older events and the list stays where it is. Changes that bring no new
+  older events and the list stays where it is: it scrolls on by the new
+  card's height, so the cards being read don't move. Changes that bring no new
   newest event (a sync of only older events, or of changes to known ones,
   a tag, a deletion) never move it; a sync with nothing new doesn't even
   notify the log's listeners (`EventLog.addHistory`).
