@@ -7,8 +7,10 @@ services:
   floci:
     # The compat image has the AWS CLI, which the init hook uses. A dated
     # nightly: 2.1.0 forwards no viewer headers to custom origins. Move to the
-    # next release once it ships.
-    image: floci/floci:nightly-09242026-compat
+    # next release once it ships. Pinned by digest (the multi-arch index;
+    # `docker buildx imagetools inspect floci/floci:<tag>` shows it), so a
+    # re-pushed tag can't change what runs here with the Docker socket.
+    image: floci/floci:nightly-09242026-compat@sha256:eb725a12cd80bbbcb476a33c0a1d98382a54d5c9f39c4c31b160f7cdf9cf1a6e
     container_name: presence-floci
     ports:
       - "127.0.0.1:${FLOCI_PORT:-4566}:4566"

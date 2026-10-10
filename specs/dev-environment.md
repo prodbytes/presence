@@ -13,9 +13,11 @@
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
   (Flutter web), 4566 (Floci), 8081 (index) and 8443 (Floci HTTPS).
-  - It pins devbox (0.18.1) and Nix (2.35.0, its installer checked against
-    the published SHA-256), and the docker-in-docker feature
-    (`devcontainer-lock.json`).
+  - It pins devbox (0.18.1: the release's `linux_amd64` or `linux_arm64`
+    binary from GitHub, checked against the release's published SHA-256,
+    instead of piping `get.jetify.com/devbox` into bash) and Nix (2.35.0,
+    its installer checked against the published SHA-256), and the
+    docker-in-docker feature (`devcontainer-lock.json`).
   - It asks for a 4-core, 16 GB machine (`hostRequirements`).
   - It sets `PRESENCE_BIND_HOST=0.0.0.0`, so Floci in docker-in-docker
     reaches the dev servers (see [Local CDN](local-cdn.md)).

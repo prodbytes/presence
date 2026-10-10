@@ -33,7 +33,20 @@ Parameters:
     AllowedValues: [prod, rc]
     Description: >
       Live sync's topics are presence/<Stage>/<identity ID>/*: prod, or rc
-      for the release candidate (the app's PRESENCE_STAGE).
+      for the release candidate (the app's PRESENCE_STAGE). Also the pool's
+      presence:stage tag, which scopes the deploy roles and the stage's
+      permissions boundary to their own pool.
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The authenticated role's permissions boundary (the stage's
+      <prefix>-app-boundary from presence_infra/github-deploy.yaml; passed by
+      scripts/deploy.sh, which the deploy roles require). Empty: none.
+    AllowedPattern: '(arn:aws[a-z-]*:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+)?'
+
+Conditions:
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
 
 Resources:
   IdentityPool:
@@ -48,6 +61,9 @@ Resources:
       # signed in to before profiles, so its data stays where it is.
       SupportedLoginProviders:
         accounts.google.com: !Ref GoogleWebClientId
+      IdentityPoolTags:
+        - Key: presence:stage
+          Value: !Ref Stage
 
   AuthenticatedRole:
     Type: AWS::IAM::Role
@@ -56,6 +72,7 @@ Resources:
       # which the deploy roles don't have (it failed the 0.6 RC deploy).
       Description: Signed-in Presence users (Cognito identity pool, Google)
       MaxSessionDuration: 3600
+      PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:

@@ -54,6 +54,14 @@ Parameters:
       (AWS IoT requires one for authenticated identities). Empty: live sync
       is off, and nothing is attached.
     AllowedPattern: '[A-Za-z0-9_+=,.@-]*'
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The permissions boundary every function role gets (the stage's
+      <prefix>-app-boundary from presence_infra/github-deploy.yaml; passed by
+      scripts/deploy.sh, which the deploy roles require). Empty locally (Floci).
+    AllowedPattern: '(arn:aws[a-z-]*:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+)?'
   Architecture:
     Type: String
     Default: arm64
@@ -90,6 +98,7 @@ Conditions:
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
   HasRbacr: !Not [!Equals [!Ref RbacrToken, '']]
 
 Globals:
@@ -99,6 +108,7 @@ Globals:
       - !Ref Architecture
     MemorySize: 512
     Timeout: 10
+    PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
 
 Resources:
   # Per user, by email: {"email": "<lowercase>", "voucherMisses",

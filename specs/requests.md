@@ -3911,7 +3911,60 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Not yet run on a phone. Specs: [Subject recognition](recognition.md),
        [Android](android.md), [Data formats](data-formats.md).
 
-305. **The home screen split out of `main.dart`.** (2026-10-07)
+305. **Least-privilege, stage-separated deploys and trustworthy releases.**
+     (2026-10-07)
+     - Asked: a hardening follow-up to a code review: permissions
+       boundaries for the roles CI creates, specific Lambda actions instead
+       of `lambda:*`, the prod and RC roles from one definition, RC scoped
+       away from prod's CloudFront, ACM and Cognito resources and SAM
+       bucket, CI checks that tags are on `main`, RC-only manual RC
+       deploys, no "latest" release from another branch, signed tags,
+       systemd hardening and a polkit rule for the Raspberry Pi kiosk, a
+       postinst that doesn't start the kiosk on its own console, pinned
+       devbox, Floci, SAM CLI and Flutter, a CSP for the site, and
+       `deploy.sh` saying how to roll back.
+     - Changed: `github-deploy.yaml` builds, per stage (`Fn::ForEach` over
+       `presence` and `presence-rc`), two deploy managed policies, a
+       permissions boundary (`<prefix>-app-boundary`) and a SAM artifact
+       bucket (`<prefix>-sam-artifacts-<account>`); roles may be created
+       or given permissions only with the stage's boundary, attach only
+       `AWSLambdaBasicExecutionRole`, never lose a boundary, and never
+       touch the deploy roles or stack. Distributions, certificates and
+       identity pools are scoped by a new `presence:stage` tag (added in
+       `site.yaml`, `presence_sh/template.yaml`, `identity.yaml`), records
+       by domain (prod now too). The templates take `PermissionsBoundary`
+       (SAM's `Globals`), `deploy.sh` passes it and the stage's bucket
+       (`resolve_s3` dropped), checks both exist, and on failure prints the
+       previous live version and the redeploy command. New
+       `scripts/tag-stage-resources.sh` tags the existing resources once.
+       Deploy, Deploy RC and Release check the commit is on `main`
+       (`fetch-depth: 0`); Deploy RC takes only RC tags; manual releases
+       off `main` are always prereleases (`--latest=false`);
+       `tag-release.sh` signs tags and requires `main` for RCs too; the
+       workflows pin Flutter's commit and SAM CLI 1.165.0. `site.yaml` has
+       its own response headers policies: a CSP for `/app*` (checked in
+       headless Chrome against the live app: `'unsafe-eval'` is needed by
+       TensorFlow Lite's Emscripten glue, `'unsafe-inline'` styles by
+       Flutter, `blob:` in `connect-src` by clip read-back) and one for
+       `/`, `Permissions-Policy`, `X-Frame-Options: DENY`. The kiosk unit
+       gets `NoNewPrivileges`, `ProtectSystem=strict`, kernel/cgroup
+       protections, `RestrictSUIDSGID`, `LockPersonality`, and loses
+       `ProtectHome=yes`, which hid `/run/user` (cage's Wayland socket);
+       a polkit rule denies the kiosk user power, network and storage
+       actions; postinst only enables the kiosk (and asks for a reboot)
+       from tty1 or without systemd. The dev container installs devbox's
+       release binary by checksum; Floci is pinned by digest.
+     - Deferred: a separate RC AWS account (recommended; HTTP APIs, origin
+       access controls, response headers policies,
+       `SetIdentityPoolRoles` and health checks can't be separated by
+       stage in one account), a dev bucket for local development (it uses
+       prod's), and GitHub tag rulesets (documented, need an admin).
+     - Specs: [Production deploy](deploy.md), [Release builds](release.md),
+       [Raspberry Pi camera](raspberry-pi.md), [Install URL](install-url.md),
+       [Auth API](auth-api.md), [Dev environment](dev-environment.md),
+       [Local CDN](local-cdn.md).
+
+306. **The home screen split out of `main.dart`.** (2026-10-07)
      - Asked: break up `presence_app/lib/main.dart` (about 1700 lines)
        without changing behaviour.
      - Changed: a pure refactor. `lib/main.dart` keeps `main()` and
@@ -3929,7 +3982,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Tests: unchanged; all pass.
      - Specs: [Navigation](navigation.md).
 
-306. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
+307. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
      - Asked: a pure refactor, no behaviour change: split the 1,347-line
        `lib/clips.dart` into the model, the timeline card and the player
        dialog, breaking the player's ~300-line `build` into section
@@ -3953,7 +4006,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Tests: unchanged; all pass.
      - Specs: [Clips](clips.md) (new Code section, the player's file).
 
-307. **Split `camera_feeds.dart` (refactor, no behaviour change).**
+308. **Split `camera_feeds.dart` (refactor, no behaviour change).**
      (2026-10-07)
      - Asked: split `presence_app/lib/camera_feeds.dart` (1327 lines;
        `CameraRig` mixed the camera's lifecycle, the brightness restart,
@@ -3981,7 +4034,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
        [Navigation](navigation.md), [Device deletion](device-deletion.md).
 
-308. **Cloud sync split into parts, without a change in behaviour.**
+309. **Cloud sync split into parts, without a change in behaviour.**
      (2026-10-07)
      - Asked: split `lib/cloud/cloud_sync.dart` (one `CloudSync` class of
        2252 lines) into cohesive parts without changing behaviour, keeping
@@ -4005,7 +4058,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
 
-309. **Device and profile IDs back to one column, last in Settings.**
+310. **Device and profile IDs back to one column, last in Settings.**
      (2026-10-07)
      - Asked: move the device ID and profile ID back to one column, and
        make them the last thing on the Settings page.
@@ -4023,7 +4076,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
        [Add a device](add-device.md).
 
-310. **No delete button in the Camera tab's All grid.** (2026-10-07)
+311. **No delete button in the Camera tab's All grid.** (2026-10-07)
      - Asked: "No need for the delete device button in the camera view;
        only on the profile view is fine."
      - Changed: the All grid's cells no longer have a delete button.
@@ -4037,7 +4090,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Device deletion](device-deletion.md),
        [Camera screen](camera.md).
 
-311. **About: Raspberry Pi, and no version.** (2026-10-07)
+312. **About: Raspberry Pi, and no version.** (2026-10-07)
      - Asked: on the About paragraph, add the Raspberry Pi and remove the
        version.
      - Changed: the paragraph now reads "a phone, tablet, laptop or
@@ -4045,7 +4098,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        source:" (the version stays at the bottom of Settings). Specs:
        [About](about.md).
 
-312. **A connectivity indicator in the account sheet.** (2026-10-07)
+313. **A connectivity indicator in the account sheet.** (2026-10-07)
      - Asked: add a connectivity indicator to the profile page (the
        account sheet). The unattended phone showed as offline on other
        devices because live sync wasn't set up in its build, and nothing
@@ -4074,7 +4127,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Sign-in](sign-in.md) (account sheet),
        [Device presence](device-presence.md), [Live sync](live-sync.md).
 
-313. **One Clip button that is also the readiness indicator.** (2026-10-07)
+314. **One Clip button that is also the readiness indicator.** (2026-10-07)
      - Asked: merge the readiness indicator and the grab (Clip) button:
        greenish when ready, yellow during the cooldown with the time left
        in the label, red when disabled or recording a clip.
@@ -4106,7 +4159,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
        [Device location](device-location.md), [README](README.md).
 
-314. **Live sync by role: admins always connected, others every 30 s at
+315. **Live sync by role: admins always connected, others every 30 s at
      most.** (2026-10-07)
      - Asked: let user roles have different limits on **Connect to live
        sync**: free and premium users default to every 1 min, at most
@@ -4135,7 +4188,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Live sync](live-sync.md), [Settings](settings.md),
        [Configuration](configuration.md), [Membership](membership.md).
 
-315. **Device names lead to the device's events in Monitoring.**
+316. **Device names lead to the device's events in Monitoring.**
      (2026-10-07)
      - Asked: when device names are clicked, navigate to the Monitoring
        view with the search on that device name.
@@ -4166,7 +4219,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
 
-316. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+317. **The Clip button's tone in its text, discreetly.** (2026-10-08)
      - Asked: the grab (Clip) button's readiness color should be its text
        color, not its background, in discreet colors.
      - Changed: the background is one quiet neutral for every state
@@ -4178,7 +4231,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `readiness_test.dart`. Specs: [Navigation](navigation.md),
        [Camera screen](camera.md).
 
-317. **Cameras ordered by activity, with online status.** (2026-10-07)
+318. **Cameras ordered by activity, with online status.** (2026-10-07)
      - Asked: in the camera section, order the cameras most recently
        active first, with an online or offline indicator if possible,
        checked by pinging over MQTT.
@@ -4193,7 +4246,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
        [Device presence](device-presence.md).
 
-318. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+319. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
      - Asked: "lets add an easter egg. if the user searches for "do a
        barrel roll", roll the screen, like google".
      - Changed: typing **do a barrel roll** (or "barrell", any case and
@@ -4205,7 +4258,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `test/barrel_roll_test.dart`.
      - Specs: [Events](events.md).
 
-319. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+320. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
      - Asked: improve role-based access control, starting with cloud (S3)
        sync of events only for premium and admin users; free users sync
        device to device over MQTT. Premium comes from rbacr
@@ -4236,7 +4289,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Profiles](profiles.md), [Health check](health-check.md),
        [Execution mode](execution-mode.md).
 
-320. **The account sheet always shows the user's roles.** (2026-10-08)
+321. **The account sheet always shows the user's roles.** (2026-10-08)
      - Asked: always show the user's roles in the profile view.
      - Changed: the account sheet shows, under the email, a chip per role
        (`AccountRoles`): Member, Premium, Admin, Root (another role keeps
@@ -4244,7 +4297,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
 
-321. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+322. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
      - Asked: still too many wrong recognitions; increase the expected
        confidence threshold.
      - Changed: subjects are tagged automatically from **90 %** (default;
@@ -4256,7 +4309,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart`. Specs: [Subject recognition](recognition.md),
        [Settings screen](settings.md), [Configuration](configuration.md).
 
-322. **Bottom navigation, Strava-style layout.** (2026-10-10)
+323. **Bottom navigation, Strava-style layout.** (2026-10-10)
      - Asked: improve the look and feel; instead of the top navigation
        bar, use a bottom navigation bar, as is more common on phones, with
        Strava's UI as the reference for layout and components (keeping
@@ -4276,7 +4329,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md), [Camera](camera.md),
        [Subjects](subjects.md).
 
-323. **Settings in grouped sections.** (2026-10-10)
+324. **Settings in grouped sections.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: group the Settings
        screen's sections.
      - Changed: each Settings section (`SettingsSection`) is a bold
@@ -4286,7 +4339,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
        [Settings](settings.md).
 
-324. **Monitoring as a feed.** (2026-10-10)
+325. **Monitoring as a feed.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: make Monitoring a
        feed of event cards, with a rounded, filled search field.
      - Changed: each timeline entry is one card (`FeedCard`): the device
@@ -4299,7 +4352,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-325. **Every role from rbacr.** (2026-10-10)
+326. **Every role from rbacr.** (2026-10-10)
      - Asked: migrate authorization from the auth API (`presence_api_auth`)
        to rbacr, so everything about authorization is an rbacr call. Roles
        map `free` to member and `admin` to admin; vouchers stay here for
@@ -4330,7 +4383,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Health check](health-check.md), [Execution mode](execution-mode.md),
        [Deploy](deploy.md), [Local CDN](local-cdn.md).
 
-326. **Local development on rbacr's RC, prod on GA rbacr.** (2026-10-10)
+327. **Local development on rbacr's RC, prod on GA rbacr.** (2026-10-10)
      - Asked: rbacr already handles root roles; for now, make local
        development use RC rbacr and prod use GA rbacr.
      - Changed: the local Floci stack takes its rbacr from `.env`'s new
@@ -4342,7 +4395,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        https://rbacr.nu01.com. Specs: [Local CDN](local-cdn.md),
        [Auth API](auth-api.md), [Deploy](deploy.md).
 
-327. **Local cloud sync fails: say why.** (2026-10-10)
+328. **Local cloud sync fails: say why.** (2026-10-10)
      - Asked: the local app says cloud sync is failing; check the logs and
        improve them if needed.
      - Found: the local auth API runs in Floci, which has no Cognito
@@ -4358,7 +4411,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
        [Profiles](profiles.md).
 
-328. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+329. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
      - Asked: move the profile icon to the bottom navigation bar as well,
        and make it open just like the other panes; then call it Profile
        (it was first named Account).
@@ -4374,7 +4427,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [About](about.md).
 
-329. **Screen off to save battery.** (2026-10-10)
+330. **Screen off to save battery.** (2026-10-10)
      - Asked: a good way to save battery on Android; whether the screen
        can be turned off while capture goes on, and if so a button for
        it in the camera view.
@@ -4386,7 +4439,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        timeout turns the screen off; a tap brings it back. Tests:
        `screen_off_test.dart`. Specs: [Camera](camera.md),
 
-330. **One health-check line per run.** (2026-10-10)
+331. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4400,7 +4453,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-331. **Encrypt every image and recording with a key per device.**
+332. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

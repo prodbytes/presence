@@ -34,9 +34,12 @@ but doesn't run.
   - the browser resolves it to loopback, so the page's
     `ws://dev.presence.localhost:8080/app/…` connects to the dev server
     directly.
-- The image is the dated nightly `nightly-09242026-compat`: Floci 2.1.0
-  forwards no viewer headers to custom origins (not even `Authorization`).
-  Move to the next release once it ships.
+- The image is the dated nightly `nightly-09242026-compat`, pinned by its
+  digest (`@sha256:eb725a12…`, the multi-arch index), since the container
+  gets the Docker socket: Floci 2.1.0 forwards no viewer headers to custom
+  origins (not even `Authorization`). Move to the next release once it
+  ships, with its digest (`docker buildx imagetools inspect
+  floci/floci:<tag>`).
 - The Flutter web server binds `127.0.0.1`, not `localhost`. Dart binds
   `localhost` to IPv6 `[::1]` only, which Docker Desktop's host gateway
   can't reach (Floci got a 502). Browsers still reach it at

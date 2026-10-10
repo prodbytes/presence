@@ -14,10 +14,27 @@ RUN apt-get update \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Pinned, so image rebuilds don't drift: the installer fetches this version.
-ENV DEVBOX_USE_VERSION=0.18.1
-RUN curl -fsSL https://get.jetify.com/devbox | bash -s -- -f \
-    && chmod 755 /usr/local/bin/devbox
+# Devbox: the pinned release's binary straight from GitHub, checked against
+# its published SHA-256 (the release's checksums.txt) for this
+# architecture, rather than piping get.jetify.com's installer (which
+# fetches an unpinned launcher) into bash.
+ARG DEVBOX_VERSION=0.18.1
+ARG DEVBOX_SHA256_AMD64=e05382153512fcd9df3224e847cef678afc7c9c5918863dfc2048eb9ecea9df4
+ARG DEVBOX_SHA256_ARM64=9259051516638ed0487c95c56e28c36ab715762739b01423ffa8aae9e7f9ad89
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+         amd64) sha="$DEVBOX_SHA256_AMD64" ;; \
+         arm64) sha="$DEVBOX_SHA256_ARM64" ;; \
+         *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+       esac \
+    && curl -fsSL -o /tmp/devbox.tar.gz \
+         "https://github.com/jetify-com/devbox/releases/download/${DEVBOX_VERSION}/devbox_${DEVBOX_VERSION}_linux_${arch}.tar.gz" \
+    && echo "${sha}  /tmp/devbox.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/devbox.tar.gz -C /usr/local/bin devbox \
+    && chown root:root /usr/local/bin/devbox \
+    && chmod 755 /usr/local/bin/devbox \
+    && rm /tmp/devbox.tar.gz \
+    && devbox version
 
 # Install packages as the runtime user so the nix profile ownership matches
 USER vscode
