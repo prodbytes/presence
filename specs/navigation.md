@@ -137,18 +137,19 @@ account.
     recording from scratch, so a clip right after a flip has less "before"
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
-  - **Status pills, bottom left**, across from Flip and Clip
+  - **Status pills, top left**, just under the app bar, so they never
+    sit over the view button, Flip or Clip at the bottom
     (`CameraStatus` in `lib/home/camera_status.dart`): a **health
     warning** while a health check fails, the **battery**, its
     **temperature** (Android) and, after them for 4 s, the latest
     **message**, all in one pill style (`StatusPill`), 16 px from the
-    edges. (There's no separate readiness pill any more: the Clip button
-    carries it.) On screens 600 px and wider they're in a row, centered
-    on the buttons and kept clear of them (room is kept for Clip as wide
-    as "Clip · 4:59"). Narrower, they stack (the health warning, then the
-    battery, then the message), starting just above the buttons' row, so
-    they never run into Flip and Clip. A label too long for the room is
-    cut short with an ellipsis. See
+    sides and 8 px under the app bar. (There's no separate readiness pill
+    any more: the Clip button carries it.) They're **one row that wraps**
+    onto the next line where they don't fit, on every screen; only a
+    message wider than the whole row is cut short with an ellipsis. (They
+    used to sit bottom left, stacked above the buttons on phones.) The
+    app bar's height is already in the body's top padding (the body runs
+    behind the app bar), so it's counted once. See
     [Device location and battery](device-location.md) for the battery.
   - **Screen readers** read each pill's full label. Only the **message**
     and the **health warning** are live regions, read out when they show
@@ -234,12 +235,12 @@ account.
       later than now counts as now.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
     `CameraMessagePill`, kept for 4 s by `CameraMessages`, all in
-    `lib/home/camera_messages.dart`), never a snackbar: bottom left, after
+    `lib/home/camera_messages.dart`), never a snackbar: top left, after
     the battery pills, for 4 s, so nothing over the camera moves (a
     snackbar pushed Flip and Clip up) or is covered. A newer message
     replaces it and restarts the 4 s. A label too long for the room is cut
     short; its tooltip has it all. Signed out, it's the only pill (no
-    battery, and no buttons), bottom left. The messages:
+    battery, and no buttons), top left. The messages:
     - **a clip starts** (the Clip button, motion, the schedule or the
       start), with the clip's icon: "Clip started · saving the next 10 s",
       "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".
