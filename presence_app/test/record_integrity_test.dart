@@ -14,6 +14,8 @@ import 'package:presence_app/storage/media_store.dart';
 import 'package:presence_app/storage/persistence.dart';
 import 'package:presence_app/storage/records.dart';
 
+import 'sealed.dart';
+
 void main() {
   group('Records', () {
     test('an event needs an id and an integer time; integral doubles are '
@@ -103,7 +105,7 @@ void main() {
       }
       final files = FileMediaStore(_NoStore());
       expect(() => files.load('../../x', 'video/mp4'), throwsArgumentError);
-      expect(() => files.saveBytes('a/b', Uint8List(1)), throwsArgumentError);
+      expect(() => files.saveBytes('a/b', sealed([1])), throwsArgumentError);
     });
   });
 

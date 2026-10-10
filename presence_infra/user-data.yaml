@@ -79,7 +79,7 @@ Resources:
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins: !Ref AllowedOrigins
-            AllowedMethods: [GET, PUT, HEAD]
+            AllowedMethods: [GET, PUT, HEAD, DELETE]
             AllowedHeaders: ['*']
             ExposedHeaders: [ETag]
             MaxAge: 3600

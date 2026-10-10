@@ -4286,3 +4286,38 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        they shifted down). Tests: `widget_test.dart` (the feed card, the
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
+
+324. **Encrypt every image and recording with a key per device.**
+     (2026-10-10)
+     - Asked: generate a symmetric key for each device together with its
+       device ID; encrypt every image with it before it's stored or sent,
+       so all images in storage and in transit are encrypted (in the
+       spec); event metadata (times, subjects, tags) needn't be. Then:
+       delete the existing unencrypted data and events, always encrypt,
+       and share the keys with the profile's other devices so they open
+       each other's events, through the devices' settings in S3.
+     - Changed: an AES-256 key per device, made with the device ID in one
+       transaction (`EventStore.deviceIdentity`). Thumbnails, tagged
+       frames and recordings are sealed (`SealFormat`: chunked
+       AES-256-GCM, the key's device ID in the header) when they're made
+       or saved, and opened only in memory (`SealedImage`) or into a
+       temporary file deleted after playing or searching (`MediaUrls`
+       now tracks files off the web). Native recordings are
+       `clips/<id>.sealed`. Cloud sync and live sync move only sealed
+       media (S3 type `application/octet-stream`); unsealed images are
+       never sent and are skipped when received. Keys: `mediaKey` in
+       `devices/<id>/settings.json`, read for the profile's other devices
+       on the first pass, hourly and when one is missing; also in each
+       live event message (free profiles have no bucket); kept locally in
+       `keys`. Unencrypted data is deleted: on the device, when an older
+       install gets its key; in the cloud, once per device and profile,
+       everything under `events/`, `clips/` and `media/` older than the
+       profile's `encryption.json` marker. Infra: `s3:DeleteObject` on the
+       profile's folder, `DELETE` in the bucket's CORS. Package:
+       `cryptography`. Tests: `media_seal_test.dart`,
+       `encryption_test.dart`, and fixtures sealed across the suite.
+       Specs: [Media encryption](encryption.md) (new),
+       [Devices, users and places](devices-users-places.md),
+       [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Android](android.md).

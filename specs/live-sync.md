@@ -210,16 +210,19 @@ live sync are off, as before.
     "sentAt": 1791234567890,
     "key": "events/year=2026/day=279/<eventId>.json",
     "etag": "<MD5 of the event JSON uploaded, hex>",
+    "mediaKey": "<the sender's media key, base64>",
     "event": { "id": "…", "type": "clip_requested", "time": 1791234567000,
                "clipId": "…", "clipState": "partial", "annotations": […], … },
     "clip": { "id": "…", "eventId": "…", "state": "complete", "full": {…},
-              "thumbnail": "<base64 JPEG>", … }
+              "thumbnail": "<base64 sealed JPEG>", … }
   }
   ```
 
   - `deviceId` is the **sender**, `key` and `etag` the event's object in
     the bucket as uploaded (phase 2's deletion will refer to them),
-    `event` the event record as uploaded.
+    `event` the event record as uploaded, `mediaKey` the sender's
+    [media key](encryption.md), so devices that don't have it (free ones,
+    without the bucket's settings) open the sealed thumbnail.
   - **The event's metadata, never its media:** `event` carries references
     (`clipId`, `frameId`s in `annotations`, `cameraId`), never frames,
     thumbnails or video. Before publishing, `LiveSync.metadataOf` removes
@@ -227,7 +230,8 @@ live sync are off, as before.
     that is raw bytes (a byte array, or a list of more than 16 integers).
   - **`clip`, its clip's record and thumbnail**, once the clip is complete
     (`LiveSync.clipMessageOf`): the record without media bytes, with the
-    thumbnail as base64 when it's a JPEG or PNG of at most 48 KB. Its
+    thumbnail as base64 when it's sealed ([Media encryption](encryption.md))
+    and at most 48 KB: an unsealed image is never sent. Its
     recording and the tagged frames never go. A message that would pass
     64 KB with it goes without it. Devices without the bucket (a
     [free](premium.md) profile's) take the clip from here. Premium ones
@@ -239,10 +243,13 @@ live sync are off, as before.
 version 1 or `kind: event`, names another identity, has a `deviceId`,
 event `id` or `clipId` outside `[A-Za-z0-9_.:-]{1,128}` or containing
 `..` (they go into object keys), an event without an integer
-`time`, a `type` over 64 characters, or an `etag` that isn't 32 hex digits.
+`time`, a `type` over 64 characters, an `etag` that isn't 32 hex digits,
+or a `mediaKey` that isn't a string of at most 64 characters (one that
+isn't a 32-byte key in base64 is ignored). A key for a device that already
+has one is ignored too: a device's key never changes.
 Inline media in a received event is stripped the same way. A `clip` that
 isn't the event's clip, isn't complete, has an unsafe ID, or has a
-thumbnail that isn't a JPEG or PNG of at most 48 KB (base64) is dropped,
+thumbnail that isn't sealed or is over 48 KB (base64) is dropped,
 and the event is kept (`LiveSync.clipOf`). Cloud sync then
 also ignores an event of another `profileId`, and one older than the
 restore window, and gives the event the profile's ID. The IoT policy
