@@ -131,10 +131,10 @@ code stays hopeless and a 10-character chosen one slow.
 ## The Admin tab
 
 The **Admin** tab (`HomeTab.admin`, `Icons.admin_panel_settings`, tooltip
-"Admin") is the last tab in the app bar, after Settings (and the Log when
-shown), for signed-in users with both roles; never in DEV, where there are
-no accounts. Like the other tabs it slides in when tapped or swiped to,
-with no back button, and a browser refresh comes back to it. Its page is
+"Admin") is the last tab in the bottom navigation bar, after Settings (and
+the Log when shown), for signed-in users with both roles; never in DEV,
+where there are no accounts. Like the other tabs it slides in when tapped,
+with the app bar naming it "Admin", with no back button, and a browser refresh comes back to it. Its page is
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,

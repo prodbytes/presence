@@ -29,18 +29,19 @@ import 'camera_buttons.dart';
 import 'camera_messages.dart';
 import 'camera_status.dart';
 import 'home_app_bar.dart';
+import 'home_navigation_bar.dart';
 
-/// The app's one screen: a tab bar in the top right of the app bar flips
-/// between the full-screen camera (the start tab), monitoring (the subjects'
+/// The app's one screen: a bottom navigation bar ([HomeNavigationBar])
+/// flips between the camera (the start tab), monitoring (the subjects'
 /// map, the subjects and the event stream), the settings (with the device's
 /// location map), for admins who turned it on the log, and for signed-in
-/// admins the Admin page (membership requests and vouchers). Swiping
-/// sideways flips too,
-/// except on Monitoring (its map) and while a finger is on the Settings map.
+/// admins the Admin page (membership requests and vouchers). Only a tap
+/// flips: there's no swiping between them, as in most phone apps, so a
+/// sideways drag on a map or a list stays there.
 ///
-/// Signed out, the camera still shows, but the navigation is hidden: the
-/// app bar has only a sign-in button, and the screen stays on
-/// the camera.
+/// Signed out, the camera still shows, but the navigation is hidden: no
+/// navigation bar, the app bar has only a sign-in button, and the screen
+/// stays on the camera.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
@@ -109,13 +110,6 @@ class HomeScreen extends StatefulWidget {
   /// sheet).
   final CloudSync? sync;
 
-  /// Width of each icon tab: Material's 48 dp minimum touch target.
-  static const double tabWidth = 48;
-
-  /// How narrow tabs get when the app bar can't fit them at [tabWidth]
-  /// (an admin's, with the Log and Admin tabs, on a 320 dp phone).
-  static const double minTabWidth = 40;
-
   /// How long a message over the camera stays.
   static const Duration messageFor = Duration(seconds: 4);
 
@@ -148,12 +142,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   BatteryController get _battery =>
       _batteryOrNull ??= BatteryController(widget.battery ?? DeviceBattery());
   BatteryController? _batteryOrNull;
-
-  /// A finger is on the Settings location map: no swiping to other tabs,
-  /// so a drag moves the map.
-  bool _mapHeld = false;
-
-  bool get _onMonitoring => _tabs.current == HomeTab.monitoring;
 
   /// The Camera tab's view button, All: this device's camera in a grid
   /// with every other device's latest image.
@@ -452,7 +440,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget _scaffold(BuildContext context, JoinStatus? joinStatus) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      // The camera runs edge to edge, under the app bar.
+      // The camera runs edge to edge, under the app bar, down to the
+      // navigation bar.
       extendBodyBehindAppBar: true,
       backgroundColor: _onCamera ? Colors.black : scheme.surface,
       appBar: HomeAppBar(
@@ -474,11 +463,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         children: [
           TabBarView(
             controller: _tabs.controller,
-            // No swiping to the other tabs while they're hidden, nor on the
-            // maps: there, a drag moves the map.
-            physics: _hasAccess && !_onMonitoring && !_mapHeld
-                ? null
-                : const NeverScrollableScrollPhysics(),
+            // Only the navigation bar flips: a sideways drag stays on the
+            // page (its maps and lists).
+            physics: const NeverScrollableScrollPhysics(),
             children: [
               _KeepAlive(
                 child: CameraFeedsView(
@@ -525,7 +512,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   },
                   location: widget.location,
                   tiles: widget.mapTiles,
-                  onMapHeld: (held) => setState(() => _mapHeld = held),
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
                   liveSync: widget.sync?.live?.enabled ?? false,
                   liveAdmin: widget.roles.isAdmin,
@@ -600,6 +586,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
         ],
       ),
+      // The tabs, with access; signed out, the camera shows alone.
+      bottomNavigationBar: _hasAccess ? HomeNavigationBar(tabs: _tabs) : null,
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
           ? CameraButtons(
