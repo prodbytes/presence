@@ -4299,7 +4299,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-324. **One health-check line per run.** (2026-10-10)
+325. **Screen off to save battery.** (2026-10-10)
+     - Asked: a good way to save battery on Android; whether the screen
+       can be turned off while capture goes on, and if so a button for
+       it in the camera view.
+     - Changed: capture already went on with the screen off (the capture
+       service and its wake lock), but the app kept the screen on. A new
+       icon-only **Screen off** button on the Camera tab (Android only)
+       covers the app in black, stops keeping the screen on, drops it to
+       the lowest brightness and pauses the preview, so the system's
+       timeout turns the screen off; a tap brings it back. Tests:
+       `screen_off_test.dart`. Specs: [Camera](camera.md),
+
+326. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4313,7 +4325,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-325. **Encrypt every image and recording with a key per device.**
+327. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,
