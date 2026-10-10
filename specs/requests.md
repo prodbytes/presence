@@ -4321,3 +4321,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+325. **Feedback and Help.** (2026-10-10)
+     - Asked: in the navigation bar, a new view, Feedback and Help, where
+       users submit messages; admins see and reply to them.
+     - Changed: a **Help** tab (after Settings; the app bar says "Feedback
+       & Help", via a new `HomeTab.title`) for signed-in members, not in
+       DEV: their conversation with the administrators as chat bubbles,
+       with a Message field and Send (`HelpView`, `lib/feedback/`). The
+       Admin tab gained a **Feedback** section between the requests and
+       the vouchers: every conversation, the latest active first, marked
+       awaiting a reply or answered, opening on the conversation and a
+       Reply field. Auth API: `FeedbackHandler` with `GET`/`POST
+       /api/auth/feedback` (members; 2000 characters, 20 a day, throttled
+       1/s) and `GET /api/auth/feedback/threads`, `POST
+       /api/auth/feedback/reply` (admins), a new `FeedbackTable` (email +
+       sentAt), in the health check's tables and Floci's local routes.
+       Members aren't told which admin replied. Tests: `FeedbackTest`,
+       `feedback_test.dart`; `roles_test.dart`'s tab indices moved by
+       one. Specs: [Feedback and Help](feedback.md) (new),
+       [Navigation](navigation.md), [Membership](membership.md),
+       [Auth API](auth-api.md), [Health check](health-check.md).

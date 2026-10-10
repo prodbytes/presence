@@ -16,7 +16,7 @@ and emails when it fails or recovers.
   - **`settings`**: an OIDC client (so RBAC mode), the identity pool and
     the user-data bucket are configured (as in `GET /api/auth/anonymous`);
   - **`dynamodb`**: every auth API table (`UserRoles`, `Profiles`,
-    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, listed in
+    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, `Feedback`, listed in
     `HEALTH_TABLES`) is `ACTIVE`;
   - **`s3`**: the [cloud sync](cloud-sync.md) user-data bucket answers
     `HeadBucket`;

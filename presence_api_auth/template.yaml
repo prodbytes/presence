@@ -223,6 +223,31 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
+  # Feedback and Help: each member's conversation with the administrators,
+  # one item per message: {"email", "sentAt" (epoch ms, the sort key),
+  # "from" ("user" or "admin"), "by" (the replying admin's email)?, "name"?,
+  # "message"}. Holds emails: AWS only.
+  FeedbackTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: sentAt
+          AttributeType: N
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+        - AttributeName: sentAt
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   # One-time link codes, by their SHA-256: {"code", "profileId",
   # "createdBy", "expiresAt" (epoch s, the TTL)}.
   LinkCodesTable:
@@ -277,6 +302,10 @@ Resources:
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
         "POST /api/auth/profile/link":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        # Members only, at most 20 messages a day each (FeedbackHandler).
+        "POST /api/auth/feedback":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
       Auth:
@@ -483,6 +512,66 @@ Resources:
             Path: /api/auth/vouchers/delete
             Method: post
 
+  # Feedback and Help: members write to the administrators, who reply.
+  FeedbackFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.FeedbackHandler::handleRequest
+      Environment:
+        Variables:
+          USER_ROLES_TABLE: !Ref UserRolesTable
+          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
+          PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          FEEDBACK_TABLE: !Ref FeedbackTable
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+      Policies:
+        - Statement:
+            # The caller's profile owner, whose membership a linked subject shares.
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource:
+                - !GetAtt ProfileSubjectsTable.Arn
+                - !GetAtt ProfilesTable.Arn
+            # Checks the caller's roles.
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt UserRolesTable.Arn
+            # Reads a conversation (Query) or all of them (Scan, admins);
+            # adds messages, never changes or deletes them.
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:PutItem
+              Resource: !GetAtt FeedbackTable.Arn
+      Events:
+        Read:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/feedback
+            Method: get
+        Send:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/feedback
+            Method: post
+        Threads:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/feedback/threads
+            Method: get
+        Reply:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/feedback/reply
+            Method: post
+
   ProfileFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -616,6 +705,7 @@ Resources:
               - !Ref MembershipTable
               - !Ref VoucherTable
               - !Ref LinkCodesTable
+              - !Ref FeedbackTable
       Policies:
         - Statement:
             - Effect: Allow
@@ -627,6 +717,7 @@ Resources:
                 - !GetAtt MembershipTable.Arn
                 - !GetAtt VoucherTable.Arn
                 - !GetAtt LinkCodesTable.Arn
+                - !GetAtt FeedbackTable.Arn
             # HeadBucket needs ListBucket; the bucket only ("none" when unset).
             - Effect: Allow
               Action: s3:ListBucket
@@ -667,3 +758,6 @@ Outputs:
   VoucherTableName:
     Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
     Value: !Ref VoucherTable
+  FeedbackTableName:
+    Description: Feedback and Help conversations (email, sentAt -> from, message)
+    Value: !Ref FeedbackTable

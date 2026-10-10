@@ -131,15 +131,17 @@ code stays hopeless and a 10-character chosen one slow.
 ## The Admin tab
 
 The **Admin** tab (`HomeTab.admin`, `Icons.admin_panel_settings`, tooltip
-"Admin") is the last tab in the bottom navigation bar, after Settings (and
-the Log when shown), for signed-in users with both roles; never in DEV,
+"Admin") is the last tab in the bottom navigation bar, after Settings, Help
+(and the Log when shown), for signed-in users with both roles; never in DEV,
 where there are no accounts. Like the other tabs it slides in when tapped,
 with the app bar naming it "Admin", with no back button, and a browser refresh comes back to it. Its page is
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,
-up to 720 dp wide, with two sections. It loads both lists each time it's
-opened.
+up to 720 dp wide, with three sections: the membership requests, the
+members' [feedback](feedback.md#on-the-admin-tab) (their Help tab
+conversations, with a Reply field each) and the voucher codes. It loads
+the three lists each time it's opened.
 
 **Membership requests:**
 
@@ -153,7 +155,12 @@ opened.
   again. A message confirms either;
 - "No pending requests." when there are none.
 
-**Voucher codes**, after the requests:
+**Feedback**, after the requests: every member's conversation, the
+latest active first, each saying whether it awaits a reply; opened, the
+whole conversation and **Reply**. See [Feedback and
+Help](feedback.md#on-the-admin-tab).
+
+**Voucher codes**, after the feedback:
 
 - a form: **Code** (blank by default, "Blank for a random code (the
   safest)"; for a Member code the admin may type their own, at least 10

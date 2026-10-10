@@ -25,7 +25,7 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): bottom navigation bar (Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
+- [Navigation](navigation.md): bottom navigation bar (Help for signed-in members, Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
   with its view (One / All / None), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
@@ -77,6 +77,9 @@ their data.
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
   current season by default), uses, discount)
   on the Admin tab.
+- [Feedback and Help](feedback.md): the Help tab ("Feedback & Help"), where
+  members write to the administrators and read their replies, one
+  conversation each; admins answer on the Admin tab.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.

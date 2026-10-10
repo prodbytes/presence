@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../feedback/feedback_client.dart';
+import '../feedback/feedback_inbox.dart';
 import 'auth_service.dart';
 import 'membership_client.dart';
 import 'roles_service.dart';
@@ -8,8 +10,9 @@ import 'voucher_code.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
 /// `presence_admin`): the pending membership requests, each with **Grant
-/// access** (gives it the `presence_user` role) and **Dismiss**; then the
-/// voucher codes, which grant a role to whoever redeems them, with a form
+/// access** (gives it the `presence_user` role) and **Dismiss**; the
+/// members' Feedback and Help conversations, each with a Reply field; then
+/// the voucher codes, which grant a role to whoever redeems them, with a form
 /// to create one. A page of the home screen's tabs, like Settings: no
 /// scaffold or app bar of its own; Reload sits by the first heading, and
 /// pulling down reloads too.
@@ -18,11 +21,13 @@ class AdminView extends StatefulWidget {
     super.key,
     required this.auth,
     required this.membership,
+    required this.feedback,
     this.canCreateAdmins = false,
   });
 
   final AuthService auth;
   final MembershipClient membership;
+  final FeedbackClient feedback;
 
   /// Whether the user is a `presence_root`, who may also create Admin
   /// vouchers; admins create Member ones only.
@@ -37,6 +42,8 @@ class _AdminViewState extends State<AdminView> {
   String? _error;
   List<Voucher>? _vouchers;
   String? _vouchersError;
+  List<FeedbackThread>? _threads;
+  String? _threadsError;
 
   /// Emails with a grant or dismissal in flight, and voucher codes being
   /// deleted.
@@ -57,6 +64,7 @@ class _AdminViewState extends State<AdminView> {
     setState(() {
       _error = null;
       _vouchersError = null;
+      _threadsError = null;
     });
     await Future.wait([
       () async {
@@ -65,6 +73,16 @@ class _AdminViewState extends State<AdminView> {
           if (mounted) setState(() => _requests = requests);
         } catch (e) {
           if (mounted) setState(() => _error = 'Couldn\'t load requests ($e).');
+        }
+      }(),
+      () async {
+        try {
+          final threads = await widget.feedback.threads(token);
+          if (mounted) setState(() => _threads = threads);
+        } catch (e) {
+          if (mounted) {
+            setState(() => _threadsError = 'Couldn\'t load feedback ($e).');
+          }
         }
       }(),
       () async {
@@ -108,6 +126,36 @@ class _AdminViewState extends State<AdminView> {
       );
     } finally {
       if (mounted) setState(() => _busy.remove(request.email));
+    }
+  }
+
+  /// Answers [thread] with [text]; true if it was sent.
+  Future<bool> _reply(FeedbackThread thread, String text) async {
+    final token = widget.auth.idToken;
+    if (token == null) return false;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final reply = await widget.feedback.reply(token, thread.email, text);
+      if (!mounted) return true;
+      setState(() {
+        final threads = _threads;
+        if (threads == null) return;
+        // Answered last: first in the list.
+        _threads = [
+          FeedbackThread(
+            email: thread.email,
+            name: thread.name,
+            messages: [...thread.messages, reply],
+          ),
+          ...threads.where((t) => t.email != thread.email),
+        ];
+      });
+      return true;
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Couldn\'t reply to ${thread.email} ($e)')),
+      );
+      return false;
     }
   }
 
@@ -192,6 +240,7 @@ class _AdminViewState extends State<AdminView> {
     );
     final requests = _requests;
     final vouchers = _vouchers;
+    final threads = _threads;
     final now = DateTime.now();
     return Center(
       key: const Key('admin-view'),
@@ -234,6 +283,35 @@ class _AdminViewState extends State<AdminView> {
                         busy: _busy.contains(request.email),
                         onGrant: () => _act(request, grant: true),
                         onDismiss: () => _act(request, grant: false),
+                      ),
+                    ),
+                ],
+              },
+              const SizedBox(height: 24),
+              Text('Feedback', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                'Members\' messages from the Help tab, the latest active '
+                'first. Your replies show there.',
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
+              ...switch ((threads, _threadsError)) {
+                (_, final error?) => [status(error, error: true)],
+                (null, _) => [loading],
+                (final list?, _) when list.isEmpty => [
+                  status('No feedback yet.'),
+                ],
+                (final list?, _) => [
+                  for (final thread in list)
+                    Padding(
+                      // Moves with its thread (a reply puts it first),
+                      // staying open.
+                      key: ValueKey('thread-${thread.email}'),
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: FeedbackThreadCard(
+                        thread: thread,
+                        onReply: (text) => _reply(thread, text),
                       ),
                     ),
                 ],

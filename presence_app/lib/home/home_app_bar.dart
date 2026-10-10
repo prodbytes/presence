@@ -62,7 +62,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Row(
         children: [
           if (hasAccess && !onCamera) ...[
-            Text(tabs.current.label, key: const Key('screen-title')),
+            Text(tabs.current.title, key: const Key('screen-title')),
             if (dev) const SizedBox(width: 12),
           ],
           if (dev) const Flexible(child: DevModeLabel()),

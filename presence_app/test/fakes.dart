@@ -12,6 +12,7 @@ import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/sigv4.dart';
+import 'package:presence_app/feedback/feedback_client.dart';
 import 'package:presence_app/location/device_location.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -679,4 +680,64 @@ Future<void> scrollSettingsTo(WidgetTester tester, Finder finder) async {
   );
   await tester.pumpAndSettle();
   await scrolled;
+}
+
+/// Feedback and Help conversations kept in memory, by email; the signed-in
+/// member is [me]. [error] makes every call throw it.
+class FakeFeedbackClient implements FeedbackClient {
+  FakeFeedbackClient({this.me = 'ana@example.com'});
+
+  final String me;
+  final conversations = <String, List<FeedbackMessage>>{};
+  final names = <String, String>{};
+  Object? error;
+
+  @override
+  Future<List<FeedbackMessage>> mine(String idToken) async {
+    if (error case final e?) throw e;
+    return List.of(conversations[me] ?? const []);
+  }
+
+  @override
+  Future<FeedbackMessage> send(String idToken, String message) async {
+    if (error case final e?) throw e;
+    final sent = FeedbackMessage(
+      fromAdmin: false,
+      message: message,
+      sentAt: DateTime.now().toUtc(),
+    );
+    (conversations[me] ??= []).add(sent);
+    return sent;
+  }
+
+  @override
+  Future<List<FeedbackThread>> threads(String idToken) async {
+    if (error case final e?) throw e;
+    return [
+      for (final MapEntry(key: email, value: messages)
+          in conversations.entries.toList().reversed)
+        FeedbackThread(
+          email: email,
+          name: names[email] ?? '',
+          messages: List.of(messages),
+        ),
+    ];
+  }
+
+  @override
+  Future<FeedbackMessage> reply(
+    String idToken,
+    String email,
+    String message,
+  ) async {
+    if (error case final e?) throw e;
+    final reply = FeedbackMessage(
+      fromAdmin: true,
+      by: me,
+      message: message,
+      sentAt: DateTime.now().toUtc(),
+    );
+    (conversations[email] ??= []).add(reply);
+    return reply;
+  }
 }
