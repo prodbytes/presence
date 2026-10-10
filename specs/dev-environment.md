@@ -198,16 +198,15 @@ generates them per machine from its own mkcert CA.
   `devbox shell` work on Apple Silicon Macs as well as Linux.
 - The Nix Flutter package has no `x86_64-darwin` (Intel Mac) build.
 
-## Claude Code permissions
+## Claude Code settings
 
-[.claude/settings.json](../.claude/settings.json) allowlists commands agents
-run often without asking. Besides the broad `Bash(*)` (which auto mode
-ignores), it names read-only ones that auto mode honours: `flutter test`
-and `flutter analyze`, `git fetch`, `sam validate`, `npm view`, `adb
-devices`, Notion fetch and search, and AWS reads used to debug production
-(CloudFormation `describe-*` and `validate-template`, `sts
-get-caller-identity`, Lambda `list-functions` and
-`get-function-configuration`, S3 listings, DynamoDB `list-tables`, `scan`
-and `get-item`, CloudWatch `filter-log-events`, and Cognito Identity
-`lookup-developer-identity` and `describe-identity`). Nothing that writes,
-deploys or deletes is listed.
+The whole `.claude/` folder is git-ignored: each checkout keeps its own
+`.claude/settings.json` (the command allowlist agents grow as you approve
+commands) and `.claude/worktrees/` (the worktrees agents work in). Neither
+is shared through git, so approving a command never leaves a change to
+commit.
+
+[.vscode/settings.json](../.vscode/settings.json) keeps the agent worktrees
+out of VS Code. It turns off worktree detection, and it skips `.claude` when
+scanning for repositories, so Source Control lists only this repo. It also
+hides `.claude/worktrees` from the Explorer, search and the file watcher.

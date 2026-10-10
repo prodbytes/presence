@@ -4573,3 +4573,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `camera_all_test.dart`. Specs: [Navigation](navigation.md),
        [Device location and battery](device-location.md),
        [Camera](camera.md).
+
+335. **Keep `.claude/` out of git.** (2026-10-10)
+     - Asked: there were many `.claude` changes showing in git; put them
+       all in `.gitignore`.
+     - Changed: `.gitignore` ignores `.claude/`, and
+       `.claude/settings.json` is no longer tracked (each checkout keeps
+       its own copy). Agent worktrees under `.claude/worktrees/` no longer
+       show as untracked. [.vscode/settings.json](../.vscode/settings.json)
+       stops VS Code from listing those worktrees as repositories in Source
+       Control, and hides them from the Explorer, search and the file
+       watcher. Specs: [Dev environment](dev-environment.md).
