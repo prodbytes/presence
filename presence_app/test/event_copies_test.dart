@@ -11,6 +11,7 @@ import 'package:presence_app/cloud/live_sync.dart';
 import 'package:presence_app/cloud/sigv4.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/copies_badge.dart';
+import 'package:presence_app/crypto/media_seal.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
@@ -145,9 +146,12 @@ class Device {
   late final CloudSync sync;
   late final IdbMediaStore media;
 
+  /// Its media seal: its own key, under its ID, as the app sets it.
+  late final MediaSeal seal = MediaSeal.forTests(deviceId: id);
+
   Future<void> start({LiveConfig config = LiveConfig.always}) async {
     store = await EventStore.open(newIdbFactoryMemory());
-    media = IdbMediaStore(store);
+    media = IdbMediaStore(store, const MediaIo(), seal);
     changes = StreamController<Set<String>?>.broadcast();
     live = LiveSync(
       endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
@@ -166,6 +170,7 @@ class Device {
       debounce: Duration.zero,
       live: live,
       settings: Settings(id),
+      seal: seal,
       prefetchRecordings: true,
       onRemote: (r) async {
         // As the app does (Persistence.importRemote).
@@ -584,9 +589,14 @@ void main() {
         contains('$identity/${CloudSync.eventKey(event)}'),
       );
       final eventsTopic = 'presence/prod/$identity/events';
+      final published = broker.connections
+          .expand((c) => c.sentOn(eventsTopic))
+          .toList();
+      expect(published, hasLength(1));
+      // With the key that opens its sealed media.
       expect(
-        broker.connections.expand((c) => c.sentOn(eventsTopic)),
-        hasLength(1),
+        published.single['mediaKey'],
+        MediaKeys.encode(a.seal.keys.keyOf('phone_a')!),
       );
       await until(() => b.live.received == 1);
       await b.live.drained;
@@ -600,11 +610,15 @@ void main() {
 
       // The clip completes: recording, thumbnail and the event go up, and
       // the event is published again.
-      await a.media.saveBytes('clip-1-full', Uint8List.fromList([1, 2, 3]));
+      // Both sealed with its key, as it holds them.
+      await a.media.saveBytes(
+        'clip-1-full',
+        await a.seal.seal(Uint8List.fromList([1, 2, 3])),
+      );
       await a.store.putClip({
         ...clip,
         'state': 'complete',
-        'thumbnail': Uint8List.fromList([9, 9]),
+        'thumbnail': await a.seal.seal(Uint8List.fromList([9, 9])),
         'full': {
           'mediaId': 'clip-1-full',
           'startMs': 0,
@@ -627,7 +641,11 @@ void main() {
         () => b.sync.copies.of('cap-1')?.self ?? false,
         reason: 'copied with its media',
       );
-      expect(await b.store.getMedia('clip-1-full'), [1, 2, 3]);
+      // Held sealed with the first device's key, which it learned.
+      final recording = await b.store.getMedia('clip-1-full');
+      expect(await b.seal.open(recording!), [1, 2, 3]);
+      final thumbnail = (await b.store.getClip('clip-1'))!['thumbnail'];
+      expect(await b.seal.open(thumbnail! as Uint8List), [9, 9]);
       expect(b.summaryOf('cap-1', origin: 'phone_a').holders, [
         'This device',
         'Cloud',

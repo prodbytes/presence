@@ -59,9 +59,12 @@ final class Aws {
             var cause = details.serviceName() + operation(e).map(op -> " " + op + ":").orElse("")
                     + " " + details.errorCode() + " (HTTP " + aws.statusCode() + ")";
             // AWS knows every operation the SDK sends; an endpoint that
-            // doesn't is an emulator, such as Floci locally.
+            // doesn't is an emulator, such as Floci in the local stack, which
+            // has no Cognito Identity. Say so, and where it does work.
             if ("UnknownOperationException".equals(details.errorCode())) {
-                cause += "; the endpoint doesn't implement it (a local AWS emulator?)";
+                cause += "; the endpoint doesn't implement it: a local AWS emulator (Floci,"
+                        + " in the local stack) has no " + details.serviceName()
+                        + ", so this works only against AWS (the RC or production)";
             }
             return cause;
         }

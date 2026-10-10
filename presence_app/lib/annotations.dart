@@ -1,3 +1,5 @@
+import 'crypto/media_seal.dart';
+
 import 'package:flutter/foundation.dart';
 
 import 'events.dart';
@@ -144,19 +146,22 @@ class ObjectTag {
   int get hashCode => Object.hash(label, ms, score);
 }
 
-/// A frame grabbed from a clip for tagging: its JPEG and its time.
+/// A frame grabbed from a clip for tagging: its image and its time.
 @immutable
 class TagFrame {
-  const TagFrame({required this.id, required this.jpeg, required this.ms});
+  const TagFrame({required this.id, required this.sealed, required this.ms});
 
   final String id;
-  final Uint8List jpeg;
+
+  /// The frame's JPEG, sealed with its device's key ([MediaSeal]): shown
+  /// with `SealedImage`, opened with [MediaSeal.open].
+  final Uint8List sealed;
   final int ms;
 }
 
 /// The people and pets named in one clip, as many as needed, each on a
 /// frame grabbed from the clip. Stored with the clip's event: the tags as
-/// `annotations`, the frame images as `frames` (id -> JPEG). Its [objects]
+/// `annotations`, the frame images as `frames` (id -> sealed JPEG). Its [objects]
 /// (`objectTags`) sit beside them. Listeners hear every change.
 class ClipAnnotations extends ChangeNotifier {
   ClipAnnotations([
@@ -185,9 +190,14 @@ class ClipAnnotations extends ChangeNotifier {
     final restored = <String, TagFrame>{};
     if (frames is Map) {
       for (final MapEntry(:key, :value) in frames.entries) {
-        final jpeg = _bytes(value);
-        if (key is String && jpeg != null) {
-          restored[key] = TagFrame(id: key, jpeg: jpeg, ms: times[key] ?? 0);
+        final sealed = _bytes(value);
+        // Frames are kept sealed: an unsealed one isn't taken.
+        if (key is String && SealFormat.isSealed(sealed)) {
+          restored[key] = TagFrame(
+            id: key,
+            sealed: sealed!,
+            ms: times[key] ?? 0,
+          );
         }
       }
     }
@@ -246,10 +256,14 @@ class ClipAnnotations extends ChangeNotifier {
     return null;
   }
 
-  /// A grabbed frame (its JPEG, at [ms] in the recording) ready for tags to
-  /// be clicked on it. It's kept once its first tag is added.
-  TagFrame newFrame(Uint8List jpeg, int ms) =>
-      TagFrame(id: AppEvent.newId(), jpeg: jpeg, ms: ms);
+  /// A grabbed frame (its [jpeg], at [ms] in the recording), sealed, ready
+  /// for tags to be clicked on it. It's kept once its first tag is added.
+  Future<TagFrame> newFrame(Uint8List jpeg, int ms, {MediaSeal? seal}) async =>
+      TagFrame(
+        id: AppEvent.newId(),
+        sealed: await (seal ?? MediaSeal.instance).seal(jpeg),
+        ms: ms,
+      );
 
   /// Adds [name] at ([x], [y]) on [frame]; blank names are ignored.
   /// Recognition passes its [source] and [confidence].
@@ -351,10 +365,10 @@ class ClipAnnotations extends ChangeNotifier {
 
   List<Map<String, Object?>> toJson() => [for (final a in _items) a.toJson()];
 
-  /// The frames tags use, as stored: id -> JPEG bytes.
+  /// The frames tags use, as stored: id -> sealed JPEG bytes.
   Map<String, Uint8List> framesToRecord() => {
     for (final id in {for (final a in _items) ?a.frameId})
-      if (_frames[id] case final frame?) id: frame.jpeg,
+      if (_frames[id] case final frame?) id: frame.sealed,
   };
 
   static Uint8List? _bytes(Object? value) => value is Uint8List

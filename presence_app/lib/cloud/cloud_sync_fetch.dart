@@ -186,7 +186,7 @@ class _Fetcher {
           if (have.containsKey(frameId) || clipId is! String) continue;
           final frameKey = CloudSync.frameKeyOf(clipId, frameId);
           if (!(await pass.mediaKeys(clipId)).contains(frameKey)) continue;
-          if (await _getOrSkip(session, frameKey) case final frame?) {
+          if (await _getSealedOrSkip(session, frameKey) case final frame?) {
             frames[frameId] = frame;
             await pass.synced(frameKey, frameId);
           }
@@ -232,6 +232,19 @@ class _Fetcher {
       debugPrint('Presence: $key is gone from the cloud; skipped');
       return null;
     }
+  }
+
+  /// Downloads the image at [key] (a thumbnail or tagged frame), or null
+  /// when it's gone, or isn't sealed (logged): images are only ever taken
+  /// sealed.
+  static Future<Uint8List?> _getSealedOrSkip(
+    CloudSession session,
+    String key,
+  ) async {
+    final bytes = await _getOrSkip(session, key);
+    if (bytes == null || SealFormat.isSealed(bytes)) return bytes;
+    debugPrint('Presence: skipped $key: not sealed');
+    return null;
   }
 
   /// The event in [bytes], downloaded from [key]: null (logged) when it
@@ -298,7 +311,7 @@ class _Fetcher {
         for (final frameId in _frameIds(event)) {
           final frameKey = CloudSync.frameKeyOf(clipId, frameId);
           if (!ofClip.contains(frameKey)) continue;
-          if (await _getOrSkip(session, frameKey) case final frame?) {
+          if (await _getSealedOrSkip(session, frameKey) case final frame?) {
             frames[frameId] = frame;
             await pass.synced(frameKey, frameId);
           }
@@ -365,7 +378,7 @@ class _Fetcher {
         if (video != null) await pass.pending(video, mediaId, time);
       }
       if (ofClip.contains('media/$id.jpg')) {
-        if (await _getOrSkip(session, 'media/$id.jpg') case final jpeg?) {
+        if (await _getSealedOrSkip(session, 'media/$id.jpg') case final jpeg?) {
           clip['thumbnail'] = jpeg;
           await pass.synced('media/$id.jpg', 'thumbnail');
         }

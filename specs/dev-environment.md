@@ -60,13 +60,25 @@
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
   - the health monitor
     ([scripts/health-check.sh](../scripts/health-check.sh)): every 15 s
-    (`HEALTH_CHECK_INTERVAL`), one line per check, each with the time, an
-    emoji, ✅ / ❌ / ⚪ and a reason. It checks the index, the web app, the
-    CDN, the CDN over HTTPS, and the auth API through the CDN
-    (`/api/auth/anonymous`: its mode). From the API's answer it also
-    reports OIDC (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off) and
-    AWS (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪
-    nothing shipped to S3); both are ❌ when the API doesn't answer.
+    (`HEALTH_CHECK_INTERVAL`), **one line per run**: the time, then each
+    check as its emoji, a short label and ✅ (ok) / ❌ (failed) / ⚪ (not
+    set), separated by ` · `, with no reasons. In order: 🏠 Index (the
+    site index), 🌐 Web (the web app), 🚚 CDN, 🔒 HTTPS (the CDN over
+    HTTPS), 🔌 API (the auth API through the CDN, `/api/auth/anonymous`),
+    then from the API's answer 🔑 OIDC
+    (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
+    (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
+    shipped to S3) and 👮 RBACR (`RBACR_TOKEN` set, or ⚪ nobody who signs in has a role),
+    all three ❌ when the API doesn't answer. With AWS set, it also asks
+    Floci whether it implements Cognito Identity (an unsigned `GetId` for
+    a made-up pool): Floci answers `UnknownOperationException`, so ☁️ AWS
+    is ❌, since the local auth API can't issue credentials and the app's
+    cloud sync fails here (test it on the RC, or remove the settings from
+    `.env` to turn it off); if Floci ever implements it, it goes back to
+    ✅ by itself; last 💎 RBACR svc, rbacr's
+    own `/health`. For example: `🏠 Index ✅ · … · 🔑 OIDC ⚪ · …`.
+    Sourcing the script defines `run_checks` (one pass) without starting
+    the loop.
 
   The health monitor waits until the web server, Floci and the index all
   pass

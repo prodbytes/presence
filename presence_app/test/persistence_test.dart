@@ -26,6 +26,8 @@ import 'fakes.dart';
 import 'live_sync_test.dart' show FakeBroker, eventsTopic, messageOf;
 import 'motion_test.dart' show frame;
 
+import 'sealed.dart';
+
 void main() {
   late IdbFactory storage;
 
@@ -110,16 +112,21 @@ void main() {
   ClipRequested clipEvent(WidgetTester tester) =>
       tester.widget<ClipEventCard>(find.byType(ClipEventCard)).event;
 
-  final past = ClipMedia(
-    url: 'blob:past',
-    start: Duration(seconds: 2),
-    end: Duration(seconds: 17),
-  );
-  final full = ClipMedia(
-    url: 'blob:full',
-    start: Duration(seconds: 10),
-    end: Duration(seconds: 40),
-  );
+  // Fresh for each test: saving one lets go of its live URL.
+  late ClipMedia past;
+  late ClipMedia full;
+  setUp(() {
+    past = ClipMedia(
+      url: 'blob:past',
+      start: Duration(seconds: 2),
+      end: Duration(seconds: 17),
+    );
+    full = ClipMedia(
+      url: 'blob:full',
+      start: Duration(seconds: 10),
+      end: Duration(seconds: 40),
+    );
+  });
 
   testWidgets('events survive a refresh, newest first', (tester) async {
     await launch(tester);
@@ -227,7 +234,7 @@ void main() {
     // The full recording (its stored bytes), thumbnail and details.
     final video = cloud.uploads['$prefix/media/$clipId.webm'];
     expect(video, isNotNull);
-    expect(String.fromCharCodes(video!.bytes), 'blob:full');
+    expect(String.fromCharCodes(opened(video!.bytes)), 'blob:full');
     expect(cloud.uploads, contains('$prefix/media/$clipId.jpg'));
     // The record, alone with other JSON in its day partition.
     final record = cloud.uploads.keys.singleWhere(
@@ -721,12 +728,12 @@ void main() {
       contentType: 'application/json',
     );
     cloud.uploads['$prefix/media/live-clip.jpg'] = (
-      bytes: onePixelPng,
-      contentType: 'image/jpeg',
+      bytes: sealed(onePixelPng),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/media/live-clip.webm'] = (
-      bytes: Uint8List.fromList('live-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('live-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     broker.last.deliver(
       eventsTopic,
@@ -740,7 +747,7 @@ void main() {
     final shown = clipEvent(tester).clip;
     expect(shown.awaitingRemote, isFalse);
     expect(shown.id, 'live-clip');
-    expect(shown.thumbnail, onePixelPng);
+    expect(opened(shown.thumbnail!), onePixelPng);
     expect(inEvents(find.text('Garage')), findsOneWidget);
   });
 
@@ -774,8 +781,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/media/remote-clip.webm'] = (
-      bytes: Uint8List.fromList('remote-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('remote-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/events/remote-event.json'] = (
       bytes: json({
@@ -836,8 +843,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/media/remote-clip.webm'] = (
-      bytes: Uint8List.fromList('remote-video'.codeUnits),
-      contentType: 'video/webm',
+      bytes: sealed('remote-video'.codeUnits),
+      contentType: CloudSync.sealedType,
     );
     cloud.uploads['$prefix/events/remote-event.json'] = (
       bytes: json({
@@ -874,7 +881,7 @@ void main() {
     );
     final store = await run(tester, EventStore.open(storage));
     expect(
-      await run(tester, store.getMedia('remote-clip-full')),
+      opened((await run(tester, store.getMedia('remote-clip-full')))!),
       'remote-video'.codeUnits,
     );
   });
@@ -922,8 +929,8 @@ void main() {
           contentType: 'application/json',
         );
     cloud.uploads['$prefix/${CloudSync.frameKeyOf('remote-clip', 'f1')}'] = (
-      bytes: onePixelPng,
-      contentType: 'image/jpeg',
+      bytes: sealed(onePixelPng),
+      contentType: CloudSync.sealedType,
     );
 
     await launch(tester, cloud: cloud);
@@ -1047,7 +1054,7 @@ void main() {
         ('Ana', frameId, 7400),
       ]);
       expect(restored.items.last.x, closeTo(0.75, 0.01));
-      expect(restored.frames[frameId]!.jpeg, onePixelPng);
+      expect(opened(restored.frames[frameId]!.sealed), onePixelPng);
       final eventId = clipEvent(tester).id;
       final record = await run(
         tester,
@@ -1659,7 +1666,7 @@ void main() {
 
     // What recognition does when it's unsure.
     final event = clipEvent(tester);
-    final frame = event.annotations.newFrame(onePixelPng, 12000);
+    final frame = testFrame(onePixelPng, 12000);
     final entry = event.annotations.add(
       'Ana',
       0.4,

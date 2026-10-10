@@ -12,6 +12,8 @@ import 'package:presence_app/monitoring.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A playable clip from [minute] past noon with [names] tagged on a frame
 /// 1.2 s in, and [objects] seen 2.5 s in.
 ClipRequested clipOf(
@@ -22,7 +24,7 @@ ClipRequested clipOf(
   final annotations = ClipAnnotations(const [], const {}, [
     for (final o in objects) ObjectTag(label: o, ms: 2500, score: 0.8),
   ]);
-  final frame = annotations.newFrame(onePixelPng, 1200);
+  final frame = testFrame(onePixelPng, 1200);
   for (final name in names) {
     annotations.add(name, 0.5, 0.5, frame: frame);
   }

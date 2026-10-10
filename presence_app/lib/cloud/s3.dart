@@ -77,8 +77,20 @@ class S3Bucket {
   Future<Map<String, String>> listETags(
     String prefix, {
     required AwsCredentials credentials,
-  }) async {
-    final objects = <String, String>{};
+  }) => _list(prefix, credentials, parseListing);
+
+  /// Every key under [prefix] with when it was last written (S3's time).
+  Future<Map<String, DateTime>> listModified(
+    String prefix, {
+    required AwsCredentials credentials,
+  }) => _list(prefix, credentials, parseModified);
+
+  Future<Map<String, T>> _list<T>(
+    String prefix,
+    AwsCredentials credentials,
+    (Map<String, T>, String?) Function(String xml) parse,
+  ) async {
+    final objects = <String, T>{};
     String? token;
     do {
       final response = await _send(
@@ -94,8 +106,8 @@ class S3Bucket {
       // A full page (up to 1000 keys, ~300 KB) is parsed on another
       // isolate, so the UI doesn't stall on it; small ones here.
       final (page, next) = xml.length > _parseInBackgroundOver
-          ? await compute(parseListing, xml)
-          : parseListing(xml);
+          ? await compute(parse, xml)
+          : parse(xml);
       objects.addAll(page);
       token = next;
     } while (token != null);
@@ -131,6 +143,55 @@ class S3Bucket {
     );
   }
 
+  /// One ListObjectsV2 page: each key with when it was last written, and
+  /// the continuation token if the listing goes on. A key without a
+  /// readable time is left out.
+  @visibleForTesting
+  static (Map<String, DateTime>, String?) parseModified(String xml) {
+    final objects = <String, DateTime>{};
+    final keyOf = RegExp(r'<Key>([^<]*)</Key>');
+    final modifiedOf = RegExp(r'<LastModified>([^<]*)</LastModified>');
+    for (final m in RegExp(
+      r'<Contents>(.*?)</Contents>',
+      dotAll: true,
+    ).allMatches(xml)) {
+      final contents = m[1]!;
+      final key = keyOf.firstMatch(contents)?[1];
+      final at = DateTime.tryParse(
+        modifiedOf.firstMatch(contents)?[1]?.trim() ?? '',
+      );
+      if (key == null || at == null) continue;
+      objects[_unescape(key)] = at.toUtc();
+    }
+    final next = RegExp(
+      r'<NextContinuationToken>([^<]*)</NextContinuationToken>',
+    ).firstMatch(xml);
+    return (
+      objects,
+      xml.contains('<IsTruncated>true</IsTruncated>') ? next?.group(1) : null,
+    );
+  }
+
+  /// Deletes [key] (S3 answers the same whether or not it was there). The
+  /// bucket is versioned: it's kept as an old version until the lifecycle
+  /// rule removes it.
+  Future<void> delete(String key, {required AwsCredentials credentials}) async {
+    final uri = Uri.https(host, '/$key');
+    final headers = _signer.sign(
+      method: 'DELETE',
+      uri: uri,
+      headers: {'host': host},
+      payloadHash: SigV4Signer.emptyPayloadHash,
+      credentials: credentials,
+      now: clock.now(),
+    );
+    final response = await _client.delete(
+      uri,
+      headers: {...headers}..remove('host'),
+    );
+    _check(response);
+  }
+
   Future<http.Response> _send(
     String method,
     Uri uri,
@@ -157,7 +218,7 @@ class S3Bucket {
   /// AWS's time in it (its `ServerTime`, or else its `Date` header), so
   /// the next request is signed right.
   void _check(http.Response response) {
-    if (response.statusCode == 200) return;
+    if (response.statusCode == 200 || response.statusCode == 204) return;
     final error = S3Exception(response.statusCode, response.body);
     if (!error.clockSkewed) throw error;
     final serverTime =
@@ -218,12 +279,14 @@ class S3Bucket {
   /// presence_infra/user-data.yaml).
   static const String storageClass = 'INTELLIGENT_TIERING';
 
-  /// Uploads [bytes] to [key].
+  /// Uploads [bytes] to [key]. [onlyNew]: only if there's no object there
+  /// yet (`If-None-Match: *`); else it throws an [S3Exception] of 412.
   Future<void> put(
     String key,
     Uint8List bytes, {
     required String contentType,
     required AwsCredentials credentials,
+    bool onlyNew = false,
   }) async {
     final uri = Uri.https(host, '/$key');
     final headers = _signer.sign(
@@ -233,6 +296,7 @@ class S3Bucket {
         'host': host,
         'content-type': contentType,
         'x-amz-storage-class': storageClass,
+        if (onlyNew) 'if-none-match': '*',
       },
       payloadHash: sha256.convert(bytes).toString(),
       credentials: credentials,
