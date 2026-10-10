@@ -100,3 +100,6 @@ presence_app/ios/Flutter/Private.xcconfig
 
 # Logs pulled from Android phones (scripts/android-log.sh --pull).
 android-logs/
+
+# --- Claude Code: local settings, permissions and agent worktrees ---
+.claude/
