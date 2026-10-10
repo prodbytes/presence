@@ -65,9 +65,10 @@ their data.
   None signed out; an account's first sign-in makes it and later ones, on
   any device, load it (by subject, `<iss>#<sub>`); IDs like
   `automatic_paranoid_axolotl`, never repeated.
-- [Sign-in](sign-in.md): Google sign-in, the role-gated UI, the account
-  sheet (the profile ID and its devices, from events) and the OAuth
-  clients.
+- [Sign-in](sign-in.md): Google sign-in, the role-gated UI (roles from
+  rbacr's `GET /api/me` and the auth API's `GET /api/auth/profile`, asked
+  at once with the user's ID token), the account sheet (the profile ID
+  and its devices, from events) and the OAuth clients.
 - [Premium and free](premium.md): rbacr says who is premium (its
   `premium` or `admin` role): premium profiles sync with the cloud (S3,
   enforced by a `tier` tag on their credentials); free ones' devices sync
@@ -77,19 +78,20 @@ their data.
   hidden, with a prompt to sign up at nu01.com. The account sheet says
   Free or Premium.
 - [Membership](membership.md): users without access subscribe at
-  nu01.com or redeem a voucher code; admins list and delete voucher codes
-  (created in rbacr) on the Admin tab, under its maintenance mode switch.
+  nu01.com or redeem a voucher code with rbacr on the Sign up sheet;
+  vouchers are managed in rbacr, which the Admin tab (feedback) links to.
 - [Feedback and Help](feedback.md): the Help tab ("Feedback & Help"), where
   members write to the administrators and read their replies, one
   conversation each; admins answer on the Admin tab.
-- [Maintenance mode](maintenance.md): admins switch it on the Admin tab
-  (or with `scripts/maintenance.sh`); while it's on, everyone but admins
-  sees only a sorry message, with the admin's message, and running apps
+- [Maintenance mode](maintenance.md): rbacr's flag on its `presence`
+  system, switched by rbacr's roots; while it's on, every signed-in user
+  (admins and roots too) sees only a sorry message, and running apps
   follow within a minute.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.
-- [Configuration](configuration.md): `PresenceConfig` and how it's stored.
+- [Configuration](configuration.md): `PresenceConfig` and how it's
+  stored, and the build's rbacr (`RBACR_URL`, `RBACR_SYSTEM`).
 - [Subjects](subjects.md): the people and pets tagged on clips, each with
   its latest frame, and a map of their latest events, fading with age.
 - [Subject recognition](recognition.md): new clips (and any clip, with the
@@ -155,14 +157,14 @@ their data.
 
 **Backend**
 
-- [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's
-  [profile](profiles.md) and roles
-  (`presence_user`, `presence_premium`, `presence_admin`, and
-  `presence_root` for rbacr's roots, all from rbacr),
-  `GET /api/auth/anonymous` (the
-  execution mode and which settings are set, no token), the
-  membership and voucher routes and the [profile](profiles.md) routes (SAM,
-  Java 25; Google JWT authorizer; roles and grants in rbacr).
+- [Auth API](auth-api.md): slim; `GET /api/auth/anonymous` (the
+  execution mode and which settings are set, no token) and the
+  [profile](profiles.md) routes: `GET /api/auth/profile` (the signed-in
+  user's profile, made at the first sign-in, and the membership a linked
+  account shares), credentials and linking (SAM, Java 25; Google JWT
+  authorizer). Roles (`presence_user`, `presence_premium`,
+  `presence_admin`, `presence_root`), maintenance mode and vouchers are
+  rbacr's, which the app asks directly.
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

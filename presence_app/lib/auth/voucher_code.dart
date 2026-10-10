@@ -1,4 +1,4 @@
-/// A voucher code's most characters with dashes, as the auth API takes it:
-/// the Sign up sheet's redeem field stops there. Codes are created
-/// in rbacr.
-const maxVoucherCode = 40;
+/// The Sign up sheet's redeem field stops at this many characters: rbacr's
+/// codes have 6 to 40 letters and digits, with dashes between words
+/// (`2026Q4-OTTER-FALCON-LEMUR`). Codes are created in rbacr.
+const maxVoucherCode = 64;

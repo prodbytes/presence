@@ -15,7 +15,8 @@
   [DEV](execution-mode.md), where nobody can), the app has no profile
   (`null`). Events recorded then have none, and nothing syncs.
 - **A sign-in finds the account's profile, or makes one.** The app asks
-  `GET /api/auth`. If the token's **subject** is linked to a profile, the
+  `GET /api/auth/profile` (with rbacr's `GET /api/me` for the roles; see
+  [Sign-in](sign-in.md)). If the token's **subject** is linked to a profile, the
   [auth API](auth-api.md) answers with it. If not, it creates a profile
   with a fresh ID, owned by the subject, and links it, so **every later
   sign-in finds the same one**.
@@ -114,8 +115,11 @@
   `presence_premium` when the **owner** (the subject that made the
   profile) has them in rbacr, never the owner's `presence_admin` or
   `presence_root`, which
-  each account gets only from its own email. This applies in
-  `GET /api/auth`, the Admin routes and the profile routes. A
+  each account gets only from its own email. The auth API computes the
+  shared part (`Roles.shared`, with its root rbacr token) and answers it
+  as `shared` in `GET /api/auth/profile`; the app adds it to the roles
+  rbacr gives the account itself (taking only `presence_user` and
+  `presence_premium` from it). The profile routes apply the same. A
   `julio@gmail.com` linked to a `julio@nu01.com` profile is a
   `presence_user`; it administers only if its own email does. (A link
   code is a one-time secret any member can make; administration must not
@@ -176,15 +180,13 @@
 
 | Route | Who | Answer |
 |---|---|---|
-| `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (the subject's profile, made at its first sign-in) |
 | `POST /api/auth/credentials` | `presence_user` (body: this device's ID, or empty) | `{"identityId", "token", "deviceLimit", "devices", "tier"}`: the token tagged `tier` `premium` or `free`; the device added to the profile's `devices` ([Premium and free](premium.md#devices)) |
-| `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
+| `GET /api/auth/profile` | any verified account | `{"profile", "shared", "accounts": [{email, owner, current}]}`: the subject's profile, made at its first sign-in (`?profile=` is ignored); `shared`, what it shares from the owner (`[]` for the owner) |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
 | `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |
 | `POST /api/auth/profile/unlink` | a member (body: the email) | the listing, or 404, or 409 for the owner |
 | `POST /api/auth/profile/devices/remove` | `presence_user` (body: a device ID) | `{"deviceLimit", "devices"}`: the device taken off the profile's list |
 
-- `profile` is `null` only for a token without an issuer or subject.
 - The profile routes need a verified email. A Cognito or DynamoDB failure
   answers 502 `{"error": "the profile service failed", "cause",
   "requestId"}`: `cause` is the AWS service, the operation that failed
@@ -222,9 +224,6 @@ deleted, and the contents live only in AWS.
   reads it, so both get the same profile. The loser's new profile is left
   unused.
 - **Least privilege:**
-  - the roles function (`AuthFunction`) may get and put links, and get,
-    put and update profiles;
-  - the admin function may only get both, to find the owner's membership;
   - the profile function (`ProfileFunction`) may get, put, delete and
     query links, get, put and update profiles, and get, put and delete
     link codes;
@@ -290,21 +289,21 @@ deleted, and the contents live only in AWS.
   - a race keeps the first link;
   - a link whose profile is missing gets it back;
   - taken IDs are skipped, and the sign-in fails after 10;
-  - a requested ID (`?profile=`, which the app no longer sends) is used
-    when valid and free; a linked subject keeps its own whatever is sent;
+  - a requested ID (which no route sends any more) is used when valid
+    and free; a linked subject keeps its own whatever is sent;
   - the ID format and word lists;
   - no subject, no profile;
-  - the handler answers with the profile, claims the app's
-    (`?profile=`), and the anonymous route makes none;
+  - a sign-in finds or makes the profile (users without roles too), and
+    the anonymous route makes none;
   - only a verified email is kept as the owner's (with its `hd`), an
     unverified one never replaces it, and one kept unverified before is
     dropped.
-- `ProfileTest` (JUnit, 20 tests):
+- `ProfileTest` (JUnit, 30 tests):
   - an existing user keeps the identity Google sign-in gave them;
   - credentials need `presence_user`;
   - a linked subject gets the same identity and the owner's membership
-    only, also in `GET /api/auth`, and no admin in the Admin routes, which
-    never make a profile;
+    only, and the listing says what it shares (`shared`), nothing for the
+    owner; the listing makes the profile at the first sign-in;
   - only membership and premium are shared (an admin owner's too), from a
     verified caller, and not from an owner rbacr gives nothing;
   - the owner's new email is kept;
@@ -363,7 +362,7 @@ deleted, and the contents live only in AWS.
   profile until it answers: events recorded meanwhile wait, and get it
   then.
 - Any Google account can create a profile by signing in (one per subject;
-  `GET /api/auth` is throttled to 20 requests/s, burst 50). A lost race
+  `GET /api/auth/profile` is throttled to 20 requests/s, burst 50). A lost race
   leaves one unused profile row. Profiles are never deleted.
 - A linked subject's email in the links table is the one it had when it
   linked.

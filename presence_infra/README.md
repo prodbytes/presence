@@ -56,7 +56,7 @@ is on `main`, then runs [scripts/deploy.sh](../scripts/deploy.sh), which:
    stage);
 6. uploads the content and invalidates the cache;
 7. smoke-tests the live site: `/app/version.json` reports the tag's
-   version, `/` is the index, `/api/auth` answers 401 without a token,
+   version, `/` is the index, `/api/auth/profile` answers 401 without a token,
    `/api/auth/anonymous` reports RBAC, and `/health` is ok with this
    version.
 

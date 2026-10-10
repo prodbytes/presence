@@ -20,23 +20,18 @@ import java.util.regex.Pattern;
  * <a href="https://github.com/prodbytes/rbacr">rbacr</a>, which decides
  * every role: who may use the app, administer it and sync with the cloud.
  * Asked server-side with an API token, which must be an rbacr root's, since
- * it asks about other people and grants roles:
- * <ul>
- *   <li>{@link #apply}: an email's roles in the app's system ({@code
- *       free}, {@code premium}, {@code admin}, …), plus {@link #ROOT} when
- *       rbacr says the email is a root ({@code POST /api/roles} without a
- *       {@code systemId}: one request answers both). rbacr answers
- *       effective roles: grants valid now to the address and its domain,
- *       global grants, implied roles, and every role for its roots. {@code
- *       root} can't be a role in an rbacr system, so the two never mix up;</li>
- *   <li>{@link #grant}: gives an email a role in the system, for good
- *       ({@code POST /api/systems/:id/grants}).</li>
- * </ul>
+ * it asks about other people: {@link #apply} answers an email's roles in
+ * the app's system ({@code free}, {@code premium}, {@code admin}, …), plus
+ * {@link #ROOT} when rbacr says the email is a root ({@code POST /api/roles}
+ * without a {@code systemId}: one request answers both). rbacr answers
+ * effective roles: grants valid now to the address and its domain, global
+ * grants, implied roles, and every role for its roots. {@code root} can't
+ * be a role in an rbacr system, so the two never mix up.
  *
  * <p>It fails closed: when rbacr can't answer (down, slow, refusing the
  * token, an answer that isn't one), the email has no roles, as rbacr asks
  * of its clients. Answers are reused for {@link #CACHE_FOR} (rbacr suggests
- * a minute or less), errors never; a grant forgets the email's answer.
+ * a minute or less), errors never.
  */
 final class Rbacr implements Function<String, Set<String>> {
 
@@ -77,7 +72,7 @@ final class Rbacr implements Function<String, Set<String>> {
     record Reply(int status, String body) {
     }
 
-    /** @param token null when rbacr isn't configured: nobody has roles, and grants fail */
+    /** @param token null when rbacr isn't configured: nobody has roles */
     Rbacr(URI base, String token, String system, Transport transport, Clock clock) {
         this.base = base;
         this.token = token;
@@ -149,35 +144,6 @@ final class Rbacr implements Function<String, Set<String>> {
             // Down or slow: nobody gets what it would give (fail closed).
             System.err.println("rbacr: no answer: " + e);
             return Set.of();
-        }
-    }
-
-    /**
-     * Grants {@code role} in the system to {@code email}, from now on and
-     * for good. rbacr keeps an existing grant that already does (G2).
-     *
-     * @throws IllegalStateException when rbacr isn't configured or doesn't grant it
-     */
-    void grant(String email, String role) {
-        if (token == null) {
-            throw new IllegalStateException("rbacr isn't configured (RBACR_TOKEN)");
-        }
-        var normalized = normalize(email);
-        Reply reply;
-        try {
-            reply = transport.post(base.resolve("/api/systems/" + system + "/grants"), token,
-                    "{\"role\":" + Json.string(role) + ",\"grantee\":" + Json.string(normalized) + "}");
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("interrupted granting a role in rbacr", e);
-        } catch (Exception e) {
-            throw new IllegalStateException("rbacr didn't answer a grant", e);
-        } finally {
-            // The old answer (without the role) mustn't outlive the grant.
-            cache.remove(normalized);
-        }
-        if (reply.status() != 201) {
-            throw new IllegalStateException("rbacr refused a grant of " + role + ": HTTP " + reply.status());
         }
     }
 

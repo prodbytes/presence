@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/auth/auth_service.dart';
-import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/profile_client.dart';
+import 'package:presence_app/auth/rbacr_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
@@ -466,9 +466,10 @@ class FakeCloudSession implements CloudSession, DeviceSlotsSession {
   }
 }
 
-/// The auth API without HTTP: answers [roles] (changeable), or throws
-/// [error]. Records the tokens it was asked about. By default a premium
-/// member, who syncs with the cloud; `[userRole]` alone is a free one.
+/// rbacr and the auth API without HTTP: answers [roles] (changeable), or
+/// throws [error]. Records the tokens it was asked about. By default a
+/// premium member, who syncs with the cloud; `[userRole]` alone is a free
+/// one. Like rbacr, it gives nobody roles while [maintenance] is on.
 class FakeRolesClient implements RolesClient {
   FakeRolesClient([this.roles = const [userRole, premiumRole]]);
 
@@ -477,7 +478,7 @@ class FakeRolesClient implements RolesClient {
 
   List<String> roles;
 
-  /// The profile ID `GET /api/auth` answers with.
+  /// The profile ID `GET /api/auth/profile` answers with.
   String? profile = 'automatic_paranoid_axolotl';
   Object? error;
   final tokens = <String>[];
@@ -488,8 +489,11 @@ class FakeRolesClient implements RolesClient {
   /// What `GET /api/auth/anonymous` says is set.
   ApiSettings settings = (oidc: null, aws: null, rbacr: null);
 
-  /// Whether `GET /api/auth/anonymous` says the system is in maintenance.
-  MaintenanceState maintenance = noMaintenance;
+  /// Whether rbacr says Presence's system is in maintenance; asking fails
+  /// with [maintenanceError] when set. [maintenanceTokens] records who asked.
+  bool inMaintenance = false;
+  Object? maintenanceError;
+  final maintenanceTokens = <String>[];
 
   /// Makes the start check fail (the API is unreachable).
   Object? anonymousError;
@@ -499,7 +503,7 @@ class FakeRolesClient implements RolesClient {
   Future<UserAccess> fetch(String idToken) async {
     tokens.add(idToken);
     if (error case final e?) throw e;
-    return (roles: roles, profile: profile);
+    return (roles: inMaintenance ? const <String>[] : roles, profile: profile);
   }
 
   @override
@@ -512,82 +516,57 @@ class FakeRolesClient implements RolesClient {
           ? const [anonymousRole, userRole, adminRole, rootRole, premiumRole]
           : const [anonymousRole],
       settings: settings,
-      maintenance: maintenance,
     );
+  }
+
+  @override
+  Future<bool> maintenance(String idToken) async {
+    maintenanceTokens.add(idToken);
+    if (maintenanceError case final e?) throw e;
+    return inMaintenance;
   }
 }
 
-/// Vouchers and maintenance mode kept in memory.
-class FakeMembershipClient implements MembershipClient {
+/// A voucher as [FakeRbacrClient] keeps it: [discount] percent off, and
+/// whether it's [active] (not started, expired, used up or disabled
+/// otherwise).
+typedef FakeVoucher = ({int discount, bool active});
+
+/// rbacr's self-service routes in memory: [vouchers] by code; [redeemed]
+/// records the codes redeemed, and [onRedeem] runs after a valid one (e.g.
+/// to grant the role). [me] answers `GET /api/me`.
+class FakeRbacrClient implements RbacrClient {
   Object? error;
-
-  /// The vouchers, newest first; [redeemed] records the codes redeemed, and
-  /// [onRedeem] runs after a valid one (e.g. to grant the role).
-  final codes = <Voucher>[];
+  final vouchers = <String, FakeVoucher>{};
   final redeemed = <String>[];
-  void Function(String role)? onRedeem;
+  void Function(String code)? onRedeem;
+  RbacrMe answer = (email: 'ana@example.com', root: false, roles: const {});
+  bool inMaintenance = false;
 
   @override
-  Future<String> redeem(String idToken, String code) async {
+  Future<RbacrMe> me(String idToken) async {
     if (error case final e?) throw e;
-    final i = codes.indexWhere(
-      (v) =>
-          v.code == code.trim().toUpperCase() &&
-          !v.isUsedUp &&
-          !v.isNotYetValid(DateTime.now()) &&
-          !v.isExpired(DateTime.now()),
-    );
-    if (i < 0) throw RolesException(404);
-    final v = codes[i];
-    if (v.discount < 100) throw PaymentRequiredException(v.discount);
-    codes[i] = Voucher(
-      code: v.code,
-      role: v.role,
-      startsAt: v.startsAt,
-      expiresAt: v.expiresAt,
-      maxUses: v.maxUses,
-      uses: v.uses + 1,
-      createdAt: v.createdAt,
-      discount: v.discount,
-    );
-    redeemed.add(v.code);
-    onRedeem?.call(v.role);
-    return v.role;
+    return answer;
   }
 
   @override
-  Future<List<Voucher>> vouchers(String idToken) async => List.of(codes);
-
-  @override
-  Future<void> deleteVoucher(String idToken, String code) async {
+  Future<bool> maintenance(String idToken) async {
     if (error case final e?) throw e;
-    codes.removeWhere((v) => v.code == code);
-  }
-
-  /// Maintenance mode as the admin routes keep it; [onMaintenance] runs
-  /// after a switch (e.g. to tell the [FakeRolesClient]).
-  MaintenanceSwitch switched = (state: noMaintenance, by: '');
-  void Function(MaintenanceState state)? onMaintenance;
-
-  @override
-  Future<MaintenanceSwitch> maintenance(String idToken) async {
-    if (error case final e?) throw e;
-    return switched;
+    return inMaintenance;
   }
 
   @override
-  Future<MaintenanceSwitch> setMaintenance(
-    String idToken, {
-    required bool on,
-    String message = '',
-  }) async {
+  Future<void> redeem(String idToken, String code) async {
     if (error case final e?) throw e;
-    switched = (
-      state: (on: on, message: message.trim(), since: DateTime.now()),
-      by: 'adam@example.com',
-    );
-    onMaintenance?.call(switched.state);
-    return switched;
+    final key = code.trim().toUpperCase();
+    final voucher = vouchers[key];
+    if (voucher == null) throw RolesException(404);
+    if (!voucher.active || redeemed.contains(key)) throw RolesException(409);
+    if (voucher.discount < 100) {
+      throw PaymentRequiredException(voucher.discount);
+    }
+    redeemed.add(key);
+    onRedeem?.call(key);
   }
 }
 

@@ -26,6 +26,11 @@ case "$MODE" in
 esac
 
 cd "$(dirname "$0")/../presence_app"
+# Release builds (the Release workflow's apps, the Pi .deb) call
+# production's auth API (ApiConfig), whose roles are GA rbacr's: so does
+# the app's own rbacr client, unless RBACR_URL says (scripts/deploy.sh
+# passes the stage's).
+export RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
 # PRESENCE_VERSION: X.Y.Z, shown at the bottom of the Settings screen.

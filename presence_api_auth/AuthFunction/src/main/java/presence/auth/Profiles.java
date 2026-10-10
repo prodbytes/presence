@@ -221,12 +221,6 @@ public final class Profiles {
         return store.signedIn(store.linked(subject), now);
     }
 
-    /** The profile {@code subject} is linked to, without creating one; null if none. */
-    public Profile existing(String subject) {
-        var linked = store.linked(subject);
-        return linked == null ? null : store.profile(linked);
-    }
-
     /**
      * A new profile, with an ID no other profile has: {@code requested} if
      * it's valid and free, so the app's profile becomes the subject's.

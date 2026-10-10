@@ -16,26 +16,31 @@ decides who is premium, as it decides every role ([Auth API](auth-api.md)).
   `admin`** there is premium. That includes holding it through a grant to
   its domain, a global grant, an implied role, or being an rbacr root. Its
   `free` role alone is a free member; no role at all, no member.
-- The auth API asks rbacr (`Rbacr`,
+- **The app** asks rbacr itself (`GET /api/me`, with the user's ID
+  token; see [Sign-in](sign-in.md)) and maps `premium` or `admin` to
+  **`presence_premium`**, so it knows (`RolesService.isPremium`).
+- **The auth API**, which enforces it, asks rbacr too (`Rbacr`,
   [presence_api_auth](../presence_api_auth/AuthFunction/src/main/java/presence/auth/Rbacr.java))
-  with a root's API token, server-side. It sends `POST /api/roles
-  {"email"}`, with the email in the body and never the URL, and reads the
-  `presence` system's roles from the answer, which it turns into
-  **`presence_premium`** (`Roles.PREMIUM`) next to the app's other roles
-  (all of them rbacr's). `GET /api/auth` lists it, so the app knows
-  (`RolesService.isPremium`).
+  with a root's API token, server-side, for the credentials' tier. It
+  sends `POST /api/roles {"email"}`, with the email in the body and never
+  the URL, and reads the `presence` system's roles from the answer, which
+  it turns into `presence_premium` (`Roles.PREMIUM`).
 - **Only rbacr gives it**, and never for an unverified email. In
   [DEV](execution-mode.md) the anonymous user has every role, `presence_premium`
   included, but nothing syncs there.
 - **A linked account** ([profiles](profiles.md)) shares its profile owner's
   premium, as it shares the owner's membership: the profile's cloud folder
-  is one. It's also premium on its own when rbacr says so of its own email.
+  is one (the auth API answers it in `shared`, `GET /api/auth/profile`).
+  It's also premium on its own when rbacr says so of its own email.
 - **Fails closed.** If rbacr doesn't answer in time (2 s), refuses the
   token, or answers something that isn't an answer, the email has no
-  roles at all, premium included. Answers are reused for **60 s** per Lambda instance; errors are
-  never reused. A grant or revocation in rbacr shows within about a minute.
+  roles at all, premium included. The auth API reuses answers for **60 s**
+  per Lambda instance; errors are never reused. The app caches nothing. A
+  grant or revocation in rbacr shows in the app at its next roles check,
+  and in the credentials within about a minute.
   The credentials already issued last up to an hour.
-- **Without a token** (`RbacrToken` empty), nobody has a role.
+- **Without a token** (`RbacrToken` empty), the auth API gives nobody a
+  role: credentials are refused, and nothing is shared.
   `scripts/deploy.sh` refuses to deploy without `RBACR_TOKEN`.
 - Who is premium on release day is rbacr's to say. On 2026-10-08 its
   `presence` system had a single grant, `admin` to `@nu01.com`, so only
@@ -213,8 +218,10 @@ they publish, receive and store events as before. Their events are
 
 - **The auth API stack**: `RbacrUrl` (default `https://rbacr.nu01.com`) and
   `RbacrToken` (NoEcho, default empty) become `RBACR_URL` and `RBACR_TOKEN`
-  on the functions that need roles with premium (`AuthFunction`,
-  `ProfileFunction`). The health stack (`presence_health`) gets
+  on `ProfileFunction`, which needs the tier (`AuthFunction` gets only
+  the token, to report `rbacr: true`). The app's build gets the same URL
+  and `RBACR_SYSTEM`, never the token (see
+  [Configuration](configuration.md#build-time-settings-rbacr)). The health stack (`presence_health`) gets
   `RbacrUrl` only, never the token; `scripts/deploy.sh` requires a token,
   so it always passes the URL.
 - **`scripts/deploy.sh`** takes `RBACR_TOKEN` and `RBACR_URL` from the
@@ -250,8 +257,9 @@ they publish, receive and store events as before. Their events are
   but its recordings and tagged frames don't.
 - **Revocation lags**: credentials issued before a change stay valid up to
   an hour; rbacr's answers are reused for a minute.
-- **rbacr's outage makes everyone free** for its duration (fail closed):
-  syncs fall back to live sync alone, until rbacr answers again and the
+- **rbacr's outage shuts everyone out** for its duration (fail closed):
+  the app's roles check fails (no access, retried), and the auth API
+  gives no role, so no new credentials, until rbacr answers again and the
   roles are checked again.
 - **Tested with fakes only**: Cognito's principal tags, the trust policy and
   the S3 conditions haven't run in AWS yet.

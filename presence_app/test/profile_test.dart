@@ -270,7 +270,7 @@ void main() {
           cameras: openFakes([FakeCameraSource('Main')]),
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,
-          membershipClient: FakeMembershipClient(),
+          rbacrClient: FakeRbacrClient(),
           profileClient: profiles,
           mapTiles: const SizedBox(),
           locator: NoLocation(),

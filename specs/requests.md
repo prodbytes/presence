@@ -4712,3 +4712,51 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and `UntagResource` on the stage's APIs again;
        `presence-github-deploy` redeployed. Spec: [Production
        deploy](deploy.md) (unchanged rules; the list was incomplete).
+
+346. **Slim the auth API: the app asks rbacr directly.** (2026-10-10)
+     - Asked: the app gets the signed-in user's roles, maintenance mode
+       and voucher redemption straight from rbacr with the user's Google
+       ID token; Presence's own maintenance mode and voucher API are
+       removed.
+     - Changed: `GET /api/auth` is gone. The roles check
+       (`HttpRolesClient`) asks, at once, rbacr's `GET /api/me` (own
+       roles in the build's `RBACR_SYSTEM`, mapped as `presence.auth.Roles`
+       does; a root gets all four) and the auth API's
+       `GET /api/auth/profile`, which now also makes the profile at the
+       first sign-in and answers `shared` (the membership a linked account
+       shares from its owner, computed with the root token); both must
+       answer, else denied with the same retries; errors say "Auth API
+       HTTP n" or "rbacr HTTP n". Maintenance mode is rbacr's flag (R11,
+       R12): asked with each roles check and every minute; the sorry
+       screen shows to every signed-in user, admins and roots too, with
+       no message or admin strip; signed-out users and DEV never see it.
+       Vouchers are redeemed with rbacr's `POST /api/vouchers/redeem`
+       (404/409, 402 with or without a percent, 429 messages; a second
+       roles check 2 s later; up to 64 characters). Removed:
+       `VoucherHandler`/`VoucherFunction`, `AdminHandler`/`AdminFunction`,
+       `/api/auth/voucher`, `/api/auth/vouchers` (and `/delete`),
+       `/api/auth/maintenance`, `Maintenance`, `SystemTable` (deleted),
+       `scripts/maintenance.sh`, `scripts/migrate-roles-to-rbacr.sh`, the
+       app's `MembershipClient`, and the Admin tab's maintenance and
+       voucher sections; `VoucherTable` and `UserRolesTable` leave the
+       stack but are retained in AWS. The Admin tab keeps Feedback (with
+       Reload) and adds "Vouchers and maintenance", a link to rbacr.
+       `GET /api/auth/anonymous` has no maintenance field (the smoke test
+       compares it exactly) and the smoke test checks 401 on
+       `/api/auth/profile`, now throttled (burst 50, rate 20). New
+       dart-defines `RBACR_URL` and `RBACR_SYSTEM` (`deploy.sh` exports
+       the stage's; `make.sh`, `flutter-run.sh` and `android-install.sh`
+       default to GA; local web builds use `.env`'s `RBACR_RC_*`; https only).
+       `presence_health` imports only the three remaining table exports,
+       and `deploy.sh` deploys an existing health stack before the auth
+       API (a new stage's after). The site's CSP `connect-src` allows
+       the stage's rbacr (`site.yaml` parameter `RbacrUrl`). Floci's
+       routes follow. Specs:
+       [Auth API](auth-api.md), [Maintenance mode](maintenance.md),
+       [Membership](membership.md), [Profiles](profiles.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Health check](health-check.md), [Production deploy](deploy.md),
+       [Local CDN](local-cdn.md), [Configuration](configuration.md),
+       [Premium](premium.md), [Navigation](navigation.md),
+       [Feedback and Help](feedback.md), [Cloud sync](cloud-sync.md),
+       [Dev environment](dev-environment.md), [README](README.md).
