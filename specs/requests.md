@@ -4299,7 +4299,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-325. **Screen off to save battery.** (2026-10-10)
+325. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+     - Asked: move the profile icon to the bottom navigation bar as well,
+       and make it open just like the other panes; then call it Profile
+       (it was first named Account).
+     - Changed: a new last tab, **Profile** (`HomeTab.profile`), shown
+       signed in (not DEV): its icon is the user's avatar, ringed in the
+       accent color while open, tooltip "Signed in as …"; it opens the
+       account sheet's content as a page of the tabs, named "Profile" in
+       the app bar. The app bar's account button is gone with access; it
+       stays, with its bottom sheet, for a signed-in user without access.
+       Sign-out only closes a sheet when there is one. Tests:
+       `widget_test.dart` (the tab, its page, sign-out), the tab counts and
+       the account-sheet tests moved to the tab. Specs:
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [About](about.md).
+
+326. **Screen off to save battery.** (2026-10-10)
      - Asked: a good way to save battery on Android; whether the screen
        can be turned off while capture goes on, and if so a button for
        it in the camera view.
@@ -4311,7 +4327,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        timeout turns the screen off; a tap brings it back. Tests:
        `screen_off_test.dart`. Specs: [Camera](camera.md),
 
-326. **One health-check line per run.** (2026-10-10)
+327. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4325,7 +4341,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-327. **Encrypt every image and recording with a key per device.**
+328. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

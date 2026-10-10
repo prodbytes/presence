@@ -136,12 +136,15 @@ there's no separate sign-in screen:
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
 - **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
-  (with its readiness colors), the Camera / Events / Settings tabs and
-  the **account button**, your avatar with the tooltip "Signed in as
-  <name> · <email>". It opens a bottom sheet with avatar, name, email,
+  (with its readiness colors), the tabs and, last among them, the
+  **Profile** tab: your avatar with the tooltip "Signed in as
+  <name> · <email>" (see [Navigation](navigation.md)). It opens, as a
+  page of the tabs, the **account sheet**'s content: avatar, name, email,
   the user's **roles**, this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
-  the **profile** and its **devices**, and **Sign out**. Signing out closes the sheet, returns to the camera and
-  hides the navigation again. The camera keeps running.
+  the **profile** and its **devices**, and **Sign out**. Signing out returns to the camera and
+  hides the navigation again (closing the sheet, where it's one: signed
+  in without access, the app bar's account button still opens it as a
+  bottom sheet). The camera keeps running.
   - **Roles**, always, right under the email (`AccountRoles`): a small
     outlined chip per role the auth API gave, named for people (Member,
     Premium, Admin, Root; another role keeps its ID), in that order, the
