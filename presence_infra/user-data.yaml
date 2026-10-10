@@ -7,7 +7,8 @@ Description: >
   prefix): media under <identityId>/media/ (<clipId>.{webm,mp4,jpg}, tagged
   frames), and JSON only, partitioned by the UTC day of the year, under
   <identityId>/events/year=YYYY/day=DDD/ and <identityId>/clips/year=YYYY/day=DDD/
-  (see specs/data-formats.md).
+  (see specs/data-formats.md). Also the Feedback and Help conversations,
+  one per profile, keyed by its identity ID (see specs/feedback.md).
 
 Parameters:
   AllowedOrigins:
@@ -84,6 +85,33 @@ Resources:
             ExposedHeaders: [ETag]
             MaxAge: 3600
 
+  # Feedback and Help: one conversation per profile, read and written by the
+  # app straight from the device with the profile's credentials
+  # (identity.yaml: members only their own, by the leading key; admins,
+  # with the admin principal tag, every one). Items: conversation (the
+  # identity ID), sentAt (epoch ms), message, the member's email and name,
+  # and, on an administrator's reply, fromAdmin and by (the admin's email).
+  FeedbackTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: conversation
+          AttributeType: S
+        - AttributeName: sentAt
+          AttributeType: N
+      KeySchema:
+        - AttributeName: conversation
+          KeyType: HASH
+        - AttributeName: sentAt
+          KeyType: RANGE
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+
   UserDataBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -113,3 +141,10 @@ Outputs:
     Value: !GetAtt UserDataBucket.Arn
     Export:
       Name: !Sub ${AWS::StackName}-bucket-arn
+  FeedbackTableName:
+    Description: The app's FEEDBACK_TABLE
+    Value: !Ref FeedbackTable
+  FeedbackTableArn:
+    Value: !GetAtt FeedbackTable.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-feedback-table-arn

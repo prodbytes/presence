@@ -713,6 +713,8 @@ class FakeFeedbackClient implements FeedbackClient {
       for (final MapEntry(key: email, value: messages)
           in conversations.entries.toList().reversed)
         FeedbackThread(
+          // The fake's conversations are keyed by the member's email.
+          conversation: email,
           email: email,
           name: names[email] ?? '',
           messages: List.of(messages),

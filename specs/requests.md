@@ -4655,3 +4655,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Sign-in](sign-in.md), [Feedback](feedback.md),
        [Local CDN](local-cdn.md), [Navigation](navigation.md),
        [Profiles](profiles.md), [README](README.md).
+
+343. **Feedback and Help straight from the app.** (2026-10-10)
+     - Asked: move the feedback conversations to their own DynamoDB table,
+       with client-side lookups and no API (part of slimming the auth API:
+       health to its own module, vouchers and the start check through
+       rbacr, maintenance mode from rbacr, profiles and Cognito kept).
+     - Changed: `FeedbackTable` in the presence-user-data stack, one
+       conversation per profile (keyed by its Cognito identity ID). The app
+       queries, scans and puts there itself with the profile's credentials
+       (`DynamoFeedbackClient`, a SigV4 DynamoDB client), `FEEDBACK_TABLE`
+       at build time. IAM (`own-feedback` on the identity role): members
+       only their own conversation, never the replying admin's email, never
+       as an admin; credentials of administrators carry an `admin` tag
+       (`POST /api/auth/credentials`, from their own email's roles) that
+       lets them read every conversation and reply. The auth API loses
+       `FeedbackHandler`, its routes and its table (kept in AWS). Tests:
+       `feedback_test.dart` (the DynamoDB client), `ProfileTest`,
+       `ProfileBackendTest` (the admin tag). Specs: [Feedback and
+       Help](feedback.md), [Auth API](auth-api.md), [Health
+       check](health-check.md).

@@ -215,8 +215,10 @@ aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
     "Stage=$STAGE" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
   --no-fail-on-empty-changeset
 # The app reads these at build time (scripts/dart-defines.sh).
-export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT
+export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT FEEDBACK_TABLE
 USER_DATA_BUCKET="$(stack_output "$USER_DATA_STACK" UserDataBucketName)"
+# Feedback and Help's table, which the app reads and writes itself.
+FEEDBACK_TABLE="$(stack_output "$USER_DATA_STACK" FeedbackTableName)"
 COGNITO_IDENTITY_POOL_ID="$(stack_output "$IDENTITY_STACK" IdentityPoolId)"
 # Live sync: the policy the auth API attaches to each identity, and the
 # account's MQTT endpoint (not a CloudFormation attribute). Public values.
@@ -227,7 +229,7 @@ if [[ ! "$IOT_ENDPOINT" =~ ^[a-z0-9]+-ats\.iot\.[a-z0-9-]+\.amazonaws\.com$ ]]; 
   echo "error: unexpected AWS IoT endpoint '$IOT_ENDPOINT'" >&2
   exit 1
 fi
-echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID"
+echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID, feedback: $FEEDBACK_TABLE"
 echo "    live sync: policy $LIVE_POLICY_NAME, endpoint $IOT_ENDPOINT"
 
 # 2. The web app

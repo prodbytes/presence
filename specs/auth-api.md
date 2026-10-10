@@ -37,13 +37,12 @@ site (`/api/*` in the CloudFront distribution; see
 - No request-for-access routes: people subscribe at nu01.com (the
   membership request routes and `MembershipHandler` were removed on
   2026-10-10). See [Membership](membership.md);
-- **`GET /api/auth/feedback`** and **`POST /api/auth/feedback`**
-  (`FeedbackHandler`, members): the caller's conversation with the
-  administrators and a new message (plain text, up to 2000 characters, 20
-  a day; throttled to 1 request/s, burst 5); **`GET
-  /api/auth/feedback/threads`** and **`POST …/feedback/reply`** (admins:
-  both roles): every conversation, and a reply (form-encoded `email` and
-  `message`). See [Feedback and Help](feedback.md#the-api);
+- No feedback routes: the app reads and writes Feedback and Help
+  straight to its DynamoDB table with the profile's credentials
+  (`FeedbackHandler` was removed on 2026-10-10). For it, `POST
+  /api/auth/credentials` tags an administrator's credentials `admin`
+  (from their own email's roles). See [Feedback and
+  Help](feedback.md#storage-and-access-no-api);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
   [...], "discount": 100}` when its discount is 100%; 402 `{"error",
@@ -139,8 +138,7 @@ site (`/api/*` in the CloudFront distribution; see
     `scripts/migrate-roles-to-rbacr.sh` copies the table's roles into
     rbacr (`presence_user` as `free`, `presence_admin` as `admin`); the
     API no longer reads them.
-- **The tables** (`UserRolesTable`, `VoucherTable`, `FeedbackTable`,
-  and
+- **The tables** (`UserRolesTable`, `VoucherTable`, and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
@@ -148,8 +146,9 @@ site (`/api/*` in the CloudFront distribution; see
   `SystemTable` the system's own state ([maintenance mode](maintenance.md)).
   `UserRolesTable` now holds only the voucher lockout's counts (and the
   roles from before rbacr, unread). `MembershipTable`, with the access
-  requests sent before 2026-10-10, left the stack but is kept in AWS
-  (`DeletionPolicy: Retain`).
+  requests sent before 2026-10-10, and `FeedbackTable`, with the
+  conversations from before Feedback moved to the app, left the stack but
+  are kept in AWS (`DeletionPolicy: Retain`).
 - **Least privilege:**
   - the roles function may only get and put in `ProfileSubjectsTable`,
     and get, put and update in `ProfilesTable`;
@@ -158,9 +157,6 @@ site (`/api/*` in the CloudFront distribution; see
   - the admin function may put, scan and delete in `VoucherTable`, get
     and put in `SystemTable` (maintenance mode), and get items from both
     profile tables;
-  - the feedback function may get items from `UserRolesTable` and both
-    profile tables, and query, scan and put in `FeedbackTable` (messages
-    are never changed or deleted);
   - the roles, voucher, admin and profile functions have `RBACR_TOKEN`, a
     root's rbacr token: whoever can read their configuration can manage
     rbacr as that root. It's a `NoEcho` parameter, never in the
@@ -199,7 +195,7 @@ address uses up a route's budget for everyone:
   the bill), so it stays;
 - the token routes need a valid Google ID token for the web client, which
   anyone can get with a free Google account, so their limits (1 request/s
-  for vouchers, link codes and feedback) can be used up the
+  for vouchers and link codes) can be used up the
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
@@ -207,8 +203,8 @@ CloudFront distribution, scoped to `/api/*` and `/health`), which blocks
 one address's flood without touching anyone else. It isn't deployed: WAF
 costs a monthly fee per web ACL and rule plus a per-request charge, which
 is an infrastructure and cost decision. Until then the per-route limits,
-the voucher lockout per email, the membership cooldown per email and the daily feedback limit per member are
-what slow abuse.
+the voucher lockout per email is
+what slows abuse.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
   `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
   own artifact bucket, `<prefix>-sam-artifacts-<account>`, and with
@@ -252,8 +248,7 @@ what slow abuse.
   - the handler's JSON: profile, roles, no roles, no claims, escaping;
   - the admin routes: 403 without both roles, vouchers, maintenance,
     unknown routes;
-  - feedback (`FeedbackTest`): see [Feedback and Help](feedback.md#tests);
-  - profile names are cleaned to one short line;
+  - only an administrator's own credentials are tagged `admin`;
   - vouchers: the code format and loose typing, chosen codes; admins
     only; creation's role, start, expiry, uses, code and discount checks
     (chosen codes of at least 10 letters and digits, never for
