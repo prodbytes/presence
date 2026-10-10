@@ -4243,3 +4243,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        its ID), the role ID as tooltip; "No roles yet" without any,
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
+
+321. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+     - Asked: still too many wrong recognitions; increase the expected
+       confidence threshold.
+     - Changed: subjects are tagged automatically from **90 %** (default;
+       was 85 %; a device left at 85 % moves to 90 %), and asked about
+       from **50 %** (was 30 %; also the slider's minimum, so it reads
+       50–95 %). Object tags need a score of **0.6** on a frame (was 0.5)
+       and 0.8 to count from a single frame (was 0.7); people and pets
+       are detected from 0.5 (was 0.4). Tests: `recognition_test.dart`,
+       `settings_test.dart`. Specs: [Subject recognition](recognition.md),
+       [Settings screen](settings.md), [Configuration](configuration.md).
+
