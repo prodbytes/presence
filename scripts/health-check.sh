@@ -106,7 +106,7 @@ check_api() {
     setting "$body" "👮 RBACR" rbacr
 }
 
-# rbacr itself (who is premium): its public /health, at RBACR_URL (the
+# rbacr itself (which gives every role): its public /health, at RBACR_URL (the
 # environment, else .env, else https://rbacr.nu01.com). No token is sent.
 RBACR_URL="${RBACR_URL:-$( [[ -f .env ]] && sed -n 's/^RBACR_URL=//p' .env | tail -1)}"
 RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"

@@ -4299,7 +4299,38 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-325. **Local cloud sync fails: say why.** (2026-10-10)
+325. **Every role from rbacr.** (2026-10-10)
+     - Asked: migrate authorization from the auth API (`presence_api_auth`)
+       to rbacr, so everything about authorization is an rbacr call. Roles
+       map `free` to member and `admin` to admin; vouchers stay here for
+       now (rbacr will get creating and redeeming for another address);
+       the old roles table is copied into rbacr.
+     - Changed: `Roles` takes every role from rbacr's `presence` system
+       (`RBACR_SYSTEM`): `free`, `premium` or `admin` gives
+       `presence_user`, `premium` or `admin` `presence_premium`, `admin`
+       `presence_admin`, and an rbacr root (its root list) all four with
+       `presence_root`. `Rbacr` asks once per email (`POST /api/roles`, no
+       `systemId`, so `globalRoles` says root), and grants (`POST
+       /api/systems/:id/grants`): an approved membership grants `free`, a
+       redeemed voucher `free` or `admin` (its answer lists the app's
+       roles that gives). Gone: the root allowlist (`RootDomains`,
+       `RootEmails`, `PRESENCE_ROOT_*` in deploy, CI, Floci and `.env`),
+       and reading or writing `UserRolesTable`'s roles, which now holds
+       only the voucher lockout (and its IAM is cut to that). Without an
+       rbacr token nobody has a role: `deploy.sh` requires one (no more
+       `RBACR_TOKEN=none`), `/health`'s `rbacr` check fails without it,
+       and the app's 🛂 RBACR card warns. The local Floci stack gets
+       `RBACR_*` from `.env`. New `scripts/migrate-roles-to-rbacr.sh`
+       copies the table's roles into rbacr (dry run by default). Tests:
+       `RolesTest`, `RbacrTest`, `MembershipTest`, `VoucherTest`,
+       `ProfileTest`, `ProfilesTest`, `UserRolesTest`, app
+       `system_health_test.dart`. Specs: [Auth API](auth-api.md),
+       [Membership](membership.md), [Premium and free](premium.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md),
+       [Health check](health-check.md), [Execution mode](execution-mode.md),
+       [Deploy](deploy.md), [Local CDN](local-cdn.md).
+
+326. **Local cloud sync fails: say why.** (2026-10-10)
      - Asked: the local app says cloud sync is failing; check the logs and
        improve them if needed.
      - Found: the local auth API runs in Floci, which has no Cognito
@@ -4315,7 +4346,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
        [Profiles](profiles.md).
 
-326. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+327. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
      - Asked: move the profile icon to the bottom navigation bar as well,
        and make it open just like the other panes; then call it Profile
        (it was first named Account).
@@ -4331,7 +4362,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [About](about.md).
 
-327. **Screen off to save battery.** (2026-10-10)
+328. **Screen off to save battery.** (2026-10-10)
      - Asked: a good way to save battery on Android; whether the screen
        can be turned off while capture goes on, and if so a button for
        it in the camera view.
@@ -4343,7 +4374,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        timeout turns the screen off; a tap brings it back. Tests:
        `screen_off_test.dart`. Specs: [Camera](camera.md),
 
-328. **One health-check line per run.** (2026-10-10)
+329. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4357,7 +4388,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-329. **Encrypt every image and recording with a key per device.**
+330. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

@@ -32,20 +32,16 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
-#   PRESENCE_ROOT_DOMAINS the root allowlist's email domains, comma-separated
-#                (default nu01.com)
-#   PRESENCE_ROOT_EMAILS  the root allowlist's single emails, comma-separated
-#                (default none). Both also come from .env; their verified
-#                users get presence_root, presence_admin and presence_user.
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
-#   RBACR_TOKEN  an rbacr API token that may read the presence system's
-#                roles: who is premium (cloud sync). Required, from the
-#                environment (the RBACR_TOKEN secret in CI) or .env, since
-#                a deploy without it would make nobody premium; set
-#                RBACR_TOKEN=none to deploy without rbacr on purpose.
+#   RBACR_TOKEN  an rbacr API token owned by an rbacr root: rbacr keeps every
+#                role (who may use the app, sync with the cloud, administer
+#                it; rbacr's root list makes roots), and memberships and
+#                vouchers grant there. Required, from the environment (the
+#                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
 #   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com; also .env)
+#   RBACR_SYSTEM the rbacr system of the app's roles (default presence; also .env)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -104,22 +100,6 @@ for name in GOOGLE_WEB_CLIENT_ID HOSTED_ZONE_ID; do
   fi
 done
 
-# The root allowlist: optional, from the environment, else .env. Passed on
-# every deploy, so a stack never keeps an old value.
-for name in PRESENCE_ROOT_DOMAINS PRESENCE_ROOT_EMAILS; do
-  if [[ -z "${!name:-}" && -f .env ]]; then
-    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
-  fi
-  if [[ ! "${!name:-}" =~ ^[A-Za-z0-9._%+@,-]*$ ]]; then
-    echo "error: $name must be comma-separated domains or emails" >&2
-    exit 1
-  fi
-done
-PRESENCE_ROOT_DOMAINS="${PRESENCE_ROOT_DOMAINS:-nu01.com}"
-# Emails are people's: logged only as a count.
-root_emails=0; [[ -n "${PRESENCE_ROOT_EMAILS:-}" ]] && root_emails=$(tr ',' '\n' <<<"$PRESENCE_ROOT_EMAILS" | grep -c .)
-echo "    root allowlist: domains $PRESENCE_ROOT_DOMAINS, $root_emails email(s)"
-
 # Health alarm emails: from the environment, else .env, else the default.
 if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
   PRESENCE_HEALTH_EMAILS="$(sed -n 's/^PRESENCE_HEALTH_EMAILS=//p' .env | tail -1)"
@@ -131,24 +111,25 @@ if [[ ! "$PRESENCE_HEALTH_EMAILS" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+(,[A-Za-z0
 fi
 echo "    health alarm emails: $(tr ',' '\n' <<<"$PRESENCE_HEALTH_EMAILS" | grep -c .)"
 
-# rbacr, who says who's premium: from the environment, else .env. Never
-# logged. Required: an empty token would make nobody premium.
-for name in RBACR_TOKEN RBACR_URL; do
+# rbacr, which keeps every role: from the environment, else .env. The token
+# is never logged. Required: without it nobody would have a role.
+for name in RBACR_TOKEN RBACR_URL RBACR_SYSTEM; do
   if [[ -z "${!name:-}" && -f .env ]]; then
     printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
   fi
 done
 RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+RBACR_SYSTEM="${RBACR_SYSTEM:-presence}"
 if [[ -z "${RBACR_TOKEN:-}" ]]; then
-  echo "error: RBACR_TOKEN isn't set (environment or .env); RBACR_TOKEN=none deploys without rbacr (nobody premium)" >&2
+  echo "error: RBACR_TOKEN isn't set (environment or .env); without rbacr nobody has a role" >&2
   exit 1
 fi
-[[ "$RBACR_TOKEN" == none ]] && RBACR_TOKEN=""
-if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]*$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
-  echo "error: RBACR_TOKEN must be a token and RBACR_URL an https origin" >&2
+if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]+$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$
+      || ! "$RBACR_SYSTEM" =~ ^[a-z0-9][a-z0-9_.:-]{0,62}$ ]]; then
+  echo "error: RBACR_TOKEN must be a token, RBACR_URL an https origin and RBACR_SYSTEM an rbacr system ID" >&2
   exit 1
 fi
-echo "    rbacr: $RBACR_URL, $([[ -n "$RBACR_TOKEN" ]] && echo "with a token" || echo "none (nobody premium)")"
+echo "    rbacr: $RBACR_URL, system $RBACR_SYSTEM, with a token"
 
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
@@ -222,8 +203,7 @@ echo "==> deploying $AUTH_STACK"
     --parameter-overrides "Version=$VERSION" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
-      "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
-      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" \
+      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -269,9 +249,7 @@ check() {
   # must have every expected setting.
   local anonymous
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
-  # rbacr is set exactly when this deploy passed a token.
-  local rbacr_set; rbacr_set=$([[ -n "$RBACR_TOKEN" ]] && echo true || echo false)
-  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":'"$rbacr_set"'}}' ]] \
+  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
   # What the Route 53 health check polls: every dependency must be ok, and
   # the API must be this release.

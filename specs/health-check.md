@@ -24,10 +24,11 @@ and emails when it fails or recovers.
   - **`google`**: Google's token signing keys
     (`https://www.googleapis.com/oauth2/v3/certs`) load. The HTTP API's
     JWT authorizer needs them to check every sign-in;
-  - **`rbacr`** (only with an rbacr token: `RBACR_URL` set on
-    `HealthFunction`): rbacr's own `/health` answers 200. Without rbacr
-    nobody is premium ([Premium and free](premium.md)).
-- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok"},"version":"0.6.202610061200"}`
+  - **`rbacr`**: rbacr's own `/health` answers 200. It fails when the
+    stack has no rbacr token (`RBACR_URL` is set on `HealthFunction` only
+    with one; the token itself isn't): rbacr gives every role ([Auth
+    API](auth-api.md)), so without it nobody who signs in has one.
+- **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok","rbacr":"ok"},"version":"0.6.202610061200"}`
   when every check passes. Otherwise **503**, with `"status":"fail"` and
   the failing checks as `"fail"`.
 - **`version`** is the release deployed (`X.Y.Z`, as in

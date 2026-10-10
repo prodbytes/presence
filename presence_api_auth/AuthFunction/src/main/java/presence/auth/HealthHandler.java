@@ -46,9 +46,9 @@ import static presence.auth.Http.response;
  *   <li>{@code cognito}: the identity pool answers;</li>
  *   <li>{@code google}: Google's token signing keys load (the JWT
  *       authorizer needs them);</li>
- *   <li>{@code rbacr}: rbacr, which says who's premium ({@link Rbacr}),
- *       answers its health check; only when it's configured
- *       ({@code RBACR_URL}, set with a token). Without it, nobody syncs with the cloud.</li>
+ *   <li>{@code rbacr}: rbacr, which gives every role ({@link Rbacr}),
+ *       answers its health check. It fails when rbacr isn't configured
+ *       ({@code RBACR_URL}, set only with a token): nobody would have a role.</li>
  * </ul>
  * 200 {@code {"status":"ok","checks":{"settings":"ok",...},"version":"0.6.…"}}
  * when all pass, else 503 with {@code "status":"fail"} and the failing checks
@@ -212,16 +212,17 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
                 })));
         // Set only where rbacr is (template.yaml): its token stays out of here.
         var rbacrUrl = System.getenv("RBACR_URL");
-        if (rbacrUrl != null && !rbacrUrl.isBlank()) {
-            var rbacr = URI.create(rbacrUrl.strip()).resolve("/health");
-            checks.add(new Check("rbacr", () -> {
-                var status = http.send(HttpRequest.newBuilder(rbacr).timeout(BUDGET).GET().build(),
-                        HttpResponse.BodyHandlers.discarding()).statusCode();
-                if (status != 200) {
-                    throw new IllegalStateException(rbacr + " answered " + status);
-                }
-            }));
-        }
+        var rbacr = rbacrUrl == null || rbacrUrl.isBlank() ? null : URI.create(rbacrUrl.strip()).resolve("/health");
+        checks.add(new Check("rbacr", () -> {
+            if (rbacr == null) {
+                throw new IllegalStateException("rbacr isn't configured: nobody has a role");
+            }
+            var status = http.send(HttpRequest.newBuilder(rbacr).timeout(BUDGET).GET().build(),
+                    HttpResponse.BodyHandlers.discarding()).statusCode();
+            if (status != 200) {
+                throw new IllegalStateException(rbacr + " answered " + status);
+            }
+        }));
         return List.copyOf(checks);
     }
 }

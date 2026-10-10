@@ -22,7 +22,17 @@ class MembershipTest {
     /** The membership table: one request per email, with the handler's cooldown. */
     private final Map<String, MembershipHandler.Request> requests = new HashMap<>();
     private final Set<String> dismissed = new java.util.HashSet<>();
+    /** rbacr's grants (its role names), as the admin routes make them. */
     private final Map<String, Set<String>> granted = new HashMap<>();
+
+    /** rbacr: the grants, and boss@nu01.com on its root list. */
+    private final Roles roles = new Roles(e -> {
+        var held = new java.util.TreeSet<>(granted.getOrDefault(e, Set.of()));
+        if (e.equals("boss@nu01.com")) {
+            held.add(Rbacr.ROOT);
+        }
+        return held;
+    });
 
     private final MembershipHandler membership = new MembershipHandler(
             (request, notBefore) -> {
@@ -37,7 +47,7 @@ class MembershipTest {
             Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final AdminHandler admin = new AdminHandler(
-            new Roles(Set.of("nu01.com"), Set.of(), e -> granted.getOrDefault(e, Set.of())),
+            roles,
             new AdminHandler.Backend() {
                 @Override
                 public List<MembershipHandler.Request> requests() {
@@ -46,7 +56,7 @@ class MembershipTest {
 
                 @Override
                 public void grant(String email, String role) {
-                    granted.computeIfAbsent(email, e -> new java.util.TreeSet<>()).add(role);
+                    granted.computeIfAbsent(email, e -> new java.util.TreeSet<>()).add(Roles.GRANTED_AS.get(role));
                 }
 
                 @Override
@@ -119,9 +129,9 @@ class MembershipTest {
         assertEquals(403, admin.handleRequest(grant, null).getStatusCode());
         assertEquals(Map.of(), granted);
 
-        // presence_admin without presence_user isn't enough (the app hides the screen too).
-        granted.put("root@example.com", Set.of(Roles.ADMIN));
-        assertEquals(403, admin.handleRequest(route("GET /api/auth/membership", "root@example.com", null), null)
+        // Premium isn't enough: only rbacr's admin (or a root) administers.
+        granted.put("pat@example.com", Set.of("premium"));
+        assertEquals(403, admin.handleRequest(route("GET /api/auth/membership", "pat@example.com", null), null)
                 .getStatusCode());
     }
 
@@ -136,7 +146,8 @@ class MembershipTest {
         var grant = admin.handleRequest(
                 route("POST /api/auth/membership/grant", "boss@nu01.com", " ANA@example.com "), null);
         assertEquals(200, grant.getStatusCode());
-        assertEquals(Set.of(Roles.USER), granted.get("ana@example.com"));
+        // In rbacr, as free.
+        assertEquals(Set.of("free"), granted.get("ana@example.com"));
         assertEquals(Map.of(), requests);
     }
 
@@ -165,11 +176,11 @@ class MembershipTest {
     }
 
     @Test
-    void nu01UsersGetEveryRoleAndOthersGetInOnlyOnceGranted() {
-        var auth = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(),
-                e -> granted.getOrDefault(e, Set.of())), RolesTest.profiles());
+    void rbacrRootsGetEveryRoleAndOthersGetInOnlyOnceGranted() {
+        var auth = new AuthHandler(roles, RolesTest.profiles());
         var get = "GET /api/auth";
-        assertEquals("{\"email\":\"boss@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}",
+        assertEquals("{\"email\":\"boss@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\","
+                        + "\"presence_premium\",\"presence_root\",\"presence_user\"]}",
                 auth.handleRequest(route(get, "boss@nu01.com", null), null).getBody());
         assertEquals("{\"email\":\"ana@example.com\",\"profile\":null,\"roles\":[]}",
                 auth.handleRequest(route(get, "ana@example.com", null), null).getBody());

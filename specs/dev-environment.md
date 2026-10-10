@@ -68,7 +68,7 @@
     then from the API's answer 🔑 OIDC
     (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
     (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
-    shipped to S3) and 👮 RBACR (`RBACR_TOKEN` set, or ⚪ nobody premium),
+    shipped to S3) and 👮 RBACR (`RBACR_TOKEN` set, or ⚪ nobody who signs in has a role),
     all three ❌ when the API doesn't answer. With AWS set, it also asks
     Floci whether it implements Cognito Identity (an unsigned `GetId` for
     a made-up pool): Floci answers `UnknownOperationException`, so ☁️ AWS
