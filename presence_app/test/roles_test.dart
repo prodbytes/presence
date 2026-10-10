@@ -382,21 +382,16 @@ void main() {
 
       await tester.tap(find.byKey(const Key('sign-up')));
       await tester.pumpAndSettle();
-      expect(find.text('Request access'), findsOneWidget);
+      // No asking for access: subscribe at nu01.com.
+      expect(find.text('Subscribe'), findsOneWidget);
       expect(find.textContaining('ana@example.com'), findsOneWidget);
-
-      // Sending needs a message.
-      final send = find.byKey(const Key('send-membership'));
-      expect(tester.widget<FilledButton>(send).onPressed, isNull);
-      await tester.enterText(
-        find.byKey(const Key('membership-message')),
-        '  I run the front desk  ',
+      expect(find.byKey(const Key('membership-message')), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('subscribe')))
+            .onPressed,
+        isNotNull,
       );
-      await tester.pump();
-      await tester.tap(send);
-      await tester.pumpAndSettle();
-      expect(membership.sent, ['I run the front desk']);
-      expect(find.byKey(const Key('membership-sent')), findsOneWidget);
 
       // Another role isn't enough.
       roles.roles = ['viewer'];
@@ -404,7 +399,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(HomeNavigationBar), findsNothing);
 
-      // An administrator grants presence_user: checking again unlocks
+      // Subscribed (rbacr gives presence_user): checking again unlocks
       // everything.
       roles.roles = [userRole];
       await tester.tap(find.byKey(const Key('check-access')));
@@ -415,22 +410,6 @@ void main() {
       expect(find.byType(HomeNavigationBar), findsOneWidget);
       expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
-    });
-
-    testWidgets('a repeated request says to wait', (tester) async {
-      final membership = FakeMembershipClient()..error = RolesException(409);
-      await launch(tester, FakeRolesClient.none(), membership);
-      await tester.tap(find.byKey(const Key('sign-up')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('membership-message')),
-        'again',
-      );
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('send-membership')));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('already sent a request'), findsOneWidget);
-      expect(find.byKey(const Key('membership-sent')), findsNothing);
     });
 
     testWidgets('a voucher code lets the user in at once', (tester) async {
@@ -745,7 +724,6 @@ void main() {
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
       await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
-      expect(find.text('No pending requests.'), findsOneWidget);
       expect(find.text('Voucher codes'), findsOneWidget);
       expect(find.text('Expired'), findsOneWidget);
       expect(find.text('Not yet valid'), findsOneWidget);
@@ -825,45 +803,6 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
 
-    testWidgets('a presence_admin grants and dismisses requests', (
-      tester,
-    ) async {
-      final membership = FakeMembershipClient()
-        ..requests.addAll([
-          MembershipRequest(
-            email: 'bob@example.com',
-            name: 'Bob',
-            message: 'Night shift',
-            requestedAt: DateTime.utc(2026, 9, 27),
-          ),
-          MembershipRequest(
-            email: 'eve@example.com',
-            name: '',
-            message: 'hi',
-            requestedAt: DateTime.utc(2026, 9, 27),
-          ),
-        ]);
-      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      expect(find.byType(HomeNavigationBar), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('admin-view')), findsOneWidget);
-      expect(find.text('Night shift'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('grant-bob@example.com')));
-      await tester.pumpAndSettle();
-      expect(membership.granted, ['bob@example.com']);
-      expect(find.text('Night shift'), findsNothing);
-      expect(find.text('bob@example.com can now use Presence'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('dismiss-eve@example.com')));
-      await tester.pumpAndSettle();
-      expect(membership.granted, ['bob@example.com']);
-      expect(membership.requests, isEmpty);
-      expect(find.text('No pending requests.'), findsOneWidget);
-    });
-
     group('the Admin tab', () {
       final adminTab = find.byTooltip('Admin');
       TabController tabs(WidgetTester tester) => tester
@@ -873,15 +812,7 @@ void main() {
       testWidgets('an admin flips to it like the other tabs: no back button', (
         tester,
       ) async {
-        final membership = FakeMembershipClient()
-          ..requests.add(
-            MembershipRequest(
-              email: 'bob@example.com',
-              name: 'Bob',
-              message: 'Night shift',
-              requestedAt: DateTime.utc(2026, 9, 27),
-            ),
-          );
+        final membership = FakeMembershipClient();
         await launch(
           tester,
           FakeRolesClient([userRole, adminRole]),
@@ -921,7 +852,6 @@ void main() {
         // Where the Log tab would be: indices map through the shown tabs.
         expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
-        expect(find.text('Night shift'), findsOneWidget);
         expect(find.text('Voucher codes'), findsOneWidget);
         // A page of the tabs, not a screen over them.
         expect(find.byType(BackButton), findsNothing);
@@ -941,7 +871,7 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
-      testWidgets('reload fetches the requests again', (tester) async {
+      testWidgets('reload fetches the vouchers again', (tester) async {
         final membership = FakeMembershipClient();
         await launch(
           tester,
@@ -950,18 +880,22 @@ void main() {
         );
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(find.text('No pending requests.'), findsOneWidget);
-        membership.requests.add(
-          MembershipRequest(
-            email: 'eve@example.com',
-            name: '',
-            message: 'Late shift',
-            requestedAt: DateTime.utc(2026, 9, 27),
+        expect(find.text('No vouchers.'), findsOneWidget);
+        // No membership requests any more: people subscribe at nu01.com.
+        expect(find.text('Membership requests'), findsNothing);
+        membership.codes.add(
+          Voucher(
+            code: 'LATE-SHFT-2222',
+            role: userRole,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.utc(2026, 9, 27),
           ),
         );
         await tester.tap(find.byKey(const Key('admin-reload')));
         await tester.pumpAndSettle();
-        expect(find.text('Late shift'), findsOneWidget);
+        expect(find.byKey(const Key('voucher-LATE-SHFT-2222')), findsOneWidget);
       });
 
       testWidgets('a refresh comes back to it, and it is remembered by name', (

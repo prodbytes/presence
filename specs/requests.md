@@ -4635,3 +4635,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Tests: `roles_test.dart` (list and delete, no form);
        `voucher_code_test.dart` removed. Specs:
        [Membership](membership.md), [README](README.md).
+
+342. **No access requests: users subscribe.** (2026-10-10)
+     - Asked: remove the access request stuff; users must subscribe to
+       become premium.
+     - Changed: the Sign up sheet's request form (message, Send request)
+       is now "Subscribe": **Subscribe at nu01.com** (opens
+       https://nu01.com, or copies the link), with voucher redeem,
+       linking another account and Check again kept. The Admin tab has no
+       Membership requests section. The auth API loses
+       `POST /api/auth/membership` (`MembershipHandler`) and the
+       Admin's list, grant and dismiss routes, `MembershipFunction` and
+       `MembershipTable` (kept in AWS: `DeletionPolicy: Retain`); the
+       name cleaning feedback uses moved to `FeedbackHandler`. Floci's
+       routes, the health check's tables and the docs follow. Tests:
+       `roles_test.dart` (Subscribe; reload fetches vouchers), the API's
+       (requests' tests removed, the rest moved). Specs:
+       [Membership](membership.md), [Auth API](auth-api.md),
+       [Sign-in](sign-in.md), [Feedback](feedback.md),
+       [Local CDN](local-cdn.md), [Navigation](navigation.md),
+       [Profiles](profiles.md), [README](README.md).

@@ -115,9 +115,9 @@ there's no separate sign-in screen:
     list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
-    icon. The icon opens "Request access", where the user writes a message
-    and **Send request**s membership (see [Membership](membership.md)), and
-    **Check again**, which asks the auth API once more. There are no tabs,
+    icon. The icon opens "Subscribe", which sends the user to subscribe at
+    nu01.com, takes a voucher code (see [Membership](membership.md)), and
+    has **Check again**, which asks the auth API once more. There are no tabs,
     no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.
   - The check runs when the user changes (sign-in, a session restored at

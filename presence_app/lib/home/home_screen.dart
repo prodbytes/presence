@@ -41,7 +41,7 @@ import 'home_navigation_bar.dart';
 /// map, the subjects and the event stream), the settings (with the device's
 /// location map), for signed-in members Feedback and Help, for admins who
 /// turned it on the log, and for signed-in admins the Admin page
-/// (membership requests, feedback and vouchers). Only a tap
+/// (maintenance mode, feedback and vouchers). Only a tap
 /// flips: there's no swiping between them, as in most phone apps, so a
 /// sideways drag on a map or a list stays there.
 ///
@@ -106,8 +106,8 @@ class HomeScreen extends StatefulWidget {
   /// the Admin tab `presence_admin`.
   final RolesService roles;
 
-  /// Membership requests: sent from the sign-up sheet, approved on the
-  /// Admin tab.
+  /// Vouchers: redeemed from the sign-up sheet, listed on the Admin tab;
+  /// and maintenance mode.
   final MembershipClient membership;
 
   /// Feedback and Help: members write on the Help tab, admins answer on
@@ -639,7 +639,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-              // Membership requests and vouchers: a page like the others,
+              // Maintenance, feedback and vouchers: a page like the others,
               // with no back button of its own.
               if (_tabs.shows(HomeTab.admin))
                 SafeArea(

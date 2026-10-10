@@ -161,7 +161,7 @@ public class FeedbackHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
             // 409, not 429: API Gateway's throttling answers 429.
             return response(409, "{\"error\":\"at most " + DAILY_LIMIT + " messages a day; try again later\"}");
         }
-        return save(new Message(email, MembershipHandler.cleanName(caller.claims().get("name")), USER, "", text,
+        return save(new Message(email, cleanName(caller.claims().get("name")), USER, "", text,
                 clock.instant()));
     }
 
@@ -297,5 +297,14 @@ public class FeedbackHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
                 }
             }
         };
+    }
+
+    /** The Google profile name, which its owner chooses: one line, no control characters, 100 at most. */
+    static String cleanName(String name) {
+        if (name == null) {
+            return "";
+        }
+        var clean = name.replaceAll("\\p{Cntrl}", " ").strip();
+        return clean.length() > 100 ? clean.substring(0, 100) : clean;
     }
 }

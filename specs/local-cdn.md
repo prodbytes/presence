@@ -117,7 +117,7 @@ web client's local origin**.
 ## The local auth API
 
 At every start, Floci deploys the real auth API into itself, so sign-in,
-roles, membership requests and the Admin tab work locally without AWS:
+roles, vouchers and the Admin tab work locally without AWS:
 
 - **Build:** [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs
   `sam build` before Floci starts (in the `4-floci` command), only when
@@ -129,7 +129,8 @@ roles, membership requests and the Admin tab work locally without AWS:
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
   `template.yaml` as the stack `presence-local-auth-api`: the three Java 25
-  Lambdas, `UserRolesTable` and `MembershipTable`. Floci
+  Lambdas and their tables (`UserRolesTable`, `VoucherTable` and the
+  others). Floci
   runs the Lambdas as Docker containers (`presence-lambda-*`), which is
   why compose mounts the Docker socket. That gives Floci control of the
   Docker daemon, which is acceptable only for local development (its ports

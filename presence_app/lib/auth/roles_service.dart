@@ -10,8 +10,8 @@ import 'google_config.dart';
 /// Uses the app: the camera's buttons, the tabs and cloud sync.
 const userRole = 'presence_user';
 
-/// Also approves other users' membership requests and creates Member
-/// vouchers (the Admin screen).
+/// Also switches maintenance mode, answers feedback and lists vouchers
+/// (the Admin screen).
 const adminRole = 'presence_admin';
 
 /// On the auth API's root allowlist: also creates Admin vouchers, so only
@@ -305,7 +305,7 @@ class RolesService extends ChangeNotifier {
 
   bool get hasAccess => _state == AccessState.granted;
 
-  /// Has access and may approve membership requests.
+  /// Has access and may use the Admin screen.
   bool get isAdmin => hasAccess && _roles.contains(adminRole);
 
   /// An admin who may also create Admin vouchers.

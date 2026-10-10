@@ -8,12 +8,10 @@ distribution.
 | Route | Who | Does |
 |-------|-----|------|
 | `GET /api/auth` | anyone signed in | the caller's profile (found, or created at the first sign-in) and roles: `{"email": "…", "profile": "automatic_paranoid_axolotl", "roles": […]}` |
-| `POST /api/auth/membership` | anyone signed in | asks for access; the body is a plain-text message (up to 1000 characters) |
-| `GET /api/auth/membership` | admins | the pending requests, oldest first: `{"requests": [{email, name, message, requestedAt}]}` |
-| `POST /api/auth/membership/grant` | admins | the body is an email: adds `presence_user` to its roles and drops its request |
-| `POST /api/auth/membership/dismiss` | admins | the body is an email: hides its request (the cooldown still holds) |
 
-Admins are users with both `presence_user` and `presence_admin`.
+Admins are users with both `presence_user` and `presence_admin`. Users
+get `presence_user` by subscribing at nu01.com (rbacr) or by redeeming a
+voucher; there are no membership requests.
 
 - **Who's calling:** the HTTP API's JWT authorizer checks the Google ID
   token first: signature, expiry, issuer `https://accounts.google.com`, and
@@ -38,8 +36,8 @@ Admins are users with both `presence_user` and `presence_admin`.
   system (`RbacrUrl`, `RbacrToken`, `RbacrSystem`):
   - `presence_user` (rbacr's `free`, `premium` or `admin`) uses the app;
     `presence_premium` (`premium` or `admin`) also syncs with the cloud;
-    `presence_admin` (`admin`) also approves membership requests and
-    creates Member vouchers; `presence_root` (an rbacr root, from its
+    `presence_admin` (`admin`) also manages Member vouchers and
+    maintenance mode; `presence_root` (an rbacr root, from its
     root list) gets every role and also creates Admin vouchers (nothing
     creates root ones);
   - nobody has roles by default, and only a verified email is asked
@@ -49,21 +47,11 @@ Admins are users with both `presence_user` and `presence_admin`.
   - an account linked to a profile another account owns gets
     `presence_user` and `presence_premium` when the owner has them, never
     the owner's `presence_admin` or `presence_root`.
-- **Membership requests**
-  ([MembershipHandler.java](AuthFunction/src/main/java/presence/auth/MembershipHandler.java)):
-  one per email in **`MembershipTable`**, the latest replacing the last,
-  and at most one an hour per email, dismissed or not (a **409**
-  otherwise; DynamoDB checks it with a condition on `requestedAt`, in epoch
-  milliseconds). The route is also throttled to 1 request a second (burst
-  5; API Gateway answers **429**). Nothing is sent anywhere:
-  administrators see pending requests on the Admin screen.
-
 - **Admin routes**
   ([AdminHandler.java](AuthFunction/src/main/java/presence/auth/AdminHandler.java)):
   the function works out the caller's roles itself and answers **403**
-  unless they include both roles. A grant is an rbacr grant of `free` to
-  the email, for good. Other changes to roles (revoking, `premium`,
-  domains, time limits) are made in rbacr itself.
+  unless they include both roles. Roles themselves (granting, revoking,
+  `premium`, domains, time limits) are changed in rbacr itself.
 - The tables' contents (people's emails) live only in AWS, never in this
   repository. `UserRolesTable` now holds only the voucher lockout; its old
   `roles` were copied into rbacr by
@@ -71,15 +59,14 @@ Admins are users with both `presence_user` and `presence_admin`.
   (dry run by default; `--apply` grants).
 
 - **Least privilege:** the roles function may only use the profile
-  tables; the membership function may only put items in
-  `MembershipTable`; the admin function may scan, update and delete in
-  `MembershipTable` (and use the voucher and profile tables). Their
-  rbacr token is a root's, so keep it secret and rotate it.
+  tables; the admin function may only use the voucher, profile and
+  system tables. Their rbacr token is a root's, so keep it secret and
+  rotate it.
 
 | Path | Holds |
 |------|-------|
 | [template.yaml](template.yaml) | The tables, the HTTP API with its Google JWT authorizer, and the functions |
-| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `MembershipHandler`, `AdminHandler`, `Roles`, `Profiles`, `ProfileId` and its word lists) with its tests |
+| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `AdminHandler`, `Roles`, `Profiles`, `ProfileId` and its word lists) with its tests |
 | [samconfig.toml](samconfig.toml) | Default `sam build` / `deploy` settings (stack `presence-auth-api`) |
 
 ## Commands
