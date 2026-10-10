@@ -22,8 +22,10 @@ import static presence.auth.Http.response;
  * <p>{@code GET /api/auth/anonymous} (no token, no authorizer): the
  * {@link ExecutionMode}, the anonymous user's roles and which expected
  * {@link Settings} are set, as {@code {"mode": "RBAC", "roles":
- * ["presence_anonymous"], "settings": {"oidc": true, "aws": true}}}. The app
- * asks it before it shows anything.
+ * ["presence_anonymous"], "settings": {"oidc": true, "aws": true},
+ * "maintenance": {"on": false, "message": ""}}}. The app asks it before it
+ * shows anything, and again every minute: in {@link Maintenance} it shows
+ * only a sorry message, except to admins.
  */
 public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -33,11 +35,12 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
     private final Profiles profiles;
     private final ExecutionMode mode;
     private final Settings settings;
+    private final Maintenance.Store maintenance;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AuthHandler() {
         this(Roles.fromEnvironment(), Profiles.fromEnvironment(), ExecutionMode.fromEnvironment(),
-                Settings.fromEnvironment());
+                Settings.fromEnvironment(), Maintenance.dynamoStore(System.getenv("SYSTEM_TABLE")));
     }
 
     AuthHandler(Roles roles, Profiles profiles) {
@@ -49,10 +52,16 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
     }
 
     AuthHandler(Roles roles, Profiles profiles, ExecutionMode mode, Settings settings) {
+        this(roles, profiles, mode, settings, Maintenance.memory());
+    }
+
+    AuthHandler(Roles roles, Profiles profiles, ExecutionMode mode, Settings settings,
+                Maintenance.Store maintenance) {
         this.roles = roles;
         this.profiles = profiles;
         this.mode = mode;
         this.settings = settings;
+        this.maintenance = maintenance;
     }
 
     @Override
@@ -61,7 +70,8 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         if (ANONYMOUS_ROUTE.equals(route)) {
             return response(200, "{\"mode\":" + Json.string(mode.name()) + ",\"roles\":["
                     + Roles.anonymous(mode).stream().map(Json::string).collect(Collectors.joining(","))
-                    + "],\"settings\":" + settings.toJson() + "}");
+                    + "],\"settings\":" + settings.toJson()
+                    + ",\"maintenance\":" + maintenance().toPublicJson() + "}");
         }
         try {
             var caller = Caller.from(event);
@@ -75,6 +85,19 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
             return response(200, body);
         } catch (RuntimeException e) {
             return Aws.failed("auth", route, e, context);
+        }
+    }
+
+    /**
+     * The maintenance state; off if it can't be read, so a DynamoDB outage
+     * doesn't shut everyone out (the start check must always answer).
+     */
+    private Maintenance maintenance() {
+        try {
+            return maintenance.get();
+        } catch (RuntimeException e) {
+            System.err.println("presence: could not read maintenance mode (answering off): " + Aws.cause(e) + ": " + e);
+            return Maintenance.OFF;
         }
     }
 }

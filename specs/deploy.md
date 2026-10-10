@@ -60,7 +60,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
   token (401), and `/api/auth/anonymous` must answer RBAC with only
-  `presence_anonymous`, and report the OIDC client and AWS settings set,
+  `presence_anonymous`, and report the OIDC client and AWS settings set
+  (and a [maintenance](maintenance.md) state, whatever it is),
   and `/health` must answer `"status":"ok"` with this release's
   `"version"` (see [Health check](health-check.md)). It retries for up to 10 minutes.
 - **On failure** (any step, the smoke test included), `deploy.sh` prints

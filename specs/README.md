@@ -76,7 +76,11 @@ their data.
   a voucher code; admins grant requests and create voucher codes (their
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
   current season by default), uses, discount)
-  on the Admin tab.
+  on the Admin tab, under its maintenance mode switch.
+- [Maintenance mode](maintenance.md): admins switch it on the Admin tab
+  (or with `scripts/maintenance.sh`); while it's on, everyone but admins
+  sees only a sorry message, with the admin's message, and running apps
+  follow within a minute.
 - [Execution mode](execution-mode.md): DEV (no OIDC client: the anonymous
   user gets every role, a "dev" label shows) or RBAC (sign in for roles),
   asked of the auth API before the app shows anything.

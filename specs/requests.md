@@ -4487,3 +4487,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+
+333. **Maintenance mode.** (2026-10-10)
+     - Asked: let admins put the system in maintenance mode; while it's
+       on, no UI is shown at all, just a sorry message.
+     - Changed: a `SystemTable` in the auth API keeps the state
+       (`Maintenance`); `GET /api/auth/anonymous` reports it
+       (`"maintenance": {"on", "message", "since"}`, off if unreadable),
+       and the new admin routes `GET`/`POST /api/auth/maintenance` read and
+       switch it (form `on`, optional `message` up to 500 characters). The
+       app asks every minute; `MaintenanceGate` (in `MaterialApp.builder`)
+       replaces the whole app with `MaintenanceScreen` for everyone but
+       admins, who keep the app under a yellow strip. The Admin tab starts
+       with a Maintenance mode card (switch, message, Update message).
+       `scripts/maintenance.sh` switches it with AWS credentials, for a
+       signed-out admin. The deploy smoke test accepts either state; the
+       health check lists the new table; Floci gets the two routes. UI
+       only: recording and sync go on behind the sorry screen. Tests:
+       `MaintenanceTest.java`, `maintenance_test.dart`. Specs:
+       [Maintenance mode](maintenance.md) (new), [Auth API](auth-api.md),
+       [Membership](membership.md), [Execution mode](execution-mode.md),
+       [Production deploy](deploy.md), [Health check](health-check.md).
