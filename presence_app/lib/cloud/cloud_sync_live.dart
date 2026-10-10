@@ -46,6 +46,10 @@ class _LiveBridge {
         },
         onEvent: (event) => _onLive(event, owner),
         onCopied: _sync._copyTracker.onCopied,
+        mediaKey: switch (_sync.seal.keys.keyOf(deviceId)) {
+          final key? => MediaKeys.encode(key),
+          null => null,
+        },
       ),
     );
   }
@@ -75,6 +79,10 @@ class _LiveBridge {
       return;
     }
     event['profileId'] = owner;
+    // The sender's key opens its sealed thumbnails and frames.
+    if (MediaKeys.decode(message.mediaKey) case final key?) {
+      _sync.seal.keys.add(message.deviceId, key);
+    }
     final time = event['time']! as int;
     final since = _sync._now().toUtc().subtract(_sync._window);
     if (DateTime.fromMillisecondsSinceEpoch(
@@ -208,7 +216,12 @@ class _LiveBridge {
       for (final frameId in missing) {
         final frameKey = CloudSync.frameKeyOf('${event['clipId']}', frameId);
         try {
-          frames[frameId] = await session.get(frameKey);
+          final frame = await session.get(frameKey);
+          if (!SealFormat.isSealed(frame)) {
+            debugPrint('Presence: skipped frame $frameId: not sealed');
+            continue;
+          }
+          frames[frameId] = frame;
           await _sync._markSynced(
             store,
             '${session.prefix}/$frameKey',

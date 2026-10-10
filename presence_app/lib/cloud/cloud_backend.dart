@@ -33,6 +33,16 @@ abstract class CloudSession {
   /// Downloads [key], relative to [prefix].
   Future<Uint8List> get(String key);
 
+  /// Like [list], with when each object was last written (S3's time).
+  Future<Map<String, DateTime>> listModified([String under = '']);
+
+  /// Uploads [bytes] to [key] unless there's an object there already;
+  /// returns whether it did.
+  Future<bool> putIfNew(String key, Uint8List bytes, String contentType);
+
+  /// Deletes [key], relative to [prefix].
+  Future<void> delete(String key);
+
   /// The identity's temporary AWS credentials, for live sync's connection
   /// (null when there are none to share).
   AwsCredentials? get credentials;
@@ -119,4 +129,34 @@ class _AwsSession implements CloudSession {
   @override
   Future<Uint8List> get(String key) =>
       _bucket.get('$prefix/$key', credentials: _session.credentials);
+
+  @override
+  Future<Map<String, DateTime>> listModified([String under = '']) async => {
+    for (final MapEntry(:key, :value) in (await _bucket.listModified(
+      '$prefix/$under',
+      credentials: _session.credentials,
+    )).entries)
+      key.substring(prefix.length + 1): value,
+  };
+
+  @override
+  Future<bool> putIfNew(String key, Uint8List bytes, String contentType) async {
+    try {
+      await _bucket.put(
+        '$prefix/$key',
+        bytes,
+        contentType: contentType,
+        credentials: _session.credentials,
+        onlyNew: true,
+      );
+      return true;
+    } on S3Exception catch (e) {
+      if (e.statusCode == 412) return false;
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> delete(String key) =>
+      _bucket.delete('$prefix/$key', credentials: _session.credentials);
 }

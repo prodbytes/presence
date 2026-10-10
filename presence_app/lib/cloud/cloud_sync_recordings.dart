@@ -129,7 +129,15 @@ class _Recordings {
       try {
         final store = await _sync._store;
         final bytes = await session.get(key);
-        await (await _sync._media).saveBytes(mediaId, bytes);
+        try {
+          await (await _sync._media).saveBytes(mediaId, bytes);
+        } on SealBroken {
+          // Not sealed (an older version's): never taken, nor asked again.
+          debugPrint('Presence: skipped $key: not sealed');
+          await store.unmarkSynced(_fetchKey(objectKey));
+          _sync._synced?.remove(_fetchKey(objectKey));
+          return false;
+        }
         await _sync._markSynced(store, objectKey, mediaId);
         await store.unmarkSynced(_fetchKey(objectKey));
         _sync._synced?.remove(_fetchKey(objectKey));

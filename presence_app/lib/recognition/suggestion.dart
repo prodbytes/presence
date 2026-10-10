@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../crypto/sealed_image.dart';
 import '../annotations.dart';
 import '../clips.dart';
 import '../events.dart';
@@ -224,11 +225,10 @@ class _Frame extends StatelessWidget {
       width: width,
       child: Stack(
         children: [
-          Image.memory(
-            frame.jpeg,
+          SealedImage(
+            frame.sealed,
             key: const Key('suggestion-frame'),
             width: width,
-            gaplessPlayback: true,
           ),
           Positioned.fill(
             child: LayoutBuilder(
