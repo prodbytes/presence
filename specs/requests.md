@@ -4701,3 +4701,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        API](auth-api.md), [Local CDN](local-cdn.md),
        [Premium](premium.md), [Maintenance](maintenance.md),
        [README](README.md).
+
+345. **Deploys may tag HTTP API stages again.** (2026-10-10)
+     - Found: the `0.6.202610101630-RC` deploy failed creating the new
+       `presence-rc-health` stack: its HTTP API stage needs
+       `apigateway:TagResource` (SAM tags it `httpapi:createdBy`), which
+       the deploy policies lost when the hardened ones (#245) were merged
+       over the older policy that had it.
+     - Changed: the stage deploy policy allows `apigateway:TagResource`
+       and `UntagResource` on the stage's APIs again;
+       `presence-github-deploy` redeployed. Spec: [Production
+       deploy](deploy.md) (unchanged rules; the list was incomplete).
