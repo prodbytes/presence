@@ -647,7 +647,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     auth: widget.auth,
                     membership: widget.membership,
                     feedback: widget.feedback,
-                    canCreateAdmins: widget.roles.isRoot,
                     // The app follows a switch at once, not at its next check.
                     onMaintenanceSwitched: widget.roles.checkApi,
                   ),

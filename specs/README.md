@@ -77,10 +77,9 @@ their data.
   hidden, with a prompt to sign up at nu01.com. The account sheet says
   Free or Premium.
 - [Membership](membership.md): users without access ask for it or redeem
-  a voucher code; admins grant requests and create voucher codes (their
-  own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
-  current season by default), uses, discount)
-  on the Admin tab, under its maintenance mode switch.
+  a voucher code; admins grant requests, and list and delete voucher
+  codes (created in rbacr), on the Admin tab, under its maintenance mode
+  switch.
 - [Feedback and Help](feedback.md): the Help tab ("Feedback & Help"), where
   members write to the administrators and read their replies, one
   conversation each; admins answer on the Admin tab.

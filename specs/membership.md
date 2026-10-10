@@ -11,8 +11,8 @@ roles, in brackets below:
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
 | Member (`free`) | `presence_user` | every feature: tabs, camera buttons; devices sync over live sync, at most every 30 s |
 | Premium member (`premium`) | `presence_user`, `presence_premium` | as Member, and cloud sync |
-| Admin (`admin`) | `presence_user`, `presence_premium`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers; live sync always connected |
-| Root (rbacr's root list) | all four, `presence_root` too | as Admin, and also creates Admin vouchers |
+| Admin (`admin`) | `presence_user`, `presence_premium`, `presence_admin` | every feature, plus the **Admin** tab; lists and deletes vouchers; live sync always connected |
+| Root (rbacr's root list) | all four, `presence_root` too | as Admin, and also sees and deletes Admin vouchers |
 
 Roots are **rbacr's roots**: the addresses and domains on rbacr's root
 list (`@nu01.com` by default), configured in rbacr, not here. They get
@@ -67,11 +67,12 @@ requests when they open the Admin tab.
 
 ## Voucher codes
 
-A voucher grants a role to whoever redeems it:
+A voucher grants a role to whoever redeems it. Codes are created in
+rbacr; the app only lists and deletes them (on the Admin tab) and redeems
+them. The auth API's rules for a code:
 
-- **Code:** random when left blank (the app's default), or, for a Member
-  voucher only, the admin's choice; the app suggests the current season,
-  an animal and a number (`AUTUMN-OTTER-4821`) only when asked. The code
+- **Code:** random when left blank, or, for a Member voucher only, the
+  admin's choice. The code
   is a voucher's only secret, so an **Admin voucher always gets a random
   code** (a chosen one is refused, 400), and a chosen code needs **at
   least 10 letters and digits** (dashes aside) and at most 40 characters:
@@ -93,12 +94,9 @@ A voucher grants a role to whoever redeems it:
   admins), and no voucher grants `presence_root` (400).
 - **Validity:** a start (`startsAt`) and an end (`expiresAt`) instant.
   The end is in the future and at most 366 days away; the start is before
-  the end, and may be up to 366 days in the past (the start of the
-  season); without one,
+  the end, and may be up to 366 days in the past; without one,
   the voucher is valid from its creation. A code is redeemable from its
-  start until its end. The app picks two days, and makes the code valid
-  from the start of the first through the end of the last (local time):
-  the current season's first and last days by default.
+  start until its end.
 - **Uses:** 1 to 1000. Each email may redeem a voucher once.
 
 `VoucherTable` keeps one item per code: `code`, `role`, `startsAt`,
@@ -163,27 +161,9 @@ Help](feedback.md#on-the-admin-tab).
 
 **Voucher codes**, after the feedback:
 
-- a form: **Code** (blank by default, "Blank for a random code (the
-  safest)"; for a Member code the admin may type their own, at least 10
-  letters and digits, or press the dice button, "Suggest a code (easier to
-  guess)", for the season, an animal and a number, `AUTUMN-OTTER-4821`.
-  Choosing **Admin** clears and disables the field, "Admin codes are
-  always random", and the dice), **Grants**
-  (Member by default; Admin is offered to roots only, and other admins
-  are told "Only roots create Admin codes."), **Valid from** and **Valid
-  through** (date pickers, the current season's first and last days by
-  default; the first may be up to a year back, the last from today, or
-  the first day when that's later, up to 365 days ahead; picking a first
-  day after the last moves the last to it), **Uses** (1 by
-  default; digits only, 1 to 1000), **Discount** (100 % by default; 1 to
-  100) and **Create code**, disabled while a field is invalid. The new
-  code goes to the top of the list and a message names it, and the code
-  field is blank again (the dates stay). A taken code says "That code is
-  taken; pick another.";
-- the season is the northern hemisphere's meteorological one: winter is
-  December to February, spring March to May, summer June to August,
-  autumn September to November ([lib/auth/voucher_code.dart](../presence_app/lib/auth/voucher_code.dart)),
-  so autumn runs from 1 September through 30 November;
+- no form: **codes are created in rbacr**, not here. A line under the
+  heading says so: "Whoever redeems a code on the Request access sheet
+  gets its role at once. Codes are created in rbacr.";
 - every voucher, newest first, as cards: the code (selectable, monospace;
   struck through with "Expired", "Used up" or "Not yet valid" when it
   can't be redeemed), its role, its discount ("25% off"), "N of M used",
@@ -217,18 +197,15 @@ is the app's client (a fake in tests).
   shows signed-in users as unknown until it answers again.
 - The voucher codes themselves still live here (`VoucherTable`), not in
   rbacr, until rbacr can redeem a code for another address.
-- Suggested codes are far easier to guess than random ones: with the
-  season known, about 620,000 (63 animals, numbers 100 to 9999), against
-  2^60. The per-email lockout (10 an hour) makes one account need years,
-  but many Google accounts share only the route's throttle (1 a second),
-  about a week for all of them; so the app suggests one only when asked,
-  and only for Member codes. Keep few uses and short expiries on them.
-  Codes an admin types can be weaker still, though at least 10 letters
-  and digits.
-- The suggested season, and the default validity, are the northern
-  hemisphere's.
-- The app picks whole days in the admin's time zone; the API takes any
-  instants. A code redeemed before its start gets the same 404 as an
+- The app no longer creates codes (that's rbacr's, 2026-10-10). Until
+  rbacr creates the codes this app redeems, a new one can only be made
+  through the auth API's `POST /api/auth/vouchers`, by an admin's token
+  (see [Auth API](auth-api.md)); its rules are under **Code**,
+  **Discount** and the dates above.
+- Codes chosen through the API can be easier to guess than random ones
+  (at least 10 letters and digits); keep few uses and short expiries on
+  them.
+- A code redeemed before its start gets the same 404 as an
   invalid one, so users aren't told it will work later.
 - Vouchers under 100% can't be used yet: paying the rest isn't built.
   The 402 tells a valid partial code from an invalid one, but only for
