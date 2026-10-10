@@ -41,8 +41,14 @@ import static presence.auth.Http.response;
  *   <li>{@code POST /api/auth/profile/devices/remove} ({@code presence_user}
  *       only): takes the device in the body out of the profile's devices,
  *       answering {@code {"deviceLimit", "devices"}};</li>
- *   <li>{@code GET /api/auth/profile}: the profile's subjects, as {@code
- *       {"profile", "accounts": [{email, owner, current}]}}, the owner first;</li>
+ *   <li>{@code GET /api/auth/profile}: the caller's profile, made (and
+ *       linked to the caller) at its first sign-in, as {@code {"profile",
+ *       "shared": [...], "accounts": [{email, owner, current}]}}: {@code
+ *       shared} is what the caller gets from the profile's owner ({@link
+ *       Roles#shared}: {@code presence_user} and {@code presence_premium}
+ *       when the owner has them; empty for the owner), {@code accounts} the
+ *       profile's subjects, the owner first. The app asks it at every
+ *       sign-in, and its own roles from rbacr;</li>
  *   <li>{@code POST /api/auth/profile/link-code} ({@code presence_user}
  *       only): a one-time code, valid for {@link #CODE_TTL}, as {@code
  *       {"code": "ABCD-EFGH", "expiresAt"}};</li>
@@ -50,13 +56,14 @@ import static presence.auth.Http.response;
  *       profile of the code in the (plain-text) body, and shares its
  *       owner's membership ({@code presence_user}; never the owner's
  *       {@code presence_admin} or {@code presence_root}, see
- *       {@link Roles#of(Caller, Profiles.Profile)}). Refused (409) if the
+ *       {@link Roles#shared}), and answers the listing. Refused (409) if the
  *       subject owns a profile with cloud data, or one other subjects are
  *       linked to; a refusal leaves the code usable, which is used up
  *       only by a link that's made;</li>
  *   <li>{@code POST /api/auth/profile/unlink}: removes the subject with the
  *       email in the body from the caller's profile (not the owner). Its
- *       next sign-in makes it a profile of its own again.</li>
+ *       next sign-in makes it a profile of its own again. Answers the
+ *       listing.</li>
  * </ul>
  */
 public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
@@ -332,7 +339,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     private APIGatewayV2HTTPResponse unlink(Caller caller, String body) {
         var email = body == null ? "" : body.toLowerCase(Locale.ROOT);
-        if (!AdminHandler.validEmail(email)) {
+        if (!validEmail(email)) {
             return response(400, "{\"error\":\"the body must be an email\"}");
         }
         var profile = profile(caller);
@@ -349,10 +356,23 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         return listing(caller);
     }
 
-    /** The caller's profile and its subjects, the owner first. */
+    /** An email as an account's: one {@code @}, not at either end, no spaces or commas. */
+    static boolean validEmail(String email) {
+        var at = email.lastIndexOf('@');
+        return email.length() <= 254 && at > 0 && at < email.length() - 1
+                && email.chars().noneMatch(c -> c <= ' ' || c == ',');
+    }
+
+    /**
+     * The caller's profile, the roles it {@link Roles#shared shares} from
+     * the profile's owner (sorted) and its subjects, the owner first.
+     */
     private APIGatewayV2HTTPResponse listing(Caller caller) {
         var profile = profile(caller);
-        return response(200, "{\"profile\":" + Json.string(profile.id()) + ",\"accounts\":["
+        return response(200, "{\"profile\":" + Json.string(profile.id())
+                + ",\"shared\":" + roles.shared(caller, profile).stream().map(Json::string)
+                .collect(Collectors.joining(",", "[", "]"))
+                + ",\"accounts\":["
                 + profiles.store().members(profile.id()).stream()
                 .sorted(Comparator.comparing((Profiles.Member m) -> !m.subject().equals(profile.ownerSubject()))
                         .thenComparing(Profiles.Member::email))

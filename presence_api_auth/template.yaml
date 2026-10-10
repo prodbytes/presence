@@ -2,18 +2,18 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
   presence_api_auth (stacks presence-auth-api and presence-rc-auth-api):
-  GET /api/auth returns the signed-in user's profile (found by the token's
-  subject, or made at the first sign-in) and roles; POST /api/auth/voucher
-  redeems a voucher code; the Admin routes (presence_admin) manage vouchers
-  and maintenance mode; /api/auth/credentials and /api/auth/profile/* give a
-  profile's cloud credentials and link its accounts. A JWT authorizer
-  checks the Google ID token first. GET /api/auth/anonymous (no token)
-  returns the execution mode and which settings are set (GET /health is
-  presence_health, which imports the tables' exports). Every role comes from rbacr (its
-  presence system: free, premium, admin; its roots get all; users
-  subscribe at nu01.com), and vouchers grant there. A linked account
-  shares only its owner's presence_user and presence_premium. Served under
-  /api/* by CloudFront.
+  GET /api/auth/profile returns the signed-in user's profile (found by the
+  token's subject, or made at the first sign-in), the roles a linked
+  account shares from the profile's owner (only presence_user and
+  presence_premium) and its accounts; /api/auth/credentials and
+  /api/auth/profile/* give a profile's cloud credentials and link its
+  accounts. A JWT authorizer checks the Google ID token first. GET
+  /api/auth/anonymous (no token) returns the execution mode and which
+  settings are set. Every role comes from rbacr (its presence system:
+  free, premium, admin; its roots get all): the app asks rbacr directly
+  for the user's own roles, maintenance mode and vouchers, which admins
+  manage in rbacr. GET /health is presence_health, which imports the
+  tables' exports. Served under /api/* by CloudFront.
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
@@ -68,14 +68,15 @@ Parameters:
       RBACR_URL: rbacr (github.com/prodbytes/rbacr), which keeps every
       role: who may use the app (free), sync with the cloud (premium),
       administer it (admin) or is a root (rbacr's root list). Subscriptions
-      (at nu01.com) and vouchers grant there.
+      (at nu01.com) and vouchers grant there; the app asks it directly too.
   RbacrToken:
     Type: String
     Default: ''
     NoEcho: true
     Description: >
       RBACR_TOKEN: an rbacr API token owned by an rbacr root, which may ask
-      about anyone's roles and grant them. Empty: nobody has a role (and
+      about anyone's roles (a linked account shares its profile owner's).
+      Empty: nobody has a role (and
       presence_health's rbacr check fails). Set it at deploy (scripts/deploy.sh, from the
       RBACR_TOKEN secret), never in the repository.
   RbacrSystem:
@@ -102,28 +103,6 @@ Globals:
     PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
 
 Resources:
-  # Per user, by email: {"email": "<lowercase>", "voucherMisses",
-  # "voucherMissesSince"} (the voucher lockout). Its "roles" (SS or L) are
-  # what roles were before rbacr, copied there by
-  # scripts/migrate-roles-to-rbacr.sh and no longer read.
-  # Its contents live only here, never in the repository.
-  UserRolesTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: email
-          AttributeType: S
-      KeySchema:
-        - AttributeName: email
-          KeyType: HASH
-      SSESpecification:
-        SSEEnabled: true
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-
   # Profiles: whose data it is, outliving the ways its owner signs in.
   # {"id": "<adjective>_<adjective>_<animal>", "createdAt", "lastSignInAt"
   # (epoch ms), "ownerSubject", "ownerEmail", "identityId" (its Cognito
@@ -175,26 +154,6 @@ Resources:
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
 
-  # Voucher codes: {"code": "XXXX-XXXX-XXXX" or chosen ("AUTUMN-OTTER-4821"),
-  # "role", "expiresAt" (epoch ms), "maxUses", "uses", "redeemedBy" (SS of
-  # emails), "createdBy", "createdAt" (epoch ms), "discount" (percent)}. Holds emails and live codes: AWS only.
-  VoucherTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: code
-          AttributeType: S
-      KeySchema:
-        - AttributeName: code
-          KeyType: HASH
-      SSESpecification:
-        SSEEnabled: true
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-
   # One-time link codes, by their SHA-256: {"code", "profileId",
   # "createdBy", "expiresAt" (epoch s, the TTL)}.
   LinkCodesTable:
@@ -213,33 +172,12 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
-  # The system's own state, one item per setting: {"id": "maintenance",
-  # "on", "message", "since" (epoch ms), "by" (the admin's email)}.
-  SystemTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      BillingMode: PAY_PER_REQUEST
-      AttributeDefinitions:
-        - AttributeName: id
-          AttributeType: S
-      KeySchema:
-        - AttributeName: id
-          KeyType: HASH
-      SSESpecification:
-        SSEEnabled: true
-
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       RouteSettings:
-        # Slows down guessing codes (random ones have 60 bits; chosen ones at
-        # least 10 letters and digits), with VoucherHandler's per-email
-        # lockout (10 wrong codes an hour).
-        "POST /api/auth/voucher":
-          ThrottlingBurstLimit: 5
-          ThrottlingRateLimit: 1
-        # Writes a profile at a first sign-in; the app asks it once per sign-in.
-        "GET /api/auth":
+        # The app asks it at every sign-in, and it writes a profile at the first.
+        "GET /api/auth/profile":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
         # Public (no token): the app asks it at every start. These limits
@@ -278,45 +216,14 @@ Resources:
       Handler: presence.auth.AuthHandler::handleRequest
       Environment:
         Variables:
-          PROFILES_TABLE: !Ref ProfilesTable
-          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
-          # rbacr gives every role (Roles).
-          RBACR_URL: !Ref RbacrUrl
-          RBACR_TOKEN: !Ref RbacrToken
-          RBACR_SYSTEM: !Ref RbacrSystem
           # Decides the ExecutionMode: DEV when empty, else RBAC.
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
-          # GET /api/auth/anonymous says whether these are set (Settings).
+          # GET /api/auth/anonymous says whether these are set (Settings),
+          # never their values.
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
-          # GET /api/auth/anonymous says whether maintenance mode is on.
-          SYSTEM_TABLE: !Ref SystemTable
-      Policies:
-        - Statement:
-            - Effect: Allow
-              Action: dynamodb:GetItem
-              Resource: !GetAtt SystemTable.Arn
-            # Finds the subject's profile, or links it to a new one.
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-              Resource: !GetAtt ProfileSubjectsTable.Arn
-            # Creates profiles (with an unused ID), records each sign-in
-            # and reads the owner, whose membership a linked subject shares.
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt ProfilesTable.Arn
+          RBACR_TOKEN: !Ref RbacrToken
       Events:
-        Roles:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth
-            Method: get
         # The execution mode and the anonymous user's roles, without a token.
         Anonymous:
           Type: HttpApi
@@ -326,111 +233,6 @@ Resources:
             Method: get
             Auth:
               Authorizer: NONE
-
-  VoucherFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: AuthFunction
-      Handler: presence.auth.VoucherHandler::handleRequest
-      Environment:
-        Variables:
-          VOUCHER_TABLE: !Ref VoucherTable
-          USER_ROLES_TABLE: !Ref UserRolesTable
-          # Grants the voucher's role in rbacr.
-          RBACR_URL: !Ref RbacrUrl
-          RBACR_TOKEN: !Ref RbacrToken
-          RBACR_SYSTEM: !Ref RbacrSystem
-      Policies:
-        - Statement:
-            # Counts a use (one conditional update), or gives it back if the
-            # grant fails; reads a refused code to tell a partial discount (402).
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt VoucherTable.Arn
-            # Counts the email's wrong codes (the lockout).
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt UserRolesTable.Arn
-      Events:
-        Redeem:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/voucher
-            Method: post
-
-  AdminFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      CodeUri: AuthFunction
-      Handler: presence.auth.AdminHandler::handleRequest
-      Environment:
-        Variables:
-          # Checks the caller's roles in rbacr.
-          RBACR_URL: !Ref RbacrUrl
-          RBACR_TOKEN: !Ref RbacrToken
-          RBACR_SYSTEM: !Ref RbacrSystem
-          VOUCHER_TABLE: !Ref VoucherTable
-          PROFILES_TABLE: !Ref ProfilesTable
-          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
-          SYSTEM_TABLE: !Ref SystemTable
-      Policies:
-        - Statement:
-            # The caller's profile owner, whose membership a linked subject shares.
-            - Effect: Allow
-              Action: dynamodb:GetItem
-              Resource:
-                - !GetAtt ProfileSubjectsTable.Arn
-                - !GetAtt ProfilesTable.Arn
-            # Creates (only new codes), lists and deletes vouchers (a
-            # presence_admin one only for a root: a conditional delete).
-            - Effect: Allow
-              Action:
-                - dynamodb:PutItem
-                - dynamodb:Scan
-                - dynamodb:DeleteItem
-              Resource: !GetAtt VoucherTable.Arn
-            # Reads and switches maintenance mode.
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:PutItem
-              Resource: !GetAtt SystemTable.Arn
-      Events:
-        ListVouchers:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/vouchers
-            Method: get
-        CreateVoucher:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/vouchers
-            Method: post
-        DeleteVoucher:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/vouchers/delete
-            Method: post
-        GetMaintenance:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/maintenance
-            Method: get
-        SetMaintenance:
-          Type: HttpApi
-          Properties:
-            ApiId: !Ref AuthHttpApi
-            Path: /api/auth/maintenance
-            Method: post
 
   ProfileFunction:
     Type: AWS::Serverless::Function
@@ -511,6 +313,7 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/credentials
             Method: post
+        # The profile (made at the first sign-in), what it shares and its accounts.
         Profile:
           Type: HttpApi
           Properties:
@@ -545,15 +348,12 @@ Resources:
 Outputs:
   # The tables' exports (<stack>-<Table>): presence_health imports them to
   # check the tables (DescribeTable). While it does, CloudFormation refuses
-  # to change or remove them.
+  # to change or remove them: scripts/deploy.sh deploys an existing health
+  # stack first, so it stops importing one before this stack drops it, and
+  # a new export ships in a deploy before the one that imports it.
   ApiDomain:
     Description: The HTTP API's host name (the site distribution's /api/* origin)
     Value: !Sub "${AuthHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
-  UserRolesTableName:
-    Description: The voucher lockout per user (email -> voucherMisses); its old roles are rbacr's now
-    Value: !Ref UserRolesTable
-    Export:
-      Name: !Sub ${AWS::StackName}-UserRolesTable
   ProfilesTableName:
     Description: Profiles (id -> createdAt, lastSignInAt)
     Value: !Ref ProfilesTable
@@ -564,18 +364,8 @@ Outputs:
     Value: !Ref ProfileSubjectsTable
     Export:
       Name: !Sub ${AWS::StackName}-ProfileSubjectsTable
-  VoucherTableName:
-    Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
-    Value: !Ref VoucherTable
-    Export:
-      Name: !Sub ${AWS::StackName}-VoucherTable
   LinkCodesTableName:
     Description: One-time link codes (sha256(code) -> profileId, expiresAt)
     Value: !Ref LinkCodesTable
     Export:
       Name: !Sub ${AWS::StackName}-LinkCodesTable
-  SystemTableName:
-    Description: The system's state (maintenance -> on, message, since, by)
-    Value: !Ref SystemTable
-    Export:
-      Name: !Sub ${AWS::StackName}-SystemTable

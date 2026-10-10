@@ -102,22 +102,41 @@ there's no separate sign-in screen:
   `[28473] Caller could not be verified`. Signing in again opens a fresh
   sheet.
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
-  After sign-in, the app asks the [auth API](auth-api.md) (`GET /api/auth`,
-  with the Google ID token) for the user's roles and their
-  [profile](profiles.md), which the API finds by the account, or, at the
-  first sign-in, takes over from the device (`RolesService.profile`):
+  After sign-in, the app asks two places at once, with the Google ID
+  token (`HttpRolesClient`):
+  - **rbacr** (`GET /api/me`, `Authorization: Bearer <ID token>`;
+    `HttpRbacrClient` in
+    [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart))
+    for the user's **own roles**: rbacr's roles in the build's system
+    (`RBACR_SYSTEM`, default `presence`; see
+    [Configuration](configuration.md)) mapped as the auth API maps them
+    (`presenceRoles`): `presence_user` for `free`, `premium` or `admin`,
+    `presence_premium` for `premium` or `admin`, `presence_admin` for
+    `admin`, and all four (`presence_root` too) for an rbacr root
+    (`root: true`). rbacr accepts ID tokens for Presence's Google web,
+    Android and iOS clients;
+  - the [auth API](auth-api.md) (`GET /api/auth/profile`) for their
+    [profile](profiles.md) (`RolesService.profile`), which it finds by
+    the account or makes at the first sign-in, and `shared`, the
+    membership a linked account shares from the profile's owner
+    (`presence_user` and/or `presence_premium`; the app takes nothing
+    else from it);
+  - the roles are the own ones plus the shared ones. **Both must
+    answer**, or the check fails; nothing is cached. At the same time it
+    asks rbacr whether the system is in
+    [maintenance](maintenance.md), so the sorry screen, not "no access",
+    shows while it is.
   - **With `presence_user`,** the user gets everything below. Other roles
     alone don't count.
-  - **With `presence_admin` too,** an **Admin** icon also shows, left of
-    the account button (see [Membership](membership.md)). With
-    `presence_root` as well (`RolesService.isRoot`), its voucher form also
-    offers Admin codes. Every role comes from rbacr, roots from its root
-    list (see [Auth API](auth-api.md)).
+  - **With `presence_admin` too,** the **Admin** tab also shows (see
+    [Membership](membership.md#the-admin-tab)). `presence_root`
+    (`RolesService.isRoot`) adds nothing more in the app. Every role comes
+    from rbacr, roots from its root list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
     icon. The icon opens "Subscribe", which sends the user to subscribe at
     nu01.com, takes a voucher code (see [Membership](membership.md)), and
-    has **Check again**, which asks the auth API once more. There are no tabs,
+    has **Check again**, which asks rbacr and the auth API once more. There are no tabs,
     no camera buttons, and no cloud sync.
   - While the check runs, a small spinner takes the sign-up icon's place.
   - The check runs when the user changes (sign-in, a session restored at
@@ -131,8 +150,13 @@ there's no separate sign-in screen:
     pressing Check again. These retries keep the sign-up screen up
     rather than flash the spinner; a sign-out or another account stops
     them.
-  - Web asks its own origin (`/api/auth`). Android and iOS ask
-    `API_BASE_URL`, `https://presence.nu01.com` by default.
+  - The check's errors say which side failed: "Auth API HTTP n" or
+    "rbacr HTTP n".
+  - Web asks the auth API on its own origin (`/api/auth/profile`).
+    Android and iOS ask `API_BASE_URL`, `https://presence.nu01.com` by
+    default. rbacr is the build's `RBACR_URL` (GA
+    https://rbacr.nu01.com by default; tokens go only to https, or http
+    to localhost).
 - **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
   (with its readiness colors), the tabs and, last among them, the
   **Profile** tab: your avatar with the tooltip "Signed in as
@@ -144,11 +168,11 @@ there's no separate sign-in screen:
   in without access, the app bar's account button still opens it as a
   bottom sheet). The camera keeps running.
   - **Roles**, always, right under the email (`AccountRoles`): a small
-    outlined chip per role the auth API gave, named for people (Member,
+    outlined chip per role the check gave, named for people (Member,
     Premium, Admin, Root; another role keeps its ID), in that order, the
     role's ID as each chip's tooltip, and "Roles: Member, Admin" for screen
     readers. "No roles yet" without any (a signed-in account without
-    access), "Checking roles…" while the auth API is asked. The anonymous
+    access), "Checking roles…" while rbacr and the auth API are asked. The anonymous
     role isn't shown.
   - **Connectivity** (`ConnectivityIndicator`,
     [lib/connectivity.dart](../presence_app/lib/connectivity.dart)), under
@@ -279,7 +303,9 @@ starts load it: [scripts/flutter-web.sh](../scripts/flutter-web.sh) (used by
 (`bash scripts/flutter-run.sh -d <device>`) pass them to Flutter as
 `--dart-define`s through [scripts/dart-defines.sh](../scripts/dart-defines.sh),
 which forwards **only** an allowlist (`GOOGLE_WEB_CLIENT_ID`,
-`GOOGLE_IOS_CLIENT_ID`). Anything passed to Flutter ends up in the compiled
+`GOOGLE_IOS_CLIENT_ID`, the cloud and live-sync IDs, and rbacr's
+`RBACR_URL` and `RBACR_SYSTEM`; see
+[Configuration](configuration.md#build-time-settings-rbacr)). Anything passed to Flutter ends up in the compiled
 app, and the web bundle is readable, so `.env` can also hold secrets such
 as the web client's secret (`GOOGLE_WEB_CLIENT_SECRET`), which the app never
 uses and never receives: only a future backend would. Without `.env`, the

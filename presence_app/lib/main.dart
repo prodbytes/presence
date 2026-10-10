@@ -11,7 +11,7 @@ import 'auth/api_config.dart';
 import 'barrel_roll.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
-import 'auth/membership_client.dart';
+import 'auth/rbacr_client.dart';
 import 'feedback/feedback_client.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
@@ -73,7 +73,7 @@ class PresenceApp extends StatefulWidget {
     this.cloud,
     this.live,
     this.rolesClient,
-    this.membershipClient,
+    this.rbacrClient,
     this.feedbackClient,
     this.profileClient,
     this.consentGiven = false,
@@ -115,9 +115,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the maps' tiles (used by tests); defaults to OpenStreetMap.
   final Widget? mapTiles;
 
-  /// Overrides the membership routes (vouchers, maintenance; used by
-  /// tests); defaults to the auth API's.
-  final MembershipClient? membershipClient;
+  /// Overrides rbacr's self-service routes (the user's roles, maintenance
+  /// mode and redeeming vouchers; used by tests); defaults to
+  /// `RbacrConfig.baseUrl`'s, asked with the user's Google ID token.
+  final RbacrClient? rbacrClient;
 
   /// Overrides Feedback and Help (used by tests); defaults to its DynamoDB
   /// table, with the profile's credentials (`DynamoFeedbackClient`).
@@ -127,7 +128,8 @@ class PresenceApp extends StatefulWidget {
   /// `/api/auth/profile`.
   final ProfileClient? profileClient;
 
-  /// Overrides the auth API (used by tests); defaults to `GET /api/auth`.
+  /// Overrides where roles come from (used by tests); defaults to rbacr's
+  /// `GET /api/me` with the auth API's `GET /api/auth/profile`.
   final RolesClient? rolesClient;
 
   /// Overrides cloud uploads (used by tests); defaults to Cognito + S3
@@ -188,8 +190,10 @@ class _PresenceAppState extends State<PresenceApp> {
     // The signed-in account's profile, as the auth API answers.
     _roles = RolesService(
       auth: _auth,
-      client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
-      // Maintenance mode reaches a running app within a minute.
+      client:
+          widget.rolesClient ??
+          HttpRolesClient(ApiConfig.baseUrl, rbacr: _rbacr),
+      // rbacr's maintenance mode reaches a running app within a minute.
       maintenanceCheckInterval: const Duration(minutes: 1),
     );
     final mediaIo = widget.mediaIo;
@@ -517,8 +521,8 @@ class _PresenceAppState extends State<PresenceApp> {
 
   late final AuthService _auth;
   late final RolesService _roles;
-  late final MembershipClient _membership =
-      widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
+  late final RbacrClient _rbacr =
+      widget.rbacrClient ?? HttpRbacrClient(RbacrConfig.baseUrl);
   late final FeedbackClient _feedback =
       widget.feedbackClient ??
       DynamoFeedbackClient(
@@ -596,8 +600,8 @@ class _PresenceAppState extends State<PresenceApp> {
               title: AppVersion.title,
               debugShowCheckedModeBanner: false,
               theme: gruvboxSoftDarkTheme(),
-              // The "do a barrel roll" search spins everything. In
-              // maintenance mode, only admins get past the sorry message.
+              // The "do a barrel roll" search spins everything. In rbacr's
+              // maintenance mode, nobody gets past the sorry message.
               builder: (context, app) => BarrelRoll(
                 child: MaintenanceGate(roles: _roles, child: app!),
               ),
@@ -617,7 +621,7 @@ class _PresenceAppState extends State<PresenceApp> {
                   config: _config,
                   auth: _auth,
                   roles: _roles,
-                  membership: _membership,
+                  rbacr: _rbacr,
                   feedback: _feedback,
                   profiles: _profiles,
                   sync: _sync,

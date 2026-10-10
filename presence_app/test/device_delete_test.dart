@@ -73,13 +73,16 @@ void main() {
     late EventLog log;
     late List<String> deleted;
 
-    setUp(() {
+    setUp(() async {
       auth = FakeAuthService.signedIn();
       roles = RolesService(
         auth: auth,
         client: FakeRolesClient(),
         oidcClient: true,
       );
+      // The roles check (rbacr's roles and maintenance status) answers
+      // before the sheet shows.
+      await pumpEventQueue();
       bus = StreamController<AppEvent>();
       log = EventLog(bus.stream)
         ..addHistory([

@@ -250,27 +250,19 @@ class ProfileTest {
         var linkedResponse = profiles.handleRequest(
                 call("POST /api/auth/profile/link", "home", "julio@gmail.com", " " + code.toLowerCase() + " "), null);
         assertEquals(200, linkedResponse.getStatusCode());
-        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+        // Shared from the admin owner: membership and premium, not administration.
+        assertEquals("{\"profile\":\"profile_1\",\"shared\":[\"presence_premium\",\"presence_user\"],\"accounts\":["
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
-        // The gmail account now has nu01.com's folder, membership and
-        // premium, here and in GET /api/auth, but not its administration.
+        // The gmail account now has nu01.com's folder, and in the listing
+        // it asks at sign-in, its membership and premium, not administration.
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
-        var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
-        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_premium\",\"presence_user\"]}",
-                auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
-        // And the Admin routes, which never make a profile: no admin.
-        var admin = new AdminHandler(roles, new Profiles(store)::existing, new VoucherTest.MemoryStore(), clock);
-        assertEquals(403, admin.handleRequest(call("GET /api/auth/vouchers", "home", "julio@gmail.com", null), null)
-                .getStatusCode());
-        assertEquals(200, admin.handleRequest(call("GET /api/auth/vouchers", "work", "julio@nu01.com", null), null)
-                .getStatusCode());
-        assertEquals(403, admin.handleRequest(call("GET /api/auth/vouchers", "nobody", "x@example.com", null), null)
-                .getStatusCode());
-        assertNull(store.links.get(GOOGLE + "#nobody"));
+        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
+        // The owner shares nothing with itself.
+        assertTrue(listing("work", "julio@nu01.com").contains("\"shared\":[]"));
     }
 
     @Test
@@ -371,7 +363,7 @@ class ProfileTest {
         var response = profiles.handleRequest(
                 call("POST /api/auth/profile/unlink", "work", "julio@nu01.com", "JULIO@gmail.com"), null);
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+        assertEquals("{\"profile\":\"profile_1\",\"shared\":[],\"accounts\":["
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":true}]}", response.getBody());
         assertNull(store.links.get(GOOGLE + "#home"));
         assertEquals(404, profiles.handleRequest(
@@ -386,7 +378,7 @@ class ProfileTest {
     void theListingOfANewAccountIsJustItself() {
         var response = profiles.handleRequest(call("GET /api/auth/profile", "home", "Julio@Gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"profile\":\"profile_1\",\"accounts\":["
+        assertEquals("{\"profile\":\"profile_1\",\"shared\":[],\"accounts\":["
                 + "{\"email\":\"julio@gmail.com\",\"owner\":true,\"current\":true}]}", response.getBody());
     }
 
@@ -427,12 +419,37 @@ class ProfileTest {
         rbacr.put("julio@nu01.com", Set.of("free"));
         profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
         assertEquals(List.of("free", "premium", "premium", "free"), tiers);
-        // GET /api/auth says so too.
+    }
+
+    @Test
+    void theListingSaysWhatALinkedAccountSharesFromItsOwner() {
+        // A free owner: membership only.
+        assertEquals(200, link("home", "julio@gmail.com", linkCode("work", "julio@nu01.com")).getStatusCode());
+        assertTrue(listing("home", "julio@gmail.com").startsWith(
+                "{\"profile\":\"profile_1\",\"shared\":[\"presence_user\"],\"accounts\":["), listing("home", "julio@gmail.com"));
+        // A premium owner: premium too, sorted.
         rbacr.put("julio@nu01.com", Set.of("premium"));
-        var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
-        assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":\"profile_1\",\"roles\":["
-                        + "\"presence_premium\",\"presence_user\"]}",
-                auth.handleRequest(call("GET /api/auth", "work", "julio@nu01.com", null), null).getBody());
+        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
+        // A root owner: never root or admin.
+        rbacr.put("julio@nu01.com", Set.of(Rbacr.ROOT, "admin"));
+        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
+        // An owner no longer a member: nothing.
+        rbacr.remove("julio@nu01.com");
+        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[]"));
+        // The owner itself, whatever it has: nothing shared.
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        assertTrue(listing("work", "julio@nu01.com").contains("\"shared\":[]"));
+    }
+
+    @Test
+    void theListingMakesTheProfileAtTheFirstSignIn() {
+        assertNull(profileOf("work"));
+        var response = profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@nu01.com", null), null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("julio@nu01.com", profileOf("work").ownerEmail());
+        // And finds the same one after.
+        profiles.handleRequest(call("GET /api/auth/profile", "work", "julio@nu01.com", null), null);
+        assertEquals(1, store.profiles.size());
     }
 
     @Test
@@ -508,6 +525,13 @@ class ProfileTest {
         assertTrue(matcher.find());
         assertNotNull(matcher.group(1));
         return matcher.group(1);
+    }
+
+    /** The {@code GET /api/auth/profile} answer for {@code sub}. */
+    private String listing(String sub, String email) {
+        var response = profiles.handleRequest(call("GET /api/auth/profile", sub, email, null), null);
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        return response.getBody();
     }
 
     private com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse link(

@@ -17,6 +17,9 @@ package=com.nu01.presence
 adb_s() { "$adb" -s "$serial" "$@"; }
 
 cd "$(dirname "$0")/../presence_app"
+# The build calls production's auth API (ApiConfig), whose roles are GA
+# rbacr's: so does the app's own rbacr client, unless RBACR_URL says.
+export RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
 # The version code stays the pubspec's, as `flutter run` builds it, so

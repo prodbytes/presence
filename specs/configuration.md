@@ -79,3 +79,51 @@ All user configuration is one immutable object, **`PresenceConfig`**
 - Internal tuning constants (the motion pixel threshold, the 2 s wait cap
   for the before part, 3 frames to trigger, frame sizes) remain code
   constants, not user configuration.
+
+## Build-time settings: rbacr
+
+Besides the user's settings, a build takes public settings as
+`--dart-define`s from [scripts/dart-defines.sh](../scripts/dart-defines.sh)
+(see [Sign-in](sign-in.md) for its allowlist). Two say where
+[rbacr](https://github.com/prodbytes/rbacr) is, which the app asks
+directly, with the user's Google ID token, for their own roles
+([Sign-in](sign-in.md)), [maintenance mode](maintenance.md) and redeeming
+[voucher codes](membership.md#voucher-codes):
+
+- **`RBACR_URL`**: rbacr's origin, the same rbacr as the auth API the
+  build talks to (`RbacrConfig.baseUrl` in
+  [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart));
+- **`RBACR_SYSTEM`**: the rbacr system of Presence's roles
+  (`RbacrConfig.system`, default `presence`).
+
+Where they come from:
+
+- **Deploys:** `scripts/deploy.sh` exports the stage's `RBACR_URL` and
+  `RBACR_SYSTEM`, the ones its auth API gets (both prod and RC Presence
+  use GA https://rbacr.nu01.com unless the `RBACR_URL` repository variable
+  says otherwise; prod must be GA; see [Production deploy](deploy.md)).
+- **Phone and device runs, and release builds:** `scripts/flutter-run.sh`,
+  `scripts/android-install.sh` and `scripts/make.sh` (the Release
+  workflow's apps and the Pi `.deb`), whose builds call production's auth API,
+  default `RBACR_URL` to GA https://rbacr.nu01.com.
+- **Otherwise** (the local web build, `scripts/flutter-web.sh`, behind the
+  local Floci API, which uses rbacr's RC), `.env`'s
+  `RBACR_RC_URL` and `RBACR_RC_SYSTEM` (default https://rc.rbacr.nu01.com
+  and `presence`); never `.env`'s `RBACR_URL`, which is for deploys.
+- An environment variable wins over `.env` in every case. The token is
+  never passed: it stays in the auth API.
+
+Checks:
+
+- `dart-defines.sh` refuses a `RBACR_URL` that isn't an `https://` origin
+  (`http://` only for `localhost` or `127.0.0.1`), and a `RBACR_SYSTEM`
+  that isn't an rbacr system ID.
+- The app (`RbacrConfig.isSafe`) also sends the ID token only to https,
+  or http to localhost, and falls back to GA rbacr when `RBACR_URL` is
+  unset or unsafe, as `ApiConfig` defaults to production.
+- rbacr must allow the app's web origin (CORS, rbacr's H3): GA rbacr
+  allows https://presence.nu01.com and https://rc.presence.nu01.com; RC
+  rbacr https://rc.presence.nu01.com, https://local.presence.nu01.com:8443
+  and http://localhost:8080. It accepts ID tokens whose audience is one of
+  Presence's Google web, Android and iOS client IDs
+  (`RBACR_GOOGLE_AUDIENCES`, rbacr's I1).

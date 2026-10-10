@@ -22,7 +22,7 @@ final class Http {
                 .build();
     }
 
-    /** The route key ({@code "POST /api/auth/voucher"}), or empty. */
+    /** The route key ({@code "GET /api/auth/profile"}), or empty. */
     static String route(APIGatewayV2HTTPEvent event) {
         return event == null || event.getRouteKey() == null ? "" : event.getRouteKey();
     }

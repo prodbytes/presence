@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:presence_app/app_log.dart';
+import 'package:presence_app/auth/admin_screen.dart';
 import 'package:presence_app/home/home_navigation_bar.dart';
-import 'package:presence_app/auth/membership_client.dart';
+import 'package:presence_app/auth/rbacr_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/feedback/feedback_client.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/tab_memory.dart';
 
@@ -103,29 +105,81 @@ void main() {
       expect(roles.profile, isNull);
     });
 
-    test('HttpRolesClient reads the profile', () async {
-      Future<UserAccess> answer(String body) => HttpRolesClient(
+    test('HttpRolesClient: own roles from rbacr, the profile and its shared '
+        'membership from the auth API', () async {
+      Future<UserAccess> answer(RbacrMe me, String profile) => HttpRolesClient(
         Uri.parse('https://presence.test/'),
+        rbacr: FakeRbacrClient()..answer = me,
         client: MockClient((request) async {
-          expect(request.url.path, '/api/auth');
+          expect(request.url.path, '/api/auth/profile');
           expect(request.headers['authorization'], 'Bearer t');
           // The API finds (or makes) the account's profile: none is sent.
           expect(request.url.queryParameters, isEmpty);
-          return http.Response(body, 200);
+          return http.Response(profile, 200);
         }),
       ).fetch('t');
+      const own =
+          '{"profile":"automatic_paranoid_axolotl","shared":[],'
+          '"accounts":[]}';
 
-      final ana = await answer(
-        '{"email":"ana@example.com","profile":"automatic_paranoid_axolotl",'
-        '"roles":["presence_user"]}',
-      );
+      final ana = await answer((
+        email: 'ana@example.com',
+        root: false,
+        roles: {
+          'presence': ['free'],
+          'tabscan': ['admin'],
+        },
+      ), own);
       expect(ana.roles, [userRole]);
       expect(ana.profile, 'automatic_paranoid_axolotl');
-      // No subject, or an API from before profiles.
-      final none = await answer('{"email":null,"profile":null,"roles":[]}');
+
+      // A linked account shares the owner's membership, never more.
+      final linked = await answer(
+        (email: 'bo@example.com', root: false, roles: const {}),
+        '{"profile":"automatic_paranoid_axolotl",'
+        '"shared":["presence_premium","presence_user","presence_admin"]}',
+      );
+      expect(linked.roles, [premiumRole, userRole]);
+
+      // Its own admin role, with the owner's premium.
+      final both = await answer((
+        email: 'cy@example.com',
+        root: false,
+        roles: {
+          'presence': ['admin'],
+        },
+      ), '{"profile":"p","shared":["presence_user"]}');
+      expect(both.roles, [adminRole, premiumRole, userRole]);
+
+      // An API that didn't say.
+      final none = await answer((
+        email: 'a@b.c',
+        root: false,
+        roles: const {},
+      ), '{"accounts":[]}');
       expect(none.roles, isEmpty);
       expect(none.profile, isNull);
-      expect((await answer('{"email":"a@b.c","roles":[]}')).profile, isNull);
+    });
+
+    test('HttpRolesClient fails when rbacr or the auth API does', () async {
+      HttpRolesClient client(FakeRbacrClient rbacr, int status) =>
+          HttpRolesClient(
+            Uri.parse('https://presence.test/'),
+            rbacr: rbacr,
+            client: MockClient(
+              (_) async => http.Response('{"profile":"p","shared":[]}', status),
+            ),
+          );
+      expect(
+        client(FakeRbacrClient()..error = RolesException(401), 200).fetch('t'),
+        throwsA(isA<RolesException>()),
+      );
+      expect(
+        client(FakeRbacrClient(), 503).fetch('t'),
+        throwsA(
+          isA<RolesException>().having((e) => e.statusCode, 'status', 503),
+        ),
+      );
     });
 
     test('no roles, or a failed check, denies access', () async {
@@ -341,12 +395,10 @@ void main() {
   group('the app', () {
     Future<void> launch(
       WidgetTester tester,
-      FakeRolesClient roles, [
-      FakeMembershipClient? membership,
-    ]) async {
-      // Tall enough for the Admin page's voucher list (below the
-      // maintenance card, the requests and the feedback) above the
-      // navigation bar.
+      FakeRolesClient roles, {
+      FakeRbacrClient? rbacr,
+      FakeFeedbackClient? feedback,
+    }) async {
       tester.view.physicalSize = const Size(1280, 1300);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -357,8 +409,8 @@ void main() {
           cameras: openFakes([camera]),
           auth: FakeAuthService.signedIn(),
           rolesClient: roles,
-          membershipClient: membership ?? FakeMembershipClient(),
-          feedbackClient: FakeFeedbackClient(),
+          rbacrClient: rbacr ?? FakeRbacrClient(),
+          feedbackClient: feedback ?? FakeFeedbackClient(),
           mapTiles: const SizedBox(),
           locator: NoLocation(),
         ),
@@ -370,8 +422,7 @@ void main() {
       tester,
     ) async {
       final roles = FakeRolesClient.none();
-      final membership = FakeMembershipClient();
-      await launch(tester, roles, membership);
+      await launch(tester, roles);
 
       expect(find.byType(HomeNavigationBar), findsNothing);
       expect(find.byKey(const Key('clip')), findsNothing);
@@ -412,21 +463,14 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
-    testWidgets('a voucher code lets the user in at once', (tester) async {
+    testWidgets('a voucher code redeemed in rbacr lets the user in at once', (
+      tester,
+    ) async {
       final roles = FakeRolesClient.none();
-      final membership = FakeMembershipClient()
-        ..codes.add(
-          Voucher(
-            code: 'ABCD-EFGH-JK23',
-            role: userRole,
-            expiresAt: DateTime.now().add(const Duration(days: 1)),
-            maxUses: 1,
-            uses: 0,
-            createdAt: DateTime.now(),
-          ),
-        )
-        ..onRedeem = (role) => roles.roles = [role];
-      await launch(tester, roles, membership);
+      final rbacr = FakeRbacrClient()
+        ..vouchers['2026Q4-OTTER-FALCON-LEMUR'] = (discount: 100, active: true)
+        ..onRedeem = (_) => roles.roles = [userRole];
+      await launch(tester, roles, rbacr: rbacr);
       await tester.tap(find.byKey(const Key('sign-up')));
       await tester.pumpAndSettle();
 
@@ -440,18 +484,21 @@ void main() {
       await tester.pump();
       await tester.tap(redeem);
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('voucher-error')), findsOneWidget);
+      expect(
+        find.text('That code is invalid, expired or used up.'),
+        findsOneWidget,
+      );
       expect(find.byType(HomeNavigationBar), findsNothing);
 
       // The right one grants its role, and the roles are checked again.
       await tester.enterText(
         find.byKey(const Key('voucher-code')),
-        ' abcd-efgh-jk23 ',
+        ' 2026q4-otter-falcon-lemur ',
       );
       await tester.pump();
       await tester.tap(redeem);
       await tester.pumpAndSettle();
-      expect(membership.redeemed, ['ABCD-EFGH-JK23']);
+      expect(rbacr.redeemed, ['2026Q4-OTTER-FALCON-LEMUR']);
       expect(find.byKey(const Key('voucher-error')), findsNothing);
       Navigator.of(tester.element(find.byKey(const Key('sign-up-sheet'))))
           .pop();
@@ -460,37 +507,52 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsNothing);
     });
 
-    testWidgets('a partly discounted voucher lets nobody in yet', (
-      tester,
+    Future<String> redeemFails(
+      WidgetTester tester,
+      FakeRbacrClient rbacr,
+      String code,
     ) async {
       final roles = FakeRolesClient.none();
-      final membership = FakeMembershipClient()
-        ..codes.add(
-          Voucher(
-            code: 'AUTUMN-OTTER-4821',
-            role: userRole,
-            expiresAt: DateTime.now().add(const Duration(days: 1)),
-            maxUses: 1,
-            uses: 0,
-            createdAt: DateTime.now(),
-            discount: 25,
-          ),
-        )
-        ..onRedeem = (role) => roles.roles = [role];
-      await launch(tester, roles, membership);
+      await launch(tester, roles, rbacr: rbacr);
       await tester.tap(find.byKey(const Key('sign-up')));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('voucher-code')),
-        'autumn-otter-4821',
-      );
+      await tester.enterText(find.byKey(const Key('voucher-code')), code);
       await tester.pump();
       await tester.tap(find.byKey(const Key('redeem-voucher')));
       await tester.pumpAndSettle();
-      expect(find.textContaining('That code gives 25% off'), findsOneWidget);
-      expect(membership.redeemed, isEmpty);
-      expect(membership.codes.single.uses, 0);
       expect(roles.roles, isEmpty);
+      return tester.widget<Text>(find.byKey(const Key('voucher-error'))).data!;
+    }
+
+    testWidgets('a partly discounted voucher lets nobody in yet', (
+      tester,
+    ) async {
+      final rbacr = FakeRbacrClient()
+        ..vouchers['AUTUMN-OTTER-4821'] = (discount: 25, active: true);
+      expect(
+        await redeemFails(tester, rbacr, 'autumn-otter-4821'),
+        startsWith('That code gives 25% off'),
+      );
+      expect(rbacr.redeemed, isEmpty);
+    });
+
+    testWidgets('rbacr\'s 409, 402 without a percent and 429 say so', (
+      tester,
+    ) async {
+      final rbacr = FakeRbacrClient()
+        ..vouchers['SPENT-CODE-1'] = (discount: 100, active: false);
+      expect(
+        await redeemFails(tester, rbacr, 'SPENT-CODE-1'),
+        'That code is invalid, expired or used up.',
+      );
+      rbacr.error = PaymentRequiredException(null);
+      await tester.tap(find.byKey(const Key('redeem-voucher')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('That code needs a payment'), findsOneWidget);
+      rbacr.error = RolesException(429);
+      await tester.tap(find.byKey(const Key('redeem-voucher')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Too many tries'), findsOneWidget);
     });
 
     group('the Log tab', () {
@@ -512,7 +574,7 @@ void main() {
             cameras: openFakes([FakeCameraSource('Main')]),
             auth: auth ?? FakeAuthService.signedIn(),
             rolesClient: roles,
-            membershipClient: FakeMembershipClient(),
+            rbacrClient: FakeRbacrClient(),
             mapTiles: const SizedBox(),
             locator: NoLocation(),
             tabMemory: tabMemory,
@@ -695,97 +757,34 @@ void main() {
       });
     });
 
-    testWidgets('a presence_admin lists and deletes voucher codes', (
-      tester,
-    ) async {
-      final membership = FakeMembershipClient()
-        ..codes.add(
-          Voucher(
-            code: 'OLDC-ODEX-2222',
-            role: adminRole,
-            expiresAt: DateTime.now().subtract(const Duration(days: 1)),
-            maxUses: 3,
-            uses: 1,
-            redeemedBy: const ['bob@example.com'],
-            createdAt: DateTime.utc(2026, 9, 1),
+    testWidgets('the Admin tab: feedback, and vouchers and maintenance in '
+        'rbacr', (tester) async {
+      final opened = <Uri>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AdminView(
+              auth: FakeAuthService.signedIn(),
+              feedback: FakeFeedbackClient(),
+              rbacr: Uri.parse('https://rbacr.nu01.com'),
+              openLink: (url) async {
+                opened.add(url);
+                return true;
+              },
+            ),
           ),
-        )
-        ..codes.add(
-          Voucher(
-            code: 'NEXT-SEAS-3333',
-            role: userRole,
-            startsAt: DateTime.now().add(const Duration(days: 30)),
-            expiresAt: DateTime.now().add(const Duration(days: 60)),
-            maxUses: 3,
-            uses: 0,
-            createdAt: DateTime.utc(2026, 9, 1),
-          ),
-        );
-      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      expect(find.text('Voucher codes'), findsOneWidget);
-      expect(find.text('Expired'), findsOneWidget);
-      expect(find.text('Not yet valid'), findsOneWidget);
-      expect(
-        find.textContaining('Admin · 100% off · 1 of 3 used'),
-        findsOneWidget,
-      );
-      expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
-      // Codes are created in rbacr: no form here.
-      expect(find.byKey(const Key('voucher-form')), findsNothing);
-      expect(find.byKey(const Key('create-voucher')), findsNothing);
-      expect(find.textContaining('created in rbacr'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('delete-NEXT-SEAS-3333')));
-      await tester.pumpAndSettle();
-      expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
-      expect(find.byKey(const Key('voucher-NEXT-SEAS-3333')), findsNothing);
-    });
-
-    testWidgets('an admin sees a root\'s Admin code hidden', (tester) async {
-      final membership = FakeMembershipClient()
-        ..codes.add(
-          Voucher(
-            code: '',
-            hidden: true,
-            role: adminRole,
-            expiresAt: DateTime.now().add(const Duration(days: 60)),
-            maxUses: 1,
-            uses: 0,
-            createdAt: DateTime.utc(2026, 9, 2),
-          ),
-        );
-      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      // Listed, but not shown, copied or deleted.
-      final hidden = find.byKey(
-        Key(
-          'voucher-hidden-${DateTime.utc(2026, 9, 2).millisecondsSinceEpoch}',
         ),
       );
-      expect(hidden, findsOneWidget);
-      expect(
-        find.descendant(of: hidden, matching: find.text('Hidden code')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: hidden,
-          matching: find.byIcon(Icons.delete_outline),
-        ),
-        findsNothing,
-      );
-
-      expect(
-        find.descendant(of: hidden, matching: find.byIcon(Icons.copy)),
-        findsNothing,
-      );
-      expect(
-        find.textContaining('Admin · 100% off · 0 of 1 used'),
-        findsOneWidget,
-      );
+      await tester.pumpAndSettle();
+      expect(find.text('Feedback'), findsOneWidget);
+      // Nothing of Presence's own vouchers or maintenance mode is left.
+      expect(find.text('Voucher codes'), findsNothing);
+      expect(find.text('Maintenance mode'), findsNothing);
+      expect(find.byKey(const Key('maintenance-switch')), findsNothing);
+      expect(find.textContaining('managed in rbacr'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('admin-rbacr')));
+      await tester.pumpAndSettle();
+      expect(opened, [Uri.parse('https://rbacr.nu01.com')]);
     });
 
     testWidgets('a presence_user: everything but Admin', (tester) async {
@@ -812,12 +811,7 @@ void main() {
       testWidgets('an admin flips to it like the other tabs: no back button', (
         tester,
       ) async {
-        final membership = FakeMembershipClient();
-        await launch(
-          tester,
-          FakeRolesClient([userRole, adminRole]),
-          membership,
-        );
+        await launch(tester, FakeRolesClient([userRole, adminRole]));
         // In the tab bar, after Settings and before the account button.
         expect(adminTab, findsOneWidget);
         expect(
@@ -852,7 +846,7 @@ void main() {
         // Where the Log tab would be: indices map through the shown tabs.
         expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
-        expect(find.text('Voucher codes'), findsOneWidget);
+        expect(find.text('Feedback'), findsOneWidget);
         // A page of the tabs, not a screen over them.
         expect(find.byType(BackButton), findsNothing);
         expect(find.byTooltip('Back'), findsNothing);
@@ -871,31 +865,27 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
-      testWidgets('reload fetches the vouchers again', (tester) async {
-        final membership = FakeMembershipClient();
+      testWidgets('reload fetches the feedback again', (tester) async {
+        final feedback = FakeFeedbackClient();
         await launch(
           tester,
           FakeRolesClient([userRole, adminRole]),
-          membership,
+          feedback: feedback,
         );
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(find.text('No vouchers.'), findsOneWidget);
-        // No membership requests any more: people subscribe at nu01.com.
-        expect(find.text('Membership requests'), findsNothing);
-        membership.codes.add(
-          Voucher(
-            code: 'LATE-SHFT-2222',
-            role: userRole,
-            expiresAt: DateTime.now().add(const Duration(days: 30)),
-            maxUses: 1,
-            uses: 0,
-            createdAt: DateTime.utc(2026, 9, 27),
+        expect(find.text('No feedback yet.'), findsOneWidget);
+        feedback.conversations['bob@example.com'] = [
+          FeedbackMessage(
+            fromAdmin: false,
+            message: 'The map is blank',
+            sentAt: DateTime.utc(2026, 10, 1),
           ),
-        );
+        ];
         await tester.tap(find.byKey(const Key('admin-reload')));
         await tester.pumpAndSettle();
-        expect(find.byKey(const Key('voucher-LATE-SHFT-2222')), findsOneWidget);
+        expect(find.text('No feedback yet.'), findsNothing);
+        expect(find.textContaining('bob@example.com'), findsWidgets);
       });
 
       testWidgets('a refresh comes back to it, and it is remembered by name', (
@@ -912,7 +902,7 @@ void main() {
               cameras: openFakes([FakeCameraSource('Main')]),
               auth: FakeAuthService.signedIn(),
               rolesClient: FakeRolesClient([userRole, adminRole]),
-              membershipClient: FakeMembershipClient(),
+              rbacrClient: FakeRbacrClient(),
               mapTiles: const SizedBox(),
               locator: NoLocation(),
               tabMemory: memory,
@@ -944,7 +934,7 @@ void main() {
             cameras: openFakes([FakeCameraSource('Main')]),
             auth: FakeAuthService.signedIn(),
             rolesClient: FakeRolesClient([userRole]),
-            membershipClient: FakeMembershipClient(),
+            rbacrClient: FakeRbacrClient(),
             mapTiles: const SizedBox(),
             locator: NoLocation(),
             tabMemory: InMemoryTabMemory('admin'),

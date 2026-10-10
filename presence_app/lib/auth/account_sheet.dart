@@ -12,7 +12,7 @@ import '../events.dart';
 import '../identity/device_os.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
-import 'membership_client.dart';
+import 'rbacr_client.dart';
 import 'plan_notice.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
@@ -802,14 +802,14 @@ class SignUpButton extends StatelessWidget {
     super.key,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     this.profiles,
     this.openLink,
   });
 
   final AuthService auth;
   final RolesService roles;
-  final MembershipClient membership;
+  final RbacrClient rbacr;
   final ProfileClient? profiles;
 
   /// Opens the subscription page; [launchLink] by default.
@@ -828,7 +828,7 @@ class SignUpButton extends StatelessWidget {
       builder: (_) => SignUpSheet(
         auth: auth,
         roles: roles,
-        membership: membership,
+        rbacr: rbacr,
         profiles: profiles,
         openLink: openLink,
       ),
@@ -844,14 +844,14 @@ class SignUpSheet extends StatefulWidget {
     super.key,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     this.profiles,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
   final RolesService roles;
-  final MembershipClient membership;
+  final RbacrClient rbacr;
 
   /// When given, a member's other account can link to it instead.
   final ProfileClient? profiles;
@@ -862,6 +862,9 @@ class SignUpSheet extends StatefulWidget {
   @override
   State<SignUpSheet> createState() => _SignUpSheetState();
 }
+
+/// How long after a redeemed code the roles are checked once more.
+const _redeemSettle = Duration(seconds: 2);
 
 class _SignUpSheetState extends State<SignUpSheet> {
   final _code = TextEditingController();
@@ -880,8 +883,10 @@ class _SignUpSheetState extends State<SignUpSheet> {
     super.dispose();
   }
 
-  /// Redeems the voucher code, then re-asks the roles: a valid code lets the
-  /// user in at once.
+  /// Redeems the voucher code with rbacr (`POST /api/vouchers/redeem`, as
+  /// the user), then re-asks the roles: a valid code lets the user in at
+  /// once. rbacr's role lookups may take about a second to see a new
+  /// grant, so a check that comes back without access is made once more.
   Future<void> _redeem() async {
     final token = widget.auth.idToken;
     final code = _code.text.trim();
@@ -891,18 +896,27 @@ class _SignUpSheetState extends State<SignUpSheet> {
       _codeError = null;
     });
     try {
-      await widget.membership.redeem(token, code);
+      await widget.rbacr.redeem(token, code);
       if (mounted) _code.clear();
       await widget.roles.refresh();
+      if (!widget.roles.hasAccess) {
+        await Future<void>.delayed(_redeemSettle);
+        await widget.roles.refresh();
+      }
     } on RolesException catch (e) {
       if (mounted) {
         setState(
           () => _codeError = switch (e.statusCode) {
-            402 when e is PaymentRequiredException =>
+            402 when e is PaymentRequiredException && e.discount != null =>
               'That code gives ${e.discount}% off. Paying the rest isn\'t '
                   'available yet, so it can\'t let you in.',
-            404 => 'That code is invalid, expired or used up.',
-            // The route's throttle, or this email's wrong codes (an hour).
+            402 =>
+              'That code needs a payment, which isn\'t available yet, so '
+                  'it can\'t let you in.',
+            // rbacr: 404 an unknown code; 409 one that isn't active (not
+            // started, expired, used up or disabled) or that this account
+            // already redeemed.
+            404 || 409 => 'That code is invalid, expired or used up.',
             429 => 'Too many tries. Wait a while and try again.',
             _ => 'Couldn\'t redeem the code ($e).',
           },
@@ -973,7 +987,7 @@ class _SignUpSheetState extends State<SignUpSheet> {
                       maxLength: maxVoucherCode,
                       decoration: const InputDecoration(
                         labelText: 'Voucher code',
-                        hintText: 'XXXX-XXXX-XXXX',
+                        hintText: '2026Q4-OTTER-FALCON-LEMUR',
                         border: OutlineInputBorder(),
                         counterText: '',
                       ),
