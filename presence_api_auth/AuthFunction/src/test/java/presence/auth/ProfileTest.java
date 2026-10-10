@@ -136,8 +136,8 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
 
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\",\"tier\":\"free\"}",
-                response.getBody());
+        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
+                + "\"deviceLimit\":2,\"devices\":[],\"tier\":\"free\"}", response.getBody());
         var profile = profileOf("work");
         assertEquals("profile_1", profile.id());
         assertEquals(GOOGLE + "#work", profile.ownerSubject());
@@ -150,6 +150,76 @@ class ProfileTest {
         assertEquals(List.of("us-east-1:work|profile_1", "us-east-1:work|profile_1"), tokensIssued);
         // Each time, the identity may use live sync (AttachPolicy is idempotent).
         assertEquals(List.of("us-east-1:work", "us-east-1:work"), liveSyncAllowed);
+    }
+
+    @Test
+    void credentialsListTheProfilesDevicesInTheOrderTheyCame() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var first = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(first.getBody().contains(",\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\"],"),
+                first.getBody());
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "third_shy_kettle"), null);
+        // Asking again keeps a device's place.
+        var again = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(again.getBody().contains(",\"devices\":[\"first_quiet_gadget\",\"second_bold_lamp\","
+                + "\"third_shy_kettle\"],"), again.getBody());
+        // Without a device (an older app), the list as it is.
+        var none = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertTrue(none.getBody().contains("\"third_shy_kettle\"]"), none.getBody());
+        // Premium shows fifty.
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        var premium = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(premium.getBody().contains(",\"deviceLimit\":50,"), premium.getBody());
+    }
+
+    @Test
+    void aProfileListsAtMostFiftyDevices() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        String last = null;
+        for (var i = 0; i < 51; i++) {
+            var device = "device_" + (char) ('a' + i / 26) + (char) ('a' + i % 26) + "_lamp";
+            last = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", device), null)
+                    .getBody();
+        }
+        assertEquals(50, store.devices.get("profile_1").size());
+        assertFalse(last.contains("device_by_lamp"), last);
+    }
+
+    @Test
+    void credentialsRefuseABodyThatIsntADeviceId() {
+        for (var body : List.of("Not A Device", "a_b", "x".repeat(65), "{\"device\":\"a_b_c\"}")) {
+            var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", body), null);
+            assertEquals(400, response.getStatusCode(), body);
+        }
+        assertTrue(tokensIssued.isEmpty());
+    }
+
+    @Test
+    void aRemovedDeviceGivesItsPlaceToTheNext() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        for (var device : List.of("first_quiet_gadget", "second_bold_lamp", "third_shy_kettle")) {
+            profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", device), null);
+        }
+        var removed = profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        assertEquals(200, removed.getStatusCode());
+        assertEquals("{\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\",\"third_shy_kettle\"]}",
+                removed.getBody());
+        // Back again, it's last.
+        var back = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        assertTrue(back.getBody().contains("[\"first_quiet_gadget\",\"third_shy_kettle\",\"second_bold_lamp\"]"),
+                back.getBody());
+        // Only a member, and only a device ID.
+        assertEquals(403, profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "home", "julio@gmail.com", "third_shy_kettle"), null)
+                .getStatusCode());
+        assertEquals(400, profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com", ""), null).getStatusCode());
     }
 
     @Test

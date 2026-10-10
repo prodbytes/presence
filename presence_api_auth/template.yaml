@@ -619,6 +619,12 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/unlink
             Method: post
+        RemoveDevice:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/devices/remove
+            Method: post
 
   # GET /health: whether every dependency answers (presence.auth.HealthHandler),
   # polled by the site's Route 53 health check. Read-only: it only
