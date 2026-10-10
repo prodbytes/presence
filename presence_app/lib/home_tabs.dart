@@ -15,7 +15,7 @@ enum HomeTab {
   log('Log', Icons.receipt_long_outlined, Icons.receipt_long),
 
   /// Signed-in admins only (not DEV: there are no accounts): membership
-  /// requests and voucher codes (`AdminView`). Before Account; with the
+  /// requests and voucher codes (`AdminView`). Before Profile; with the
   /// Log tab hidden it takes the Log's place, so map a tab to its controller index
   /// through the shown tabs ([HomeTabs.indexOf]), never by [HomeTab.index]
   /// alone.
@@ -29,7 +29,7 @@ enum HomeTab {
   /// signed in, the profile's devices, sign-out and about (`AccountSheet`,
   /// as a page). Always last, as phone apps put "You"; its icon is the
   /// user's avatar when there is one.
-  account('Account', Icons.person_outline, Icons.person);
+  profile('Profile', Icons.person_outline, Icons.person);
 
   const HomeTab(this.label, this.icon, this.selectedIcon);
 
@@ -42,17 +42,17 @@ enum HomeTab {
   final IconData selectedIcon;
 
   /// The tabs shown, in [HomeTab] order: the Log tab with [log], the Admin
-  /// tab with [admin], the Account tab with [account], the others always.
+  /// tab with [admin], the Profile tab with [profile], the others always.
   static List<HomeTab> shown({
     required bool log,
     required bool admin,
-    bool account = false,
+    bool profile = false,
   }) => [
     for (final tab in values)
       if (switch (tab) {
         HomeTab.log => log,
         HomeTab.admin => admin,
-        HomeTab.account => account,
+        HomeTab.profile => profile,
         _ => true,
       })
         tab,

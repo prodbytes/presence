@@ -15,12 +15,12 @@ account.
   on: on by default in DEV, off otherwise (see [Log](log.md)); for
   signed-in admins (not DEV: there are no accounts) an **Admin** tab
   (see [Membership](membership.md#the-admin-tab)); and, signed in (not
-  DEV), **Account** last, as phone apps put "You".
-  - **Account** (`HomeTab.account`): its icon is **your Google avatar**
+  DEV), **Profile** last, as phone apps put "You".
+  - **Profile** (`HomeTab.profile`): its icon is **your Google avatar**
     (24 dp; your initial without a photo), ringed in the accent color
     while open, with the tooltip "Signed in as <name> · <email>". It opens
     like the other tabs: a page of the tabs (the same slide, no back
-    button, the app bar naming it "Account", remembered across a browser
+    button, the app bar naming it "Profile", remembered across a browser
     refresh), showing the [account sheet's](sign-in.md) content up to
     560 dp wide (key `account-page`). It used to be an app-bar button
     opening a bottom sheet.
@@ -32,11 +32,11 @@ account.
     long for its slot is cut short with an ellipsis). Its look is the
     theme's `navigationBarTheme` ([Theme](theme.md)).
   - Each destination's tooltip and screen-reader label is the tab's name
-    (Account's says who's signed in), with at least a 48 dp touch target:
+    (Profile's says who's signed in), with at least a 48 dp touch target:
     an admin's six tabs fit a 320 dp phone.
   - **Signed out**, or signed in without access, there's no navigation
     bar: the camera shows alone (see [Sign-in](sign-in.md)).
-  - The Log, Admin and Account tabs come and go as the roles, the switch
+  - The Log, Admin and Profile tabs come and go as the roles, the switch
     or signing in and out change
     (the tab controller is rebuilt, staying on the open tab, or on the
     nearest tab before it if that one goes: Settings for the Log). A tab's
@@ -46,13 +46,13 @@ account.
     battery shows over the camera.)
 - **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
   - **On the left, the open screen's name**, bold (22 sp, weight 700),
-    left-aligned ("Monitoring", "Settings", "Log", "Admin", "Account"). **No name
+    left-aligned ("Monitoring", "Settings", "Log", "Admin", "Profile"). **No name
     over the camera.** In DEV the "dev" label follows it (alone over the
     camera; see [Execution mode](execution-mode.md)).
   - **On the right, only without access:** signed out, **Sign in**;
     signed in without a role, sign-up and the **account button** (your
     avatar), which opens the [account sheet](sign-in.md) as a bottom
-    sheet. With access, the account is the navigation bar's Account tab.
+    sheet. With access, the account is the navigation bar's Profile tab.
   - Flat, the page's color; transparent over the camera, with a dark
     gradient scrim keeping its buttons readable.
   - There's **no About button**: what Presence is, with a link to its

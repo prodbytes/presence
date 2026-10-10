@@ -14,7 +14,7 @@ import 'dev_mode_label.dart';
 /// The home screen's app bar: on the left the open screen's name, bold
 /// (none over the camera), and the "dev" label in DEV; on the right, only
 /// without access: sign-in (signed out), or sign-up and the account button
-/// (signed in without a role). The tabs, the Account tab among them, are in
+/// (signed in without a role). The tabs, the Profile tab among them, are in
 /// the bottom navigation bar ([HomeNavigationBar]). Clear over the camera, with a scrim
 /// keeping the buttons readable.
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -115,7 +115,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: 4),
         ],
-        // With access, the account is the navigation bar's Account tab.
+        // With access, the account is the navigation bar's Profile tab.
       ],
     );
   }

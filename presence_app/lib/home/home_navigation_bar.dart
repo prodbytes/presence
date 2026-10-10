@@ -8,7 +8,7 @@ import '../home_tabs.dart';
 /// destination per shown tab ([HomeTabs.tabs]), each an icon over its label,
 /// the open one filled and in the accent color (no pill behind it). A tap
 /// slides to the tab; the tooltip and screen-reader label are the tab's
-/// name. The Account tab's icon is the signed-in [user]'s avatar, ringed in
+/// name. The Profile tab's icon is the signed-in [user]'s avatar, ringed in
 /// the accent color while it's open. Its look is the theme's
 /// ([NavigationBarThemeData] in `lib/theme.dart`).
 class HomeNavigationBar extends StatelessWidget {
@@ -16,7 +16,7 @@ class HomeNavigationBar extends StatelessWidget {
 
   final HomeTabs tabs;
 
-  /// Who's signed in: the Account tab's avatar.
+  /// Who's signed in: the Profile tab's avatar.
   final AuthUser? user;
 
   /// The controller the bar and the pages share.
@@ -39,7 +39,7 @@ class HomeNavigationBar extends StatelessWidget {
         destinations: [
           for (final tab in tabs.tabs)
             switch ((tab, user)) {
-              (HomeTab.account, final user?) => NavigationDestination(
+              (HomeTab.profile, final user?) => NavigationDestination(
                 icon: _Avatar(user: user, ring: null),
                 selectedIcon: _Avatar(user: user, ring: scheme.primary),
                 label: tab.label,
@@ -48,7 +48,7 @@ class HomeNavigationBar extends StatelessWidget {
               _ => NavigationDestination(
                 icon: Icon(
                   tab.icon,
-                  key: tab == HomeTab.account
+                  key: tab == HomeTab.profile
                       ? const Key('account-button')
                       : null,
                 ),
@@ -62,7 +62,7 @@ class HomeNavigationBar extends StatelessWidget {
   }
 }
 
-/// The Account tab's icon: [user]'s avatar, [HomeNavigationBar.avatarSize]
+/// The Profile tab's icon: [user]'s avatar, [HomeNavigationBar.avatarSize]
 /// across, inside a [ring] when the tab is open.
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.user, required this.ring});

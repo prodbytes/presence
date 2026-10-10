@@ -96,14 +96,14 @@ void main() {
           findsOneWidget,
         );
       }
-      // The account is the last tab, in the bar too, after Settings.
+      // The profile is the last tab, in the bar too, after Settings.
       final account = tester.getCenter(find.byKey(const Key('account-button')));
       expect(bar.contains(account), isTrue);
       expect(settings.dx, lessThan(account.dx));
       expect(
         find.descendant(
           of: find.byType(HomeNavigationBar),
-          matching: find.text('Account'),
+          matching: find.text('Profile'),
         ),
         findsOneWidget,
       );
@@ -112,7 +112,7 @@ void main() {
       expect(find.byTooltip('Device'), findsNothing);
     });
 
-    testWidgets('the account is a tab like the others at $name', (
+    testWidgets('the profile is a tab like the others at $name', (
       tester,
     ) async {
       await pumpAt(tester, size);
@@ -140,7 +140,7 @@ void main() {
       expect(find.byType(BottomSheet), findsNothing);
       expect(
         tester.widget<Text>(find.byKey(const Key('screen-title'))).data,
-        'Account',
+        'Profile',
       );
       expect(find.text('ana@example.com'), findsOneWidget);
       expect(find.byType(HomeNavigationBar), findsOneWidget);

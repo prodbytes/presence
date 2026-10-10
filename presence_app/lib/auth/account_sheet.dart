@@ -110,7 +110,7 @@ class SignInAction extends StatelessWidget {
 /// Sign in with Google, or show who is signed in, their profile and its
 /// devices, and offer sign-out; then what Presence is ([AboutParagraph]).
 /// A bottom sheet from [AccountButton] (signed in without access), or the
-/// Account tab's page.
+/// Profile tab's page.
 class AccountSheet extends StatelessWidget {
   const AccountSheet({
     super.key,

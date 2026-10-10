@@ -5,7 +5,7 @@ What Presence is, as a short paragraph at the **end of the account sheet**
 There's no About button or screen any more, and no call to become a member.
 
 - **Where:** the last thing in the [account sheet](sign-in.md) (the
-  Account tab's page, or the sheet signed in without access), under a
+  Profile tab's page, or the sheet signed in without access), under a
   divider, after Sign out (or after the sign-in button or the "sign-in is
   unavailable" note). Neither is shown in DEV or to a signed-out user who
   can sign in, so there it isn't shown either.

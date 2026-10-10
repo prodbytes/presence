@@ -137,7 +137,7 @@ there's no separate sign-in screen:
     `API_BASE_URL`, `https://presence.nu01.com` by default.
 - **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
   (with its readiness colors), the tabs and, last among them, the
-  **Account** tab: your avatar with the tooltip "Signed in as
+  **Profile** tab: your avatar with the tooltip "Signed in as
   <name> · <email>" (see [Navigation](navigation.md)). It opens, as a
   page of the tabs, the **account sheet**'s content: avatar, name, email,
   the user's **roles**, this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
