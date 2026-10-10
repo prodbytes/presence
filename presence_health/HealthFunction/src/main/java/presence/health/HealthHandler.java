@@ -1,4 +1,4 @@
-package presence.auth;
+package presence.health;
 
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
@@ -32,23 +32,23 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static presence.auth.Http.response;
-
 /**
- * {@code GET /health} (public, no token): whether everything the API needs
- * works, for the site's Route 53 health check (presence_infra/site.yaml).
+ * {@code GET /health} (public, no token): whether everything the auth API
+ * (presence_api_auth) needs works, for the site's Route 53 health check
+ * (presence_infra/site.yaml). Its own stack (presence_health/template.yaml),
+ * with read-only access to what it checks.
  * Each {@link Check} runs at once, in parallel, within {@link #BUDGET}:
  * <ul>
  *   <li>{@code settings}: an OIDC client (RBAC mode), the identity pool and
- *       the user-data bucket are configured ({@link Settings});</li>
- *   <li>{@code dynamodb}: every table is ACTIVE;</li>
+ *       the user-data bucket are configured;</li>
+ *   <li>{@code dynamodb}: every auth API table is ACTIVE;</li>
  *   <li>{@code s3}: the user-data bucket answers;</li>
  *   <li>{@code cognito}: the identity pool answers;</li>
  *   <li>{@code google}: Google's token signing keys load (the JWT
  *       authorizer needs them);</li>
- *   <li>{@code rbacr}: rbacr, which gives every role ({@link Rbacr}),
- *       answers its health check. It fails when rbacr isn't configured
- *       ({@code RBACR_URL}, set only with a token): nobody would have a role.</li>
+ *   <li>{@code rbacr}: rbacr, which gives every role, answers its health
+ *       check. It fails when rbacr isn't configured ({@code RBACR_URL}, set
+ *       only where the auth API has a token): nobody would have a role.</li>
  * </ul>
  * 200 {@code {"status":"ok","checks":{"settings":"ok",...},"version":"0.6.…"}}
  * when all pass, else 503 with {@code "status":"fail"} and the failing checks
@@ -112,16 +112,20 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
         var json = new StringBuilder("{\"status\":\"").append(healthy ? "ok" : "fail").append("\",\"checks\":{");
         var first = true;
         for (var result : results.entrySet()) {
-            json.append(first ? "" : ",").append(Json.string(result.getKey())).append(':')
+            json.append(first ? "" : ",").append(jsonString(result.getKey())).append(':')
                     .append(result.getValue() ? "\"ok\"" : "\"fail\"");
             first = false;
         }
         json.append('}');
         if (version != null) {
-            json.append(",\"version\":").append(Json.string(version));
+            json.append(",\"version\":").append(jsonString(version));
         }
         json.append('}');
-        last = response(healthy ? 200 : 503, json.toString());
+        last = APIGatewayV2HTTPResponse.builder()
+                .withStatusCode(healthy ? 200 : 503)
+                .withHeaders(Map.of("Content-Type", "application/json", "Cache-Control", "no-store"))
+                .withBody(json.toString())
+                .build();
         lastAt = now;
         return last;
     }
@@ -166,9 +170,28 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
         }
     }
 
-    /** The checks against this stack's resources, named in the environment (see template.yaml). */
+    /** A quoted JSON string; check names and the version need no more than quotes and backslashes escaped. */
+    static String jsonString(String value) {
+        var out = new StringBuilder(value.length() + 2).append('"');
+        for (var c : value.toCharArray()) {
+            if (c == '"' || c == '\\') {
+                out.append('\\').append(c);
+            } else if (c < 0x20) {
+                out.append(String.format("\\u%04x", (int) c));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.append('"').toString();
+    }
+
+    private static boolean isSet(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    /** The checks against the auth API's resources, named in the environment (see template.yaml). */
     static List<Check> fromEnvironment() {
-        var settings = Settings.fromEnvironment();
+        var oidc = isSet(System.getenv("GOOGLE_WEB_CLIENT_ID"));
         var pool = System.getenv("COGNITO_IDENTITY_POOL_ID");
         var bucket = System.getenv("USER_DATA_BUCKET");
         var tables = Arrays.stream(System.getenv().getOrDefault("HEALTH_TABLES", "").split(","))
@@ -184,8 +207,11 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
         var http = HttpClient.newBuilder().connectTimeout(BUDGET).build();
         var checks = new ArrayList<>(List.of(
                 new Check("settings", () -> {
-                    if (!settings.oidc() || !settings.aws()) {
-                        throw new IllegalStateException("settings " + settings.toJson() + " aren't all set");
+                    // As GET /api/auth/anonymous reports them (presence.auth.Settings).
+                    var aws = isSet(pool) && isSet(bucket);
+                    if (!oidc || !aws) {
+                        throw new IllegalStateException("settings {\"oidc\":" + oidc + ",\"aws\":" + aws
+                                + "} aren't all set");
                     }
                 }),
                 new Check("dynamodb", () -> {
@@ -210,7 +236,7 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
                         throw new IllegalStateException(GOOGLE_KEYS + " answered " + status);
                     }
                 })));
-        // Set only where rbacr is (template.yaml): its token stays out of here.
+        // Set only where the auth API has an rbacr token (template.yaml); the token stays out of here.
         var rbacrUrl = System.getenv("RBACR_URL");
         var rbacr = rbacrUrl == null || rbacrUrl.isBlank() ? null : URI.create(rbacrUrl.strip()).resolve("/health");
         checks.add(new Check("rbacr", () -> {

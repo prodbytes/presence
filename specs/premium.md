@@ -197,8 +197,8 @@ they publish, receive and store events as before. Their events are
 
 ## Health checks
 
-- **The auth API's `/health`** ([Health check](health-check.md)) has an
-  **`rbacr`** check when rbacr is configured: rbacr's own public `/health`
+- **`/health`** ([Health check](health-check.md), its own module,
+  `presence_health`) has an **`rbacr`** check when rbacr is configured: rbacr's own public `/health`
   must answer 200 within the budget. The site's Route 53 health check polls
   it, so an rbacr outage sets off the health alarm email (there's no DNS
   failover), and fails a deploy's smoke test.
@@ -214,8 +214,9 @@ they publish, receive and store events as before. Their events are
 - **The auth API stack**: `RbacrUrl` (default `https://rbacr.nu01.com`) and
   `RbacrToken` (NoEcho, default empty) become `RBACR_URL` and `RBACR_TOKEN`
   on the functions that need roles with premium (`AuthFunction`,
-  `ProfileFunction`). `HealthFunction` gets `RBACR_URL` only, and only
-  with a token.
+  `ProfileFunction`). The health stack (`presence_health`) gets
+  `RbacrUrl` only, never the token; `scripts/deploy.sh` requires a token,
+  so it always passes the URL.
 - **`scripts/deploy.sh`** takes `RBACR_TOKEN` and `RBACR_URL` from the
   environment, else `.env`. In CI they come from the `RBACR_TOKEN`
   repository secret (masked in logs) and the `RBACR_URL` variable.

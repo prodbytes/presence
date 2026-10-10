@@ -128,7 +128,7 @@ roles, vouchers and the Admin tab work locally without AWS:
   `arm64`.
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
-  `template.yaml` as the stack `presence-local-auth-api`: the three Java 25
+  `template.yaml` as the stack `presence-local-auth-api`: the four Java 25
   Lambdas and their tables (`UserRolesTable`, `VoucherTable` and the
   others). Floci
   runs the Lambdas as Docker containers (`presence-lambda-*`), which is
@@ -154,6 +154,12 @@ roles, vouchers and the Admin tab work locally without AWS:
   the RC. The local monitor checks the RC's `/health`. Storage is
   `memory`, so every start begins with empty tables: requests and vouchers
   don't survive a restart (rbacr's grants do).
+- **No `/health`:** the [health check](health-check.md)
+  (`presence_health`) isn't deployed into Floci, and the distribution has
+  no `/health` route: it checks AWS's identity pool and bucket, which the
+  local Lambdas can't reach. The local stack still exports its table names
+  (`presence-local-auth-api-UserRolesTable` and so on), which Floci
+  supports; nothing imports them.
 - The hook runs past Floci's default 30 s, so compose sets
   `FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` to 180, and the process's readiness
   allows 6 minutes (the first run builds and pulls the Lambda image).

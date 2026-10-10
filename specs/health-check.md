@@ -7,17 +7,29 @@ and emails when it fails or recovers.
 ## The endpoint
 
 - **`GET /health`** on the site's domain. CloudFront sends it, uncached,
-  to the [auth API](auth-api.md)'s HTTP API, where `HealthFunction`
-  (`presence.auth.HealthHandler`) answers it without a token. Throttled to
-  20 requests/s (burst 50).
+  to its own module, [presence_health/](../presence_health): a SAM stack
+  per stage (**`presence-health`**, **`presence-rc-health`**) with its own
+  HTTP API (the distribution's `health` origin, like the auth API's `api`
+  origin: a public `execute-api` host, no origin secret), where
+  `HealthFunction` (`presence.health.HealthHandler`) answers it without a
+  token. Throttled to 20 requests/s (burst 50). The
+  [auth API](auth-api.md) no longer has a `/health` route.
 - It runs every check at once, in parallel, within **1.5 s** in all (Route
   53 wants an answer within 2 s of connecting). A check that takes longer
   fails:
   - **`settings`**: an OIDC client (so RBAC mode), the identity pool and
-    the user-data bucket are configured (as in `GET /api/auth/anonymous`);
+    the user-data bucket are configured (as in `GET /api/auth/anonymous`).
+    `scripts/deploy.sh` passes the health stack the same
+    `GoogleWebClientId`, `IdentityPoolId` and `UserDataBucket` it passes
+    the auth API;
   - **`dynamodb`**: every auth API table (`UserRoles`, `Profiles`,
     `ProfileSubjects`, `Voucher`, `LinkCodes`, `System`, listed in
-    `HEALTH_TABLES`) is `ACTIVE`;
+    `HEALTH_TABLES`) is `ACTIVE`. The health stack imports their names
+    from the auth API stack's exports (`<AuthStackName>-UserRolesTable`
+    and so on; `AuthStackName` is `presence-auth-api` or
+    `presence-rc-auth-api`), so it's deployed after the auth API, and
+    CloudFormation refuses to remove or change those exports while it
+    imports them;
   - **`s3`**: the [cloud sync](cloud-sync.md) user-data bucket answers
     `HeadBucket`;
   - **`cognito`**: the identity pool answers `DescribeIdentityPool`;
@@ -25,30 +37,39 @@ and emails when it fails or recovers.
     (`https://www.googleapis.com/oauth2/v3/certs`) load. The HTTP API's
     JWT authorizer needs them to check every sign-in;
   - **`rbacr`**: rbacr's own `/health` answers 200. It fails when the
-    stack has no rbacr token (`RBACR_URL` is set on `HealthFunction` only
-    with one; the token itself isn't): rbacr gives every role ([Auth
-    API](auth-api.md)), so without it nobody who signs in has one.
+    health stack's `RbacrUrl` is empty (`RBACR_URL` on `HealthFunction`;
+    the token never goes to the health stack). `scripts/deploy.sh` always
+    passes it, since it refuses to deploy without an rbacr token: rbacr
+    gives every role ([Auth API](auth-api.md)), so without it nobody who
+    signs in has one.
 - **200** `{"status":"ok","checks":{"settings":"ok","dynamodb":"ok","s3":"ok","cognito":"ok","google":"ok","rbacr":"ok"},"version":"0.6.202610061200"}`
   when every check passes. Otherwise **503**, with `"status":"fail"` and
   the failing checks as `"fail"`.
 - **`version`** is the release deployed (`X.Y.Z`, as in
-  `/app/version.json`), passed by `scripts/deploy.sh` as the auth API
-  stack's `Version` parameter (`PRESENCE_VERSION` on `HealthFunction`). It's
-  there failing or not, so `curl https://rc.presence.nu01.com/health` (or
-  prod's) shows which release the API runs. Left out when the stack has
-  none (a local or manual deploy).
+  `/app/version.json`), passed by `scripts/deploy.sh` as the health
+  stack's `Version` parameter (`PRESENCE_VERSION` on `HealthFunction`).
+  The deploy updates the auth API and health stacks together, right
+  before the site, so it's the release the API runs too. It's there
+  failing or not, so `curl https://rc.presence.nu01.com/health` (or
+  prod's) shows which release is live. Left out when the stack has none
+  (a manual deploy).
 - The response only names each check and says ok or fail. Why a check
   failed goes to the function's CloudWatch log ("health check failed:
   …"), never to the public response.
 - A result is reused for **20 s** per Lambda instance, so the health
   checkers don't each call every service.
 - The function has 1024 MB of memory, which gives it more CPU, so a cold
-  start still answers in time. Its permissions are read-only:
-  `dynamodb:DescribeTable` on the seven tables, `s3:ListBucket` on the
-  bucket and `cognito-identity:DescribeIdentityPool` on the pool.
-- **AWS only.** The local [Floci](local-cdn.md) API has no `/health`
-  route. The identity pool and bucket in `.env` are AWS's, which the
-  Lambdas running in Floci can't reach.
+  start still answers in time. Its role carries the stage's permissions
+  boundary (`<prefix>-app-boundary`) and is read-only:
+  `dynamodb:DescribeTable` on the six imported tables, `s3:ListBucket` on
+  the bucket and `cognito-identity:DescribeIdentityPool` on the pool.
+- Its Maven project, `presence_health/HealthFunction` (Java 25, the same
+  AWS SDK and Lambda library versions as the auth API), has only the
+  DynamoDB, S3 and Cognito Identity clients, and its own tests
+  (`HealthTest`).
+- **AWS only.** It isn't deployed into the local [Floci](local-cdn.md),
+  whose CloudFront has no `/health` route. The identity pool and bucket in
+  `.env` are AWS's, which the Lambdas running in Floci can't reach.
 
 ## The Route 53 check and its emails
 
@@ -86,6 +107,16 @@ In [presence_infra/site.yaml](../presence_infra/site.yaml), stacks
   `presence-*` (RC: `presence-rc-*`) alarms and the SNS topics.
 
 ## Known limitations
+
+- The first deploy with the separate module moves `/health` from the
+  auth API to `presence-health` in one run: the auth API update removes
+  its route, and `/health` answers 404 (through the auth API origin)
+  until the site stack points the distribution at the new origin, a few
+  minutes later. Route 53 may email a failure and a recovery then.
+- Putting back a release from before the split fails at its auth API
+  update: it drops the table exports that `presence-health` imports.
+  Delete the `<prefix>-health` stack first (an administrator, or the
+  stage's deploy role), then redeploy that release.
 
 - Route 53 health checks have no names to scope IAM by, so the RC deploy
   role can change any health check in the account, prod's included.

@@ -1,11 +1,16 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: seven Java 25
+[presence_api_auth/](../presence_api_auth) is a SAM application: four Java 25
 Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
 site (`/api/*` in the CloudFront distribution; see
-[Production deploy](deploy.md)), plus the public **`GET /health`**
-(`HealthHandler`), which checks the API's dependencies for Route 53 (see
-[Health check](health-check.md)):
+[Production deploy](deploy.md)). The public **`GET /health`**, which
+checks the API's dependencies for Route 53, is its own module,
+[presence_health](../presence_health) (see [Health check](health-check.md)):
+the auth API stack exports its table names (`<stack>-UserRolesTable`,
+`-ProfilesTable`, `-ProfileSubjectsTable`, `-VoucherTable`,
+`-LinkCodesTable`, `-SystemTable`) for it, and CloudFormation won't
+remove or change them while the health stack imports them. The API's
+routes:
 
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's **profile**
   and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",
@@ -199,7 +204,8 @@ address uses up a route's budget for everyone:
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
-CloudFront distribution, scoped to `/api/*` and `/health`), which blocks
+CloudFront distribution, scoped to `/api/*` and `/health`, the health
+check's own API), which blocks
 one address's flood without touching anyone else. It isn't deployed: WAF
 costs a monthly fee per web ACL and rule plus a per-request charge, which
 is an infrastructure and cost decision. Until then the per-route limits,
@@ -209,8 +215,8 @@ what slows abuse.
   `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
   own artifact bucket, `<prefix>-sam-artifacts-<account>`, and with
   `PermissionsBoundary`, the stage's boundary, on every function role; see
-  [Production deploy](deploy.md#github-access)) before the site, and passes
-  the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
+  [Production deploy](deploy.md#github-access)) before the health stack
+  and the site, and passes the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live, and `/api/auth/anonymous` to report RBAC with
   both settings set (and a maintenance state, on or off, which it doesn't

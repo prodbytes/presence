@@ -31,6 +31,7 @@ It mirrors the local Floci one ([presence_floci/](../presence_floci)):
 | default (`/`) | S3 `index.html`, the [index page](../presence_index) that redirects to `/app/` |
 | `/app*` | S3 `app/`, the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/*` | The [auth API](../presence_api_auth)'s HTTP API (stack `presence-auth-api`), not cached, with every viewer header but `Host` forwarded |
+| `/health` | The [health check](../presence_health)'s HTTP API (stack `presence-health`), not cached |
 
 Every file is uploaded with `Cache-Control: no-cache`, because Flutter's web
 files aren't content-hashed. Each deploy also invalidates `/*`.
@@ -47,8 +48,10 @@ is on `main`, then runs [scripts/deploy.sh](../scripts/deploy.sh), which:
    authenticated role, and the pool tagged with its stage), and looks up
    the AWS IoT endpoint;
 3. builds the web app for `/app/`;
-4. deploys the API (SAM, uploading to the stage's artifact bucket, with
-   the boundary on every function role);
+4. deploys the auth API, then the `/health` check (SAM: `presence_api_auth`,
+   then `presence_health`, which imports the auth API's table exports;
+   uploading to the stage's artifact bucket, with the boundary on every
+   function role);
 5. deploys `site.yaml` (certificate and distribution tagged with the
    stage);
 6. uploads the content and invalidates the cache;

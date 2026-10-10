@@ -1,4 +1,4 @@
-package presence.auth;
+package presence.health;
 
 import org.junit.jupiter.api.Test;
 
@@ -71,6 +71,12 @@ class HealthTest {
         assertEquals("{\"status\":\"fail\",\"checks\":{\"settings\":\"ok\",\"google\":\"fail\"}}", response.getBody());
         var took = Duration.ofNanos(System.nanoTime() - started);
         assertEquals(true, took.compareTo(Duration.ofSeconds(2)) < 0, "took " + took);
+    }
+
+    @Test
+    void quotesJsonStrings() {
+        assertEquals("\"0.6.1\"", HealthHandler.jsonString("0.6.1"));
+        assertEquals("\"a\\\"b\\\\c\\u000a\"", HealthHandler.jsonString("a\"b\\c\n"));
     }
 
     @Test

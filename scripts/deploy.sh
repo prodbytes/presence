@@ -9,7 +9,9 @@
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
 #      with the pool, bucket and IoT endpoint from step 1
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
-#      presence-auth-api / presence-rc-auth-api)
+#      presence-auth-api / presence-rc-auth-api), then its health check
+#      (presence_health, stack presence-health / presence-rc-health: GET
+#      /health, which imports the auth API's table exports, so it comes after)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
@@ -23,9 +25,9 @@
 #
 # Every role the stacks create carries the stage's permissions boundary
 # (<prefix>-app-boundary), and SAM uploads to the stage's own bucket
-# (<prefix>-sam-artifacts-<account>); both come from the
-# presence-github-deploy stack (presence_infra/github-deploy.yaml), which
-# must be deployed first. If the deploy fails, it prints the version that
+# (<prefix>-sam-artifacts-<account>), under each stack's own prefix; both
+# come from the presence-github-deploy stack
+# (presence_infra/github-deploy.yaml), which must be deployed first. If the deploy fails, it prints the version that
 # was live before and how to put it back.
 #
 # Run by .github/workflows/deploy.yml on *GA tags (deploy-rc.yml on *RC*
@@ -79,6 +81,7 @@ case "$STAGE" in
 esac
 SITE_STACK=$stack_prefix-web
 AUTH_STACK=$stack_prefix-auth-api
+HEALTH_STACK=$stack_prefix-health
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
 
@@ -267,14 +270,15 @@ if [[ "$built" != "$VERSION" ]]; then
   exit 1
 fi
 
-# 3. The auth API
+# 3. The auth API, then its health check (which imports the auth API's
+# table exports)
 echo "==> deploying $AUTH_STACK"
 (
   cd presence_api_auth
   sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$AUTH_STACK" \
-    --parameter-overrides "Version=$VERSION" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
@@ -283,6 +287,22 @@ echo "==> deploying $AUTH_STACK"
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
+echo "==> deploying $HEALTH_STACK"
+# The same settings the auth API got, to check them; rbacr's URL only (the
+# token is required above, so the auth API has one), never the token.
+(
+  cd presence_health
+  sam build
+  sam deploy --stack-name "$HEALTH_STACK" --region "$AWS_REGION" \
+    --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$HEALTH_STACK" \
+    --parameter-overrides "AuthStackName=$AUTH_STACK" "Version=$VERSION" \
+      "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
+      "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
+      "RbacrUrl=$RBACR_URL" \
+    --no-confirm-changeset --no-fail-on-empty-changeset
+)
+health_domain="$(stack_output "$HEALTH_STACK" ApiDomain)"
+echo "    health origin: $health_domain"
 
 # 4. The site
 echo "==> deploying $SITE_STACK"
@@ -291,6 +311,7 @@ aws cloudformation deploy --stack-name "$SITE_STACK" \
   --template-file presence_infra/site.yaml --capabilities CAPABILITY_AUTO_EXPAND \
   --parameter-overrides "DomainName=$DOMAIN" "Stage=$STAGE" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
+    "HealthApiDomainName=$health_domain" \
     "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
@@ -330,8 +351,8 @@ check() {
   anonymous="${anonymous%%,\"maintenance\":*}}"
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
-  # What the Route 53 health check polls: every dependency must be ok, and
-  # the API must be this release.
+  # What the Route 53 health check polls (presence_health): every
+  # dependency must be ok, and the health stack must be this release.
   local health
   health="$(curl -s --max-time 20 "https://$DOMAIN/health")"
   [[ "$health" == '{"status":"ok",'* ]] || { echo "    /health answered $health, want status ok"; return 1; }

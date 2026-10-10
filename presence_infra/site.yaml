@@ -6,9 +6,10 @@ Description: >
   presence-web: the site at https://presence.nu01.com (and, as
   presence-rc-web, https://rc.presence.nu01.com). One CloudFront
   distribution in front of the index page (/) and the Flutter web app
-  (/app/), both from a private S3 bucket, and the auth API (/api/* and
-  /health, the presence_api_auth SAM stack's HTTP API). A Route 53 health
-  check polls https://DomainName/health; when it fails, an alarm emails
+  (/app/), both from a private S3 bucket, the auth API (/api/*, the
+  presence_api_auth SAM stack's HTTP API) and its health check (/health,
+  the presence_health SAM stack's HTTP API). A Route 53 health check polls
+  https://DomainName/health; when it fails, an alarm emails
   HealthNotificationEmails.
   Deploy in us-east-1 (CloudFront certificates must live there).
 
@@ -22,6 +23,9 @@ Parameters:
   ApiDomainName:
     Type: String
     Description: The auth API's execute-api host name (the presence_api_auth stack's ApiDomain output)
+  HealthApiDomainName:
+    Type: String
+    Description: The health check's execute-api host name (the presence_health stack's ApiDomain output)
   Stage:
     Type: String
     Default: prod
@@ -266,6 +270,13 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+          # The health check's HTTP API (presence_health), default stage: /health -> /health
+          - Id: health
+            DomainName: !Ref HealthApiDomainName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
         # The index page at / (redirects to /app/)
         DefaultCacheBehavior:
           TargetOriginId: site
@@ -288,9 +299,9 @@ Resources:
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt AppIndexFunction.FunctionMetadata.FunctionARN
-          # The health check (presence.auth.HealthHandler): never cached.
+          # The health check (presence_health's HealthHandler): never cached.
           - PathPattern: /health
-            TargetOriginId: api
+            TargetOriginId: health
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
             CachedMethods: [GET, HEAD]
@@ -329,8 +340,8 @@ Resources:
         HostedZoneId: Z2FDTNDATAQYW2
         EvaluateTargetHealth: false
 
-  # Polls https://DomainName/health through CloudFront: the edge, the API,
-  # its tables, the user-data bucket, the identity pool and Google's keys.
+  # Polls https://DomainName/health through CloudFront: the edge, the
+  # health check's API, the auth API's tables, the user-data bucket, the identity pool and Google's keys.
   # Healthy only on a 2xx/3xx whose body says "status":"ok".
   HealthCheck:
     Type: AWS::Route53::HealthCheck

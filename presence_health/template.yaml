@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  presence_health (stacks presence-health and presence-rc-health): GET
+  /health (public, no token) checks everything the auth API needs (its
+  settings, its DynamoDB tables, the user-data bucket, the identity pool,
+  Google's token signing keys and rbacr) and answers 200 "status":"ok" or
+  503 "status":"fail". Its own HTTP API, served under /health by the site's
+  CloudFront distribution and polled by its Route 53 health check. Read-only:
+  it only describes the auth API's tables (imported from the auth API
+  stack's exports), heads the bucket and describes the pool. Deploy after
+  the auth API stack.
+
+Parameters:
+  AuthStackName:
+    Type: String
+    Default: presence-auth-api
+    AllowedPattern: '[A-Za-z][A-Za-z0-9-]{0,127}'
+    Description: >
+      The auth API stack (presence_api_auth) whose tables are checked: its
+      <stack>-<Table> exports name them.
+  Version:
+    Type: String
+    Default: ''
+    Description: >
+      The release deployed (X.Y.Z, from scripts/deploy.sh), reported by
+      GET /health as "version". Empty: /health leaves it out.
+    AllowedPattern: '([0-9]+\.[0-9]+\.[0-9]+)?'
+  GoogleWebClientId:
+    Type: String
+    Default: ''
+    Description: >
+      The auth API's Google web OAuth client (its GoogleWebClientId). Only
+      checked to be set (RBAC mode): the "settings" check.
+    AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
+  IdentityPoolId:
+    Type: String
+    Default: ''
+    Description: >
+      The Cognito identity pool cloud sync uses (presence-identity's
+      IdentityPoolId): checked to be set and to answer DescribeIdentityPool.
+    AllowedPattern: '([a-z0-9-]+:[0-9a-f-]+)?'
+  UserDataBucket:
+    Type: String
+    Default: ''
+    Description: >
+      The bucket cloud sync uploads to (presence-user-data's
+      UserDataBucketName): checked to be set and to answer HeadBucket.
+    AllowedPattern: '([a-z0-9][a-z0-9.-]{1,61}[a-z0-9])?'
+  RbacrUrl:
+    Type: String
+    Default: ''
+    AllowedPattern: '(https://[A-Za-z0-9.-]+(:[0-9]+)?)?'
+    Description: >
+      rbacr's origin, whose /health is checked. Pass it only when the auth
+      API has an rbacr token (scripts/deploy.sh requires one): empty, the
+      "rbacr" check fails, since nobody would have a role. The token itself
+      never comes here.
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The permissions boundary of the function's role (the stage's
+      <prefix>-app-boundary from presence_infra/github-deploy.yaml; passed
+      by scripts/deploy.sh, which the deploy roles require).
+    AllowedPattern: '(arn:aws[a-z-]*:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+)?'
+  Architecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+    Description: The Lambda's CPU (arm64 in AWS).
+
+Conditions:
+  HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
+  HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
+
+Resources:
+  HealthHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      RouteSettings:
+        # Public (no token): Route 53's health checkers, from several
+        # regions every 30 s. Answers are reused for 20 s (HealthHandler).
+        "GET /health":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+
+  # GET /health: whether every dependency of the auth API answers
+  # (presence.health.HealthHandler), polled by the site's Route 53 health
+  # check. Read-only: it only describes the tables, heads the bucket and
+  # describes the pool.
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: HealthFunction
+      Handler: presence.health.HealthHandler::handleRequest
+      Runtime: java25
+      Architectures:
+        - !Ref Architecture
+      # More memory, more CPU: a cold start must still answer Route 53 in time.
+      MemorySize: 1024
+      Timeout: 10
+      PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          PRESENCE_VERSION: !Ref Version
+          RBACR_URL: !Ref RbacrUrl
+          GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
+          COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
+          USER_DATA_BUCKET: !Ref UserDataBucket
+          HEALTH_TABLES: !Join
+            - ','
+            - - !ImportValue {'Fn::Sub': '${AuthStackName}-UserRolesTable'}
+              - !ImportValue {'Fn::Sub': '${AuthStackName}-ProfilesTable'}
+              - !ImportValue {'Fn::Sub': '${AuthStackName}-ProfileSubjectsTable'}
+              - !ImportValue {'Fn::Sub': '${AuthStackName}-VoucherTable'}
+              - !ImportValue {'Fn::Sub': '${AuthStackName}-LinkCodesTable'}
+              - !ImportValue {'Fn::Sub': '${AuthStackName}-SystemTable'}
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action: dynamodb:DescribeTable
+              Resource:
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-UserRolesTable'}
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-ProfilesTable'}
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-ProfileSubjectsTable'}
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-VoucherTable'}
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-LinkCodesTable'}
+                - !Sub
+                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-SystemTable'}
+            # HeadBucket needs ListBucket; the bucket only ("none" when unset).
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+            - Effect: Allow
+              Action: cognito-identity:DescribeIdentityPool
+              Resource: !Sub
+                - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
+                - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HealthHttpApi
+            Path: /health
+            Method: get
+
+Outputs:
+  ApiDomain:
+    Description: The health HTTP API's host name (the site distribution's /health origin)
+    Value: !Sub "${HealthHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
