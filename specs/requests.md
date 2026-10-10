@@ -4244,9 +4244,50 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
 
-## 2026-10-10
+321. **Bottom navigation, Strava-style layout.** (2026-10-10)
+     - Asked: improve the look and feel; instead of the top navigation
+       bar, use a bottom navigation bar, as is more common on phones, with
+       Strava's UI as the reference for layout and components (keeping
+       the Gruvbox colors).
+     - Changed: the tabs moved from the app bar to a bottom navigation
+       bar (`HomeNavigationBar`, a Material `NavigationBar`): icon over
+       label, the open tab filled and in yellow with a bold label, no
+       indicator pill, 64 dp, flat with a hairline on top; hidden signed
+       out. The app bar now names the open screen, bold and on the left
+       (none over the camera), with the account on the right. Tabs no
+       longer swipe: only a tap flips. The camera fills the screen above
+       the bar. Snackbars float above the bar. Tests: `widget_test.dart`
+       (the bar, the screen's name, no swiping), the rest moved to the
+       bar. Specs: [Navigation](navigation.md), [Theme](theme.md),
+       [Monitoring](monitoring.md), [Membership](membership.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Device location](device-location.md), [Camera](camera.md),
+       [Subjects](subjects.md).
 
-321. **Encrypt every image and recording with a key per device.**
+322. **Settings in grouped sections.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: group the Settings
+       screen's sections.
+     - Changed: each Settings section (`SettingsSection`) is a bold
+       heading over an edge-to-edge block a step lighter than the page
+       (bg1), the controls 16 dp in, 16 dp between groups; the version,
+       health line, Add a device and IDs follow on the page. Tests:
+       `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
+       [Settings](settings.md).
+
+323. **Monitoring as a feed.** (2026-10-10)
+     - Asked: follow-up to the Strava-style layout: make Monitoring a
+       feed of event cards, with a rounded, filled search field.
+     - Changed: each timeline entry is one card (`FeedCard`): the device
+       and copies as its header row, the event's own card square inside
+       it; cards 12 dp apart (were 4). The events search field is filled
+       and rounded with no outline. A new event arriving while reading
+       further down now scrolls the list on by the new card's height, so
+       the cards being read don't move (taller cards had exposed that
+       they shifted down). Tests: `widget_test.dart` (the feed card, the
+       search field). Specs: [Events](events.md),
+       [Event copies](event-copies.md).
+
+324. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/consent/consent_screen.dart';
+import 'package:presence_app/home/home_navigation_bar.dart';
 import 'package:presence_app/consent/device_consent.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
@@ -102,7 +103,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(Checkbox), findsNothing);
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
       expect(cameras.opened, isEmpty, reason: 'no camera before consent');
 
       // One click agrees.
@@ -112,7 +113,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('consent')), findsNothing);
-      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
       expect(cameras.opened, hasLength(1));
 
       // Saved for this device, with a hash that checks out.
@@ -158,7 +159,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       final cameras = await launch(tester);
       expect(find.byKey(const Key('consent')), findsNothing);
-      expect(find.byType(TabBar), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
       expect(cameras.opened, hasLength(1));
     });
 

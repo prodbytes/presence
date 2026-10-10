@@ -10,12 +10,13 @@ import '../delete_device.dart';
 import '../events.dart';
 import '../home_tabs.dart';
 import 'dev_mode_label.dart';
-import 'home_screen.dart';
 
-/// The home screen's app bar: the "dev" label in DEV, and on the right the
-/// tabs and the account button, or, without access, only sign-in (signed
-/// out) or sign-up and the account (signed in without a role). Clear over
-/// the camera, with a scrim keeping the tabs readable.
+/// The home screen's app bar: on the left the open screen's name, bold
+/// (none over the camera), and the "dev" label in DEV; on the right the
+/// account button, or, without access, only sign-in (signed out) or sign-up
+/// and the account (signed in without a role). The tabs are in the bottom
+/// navigation bar ([HomeNavigationBar]). Clear over the camera, with a scrim
+/// keeping the buttons readable.
 class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   const HomeAppBar({
     super.key,
@@ -51,32 +52,26 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 
-  /// [HomeScreen.tabWidth], or less (down to [HomeScreen.minTabWidth])
-  /// when the tabs, the buttons after them and the dev label's edge don't
-  /// fit the screen.
-  double _tabWidth(BuildContext context) {
-    // The account button (none in DEV) and the gap after it.
-    final buttons = (dev ? 0 : 48) + 4;
-    const titleRoom = 12 + 16;
-    final fit =
-        (MediaQuery.sizeOf(context).width - titleRoom - buttons) /
-        tabs.tabs.length;
-    return fit.clamp(HomeScreen.minTabWidth, HomeScreen.tabWidth);
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AppBar(
-      // No title: only the "dev" label, in DEV.
-      titleSpacing: 12,
-      title: dev
-          ? const Row(children: [Flexible(child: DevModeLabel())])
-          : null,
+      // The screen's name (none over the camera), then the "dev" label in
+      // DEV.
+      titleSpacing: 16,
+      title: Row(
+        children: [
+          if (hasAccess && !onCamera) ...[
+            Text(tabs.current.label, key: const Key('screen-title')),
+            if (dev) const SizedBox(width: 12),
+          ],
+          if (dev) const Flexible(child: DevModeLabel()),
+        ],
+      ),
       backgroundColor: onCamera ? Colors.transparent : scheme.surface,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
-      // Over the camera, a scrim keeps the tabs readable.
+      // Over the camera, a scrim keeps the buttons readable.
       flexibleSpace: onCamera
           ? const DecoratedBox(
               decoration: BoxDecoration(
@@ -120,22 +115,6 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           const SizedBox(width: 4),
         ] else ...[
-          SizedBox(
-            width: _tabWidth(context) * tabs.tabs.length,
-            child: TabBar(
-              controller: tabs.controller,
-              dividerHeight: 0,
-              indicatorSize: TabBarIndicatorSize.tab,
-              labelPadding: EdgeInsets.zero,
-              tabs: [
-                for (final tab in tabs.tabs)
-                  Tooltip(
-                    message: tab.label,
-                    child: Tab(icon: Icon(tab.icon, semanticLabel: tab.label)),
-                  ),
-              ],
-            ),
-          ),
           // Account (who's signed in, sign out, about): an action, not a
           // tab.
           if (!dev)

@@ -175,8 +175,8 @@ Monitoring) is a close-up (`closeUp`):
   date line; the subjects map follows the newest as events load and
   arrive, stays put once dragged, also through a resize, and a nearly
   antipodal dot doesn't break it.
-  `widget_test.dart`: the four tabs in order, and an admin's app bar fits
-  on a 320 dp phone.
+  `widget_test.dart`: the tabs in order in the bottom navigation bar, and
+  an admin's fits on a 320 dp phone.
 - Web release build compiles. Not yet tried in a browser with real tiles.
 
 ## Known limitations

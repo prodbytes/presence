@@ -5,6 +5,15 @@
   clips, Recognition, History, Live sync (with live sync in the build),
   Advanced (admins only), Subjects; then the version, the health line,
   Add a device, and last the device and profile IDs.
+- **Each section is a group** (`SettingsSection` in
+  [lib/settings.dart](../presence_app/lib/settings.dart)), as in most
+  phone apps' settings (Strava was the reference): its name as a short
+  **bold heading** (`titleMedium`, weight 700), 16 dp in, then its
+  controls on a **block a step lighter than the page** (a `Card`, bg1),
+  **edge to edge** and square, with the controls 16 dp in; 16 dp of page
+  between groups. The version, health line, Add a device and the IDs
+  follow the groups on the page itself, 16 dp in. Test:
+  `settings_test.dart` (at 320 and 1280 dp).
 - **Sliders change their setting when let go.** While one is dragged,
   its thumb and the value beside its name follow the finger; the setting
   changes once, on release (or on each keyboard or screen-reader step), so

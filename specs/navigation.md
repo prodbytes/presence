@@ -1,40 +1,58 @@
 # Navigation
 
 The app is a Flutter app ([presence_app/](../presence_app)). The same UI
-runs on Android and web. It follows Material 3 top-level navigation: **tabs
-in the app bar**, which flip between full screens.
+runs on Android and web. Its layout follows the common phone pattern (Strava
+was the reference): a **bottom navigation bar** flips between full screens,
+and a compact **app bar** on top names the open screen and holds the
+account.
 
-- **App bar:** **no title** (in DEV, only the "dev" label on the left; see
-  [Execution mode](execution-mode.md)).
-  In the top right are three icon tabs, in order **Camera**,
-  **Monitoring** and **Settings**, and for admins (`presence_admin`, so
-  everyone in DEV, where the anonymous user is a root) a fourth, **Log**,
-  when Settings' **Show the Log tab** switch is on: on by default in DEV,
-  off otherwise (see [Log](log.md)); for signed-in admins (not DEV:
-  there are no accounts) an **Admin** tab last (see
-  [Membership](membership.md#the-admin-tab)); then a **Login** icon
-  button. The Log and Admin tabs come and go as the roles or the switch
-  change (the tab controller is rebuilt, staying on the open tab, or on
-  the nearest tab before it if that one goes: Settings for the Log).
-  A tab's controller index is its place among the shown tabs
-  (`_indexOf`), not its `HomeTab.index`: with the Log hidden, the Admin
-  tab is the fourth. (The
-  Device tab is gone: its map is a section of Settings, and the battery
-  shows over the camera.)
-  - Tabs have tooltips and semantic labels, and a 48 dp touch target each.
-    Where that doesn't fit (an admin's app bar, with its Log and Admin
-    tabs, on a 320 dp phone), the tabs narrow, down to 40 dp, so nothing
-    overflows.
-    An indicator marks the selected tab.
+- **Bottom navigation bar** (`HomeNavigationBar`,
+  `lib/home/home_navigation_bar.dart`, a Material `NavigationBar`): one
+  destination per tab, each an **icon over its label**, in order
+  **Camera**, **Monitoring** and **Settings**, and for admins
+  (`presence_admin`, so everyone in DEV, where the anonymous user is a
+  root) a fourth, **Log**, when Settings' **Show the Log tab** switch is
+  on: on by default in DEV, off otherwise (see [Log](log.md)); for
+  signed-in admins (not DEV: there are no accounts) an **Admin** tab last
+  (see [Membership](membership.md#the-admin-tab)).
+  - **The open tab is marked by color only**: its icon filled and its
+    label bold, both in the accent color (Gruvbox yellow); the others
+    outlined, in the secondary text color. No pill behind the icon.
+  - Flat and compact: 64 dp tall, the page's background, with a hairline
+    (`outlineVariant`) above it; every label always shown (a label too
+    long for its slot is cut short with an ellipsis). Its look is the
+    theme's `navigationBarTheme` ([Theme](theme.md)).
+  - Each destination's tooltip and screen-reader label is the tab's name,
+    with at least a 48 dp touch target: an admin's five tabs fit a 320 dp
+    phone.
+  - **Signed out**, or signed in without access, there's no navigation
+    bar: the camera shows alone (see [Sign-in](sign-in.md)).
+  - The Log and Admin tabs come and go as the roles or the switch change
+    (the tab controller is rebuilt, staying on the open tab, or on the
+    nearest tab before it if that one goes: Settings for the Log). A tab's
+    controller index is its place among the shown tabs (`indexOf`), not
+    its `HomeTab.index`: with the Log hidden, the Admin tab is the fourth.
+    (The Device tab is gone: its map is a section of Settings, and the
+    battery shows over the camera.)
+- **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
+  - **On the left, the open screen's name**, bold (22 sp, weight 700),
+    left-aligned ("Monitoring", "Settings", "Log", "Admin"). **No name
+    over the camera.** In DEV the "dev" label follows it (alone over the
+    camera; see [Execution mode](execution-mode.md)).
+  - **On the right, Account** (your Google avatar when signed in; none in
+    DEV): an action, not a tab. It opens the [account sheet](sign-in.md).
+    Signed out, only **Sign in**; signed in without a role, sign-up and
+    the account.
+  - Flat, the page's color; transparent over the camera, with a dark
+    gradient scrim keeping its buttons readable.
   - There's **no About button**: what Presence is, with a link to its
     code, is a paragraph at the end of the account sheet (see
     [About](about.md)).
-  - **Account** (the last icon; your Google avatar when signed in) is an
-    action, not a tab. It opens the [account sheet](sign-in.md).
-- **Flipping:** tapping a tab or swiping sideways moves between screens
-  (`TabBar` + `TabBarView`). While a finger is on the Settings location
-  map, a sideways drag moves the map instead. The Camera screen is kept alive while other tabs
-  are shown, so its live video isn't torn down.
+- **Flipping:** only a **tap** on the navigation bar moves between screens
+  (`TabBarView` with swiping off, driven by the bar's `TabController`), as
+  in most phone apps: a sideways drag stays on the page, so it moves a map
+  or a list instead. The Camera screen is kept alive while other tabs are
+  shown, so its live video isn't torn down.
 - **Every view change looks the same:** a sideways slide, 300 ms, eased
   (`Curves.ease`, the tabs' own). The role-gated tabs (Log, Admin) are
   tabs like the others: they only need the role to show, and flip in the
@@ -57,15 +75,18 @@ in the app bar**, which flip between full screens.
   `HomeTabs` ([lib/home_tabs.dart](../presence_app/lib/home_tabs.dart));
   the home screen (`HomeScreen`) is in
   [lib/home/home_screen.dart](../presence_app/lib/home/home_screen.dart),
-  with its app bar (`HomeAppBar`, `lib/home/home_app_bar.dart`), the
+  with its app bar (`HomeAppBar`, `lib/home/home_app_bar.dart`), its
+  navigation bar (`HomeNavigationBar`,
+  `lib/home/home_navigation_bar.dart`), the
   Camera tab's buttons (`CameraButtons`, `lib/home/camera_buttons.dart`)
   and the "dev" label (`DevModeLabel`, `lib/home/dev_mode_label.dart`) as
   widgets of their own in `lib/home/`; `lib/main.dart` keeps `main()` and
   the app's wiring (`PresenceApp`).
-- **Camera** (the start tab): **one camera at a time** fills the **whole
-  screen**, edge to edge and under the app bar, which is transparent over
-  the camera, with a dark gradient scrim to keep the tabs
-  readable. There are **no overlays** on the video: no camera name, and no
+- **Camera** (the start tab): **one camera at a time** fills the
+  **screen above the navigation bar**, edge to edge and under the app bar,
+  which is transparent over the camera, with a dark gradient scrim to keep
+  its buttons readable (signed out, with no navigation bar, the whole
+  screen). There are **no overlays** on the video: no camera name, and no
   list of other cameras (except in the **All** grid, below).
   - It opens **the camera last picked with Flip**, so an unattended
     phone that restarts (a crash, the watchdog, a reinstall) comes back
@@ -232,7 +253,6 @@ in the app bar**, which flip between full screens.
   count and a small system events toggle at the top, each event's device
   (tap it to see only that device) (see
   [Monitoring](monitoring.md)).
-  Swiping between tabs is off there.
 - **A device's name leads to its events, from anywhere.** Tapping a
   device's ID or name (an event card's device, the device in an event's
   details, the account sheet's device list, an All grid cell's label)
@@ -266,11 +286,11 @@ in the app bar**, which flip between full screens.
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).
 - **Admin** (signed-in admins only): membership requests and voucher
-  codes, a page of the tabs like Settings, reached with the same slide
-  and swipe; no back button (see
+  codes, a page of the tabs like Settings, reached with the same slide;
+  no back button (see
   [Membership](membership.md#the-admin-tab)). It used to be an app-bar
   button opening a separate screen.
-- Nothing in the app bar links out: on a full-screen camera, an accidental
+- Nothing in the app bar or the navigation bar links out: on a full-screen camera, an accidental
   tap would open a browser. The source code link is at the end of the
   account sheet ([About](about.md)).
 - The Flutter demo UI was removed entirely.

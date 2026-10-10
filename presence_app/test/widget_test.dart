@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/home/home_navigation_bar.dart';
 import 'package:presence_app/camera_feeds.dart' show describeCameraError;
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/events.dart';
@@ -45,8 +46,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  TabController tabs(WidgetTester tester) =>
-      tester.widget<TabBar>(find.byType(TabBar)).controller!;
+  TabController tabs(WidgetTester tester) => tester
+      .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
+      .controller;
 
   for (final size in [const Size(320, 640), const Size(1280, 800)]) {
     final name = '${size.width.toInt()}x${size.height.toInt()}';
@@ -55,32 +57,71 @@ void main() {
       await pumpAt(tester, size);
 
       expect(tabs(tester).index, HomeTab.camera.index);
-      // The camera fills the whole screen, under the app bar.
+      // The camera fills the screen above the navigation bar, under the
+      // app bar.
+      final bar = tester.getRect(find.byType(HomeNavigationBar));
       expect(
         tester.getRect(find.byKey(const Key('camera-page'))),
-        Offset.zero & size,
+        Rect.fromLTRB(0, 0, size.width, bar.top),
       );
       // No title over the camera.
       expect(find.text('Presence'), findsNothing);
+      expect(find.byKey(const Key('screen-title')), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('tabs sit in the top right at $name', (tester) async {
+    testWidgets('tabs sit in the bottom navigation bar at $name', (
+      tester,
+    ) async {
       await pumpAt(tester, size);
 
+      final bar = tester.getRect(find.byType(HomeNavigationBar));
+      expect(bar.bottom, size.height);
+      expect(bar.width, size.width);
       final camera = tester.getCenter(find.byTooltip('Camera'));
       final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
       final settings = tester.getCenter(find.byTooltip('Settings'));
-      final login = tester.getCenter(find.byKey(const Key('account-button')));
-      for (final c in [camera, monitoring, settings, login]) {
-        expect(c.dy, lessThan(kToolbarHeight));
+      for (final c in [camera, monitoring, settings]) {
+        expect(bar.contains(c), isTrue);
       }
-      // No About button: what Presence is, is in the account sheet.
-      expect(find.byTooltip('About'), findsNothing);
       expect(camera.dx, lessThan(monitoring.dx));
       expect(monitoring.dx, lessThan(settings.dx));
+      // Each tab is labeled under its icon.
+      for (final label in ['Camera', 'Monitoring', 'Settings']) {
+        expect(
+          find.descendant(
+            of: find.byType(HomeNavigationBar),
+            matching: find.text(label),
+          ),
+          findsOneWidget,
+        );
+      }
+      // The account stays in the top right.
+      final account = tester.getCenter(find.byKey(const Key('account-button')));
+      expect(account.dy, lessThan(kToolbarHeight));
+      // No About button: what Presence is, is in the account sheet.
+      expect(find.byTooltip('About'), findsNothing);
       expect(find.byTooltip('Device'), findsNothing);
-      expect(settings.dx, lessThan(login.dx));
+    });
+
+    testWidgets('the app bar names the open screen at $name', (tester) async {
+      await pumpAt(tester, size);
+
+      final title = find.byKey(const Key('screen-title'));
+      await openTab(tester, 'Monitoring');
+      expect(tester.widget<Text>(title).data, 'Monitoring');
+      expect(tester.getCenter(title).dy, lessThan(kToolbarHeight));
+      // On the left, bold.
+      expect(tester.getRect(title).left, lessThan(size.width / 2));
+      expect(
+        DefaultTextStyle.of(tester.element(title)).style.fontWeight,
+        FontWeight.w700,
+      );
+      await openTab(tester, 'Settings');
+      expect(tester.widget<Text>(title).data, 'Settings');
+      await openTab(tester, 'Camera');
+      expect(title, findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets("an admin's app bar fits at $name", (tester) async {
@@ -99,30 +140,25 @@ void main() {
       );
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
-      // Admin is a tab, after Settings, and the account button still fits.
+      // Admin is a tab, after Settings, and every tab fits the bar.
       final admin = find.byTooltip('Admin');
       expect(
-        find.descendant(of: find.byType(TabBar), matching: admin),
+        find.descendant(of: find.byType(HomeNavigationBar), matching: admin),
         findsOneWidget,
       );
       expect(
         tester.getRect(find.byTooltip('Settings')).right,
         lessThanOrEqualTo(tester.getRect(admin).left),
       );
+      expect(tester.getRect(admin).right, lessThanOrEqualTo(size.width));
+      // Four tabs, each at least a 48 dp touch target.
       expect(
-        tester.getRect(admin).right,
-        lessThanOrEqualTo(
-          tester.getRect(find.byKey(const Key('account-button'))).left,
-        ),
+        tester.getSize(find.byType(HomeNavigationBar)).width / 4,
+        greaterThanOrEqualTo(48),
       );
       expect(
         tester.getRect(find.byKey(const Key('account-button'))).right,
         lessThanOrEqualTo(size.width),
-      );
-      // Four tabs, none narrower than the minimum.
-      expect(
-        tester.getSize(find.byType(TabBar)).width / 4,
-        greaterThanOrEqualTo(HomeScreen.minTabWidth),
       );
       expect(tester.takeException(), isNull);
     });
@@ -190,7 +226,7 @@ void main() {
       // is kept for when there's access.
       final memory = InMemoryTabMemory('settings');
       await launch(tester, memory, auth: FakeAuthService());
-      expect(find.byType(TabBar), findsNothing);
+      expect(find.byType(HomeNavigationBar), findsNothing);
       expect(find.byKey(const Key('settings-page')), findsNothing);
       expect(memory.tab, 'settings');
 
@@ -230,12 +266,14 @@ void main() {
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
   });
 
-  testWidgets('swiping flips between tabs', (tester) async {
+  testWidgets('only the navigation bar flips: swiping stays put', (
+    tester,
+  ) async {
     await pumpAt(tester, const Size(320, 640));
 
     await tester.fling(find.byType(TabBarView), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
-    expect(tabs(tester).index, HomeTab.monitoring.index);
+    expect(tabs(tester).index, HomeTab.camera.index);
   });
 
   Future<void> pumpGate(WidgetTester tester, PresenceApp app) async {
@@ -266,7 +304,7 @@ void main() {
 
     expect(backend.opened, hasLength(1), reason: 'the camera still shows');
     expect(find.byKey(const Key('dev-mode')), findsOneWidget);
-    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byType(HomeNavigationBar), findsOneWidget);
     expect(find.byKey(const Key('clip')), findsOneWidget);
     expect(find.byKey(const Key('account-button')), findsNothing);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
@@ -309,7 +347,7 @@ void main() {
     );
     await tester.pump();
     expect(find.byKey(const Key('starting')), findsOneWidget);
-    expect(find.byType(TabBar), findsNothing);
+    expect(find.byType(HomeNavigationBar), findsNothing);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
 
     roles.answer.complete((
@@ -350,7 +388,7 @@ void main() {
     expect(find.byTooltip('Flip camera'), findsNothing);
     expect(find.byType(ClipButton), findsNothing);
     expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.byType(TabBar), findsNothing);
+    expect(find.byType(HomeNavigationBar), findsNothing);
     expect(find.byKey(const Key('account-button')), findsNothing);
     expect(find.byKey(const Key('sign-in-screen')), findsNothing);
 
@@ -360,7 +398,7 @@ void main() {
     // Signed in: the camera's buttons, the tabs and the account button.
     expect(find.byKey(const Key('clip')), findsOneWidget);
     expect(find.byType(ClipButton), findsOneWidget);
-    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byType(HomeNavigationBar), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(
       find.byTooltip('Signed in as Ana · ana@example.com'),
@@ -384,7 +422,7 @@ void main() {
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('account-sheet')), findsNothing);
-    expect(find.byType(TabBar), findsNothing);
+    expect(find.byType(HomeNavigationBar), findsNothing);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
     expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
     expect(find.byKey(const Key('clip')), findsNothing);
@@ -405,7 +443,7 @@ void main() {
         locator: NoLocation(),
       ),
     );
-    expect(find.byType(TabBar), findsOneWidget);
+    expect(find.byType(HomeNavigationBar), findsOneWidget);
     expect(
       find.byTooltip('Signed in as Ana · ana@example.com'),
       findsOneWidget,
@@ -462,6 +500,84 @@ void main() {
       tester.getTopLeft(find.text('Motion detected')).dy,
       lessThan(tester.getTopLeft(find.text('Application started')).dy),
     );
+  });
+
+  testWidgets('each event is one feed card, its device in its header', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    addTearDown(() {
+      log.dispose();
+      bus.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gruvboxSoftDarkTheme(),
+        home: Scaffold(
+          body: EventTimeline(log: log, deviceId: 'calm_red_fox'),
+        ),
+      ),
+    );
+    bus.publish(AppEvent(icon: Icons.circle, title: 'First'));
+    bus.publish(AppEvent(icon: Icons.circle, title: 'Second'));
+    await tester.pumpAndSettle();
+
+    final cards = find.byKey(const Key('feed-card'));
+    expect(cards, findsNWidgets(2));
+    final first = cards.first;
+    // The device and the event's own card are inside one card, the
+    // device on top.
+    final device = find.descendant(
+      of: first,
+      matching: find.textContaining('calm_red_fox'),
+    );
+    expect(device, findsWidgets);
+    final event = find.descendant(of: first, matching: find.byType(EventCard));
+    expect(event, findsOneWidget);
+    expect(
+      tester.getRect(device.first).bottom,
+      lessThanOrEqualTo(tester.getRect(event).top),
+    );
+    // The inner card is square, so the two read as one.
+    final inner = tester.widget<Card>(
+      find.descendant(of: event, matching: find.byType(Card)),
+    );
+    expect(
+      Theme.of(tester.element(event)).cardTheme.shape,
+      const RoundedRectangleBorder(),
+    );
+    expect(inner.margin, EdgeInsets.zero);
+    // Room between cards.
+    expect(
+      tester.getRect(cards.at(1)).top - tester.getRect(cards.first).bottom,
+      12,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the events search is filled and rounded, no outline', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gruvboxSoftDarkTheme(),
+        home: Scaffold(body: EventSearch(value: ValueNotifier(''))),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('event-search-open')));
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(
+      find.byKey(const Key('event-search')),
+    );
+    final decoration = field.decoration!;
+    expect(decoration.filled, isTrue);
+    final border = decoration.border! as OutlineInputBorder;
+    expect(border.borderSide, BorderSide.none);
+    expect(border.borderRadius, const BorderRadius.all(Radius.circular(20)));
   });
 
   testWidgets('timeline lists newest first and scrolls', (tester) async {

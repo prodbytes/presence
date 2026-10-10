@@ -25,7 +25,7 @@ their data.
 
 **App**
 
-- [Navigation](navigation.md): app bar (no title), tabs (Log for admins who turn it on, Admin for signed-in admins), and the full-screen Camera tab
+- [Navigation](navigation.md): bottom navigation bar (Log for admins who turn it on, Admin for signed-in admins), app bar with the screen's name and the account, and the full-screen Camera tab
   with its view (One / All / None), Flip and Clip buttons (Clip's color is its readiness).
 - [About](about.md): what Presence is, in a short paragraph with a link
   to its source code, at the end of the account sheet.
