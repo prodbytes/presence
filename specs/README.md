@@ -103,6 +103,12 @@ their data.
   S3, and each device's settings per profile (restored at sign-in), with
   credentials for their profile (the auth API, then a Cognito identity
   pool).
+- [Media encryption](encryption.md): every image and recording sealed
+  with its device's key (AES-256-GCM), made with the device ID, before
+  it's stored or sent; the profile's devices share their keys through
+  their settings in the cloud (and live sync); what was stored
+  unencrypted is deleted, on the device and in the cloud. Event metadata
+  isn't encrypted.
 - [Live sync](live-sync.md): new and changed events reach the profile's
   other devices within a second over MQTT (AWS IoT Core, WebSockets signed
   with the profile's credentials), metadata only; S3 keeps everything, and

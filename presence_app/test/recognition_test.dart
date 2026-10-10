@@ -23,6 +23,8 @@ import 'package:presence_app/subjects.dart';
 
 import 'fakes.dart';
 
+import 'sealed.dart';
+
 /// A unit vector pointing [degrees] around a circle: two of them have a
 /// cosine of cos(difference).
 Float32List direction(double degrees) {
@@ -649,7 +651,7 @@ void main() {
 
     test('tags keep their source and confidence; suggestions are not tags', () {
       final a = ClipAnnotations();
-      final frame = a.newFrame(onePixelPng, 1500);
+      final frame = testFrame(onePixelPng, 1500);
       final manual = a.add('Ana', 0.1, 0.1, frame: frame)!;
       final detected = a.add(
         'Rex',
@@ -659,7 +661,7 @@ void main() {
         source: TagSource.detected,
         confidence: 0.86,
       )!;
-      final other = a.newFrame(onePixelPng, 2500);
+      final other = testFrame(onePixelPng, 2500);
       final suggested = a.add(
         'Bo',
         0.2,
@@ -763,11 +765,7 @@ void main() {
     /// An earlier clip with [names] tagged on reference frame [n].
     ClipRequested tagged(int n, List<String> names, {double x = 0.5}) {
       final a = ClipAnnotations();
-      final frame = TagFrame(
-        id: 'ref-$n',
-        jpeg: Uint8List.fromList([n]),
-        ms: 0,
-      );
+      final frame = TagFrame(id: 'ref-$n', sealed: sealed([n]), ms: 0);
       for (final name in names) {
         a.add(name, x, 0.5, frame: frame);
       }
@@ -995,7 +993,11 @@ void main() {
     test('recognized tags never become references', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       final a = ClipAnnotations();
-      final frame = TagFrame(id: 'f', jpeg: Uint8List.fromList([1]), ms: 0);
+      final frame = TagFrame(
+        id: 'f',
+        sealed: sealed(Uint8List.fromList([1])),
+        ms: 0,
+      );
       a.add('Rex', 0.5, 0.5, frame: frame, source: TagSource.detected);
       log.addHistory([ClipRequested(clip(), annotations: a, id: 'old')]);
       final vision = FakeVision(
@@ -1566,7 +1568,11 @@ void main() {
     final bus = AppEventBus();
     final log = EventLog(bus.stream);
     final a = ClipAnnotations();
-    final frame = TagFrame(id: 'ref-1', jpeg: Uint8List.fromList([1]), ms: 0);
+    final frame = TagFrame(
+      id: 'ref-1',
+      sealed: sealed(Uint8List.fromList([1])),
+      ms: 0,
+    );
     a.add('Rex', 0.5, 0.5, frame: frame);
     log.addHistory([ClipRequested(clip(), annotations: a, id: 'old')]);
     const body = Box(0.3, 0.2, 0.7, 1);
@@ -1634,8 +1640,8 @@ void main() {
   ) async {
     final event = ClipRequested(clip(), id: 'c');
     final a = event.annotations;
-    a.add('Rex', 0.5, 0.5, frame: a.newFrame(onePixelPng, 4000));
-    a.add('rex', 0.2, 0.2, frame: a.newFrame(onePixelPng, 1500));
+    a.add('Rex', 0.5, 0.5, frame: testFrame(onePixelPng, 4000));
+    a.add('rex', 0.2, 0.2, frame: testFrame(onePixelPng, 1500));
     a.add('Ana', 0.1, 0.1);
     a.setObjects(const [ObjectTag(label: 'bicycle', ms: 2500, score: 0.7)]);
     await tester.pumpWidget(
@@ -1760,7 +1766,7 @@ void main() {
 
   testWidgets('a suggestion asks, and Yes makes it a tag', (tester) async {
     final a = ClipAnnotations();
-    final frame = a.newFrame(onePixelPng, 2000);
+    final frame = testFrame(onePixelPng, 2000);
     final s = a.add(
       'Ana',
       0.5,

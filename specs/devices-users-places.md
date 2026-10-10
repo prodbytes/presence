@@ -21,9 +21,13 @@ not built yet.
     about 1.2 billion IDs. Two of 5,000 devices share an ID with about 1%
     odds, and two of 50,000 with about 64%. Words that read as insults,
     and weapons, were left out.
-  - It's saved in the `settings` store under `device` (`{"id": …}`), read
-    and created in one transaction, so two tabs opening at once agree. On
-    web, clearing the site's data makes a new device.
+  - It's saved in the `settings` store under `device` (`{"id": …,
+    "key": …}`), read and created in one transaction, so two tabs opening
+    at once agree. On web, clearing the site's data makes a new device.
+- **Its media key** is made with the ID, in the same transaction: a random
+  AES-256 key that seals every image and recording the device makes, and
+  that its profile's other devices get to open them (see
+  [Media encryption](encryption.md)).
 - **Consent:** right after the ID is known, the device must have a
   [recording consent](consent.md), asked once, before anything shows or
   records.

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import '../auth/auth_service.dart';
 import '../auth/roles_service.dart';
 import '../config.dart' show LiveMode;
+import '../crypto/media_seal.dart';
 import '../events.dart';
 import '../storage/event_store.dart';
 import '../storage/media_store.dart';
@@ -29,6 +30,7 @@ part 'cloud_sync_keys.dart';
 part 'cloud_sync_live.dart';
 part 'cloud_sync_pass.dart';
 part 'cloud_sync_recordings.dart';
+part 'cloud_sync_seal.dart';
 part 'cloud_sync_upload.dart';
 
 /// This device's settings, kept in the cloud per device
@@ -171,11 +173,13 @@ class CloudSync extends ChangeNotifier {
     this.fullFetchEvery = const Duration(hours: 1),
     this.maxBackoff = 16,
     this.live,
+    MediaSeal? seal,
     EventCopies? copies,
     bool? prefetchRecordings,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        _ownsCopies = copies == null,
+       seal = seal ?? MediaSeal.instance,
        prefetchRecordings = prefetchRecordings ?? !kIsWeb {
     this.copies = copies ?? EventCopies(store: _store);
     auth.addListener(_onAuthChanged);
@@ -193,6 +197,10 @@ class CloudSync extends ChangeNotifier {
 
   /// Live sync over MQTT, when given and enabled (see the class comment).
   final LiveSync? live;
+
+  /// The media keys: this device's goes up with its settings (and with
+  /// its live events), and other devices' come down from theirs.
+  final MediaSeal seal;
 
   /// Who holds a copy of each event (see [EventCopies]): this device and
   /// the cloud, as this sync finds them, and other devices, from their
@@ -327,6 +335,7 @@ class CloudSync extends ChangeNotifier {
 
   /// The parts of a pass, and what runs beside it (each in its own file).
   late final _Fetcher _fetcher = _Fetcher(this);
+  late final _Sealing _sealing = _Sealing(this);
   late final _Uploader _uploader = _Uploader(this);
   late final _LivePublisher _publisher = _LivePublisher(this);
   late final _Recordings _recordings = _Recordings(this);
@@ -589,7 +598,11 @@ class CloudSync extends ChangeNotifier {
       if (_synced == null || reconcile) {
         _synced = await pass.store.syncedKeys();
       }
+      // What the folder held unsealed goes first, once.
+      await _sealing.purgeUnsealed(pass);
       if (last == null) await _fetcher.fetchSettings(pass);
+      // The other devices' keys, to open their media.
+      await _sealing.fetchKeys(pass, all: full);
       await _fetcher.fetch(
         pass,
         _fetcher.prefixes(now, first: last == null, full: full),
@@ -730,6 +743,10 @@ class CloudSync extends ChangeNotifier {
 
   /// The most clips a full fetch wants again ([_Fetcher.rewantClips]).
   static const int maxRewanted = 100;
+
+  /// The content type of sealed media in the bucket ([MediaSeal]): its
+  /// thumbnails, tagged frames and recordings.
+  static const String sealedType = 'application/octet-stream';
 
   /// Where a device's settings go in the user's folder:
   /// `devices/<deviceId>/settings.json`.
