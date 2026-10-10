@@ -33,6 +33,7 @@ import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'recognition/recognizer.dart';
+import 'screen_off.dart';
 import 'tab_memory.dart';
 import 'storage/media_platform.dart';
 import 'storage/media_store.dart';
@@ -78,7 +79,12 @@ class PresenceApp extends StatefulWidget {
     this.battery,
     this.links,
     this.recognizer,
+    this.screenOff,
   });
+
+  /// Overrides the Screen off button's screen control (used by tests);
+  /// defaults to the platform's ([ScreenOff]).
+  final ScreenOff? screenOff;
 
   /// Makes the recognizer that searches each new clip (used by tests, with
   /// fake models); defaults to [SubjectRecognizer] with the real ones.
@@ -153,6 +159,7 @@ class _PresenceAppState extends State<PresenceApp> {
   // history, settings and open cameras outlive any single screen.
   final _bus = AppEventBus();
   final _config = ConfigController();
+  late final _screenOff = widget.screenOff ?? ScreenOff();
   late final EventLog _log;
   late final Persistence _persistence;
 
@@ -553,6 +560,7 @@ class _PresenceAppState extends State<PresenceApp> {
                   onJoinHandled: _joinHandled,
                   tabMemory: widget.tabMemory,
                   deleteDevice: _deleteDevice,
+                  screenOff: _screenOff,
                 ),
               },
             ),

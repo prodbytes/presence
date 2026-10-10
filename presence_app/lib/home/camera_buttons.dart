@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../camera_feeds.dart';
 import 'clip_button.dart';
 
-/// The Camera tab's floating buttons, bottom right: the view button (One,
-/// All, None), Flip and Clip. Flip is hidden when it can't act; Clip
+/// The Camera tab's floating buttons, bottom right: Screen off (where the
+/// platform can, [onScreenOff]), the view button (One, All, None), Flip
+/// and Clip. Flip is hidden when it can't act; Clip
 /// ([ClipButton]) always shows, colored by whether a clip can be taken,
 /// and disabled when none can.
 class CameraButtons extends StatelessWidget {
@@ -14,6 +15,7 @@ class CameraButtons extends StatelessWidget {
     required this.showAll,
     required this.onNextViewMode,
     required this.onClip,
+    this.onScreenOff,
   });
 
   final CameraRig rig;
@@ -22,6 +24,9 @@ class CameraButtons extends StatelessWidget {
   final bool showAll;
   final VoidCallback onNextViewMode;
   final VoidCallback onClip;
+
+  /// Darkens the screen while capture goes on; null hides the button.
+  final VoidCallback? onScreenOff;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +46,16 @@ class CameraButtons extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           spacing: 12,
           children: [
+            if (onScreenOff != null)
+              FloatingActionButton(
+                key: const Key('screen-off'),
+                heroTag: 'screen-off',
+                tooltip: 'Turn the screen off (capture goes on)',
+                backgroundColor: scheme.surfaceContainerHigh,
+                foregroundColor: scheme.onSurface,
+                onPressed: onScreenOff,
+                child: const Icon(Icons.brightness_2_outlined),
+              ),
             // Shows what's on screen (One, All, None); a tap moves on to the
             // next. Highlighted for All, and for None, the camera off. Icon
             // only: the tooltip and screen readers name it.
@@ -82,7 +97,11 @@ class CameraButtons extends StatelessWidget {
             ClipButton(
               rig: rig,
               onPressed: onClip,
-              maxWidth: room - (56 + 12) - (flips ? 56 + 12 : 0),
+              maxWidth:
+                  room -
+                  (56 + 12) -
+                  (flips ? 56 + 12 : 0) -
+                  (onScreenOff != null ? 56 + 12 : 0),
             ),
           ],
         );

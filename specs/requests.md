@@ -4286,3 +4286,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        they shifted down). Tests: `widget_test.dart` (the feed card, the
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
+
+325. **Screen off to save battery.** (2026-10-10)
+     - Asked: a good way to save battery on Android; whether the screen
+       can be turned off while capture goes on, and if so a button for
+       it in the camera view.
+     - Changed: capture already went on with the screen off (the capture
+       service and its wake lock), but the app kept the screen on. A new
+       icon-only **Screen off** button on the Camera tab (Android only)
+       covers the app in black, stops keeping the screen on, drops it to
+       the lowest brightness and pauses the preview, so the system's
+       timeout turns the screen off; a tap brings it back. Tests:
+       `screen_off_test.dart`. Specs: [Camera](camera.md),
+       [Android](android.md).

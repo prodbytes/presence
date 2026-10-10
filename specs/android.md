@@ -62,7 +62,15 @@ Android uses the standard dashcam technique instead
   on the S40 (back camera 0 ↔ front camera 1).
 - **Keeps capturing untouched, with the screen off:** the screen stays on
   while the app is shown (`FLAG_KEEP_SCREEN_ON`), but it may go off (the
-  power button, a covering app); recording, motion clips and sync go on:
+  power button, a covering app, or the camera's **Screen off** button);
+  recording, motion clips and sync go on:
+  - **Screen off** (`screenOff` `{off}` on `presence/device`): clears
+    `FLAG_KEEP_SCREEN_ON`, sets the window's brightness to
+    `BRIGHTNESS_OVERRIDE_OFF` (the lowest) and pauses the preview, so the
+    system's screen timeout turns the screen off. `onStart` keeps the
+    preview off while it's on (the power button woke the screen); `off:
+    false` restores the flag, the system brightness and the preview. See
+    [Camera](camera.md).
   - **`CaptureService`**, a foreground service (types `camera` and
     `microphone`, the latter only with the microphone allowed), with an
     ongoing low-importance notification, "Presence is capturing". Android

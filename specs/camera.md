@@ -10,6 +10,18 @@
 - On load, once the device's [recording consent](consent.md) is given or found, the app lists the device's cameras and opens the default one. Before that, no camera opens. On web, the browser asks for camera and microphone
   permission first, in a single prompt. The app owns the open cameras
   (`CameraRig`, [lib/camera/camera_rig.dart](../presence_app/lib/camera/camera_rig.dart)), so they stay open, and keep recording, across rebuilds.
+- **Screen off** (Android only, an icon-only button left of the view
+  button, tooltip "Turn the screen off (capture goes on)") saves battery:
+  the screen is the biggest drain on an unattended phone. A tap covers
+  the app in black ("Capturing with the screen off. Tap to wake.", faint),
+  and the app (`ScreenOff`, `screenOff` on `presence/device`) stops
+  keeping the screen on, drops it to its lowest brightness and stops the
+  preview. The system's screen timeout then turns the screen off for
+  real; recording, motion clips and sync go on, as with the power button
+  (see [Android](android.md)). A tap on the cover undoes it all. Apps
+  can't turn the screen off at once without device-admin rights, so the
+  timeout does it. It isn't saved: a restart keeps the screen on. Test:
+  `screen_off_test.dart`.
 - **The view button** (One / All / None, an icon-only button, see
   [Navigation](navigation.md)) chooses what the Camera tab shows: **One**, this camera full screen;
   **All**, the grid ([All devices](#all-devices) below); **None**, the
