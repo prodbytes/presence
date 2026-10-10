@@ -4299,7 +4299,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-325. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+325. **Local cloud sync fails: say why.** (2026-10-10)
+     - Asked: the local app says cloud sync is failing; check the logs and
+       improve them if needed.
+     - Found: the local auth API runs in Floci, which has no Cognito
+       Identity, so `POST /api/auth/credentials` fails (`GetId ... not
+       supported by floci`) whenever `.env` sets an identity pool (a known
+       limitation, see [Profiles](profiles.md)). The health monitor still
+       said 🪣 aws ✅ "events sync to S3".
+     - Changed: the health monitor asks Floci for Cognito Identity and,
+       without it, reports 🪣 aws ❌ with the reason and what to do. The
+       auth API's cause for an `UnknownOperationException` names the
+       emulator and the missing service, and says it works only against
+       AWS (the RC or production), instead of "(a local AWS emulator?)".
+       Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
+       [Profiles](profiles.md).
+
+326. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
      - Asked: move the profile icon to the bottom navigation bar as well,
        and make it open just like the other panes; then call it Profile
        (it was first named Account).
@@ -4315,7 +4331,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [About](about.md).
 
-326. **Screen off to save battery.** (2026-10-10)
+327. **Screen off to save battery.** (2026-10-10)
      - Asked: a good way to save battery on Android; whether the screen
        can be turned off while capture goes on, and if so a button for
        it in the camera view.
@@ -4327,7 +4343,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        timeout turns the screen off; a tap brings it back. Tests:
        `screen_off_test.dart`. Specs: [Camera](camera.md),
 
-327. **One health-check line per run.** (2026-10-10)
+328. **One health-check line per run.** (2026-10-10)
      - Asked: make the health check script print only one line per run,
        one icon per check with a status flag.
      - Changed: `scripts/health-check.sh` now prints one line per pass:
@@ -4341,7 +4357,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        starting the loop. Specs: [Dev environment](dev-environment.md),
        [Premium and free](premium.md); README sample updated.
 
-328. **Encrypt every image and recording with a key per device.**
+329. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,

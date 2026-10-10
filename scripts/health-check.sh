@@ -63,6 +63,20 @@ setting() {
     fi
 }
 
+# Whether Floci implements Cognito Identity, which the local auth API calls
+# for cloud-sync credentials (POST /api/auth/credentials: GetId). It asks
+# Floci itself (an unsigned GetId for a made-up pool): an emulator without
+# the service answers UnknownOperationException; anything else (a real
+# error about the pool) means it's there.
+floci_has_cognito_identity() {
+    local answer
+    answer="$(curl -s --max-time 5 -X POST "$FLOCI/" \
+        -H 'Content-Type: application/x-amz-json-1.1' \
+        -H 'X-Amz-Target: AWSCognitoIdentityService.GetId' \
+        -d '{"IdentityPoolId":"us-east-1:00000000-0000-0000-0000-000000000000"}')"
+    [[ "$answer" != *UnknownOperationException* ]]
+}
+
 # The auth API through the CDN (GET /api/auth/anonymous, no token): it
 # answers with its execution mode, and whether the OIDC client (🔑
 # GOOGLE_WEB_CLIENT_ID), the AWS cloud-sync settings (☁️
@@ -82,7 +96,13 @@ check_api() {
     fi
     report "🔌 API" ✅
     setting "$body" "🔑 OIDC" oidc
-    setting "$body" "☁️ AWS" aws
+    # Set, but Floci has no Cognito Identity (GetId): the local auth API
+    # can't issue credentials, so the app's cloud sync fails here.
+    if [[ "$body" == *'"aws":true'* ]] && ! floci_has_cognito_identity; then
+        report "☁️ AWS" ❌
+    else
+        setting "$body" "☁️ AWS" aws
+    fi
     setting "$body" "👮 RBACR" rbacr
 }
 

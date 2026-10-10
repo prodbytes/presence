@@ -69,7 +69,13 @@
     (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
     (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
     shipped to S3) and 👮 RBACR (`RBACR_TOKEN` set, or ⚪ nobody premium),
-    all three ❌ when the API doesn't answer; last 💎 RBACR svc, rbacr's
+    all three ❌ when the API doesn't answer. With AWS set, it also asks
+    Floci whether it implements Cognito Identity (an unsigned `GetId` for
+    a made-up pool): Floci answers `UnknownOperationException`, so ☁️ AWS
+    is ❌, since the local auth API can't issue credentials and the app's
+    cloud sync fails here (test it on the RC, or remove the settings from
+    `.env` to turn it off); if Floci ever implements it, it goes back to
+    ✅ by itself; last 💎 RBACR svc, rbacr's
     own `/health`. For example: `🏠 Index ✅ · … · 🔑 OIDC ⚪ · …`.
     Sourcing the script defines `run_checks` (one pass) without starting
     the loop.
