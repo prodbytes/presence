@@ -224,6 +224,8 @@ class _PresenceAppState extends State<PresenceApp> {
                 cognito: CognitoCredentials(
                   region: CloudConfig.region,
                   api: ApiConfig.baseUrl,
+                  // Each device takes its place among the profile's.
+                  deviceId: () => _persistence.deviceId,
                 ),
                 bucket: S3Bucket(
                   bucket: CloudConfig.userDataBucket,
@@ -289,6 +291,14 @@ class _PresenceAppState extends State<PresenceApp> {
       _config.addListener(applyLive);
       _roles.addListener(applyLive);
     }
+    // Only the events of the devices that show (a free profile's first
+    // two): whenever the profile's devices or this device's ID are known
+    // again. A device the list doesn't know yet, while there's room, asks
+    // for it again.
+    if (_sync case final sync?) {
+      sync.addListener(_applyDeviceSlots);
+      _log.addListener(_noticeDevices);
+    }
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;
@@ -307,6 +317,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _persistence.deviceId.then((id) {
       _copies.deviceId = id;
       if (mounted) setState(() => _deviceId = id);
+      _applyDeviceSlots();
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));
     _checkConsent();
     requestPersistentStorage().ignore();
@@ -319,6 +330,28 @@ class _PresenceAppState extends State<PresenceApp> {
   }
 
   StreamSubscription<Uri>? _links;
+
+  /// Shows only the events of the devices the profile's slots show from
+  /// this one (`DeviceSlots.visibleFrom`); all of them without slots.
+  void _applyDeviceSlots() {
+    final slots = _sync?.deviceSlots;
+    final device = _deviceId;
+    _log.visibleDevices = slots == null || device == null
+        ? null
+        : slots.visibleFrom(device);
+  }
+
+  /// The profile's devices in the log, for the sync to see whether one is
+  /// new to its slots ([CloudSync.noticeDevices]).
+  void _noticeDevices() {
+    final sync = _sync;
+    final profile = _roles.profile;
+    if (sync?.deviceSlots == null || profile == null) return;
+    sync!.noticeDevices({
+      for (final e in _log.events)
+        if (e.profileId == profile) ?e.deviceId,
+    });
+  }
 
   /// The link this device was opened with to join a user's devices, until
   /// it's handled or dismissed.
@@ -338,6 +371,8 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.live?.forget(deviceId);
     // Nor is it counted as holding copies of the events left.
     _copies.forgetDevice(deviceId);
+    // And the next device takes its place among those that show.
+    _sync?.releaseDevice(deviceId).ignore();
     return deleted;
   }
 
@@ -483,6 +518,8 @@ class _PresenceAppState extends State<PresenceApp> {
     _settingsWait?.cancel();
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();
+    _sync?.removeListener(_applyDeviceSlots);
+    _log.removeListener(_noticeDevices);
     _sync?.dispose();
     _copies.dispose();
     _roles.dispose();

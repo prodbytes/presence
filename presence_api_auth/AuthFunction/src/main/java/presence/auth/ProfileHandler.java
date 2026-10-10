@@ -13,8 +13,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static presence.auth.Http.response;
@@ -30,7 +32,15 @@ import static presence.auth.Http.response;
  *       ({@code GetCredentialsForIdentity}). A profile's first call gives it
  *       the identity the caller's Google sign-in already had, so data
  *       uploaded before profiles stays where it is. The identity also gets
- *       the live-sync IoT policy ({@link Backend#allowLiveSync});</li>
+ *       the live-sync IoT policy ({@link Backend#allowLiveSync}). The body,
+ *       the device's ID (plain text, or empty), adds the device to the end of
+ *       the profile's devices (up to {@link #PREMIUM_DEVICES}); the answer
+ *       also has {@code "deviceLimit"} (the first {@link #FREE_DEVICES}
+ *       show for a free profile, {@link #PREMIUM_DEVICES} for a premium
+ *       one) and {@code "devices"}, in the order they were added;</li>
+ *   <li>{@code POST /api/auth/profile/devices/remove} ({@code presence_user}
+ *       only): takes the device in the body out of the profile's devices,
+ *       answering {@code {"deviceLimit", "devices"}};</li>
  *   <li>{@code GET /api/auth/profile}: the profile's subjects, as {@code
  *       {"profile", "accounts": [{email, owner, current}]}}, the owner first;</li>
  *   <li>{@code POST /api/auth/profile/link-code} ({@code presence_user}
@@ -120,6 +130,17 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** {@link #TIER_TAG}'s value otherwise: live sync only. */
     static final String FREE = "free";
 
+    /** How many of a free profile's devices show their events: its first two. */
+    static final int FREE_DEVICES = 2;
+
+    /** How many of a premium profile's devices show theirs, and the most a profile lists. */
+    static final int PREMIUM_DEVICES = 50;
+
+    /** The longest device ID taken. */
+    static final int MAX_DEVICE_ID = 64;
+
+    private static final Pattern DEVICE_ID = Pattern.compile("[a-z]+_[a-z]+_[a-z]+");
+
     private final Roles roles;
     private final Profiles profiles;
     private final Backend backend;
@@ -154,7 +175,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         try {
             return switch (route) {
                 case "GET /api/auth/profile" -> listing(caller);
-                case "POST /api/auth/credentials" -> credentials(caller);
+                case "POST /api/auth/credentials" -> credentials(caller, Http.bodyText(event, MAX_DEVICE_ID));
+                case "POST /api/auth/profile/devices/remove" ->
+                        removeDevice(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
                 case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
                 case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
@@ -170,9 +193,12 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         return profiles.profile(caller, null);
     }
 
-    private APIGatewayV2HTTPResponse credentials(Caller caller) {
+    private APIGatewayV2HTTPResponse credentials(Caller caller, String device) {
         if (!configured) {
             return notConfigured();
+        }
+        if (device == null || (!device.isEmpty() && !validDevice(device))) {
+            return response(400, "{\"error\":\"the body must be a device ID, or empty\"}");
         }
         var profile = profile(caller);
         var granted = roles.of(caller, profile);
@@ -180,11 +206,51 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
-        var tier = granted.contains(Roles.PREMIUM) ? PREMIUM : FREE;
+        var premium = granted.contains(Roles.PREMIUM);
+        var tier = premium ? PREMIUM : FREE;
         var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken(), tier);
         backend.allowLiveSync(profile.identityId());
+        // Every device is listed, up to Premium's limit, whatever the tier:
+        // a profile that becomes premium shows the devices it already had.
+        var devices = device.isEmpty()
+                ? profiles.store().devices(profile.id())
+                : profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
         return response(200, "{\"identityId\":" + Json.string(profile.identityId())
-                + ",\"token\":" + Json.string(token) + ",\"tier\":" + Json.string(tier) + "}");
+                + ",\"token\":" + Json.string(token)
+                + ",\"deviceLimit\":" + (premium ? PREMIUM_DEVICES : FREE_DEVICES)
+                + ",\"devices\":" + devicesJson(devices)
+                + ",\"tier\":" + Json.string(tier) + "}");
+    }
+
+    /**
+     * Takes the device in the body out of the profile's devices (the app
+     * deleted it), so a later one takes its place among the devices that
+     * show; it's added again, at the end, if it asks for credentials again.
+     */
+    private APIGatewayV2HTTPResponse removeDevice(Caller caller, String device) {
+        if (!configured) {
+            return notConfigured();
+        }
+        if (!validDevice(device)) {
+            return response(400, "{\"error\":\"the body must be a device ID\"}");
+        }
+        var profile = profile(caller);
+        var granted = roles.of(caller, profile);
+        if (!granted.contains(Roles.USER)) {
+            return response(403, "{\"error\":\"presence_user is required\"}");
+        }
+        var devices = profiles.store().removeDevice(profile.id(), device);
+        return response(200, "{\"deviceLimit\":" + (granted.contains(Roles.PREMIUM) ? PREMIUM_DEVICES : FREE_DEVICES)
+                + ",\"devices\":" + devicesJson(devices) + "}");
+    }
+
+    /** A device ID as the app makes them: {@code adjective_adjective_thing}. */
+    static boolean validDevice(String device) {
+        return device != null && device.length() <= MAX_DEVICE_ID && DEVICE_ID.matcher(device).matches();
+    }
+
+    private static String devicesJson(List<String> devices) {
+        return devices.stream().map(Json::string).collect(Collectors.joining(",", "[", "]"));
     }
 
     private APIGatewayV2HTTPResponse linkCode(Caller caller) {

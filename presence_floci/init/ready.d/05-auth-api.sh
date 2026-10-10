@@ -102,6 +102,7 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/link-code" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/link" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
 fi
 aws apigatewayv2 create-stage --api-id "$api" --stage-name '$default' --auto-deploy >/dev/null
 

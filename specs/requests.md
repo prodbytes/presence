@@ -4321,3 +4321,35 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
+
+325. **Tell free and premium users apart, and limit their devices.**
+     (2026-10-10)
+     - Asked: differentiate free and premium users, said clearly with a
+       message in the profile screen; free users sync up to 2 devices,
+       other devices can sync but their data is hidden and the user is
+       asked to sign up by visiting nu01.com; premium users sync up to 50
+       devices.
+     - Changed: the auth API keeps each profile's devices in the order
+       they came (`devices` on the profiles table's item, up to 50):
+       `POST /api/auth/credentials` takes the device ID as its body and
+       answers with `deviceLimit` (2 free, 50 premium) and `devices`; the
+       new `POST /api/auth/profile/devices/remove` takes a deleted device
+       off it. The app (`DeviceSlots`, `CloudSync.deviceSlots`) hides the
+       events of devices past the limit (`EventLog.visibleDevices`): on a
+       device that shows, the others'; past the limit, every other
+       device's. They still sync. A device the list doesn't know, while
+       there's room, gets the list again (once per device, at most every
+       30 s). The
+       account sheet has a Free / Premium box under the devices (what
+       each gives, a **Sign up at nu01.com** button for Free, a warning
+       when devices are hidden) and labels hidden devices; the Monitoring
+       tab shows a card with a Sign up button while events are hidden.
+       The free sync line is now "Your devices sync with each other
+       while online". Local Floci routes the new endpoint. Tests:
+       `ProfileTest` (the list, its limit of 50, refusals, removal),
+       `device_slots_test.dart` (the slots, the credentials request, the
+       event filter, the sync's refresh and release, both messages, the
+       account sheet). Specs: [Premium and free](premium.md),
+       [Profiles](profiles.md), [Auth API](auth-api.md),
+       [Sign-in](sign-in.md), [Monitoring](monitoring.md),
+       [Device deletion](device-deletion.md), [README](README.md).

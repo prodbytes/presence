@@ -61,7 +61,10 @@ site (`/api/*` in the CloudFront distribution; see
   (`ProfileHandler`): a Cognito developer-identity token for the user's
   profile (and, with `IotPolicyName` set, the [live-sync](live-sync.md) IoT
   policy attached to its identity), and listing, linking and unlinking its
-  Google accounts. See [Profiles](profiles.md).
+  Google accounts. The credentials also list the profile's devices and
+  how many show (2 free, 50 premium); `POST
+  /api/auth/profile/devices/remove` takes a deleted device off the list.
+  See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,

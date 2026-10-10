@@ -176,11 +176,12 @@
 | Route | Who | Answer |
 |---|---|---|
 | `GET /api/auth` | any signed-in user | `{"email", "profile", "roles"}` (the subject's profile, made at its first sign-in) |
-| `POST /api/auth/credentials` | `presence_user` | `{"identityId", "token", "tier"}`: the token tagged `tier` `premium` or `free` ([Premium and free](premium.md)) |
+| `POST /api/auth/credentials` | `presence_user` (body: this device's ID, or empty) | `{"identityId", "token", "deviceLimit", "devices", "tier"}`: the token tagged `tier` `premium` or `free`; the device added to the profile's `devices` ([Premium and free](premium.md#devices)) |
 | `GET /api/auth/profile` | any verified account | `{"profile", "accounts": [{email, owner, current}]}` |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
 | `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |
 | `POST /api/auth/profile/unlink` | a member (body: the email) | the listing, or 404, or 409 for the owner |
+| `POST /api/auth/profile/devices/remove` | `presence_user` (body: a device ID) | `{"deviceLimit", "devices"}`: the device taken off the profile's list |
 
 - `profile` is `null` only for a token without an issuer or subject.
 - The profile routes need a verified email. A Cognito or DynamoDB failure
@@ -205,7 +206,7 @@ deleted, and the contents live only in AWS.
 
 | Table | Key | Attributes |
 |---|---|---|
-| `ProfilesTable` | `id` (the profile ID) | `createdAt`, `lastSignInAt` (epoch ms), `ownerSubject`, `ownerEmail` (verified only), `ownerHd`, `identityId` |
+| `ProfilesTable` | `id` (the profile ID) | `createdAt`, `lastSignInAt` (epoch ms), `ownerSubject`, `ownerEmail` (verified only), `ownerHd`, `identityId`, `devices` (device IDs in the order they came, at most 50) |
 | `ProfileSubjectsTable` | `subject` (`<iss>#<sub>`); index `profile` by `profileId` | `profileId`, `email` (lowercase), `linkedAt` (epoch ms) |
 | `LinkCodesTable` | `code` (its SHA-256) | `profileId`, `createdBy`, `expiresAt` (epoch s, TTL) |
 

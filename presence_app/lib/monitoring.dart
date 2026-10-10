@@ -28,7 +28,13 @@ class MonitoringView extends StatefulWidget {
     this.deviceId,
     this.profileId,
     this.filters,
+    this.notice,
   });
+
+  /// Above the filters: what's hidden, such as the events of devices past
+  /// a free profile's first two (`DeviceLimitNotice`); takes no room when
+  /// it shows nothing.
+  final Widget? notice;
 
   /// Below this width the map goes above the events instead of beside.
   static const double twoColumnWidth = 720;
@@ -130,6 +136,11 @@ class _MonitoringViewState extends State<MonitoringView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  if (widget.notice case final notice?)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: gap / 2),
+                      child: notice,
+                    ),
                   // One compact row: the search (an icon until tapped),
                   // the count and the system events toggle. The open
                   // field gives up room on a narrow phone.

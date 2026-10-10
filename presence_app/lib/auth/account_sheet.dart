@@ -13,6 +13,7 @@ import '../identity/device_os.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'membership_client.dart';
+import 'plan_notice.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
 import 'voucher_code.dart';
@@ -225,6 +226,14 @@ class AccountSheet extends StatelessWidget {
                             thisDevice: deviceId,
                           ),
                           thisDevice: deviceId,
+                          hidden: switch (log) {
+                            final log? => hiddenDevices(
+                              log,
+                              profileId: profile,
+                              thisDevice: deviceId,
+                            ).toSet(),
+                            null => const {},
+                          },
                           now: now,
                           live: sync?.live,
                           thisPresence: switch (roles) {
@@ -249,6 +258,27 @@ class AccountSheet extends StatelessWidget {
                             null => null,
                           },
                         ),
+                      ),
+                    ],
+                    // Free or Premium, and what each gives, under the devices
+                    // it limits; not in DEV, where nothing syncs.
+                    if (roles case final roles?
+                        when roles.hasAccess &&
+                            roles.mode != ExecutionMode.dev) ...[
+                      const SizedBox(height: 12),
+                      PlanNotice(
+                        premium: roles.isPremium,
+                        slots: sync?.deviceSlots,
+                        thisDevice: deviceId,
+                        hidden: switch ((log, roles.profile)) {
+                          (final log?, final profile?) => hiddenDevices(
+                            log,
+                            profileId: profile,
+                            thisDevice: deviceId,
+                          ).length,
+                          _ => 0,
+                        },
+                        openLink: openLink,
                       ),
                     ],
                     if ((roles, profiles) case (
@@ -378,7 +408,12 @@ class ProfileDevices extends StatelessWidget {
     this.onDelete,
     this.live,
     this.thisPresence,
+    this.hidden = const {},
   });
+
+  /// The devices whose events are hidden here (past the plan's limit),
+  /// labelled "hidden".
+  final Set<String> hidden;
 
   /// [thisDevice]'s presence dot, when given: its connectivity
   /// ([Connectivity.presence]), as the account sheet's indicator shows it.
@@ -483,6 +518,19 @@ class ProfileDevices extends StatelessWidget {
                         ),
                         if (device.id == thisDevice)
                           Text('this device', style: muted),
+                        if (hidden.contains(device.id))
+                          Tooltip(
+                            message:
+                                'Past the plan\'s device limit: it syncs, '
+                                'but its events are hidden here',
+                            child: Text(
+                              'hidden',
+                              key: Key('profile-device-hidden-${device.id}'),
+                              style: muted.copyWith(
+                                color: theme.colorScheme.tertiary,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     _withExactTime(
@@ -675,8 +723,8 @@ class AccountRoles extends StatelessWidget {
 
 /// One line about cloud uploads: syncing, synced (and how many), or why not
 /// (with a Retry button once syncing has stopped). A free profile has no
-/// cloud backup: the line says its devices sync with each other instead,
-/// and that backup is Premium's.
+/// cloud backup: the line says its devices sync with each other instead
+/// ([PlanNotice] says what Premium adds).
 class CloudSyncStatus extends StatelessWidget {
   const CloudSyncStatus({super.key, required this.sync});
 
@@ -692,8 +740,7 @@ class CloudSyncStatus extends StatelessWidget {
         final (icon, text, color) = switch (sync.state) {
           CloudSyncState.syncing || CloudSyncState.synced when free => (
             Icons.devices_outlined,
-            'Free: your devices sync with each other while online. '
-                'Cloud backup is Premium.',
+            'Your devices sync with each other while online',
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.off => (

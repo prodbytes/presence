@@ -379,7 +379,14 @@ void main() {
       ];
       expect(chips, orderedEquals([...chips]..sort()));
       expect(find.text('Member'), findsOneWidget);
-      expect(find.text('Premium'), findsOneWidget);
+      // A chip; the plan's box under the devices names it too.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('account-roles')),
+          matching: find.text('Premium'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Admin'), findsOneWidget);
       expect(find.text('Root'), findsOneWidget);
       expect(find.byTooltip('presence_admin'), findsOneWidget);

@@ -72,6 +72,10 @@ their data.
   `premium` or `admin` role): premium profiles sync with the cloud (S3,
   enforced by a `tier` tag on their credentials); free ones' devices sync
   with each other over live sync only, clips' thumbnails in the messages.
+  The profile's first 2 devices (free) or 50 (premium), as the auth API
+  lists them, show each other's events; later ones sync, their events
+  hidden, with a prompt to sign up at nu01.com. The account sheet says
+  Free or Premium.
 - [Membership](membership.md): users without access ask for it or redeem
   a voucher code; admins grant requests and create voucher codes (their
   own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the

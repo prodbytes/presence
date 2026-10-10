@@ -7,6 +7,7 @@ import '../battery.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
 import '../auth/membership_client.dart';
+import '../auth/plan_notice.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
 import '../camera_feeds.dart';
@@ -189,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// for a newer grab.
   void _asked(AppEvent request) {
     final devices = latestByDevice(
-      widget.log.events,
+      widget.log.eventsOf(widget.roles.profile),
       thisDevice: widget.deviceId,
       profileId: widget.roles.profile,
     ).length;
@@ -489,6 +490,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
                   filters: _filters,
+                  notice: switch (widget.sync) {
+                    final sync? => ListenableBuilder(
+                      listenable: Listenable.merge([sync, widget.log]),
+                      builder: (context, _) => DeviceLimitNotice(
+                        log: widget.log,
+                        slots: sync.deviceSlots,
+                        profileId: widget.roles.profile,
+                        thisDevice: widget.deviceId,
+                      ),
+                    ),
+                    null => null,
+                  },
                 ),
               ),
               // Full width, with the device's location map.

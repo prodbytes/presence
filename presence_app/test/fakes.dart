@@ -252,7 +252,27 @@ class FakeAuthService extends AuthService {
 }
 
 /// Records uploads; can be told to fail.
-class FakeCloudBackend implements CloudBackend {
+class FakeCloudBackend implements CloudBackend, DeviceRegistry {
+  /// The profile's devices, as sessions give them (null: not listed).
+  DeviceSlots? deviceSlots;
+
+  /// The devices taken out of [deviceSlots], in order.
+  final removedDevices = <String>[];
+
+  @override
+  Future<DeviceSlots?> removeDevice(String idToken, String device) async {
+    removedDevices.add(device);
+    final slots = deviceSlots;
+    if (slots == null) return null;
+    return deviceSlots = DeviceSlots(
+      limit: slots.limit,
+      devices: [
+        for (final d in slots.devices)
+          if (d != device) d,
+      ],
+    );
+  }
+
   final uploads = <String, ({Uint8List bytes, String contentType})>{};
 
   /// When each object was last written (S3's time), by [now].
@@ -343,10 +363,13 @@ class FakeCloudBackend implements CloudBackend {
   void reset() => resets++;
 }
 
-class FakeCloudSession implements CloudSession {
+class FakeCloudSession implements CloudSession, DeviceSlotsSession {
   FakeCloudSession(this.backend);
 
   final FakeCloudBackend backend;
+
+  @override
+  late final DeviceSlots? deviceSlots = backend.deviceSlots;
 
   @override
   late final String prefix = backend.prefix;

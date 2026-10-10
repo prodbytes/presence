@@ -5,7 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 /// Opens [url] outside the app; false when it couldn't.
 typedef LinkOpener = Future<bool> Function(Uri url);
 
-Future<bool> _launch(Uri url) async {
+/// Opens [url] in the browser (the default [LinkOpener]).
+Future<bool> launchLink(Uri url) async {
   try {
     return await launchUrl(url, mode: LaunchMode.externalApplication);
   } catch (_) {
@@ -13,11 +14,26 @@ Future<bool> _launch(Uri url) async {
   }
 }
 
+/// Opens [url] with [openLink]; one that can't open is copied instead,
+/// with a "Link copied" message.
+Future<void> openOrCopyLink(
+  BuildContext context,
+  Uri url,
+  LinkOpener openLink,
+) async {
+  if (await openLink(url)) return;
+  Clipboard.setData(ClipboardData(text: '$url'));
+  if (context.mounted) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Link copied')));
+  }
+}
+
 /// What Presence is, in a paragraph, closing with a line on where its code
 /// is: the end of the account sheet.
 class AboutParagraph extends StatelessWidget {
   const AboutParagraph({super.key, LinkOpener? openLink})
-    : openLink = openLink ?? _launch;
+    : openLink = openLink ?? launchLink;
 
   /// Opens a link; a link that can't open is copied instead.
   final LinkOpener openLink;
@@ -53,15 +69,7 @@ class AboutParagraph extends StatelessWidget {
                 minimumSize: const Size(0, 32),
                 textStyle: theme.textTheme.bodySmall,
               ),
-              onPressed: () async {
-                if (await openLink(source)) return;
-                Clipboard.setData(ClipboardData(text: '$source'));
-                if (context.mounted) {
-                  ScaffoldMessenger.of(
-                    context,
-                  ).showSnackBar(const SnackBar(content: Text('Link copied')));
-                }
-              },
+              onPressed: () => openOrCopyLink(context, source, openLink),
               child: Text('${source.host}${source.path}'),
             ),
           ],

@@ -92,4 +92,28 @@ class MemoryProfiles implements Profiles.Store {
         }
         return profile(profileId);
     }
+
+    /** profile ID -> its devices, in the order they were added. */
+    final Map<String, List<String>> devices = new HashMap<>();
+
+    @Override
+    public List<String> addDevice(String profileId, String deviceId, int max) {
+        var list = devices.computeIfAbsent(profileId, p -> new ArrayList<>());
+        if (profiles.containsKey(profileId) && !list.contains(deviceId) && list.size() < max) {
+            list.add(deviceId);
+        }
+        return List.copyOf(list);
+    }
+
+    @Override
+    public List<String> devices(String profileId) {
+        return List.copyOf(devices.getOrDefault(profileId, List.of()));
+    }
+
+    @Override
+    public List<String> removeDevice(String profileId, String deviceId) {
+        var list = devices.computeIfAbsent(profileId, p -> new ArrayList<>());
+        list.remove(deviceId);
+        return List.copyOf(list);
+    }
 }
