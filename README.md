@@ -332,19 +332,15 @@ That starts these services, wired up in
 | http://presence.localhost:4566/ | Floci, the local CloudFront, in front of the index, the app and the API |
 | https://local.presence.nu01.com:8443/ | The same over HTTPS, a public name for 127.0.0.1 that works as a Google OAuth origin |
 
-A `health-check` monitor logs one line per check every 15 s (set
-`HEALTH_CHECK_INTERVAL` to change it). The API line comes from the local
-auth API's `/api/auth/anonymous`, which also says whether the OIDC and AWS
-settings are set. Without `.env` it looks like this:
+A `health-check` monitor logs one line every 15 s (set
+`HEALTH_CHECK_INTERVAL` to change it): the time, then each check as its
+emoji, a short label and ✅ ok / ❌ failed / ⚪ not set. The checks are 🏠
+Index, 🌐 Web app, 🚚 CDN, 🔒 HTTPS, 🔌 auth API, then the API's settings
+🔑 OIDC, ☁️ AWS and 👮 RBACR, and last 💎 RBACR svc (rbacr's `/health`). Without `.env` it looks
+like this:
 
 ```
-2026-10-01 16:50:03 🏠 index ✅ localhost:8081/
-2026-10-01 16:50:03 🌐 web   ✅ localhost:8080/app/
-2026-10-01 16:50:03 ☁️ cdn   ✅ presence.localhost/app/ in Floci
-2026-10-01 16:50:03 🔒 https ✅ local.presence.nu01.com:8443/app/
-2026-10-01 16:50:03 🔌 api   ✅ DEV mode
-2026-10-01 16:50:03 🔑 oidc  ⚪ GOOGLE_WEB_CLIENT_ID not set: authentication off, anonymous has every role
-2026-10-01 16:50:03 🪣 aws   ⚪ COGNITO_IDENTITY_POOL_ID or USER_DATA_BUCKET not set: nothing is shipped to S3
+2026-10-10 12:35:54 🏠 Index ✅ · 🌐 Web ✅ · 🚚 CDN ✅ · 🔒 HTTPS ✅ · 🔌 API ✅ · 🔑 OIDC ⚪ · ☁️ AWS ⚪ · 👮 RBACR ⚪ · 💎 RBACR svc ✅
 ```
 
 Stop everything with `devbox services stop`. To run only the app, use

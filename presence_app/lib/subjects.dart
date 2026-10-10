@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import 'crypto/sealed_image.dart';
+
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -450,7 +453,7 @@ class SightingFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final frame = sighting.frame;
-    final image = frame?.jpeg ?? sighting.event.clip.thumbnail;
+    final image = frame?.sealed ?? sighting.event.clip.thumbnail;
     final Widget child;
     if (image == null) {
       child = AspectRatio(
@@ -464,14 +467,13 @@ class SightingFrame extends StatelessWidget {
       // The image at its own shape, so the dot lands on the clicked spot.
       child = Stack(
         children: [
-          Image.memory(
+          SealedImage(
             image,
             key: const Key('subject-frame'),
             width: width,
             // Decoded at the size it's shown, not the frame's full size.
             cacheWidth: (width * MediaQuery.devicePixelRatioOf(context))
                 .round(),
-            gaplessPlayback: true,
           ),
           if (frame != null)
             Positioned.fill(

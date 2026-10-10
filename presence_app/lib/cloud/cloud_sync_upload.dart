@@ -125,27 +125,36 @@ class _Uploader {
         final mediaId = ref['mediaId']! as String;
         final mimeType = ref['mimeType'] as String? ?? 'video/webm';
         final ext = _extOf(mimeType);
-        await upload(
-          'media/$id.$ext',
-          mediaId,
-          null,
-          mimeType,
-          mediaId: mediaId,
-          was: 'clips/$id.$ext',
-        );
+        // Sealed: its type is in the clip's record, not on the object.
+        try {
+          await upload(
+            'media/$id.$ext',
+            mediaId,
+            null,
+            CloudSync.sealedType,
+            mediaId: mediaId,
+            was: 'clips/$id.$ext',
+          );
+        } on SealBroken {
+          // Never up unsealed ([MediaStore.read] refuses it).
+          debugPrint('Presence: not uploading recording $mediaId: unsealed');
+        }
       }
       final thumbnail = clip['thumbnail'];
       if (thumbnail is List && thumbnail.isNotEmpty) {
         final bytes = thumbnail is Uint8List
             ? thumbnail
             : Uint8List.fromList(thumbnail.cast<int>());
-        await upload(
-          'media/$id.jpg',
-          'thumbnail',
-          () async => bytes,
-          'image/jpeg',
-          was: 'clips/$id.jpg',
-        );
+        // Images only ever go up sealed.
+        if (SealFormat.isSealed(bytes)) {
+          await upload(
+            'media/$id.jpg',
+            'thumbnail',
+            () async => bytes,
+            CloudSync.sealedType,
+            was: 'clips/$id.jpg',
+          );
+        }
       }
       final details = _json({
         for (final MapEntry(:key, :value) in clip.entries)
@@ -195,12 +204,13 @@ class _Uploader {
                 : (value is List
                       ? Uint8List.fromList(value.cast<int>())
                       : null);
-            if (jpeg == null) continue;
+            // Images only ever go up sealed.
+            if (jpeg == null || !SealFormat.isSealed(jpeg)) continue;
             await upload(
               CloudSync.frameKeyOf('${record['clipId']}', '$key'),
               '$key',
               () async => jpeg,
-              'image/jpeg',
+              CloudSync.sealedType,
               was: 'clips/${record['clipId']}/frames/$key.jpg',
             );
           }

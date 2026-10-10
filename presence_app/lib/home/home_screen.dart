@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../app_log.dart';
 import '../battery.dart';
+import '../auth/account_sheet.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
 import '../auth/membership_client.dart';
@@ -22,6 +23,7 @@ import '../identity/join_link.dart';
 import '../location/device_location.dart';
 import '../log_view.dart';
 import '../monitoring.dart';
+import '../screen_off.dart';
 import '../settings.dart';
 import '../system_health.dart';
 import '../tab_memory.dart';
@@ -61,7 +63,12 @@ class HomeScreen extends StatefulWidget {
     this.onJoinHandled,
     this.tabMemory,
     this.deleteDevice,
+    this.screenOff,
   });
+
+  /// Darkens the screen while capture goes on (the camera's Screen off
+  /// button), where the platform can.
+  final ScreenOff? screenOff;
 
   /// Deletes another of the profile's devices: from the account sheet's
   /// device list, after a confirmation.
@@ -132,7 +139,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// The tabs to show, in [HomeTab] order.
   List<HomeTab> get _shownTabs =>
-      HomeTab.shown(log: _showLog, admin: _showAdmin);
+      HomeTab.shown(log: _showLog, admin: _showAdmin, profile: _showProfile);
+
+  /// The Profile tab shows signed in, not in DEV (there are no accounts).
+  bool get _showProfile => !_dev && _signedIn;
 
   bool get _onCamera => _tabs.current == HomeTab.camera;
 
@@ -146,6 +156,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The Camera tab's view button, All: this device's camera in a grid
   /// with every other device's latest image.
   bool _showAll = false;
+
+  /// The Screen off button was tapped: a black cover hides everything
+  /// until a tap brings the screen back.
+  bool _dark = false;
+
+  void _setDark(bool dark) {
+    setState(() => _dark = dark);
+    widget.screenOff?.set(dark);
+  }
 
   /// What the view button shows: One (this camera), All (the grid) or None
   /// (the camera off: [CameraRig.paused], kept in the settings).
@@ -286,6 +305,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Signing out hides the navigation, so go back to the camera. Sign-in
   /// errors pop a message (there's no sign-in screen to show them on).
   void _onAuthChanged() {
+    // Signing in or out adds or removes the Profile tab.
+    _tabs.sync(_shownTabs);
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
     _tabs.restore(hasAccess: _hasAccess);
     final error = widget.auth.error;
@@ -431,9 +452,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     final joinStatus = _joinStatus();
     // A tapped device name shows its events, anywhere ([ShowDeviceEvents]).
-    return ShowDeviceEvents(
+    final screen = ShowDeviceEvents(
       onShow: _hasAccess ? _showDeviceEvents : null,
       child: _scaffold(context, joinStatus),
+    );
+    if (!_dark) return screen;
+    return Stack(
+      children: [
+        screen,
+        Positioned.fill(child: _ScreenOffCover(onWake: () => _setDark(false))),
+      ],
     );
   }
 
@@ -540,6 +568,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     canCreateAdmins: widget.roles.isRoot,
                   ),
                 ),
+              // Who's signed in, the profile's devices, sign-out and about:
+              // the account sheet, as a page of the tabs.
+              if (_tabs.shows(HomeTab.profile))
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: AccountSheet(
+                          key: const Key('account-page'),
+                          auth: widget.auth,
+                          sync: widget.sync,
+                          roles: widget.roles,
+                          profiles: widget.profiles,
+                          log: widget.log,
+                          deviceId: widget.deviceId,
+                          deleteDevice: widget.deleteDevice,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
           // Bottom left, across from Flip and Clip: a failed health check,
@@ -587,7 +639,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ],
       ),
       // The tabs, with access; signed out, the camera shows alone.
-      bottomNavigationBar: _hasAccess ? HomeNavigationBar(tabs: _tabs) : null,
+      bottomNavigationBar: _hasAccess
+          ? HomeNavigationBar(tabs: _tabs, user: widget.auth.user)
+          : null,
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
           ? CameraButtons(
@@ -595,8 +649,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               showAll: _showAll,
               onNextViewMode: _nextViewMode,
               onClip: _clip,
+              onScreenOff: widget.screenOff?.supported ?? false
+                  ? () => _setDark(true)
+                  : null,
             )
           : null,
+    );
+  }
+}
+
+/// Covers the app in black while the screen is off ([HomeScreen.screenOff]),
+/// with a faint hint; a tap anywhere brings the screen back. Seen only
+/// before the system's timeout turns the screen off, or after the power
+/// button wakes it.
+class _ScreenOffCover extends StatelessWidget {
+  const _ScreenOffCover({required this.onWake});
+
+  final VoidCallback onWake;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const Key('screen-off-cover'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onWake,
+      // Material, so the hint has a text style outside the Scaffold.
+      child: const Material(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            'Capturing with the screen off. Tap to wake.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF3C3836), fontSize: 14),
+          ),
+        ),
+      ),
     );
   }
 }

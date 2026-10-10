@@ -80,11 +80,11 @@ How each choice was measured (datasets, numbers) is in the models'
    as tall as the frame (2 for 16:9), where far people and things are
    twice as big. Its anchors are the ones the model file lists. Each run
    scores every COCO class on every anchor, once, for both segments:
-   - **object tags:** each of the 80 labels scoring **0.5** or more
+   - **object tags:** each of the 80 labels scoring **0.6** or more
      somewhere on the frame (any of its squares), with its best score
      (`person` is `human`);
    - **subjects** (while someone's still to be found): its people, cats
-     and dogs (score 0.4 or more), from all the squares, merged (a box
+     and dogs (score 0.5 or more), from all the squares, merged (a box
      overlapping a better one of its kind by more than half, or 80 %
      inside it, as a tile cuts someone at its edge, is the same one); of
      the sorts some reference is (people if a person is known, cats and
@@ -123,19 +123,24 @@ How each choice was measured (datasets, numbers) is in the models'
    looked for on later frames.
 6. **Tag, ask, or neither** (the threshold in Settings), once the clip is
    done:
-   - from **Tag automatically** (default **85 %**): a **recognized tag**
+   - from **Tag automatically** (default **90 %**: a face's cosine of
+     0.615, a person's look's of 0.79): a **recognized tag**
      (`source: detected`, with that confidence) on their **best frame**,
      at the face's center (or the box's);
-   - below it, always asked: from **30 %** (`RecognitionConfig.askFloor`,
+   - below it, always asked: from **50 %** (`RecognitionConfig.askFloor`,
      not a setting) up, a **suggestion** (`source: suggested`) on their
      best frame, and a **"Is this Rex?"** event (`SubjectSuggestion`);
-   - under 30 %: nothing. (There used to be an **Ask me** slider, default
-     50 %; it's gone, and stored `ask` values are ignored.)
+   - under 50 %: nothing. A face at 50 % has a cosine of 0.475, above
+     99.9 % of different people's on LFW; a person's look 0.675. (There
+     used to be an **Ask me** slider, default 50 %; it's gone, and stored
+     `ask` values are ignored.)
+   - These were 85 % and 30 % until 2026-10-10: too many strangers were
+     tagged or asked about as someone known.
 
    A subject is tagged or asked about at most once per clip. Subjects
    already on the clip are skipped.
 7. **Object tags:** each label is kept **once per clip**, if seen on **2
-   frames** or more, or on one at **0.7** or more (or on a clip of one
+   frames** or more, or on one at **0.8** or more (or on a clip of one
    frame): a label on one frame only, unsure, is more often a mistake than
    a thing seen for an instant. It keeps the **first frame** it was seen
    on (`ms` into the recording) and its best score. The whole clip is

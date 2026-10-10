@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../cameras/cameras.dart';
 import '../clips.dart';
 import '../config.dart';
+import '../crypto/media_seal.dart';
 import '../events.dart';
 import '../motion.dart';
 import 'auto_clip_policy.dart';
@@ -594,7 +595,7 @@ class CameraRig extends ChangeNotifier {
     notifyListeners();
     final capture = camera.requestClip(before: before, after: after);
     final (thumbnail, past) = await (
-      camera.captureFrame(),
+      camera.captureFrame().then(_sealThumbnail, onError: (Object _) => null),
       capture.past
           .timeout(pastWait, onTimeout: () => null)
           .then<ClipMedia?>((m) => m, onError: (Object _) => null),
@@ -616,6 +617,23 @@ class CameraRig extends ChangeNotifier {
     notifyListeners();
     bus.publish(ClipRequested(clip, trigger: trigger, time: requestedAt));
   }
+
+  /// [jpeg] sealed ([MediaSeal]), as every image is before it's stored or
+  /// sent; none when it can't be sealed (in time): a clip without a
+  /// thumbnail, never one with an unsealed one.
+  static Future<Uint8List?> _sealThumbnail(Uint8List? jpeg) async {
+    if (jpeg == null) return null;
+    try {
+      return await MediaSeal.instance.seal(jpeg).timeout(sealWait);
+    } catch (e) {
+      debugPrint('Presence: clip without a thumbnail, not sealed: $e');
+      return null;
+    }
+  }
+
+  /// The longest a clip's thumbnail waits to be sealed (for this device's
+  /// key, as storage opens).
+  static const Duration sealWait = Duration(seconds: 10);
 
   /// Capture all's rate limits and seen requests.
   final _captureAll = CaptureAll();

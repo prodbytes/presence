@@ -1,4 +1,8 @@
 import 'dart:typed_data';
+
+import '../crypto/sealed_image.dart';
+import '../crypto/media_seal.dart';
+
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -23,7 +27,7 @@ class FrameTagger extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<Size>(
       // The frame's own proportions, so clicks map onto the image exactly.
-      future: _frameSize(frame.jpeg),
+      future: _frameSize(frame.sealed),
       builder: (context, size) {
         final ratio = size.data == null
             ? 16 / 9
@@ -47,11 +51,7 @@ class FrameTagger extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Image.memory(
-                      frame.jpeg,
-                      fit: BoxFit.fill,
-                      gaplessPlayback: true,
-                    ),
+                    SealedImage(frame.sealed, fit: BoxFit.fill),
                     for (final a in tags)
                       _Marker(
                         key: Key('marker-${a.id}'),
@@ -70,14 +70,16 @@ class FrameTagger extends StatelessWidget {
 
   static final _sizes = Expando<Future<Size>>();
 
-  static Future<Size> _frameSize(Uint8List jpeg) => _sizes[jpeg] ??= () async {
-    final codec = await ui.instantiateImageCodec(jpeg);
-    final image = (await codec.getNextFrame()).image;
-    final size = Size(image.width.toDouble(), image.height.toDouble());
-    image.dispose();
-    codec.dispose();
-    return size;
-  }();
+  static Future<Size> _frameSize(Uint8List sealed) =>
+      _sizes[sealed] ??= () async {
+        final jpeg = await MediaSeal.instance.openImage(sealed);
+        final codec = await ui.instantiateImageCodec(jpeg);
+        final image = (await codec.getNextFrame()).image;
+        final size = Size(image.width.toDouble(), image.height.toDouble());
+        image.dispose();
+        codec.dispose();
+        return size;
+      }();
 }
 
 /// A named dot at an annotation's spot.
