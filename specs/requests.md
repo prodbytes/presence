@@ -4488,7 +4488,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Recording and data formats](data-formats.md),
        [Android](android.md).
 
-333. **Commit everything: the local certificates stay out.** (2026-10-10)
+333. **Maintenance mode.** (2026-10-10)
+     - Asked: let admins put the system in maintenance mode; while it's
+       on, no UI is shown at all, just a sorry message.
+     - Changed: a `SystemTable` in the auth API keeps the state
+       (`Maintenance`); `GET /api/auth/anonymous` reports it
+       (`"maintenance": {"on", "message", "since"}`, off if unreadable),
+       and the new admin routes `GET`/`POST /api/auth/maintenance` read and
+       switch it (form `on`, optional `message` up to 500 characters). The
+       app asks every minute; `MaintenanceGate` (in `MaterialApp.builder`)
+       replaces the whole app with `MaintenanceScreen` for everyone but
+       admins, who keep the app under a yellow strip. The Admin tab starts
+       with a Maintenance mode card (switch, message, Update message).
+       `scripts/maintenance.sh` switches it with AWS credentials, for a
+       signed-out admin. The deploy smoke test accepts either state; the
+       health check lists the new table; Floci gets the two routes. UI
+       only: recording and sync go on behind the sorry screen. Tests:
+       `MaintenanceTest.java`, `maintenance_test.dart`. Specs:
+       [Maintenance mode](maintenance.md) (new), [Auth API](auth-api.md),
+       [Membership](membership.md), [Execution mode](execution-mode.md),
+       [Production deploy](deploy.md), [Health check](health-check.md).
+
+334. **Commit everything: the local certificates stay out.** (2026-10-10)
      - Asked: commit every pending change, with PRs.
      - Found: a worktree showed `presence_floci/certs` as untracked: the
        main folder's mkcert certificate and private key, linked in. The
@@ -4496,7 +4517,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: `.gitignore` ignores `presence_floci/certs` as a
        folder or a link, so the key can't be committed from a worktree.
 
-334. **Deploy RC failed at its first step: fixed.** (2026-10-10)
+335. **Deploy RC failed at its first step: fixed.** (2026-10-10)
      - Found: the `0.6.202610101329-RC` Deploy RC run stopped in "Resolve
        the tag" with `unexpected EOF while looking for matching '`: its
        message `${tag:-main's commit}` has an apostrophe inside a
@@ -4506,7 +4527,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        workflow's `run:` scripts now pass `bash -n`. Spec: none (the
        workflow's behavior is unchanged).
 
-335. **Status pills at the top of the camera.** (2026-10-10)
+336. **Status pills at the top of the camera.** (2026-10-10)
      - Asked: move the pills (battery, temperature, …) to the top of the
        screen, so they're not layered over the buttons.
      - Changed: the camera's status pills (health warning, battery,

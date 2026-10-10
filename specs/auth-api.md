@@ -20,8 +20,10 @@ site (`/api/*` in the CloudFront distribution; see
 - **`GET /api/auth/anonymous`** (`AuthHandler`, the only route **without a
   token**): the [execution mode](execution-mode.md), the anonymous
   user's roles (in DEV every role) and which expected settings the stack
-  has, `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings":
-  {"oidc": true, "aws": true, "rbacr": true}}`. The mode is DEV when the function has no
+  has, and whether the system is in [maintenance](maintenance.md),
+  `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings":
+  {"oidc": true, "aws": true, "rbacr": true}, "maintenance": {"on": false,
+  "message": ""}}`. The mode is DEV when the function has no
   `GOOGLE_WEB_CLIENT_ID`. Throttled to 20 requests/s (burst 50): see
   [Throttling and floods](#throttling-and-floods);
 - **Settings** (`Settings`): `oidc` is whether `GOOGLE_WEB_CLIENT_ID` is
@@ -57,6 +59,10 @@ site (`/api/*` in the CloudFront distribution; see
   A `presence_admin` voucher's code is listed (`"code": null, "hidden":
   true` otherwise) and deleted (403 otherwise) only for a
   `presence_root`. See [Membership](membership.md#voucher-codes);
+- **`GET /api/auth/maintenance`** and **`POST /api/auth/maintenance`**
+  (`AdminHandler`, admins only): maintenance mode's state with who
+  switched it, and its switch (form-encoded `on`, `message`). See
+  [Maintenance mode](maintenance.md#the-api);
 - **`POST /api/auth/credentials`** and **`/api/auth/profile/*`**
   (`ProfileHandler`): a Cognito developer-identity token for the user's
   profile (and, with `IotPolicyName` set, the [live-sync](live-sync.md) IoT
@@ -128,7 +134,8 @@ site (`/api/*` in the CloudFront distribution; see
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
-  `LinkCodesTable` holds short-lived link codes (hashed, with a TTL).
+  `LinkCodesTable` holds short-lived link codes (hashed, with a TTL), and
+  `SystemTable` the system's own state ([maintenance mode](maintenance.md)).
   `UserRolesTable` now holds only the voucher lockout's counts (and the
   roles from before rbacr, unread).
 - **Least privilege:**
@@ -196,7 +203,8 @@ what slow abuse.
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live, and `/api/auth/anonymous` to report RBAC with
-  both settings set. `deploy.sh` passes the identity pool and bucket from
+  both settings set (and a maintenance state, on or off, which it doesn't
+  compare). `deploy.sh` passes the identity pool and bucket from
   their stacks' outputs.
 - **The app** calls it after sign-in to decide what to show (see
   [Sign-in](sign-in.md)): without `presence_user`, only the account and

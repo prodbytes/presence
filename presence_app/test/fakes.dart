@@ -464,6 +464,9 @@ class FakeRolesClient implements RolesClient {
   /// What `GET /api/auth/anonymous` says is set.
   ApiSettings settings = (oidc: null, aws: null, rbacr: null);
 
+  /// Whether `GET /api/auth/anonymous` says the system is in maintenance.
+  MaintenanceState maintenance = noMaintenance;
+
   /// Makes the start check fail (the API is unreachable).
   Object? anonymousError;
   int anonymousCalls = 0;
@@ -485,6 +488,7 @@ class FakeRolesClient implements RolesClient {
           ? const [anonymousRole, userRole, adminRole, rootRole, premiumRole]
           : const [anonymousRole],
       settings: settings,
+      maintenance: maintenance,
     );
   }
 }
@@ -591,6 +595,32 @@ class FakeMembershipClient implements MembershipClient {
   Future<void> deleteVoucher(String idToken, String code) async {
     if (error case final e?) throw e;
     codes.removeWhere((v) => v.code == code);
+  }
+
+  /// Maintenance mode as the admin routes keep it; [onMaintenance] runs
+  /// after a switch (e.g. to tell the [FakeRolesClient]).
+  MaintenanceSwitch switched = (state: noMaintenance, by: '');
+  void Function(MaintenanceState state)? onMaintenance;
+
+  @override
+  Future<MaintenanceSwitch> maintenance(String idToken) async {
+    if (error case final e?) throw e;
+    return switched;
+  }
+
+  @override
+  Future<MaintenanceSwitch> setMaintenance(
+    String idToken, {
+    required bool on,
+    String message = '',
+  }) async {
+    if (error case final e?) throw e;
+    switched = (
+      state: (on: on, message: message.trim(), since: DateTime.now()),
+      by: 'adam@example.com',
+    );
+    onMaintenance?.call(switched.state);
+    return switched;
   }
 }
 

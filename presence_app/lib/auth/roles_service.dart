@@ -48,11 +48,35 @@ enum ExecutionMode {
 /// didn't say (an older API, for rbacr).
 typedef ApiSettings = ({bool? oidc, bool? aws, bool? rbacr});
 
-/// The execution mode, the anonymous user's roles and the API's settings.
+/// Maintenance mode, as the auth API reports it
+/// (`presence.auth.Maintenance`): while it's [on], the app shows nothing
+/// but a sorry message, with the admin's [message] if they left one, to
+/// everyone but admins. [since] is when an admin last switched it.
+typedef MaintenanceState = ({bool on, String message, DateTime? since});
+
+/// Not in maintenance (and what an API that doesn't say means).
+const MaintenanceState noMaintenance = (on: false, message: '', since: null);
+
+/// [MaintenanceState] from the API's JSON (`{"on", "message", "since"}`).
+MaintenanceState maintenanceFromJson(Object? json) {
+  if (json is! Map) return noMaintenance;
+  final since = json['since'];
+  return (
+    on: json['on'] == true,
+    message: json['message'] is String ? json['message'] as String : '',
+    since: since is num
+        ? DateTime.fromMillisecondsSinceEpoch(since.toInt(), isUtc: true)
+        : null,
+  );
+}
+
+/// The execution mode, the anonymous user's roles, the API's settings and
+/// whether the system is in maintenance.
 typedef AnonymousAccess = ({
   ExecutionMode mode,
   List<String> roles,
   ApiSettings settings,
+  MaintenanceState maintenance,
 });
 
 /// What `GET /api/auth` says about the signed-in user: their roles and
@@ -145,6 +169,7 @@ class HttpRolesClient implements RolesClient {
       mode: mode,
       roles: roles is List ? [for (final r in roles) '$r'] : const <String>[],
       settings: (oidc: flag('oidc'), aws: flag('aws'), rbacr: flag('rbacr')),
+      maintenance: maintenanceFromJson(body['maintenance']),
     );
   }
 }
@@ -180,6 +205,7 @@ class RolesService extends ChangeNotifier {
       Duration(seconds: 30),
       Duration(minutes: 1),
     ],
+    this.maintenanceCheckInterval,
   }) : oidcClient = oidcClient ?? hasOidcClient {
     _start();
   }
@@ -203,7 +229,14 @@ class RolesService extends ChangeNotifier {
   /// repeats.
   final List<Duration> retryDelays;
 
+  /// How often the auth API is asked ([checkApi]) whether the system is in
+  /// maintenance, so a running app (an unattended phone) follows an admin
+  /// switching it (the app: every minute); null never asks after the
+  /// start check.
+  final Duration? maintenanceCheckInterval;
+
   Timer? _retry;
+  Timer? _maintenanceCheck;
 
   /// Checks the roles again after a failed roles check, so an unattended
   /// device that started offline gets its access back without anyone
@@ -228,6 +261,16 @@ class RolesService extends ChangeNotifier {
   /// Which expected settings the auth API reported at start; unknown
   /// (null) until then, or if it didn't answer.
   ApiSettings get apiSettings => _apiSettings;
+
+  MaintenanceState _maintenance = noMaintenance;
+
+  /// Whether the system is in maintenance, as the auth API last answered;
+  /// kept when it doesn't answer.
+  MaintenanceState get maintenance => _maintenance;
+
+  /// Shows only the sorry message: the system is in [maintenance] and this
+  /// user isn't an admin (who keeps the app, to switch it off).
+  bool get inMaintenance => _maintenance.on && !isAdmin;
 
   DateTime? _apiCheckedAt;
 
@@ -278,8 +321,10 @@ class RolesService extends ChangeNotifier {
   }
 
   /// Asks the auth API again (`GET /api/auth/anonymous`) whether it
-  /// answers and which settings it has: the Log tab's health panel, every
-  /// 30 s. Updates [apiError], [apiSettings] and [apiCheckedAt]; the
+  /// answers, which settings it has and whether the system is in
+  /// maintenance: every [maintenanceCheckInterval], and the Log tab's
+  /// health panel. Updates [apiError], [apiSettings], [maintenance] and
+  /// [apiCheckedAt]; the
   /// [mode] stays the one the start check decided. Does nothing until
   /// then, and joins a check already running.
   Future<void> checkApi() {
@@ -289,10 +334,10 @@ class RolesService extends ChangeNotifier {
 
   Future<void> _checkApi() async {
     String? error;
-    ApiSettings? settings;
+    AnonymousAccess? access;
     final watch = Stopwatch()..start();
     try {
-      settings = (await _client.anonymous().timeout(checkTimeout)).settings;
+      access = await _client.anonymous().timeout(checkTimeout);
     } catch (e) {
       error = '$e';
     }
@@ -311,7 +356,10 @@ class RolesService extends ChangeNotifier {
       );
     }
     _apiError = error;
-    if (settings != null) _apiSettings = settings;
+    if (access != null) {
+      _apiSettings = access.settings;
+      _setMaintenance(access.maintenance);
+    }
     _apiCheckedAt = DateTime.now();
     notifyListeners();
   }
@@ -337,11 +385,13 @@ class RolesService extends ChangeNotifier {
               mode: ExecutionMode.rbac,
               roles: const [anonymousRole],
               settings: unknown,
+              maintenance: noMaintenance,
             )
           : (
               mode: ExecutionMode.dev,
               roles: const [anonymousRole, userRole, adminRole, rootRole],
               settings: unknown,
+              maintenance: noMaintenance,
             );
     }
     if (_disposed) return;
@@ -349,8 +399,12 @@ class RolesService extends ChangeNotifier {
     _mode = access.mode;
     _anonymousRoles = access.roles;
     _apiSettings = access.settings;
+    _setMaintenance(access.maintenance);
     // Unanswered: check again, sooner then less often, until it answers.
     if (_apiError != null) _retryCheck(0);
+    if (maintenanceCheckInterval case final every?) {
+      _maintenanceCheck = Timer.periodic(every, (_) => checkApi());
+    }
     if (access.mode == ExecutionMode.dev) {
       _set(AccessState.granted, access.roles);
       return;
@@ -434,6 +488,13 @@ class RolesService extends ChangeNotifier {
     });
   }
 
+  void _setMaintenance(MaintenanceState state) {
+    if (state.on != _maintenance.on) {
+      debugPrint('Presence: maintenance mode ${state.on ? 'on' : 'off'}');
+    }
+    _maintenance = state;
+  }
+
   void _set(AccessState state, List<String> roles, {String? error}) {
     if (_disposed) return;
     _state = state;
@@ -468,6 +529,7 @@ class RolesService extends ChangeNotifier {
     _disposed = true;
     _retry?.cancel();
     _rolesRetry?.cancel();
+    _maintenanceCheck?.cancel();
     auth.removeListener(_onAuthChanged);
     super.dispose();
   }
