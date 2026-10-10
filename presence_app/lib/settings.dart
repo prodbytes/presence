@@ -141,354 +141,450 @@ class _SettingsViewState extends State<SettingsView> {
         return ListView(
           key: const Key('settings-page'),
           physics: _mapHeld ? const NeverScrollableScrollPhysics() : null,
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          // Edge to edge: the groups span the width, their content 16 dp
+          // in.
+          padding: const EdgeInsets.only(top: 8, bottom: 24),
           children: [
             // First: where this device is, its position and the map.
-            if (location != null) ...[
-              Text('Location', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              LocationSettings(
-                location: location,
-                tiles: widget.tiles,
-                onMapHeld: _onMapHeld,
-              ),
-              const SizedBox(height: 16),
-            ],
-            Text('Camera', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _LabeledSlider(
-              key: const Key('brightness-slider'),
-              label: 'Brightness',
-              format: _formatBrightness,
-              value: camera.brightness,
-              min: CameraConfig.minBrightness,
-              max: CameraConfig.maxBrightness,
-              divisions:
-                  ((CameraConfig.maxBrightness - CameraConfig.minBrightness) /
-                          CameraConfig.brightnessStep)
-                      .round(),
-              onChanged: (ev) => setCamera((c) => c.copyWith(brightness: ev)),
-            ),
-            const SizedBox(height: 16),
-            Text('Motion', style: theme.textTheme.titleMedium),
-            SwitchListTile(
-              key: const Key('motion-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Clip automatically on motion'),
-              subtitle: const Text('Same as pressing Clip'),
-              value: motion.enabled,
-              onChanged: (on) => setMotion((m) => m.copyWith(enabled: on)),
-            ),
-            _LabeledSlider(
-              key: const Key('motion-threshold-slider'),
-              label: 'Motion threshold',
-              format: (v) => '${v.round()} % of the picture',
-              value: motion.threshold,
-              min: MotionConfig.minThreshold,
-              max: MotionConfig.maxThreshold,
-              divisions: 49,
-              onChanged: motion.enabled
-                  ? (v) => setMotion(
-                      (m) => m.copyWith(threshold: v.roundToDouble()),
-                    )
-                  : null,
-            ),
-            if (motionLevel case final level?)
-              _MotionMeter(level: level, threshold: motion.threshold),
-            _LabeledSlider(
-              key: const Key('motion-cooldown-slider'),
-              label: 'At most one automatic clip every',
-              format: (v) => '${v.round()} min',
-              value: motion.cooldown.inMinutes.toDouble(),
-              min: MotionConfig.minCooldown.inMinutes.toDouble(),
-              max: MotionConfig.maxCooldown.inMinutes.toDouble(),
-              divisions:
-                  MotionConfig.maxCooldown.inMinutes -
-                  MotionConfig.minCooldown.inMinutes,
-              // After any clip, motion's or not: it holds scheduled clips
-              // back too, so it's set even with motion off.
-              onChanged: (v) => setMotion(
-                (m) => m.copyWith(cooldown: Duration(minutes: v.round())),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Clips', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            // Side by side: before on the left, after on the right.
-            Row(
-              key: const Key('clip-sliders'),
-              crossAxisAlignment: CrossAxisAlignment.start,
-              spacing: 8,
-              children: [
-                Expanded(
-                  child: _LabeledSlider(
-                    key: const Key('clip-before-slider'),
-                    label: 'Before press',
-                    format: (v) => '${v.round()} s',
-                    value: clip.before.inSeconds.toDouble(),
-                    min: ClipConfig.min.inSeconds.toDouble(),
-                    max: ClipConfig.max.inSeconds.toDouble(),
-                    divisions:
-                        (ClipConfig.max - ClipConfig.min).inSeconds ~/
-                        ClipConfig.step.inSeconds,
-                    onChanged: (v) => setClip(
-                      (c) => c.copyWith(before: Duration(seconds: v.round())),
-                    ),
+            if (location != null)
+              SettingsSection(
+                title: 'Location',
+                children: [
+                  LocationSettings(
+                    location: location,
+                    tiles: widget.tiles,
+                    onMapHeld: _onMapHeld,
                   ),
+                ],
+              ),
+            SettingsSection(
+              title: 'Camera',
+              children: [
+                _LabeledSlider(
+                  key: const Key('brightness-slider'),
+                  label: 'Brightness',
+                  format: _formatBrightness,
+                  value: camera.brightness,
+                  min: CameraConfig.minBrightness,
+                  max: CameraConfig.maxBrightness,
+                  divisions:
+                      ((CameraConfig.maxBrightness -
+                                  CameraConfig.minBrightness) /
+                              CameraConfig.brightnessStep)
+                          .round(),
+                  onChanged: (ev) =>
+                      setCamera((c) => c.copyWith(brightness: ev)),
                 ),
-                Expanded(
-                  child: _LabeledSlider(
-                    key: const Key('clip-after-slider'),
-                    label: 'After press',
-                    format: (v) => '${v.round()} s',
-                    value: clip.after.inSeconds.toDouble(),
-                    min: ClipConfig.min.inSeconds.toDouble(),
-                    max: ClipConfig.max.inSeconds.toDouble(),
-                    divisions:
-                        (ClipConfig.max - ClipConfig.min).inSeconds ~/
-                        ClipConfig.step.inSeconds,
-                    onChanged: (v) => setClip(
-                      (c) => c.copyWith(after: Duration(seconds: v.round())),
-                    ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Motion',
+              children: [
+                SwitchListTile(
+                  key: const Key('motion-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Clip automatically on motion'),
+                  subtitle: const Text('Same as pressing Clip'),
+                  value: motion.enabled,
+                  onChanged: (on) => setMotion((m) => m.copyWith(enabled: on)),
+                ),
+                _LabeledSlider(
+                  key: const Key('motion-threshold-slider'),
+                  label: 'Motion threshold',
+                  format: (v) => '${v.round()} % of the picture',
+                  value: motion.threshold,
+                  min: MotionConfig.minThreshold,
+                  max: MotionConfig.maxThreshold,
+                  divisions: 49,
+                  onChanged: motion.enabled
+                      ? (v) => setMotion(
+                          (m) => m.copyWith(threshold: v.roundToDouble()),
+                        )
+                      : null,
+                ),
+                if (motionLevel case final level?)
+                  _MotionMeter(level: level, threshold: motion.threshold),
+                _LabeledSlider(
+                  key: const Key('motion-cooldown-slider'),
+                  label: 'At most one automatic clip every',
+                  format: (v) => '${v.round()} min',
+                  value: motion.cooldown.inMinutes.toDouble(),
+                  min: MotionConfig.minCooldown.inMinutes.toDouble(),
+                  max: MotionConfig.maxCooldown.inMinutes.toDouble(),
+                  divisions:
+                      MotionConfig.maxCooldown.inMinutes -
+                      MotionConfig.minCooldown.inMinutes,
+                  // After any clip, motion's or not: it holds scheduled clips
+                  // back too, so it's set even with motion off.
+                  onChanged: (v) => setMotion(
+                    (m) => m.copyWith(cooldown: Duration(minutes: v.round())),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Clips play ${clip.total.inSeconds} s in total. Changing '
-              '"Before" takes up to that long to apply, while the cameras '
-              'build up enough history.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            SettingsSection(
+              title: 'Clips',
+              children: [
+                // Side by side: before on the left, after on the right.
+                Row(
+                  key: const Key('clip-sliders'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 8,
+                  children: [
+                    Expanded(
+                      child: _LabeledSlider(
+                        key: const Key('clip-before-slider'),
+                        label: 'Before press',
+                        format: (v) => '${v.round()} s',
+                        value: clip.before.inSeconds.toDouble(),
+                        min: ClipConfig.min.inSeconds.toDouble(),
+                        max: ClipConfig.max.inSeconds.toDouble(),
+                        divisions:
+                            (ClipConfig.max - ClipConfig.min).inSeconds ~/
+                            ClipConfig.step.inSeconds,
+                        onChanged: (v) => setClip(
+                          (c) =>
+                              c.copyWith(before: Duration(seconds: v.round())),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: _LabeledSlider(
+                        key: const Key('clip-after-slider'),
+                        label: 'After press',
+                        format: (v) => '${v.round()} s',
+                        value: clip.after.inSeconds.toDouble(),
+                        min: ClipConfig.min.inSeconds.toDouble(),
+                        max: ClipConfig.max.inSeconds.toDouble(),
+                        divisions:
+                            (ClipConfig.max - ClipConfig.min).inSeconds ~/
+                            ClipConfig.step.inSeconds,
+                        onChanged: (v) => setClip(
+                          (c) =>
+                              c.copyWith(after: Duration(seconds: v.round())),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Clips play ${clip.total.inSeconds} s in total. Changing '
+                  '"Before" takes up to that long to apply, while the cameras '
+                  'build up enough history.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            Text('Scheduled clips', style: theme.textTheme.titleMedium),
-            SwitchListTile(
-              key: const Key('schedule-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Clip at start and on a timer'),
-              subtitle: const Text('Same as pressing Clip'),
-              value: schedule.enabled,
-              onChanged: (on) => setSchedule((x) => x.copyWith(enabled: on)),
+            SettingsSection(
+              title: 'Scheduled clips',
+              children: [
+                SwitchListTile(
+                  key: const Key('schedule-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Clip at start and on a timer'),
+                  subtitle: const Text('Same as pressing Clip'),
+                  value: schedule.enabled,
+                  onChanged: (on) =>
+                      setSchedule((x) => x.copyWith(enabled: on)),
+                ),
+                _LabeledSlider(
+                  key: const Key('schedule-every-slider'),
+                  label: 'One clip every',
+                  format: (v) => formatEvery(Duration(minutes: v.round())),
+                  value: schedule.every.inMinutes.toDouble(),
+                  min: ScheduleConfig.minEvery.inMinutes.toDouble(),
+                  max: ScheduleConfig.maxEvery.inMinutes.toDouble(),
+                  divisions:
+                      (ScheduleConfig.maxEvery - ScheduleConfig.minEvery)
+                          .inMinutes ~/
+                      ScheduleConfig.everyStep.inMinutes,
+                  onChanged: schedule.enabled
+                      ? (v) => setSchedule(
+                          (x) =>
+                              x.copyWith(every: Duration(minutes: v.round())),
+                        )
+                      : null,
+                ),
+                if (widget.nextClip case final nextClip? when schedule.enabled)
+                  nextClip,
+              ],
             ),
-            _LabeledSlider(
-              key: const Key('schedule-every-slider'),
-              label: 'One clip every',
-              format: (v) => formatEvery(Duration(minutes: v.round())),
-              value: schedule.every.inMinutes.toDouble(),
-              min: ScheduleConfig.minEvery.inMinutes.toDouble(),
-              max: ScheduleConfig.maxEvery.inMinutes.toDouble(),
-              divisions:
-                  (ScheduleConfig.maxEvery - ScheduleConfig.minEvery)
-                      .inMinutes ~/
-                  ScheduleConfig.everyStep.inMinutes,
-              onChanged: schedule.enabled
-                  ? (v) => setSchedule(
-                      (x) => x.copyWith(every: Duration(minutes: v.round())),
-                    )
-                  : null,
+            SettingsSection(
+              title: 'Recognition',
+              children: [
+                SwitchListTile(
+                  key: const Key('recognition-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Recognize subjects in new clips'),
+                  subtitle: Text(
+                    _recognitionSupported
+                        ? 'People and pets tagged before, found on this device'
+                        : 'Not available on this device yet',
+                  ),
+                  value: recognition.enabled && _recognitionSupported,
+                  onChanged: _recognitionSupported
+                      ? (on) => setRecognition((r) => r.copyWith(enabled: on))
+                      : null,
+                ),
+                SwitchListTile(
+                  key: const Key('recognition-objects-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Tag objects in new clips'),
+                  subtitle: Text(
+                    _recognitionSupported
+                        ? 'Human, cat, dog, bicycle, bottle… for search'
+                        : 'Not available on this device yet',
+                  ),
+                  value: recognition.objects && _recognitionSupported,
+                  onChanged: _recognitionSupported
+                      ? (on) => setRecognition((r) => r.copyWith(objects: on))
+                      : null,
+                ),
+                _LabeledSlider(
+                  key: const Key('recognition-auto-slider'),
+                  label: 'Tag automatically when at least',
+                  format: (v) => '${percent(_toStep(v))} sure',
+                  value: recognition.autoTag,
+                  min: RecognitionConfig.minConfidence,
+                  max: RecognitionConfig.maxConfidence,
+                  divisions: confidenceSteps,
+                  onChanged: recognition.enabled && _recognitionSupported
+                      ? (v) => setRecognition(
+                          (r) => r.copyWith(autoTag: _toStep(v)),
+                        )
+                      : null,
+                ),
+                Text(
+                  'Less sure than that, it asks you whether it\'s them.',
+                  key: const Key('recognition-ask-note'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
-            if (widget.nextClip case final nextClip? when schedule.enabled)
-              nextClip,
-            const SizedBox(height: 16),
-            Text('Recognition', style: theme.textTheme.titleMedium),
-            SwitchListTile(
-              key: const Key('recognition-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Recognize subjects in new clips'),
-              subtitle: Text(
-                _recognitionSupported
-                    ? 'People and pets tagged before, found on this device'
-                    : 'Not available on this device yet',
-              ),
-              value: recognition.enabled && _recognitionSupported,
-              onChanged: _recognitionSupported
-                  ? (on) => setRecognition((r) => r.copyWith(enabled: on))
-                  : null,
-            ),
-            SwitchListTile(
-              key: const Key('recognition-objects-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Tag objects in new clips'),
-              subtitle: Text(
-                _recognitionSupported
-                    ? 'Human, cat, dog, bicycle, bottle… for search'
-                    : 'Not available on this device yet',
-              ),
-              value: recognition.objects && _recognitionSupported,
-              onChanged: _recognitionSupported
-                  ? (on) => setRecognition((r) => r.copyWith(objects: on))
-                  : null,
-            ),
-            _LabeledSlider(
-              key: const Key('recognition-auto-slider'),
-              label: 'Tag automatically when at least',
-              format: (v) => '${percent(_toStep(v))} sure',
-              value: recognition.autoTag,
-              min: RecognitionConfig.minConfidence,
-              max: RecognitionConfig.maxConfidence,
-              divisions: confidenceSteps,
-              onChanged: recognition.enabled && _recognitionSupported
-                  ? (v) =>
-                        setRecognition((r) => r.copyWith(autoTag: _toStep(v)))
-                  : null,
-            ),
-            Text(
-              'Less sure than that, it asks you whether it\'s them.',
-              key: const Key('recognition-ask-note'),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('History', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _LabeledSlider(
-              key: const Key('history-keep-slider'),
-              label: 'Keep events for',
-              format: (v) => formatKeep(Duration(days: v.round())),
-              value: config.history.keep.inDays.toDouble(),
-              min: HistoryConfig.minKeep.inDays.toDouble(),
-              max: HistoryConfig.maxKeep.inDays.toDouble(),
-              divisions:
-                  (HistoryConfig.maxKeep - HistoryConfig.minKeep).inDays ~/
-                  HistoryConfig.keepStep.inDays,
-              onChanged: (v) => setHistory(
-                (h) => h.copyWith(keep: Duration(days: v.round())),
-              ),
-            ),
-            Text(
-              'Older events and their clips are deleted from this device '
-              'when the app starts and every 3 hours.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            SettingsSection(
+              title: 'History',
+              children: [
+                _LabeledSlider(
+                  key: const Key('history-keep-slider'),
+                  label: 'Keep events for',
+                  format: (v) => formatKeep(Duration(days: v.round())),
+                  value: config.history.keep.inDays.toDouble(),
+                  min: HistoryConfig.minKeep.inDays.toDouble(),
+                  max: HistoryConfig.maxKeep.inDays.toDouble(),
+                  divisions:
+                      (HistoryConfig.maxKeep - HistoryConfig.minKeep).inDays ~/
+                      HistoryConfig.keepStep.inDays,
+                  onChanged: (v) => setHistory(
+                    (h) => h.copyWith(keep: Duration(days: v.round())),
+                  ),
+                ),
+                Text(
+                  'Older events and their clips are deleted from this device '
+                  'when the app starts and every 3 hours.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
             // Under History: how this device hears of the others' events.
-            if (widget.liveSync) ...[
-              const SizedBox(height: 16),
-              Text('Live sync', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 8),
-              _LabeledSlider(
-                key: const Key('live-connect-slider'),
-                label: 'Connect to live sync',
-                format: (v) => LiveConfig.ofStep(v.round()).label,
-                value: live.step.toDouble(),
-                min: 0,
-                max: liveMax.toDouble(),
-                divisions: liveMax,
-                // Locked for admins: always connected.
-                onChanged: widget.liveAdmin
-                    ? null
-                    : (v) => config.update(
-                        (x) => x.copyWith(live: LiveConfig.ofStep(v.round())),
-                      ),
+            if (widget.liveSync)
+              SettingsSection(
+                title: 'Live sync',
+                children: [
+                  _LabeledSlider(
+                    key: const Key('live-connect-slider'),
+                    label: 'Connect to live sync',
+                    format: (v) => LiveConfig.ofStep(v.round()).label,
+                    value: live.step.toDouble(),
+                    min: 0,
+                    max: liveMax.toDouble(),
+                    divisions: liveMax,
+                    // Locked for admins: always connected.
+                    onChanged: widget.liveAdmin
+                        ? null
+                        : (v) => config.update(
+                            (x) =>
+                                x.copyWith(live: LiveConfig.ofStep(v.round())),
+                          ),
+                  ),
+                  Text(
+                    switch (live.mode) {
+                      _ when widget.liveAdmin =>
+                        'Always connected for admins, so this device is always '
+                            'reachable: other devices\' events arrive within a '
+                            'second.',
+                      LiveMode.never =>
+                        'Other devices\' events arrive with each sync (15 s), '
+                            'and this device\'s reach them the same way.',
+                      LiveMode.always =>
+                        'Stays connected: other devices\' events arrive within '
+                            'a second.',
+                      LiveMode.scheduled =>
+                        'Connects about every '
+                            '${LiveConfig.formatEvery(live.every)} for what '
+                            'other devices sent meanwhile, and at once to send '
+                            'this device\'s events.',
+                    },
+                    key: const Key('live-connect-note'),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                switch (live.mode) {
-                  _ when widget.liveAdmin =>
-                    'Always connected for admins, so this device is always '
-                        'reachable: other devices\' events arrive within a '
-                        'second.',
-                  LiveMode.never =>
-                    'Other devices\' events arrive with each sync (15 s), '
-                        'and this device\'s reach them the same way.',
-                  LiveMode.always =>
-                    'Stays connected: other devices\' events arrive within '
-                        'a second.',
-                  LiveMode.scheduled =>
-                    'Connects about every '
-                        '${LiveConfig.formatEvery(live.every)} for what '
-                        'other devices sent meanwhile, and at once to send '
-                        'this device\'s events.',
-                },
-                key: const Key('live-connect-note'),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            if (widget.logTabDefault case final dev?)
+              SettingsSection(
+                title: 'Advanced',
+                children: [
+                  SwitchListTile(
+                    key: const Key('show-log-switch'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show the Log tab'),
+                    subtitle: const Text(
+                      'The app\'s latest messages and health',
+                    ),
+                    value: config.log.showIn(dev: dev),
+                    onChanged: (v) => config.update(
+                      (x) => x.copyWith(log: x.log.copyWith(show: v)),
+                    ),
+                  ),
+                ],
               ),
-            ],
-            if (widget.logTabDefault case final dev?) ...[
-              const SizedBox(height: 16),
-              Text('Advanced', style: theme.textTheme.titleMedium),
-              SwitchListTile(
-                key: const Key('show-log-switch'),
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Show the Log tab'),
-                subtitle: const Text('The app\'s latest messages and health'),
-                value: config.log.showIn(dev: dev),
-                onChanged: (v) => config.update(
-                  (x) => x.copyWith(log: x.log.copyWith(show: v)),
-                ),
-              ),
-            ],
             // Last: how much the Subjects screens load.
-            const SizedBox(height: 16),
-            Text('Subjects', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            _LabeledSlider(
-              key: const Key('subject-events-slider'),
-              label: 'How many events to load at once',
-              format: (v) => '${v.round()}',
-              value: subjects.mapEvents.toDouble(),
-              min: SubjectsConfig.minMapEvents.toDouble(),
-              max: SubjectsConfig.maxMapEvents.toDouble(),
-              divisions:
-                  (SubjectsConfig.maxMapEvents - SubjectsConfig.minMapEvents) ~/
-                  SubjectsConfig.mapEventsStep,
-              onChanged: (v) =>
-                  setSubjects((s) => s.copyWith(mapEvents: v.round())),
-            ),
-            // Which build this is, e.g. to check a deploy landed.
-            if (AppVersion.version.isNotEmpty) ...[
-              const SizedBox(height: 32),
-              Text(
-                'Presence ${AppVersion.version}',
-                key: const Key('app-version'),
-                textAlign: TextAlign.center,
-                // bodyMedium, as the IDs at the bottom: read out to check a
-                // deploy landed.
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+            SettingsSection(
+              title: 'Subjects',
+              children: [
+                _LabeledSlider(
+                  key: const Key('subject-events-slider'),
+                  label: 'How many events to load at once',
+                  format: (v) => '${v.round()}',
+                  value: subjects.mapEvents.toDouble(),
+                  min: SubjectsConfig.minMapEvents.toDouble(),
+                  max: SubjectsConfig.maxMapEvents.toDouble(),
+                  divisions:
+                      (SubjectsConfig.maxMapEvents -
+                          SubjectsConfig.minMapEvents) ~/
+                      SubjectsConfig.mapEventsStep,
+                  onChanged: (v) =>
+                      setSubjects((s) => s.copyWith(mapEvents: v.round())),
                 ),
+              ],
+            ),
+            // Below the groups, in the page's margins: the version, the
+            // health line, adding a device and the IDs.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Which build this is, e.g. to check a deploy landed.
+                  if (AppVersion.version.isNotEmpty) ...[
+                    Text(
+                      'Presence ${AppVersion.version}',
+                      key: const Key('app-version'),
+                      textAlign: TextAlign.center,
+                      // bodyMedium, as the IDs at the bottom: read out to check a
+                      // deploy landed.
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                  if (health case final health?) ...[
+                    if (AppVersion.version.isNotEmpty)
+                      const SizedBox(height: 8),
+                    health,
+                  ],
+                  if (widget.addDevice case final addDevice?) ...[
+                    const SizedBox(height: 32),
+                    addDevice,
+                  ],
+                  const SizedBox(height: 32),
+                ],
               ),
-            ],
-            if (health case final health?) ...[
-              SizedBox(height: AppVersion.version.isEmpty ? 32 : 8),
-              health,
-            ],
-            if (widget.addDevice case final addDevice?) ...[
-              const SizedBox(height: 32),
-              addDevice,
-            ],
+            ),
             // The very last thing: which device and profile this is, as
             // the events and the auth API say (selectable, to copy), one
             // line each. Always shown.
-            const SizedBox(height: 32),
-            Column(
+            Padding(
               key: const Key('settings-ids'),
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _IdLine(
-                  label: 'Device',
-                  id: widget.deviceId,
-                  missing: 'loading…',
-                  idKey: const Key('device-id'),
-                ),
-                _IdLine(
-                  label: 'Profile',
-                  id: widget.profileId,
-                  // A profile is the signed-in account's.
-                  missing: 'none until signed in',
-                  idKey: const Key('profile-id'),
-                ),
-              ],
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _IdLine(
+                    label: 'Device',
+                    id: widget.deviceId,
+                    missing: 'loading…',
+                    idKey: const Key('device-id'),
+                  ),
+                  _IdLine(
+                    label: 'Profile',
+                    id: widget.profileId,
+                    // A profile is the signed-in account's.
+                    missing: 'none until signed in',
+                    idKey: const Key('profile-id'),
+                  ),
+                ],
+              ),
             ),
           ],
         );
       },
+    );
+  }
+}
+
+/// A group of settings, as in most phone apps' settings (Strava's): a
+/// short bold heading, then its controls on a block a step lighter than the
+/// page, edge to edge, with the content 16 dp in; 16 dp below it, before
+/// the next group.
+class SettingsSection extends StatelessWidget {
+  const SettingsSection({
+    super.key,
+    required this.title,
+    required this.children,
+  });
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Card(
+            margin: EdgeInsets.zero,
+            shape: const RoundedRectangleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: children,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

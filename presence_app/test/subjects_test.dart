@@ -653,6 +653,8 @@ void main() {
       );
       final slider = find.byKey(const Key('subject-events-slider'));
       await tester.scrollUntilVisible(slider, 100);
+      await tester.ensureVisible(slider);
+      await tester.pumpAndSettle();
       expect(find.text('How many events to load at once'), findsOneWidget);
       expect(find.text('100'), findsOneWidget);
       // Below every other setting, the Advanced section's too.
