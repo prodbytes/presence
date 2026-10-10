@@ -342,7 +342,8 @@ void main() {
       findsNothing,
     );
 
-    Navigator.of(tester.element(find.byKey(const Key('account-sheet')))).pop();
+    // The account is a tab: back to Monitoring.
+    await tester.tap(find.byTooltip('Monitoring'));
     await tester.pumpAndSettle();
     expect(find.text('Phone motion'), findsNothing);
     expect(find.text('Phone door'), findsNothing);

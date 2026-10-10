@@ -27,8 +27,8 @@ site (`/api/*` in the CloudFront distribution; see
 - **Settings** (`Settings`): `oidc` is whether `GOOGLE_WEB_CLIENT_ID` is
   set, `aws` whether both `COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET`
   are (template parameters `IdentityPoolId` and `UserDataBucket`, empty by
-  default), `rbacr` whether `RBACR_TOKEN` is (`RbacrToken`: who is premium,
-  see [Premium and free](premium.md)). Only whether each is set is
+  default), `rbacr` whether `RBACR_TOKEN` is (`RbacrToken`: rbacr gives every
+  role; see the roles below). Only whether each is set is
   reported, never a value. The app
   shows them in its Settings health line (see [Settings
   screen](settings.md));
@@ -45,7 +45,7 @@ site (`/api/*` in the CloudFront distribution; see
   can't be redeemed. Throttled to 1 request/s (burst 5), and **per
   email**: after 10 wrong codes (404s) within an hour of the first, the
   email gets **429** until that hour is over, even for a good code (the
-  count is kept in `UserRolesTable`, beside the email's roles).
+  count is kept in `UserRolesTable`, which holds nothing else now).
   **`GET /api/auth/vouchers`**,
   **`POST /api/auth/vouchers`** (form-encoded `role`, `expiresAt`
   ISO-8601, `maxUses`, and optionally `startsAt` ISO-8601, before
@@ -71,64 +71,79 @@ site (`/api/*` in the CloudFront distribution; see
   Otherwise it answers 401 before a function runs. The authorizer passes
   every claim of the token to the function (as strings); the functions
   read them in one place, `Caller`: `iss` and `sub` for the profile,
-  `email` and `email_verified`, `hd` (the Google Workspace domain that
-  manages the account; absent for personal accounts) for the root
-  domains, and `name` for requests.
-- **Roles:**
-  - **`presence_user`** uses the app; **`presence_admin`** also approves
-    membership requests and creates Member vouchers; **`presence_root`**
-    also creates Admin vouchers; **`presence_anonymous`** is nobody signed
-    in;
-  - nobody has roles by default;
-  - the **root allowlist** gets all three of `presence_root`,
-    `presence_admin` and `presence_user`: a verified email whose domain is
-    exactly one of `PRESENCE_ROOT_DOMAINS` **and whose token's `hd` is that
-    same domain**, or that is one of `PRESENCE_ROOT_EMAILS` (both
-    comma-separated, case-insensitive). `email_verified` alone doesn't
-    prove a domain: anyone can register a personal Google account with an
-    address they can receive mail at (`x@nu01.com`), verify it once, and
-    keep it after leaving; only `hd` says the domain's Workspace manages
-    the account. Root emails are matched whole without `hd`, so list only
-    Gmail addresses or addresses of a Workspace domain, whose Google
-    account nobody else can register. They're
-    the functions' environment, from the template parameters `RootDomains`
-    (default `nu01.com`) and `RootEmails` (default none), which
-    `scripts/deploy.sh` passes on every deploy from the same-named
-    environment variables or `.env` (in GitHub Actions, repository
-    variables), so a stack never keeps an old value. Only the number of
-    root emails is logged;
-  - the **`UserRolesTable`** DynamoDB table declares roles per user, keyed by
-    lowercase `email`, with `roles` as a string set (a list or a string
-    is read too). A grant (a membership approval or a redeemed voucher)
-    adds to the set with one atomic `ADD`, so concurrent grants never
-    lose each other's roles; roles written by hand as a list or a string
-    are first rewritten as a set, conditional on them not having changed
-    since read (retried up to 5 times). They're added to any allowlist
-    roles, except `presence_root`, which the table can't give. The table
-    starts empty; the Admin tab's grants fill it. An item may also hold
-    the email's voucher lockout count (`voucherMisses`,
-    `voucherMissesSince`), which declares no role.
-  - Unverified emails get nothing. `sub.nu01.com`, `evilnu01.com` and
-    `nu01.com.example` don't count as the domain.
-  - **A linked subject** also gets `presence_user` when its profile's
-    owner has it (see
+  `email` and `email_verified` for the roles, `hd` (the Google Workspace
+  domain that manages the account; absent for personal accounts) kept
+  with a profile's owner, and `name` for requests.
+- **Roles** come from **[rbacr](https://github.com/prodbytes/rbacr)**
+  alone (`Rbacr`, `Roles`), the organisation's role manager
+  (https://rbacr.nu01.com), which keeps them in its `presence` system
+  (`RBACR_SYSTEM`):
+  - **`presence_user`** uses the app; **`presence_premium`** also syncs
+    with the cloud ([Premium and free](premium.md)); **`presence_admin`**
+    also approves membership requests and creates Member vouchers;
+    **`presence_root`** also creates Admin vouchers;
+    **`presence_anonymous`** is nobody signed in;
+  - they're rbacr's roles, mapped: rbacr's `free`, `premium` or `admin`
+    gives `presence_user`; `premium` or `admin` gives `presence_premium`;
+    `admin` gives `presence_admin`. rbacr's implications (`admin` implies
+    `premium` and `free`, `premium` implies `free`) give the same, but the
+    mapping doesn't count on them. Other rbacr roles give nothing;
+  - an **rbacr root** (rbacr's root list, `RBACR_ROOT_LIST`, default
+    `@nu01.com`) gets all four of `presence_root`, `presence_admin`,
+    `presence_premium` and `presence_user`. Nothing in presence makes a
+    root; the root list is rbacr's configuration;
+  - nobody has roles by default. Only a **verified** email is asked about
+    (lower-cased); unverified ones get nothing. rbacr trusts the address
+    (its rule C1), and matches a domain grant or root-list domain by the
+    address alone, with no `hd` check: who controls a nu01.com mailbox
+    controls an rbacr identity there, in rbacr's own sign-in too;
+  - **one request** per email: `POST /api/roles` with the email (in the
+    body, never the URL) and no `systemId`, which answers the email's
+    roles in every system and its global roles (`root` for a root), with
+    a root-owned API token (`RBACR_TOKEN`), since it asks about other
+    people. 2 s timeout. An answer is reused for 60 s (per function
+    instance), an error never;
+  - it **fails closed**: when rbacr is down, slow, refuses the token or
+    answers something that isn't an answer, the email has no roles, so
+    nobody gets in or administers until it answers again; and without
+    `RBACR_TOKEN`, nobody has a role;
+  - **grants** go to rbacr: an approved membership is a grant of `free`,
+    a redeemed voucher one of its role's (`free` or `admin`), each to the
+    address, from now on and for good (`POST
+    /api/systems/presence/grants`). rbacr keeps a grant that already does
+    (its G2). A grant forgets that email's reused answer; other function
+    instances see it within 60 s. Revoking, domain and global grants, and
+    who is premium are managed in rbacr itself;
+  - **a linked subject** also gets `presence_user` and `presence_premium`
+    when its profile's owner has them (see
     [Profiles](profiles.md#the-profiles-folder-and-roles)), in every route;
     never the owner's `presence_admin` or `presence_root`, which each
     account gets only from its own email.
+  - Before rbacr, the root allowlist (`PRESENCE_ROOT_DOMAINS`,
+    `PRESENCE_ROOT_EMAILS`) and `UserRolesTable`'s `roles` gave them.
+    `scripts/migrate-roles-to-rbacr.sh` copies the table's roles into
+    rbacr (`presence_user` as `free`, `presence_admin` as `admin`); the
+    API no longer reads them.
 - **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`, and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
   `LinkCodesTable` holds short-lived link codes (hashed, with a TTL).
+  `UserRolesTable` now holds only the voucher lockout's counts (and the
+  roles from before rbacr, unread).
 - **Least privilege:**
-  - the roles function may only read `UserRolesTable`, get and put in
-    `ProfileSubjectsTable`, and get, put and update in `ProfilesTable`;
+  - the roles function may only get and put in `ProfileSubjectsTable`,
+    and get, put and update in `ProfilesTable`;
   - the membership function may only put items in `MembershipTable`;
-  - the voucher function may get and update items in `VoucherTable`, and read and
-    update `UserRolesTable`;
-  - the admin function may read and update `UserRolesTable`, scan, update
-    and delete in `MembershipTable`, put, scan and delete in
-    `VoucherTable`, and get items from both profile tables;
+  - the voucher function may get and update items in `VoucherTable` and
+    in `UserRolesTable` (the lockout);
+  - the admin function may scan, update and delete in `MembershipTable`,
+    put, scan and delete in `VoucherTable`, and get items from both
+    profile tables;
+  - the roles, voucher, admin and profile functions have `RBACR_TOKEN`, a
+    root's rbacr token: whoever can read their configuration can manage
+    rbacr as that root. It's a `NoEcho` parameter, never in the
+    repository; give it an expiry and rotate it;
   - the profile function's permissions are listed in
     [Profiles](profiles.md#where-its-kept). One is broad:
     `iot:AttachPolicy` on `*` (with `IotPolicyName` set), since IAM can
@@ -174,7 +189,10 @@ is an infrastructure and cost decision. Until then the per-route limits,
 the voucher lockout per email and the membership cooldown per email are
 what slow abuse.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
-  `presence-auth-api` and `presence-rc-auth-api`) before the site, and passes
+  `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
+  own artifact bucket, `<prefix>-sam-artifacts-<account>`, and with
+  `PermissionsBoundary`, the stage's boundary, on every function role; see
+  [Production deploy](deploy.md#github-access)) before the site, and passes
   the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live, and `/api/auth/anonymous` to report RBAC with
@@ -186,18 +204,25 @@ what slow abuse.
 - **Locally,** the auth API runs inside Floci (see
   [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas and
   tables, deployed from this template at every start, behind an HTTP
-  API with the same Google JWT authorizer. Nothing local reaches AWS.
+  API with the same Google JWT authorizer. Nothing local reaches AWS; the
+  roles come from rbacr's RC (https://rc.rbacr.nu01.com, `RBACR_RC_*` in
+  `.env`), while prod's come from GA rbacr (https://rbacr.nu01.com):
+  `deploy.sh` refuses any other rbacr for prod.
 - **Tests** (JUnit, `mvn test`):
   - profiles (`ProfilesTest`): found by subject, created and linked at a
     first sign-in, never a repeated ID, races; see
     [Profiles](profiles.md#verified);
-  - the role rules: default none, the exact domains, verification, `hd`
-    required for a root domain (a personal account with a root-domain
-    address gets nothing), table roles, case and whitespace;
-  - `UserRoles` (`UserRolesTest`, against a fake table): grants `ADD` to
-    the set, a hand-written list or string becomes a set, a concurrent
-    change is retried and not lost, a grant that never settles fails, and
-    the lockout's window;
+  - the role rules (`RolesTest`): default none, rbacr's roles mapped
+    (`free`, `premium`, `admin`, roots every role, other roles nothing),
+    verified emails only and lower-cased, unverified ones never asked;
+  - rbacr (`RbacrTest`, against a fake transport): one `POST /api/roles`
+    per email (in the body, no `systemId`), only the presence system's
+    roles, `root` only from `globalRoles`, answers reused 60 s, failures
+    closed and never reused, malformed answers refused; grants (`POST
+    …/grants`), a grant forgetting the reused answer, refused or failed
+    grants throwing, and no token: no roles, no grants;
+  - `UserRoles` (`UserRolesTest`, against a fake table): the lockout's
+    window, writing only its counts;
   - a failing store answers a sanitized 502;
   - the execution mode: DEV only without a client; the anonymous route's
     answer in RBAC and DEV, with its settings (AWS needs both the pool and
@@ -212,19 +237,17 @@ what slow abuse.
     only; creation's role, start, expiry, uses, code and discount checks
     (chosen codes of at least 10 letters and digits, never for
     `presence_admin`); Admin codes hidden from, and not deletable by,
-    non-roots; a personal account with a root-domain address making no
-    vouchers; the per-email lockout (402s don't count; others aren't
+    non-roots; the per-email lockout (402s don't count; others aren't
     locked; it ends with its hour); a
     taken code (409); the discount stored and answered; a partial
     discount answered 402, granting nothing and counting no use; newest first; deletion; redeeming once
     per email, running out, not yet started, expiring, unknown codes, verified emails, an
-    Admin voucher also granting `presence_user`, a failed grant giving the
+    Admin voucher granting rbacr's `admin` (`presence_user`,
+    `presence_premium` and `presence_admin`), a Member one `free`, a failed grant giving the
     use back (and answering 502), only roots creating Admin vouchers, and
     no root vouchers;
-  - the root allowlist: domains and whole emails, verified only, and the
-    table never giving `presence_root`;
   - profiles, linking and the owner's membership (`ProfileTest`; see
     [Profiles](profiles.md#verified)).
-  - the whole flow: a nu01.com user gets all three roles; another domain's
-    user gets none, asks, is granted by an admin, and becomes a
+  - the whole flow: an rbacr root gets every role; another user gets
+    none, asks, is granted `free` by an admin, and becomes a
     `presence_user` only.

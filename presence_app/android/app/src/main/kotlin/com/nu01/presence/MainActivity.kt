@@ -20,6 +20,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private var cameras: PresenceCamerasPlugin? = null
 
+    /** The Screen off button is on: the screen may sleep, dimmed meanwhile. */
+    private var screenOff = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // First, so everything after is logged, crashes included.
         FileLog.init(this, "app opened")
@@ -36,7 +39,9 @@ class MainActivity : FlutterActivity() {
     override fun onStart() {
         super.onStart()
         FileLog.i("app shown")
-        cameras?.setPreviewVisible(true)
+        // With the screen off asked for, the preview stays off until a tap
+        // brings the screen back.
+        cameras?.setPreviewVisible(!screenOff)
         // Before the camera opens: covered (e.g. by Google's sign-in
         // chooser) or with the screen off, Android only lets an app with a
         // camera service use the camera, and the service may only start now,
@@ -75,6 +80,30 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    /**
+     * The Screen off button: lets the screen sleep (no more
+     * `FLAG_KEEP_SCREEN_ON`), at its lowest brightness until the system's
+     * screen timeout turns it off, without the preview nobody sees. The
+     * capture service keeps recording. [off] false undoes it.
+     */
+    private fun setScreenOff(off: Boolean) {
+        screenOff = off
+        if (off) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        window.attributes = window.attributes.apply {
+            screenBrightness = if (off) {
+                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF
+            } else {
+                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+        }
+        cameras?.setPreviewVisible(!off)
+        FileLog.i(if (off) "screen off asked; capture goes on" else "screen back on")
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val plugin = PresenceCamerasPlugin(this, flutterEngine.renderer)
@@ -92,6 +121,10 @@ class MainActivity : FlutterActivity() {
                             call.argument<String>("message") ?: "",
                             call.argument<Boolean>("error") == true,
                         )
+                        result.success(null)
+                    }
+                    "screenOff" -> {
+                        setScreenOff(call.argument<Boolean>("off") == true)
                         result.success(null)
                     }
                     "logDirectory" -> result.success(FileLog.directory?.path)

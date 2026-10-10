@@ -47,9 +47,10 @@ serves its own prefix: the app has the `/app/` base href.
   - In the browser, it's loopback, so the page's
     `ws://dev.presence.localhost:8080/app/$dwdsSseHandler` goes straight
     to the dev server.
-- The image is a dated nightly (`nightly-09242026-compat`): Floci 2.1.0
-  forwards no viewer headers at all to custom origins. Move to the next
-  release once it ships.
+- The image is a dated nightly (`nightly-09242026-compat`), pinned by
+  digest in `compose.yaml`: Floci 2.1.0 forwards no viewer headers at all
+  to custom origins. Move to the next release once it ships, with its
+  digest (`docker buildx imagetools inspect floci/floci:<tag>`).
 - The health monitor's `☁️ cdn` check requests `/app/` with the alias as the
   `Host` header.
 

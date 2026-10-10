@@ -59,7 +59,8 @@ with Google** only; after sign-in, `GET /api/auth` decides the rest.
   without it, and its smoke test requires `/api/auth/anonymous` to answer
   exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`
-  (`"rbacr":false` when it deployed without an rbacr token).
+  (it also refuses to deploy without an rbacr token, which gives every
+  role).
 - DEV only changes what the app shows. The API's other routes still need a
   Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
   none passes), and cloud sync needs a Google sign-in.

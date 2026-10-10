@@ -130,15 +130,17 @@ class VoucherTest {
         }
     };
 
-    private final VoucherHandler redeem = new VoucherHandler(store, (email, roles) -> {
+    /** In rbacr, as its role names. */
+    private final VoucherHandler redeem = new VoucherHandler(store, (email, role) -> {
         if (grantFails) {
-            throw new IllegalStateException("DynamoDB is down");
+            throw new IllegalStateException("rbacr is down");
         }
-        granted.computeIfAbsent(email, e -> new TreeSet<>()).addAll(roles);
+        granted.computeIfAbsent(email, e -> new TreeSet<>()).add(Roles.GRANTED_AS.get(role));
     }, lockout, clock);
 
     private final AdminHandler admin = new AdminHandler(
-            new Roles(Set.of("nu01.com"), Set.of(), e -> granted.getOrDefault(e, Set.of())),
+            // rbacr: the grants, and boss@nu01.com on its root list.
+            new Roles(e -> e.equals("boss@nu01.com") ? Set.of(Rbacr.ROOT) : granted.getOrDefault(e, Set.of())),
             new AdminHandler.Backend() {
                 @Override
                 public List<MembershipHandler.Request> requests() {
@@ -289,7 +291,7 @@ class VoucherTest {
     @Test
     void onlyRootsCreateAdminVouchers() {
         // An admin (not root) makes member vouchers only.
-        granted.put("lead@example.com", Set.of(Roles.ADMIN, Roles.USER));
+        granted.put("lead@example.com", Set.of("admin"));
         var admin = event("POST /api/auth/vouchers", "lead@example.com",
                 "role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1");
         assertEquals(403, this.admin.handleRequest(admin, null).getStatusCode());
@@ -316,17 +318,21 @@ class VoucherTest {
         assertEquals(200, response.getStatusCode());
         assertEquals("{\"role\":\"presence_user\",\"granted\":[\"presence_user\"],\"discount\":100}",
                 response.getBody());
-        assertEquals(Set.of(Roles.USER), granted.get("ana@example.com"));
+        assertEquals(Set.of("free"), granted.get("ana@example.com"));
         var voucher = store.vouchers.get(code);
         assertEquals(1, voucher.uses());
         assertEquals(Set.of("ana@example.com"), voucher.redeemedBy());
     }
 
     @Test
-    void anAdminVoucherAlsoGrantsPresenceUser() {
+    void anAdminVoucherGrantsRbacrsAdmin() {
         var code = code(create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1").getBody());
-        assertEquals(200, redeem.handleRequest(redeem("ana@example.com", code), null).getStatusCode());
-        assertEquals(Set.of(Roles.ADMIN, Roles.USER), granted.get("ana@example.com"));
+        var response = redeem.handleRequest(redeem("ana@example.com", code), null);
+        assertEquals(200, response.getStatusCode());
+        assertEquals("{\"role\":\"presence_admin\",\"granted\":[\"presence_admin\",\"presence_premium\","
+                + "\"presence_user\"],\"discount\":100}", response.getBody());
+        // rbacr's admin, which also makes her a member (and premium).
+        assertEquals(Set.of("admin"), granted.get("ana@example.com"));
         // Now an admin herself, who can't pass the role on.
         assertEquals(200, admin.handleRequest(event("GET /api/auth/vouchers", "ana@example.com", null), null)
                 .getStatusCode());
@@ -339,7 +345,7 @@ class VoucherTest {
         var adminCode = code(create("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=5").getBody());
         now = NOW.plusSeconds(1);
         var memberCode = code(create("role=presence_user&expiresAt=2026-10-05T00:00:00Z&maxUses=5").getBody());
-        granted.put("lead@example.com", Set.of(Roles.ADMIN, Roles.USER));
+        granted.put("lead@example.com", Set.of("admin"));
 
         var list = admin.handleRequest(event("GET /api/auth/vouchers", "lead@example.com", null), null).getBody();
         assertTrue(list.contains("\"code\":\"" + memberCode + "\""), list);
@@ -356,17 +362,6 @@ class VoucherTest {
                 null).getStatusCode());
         assertEquals(200, admin.handleRequest(event("POST /api/auth/vouchers/delete", "boss@nu01.com", adminCode),
                 null).getStatusCode());
-        assertEquals(Map.of(), store.vouchers);
-    }
-
-    @Test
-    void aPersonalAccountWithARootDomainAddressIsNoRoot() {
-        // Verified, but not nu01.com's Workspace (no hd): no admin at all.
-        var claims = new HashMap<>(Map.of("email", "mallory@nu01.com", "email_verified", "true"));
-        var event = RolesTest.event(claims);
-        event.setRouteKey("POST /api/auth/vouchers");
-        event.setBody("role=presence_admin&expiresAt=2026-10-05T00:00:00Z&maxUses=1");
-        assertEquals(403, admin.handleRequest(event, null).getStatusCode());
         assertEquals(Map.of(), store.vouchers);
     }
 

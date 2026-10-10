@@ -41,10 +41,10 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('new defaults: motion at 15 %, tag at 85 %, 100 events', () {
+  test('new defaults: motion at 15 %, tag at 90 %, 100 events', () {
     const c = PresenceConfig();
     expect(c.motion.threshold, 15);
-    expect(c.recognition.autoTag, 0.85);
+    expect(c.recognition.autoTag, 0.90);
     expect(c.subjects.mapEvents, 100);
     // Stored values are kept; only the defaults changed.
     final stored = PresenceConfig.fromJson({
@@ -167,7 +167,7 @@ void main() {
       find.byKey(const Key('recognition-auto-slider'), skipOffstage: false),
     );
     await tester.pumpAndSettle();
-    expect(find.text('85 % sure'), findsOneWidget);
+    expect(find.text('90 % sure'), findsOneWidget);
     expect(find.byKey(const Key('recognition-ask-slider')), findsNothing);
     expect(find.text('Ask me when at least'), findsNothing);
   });

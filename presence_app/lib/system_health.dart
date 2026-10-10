@@ -95,11 +95,11 @@ class SystemHealth extends StatelessWidget {
     );
   }
 
-  /// RBACR, which says who is premium (cloud sync), as the auth API
-  /// reports it ([ApiSettings.rbacr]): set, and whether this profile is
-  /// Premium or Free; ⚠️ when the API has cloud sync (AWS) but no RBACR, so
-  /// nobody can be premium; ⚪ when the API doesn't say (it hasn't answered,
-  /// or predates RBACR) and in DEV, where nobody signs in.
+  /// RBACR, which gives every role (membership, premium, administration),
+  /// as the auth API reports it ([ApiSettings.rbacr]): set, and whether
+  /// this profile is Premium or Free; ⚠️ when the API has no RBACR, so
+  /// nobody who signs in has a role; ⚪ when the API doesn't say (it hasn't
+  /// answered, or predates RBACR) and in DEV, where nobody signs in.
   static HealthPart rbacrOf(RolesService roles) {
     final settings = roles.apiSettings;
     if (roles.mode == ExecutionMode.dev) {
@@ -107,13 +107,11 @@ class SystemHealth extends StatelessWidget {
     }
     return switch (settings.rbacr) {
       null => ('⚪', "RBACR: the auth API doesn't say"),
-      false when settings.aws == true => (
+      false => (
         '⚠️',
-        'RBACR: not set on the auth API; nobody can be premium, so no '
-            'profile syncs with the cloud',
+        'RBACR: not set on the auth API; nobody who signs in has a role',
       ),
-      false => ('⚪', 'RBACR: not set; no cloud sync here anyway'),
-      true when !roles.hasAccess => ('✅', 'RBACR: set; says who is premium'),
+      true when !roles.hasAccess => ('✅', 'RBACR: set; gives the roles'),
       true when roles.isPremium => (
         '✅',
         'RBACR: set; this profile is Premium (cloud backup)',

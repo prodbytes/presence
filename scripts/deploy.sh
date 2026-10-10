@@ -21,8 +21,16 @@
 #      and /api/auth/anonymous must report RBAC mode, and /health must say
 #      every dependency is ok
 #
-# Run by .github/workflows/deploy.yml on *GA tags, or by hand with admin
-# credentials. Settings, from the environment:
+# Every role the stacks create carries the stage's permissions boundary
+# (<prefix>-app-boundary), and SAM uploads to the stage's own bucket
+# (<prefix>-sam-artifacts-<account>); both come from the
+# presence-github-deploy stack (presence_infra/github-deploy.yaml), which
+# must be deployed first. If the deploy fails, it prints the version that
+# was live before and how to put it back.
+#
+# Run by .github/workflows/deploy.yml on *GA tags (deploy-rc.yml on *RC*
+# tags, STAGE=rc), or by hand with admin credentials. Settings, from the
+# environment:
 #   TAG          the release tag, X.Y.Z-GA: its X.Y must match the version
 #                files and its Z becomes the build's Z (default: none, so Z
 #                is the current time)
@@ -32,20 +40,21 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
-#   PRESENCE_ROOT_DOMAINS the root allowlist's email domains, comma-separated
-#                (default nu01.com)
-#   PRESENCE_ROOT_EMAILS  the root allowlist's single emails, comma-separated
-#                (default none). Both also come from .env; their verified
-#                users get presence_root, presence_admin and presence_user.
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
-#   RBACR_TOKEN  an rbacr API token that may read the presence system's
-#                roles: who is premium (cloud sync). Required, from the
-#                environment (the RBACR_TOKEN secret in CI) or .env, since
-#                a deploy without it would make nobody premium; set
-#                RBACR_TOKEN=none to deploy without rbacr on purpose.
-#   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com; also .env)
+#   PERMISSIONS_BOUNDARY  the roles' boundary ARN (default: the stage's,
+#                arn:aws:iam::<account>:policy/<prefix>-app-boundary)
+#   SAM_ARTIFACT_BUCKET   where sam deploy uploads (default: the stage's,
+#                <prefix>-sam-artifacts-<account>)
+#   RBACR_TOKEN  an rbacr API token owned by an rbacr root: rbacr keeps every
+#                role (who may use the app, sync with the cloud, administer
+#                it; rbacr's root list makes roots), and memberships and
+#                vouchers grant there. Required, from the environment (the
+#                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
+#   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
+#                the only one prod accepts; also .env)
+#   RBACR_SYSTEM the rbacr system of the app's roles (default presence; also .env)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -57,7 +66,8 @@ case "$STAGE" in
   prod)
     stack_prefix=presence
     DOMAIN=presence.nu01.com
-    # Local development syncs with the prod bucket (see specs/cloud-sync.md).
+    # Local development syncs with the prod bucket (see specs/cloud-sync.md
+    # and specs/deploy.md: a separate dev bucket is recommended).
     ORIGINS="https://$DOMAIN,https://local.presence.nu01.com:8443,http://localhost:8080"
     ;;
   rc)
@@ -88,6 +98,43 @@ if [[ -n "${tag_xy:-}" && "$tag_xy" != "$VERSION_X.$VERSION_Y" ]]; then
 fi
 echo "==> deploying version $VERSION to https://$DOMAIN/ ($STAGE, $AWS_REGION)"
 
+# What was live before, so a failed deploy can say how to put it back.
+previous="$(curl -fsS --max-time 20 "https://$DOMAIN/app/version.json?deploy=$BUILD_NUMBER" 2>/dev/null \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null)" || previous=""
+if [[ ! "$previous" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  previous=""
+fi
+echo "    live before: ${previous:-unknown}"
+on_exit() {
+  local status=$?
+  [[ $status -eq 0 ]] && return
+  local kind=GA workflow=deploy.yml prefix=""
+  if [[ "$STAGE" == rc ]]; then kind=RC workflow=deploy-rc.yml prefix="STAGE=rc "; fi
+  local now
+  now="$(curl -fsS --max-time 20 "https://$DOMAIN/app/version.json?failed=$BUILD_NUMBER" 2>/dev/null \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null)" || now=""
+  {
+    echo
+    echo "error: the deploy of $VERSION to https://$DOMAIN/ failed (exit $status)."
+    echo "  live before this deploy: ${previous:-unknown}; live now: ${now:-unknown}"
+    if [[ -n "$previous" ]]; then
+      # The previous release's tag, if this checkout has it (CI's may not).
+      local tag
+      tag="$(git tag --list "$previous-$kind*" 2>/dev/null | tail -1)"
+      tag="${tag:-$previous-$kind}"
+      echo "  to put $previous back, re-run the $workflow workflow for its tag:"
+      if [[ "$STAGE" == rc ]]; then
+        echo "    gh workflow run $workflow -f tag=$tag"
+      else
+        echo "    gh run list --workflow $workflow --branch $tag   # then: gh run rerun <id>"
+      fi
+      echo "  or by hand, with admin credentials:"
+      echo "    git checkout $tag && ${prefix}TAG=$tag bash scripts/deploy.sh"
+    fi
+  } >&2
+}
+trap on_exit EXIT
+
 stack_output() { # stack_output <stack> <output key>
   aws cloudformation describe-stacks --stack-name "$1" \
     --query "Stacks[0].Outputs[?OutputKey=='$2'].OutputValue" --output text
@@ -104,22 +151,6 @@ for name in GOOGLE_WEB_CLIENT_ID HOSTED_ZONE_ID; do
   fi
 done
 
-# The root allowlist: optional, from the environment, else .env. Passed on
-# every deploy, so a stack never keeps an old value.
-for name in PRESENCE_ROOT_DOMAINS PRESENCE_ROOT_EMAILS; do
-  if [[ -z "${!name:-}" && -f .env ]]; then
-    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
-  fi
-  if [[ ! "${!name:-}" =~ ^[A-Za-z0-9._%+@,-]*$ ]]; then
-    echo "error: $name must be comma-separated domains or emails" >&2
-    exit 1
-  fi
-done
-PRESENCE_ROOT_DOMAINS="${PRESENCE_ROOT_DOMAINS:-nu01.com}"
-# Emails are people's: logged only as a count.
-root_emails=0; [[ -n "${PRESENCE_ROOT_EMAILS:-}" ]] && root_emails=$(tr ',' '\n' <<<"$PRESENCE_ROOT_EMAILS" | grep -c .)
-echo "    root allowlist: domains $PRESENCE_ROOT_DOMAINS, $root_emails email(s)"
-
 # Health alarm emails: from the environment, else .env, else the default.
 if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
   PRESENCE_HEALTH_EMAILS="$(sed -n 's/^PRESENCE_HEALTH_EMAILS=//p' .env | tail -1)"
@@ -131,24 +162,45 @@ if [[ ! "$PRESENCE_HEALTH_EMAILS" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+(,[A-Za-z0
 fi
 echo "    health alarm emails: $(tr ',' '\n' <<<"$PRESENCE_HEALTH_EMAILS" | grep -c .)"
 
-# rbacr, who says who's premium: from the environment, else .env. Never
-# logged. Required: an empty token would make nobody premium.
-for name in RBACR_TOKEN RBACR_URL; do
+# The stage's permissions boundary and SAM bucket (presence-github-deploy).
+account="$(aws sts get-caller-identity --query Account --output text)"
+PERMISSIONS_BOUNDARY="${PERMISSIONS_BOUNDARY:-arn:aws:iam::$account:policy/$stack_prefix-app-boundary}"
+SAM_ARTIFACT_BUCKET="${SAM_ARTIFACT_BUCKET:-$stack_prefix-sam-artifacts-$account}"
+if ! aws iam get-policy --policy-arn "$PERMISSIONS_BOUNDARY" >/dev/null 2>&1; then
+  echo "error: the permissions boundary $PERMISSIONS_BOUNDARY doesn't exist (or isn't readable)." >&2
+  echo "  An administrator deploys it with presence-github-deploy first (presence_infra/README.md)." >&2
+  exit 1
+fi
+if ! aws s3api head-bucket --bucket "$SAM_ARTIFACT_BUCKET" >/dev/null 2>&1; then
+  echo "error: the SAM artifact bucket $SAM_ARTIFACT_BUCKET doesn't exist (or isn't readable)." >&2
+  echo "  An administrator deploys it with presence-github-deploy first (presence_infra/README.md)." >&2
+  exit 1
+fi
+echo "    boundary: $PERMISSIONS_BOUNDARY, SAM bucket: $SAM_ARTIFACT_BUCKET"
+# rbacr, which keeps every role: from the environment, else .env. The token
+# is never logged. Required: without it nobody would have a role.
+for name in RBACR_TOKEN RBACR_URL RBACR_SYSTEM; do
   if [[ -z "${!name:-}" && -f .env ]]; then
     printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
   fi
 done
 RBACR_URL="${RBACR_URL:-https://rbacr.nu01.com}"
+RBACR_SYSTEM="${RBACR_SYSTEM:-presence}"
 if [[ -z "${RBACR_TOKEN:-}" ]]; then
-  echo "error: RBACR_TOKEN isn't set (environment or .env); RBACR_TOKEN=none deploys without rbacr (nobody premium)" >&2
+  echo "error: RBACR_TOKEN isn't set (environment or .env); without rbacr nobody has a role" >&2
   exit 1
 fi
-[[ "$RBACR_TOKEN" == none ]] && RBACR_TOKEN=""
-if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]*$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
-  echo "error: RBACR_TOKEN must be a token and RBACR_URL an https origin" >&2
+if [[ ! "$RBACR_TOKEN" =~ ^[A-Za-z0-9_-]+$ || ! "$RBACR_URL" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$
+      || ! "$RBACR_SYSTEM" =~ ^[a-z0-9][a-z0-9_.:-]{0,62}$ ]]; then
+  echo "error: RBACR_TOKEN must be a token, RBACR_URL an https origin and RBACR_SYSTEM an rbacr system ID" >&2
   exit 1
 fi
-echo "    rbacr: $RBACR_URL, $([[ -n "$RBACR_TOKEN" ]] && echo "with a token" || echo "none (nobody premium)")"
+# Prod's roles are GA rbacr's, never the RC's (local development's).
+if [[ "$STAGE" == prod && "$RBACR_URL" != https://rbacr.nu01.com ]]; then
+  echo "error: prod uses GA rbacr (https://rbacr.nu01.com), not $RBACR_URL" >&2
+  exit 1
+fi
+echo "    rbacr: $RBACR_URL, system $RBACR_SYSTEM, with a token"
 
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
@@ -160,7 +212,7 @@ aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
   --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
     "UserDataStackName=$USER_DATA_STACK" "IdentityPoolName=$stack_prefix" \
-    "Stage=$STAGE" \
+    "Stage=$STAGE" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
   --no-fail-on-empty-changeset
 # The app reads these at build time (scripts/dart-defines.sh).
 export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT
@@ -219,11 +271,12 @@ echo "==> deploying $AUTH_STACK"
   cd presence_api_auth
   sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
+    --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$AUTH_STACK" \
     --parameter-overrides "Version=$VERSION" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+      "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
-      "RootDomains=\"$PRESENCE_ROOT_DOMAINS\"" "RootEmails=\"${PRESENCE_ROOT_EMAILS:-}\"" \
-      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" \
+      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -234,7 +287,7 @@ echo "==> deploying $SITE_STACK"
 # AUTO_EXPAND: the template's Fn::ForEach (AWS::LanguageExtensions).
 aws cloudformation deploy --stack-name "$SITE_STACK" \
   --template-file presence_infra/site.yaml --capabilities CAPABILITY_AUTO_EXPAND \
-  --parameter-overrides "DomainName=$DOMAIN" \
+  --parameter-overrides "DomainName=$DOMAIN" "Stage=$STAGE" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
     "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
   --no-fail-on-empty-changeset
@@ -269,9 +322,7 @@ check() {
   # must have every expected setting.
   local anonymous
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
-  # rbacr is set exactly when this deploy passed a token.
-  local rbacr_set; rbacr_set=$([[ -n "$RBACR_TOKEN" ]] && echo true || echo false)
-  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":'"$rbacr_set"'}}' ]] \
+  [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
   # What the Route 53 health check polls: every dependency must be ok, and
   # the API must be this release.

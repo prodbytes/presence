@@ -1,7 +1,10 @@
 #!/bin/sh
-# presence: creates the presence system user and starts the camera kiosk
-# on a fresh install (unless a desktop holds the screen); restarts it on
-# upgrade if it's enabled.
+# presence: creates the presence system user and turns the camera kiosk on
+# for every boot on a fresh install (unless a desktop holds the screen),
+# starting it now unless that would take the screen from under this very
+# install (run from tty1, the kiosk's console) or systemd isn't running (an
+# image being built): then it asks for a reboot. Restarts it on upgrade if
+# it's enabled and running.
 set -e
 
 USER_NAME=presence
@@ -9,6 +12,26 @@ HOME_DIR=/var/lib/presence
 UNIT=presence-kiosk.service
 
 running() { [ -d /run/systemd/system ]; }
+
+# Whether this script runs from tty1, the kiosk's console: this process or
+# an ancestor (sudo with use_pty runs apt on a pseudo-terminal, but sudo
+# itself is still on tty1) has tty1 as its controlling terminal. Starting
+# the kiosk there would end the session running the install.
+on_tty1() {
+  pid=$$
+  while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
+    stat=$(cat "/proc/$pid/stat" 2>/dev/null) || return 1
+    # After "pid (comm) ": state ppid pgrp session tty_nr ...
+    set -f
+    # shellcheck disable=SC2086
+    set -- ${stat##*) }
+    set +f
+    # tty1 is major 4, minor 1: (4 << 8) | 1.
+    [ "${5:-}" = 1025 ] && return 0
+    pid=${2:-}
+  done
+  return 1
+}
 
 if [ "$1" = configure ]; then
   if ! getent passwd "$USER_NAME" >/dev/null; then
@@ -39,15 +62,23 @@ if [ "$1" = configure ]; then
       echo "presence: to boot into the camera instead: sudo presence-kiosk enable"
     else
       systemctl enable "$UNIT" || true
-      if running; then
+      if running && ! on_tty1; then
         systemctl start "$UNIT" || true
+        echo "presence: the camera kiosk is on (tty1) and starts at every boot."
+      else
+        echo "presence: the camera kiosk is enabled and starts at the next boot;"
+        echo "presence: reboot to start it (sudo reboot). It takes over tty1."
       fi
-      echo "presence: the camera kiosk is on (tty1) and starts at every boot."
       echo "presence: sudo presence-kiosk disable turns it off."
     fi
   elif running && systemctl is-enabled --quiet "$UNIT" 2>/dev/null; then
-    # Upgrade: pick up the new app.
-    systemctl try-restart "$UNIT" || true
+    # Upgrade: pick up the new app (only if it runs, so never on the
+    # console this runs from).
+    if on_tty1; then
+      echo "presence: reboot to run the new version of the camera kiosk (sudo reboot)."
+    else
+      systemctl try-restart "$UNIT" || true
+    fi
   fi
 fi
 

@@ -134,7 +134,7 @@ class SubjectRecognizer {
   /// On how many frames an object must be seen to be tagged, unless it's
   /// seen once at [sureObject] or more.
   static const int objectFrames = 2;
-  static const double sureObject = 0.7;
+  static const double sureObject = 0.8;
 
   static const int defaultMaxPending = 3;
   static const Duration defaultMemoryRetryAfter = Duration(seconds: 30);
