@@ -345,9 +345,10 @@ void main() {
       FakeRolesClient roles, [
       FakeMembershipClient? membership,
     ]) async {
-      // Tall enough for the Admin page's voucher list (below the requests
-      // and the feedback) above the navigation bar.
-      tester.view.physicalSize = const Size(1280, 1100);
+      // Tall enough for the Admin page's voucher list (below the
+      // maintenance card, the requests and the feedback) above the
+      // navigation bar.
+      tester.view.physicalSize = const Size(1280, 1300);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main');
@@ -584,7 +585,8 @@ void main() {
             .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
             .controller;
         await toggleLog(tester);
-        expect(tabs().length, 6, reason: 'with Help');
+        // With Help, and Profile last.
+        expect(tabs().length, 7, reason: 'with Help');
         expect(
           tester.getCenter(logTab).dx,
           lessThan(tester.getCenter(adminTab).dx),
@@ -600,7 +602,7 @@ void main() {
 
         // The Log tab hidden again: the Admin tab takes its place.
         await toggleLog(tester);
-        expect(tabs().length, 5);
+        expect(tabs().length, 6, reason: 'with Help and Profile');
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
         expect(tabs().index, 4);
@@ -1037,13 +1039,19 @@ void main() {
         );
         expect(
           tabs(tester).length,
-          5,
-          reason: 'with Help; the Log tab is hidden',
+          6,
+          reason: 'with Help; the Log tab is hidden; Profile is last',
         );
-        // Last in the navigation bar, after Settings.
+        // In the navigation bar, after Settings and before Profile.
         final settings = tester.getCenter(find.byTooltip('Settings'));
         final admin = tester.getCenter(adminTab);
         expect(settings.dx, lessThan(admin.dx));
+        expect(
+          admin.dx,
+          lessThan(
+            tester.getCenter(find.byKey(const Key('account-button'))).dx,
+          ),
+        );
         expect(
           tester.getRect(find.byType(HomeNavigationBar)).contains(admin),
           isTrue,

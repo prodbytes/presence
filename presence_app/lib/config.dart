@@ -619,14 +619,23 @@ class RecognitionConfig {
     this.autoTag = defaultAutoTag,
   });
 
-  static const double minConfidence = 0.3;
+  static const double minConfidence = 0.5;
   static const double maxConfidence = 0.95;
   static const double step = 0.05;
-  static const double defaultAutoTag = 0.85;
 
-  /// Under this confidence a match isn't asked about: a face scoring 30 %
-  /// has a cosine of 0.45, where different people mostly score (see
-  /// `faceConfidence`), so asking would mostly be about strangers.
+  /// 90 %: a face's cosine of 0.615, a person's look's of 0.79 (see
+  /// `faceConfidence`, `lookConfidence`). It was 85 %, which tagged too
+  /// many strangers as someone known.
+  static const double defaultAutoTag = 0.90;
+
+  /// The default before it was raised: a device still on it (never
+  /// changed) takes the new [defaultAutoTag].
+  static const double oldDefaultAutoTag = 0.85;
+
+  /// Under this confidence a match isn't asked about: a face scoring 50 %
+  /// has a cosine of 0.475, above 99.9 % of different people's (LFW), a
+  /// person's look 0.675 (see `faceConfidence`, `lookConfidence`); lower,
+  /// asking would mostly be about strangers.
   static const double askFloor = minConfidence;
 
   final bool enabled;
@@ -652,13 +661,18 @@ class RecognitionConfig {
   };
 
   /// Records from before always asking also have an `ask` level; it's
-  /// ignored.
-  factory RecognitionConfig.fromJson(Map<String, Object?> json) =>
-      const RecognitionConfig().copyWith(
-        enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
-        objects: json['objects'] is bool ? json['objects']! as bool : null,
-        autoTag: _num(json['autoTag']),
-      );
+  /// ignored. One left at the [oldDefaultAutoTag] takes the
+  /// [defaultAutoTag]; one under [minConfidence] is raised to it.
+  factory RecognitionConfig.fromJson(Map<String, Object?> json) {
+    final autoTag = _num(json['autoTag']);
+    return const RecognitionConfig().copyWith(
+      enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
+      objects: json['objects'] is bool ? json['objects']! as bool : null,
+      autoTag: autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
+          ? defaultAutoTag
+          : autoTag,
+    );
+  }
 
   @override
   bool operator ==(Object other) =>

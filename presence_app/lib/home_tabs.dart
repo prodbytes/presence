@@ -19,15 +19,21 @@ enum HomeTab {
   log('Log', Icons.receipt_long_outlined, Icons.receipt_long),
 
   /// Signed-in admins only (not DEV: there are no accounts): membership
-  /// requests, members' feedback and voucher codes (`AdminView`). Last;
-  /// with the Help or Log tab hidden it moves up, so map a tab to its
-  /// controller index through the shown tabs ([HomeTabs.indexOf]), never by
-  /// [HomeTab.index] alone.
+  /// requests, members' feedback and voucher codes (`AdminView`). Before
+  /// Profile; with the Help or Log tab hidden it moves up, so map a tab to
+  /// its controller index through the shown tabs ([HomeTabs.indexOf]),
+  /// never by [HomeTab.index] alone.
   admin(
     'Admin',
     Icons.admin_panel_settings_outlined,
     Icons.admin_panel_settings,
-  );
+  ),
+
+  /// Signed-in users with access, not DEV (there are no accounts): who's
+  /// signed in, the profile's devices, sign-out and about (`AccountSheet`,
+  /// as a page). Always last, as phone apps put "You"; its icon is the
+  /// user's avatar when there is one.
+  profile('Profile', Icons.person_outline, Icons.person);
 
   const HomeTab(this.label, this.icon, this.selectedIcon, {String? title})
     : title = title ?? label;
@@ -45,17 +51,20 @@ enum HomeTab {
   final IconData selectedIcon;
 
   /// The tabs shown, in [HomeTab] order: the Help tab with [help], the Log
-  /// tab with [log], the Admin tab with [admin], the others always.
+  /// tab with [log], the Admin tab with [admin], the Profile tab with
+  /// [profile], the others always.
   static List<HomeTab> shown({
     required bool log,
     required bool admin,
     bool help = false,
+    bool profile = false,
   }) => [
     for (final tab in values)
       if (switch (tab) {
         HomeTab.help => help,
         HomeTab.log => log,
         HomeTab.admin => admin,
+        HomeTab.profile => profile,
         _ => true,
       })
         tab,

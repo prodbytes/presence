@@ -40,7 +40,8 @@ import static presence.auth.Http.response;
  * {@code POST /api/auth/voucher}: a signed-in user redeems a voucher code
  * (the plain-text body). A valid code (it exists, its validity has started
  * and hasn't ended, it has uses left, and this email hasn't used it) with a
- * full (100%) discount counts a use and grants its role. A valid code with
+ * full (100%) discount counts a use and grants its role in rbacr ({@link
+ * Roles#GRANTED_AS}: {@code free} or {@code admin}). A valid code with
  * a smaller discount gets 402 with its discount, and grants nothing and
  * counts no use: the user would pay the rest, which isn't built yet. So a
  * 402 does tell that a partial-discount code exists and is redeemable now
@@ -59,7 +60,7 @@ import static presence.auth.Http.response;
  */
 public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
-    /** The roles a voucher may grant; never {@link Roles#ROOT}, which only the allowlist gives. */
+    /** The roles a voucher may grant; never {@link Roles#ROOT}, which only rbacr's root list gives. */
     static final Set<String> ROLES = Set.of(Roles.USER, Roles.ADMIN);
 
     /** The most uses one voucher may have. */
@@ -166,23 +167,23 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     private final Store store;
-    private final BiConsumer<String, Set<String>> grant;
+    private final BiConsumer<String, String> grant;
     private final Lockout lockout;
     private final Clock clock;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public VoucherHandler() {
         this(dynamoStore(System.getenv("VOUCHER_TABLE")),
-                UserRoles.grant(Aws.dynamo(), System.getenv("USER_ROLES_TABLE")),
+                (email, role) -> Rbacr.fromEnvironment().grant(email, Roles.GRANTED_AS.get(role)),
                 UserRoles.lockout(Aws.dynamo(), System.getenv("USER_ROLES_TABLE"), MAX_MISSES, MISS_WINDOW),
                 Clock.systemUTC());
     }
 
     /**
-     * @param grant   adds roles to an email's roles in the UserRoles table
+     * @param grant   grants an email a voucher's role (one of {@link #ROLES}) in rbacr
      * @param lockout each email's wrong codes
      */
-    VoucherHandler(Store store, BiConsumer<String, Set<String>> grant, Lockout lockout, Clock clock) {
+    VoucherHandler(Store store, BiConsumer<String, String> grant, Lockout lockout, Clock clock) {
         this.store = store;
         this.grant = grant;
         this.lockout = lockout;
@@ -225,7 +226,7 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var role = voucher.role();
         var roles = rolesFor(role);
         try {
-            grant.accept(email, roles);
+            grant.accept(email, role);
         } catch (RuntimeException e) {
             store.release(code, email);
             throw e;
@@ -236,15 +237,18 @@ public class VoucherHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     }
 
     /**
-     * What a voucher's role grants: {@code presence_admin} comes with
-     * {@code presence_user}, since the Admin screen needs both.
+     * The app's roles a voucher's role gives ({@link Roles#FROM} of its
+     * rbacr role): {@code presence_admin} comes with {@code presence_user}
+     * and {@code presence_premium}.
      */
     static Set<String> rolesFor(String role) {
+        var granted = Roles.GRANTED_AS.get(role);
         var roles = new TreeSet<String>();
-        roles.add(role);
-        if (Roles.ADMIN.equals(role)) {
-            roles.add(Roles.USER);
-        }
+        Roles.FROM.forEach((given, from) -> {
+            if (from.contains(granted)) {
+                roles.add(given);
+            }
+        });
         return roles;
     }
 

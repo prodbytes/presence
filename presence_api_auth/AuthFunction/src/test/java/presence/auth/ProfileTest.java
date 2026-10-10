@@ -109,12 +109,11 @@ class ProfileTest {
         }
     };
 
-    /** rbacr's roles in the presence system, by email. */
-    private final Map<String, Set<String>> rbacr = new HashMap<>();
+    /** rbacr's roles in the presence system, by email: julio@ and ana@nu01.com are (free) members, others nothing. */
+    private final Map<String, Set<String>> rbacr = new HashMap<>(Map.of(
+            "julio@nu01.com", Set.of("free"), "ana@nu01.com", Set.of("free")));
 
-    /** nu01.com gets both roles; julio@gmail.com and others none; premium from {@link #rbacr}. */
-    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of(),
-            e -> rbacr.getOrDefault(e, Set.of()));
+    private final Roles roles = new Roles(e -> rbacr.getOrDefault(e, Set.of()));
 
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
@@ -137,8 +136,8 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
 
         assertEquals(200, response.getStatusCode());
-        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\",\"tier\":\"free\"}",
-                response.getBody());
+        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
+                + "\"deviceLimit\":2,\"devices\":[],\"tier\":\"free\"}", response.getBody());
         var profile = profileOf("work");
         assertEquals("profile_1", profile.id());
         assertEquals(GOOGLE + "#work", profile.ownerSubject());
@@ -154,6 +153,76 @@ class ProfileTest {
     }
 
     @Test
+    void credentialsListTheProfilesDevicesInTheOrderTheyCame() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var first = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(first.getBody().contains(",\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\"],"),
+                first.getBody());
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "third_shy_kettle"), null);
+        // Asking again keeps a device's place.
+        var again = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(again.getBody().contains(",\"devices\":[\"first_quiet_gadget\",\"second_bold_lamp\","
+                + "\"third_shy_kettle\"],"), again.getBody());
+        // Without a device (an older app), the list as it is.
+        var none = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertTrue(none.getBody().contains("\"third_shy_kettle\"]"), none.getBody());
+        // Premium shows fifty.
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        var premium = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(premium.getBody().contains(",\"deviceLimit\":50,"), premium.getBody());
+    }
+
+    @Test
+    void aProfileListsAtMostFiftyDevices() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        String last = null;
+        for (var i = 0; i < 51; i++) {
+            var device = "device_" + (char) ('a' + i / 26) + (char) ('a' + i % 26) + "_lamp";
+            last = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", device), null)
+                    .getBody();
+        }
+        assertEquals(50, store.devices.get("profile_1").size());
+        assertFalse(last.contains("device_by_lamp"), last);
+    }
+
+    @Test
+    void credentialsRefuseABodyThatIsntADeviceId() {
+        for (var body : List.of("Not A Device", "a_b", "x".repeat(65), "{\"device\":\"a_b_c\"}")) {
+            var response = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", body), null);
+            assertEquals(400, response.getStatusCode(), body);
+        }
+        assertTrue(tokensIssued.isEmpty());
+    }
+
+    @Test
+    void aRemovedDeviceGivesItsPlaceToTheNext() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        for (var device : List.of("first_quiet_gadget", "second_bold_lamp", "third_shy_kettle")) {
+            profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", device), null);
+        }
+        var removed = profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        assertEquals(200, removed.getStatusCode());
+        assertEquals("{\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\",\"third_shy_kettle\"]}",
+                removed.getBody());
+        // Back again, it's last.
+        var back = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "second_bold_lamp"), null);
+        assertTrue(back.getBody().contains("[\"first_quiet_gadget\",\"third_shy_kettle\",\"second_bold_lamp\"]"),
+                back.getBody());
+        // Only a member, and only a device ID.
+        assertEquals(403, profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "home", "julio@gmail.com", "third_shy_kettle"), null)
+                .getStatusCode());
+        assertEquals(400, profiles.handleRequest(
+                call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com", ""), null).getStatusCode());
+    }
+
+    @Test
     void credentialsNeedPresenceUser() {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(403, response.getStatusCode());
@@ -164,6 +233,7 @@ class ProfileTest {
 
     @Test
     void aLinkedAccountGetsTheSameFolderAndMembershipButNotAdministration() {
+        rbacr.put("julio@nu01.com", Set.of("admin"));
         googleIdentities.put("tok-work", "us-east-1:work");
         foldersWithData.add("us-east-1:work");
         var code = linkCode("work", "julio@nu01.com");
@@ -175,13 +245,13 @@ class ProfileTest {
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
-        // The gmail account now has nu01.com's folder and membership, here
-        // and in GET /api/auth, but not its administration.
+        // The gmail account now has nu01.com's folder, membership and
+        // premium, here and in GET /api/auth, but not its administration.
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
-        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_user\"]}",
+        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
         // And the Admin routes, which never make a profile: no admin.
         var admin = new AdminHandler(roles, new Profiles(store)::existing, null, new VoucherTest.MemoryStore(), clock);
@@ -195,8 +265,8 @@ class ProfileTest {
     }
 
     @Test
-    void anOwnerWithoutItsWorkspaceSharesNoMembership() {
-        // The owner's nu01.com address is a personal Google account (no hd).
+    void anOwnerWithoutRolesSharesNoMembership() {
+        // rbacr gives mallory@nu01.com nothing.
         var event = call("POST /api/auth/profile/link-code", "mallory", "mallory@nu01.com", null);
         event.getRequestContext().getAuthorizer().getJwt().setClaims(Map.of("iss", GOOGLE, "sub", "mallory",
                 "email", "mallory@nu01.com", "email_verified", "true"));
@@ -334,7 +404,7 @@ class ProfileTest {
     @Test
     void credentialsAreTaggedPremiumOnlyWhenRbacrSaysSo() {
         googleIdentities.put("tok-work", "us-east-1:work");
-        // A member rbacr knows nothing of: free, live sync only.
+        // A free member: live sync only.
         var free = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
         assertEquals(200, free.getStatusCode());
         assertTrue(free.getBody().endsWith(",\"tier\":\"free\"}"), free.getBody());
@@ -352,7 +422,7 @@ class ProfileTest {
         rbacr.put("julio@nu01.com", Set.of("premium"));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
         assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":\"profile_1\",\"roles\":["
-                        + "\"presence_admin\",\"presence_premium\",\"presence_root\",\"presence_user\"]}",
+                        + "\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "work", "julio@nu01.com", null), null).getBody());
     }
 
@@ -366,20 +436,18 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertTrue(response.getBody().endsWith(",\"tier\":\"premium\"}"), response.getBody());
         // The owner's premium gone: the folder is free for both.
-        rbacr.remove("julio@nu01.com");
+        rbacr.put("julio@nu01.com", Set.of("free"));
         response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertTrue(response.getBody().endsWith(",\"tier\":\"free\"}"), response.getBody());
     }
 
     @Test
-    void premiumComesFromRbacrAloneNeverFromTheRolesTable() {
-        var tabled = new Roles(Set.of(), Set.of(), e -> Set.of(Roles.USER, Roles.PREMIUM));
-        assertEquals(Set.of(Roles.USER), tabled.of("ana@example.com", true, null));
-        // And not for an unverified email, whatever rbacr says.
-        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
+    void premiumIsOnlyForAVerifiedEmail() {
+        // Not for an unverified email, whatever rbacr says.
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false));
         rbacr.put("julio@gmail.com", Set.of("premium"));
-        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
-        assertEquals(Set.of(Roles.PREMIUM), roles.of("julio@gmail.com", true, null));
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of("julio@gmail.com", true));
     }
 
     @Test
@@ -393,12 +461,9 @@ class ProfileTest {
         assertEquals(Set.of(), roles.of(unverified, owned));
         assertEquals(Set.of(), roles.of(gmail, null));
         assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", null, null)));
-        // An owner without its Workspace is no member to share.
-        assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", "julio@nu01.com", null)));
-        // A member by the roles table shares that.
-        var members = new Roles(Set.of(), Set.of(), e -> e.equals("ana@example.com")
-                ? Set.of(Roles.USER, Roles.ADMIN) : Set.of());
-        assertEquals(Set.of(Roles.USER),
+        // An admin owner shares membership and premium, never the administration.
+        var members = new Roles(e -> e.equals("ana@example.com") ? Set.of("admin") : Set.of());
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER),
                 members.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#ana", "ana@example.com", null)));
     }
 
@@ -466,7 +531,9 @@ class ProfileTest {
         });
 
         assertEquals("CognitoIdentity GetId: UnknownOperationException (HTTP 400); "
-                + "the endpoint doesn't implement it (a local AWS emulator?)", Aws.cause(e));
+                + "the endpoint doesn't implement it: a local AWS emulator (Floci, in the local"
+                + " stack) has no CognitoIdentity, so this works only against AWS (the RC or"
+                + " production)", Aws.cause(e));
     }
 
     @Test

@@ -95,11 +95,7 @@ public class FeedbackHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public FeedbackHandler() {
-        // Premium doesn't matter here: no rbacr.
-        this(new Roles(Roles.list(System.getenv("PRESENCE_ROOT_DOMAINS")),
-                        Roles.list(System.getenv("PRESENCE_ROOT_EMAILS")),
-                        email -> UserRoles.declared(Aws.dynamo(), System.getenv("USER_ROLES_TABLE"), email)),
-                Profiles.fromEnvironment()::existing,
+        this(Roles.fromEnvironment(), Profiles.fromEnvironment()::existing,
                 dynamoStore(System.getenv("FEEDBACK_TABLE")),
                 Clock.systemUTC());
     }

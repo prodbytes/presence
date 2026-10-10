@@ -1,35 +1,34 @@
 # Membership
 
 Who may use Presence, how people ask, and the voucher codes that let them
-in without asking. Roles come from the
-[auth API](auth-api.md):
+in without asking. Roles come from
+[rbacr](https://github.com/prodbytes/rbacr), the organisation's role
+manager, through the [auth API](auth-api.md); its `presence` system's
+roles, in brackets below:
 
 | Who | Roles | Sees |
 |---|---|---|
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
-| Member | `presence_user` | every feature: tabs, camera buttons, cloud sync; live sync at most every 30 s |
-| Admin | `presence_user`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers; live sync always connected |
-| Root | `presence_user`, `presence_admin`, `presence_root` | as Admin, and also creates Admin vouchers |
+| Member (`free`) | `presence_user` | every feature: tabs, camera buttons; devices sync over live sync, at most every 30 s |
+| Premium member (`premium`) | `presence_user`, `presence_premium` | as Member, and cloud sync |
+| Admin (`admin`) | `presence_user`, `presence_premium`, `presence_admin` | every feature, plus the **Admin** tab; creates Member vouchers; live sync always connected |
+| Root (rbacr's root list) | all four, `presence_root` too | as Admin, and also creates Admin vouchers |
 
-Roots are the auth API's **root allowlist**: verified emails at one of
-`PRESENCE_ROOT_DOMAINS` (`nu01.com`) from an account of that domain's
-Google Workspace (the token's `hd` claim), or listed in
-`PRESENCE_ROOT_EMAILS` (none by default; Gmail or Workspace addresses
-only). A personal Google account registered with a `nu01.com` address
-isn't a root (see [Auth API](auth-api.md)). Roots get all three roles,
-and nothing else gives `presence_root`. Everyone else starts unknown, and
-gets roles from an administrator's grant or a voucher code. So admins are
-made only by roots (or by hand in `UserRolesTable`), and admins can only
-add members. An account linked to another's profile shares its
-membership (`presence_user`) only, never `presence_admin` or
+Roots are **rbacr's roots**: the addresses and domains on rbacr's root
+list (`@nu01.com` by default), configured in rbacr, not here. They get
+every role, and nothing else gives `presence_root`. Everyone else starts
+unknown, and gets roles from an administrator's grant or a voucher code
+here (rbacr grants of `free` or `admin`), or from rbacr directly (its
+pages, its own vouchers, and its Substack sync, which gives `premium`).
+So in presence admins are made only by roots, and admins can only add
+members. An account linked to another's profile shares its membership
+(`presence_user`) and premium only, never `presence_admin` or
 `presence_root`.
 
 Members are **premium** or **free** ([Premium and free](premium.md)):
-rbacr, the organisation's role manager, says who is premium
-(`presence_premium`, from its `premium` or `admin` role). Premium profiles
-sync with the cloud; free ones' devices sync with each other over live
-sync only. This app's vouchers grant membership or admin, not premium
-(premium is granted in rbacr, which has vouchers of its own). Roles also
+premium profiles sync with the cloud; free ones' devices sync with each
+other over live sync only. This app's vouchers grant membership or
+admin, not premium alone. Roles also
 set limits: **Connect to live sync** is always connected for admins, and at
 most every 30 s for members (see [Live sync](live-sync.md#when-it-connects)).
 
@@ -110,9 +109,11 @@ dates, which have no `startsAt`, start at `createdAt`). Redeeming is one
 conditional update (the code exists, `startsAt` is missing or not after
 now, `expiresAt` is after now, `uses < maxUses`, and the email isn't in
 `redeemedBy`), so concurrent redemptions can't overspend a code. The role
-is then added to the user's roles in `UserRolesTable` (one atomic `ADD` to
-the string set); if that fails, the use is given back and the answer is
-502. Every other refused code gets the same 404, so it doesn't tell which
+is then granted in rbacr (`free` for a Member voucher, `admin` for an
+Admin one, to the redeemer's address, for good); if that fails (rbacr
+down, refusing), the use is given back and the answer is 502. The answer
+lists the app's roles the grant gives: `["presence_user"]`, or
+`["presence_admin", "presence_premium", "presence_user"]`. Every other refused code gets the same 404, so it doesn't tell which
 of unknown, not yet valid, expired, used up or already used it is, and the
 route is throttled (1 a second, burst 5). The update's condition also
 requires a full discount (or none stored, for vouchers from before
@@ -121,8 +122,8 @@ otherwise redeem with a partial discount gets 402 instead of 404: a 402
 does tell that such a code exists.
 
 **Lockout:** each 404 counts against the email in its `UserRolesTable`
-item (`voucherMisses` since `voucherMissesSince`, epoch ms; no role is
-declared by it). After **10 wrong codes within an hour** of the first, the
+item (`voucherMisses` since `voucherMissesSince`, epoch ms; the table
+holds nothing else now). After **10 wrong codes within an hour** of the first, the
 email gets **429** "too many wrong codes; try again later" for the rest
 of that hour, even for a good code; the next miss after it starts a new
 hour. A 402 isn't a miss. With the shared throttle, guessing a random
@@ -138,19 +139,19 @@ with the app bar naming it "Admin", with no back button, and a browser refresh c
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,
-up to 720 dp wide, with three sections: the membership requests, the
+up to 720 dp wide, with four sections: the [maintenance mode](maintenance.md#switching-it)
+card (with Reload by its heading), the membership requests, the
 members' [feedback](feedback.md#on-the-admin-tab) (their Help tab
 conversations, with a Reply field each) and the voucher codes. It loads
-the three lists each time it's opened.
+them each time it's opened.
 
 **Membership requests:**
 
 - the pending requests, oldest first, as cards: name, email, date and
   message;
-- **Grant access** adds `presence_user` to that email's roles in
-  `UserRolesTable` (one atomic `ADD` to its string set; roles written by
-  hand as a list or a string are rewritten as a set first) and
-  removes the request. **Dismiss** hides it: the row stays, marked
+- **Grant access** grants that email rbacr's `free` (`presence_user`),
+  for good, and removes the request; if rbacr refuses or doesn't answer,
+  it fails (502) and the request stays. **Dismiss** hides it: the row stays, marked
   `dismissed`, so the requester still waits out the hour before asking
   again. A message confirms either;
 - "No pending requests." when there are none.
@@ -192,8 +193,8 @@ Help](feedback.md#on-the-admin-tab).
   the API sends it without its code (`"code": null, "hidden": true`) and
   refuses to delete it (403), so an admin can't pass the Admin role on.
 
-**Reload** (a refresh icon beside the "Membership requests" heading) and
-pull to refresh fetch both lists again; each section
+**Reload** (a refresh icon beside the "Maintenance mode" heading, the
+page's first) and pull to refresh fetch all three again; each section
 shows its own loading error.
 
 The admin routes check both roles themselves, as the app does, so hiding
@@ -205,12 +206,17 @@ is the app's client (a fake in tests).
 - Administrators aren't told about new requests; they have to open the
   Admin tab.
 - A request's **Grant access** gives `presence_user` only.
-  `presence_admin` comes from the root allowlist, a root's Admin voucher,
-  or editing `UserRolesTable` by hand, for the account's own email: never
-  from the owner of a profile the account is linked to.
-- Changing the root allowlist takes a deploy (it's a stack parameter).
+  `presence_admin` comes from a root's Admin voucher or a grant of
+  `admin` in rbacr, for the account's own email: never from the owner of
+  a profile the account is linked to.
+- Taking a role back, a domain or time-limited grant, and the root list
+  are rbacr's: there's no screen for them here.
 - Deleting a voucher, or its expiry, doesn't take back the roles it
   granted.
+- When rbacr can't answer, nobody has a role (it fails closed): the app
+  shows signed-in users as unknown until it answers again.
+- The voucher codes themselves still live here (`VoucherTable`), not in
+  rbacr, until rbacr can redeem a code for another address.
 - Suggested codes are far easier to guess than random ones: with the
   season known, about 620,000 (63 animals, numbers 100 to 9999), against
   2^60. The per-email lockout (10 an hour) makes one account need years,

@@ -10,11 +10,11 @@ Description: >
   profile's cloud credentials and link its accounts. A JWT authorizer
   checks the Google ID token first. GET /api/auth/anonymous (no token)
   returns the execution mode and which settings are set; GET /health (no
-  token) checks the dependencies. Roles: the root allowlist (RootDomains
-  for that Google Workspace, RootEmails) gets every role; the UserRoles
-  table adds more (never presence_root); rbacr's premium or admin gives
-  presence_premium; a linked account shares only its owner's
-  presence_user and presence_premium. Served under /api/* by CloudFront.
+  token) checks the dependencies. Every role comes from rbacr (its
+  presence system: free, premium, admin; its roots get all), and
+  memberships and vouchers grant there. A linked account shares only its
+  owner's presence_user and presence_premium. Served under /api/* by
+  CloudFront.
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
@@ -54,6 +54,14 @@ Parameters:
       (AWS IoT requires one for authenticated identities). Empty: live sync
       is off, and nothing is attached.
     AllowedPattern: '[A-Za-z0-9_+=,.@-]*'
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The permissions boundary every function role gets (the stage's
+      <prefix>-app-boundary from presence_infra/github-deploy.yaml; passed by
+      scripts/deploy.sh, which the deploy roles require). Empty locally (Floci).
+    AllowedPattern: '(arn:aws[a-z-]*:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+)?'
   Architecture:
     Type: String
     Default: arm64
@@ -61,48 +69,36 @@ Parameters:
     Description: >
       The Lambdas' CPU. arm64 in AWS; the local Floci deploy passes the
       host's, so they run without emulation (x86_64 on GitHub Codespaces).
-  RootDomains:
-    Type: String
-    Default: nu01.com
-    Description: >
-      PRESENCE_ROOT_DOMAINS: comma-separated Google Workspace domains whose
-      users get presence_root, presence_admin and presence_user: a verified
-      email at the domain, with the ID token's hd claim the same domain (a
-      personal Google account registered with such an address has no hd,
-      and gets nothing from this list).
-  RootEmails:
-    Type: String
-    Default: ''
-    Description: >
-      PRESENCE_ROOT_EMAILS: comma-separated verified emails that get
-      presence_root, presence_admin and presence_user, matched whole without
-      hd: list only Gmail or Workspace addresses, whose Google account
-      nobody else can register. Empty by default; set it at deploy
-      (scripts/deploy.sh), never in the repository.
   RbacrUrl:
     Type: String
     Default: https://rbacr.nu01.com
     Description: >
-      RBACR_URL: rbacr (github.com/prodbytes/rbacr), which says who is
-      premium: an email holding premium or admin in its presence system
-      gets presence_premium, so its credentials may use the bucket (cloud
-      sync). Everyone else's devices sync with each other over live sync
-      only.
+      RBACR_URL: rbacr (github.com/prodbytes/rbacr), which keeps every
+      role: who may use the app (free), sync with the cloud (premium),
+      administer it (admin) or is a root (rbacr's root list). Membership
+      grants and vouchers grant there.
   RbacrToken:
     Type: String
     Default: ''
     NoEcho: true
     Description: >
-      RBACR_TOKEN: an rbacr API token that may read the presence system's
-      roles (one owned by an admin of the system). Empty: nobody is
-      premium. Set it at deploy (scripts/deploy.sh, from the RBACR_TOKEN
-      secret), never in the repository.
+      RBACR_TOKEN: an rbacr API token owned by an rbacr root, which may ask
+      about anyone's roles and grant them. Empty: nobody has a role, and
+      /health fails. Set it at deploy (scripts/deploy.sh, from the
+      RBACR_TOKEN secret), never in the repository.
+  RbacrSystem:
+    Type: String
+    Default: presence
+    AllowedPattern: '[a-z0-9][a-z0-9_.:-]{0,62}'
+    Description: >
+      RBACR_SYSTEM: the rbacr system the app's roles are in.
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
   HasRbacr: !Not [!Equals [!Ref RbacrToken, '']]
 
 Globals:
@@ -112,9 +108,13 @@ Globals:
       - !Ref Architecture
     MemorySize: 512
     Timeout: 10
+    PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
 
 Resources:
-  # Roles declared per user, by email: {"email": "<lowercase>", "roles": SS or L}.
+  # Per user, by email: {"email": "<lowercase>", "voucherMisses",
+  # "voucherMissesSince"} (the voucher lockout). Its "roles" (SS or L) are
+  # what roles were before rbacr, copied there by
+  # scripts/migrate-roles-to-rbacr.sh and no longer read.
   # Its contents live only here, never in the repository.
   UserRolesTable:
     Type: AWS::DynamoDB::Table
@@ -266,6 +266,21 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # The system's own state, one item per setting: {"id": "maintenance",
+  # "on", "message", "since" (epoch ms), "by" (the admin's email)}.
+  SystemTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -329,23 +344,24 @@ Resources:
       Handler: presence.auth.AuthHandler::handleRequest
       Environment:
         Variables:
-          USER_ROLES_TABLE: !Ref UserRolesTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
-          # The root allowlist: its verified users get every role (Roles).
-          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
-          PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          # rbacr gives every role (Roles).
           RBACR_URL: !Ref RbacrUrl
           RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
           # Decides the ExecutionMode: DEV when empty, else RBAC.
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
           # GET /api/auth/anonymous says whether these are set (Settings).
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
+          # GET /api/auth/anonymous says whether maintenance mode is on.
+          SYSTEM_TABLE: !Ref SystemTable
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref UserRolesTable
         - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt SystemTable.Arn
             # Finds the subject's profile, or links it to a new one.
             - Effect: Allow
               Action:
@@ -407,6 +423,10 @@ Resources:
         Variables:
           VOUCHER_TABLE: !Ref VoucherTable
           USER_ROLES_TABLE: !Ref UserRolesTable
+          # Grants the voucher's role in rbacr.
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
       Policies:
         - Statement:
             # Counts a use (one conditional update), or gives it back if the
@@ -416,8 +436,7 @@ Resources:
                 - dynamodb:GetItem
                 - dynamodb:UpdateItem
               Resource: !GetAtt VoucherTable.Arn
-            # Adds the voucher's role to the redeemer's roles, and counts
-            # the email's wrong codes (the lockout).
+            # Counts the email's wrong codes (the lockout).
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
@@ -438,13 +457,15 @@ Resources:
       Handler: presence.auth.AdminHandler::handleRequest
       Environment:
         Variables:
-          USER_ROLES_TABLE: !Ref UserRolesTable
-          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
-          PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          # Checks the caller's roles and grants memberships in rbacr.
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
           MEMBERSHIP_TABLE: !Ref MembershipTable
           VOUCHER_TABLE: !Ref VoucherTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          SYSTEM_TABLE: !Ref SystemTable
       Policies:
         - Statement:
             # The caller's profile owner, whose membership a linked subject shares.
@@ -453,12 +474,6 @@ Resources:
               Resource:
                 - !GetAtt ProfileSubjectsTable.Arn
                 - !GetAtt ProfilesTable.Arn
-            # Checks the caller's roles and grants presence_user.
-            - Effect: Allow
-              Action:
-                - dynamodb:GetItem
-                - dynamodb:UpdateItem
-              Resource: !GetAtt UserRolesTable.Arn
             # Lists, dismisses (a flag) and, after a grant, removes requests.
             - Effect: Allow
               Action:
@@ -474,6 +489,12 @@ Resources:
                 - dynamodb:Scan
                 - dynamodb:DeleteItem
               Resource: !GetAtt VoucherTable.Arn
+            # Reads and switches maintenance mode.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt SystemTable.Arn
       Events:
         List:
           Type: HttpApi
@@ -511,6 +532,18 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/vouchers/delete
             Method: post
+        GetMaintenance:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/maintenance
+            Method: get
+        SetMaintenance:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/maintenance
+            Method: post
 
   # Feedback and Help: members write to the administrators, who reply.
   FeedbackFunction:
@@ -520,9 +553,10 @@ Resources:
       Handler: presence.auth.FeedbackHandler::handleRequest
       Environment:
         Variables:
-          USER_ROLES_TABLE: !Ref UserRolesTable
-          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
-          PRESENCE_ROOT_EMAILS: !Ref RootEmails
+          # Checks the caller's roles in rbacr (members write, admins read).
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
           FEEDBACK_TABLE: !Ref FeedbackTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
@@ -579,11 +613,9 @@ Resources:
       Handler: presence.auth.ProfileHandler::handleRequest
       Environment:
         Variables:
-          USER_ROLES_TABLE: !Ref UserRolesTable
-          PRESENCE_ROOT_DOMAINS: !Ref RootDomains
-          PRESENCE_ROOT_EMAILS: !Ref RootEmails
           RBACR_URL: !Ref RbacrUrl
           RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable
@@ -594,8 +626,6 @@ Resources:
           # Live sync's IoT policy, attached to each identity (empty: off).
           IOT_POLICY_NAME: !Ref IotPolicyName
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref UserRolesTable
         - Statement:
             # Links, moves and unlinks subjects; lists a profile's.
             - Effect: Allow
@@ -679,6 +709,12 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/unlink
             Method: post
+        RemoveDevice:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/devices/remove
+            Method: post
 
   # GET /health: whether every dependency answers (presence.auth.HealthHandler),
   # polled by the site's Route 53 health check. Read-only: it only
@@ -706,6 +742,7 @@ Resources:
               - !Ref VoucherTable
               - !Ref LinkCodesTable
               - !Ref FeedbackTable
+              - !Ref SystemTable
       Policies:
         - Statement:
             - Effect: Allow
@@ -718,6 +755,7 @@ Resources:
                 - !GetAtt VoucherTable.Arn
                 - !GetAtt LinkCodesTable.Arn
                 - !GetAtt FeedbackTable.Arn
+                - !GetAtt SystemTable.Arn
             # HeadBucket needs ListBucket; the bucket only ("none" when unset).
             - Effect: Allow
               Action: s3:ListBucket
@@ -744,7 +782,7 @@ Outputs:
     Description: The HTTP API's host name (the site distribution's /api/* origin)
     Value: !Sub "${AuthHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
   UserRolesTableName:
-    Description: Where roles are declared per user (email -> roles)
+    Description: The voucher lockout per user (email -> voucherMisses); its old roles are rbacr's now
     Value: !Ref UserRolesTable
   ProfilesTableName:
     Description: Profiles (id -> createdAt, lastSignInAt)
@@ -761,3 +799,6 @@ Outputs:
   FeedbackTableName:
     Description: Feedback and Help conversations (email, sentAt -> from, message)
     Value: !Ref FeedbackTable
+  SystemTableName:
+    Description: The system's state (maintenance -> on, message, since, by)
+    Value: !Ref SystemTable

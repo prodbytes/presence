@@ -3911,7 +3911,60 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Not yet run on a phone. Specs: [Subject recognition](recognition.md),
        [Android](android.md), [Data formats](data-formats.md).
 
-305. **The home screen split out of `main.dart`.** (2026-10-07)
+305. **Least-privilege, stage-separated deploys and trustworthy releases.**
+     (2026-10-07)
+     - Asked: a hardening follow-up to a code review: permissions
+       boundaries for the roles CI creates, specific Lambda actions instead
+       of `lambda:*`, the prod and RC roles from one definition, RC scoped
+       away from prod's CloudFront, ACM and Cognito resources and SAM
+       bucket, CI checks that tags are on `main`, RC-only manual RC
+       deploys, no "latest" release from another branch, signed tags,
+       systemd hardening and a polkit rule for the Raspberry Pi kiosk, a
+       postinst that doesn't start the kiosk on its own console, pinned
+       devbox, Floci, SAM CLI and Flutter, a CSP for the site, and
+       `deploy.sh` saying how to roll back.
+     - Changed: `github-deploy.yaml` builds, per stage (`Fn::ForEach` over
+       `presence` and `presence-rc`), two deploy managed policies, a
+       permissions boundary (`<prefix>-app-boundary`) and a SAM artifact
+       bucket (`<prefix>-sam-artifacts-<account>`); roles may be created
+       or given permissions only with the stage's boundary, attach only
+       `AWSLambdaBasicExecutionRole`, never lose a boundary, and never
+       touch the deploy roles or stack. Distributions, certificates and
+       identity pools are scoped by a new `presence:stage` tag (added in
+       `site.yaml`, `presence_sh/template.yaml`, `identity.yaml`), records
+       by domain (prod now too). The templates take `PermissionsBoundary`
+       (SAM's `Globals`), `deploy.sh` passes it and the stage's bucket
+       (`resolve_s3` dropped), checks both exist, and on failure prints the
+       previous live version and the redeploy command. New
+       `scripts/tag-stage-resources.sh` tags the existing resources once.
+       Deploy, Deploy RC and Release check the commit is on `main`
+       (`fetch-depth: 0`); Deploy RC takes only RC tags; manual releases
+       off `main` are always prereleases (`--latest=false`);
+       `tag-release.sh` signs tags and requires `main` for RCs too; the
+       workflows pin Flutter's commit and SAM CLI 1.165.0. `site.yaml` has
+       its own response headers policies: a CSP for `/app*` (checked in
+       headless Chrome against the live app: `'unsafe-eval'` is needed by
+       TensorFlow Lite's Emscripten glue, `'unsafe-inline'` styles by
+       Flutter, `blob:` in `connect-src` by clip read-back) and one for
+       `/`, `Permissions-Policy`, `X-Frame-Options: DENY`. The kiosk unit
+       gets `NoNewPrivileges`, `ProtectSystem=strict`, kernel/cgroup
+       protections, `RestrictSUIDSGID`, `LockPersonality`, and loses
+       `ProtectHome=yes`, which hid `/run/user` (cage's Wayland socket);
+       a polkit rule denies the kiosk user power, network and storage
+       actions; postinst only enables the kiosk (and asks for a reboot)
+       from tty1 or without systemd. The dev container installs devbox's
+       release binary by checksum; Floci is pinned by digest.
+     - Deferred: a separate RC AWS account (recommended; HTTP APIs, origin
+       access controls, response headers policies,
+       `SetIdentityPoolRoles` and health checks can't be separated by
+       stage in one account), a dev bucket for local development (it uses
+       prod's), and GitHub tag rulesets (documented, need an admin).
+     - Specs: [Production deploy](deploy.md), [Release builds](release.md),
+       [Raspberry Pi camera](raspberry-pi.md), [Install URL](install-url.md),
+       [Auth API](auth-api.md), [Dev environment](dev-environment.md),
+       [Local CDN](local-cdn.md).
+
+306. **The home screen split out of `main.dart`.** (2026-10-07)
      - Asked: break up `presence_app/lib/main.dart` (about 1700 lines)
        without changing behaviour.
      - Changed: a pure refactor. `lib/main.dart` keeps `main()` and
@@ -3929,7 +3982,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Tests: unchanged; all pass.
      - Specs: [Navigation](navigation.md).
 
-306. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
+307. **Split `lib/clips.dart` into `lib/clips/`.** (2026-10-07)
      - Asked: a pure refactor, no behaviour change: split the 1,347-line
        `lib/clips.dart` into the model, the timeline card and the player
        dialog, breaking the player's ~300-line `build` into section
@@ -3953,7 +4006,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Tests: unchanged; all pass.
      - Specs: [Clips](clips.md) (new Code section, the player's file).
 
-307. **Split `camera_feeds.dart` (refactor, no behaviour change).**
+308. **Split `camera_feeds.dart` (refactor, no behaviour change).**
      (2026-10-07)
      - Asked: split `presence_app/lib/camera_feeds.dart` (1327 lines;
        `CameraRig` mixed the camera's lifecycle, the brightness restart,
@@ -3981,7 +4034,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Motion clips](motion-clips.md), [Scheduled clips](scheduled-clips.md),
        [Navigation](navigation.md), [Device deletion](device-deletion.md).
 
-308. **Cloud sync split into parts, without a change in behaviour.**
+309. **Cloud sync split into parts, without a change in behaviour.**
      (2026-10-07)
      - Asked: split `lib/cloud/cloud_sync.dart` (one `CloudSync` class of
        2252 lines) into cohesive parts without changing behaviour, keeping
@@ -4005,7 +4058,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Event copies](event-copies.md).
 
-309. **Device and profile IDs back to one column, last in Settings.**
+310. **Device and profile IDs back to one column, last in Settings.**
      (2026-10-07)
      - Asked: move the device ID and profile ID back to one column, and
        make them the last thing on the Settings page.
@@ -4023,7 +4076,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Settings screen](settings.md), [Navigation](navigation.md),
        [Add a device](add-device.md).
 
-310. **No delete button in the Camera tab's All grid.** (2026-10-07)
+311. **No delete button in the Camera tab's All grid.** (2026-10-07)
      - Asked: "No need for the delete device button in the camera view;
        only on the profile view is fine."
      - Changed: the All grid's cells no longer have a delete button.
@@ -4037,7 +4090,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Device deletion](device-deletion.md),
        [Camera screen](camera.md).
 
-311. **About: Raspberry Pi, and no version.** (2026-10-07)
+312. **About: Raspberry Pi, and no version.** (2026-10-07)
      - Asked: on the About paragraph, add the Raspberry Pi and remove the
        version.
      - Changed: the paragraph now reads "a phone, tablet, laptop or
@@ -4045,7 +4098,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        source:" (the version stays at the bottom of Settings). Specs:
        [About](about.md).
 
-312. **A connectivity indicator in the account sheet.** (2026-10-07)
+313. **A connectivity indicator in the account sheet.** (2026-10-07)
      - Asked: add a connectivity indicator to the profile page (the
        account sheet). The unattended phone showed as offline on other
        devices because live sync wasn't set up in its build, and nothing
@@ -4074,7 +4127,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Sign-in](sign-in.md) (account sheet),
        [Device presence](device-presence.md), [Live sync](live-sync.md).
 
-313. **One Clip button that is also the readiness indicator.** (2026-10-07)
+314. **One Clip button that is also the readiness indicator.** (2026-10-07)
      - Asked: merge the readiness indicator and the grab (Clip) button:
        greenish when ready, yellow during the cooldown with the time left
        in the label, red when disabled or recording a clip.
@@ -4106,7 +4159,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
        [Device location](device-location.md), [README](README.md).
 
-314. **Live sync by role: admins always connected, others every 30 s at
+315. **Live sync by role: admins always connected, others every 30 s at
      most.** (2026-10-07)
      - Asked: let user roles have different limits on **Connect to live
        sync**: free and premium users default to every 1 min, at most
@@ -4135,7 +4188,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Live sync](live-sync.md), [Settings](settings.md),
        [Configuration](configuration.md), [Membership](membership.md).
 
-315. **Device names lead to the device's events in Monitoring.**
+316. **Device names lead to the device's events in Monitoring.**
      (2026-10-07)
      - Asked: when device names are clicked, navigate to the Monitoring
        view with the search on that device name.
@@ -4166,7 +4219,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Camera screen](camera.md), [Clips](clips.md),
        [Subjects](subjects.md).
 
-316. **The Clip button's tone in its text, discreetly.** (2026-10-08)
+317. **The Clip button's tone in its text, discreetly.** (2026-10-08)
      - Asked: the grab (Clip) button's readiness color should be its text
        color, not its background, in discreet colors.
      - Changed: the background is one quiet neutral for every state
@@ -4178,7 +4231,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `readiness_test.dart`. Specs: [Navigation](navigation.md),
        [Camera screen](camera.md).
 
-317. **Cameras ordered by activity, with online status.** (2026-10-07)
+318. **Cameras ordered by activity, with online status.** (2026-10-07)
      - Asked: in the camera section, order the cameras most recently
        active first, with an online or offline indicator if possible,
        checked by pinging over MQTT.
@@ -4193,7 +4246,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `camera_all_test.dart`. Specs: [Camera screen](camera.md#all-devices),
        [Device presence](device-presence.md).
 
-318. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
+319. **Easter egg: "do a barrel roll" in the events search.** (2026-10-07)
      - Asked: "lets add an easter egg. if the user searches for "do a
        barrel roll", roll the screen, like google".
      - Changed: typing **do a barrel roll** (or "barrell", any case and
@@ -4205,7 +4258,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `test/barrel_roll_test.dart`.
      - Specs: [Events](events.md).
 
-319. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
+320. **S3 sync only for premium (rbacr); free members sync device to device.** (2026-10-08)
      - Asked: improve role-based access control, starting with cloud (S3)
        sync of events only for premium and admin users; free users sync
        device to device over MQTT. Premium comes from rbacr
@@ -4226,7 +4279,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        sync over; `AccessDenied` renews credentials once. The account
        sheet and connectivity say Free. RBACR in health: the API's
        `/health` `rbacr` check, `settings.rbacr` in
-       `/api/auth/anonymous`, the app's 🛂 RBACR card, and the local
+       `/api/auth/anonymous`, the app's 👮 RBACR card, and the local
        monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
        secret) and checks `rbacr` in its smoke test. Tests: auth API
        (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
@@ -4236,7 +4289,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Profiles](profiles.md), [Health check](health-check.md),
        [Execution mode](execution-mode.md).
 
-320. **The account sheet always shows the user's roles.** (2026-10-08)
+321. **The account sheet always shows the user's roles.** (2026-10-08)
      - Asked: always show the user's roles in the profile view.
      - Changed: the account sheet shows, under the email, a chip per role
        (`AccountRoles`): Member, Premium, Admin, Root (another role keeps
@@ -4244,7 +4297,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
 
-321. **Bottom navigation, Strava-style layout.** (2026-10-10)
+322. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+     - Asked: still too many wrong recognitions; increase the expected
+       confidence threshold.
+     - Changed: subjects are tagged automatically from **90 %** (default;
+       was 85 %; a device left at 85 % moves to 90 %), and asked about
+       from **50 %** (was 30 %; also the slider's minimum, so it reads
+       50–95 %). Object tags need a score of **0.6** on a frame (was 0.5)
+       and 0.8 to count from a single frame (was 0.7); people and pets
+       are detected from 0.5 (was 0.4). Tests: `recognition_test.dart`,
+       `settings_test.dart`. Specs: [Subject recognition](recognition.md),
+       [Settings screen](settings.md), [Configuration](configuration.md).
+
+323. **Bottom navigation, Strava-style layout.** (2026-10-10)
      - Asked: improve the look and feel; instead of the top navigation
        bar, use a bottom navigation bar, as is more common on phones, with
        Strava's UI as the reference for layout and components (keeping
@@ -4264,7 +4329,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md), [Camera](camera.md),
        [Subjects](subjects.md).
 
-322. **Settings in grouped sections.** (2026-10-10)
+324. **Settings in grouped sections.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: group the Settings
        screen's sections.
      - Changed: each Settings section (`SettingsSection`) is a bold
@@ -4274,7 +4339,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
        [Settings](settings.md).
 
-323. **Monitoring as a feed.** (2026-10-10)
+325. **Monitoring as a feed.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: make Monitoring a
        feed of event cards, with a rounded, filled search field.
      - Changed: each timeline entry is one card (`FeedCard`): the device
@@ -4287,7 +4352,108 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-324. **Encrypt every image and recording with a key per device.**
+326. **Every role from rbacr.** (2026-10-10)
+     - Asked: migrate authorization from the auth API (`presence_api_auth`)
+       to rbacr, so everything about authorization is an rbacr call. Roles
+       map `free` to member and `admin` to admin; vouchers stay here for
+       now (rbacr will get creating and redeeming for another address);
+       the old roles table is copied into rbacr.
+     - Changed: `Roles` takes every role from rbacr's `presence` system
+       (`RBACR_SYSTEM`): `free`, `premium` or `admin` gives
+       `presence_user`, `premium` or `admin` `presence_premium`, `admin`
+       `presence_admin`, and an rbacr root (its root list) all four with
+       `presence_root`. `Rbacr` asks once per email (`POST /api/roles`, no
+       `systemId`, so `globalRoles` says root), and grants (`POST
+       /api/systems/:id/grants`): an approved membership grants `free`, a
+       redeemed voucher `free` or `admin` (its answer lists the app's
+       roles that gives). Gone: the root allowlist (`RootDomains`,
+       `RootEmails`, `PRESENCE_ROOT_*` in deploy, CI, Floci and `.env`),
+       and reading or writing `UserRolesTable`'s roles, which now holds
+       only the voucher lockout (and its IAM is cut to that). Without an
+       rbacr token nobody has a role: `deploy.sh` requires one (no more
+       `RBACR_TOKEN=none`), `/health`'s `rbacr` check fails without it,
+       and the app's 🛂 RBACR card warns. The local Floci stack gets
+       `RBACR_*` from `.env`. New `scripts/migrate-roles-to-rbacr.sh`
+       copies the table's roles into rbacr (dry run by default). Tests:
+       `RolesTest`, `RbacrTest`, `MembershipTest`, `VoucherTest`,
+       `ProfileTest`, `ProfilesTest`, `UserRolesTest`, app
+       `system_health_test.dart`. Specs: [Auth API](auth-api.md),
+       [Membership](membership.md), [Premium and free](premium.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md),
+       [Health check](health-check.md), [Execution mode](execution-mode.md),
+       [Deploy](deploy.md), [Local CDN](local-cdn.md).
+
+327. **Local development on rbacr's RC, prod on GA rbacr.** (2026-10-10)
+     - Asked: rbacr already handles root roles; for now, make local
+       development use RC rbacr and prod use GA rbacr.
+     - Changed: the local Floci stack takes its rbacr from `.env`'s new
+       `RBACR_RC_URL` (default https://rc.rbacr.nu01.com), `RBACR_RC_TOKEN`
+       and `RBACR_RC_SYSTEM` (`process-compose.yaml`, `05-auth-api.sh`),
+       so local grants go to the RC, and the GA token in `RBACR_TOKEN`
+       stays for deploys. The local monitor checks the RC's `/health`.
+       `scripts/deploy.sh` refuses a prod deploy whose `RBACR_URL` isn't
+       https://rbacr.nu01.com. Specs: [Local CDN](local-cdn.md),
+       [Auth API](auth-api.md), [Deploy](deploy.md).
+
+328. **Local cloud sync fails: say why.** (2026-10-10)
+     - Asked: the local app says cloud sync is failing; check the logs and
+       improve them if needed.
+     - Found: the local auth API runs in Floci, which has no Cognito
+       Identity, so `POST /api/auth/credentials` fails (`GetId ... not
+       supported by floci`) whenever `.env` sets an identity pool (a known
+       limitation, see [Profiles](profiles.md)). The health monitor still
+       said 🪣 aws ✅ "events sync to S3".
+     - Changed: the health monitor asks Floci for Cognito Identity and,
+       without it, reports 🪣 aws ❌ with the reason and what to do. The
+       auth API's cause for an `UnknownOperationException` names the
+       emulator and the missing service, and says it works only against
+       AWS (the RC or production), instead of "(a local AWS emulator?)".
+       Tests: `ProfileTest`. Specs: [Dev environment](dev-environment.md),
+       [Profiles](profiles.md).
+
+329. **The account as a bottom-bar tab, called Profile.** (2026-10-10)
+     - Asked: move the profile icon to the bottom navigation bar as well,
+       and make it open just like the other panes; then call it Profile
+       (it was first named Account).
+     - Changed: a new last tab, **Profile** (`HomeTab.profile`), shown
+       signed in (not DEV): its icon is the user's avatar, ringed in the
+       accent color while open, tooltip "Signed in as …"; it opens the
+       account sheet's content as a page of the tabs, named "Profile" in
+       the app bar. The app bar's account button is gone with access; it
+       stays, with its bottom sheet, for a signed-in user without access.
+       Sign-out only closes a sheet when there is one. Tests:
+       `widget_test.dart` (the tab, its page, sign-out), the tab counts and
+       the account-sheet tests moved to the tab. Specs:
+       [Navigation](navigation.md), [Sign-in](sign-in.md),
+       [About](about.md).
+
+330. **Screen off to save battery.** (2026-10-10)
+     - Asked: a good way to save battery on Android; whether the screen
+       can be turned off while capture goes on, and if so a button for
+       it in the camera view.
+     - Changed: capture already went on with the screen off (the capture
+       service and its wake lock), but the app kept the screen on. A new
+       icon-only **Screen off** button on the Camera tab (Android only)
+       covers the app in black, stops keeping the screen on, drops it to
+       the lowest brightness and pauses the preview, so the system's
+       timeout turns the screen off; a tap brings it back. Tests:
+       `screen_off_test.dart`. Specs: [Camera](camera.md),
+
+331. **One health-check line per run.** (2026-10-10)
+     - Asked: make the health check script print only one line per run,
+       one icon per check with a status flag.
+     - Changed: `scripts/health-check.sh` now prints one line per pass:
+       the time, then `<emoji> <label> ✅|❌|⚪` per check joined by ` · `
+       (as the Settings health line), with no reasons. Follow-up: each
+       icon got a short label (`🏠 Index`, `🔌 API`, `👮 RBACR`, …); AWS is ☁️ (as in the
+       app's Settings line, was 🪣), so the CDN is 🚚, and RBACR is 👮 (was
+       🛂). rbacr's own `/health` got
+       its own icon, 💎, apart from the API's 👮 rbacr setting. The pass
+       is a `run_checks` function; sourcing the script defines it without
+       starting the loop. Specs: [Dev environment](dev-environment.md),
+       [Premium and free](premium.md); README sample updated.
+
+332. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,
@@ -4321,7 +4487,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
        [Recording and data formats](data-formats.md),
        [Android](android.md).
-325. **Feedback and Help.** (2026-10-10)
+333. **Feedback and Help.** (2026-10-10)
      - Asked: in the navigation bar, a new view, Feedback and Help, where
        users submit messages; admins see and reply to them.
      - Changed: a **Help** tab (after Settings; the app bar says "Feedback
@@ -4341,3 +4507,100 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        one. Specs: [Feedback and Help](feedback.md) (new),
        [Navigation](navigation.md), [Membership](membership.md),
        [Auth API](auth-api.md), [Health check](health-check.md).
+
+334. **Tell free and premium users apart, and limit their devices.**
+     (2026-10-10)
+     - Asked: differentiate free and premium users, said clearly with a
+       message in the profile screen; free users sync up to 2 devices,
+       other devices can sync but their data is hidden and the user is
+       asked to sign up by visiting nu01.com; premium users sync up to 50
+       devices.
+     - Changed: the auth API keeps each profile's devices in the order
+       they came (`devices` on the profiles table's item, up to 50):
+       `POST /api/auth/credentials` takes the device ID as its body and
+       answers with `deviceLimit` (2 free, 50 premium) and `devices`; the
+       new `POST /api/auth/profile/devices/remove` takes a deleted device
+       off it. The app (`DeviceSlots`, `CloudSync.deviceSlots`) hides the
+       events of devices past the limit (`EventLog.visibleDevices`): on a
+       device that shows, the others'; past the limit, every other
+       device's. They still sync. A device the list doesn't know, while
+       there's room, gets the list again (once per device, at most every
+       30 s). The
+       account sheet has a Free / Premium box under the devices (what
+       each gives, a **Sign up at nu01.com** button for Free, a warning
+       when devices are hidden) and labels hidden devices; the Monitoring
+       tab shows a card with a Sign up button while events are hidden.
+       The free sync line is now "Your devices sync with each other
+       while online". Local Floci routes the new endpoint. Tests:
+       `ProfileTest` (the list, its limit of 50, refusals, removal),
+       `device_slots_test.dart` (the slots, the credentials request, the
+       event filter, the sync's refresh and release, both messages, the
+       account sheet). Specs: [Premium and free](premium.md),
+       [Profiles](profiles.md), [Auth API](auth-api.md),
+       [Sign-in](sign-in.md), [Monitoring](monitoring.md),
+       [Device deletion](device-deletion.md), [README](README.md).
+
+335. **Maintenance mode.** (2026-10-10)
+     - Asked: let admins put the system in maintenance mode; while it's
+       on, no UI is shown at all, just a sorry message.
+     - Changed: a `SystemTable` in the auth API keeps the state
+       (`Maintenance`); `GET /api/auth/anonymous` reports it
+       (`"maintenance": {"on", "message", "since"}`, off if unreadable),
+       and the new admin routes `GET`/`POST /api/auth/maintenance` read and
+       switch it (form `on`, optional `message` up to 500 characters). The
+       app asks every minute; `MaintenanceGate` (in `MaterialApp.builder`)
+       replaces the whole app with `MaintenanceScreen` for everyone but
+       admins, who keep the app under a yellow strip. The Admin tab starts
+       with a Maintenance mode card (switch, message, Update message).
+       `scripts/maintenance.sh` switches it with AWS credentials, for a
+       signed-out admin. The deploy smoke test accepts either state; the
+       health check lists the new table; Floci gets the two routes. UI
+       only: recording and sync go on behind the sorry screen. Tests:
+       `MaintenanceTest.java`, `maintenance_test.dart`. Specs:
+       [Maintenance mode](maintenance.md) (new), [Auth API](auth-api.md),
+       [Membership](membership.md), [Execution mode](execution-mode.md),
+       [Production deploy](deploy.md), [Health check](health-check.md).
+
+336. **Commit everything: the local certificates stay out.** (2026-10-10)
+     - Asked: commit every pending change, with PRs.
+     - Found: a worktree showed `presence_floci/certs` as untracked: the
+       main folder's mkcert certificate and private key, linked in. The
+       ignore rule (`presence_floci/certs/`) only matched a folder.
+     - Changed: `.gitignore` ignores `presence_floci/certs` as a
+       folder or a link, so the key can't be committed from a worktree.
+
+337. **Deploy RC failed at its first step: fixed.** (2026-10-10)
+     - Found: the `0.6.202610101329-RC` Deploy RC run stopped in "Resolve
+       the tag" with `unexpected EOF while looking for matching '`: its
+       message `${tag:-main's commit}` has an apostrophe inside a
+       parameter default, which bash reads as an opening quote (from the
+       hardened workflow, #245).
+     - Changed: the message says "the commit on main" instead. Every
+       workflow's `run:` scripts now pass `bash -n`. Spec: none (the
+       workflow's behavior is unchanged).
+
+338. **Status pills at the top of the camera.** (2026-10-10)
+     - Asked: move the pills (battery, temperature, …) to the top of the
+       screen, so they're not layered over the buttons.
+     - Changed: the camera's status pills (health warning, battery,
+       temperature, message) sit top left, 8 px under the app bar, in one
+       row that wraps where it doesn't fit (they were bottom left, stacked
+       above the buttons on phones). The All grid starts below a row of
+       pills (`CameraFeedsView.topInset`). Fixed on the way: the grid
+       counted the app bar's height twice (it's already in the body's top
+       padding), starting 56 px lower than meant. Tests:
+       `device_location_test.dart`, `readiness_test.dart`,
+       `camera_all_test.dart`. Specs: [Navigation](navigation.md),
+       [Device location and battery](device-location.md),
+       [Camera](camera.md).
+
+339. **Keep `.claude/` out of git.** (2026-10-10)
+     - Asked: there were many `.claude` changes showing in git; put them
+       all in `.gitignore`.
+     - Changed: `.gitignore` ignores `.claude/`, and
+       `.claude/settings.json` is no longer tracked (each checkout keeps
+       its own copy). Agent worktrees under `.claude/worktrees/` no longer
+       show as untracked. [.vscode/settings.json](../.vscode/settings.json)
+       stops VS Code from listing those worktrees as repositories in Source
+       Control, and hides them from the Explorer, search and the file
+       watcher. Specs: [Dev environment](dev-environment.md).

@@ -1,10 +1,13 @@
 # Premium and free
 
 A member (`presence_user`) is either **premium** or **free**. Premium
-profiles sync with the cloud (S3) and over live sync; free profiles' devices
-sync with each other over [live sync](live-sync.md) (MQTT) only.
+profiles sync with the cloud (S3) and over live sync, and up to **50
+devices** show each other's events; free profiles' devices sync with each
+other over [live sync](live-sync.md) (MQTT) only, and only the profile's
+**first 2 devices** show each other's events. The account sheet says which
+the account is, and how to sign up for Premium (at nu01.com).
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role manager,
-decides who is premium.
+decides who is premium, as it decides every role ([Auth API](auth-api.md)).
 
 ## Who is premium
 
@@ -12,29 +15,28 @@ decides who is premium.
   (rbacr adds `admin` to every system). An email holding **`premium` or
   `admin`** there is premium. That includes holding it through a grant to
   its domain, a global grant, an implied role, or being an rbacr root. Its
-  `free` role, or no role at all, is free.
+  `free` role alone is a free member; no role at all, no member.
 - The auth API asks rbacr (`Rbacr`,
   [presence_api_auth](../presence_api_auth/AuthFunction/src/main/java/presence/auth/Rbacr.java))
-  with an API token, server-side. It sends `POST /api/roles {"email",
-  "systemId": "presence"}`, with the email in the body and never the URL,
-  then turns the answer into the role **`presence_premium`** (`Roles.PREMIUM`)
-  next to the app's own roles. `GET /api/auth` lists it, so the app knows
+  with a root's API token, server-side. It sends `POST /api/roles
+  {"email"}`, with the email in the body and never the URL, and reads the
+  `presence` system's roles from the answer, which it turns into
+  **`presence_premium`** (`Roles.PREMIUM`) next to the app's other roles
+  (all of them rbacr's). `GET /api/auth` lists it, so the app knows
   (`RolesService.isPremium`).
-- **Only rbacr gives it.** It is never taken from the roles table, never
-  from the root allowlist, and never for an unverified email. In
+- **Only rbacr gives it**, and never for an unverified email. In
   [DEV](execution-mode.md) the anonymous user has every role, `presence_premium`
   included, but nothing syncs there.
 - **A linked account** ([profiles](profiles.md)) shares its profile owner's
   premium, as it shares the owner's membership: the profile's cloud folder
   is one. It's also premium on its own when rbacr says so of its own email.
 - **Fails closed.** If rbacr doesn't answer in time (2 s), refuses the
-  token, or answers something that isn't a list of roles, the email is not
-  premium. Answers are reused for **60 s** per Lambda instance; errors are
+  token, or answers something that isn't an answer, the email has no
+  roles at all, premium included. Answers are reused for **60 s** per Lambda instance; errors are
   never reused. A grant or revocation in rbacr shows within about a minute.
   The credentials already issued last up to an hour.
-- **Without a token** (`RbacrToken` empty), nobody is premium.
-  `scripts/deploy.sh` refuses to deploy without `RBACR_TOKEN`; deploying with
-  no rbacr on purpose takes `RBACR_TOKEN=none`.
+- **Without a token** (`RbacrToken` empty), nobody has a role.
+  `scripts/deploy.sh` refuses to deploy without `RBACR_TOKEN`.
 - Who is premium on release day is rbacr's to say. On 2026-10-08 its
   `presence` system had a single grant, `admin` to `@nu01.com`, so only
   nu01.com accounts were premium. Everyone else becomes free until granted
@@ -78,6 +80,7 @@ The bucket enforces it, not just the app:
 | History on a new device (two weeks) | from the bucket | none: only what's published after it connects |
 | This device's settings | backed up, restored at sign-in | stay on the device |
 | Recognition references | every device's tags | the tags this device has |
+| Devices whose events show ([below](#devices)) | the first 50 | the first 2 |
 
 - **Free sync** (`_LivePublisher`, [cloud_sync_free.dart](../presence_app/lib/cloud/cloud_sync_free.dart)):
   - A free profile's pass never touches the bucket. It gets credentials
@@ -113,11 +116,74 @@ The bucket enforces it, not just the app:
   recording isn't here and can't be fetched (`CloudSync.fetchRecording`
   answers false at once).
 
+## Devices
+
+A profile's devices past its limit (2 free, 50 premium) **still sync**:
+they publish, receive and store events as before. Their events are
+**hidden**, and the user is asked to sign up for Premium.
+
+- **Which devices count.** The auth API keeps the profile's devices in
+  the order they came: the profiles table's item gets a **`devices`**
+  list. `POST /api/auth/credentials` takes the device's ID as its
+  (plain-text) body and adds it at the end, once, up to 50 whatever the
+  tier (so a profile that becomes premium shows the devices it already
+  has). A body that isn't a device ID (`adjective_adjective_thing`, at
+  most 64 characters) is refused (400); an empty one (an older app)
+  lists nothing. The answer adds **`deviceLimit`** (2 or 50) and
+  **`devices`** (`ProfileHandler.FREE_DEVICES`, `PREMIUM_DEVICES`). The
+  first `deviceLimit` of them show.
+- **Every device agrees**, since the list is the auth API's, not worked
+  out from events, which differ from device to device (a free device has
+  no history from before it connected).
+- **What's hidden** (`DeviceSlots.visibleFrom`,
+  [device_slots.dart](../presence_app/lib/cloud/device_slots.dart)):
+  - on a device that shows, the events of the devices that don't;
+  - on a device past the limit, every other device's: only its own show.
+  - The app filters its event log (`EventLog.visibleDevices`, applied to
+    `EventLog.eventsOf`), so the timeline, its count and search, the map,
+    the subjects and the All grid leave them out. The events are still
+    stored and synced, and show at once if the device gets a place.
+  - Nothing is hidden until the auth API has listed the devices (the
+    first credentials after sign-in), signed out, in DEV, or with an API
+    that doesn't list them.
+- **A new device** that the list doesn't name while there's still room
+  may be one that shows: when the profile's events name a device it
+  doesn't know, the app asks for new credentials (and the list with
+  them), once per device and at most every 30 s
+  (`CloudSync.noticeDevices`). A device is listed before its events can
+  reach another, since it needs credentials to send them. Otherwise the list is read
+  again with each new set of credentials (hourly) or a change of tier.
+- **Deleting a device** ([Device deletion](device-deletion.md)) takes it
+  off the list (`POST /api/auth/profile/devices/remove`, the device ID
+  as the body; `CloudSync.releaseDevice`), so the next one takes its
+  place. It's added again, last, if it asks for credentials again.
+
 ## In the app
 
-- **The account sheet's** sync line, for a free profile: "Free: your
-  devices sync with each other while online. Cloud backup is Premium."
-  (`CloudSyncStatus`).
+- **The account sheet** ([Sign-in](sign-in.md)), under the profile's
+  devices, a box with the plan (`PlanNotice`,
+  [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)):
+  - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
+    and up to 50 devices sync."
+  - **Free**: "Free: up to 2 devices sync with each other while online.
+    Sign up for Premium at nu01.com for cloud backup and up to 50
+    devices.", and a **Sign up at nu01.com** button that opens
+    https://nu01.com (copied when it can't open).
+  - Past the limit, a line in the warning color: on this device, "This
+    device is past your first 2: it syncs, but its events are hidden on
+    your other devices, and theirs here."; otherwise how many devices are
+    hidden ("1 more device syncs, but its events are hidden: Free shows
+    your first 2.").
+  - Each hidden device in the list is labelled **hidden** (tooltip:
+    past the plan's device limit).
+  - Not shown in DEV or without access.
+- **The Monitoring tab** ([Monitoring](monitoring.md)), when events are
+  hidden, a card above the search (`DeviceLimitNotice`): how many
+  devices' events are hidden, or that the other devices' are hidden on
+  this one, that Free shows the first 2, and for a free profile a
+  **Sign up** button to nu01.com.
+- **The account sheet's** sync line, for a free profile: "Your devices
+  sync with each other while online" (`CloudSyncStatus`).
 - **The connectivity check**: "Free: devices sync over live sync" instead
   of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see
@@ -139,9 +205,9 @@ The bucket enforces it, not just the app:
 - **`GET /api/auth/anonymous`** reports `"rbacr": true|false` in its
   settings, as for `oidc` and `aws`, and `scripts/deploy.sh`'s smoke test
   expects `true` when it deployed a token.
-- **`scripts/health-check.sh`** (the local monitor) shows 🛂 `rbacr-api`
-  (the local API's setting) and 🛂 `rbacr` (rbacr's `/health`, at
-  `RBACR_URL`; no token sent).
+- **`scripts/health-check.sh`** (the local monitor) shows 👮 RBACR (the
+  local API's rbacr setting) and 💎 RBACR svc (rbacr's `/health`, at `RBACR_URL`; no token
+  sent) on its one line per run.
 
 ## Configuration
 
@@ -158,6 +224,19 @@ The bucket enforces it, not just the app:
   `.env` (git-ignored) and the repository secret, never in the repository.
 
 ## Known limitations
+
+- **Hidden, not withheld.** A device past the limit still receives the
+  other devices' events (and they its): the app hides them. Someone
+  reading the stored data or the live messages directly sees them.
+- **Which devices show** is the order they first asked for credentials
+  after this release: for a profile that already had more than 2, that's
+  whichever came first, not the oldest. Deleting a device frees its
+  place.
+- **Devices on an older app** never join the list, so the devices that
+  list them hide their events until they're updated.
+- **A deletion reaches the other devices' lists** with their next
+  credentials (within the hour), or sooner if they see a device they
+  don't know while there's room.
 
 - **Free sync isn't a backup.** A device that's off, or not connected, when
   another publishes doesn't get that event later, beyond what a scheduled

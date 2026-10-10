@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'cloud_sync.dart' show CloudSync;
 import 'cognito.dart';
+import 'device_slots.dart';
 import 's3.dart';
 import 'sigv4.dart';
 
@@ -59,7 +60,7 @@ abstract class CloudBackend {
 
 /// Profile credentials (the auth API, then the Cognito identity pool) +
 /// direct S3 uploads.
-class AwsCloudBackend implements CloudBackend {
+class AwsCloudBackend implements CloudBackend, DeviceRegistry {
   AwsCloudBackend({required this._cognito, required this._bucket});
 
   final CognitoCredentials _cognito;
@@ -71,9 +72,13 @@ class AwsCloudBackend implements CloudBackend {
 
   @override
   void reset() => _cognito.clear();
+
+  @override
+  Future<DeviceSlots?> removeDevice(String idToken, String device) =>
+      _cognito.removeDevice(idToken, device);
 }
 
-class _AwsSession implements CloudSession {
+class _AwsSession implements CloudSession, DeviceSlotsSession {
   _AwsSession(this._session, this._bucket);
 
   final CognitoSession _session;
@@ -81,6 +86,9 @@ class _AwsSession implements CloudSession {
 
   @override
   String get prefix => _session.identityId;
+
+  @override
+  DeviceSlots? get deviceSlots => _session.deviceSlots;
 
   @override
   AwsCredentials get credentials => _session.credentials;

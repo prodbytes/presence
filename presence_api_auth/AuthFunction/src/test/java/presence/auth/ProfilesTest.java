@@ -156,10 +156,13 @@ class ProfilesTest {
 
     @Test
     void theHandlerAnswersWithTheProfile() {
-        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()), profiles);
+        // rbacr: ana@nu01.com is a root.
+        var handler = new AuthHandler(new Roles(e -> e.equals("ana@nu01.com") ? Set.of(Rbacr.ROOT) : Set.of()),
+                profiles);
         var claims = Map.of("iss", GOOGLE, "sub", "111", "email", "ana@nu01.com", "email_verified", "true",
                 "hd", "nu01.com");
-        var body = "{\"email\":\"ana@nu01.com\",\"profile\":\"profile-1\",\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}";
+        var body = "{\"email\":\"ana@nu01.com\",\"profile\":\"profile-1\",\"roles\":[\"presence_admin\","
+                + "\"presence_premium\",\"presence_root\",\"presence_user\"]}";
         assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
         assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
         // Users without roles have a profile too.
@@ -181,7 +184,7 @@ class ProfilesTest {
 
     @Test
     void onlyAVerifiedEmailIsKeptAsTheOwners() {
-        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()), profiles);
+        var handler = new AuthHandler(new Roles(e -> Set.of()), profiles);
         // A first sign-in with an unverified email: the profile has no owner email.
         handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "111",
                 "email", "victim@example.com", "email_verified", "false")), null);

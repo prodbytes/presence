@@ -14,6 +14,10 @@ the separate Events and Subjects tabs.
 
 ## Layout
 
+- **Above everything,** when devices' events are hidden (past a free
+  profile's first 2 devices, or a premium one's 50), a card says so, with
+  a **Sign up** button to nu01.com for a free profile; nothing otherwise.
+  See [Premium and free](premium.md#devices).
 - **At the top,** one compact row (40 dp): on the left the **events
   search**, a search icon that opens into a field when tapped (see
   [Events](events.md)), and its small **matching / all** event count

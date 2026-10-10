@@ -19,6 +19,9 @@ separate setting, so a system with sign-in can't be opened by mistake.
   `/api/*`), the app decides by its own build: **DEV without a Google
   client ID, else RBAC**. A production build always has one, so it can't
   fall back to DEV.
+- The answer also says whether the system is in
+  [maintenance](maintenance.md); the app asks again every minute
+  (`maintenanceCheckInterval`) to follow it.
 - An unanswered start check is **checked again** (`RolesService.checkApi`,
   15 s timeout) after 5 s, 15 s, 30 s and then every minute, until the
   API answers, so the health line's ❌ clears on its own. The mode stays
@@ -59,7 +62,8 @@ with Google** only; after sign-in, `GET /api/auth` decides the rest.
   without it, and its smoke test requires `/api/auth/anonymous` to answer
   exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`
-  (`"rbacr":false` when it deployed without an rbacr token).
+  (it also refuses to deploy without an rbacr token, which gives every
+  role).
 - DEV only changes what the app shows. The API's other routes still need a
   Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
   none passes), and cloud sync needs a Google sign-in.

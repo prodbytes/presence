@@ -15,8 +15,17 @@ account.
   (`presence_admin`, so everyone in DEV, where the anonymous user is a
   root) a fourth, **Log**, when Settings' **Show the Log tab** switch is
   on: on by default in DEV, off otherwise (see [Log](log.md)); for
-  signed-in admins (not DEV: there are no accounts) an **Admin** tab last
-  (see [Membership](membership.md#the-admin-tab)).
+  signed-in admins (not DEV: there are no accounts) an **Admin** tab
+  (see [Membership](membership.md#the-admin-tab)); and, signed in (not
+  DEV), **Profile** last, as phone apps put "You".
+  - **Profile** (`HomeTab.profile`): its icon is **your Google avatar**
+    (24 dp; your initial without a photo), ringed in the accent color
+    while open, with the tooltip "Signed in as <name> · <email>". It opens
+    like the other tabs: a page of the tabs (the same slide, no back
+    button, the app bar naming it "Profile", remembered across a browser
+    refresh), showing the [account sheet's](sign-in.md) content up to
+    560 dp wide (key `account-page`). It used to be an app-bar button
+    opening a bottom sheet.
   - **The open tab is marked by color only**: its icon filled and its
     label bold, both in the accent color (Gruvbox yellow); the others
     outlined, in the secondary text color. No pill behind the icon.
@@ -24,14 +33,14 @@ account.
     (`outlineVariant`) above it; every label always shown (a label too
     long for its slot is cut short with an ellipsis). Its look is the
     theme's `navigationBarTheme` ([Theme](theme.md)).
-  - Each destination's tooltip and screen-reader label is the tab's name,
-    with at least a 48 dp touch target: an admin's six tabs fit a 320 dp
-    phone (labels are kept short for that: "Help", not "Feedback &
-    Help").
+  - Each destination's tooltip and screen-reader label is the tab's name
+    (Profile's says who's signed in), with at least a 48 dp touch target:
+    an admin's seven tabs fit a 320 dp phone (labels are kept short for
+    that: "Help", not "Feedback & Help").
   - **Signed out**, or signed in without access, there's no navigation
     bar: the camera shows alone (see [Sign-in](sign-in.md)).
-  - The Help, Log and Admin tabs come and go as sign-in, the roles or the
-    switch change
+  - The Help, Log, Admin and Profile tabs come and go as sign-in, the
+    roles or the switch change
     (the tab controller is rebuilt, staying on the open tab, or on the
     nearest tab before it if that one goes: Settings for the Log). A tab's
     controller index is its place among the shown tabs (`indexOf`), not
@@ -42,18 +51,18 @@ account.
 - **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
   - **On the left, the open screen's name** (`HomeTab.title`), bold
     (22 sp, weight 700), left-aligned ("Monitoring", "Settings",
-    "Feedback & Help", "Log", "Admin"): the tab's label, unless it has a
-    longer name, as Help does. **No name
+    "Feedback & Help", "Log", "Admin", "Profile"): the tab's label, unless
+    it has a longer name, as Help does. **No name
     over the camera.** In DEV the "dev" label follows it (alone over the
     camera; see [Execution mode](execution-mode.md)).
-  - **On the right, Account** (your Google avatar when signed in; none in
-    DEV): an action, not a tab. It opens the [account sheet](sign-in.md).
-    Signed out, only **Sign in**; signed in without a role, sign-up and
-    the account.
+  - **On the right, only without access:** signed out, **Sign in**;
+    signed in without a role, sign-up and the **account button** (your
+    avatar), which opens the [account sheet](sign-in.md) as a bottom
+    sheet. With access, the account is the navigation bar's Profile tab.
   - Flat, the page's color; transparent over the camera, with a dark
     gradient scrim keeping its buttons readable.
   - There's **no About button**: what Presence is, with a link to its
-    code, is a paragraph at the end of the account sheet (see
+    code, is a paragraph at the end of the account page (see
     [About](about.md)).
 - **Flipping:** only a **tap** on the navigation bar moves between screens
   (`TabBarView` with swiping off, driven by the bar's `TabController`), as
@@ -144,18 +153,19 @@ account.
     recording from scratch, so a clip right after a flip has less "before"
     history. The camera it switches to is remembered for this device and
     reopened at the next launch (above).
-  - **Status pills, bottom left**, across from Flip and Clip
+  - **Status pills, top left**, just under the app bar, so they never
+    sit over the view button, Flip or Clip at the bottom
     (`CameraStatus` in `lib/home/camera_status.dart`): a **health
     warning** while a health check fails, the **battery**, its
     **temperature** (Android) and, after them for 4 s, the latest
     **message**, all in one pill style (`StatusPill`), 16 px from the
-    edges. (There's no separate readiness pill any more: the Clip button
-    carries it.) On screens 600 px and wider they're in a row, centered
-    on the buttons and kept clear of them (room is kept for Clip as wide
-    as "Clip · 4:59"). Narrower, they stack (the health warning, then the
-    battery, then the message), starting just above the buttons' row, so
-    they never run into Flip and Clip. A label too long for the room is
-    cut short with an ellipsis. See
+    sides and 8 px under the app bar. (There's no separate readiness pill
+    any more: the Clip button carries it.) They're **one row that wraps**
+    onto the next line where they don't fit, on every screen; only a
+    message wider than the whole row is cut short with an ellipsis. (They
+    used to sit bottom left, stacked above the buttons on phones.) The
+    app bar's height is already in the body's top padding (the body runs
+    behind the app bar), so it's counted once. See
     [Device location and battery](device-location.md) for the battery.
   - **Screen readers** read each pill's full label. Only the **message**
     and the **health warning** are live regions, read out when they show
@@ -241,12 +251,12 @@ account.
       later than now counts as now.
   - **Messages on the Camera tab are a pill** (`CameraMessage`,
     `CameraMessagePill`, kept for 4 s by `CameraMessages`, all in
-    `lib/home/camera_messages.dart`), never a snackbar: bottom left, after
+    `lib/home/camera_messages.dart`), never a snackbar: top left, after
     the battery pills, for 4 s, so nothing over the camera moves (a
     snackbar pushed Flip and Clip up) or is covered. A newer message
     replaces it and restarts the 4 s. A label too long for the room is cut
     short; its tooltip has it all. Signed out, it's the only pill (no
-    battery, and no buttons), bottom left. The messages:
+    battery, and no buttons), top left. The messages:
     - **a clip starts** (the Clip button, motion, the schedule or the
       start), with the clip's icon: "Clip started · saving the next 10 s",
       "Motion detected · …", "Scheduled clip · …" or "Startup clip · …".

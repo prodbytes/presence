@@ -3,6 +3,8 @@ package presence.auth;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -11,97 +13,64 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RolesTest {
 
-    private final Map<String, Set<String>> table = Map.of(
-            "ana@example.com", Set.of("viewer"),
-            "julia@nu01.com", Set.of("owner"),
-            "eve@example.com", Set.of(Roles.ROOT, Roles.USER));
-    private final Roles roles = new Roles(Set.of("nu01.com", " Example.ORG "), Set.of(" Root@Gmail.com "),
-            email -> table.getOrDefault(email, Set.of()));
+    private final List<String> asked = new ArrayList<>();
+    private final Map<String, Set<String>> rbacr = Map.of(
+            "ana@example.com", Set.of("free"),
+            "pat@example.com", Set.of("premium", "free"),
+            "boss@example.com", Set.of("admin"),
+            "julio@nu01.com", Set.of(Rbacr.ROOT, "admin", "free", "premium"),
+            "vic@example.com", Set.of("viewer"));
+    private final Roles roles = new Roles(email -> {
+        asked.add(email);
+        return rbacr.getOrDefault(email, Set.of());
+    });
 
     @Test
     void nobodyHasRolesByDefault() {
-        assertEquals(Set.of(), roles.of("someone@example.com", true, null));
+        assertEquals(Set.of(), roles.of("someone@example.com", true));
+        // A role rbacr has but the app doesn't use gives nothing.
+        assertEquals(Set.of(), roles.of("vic@example.com", true));
     }
 
     @Test
-    void verifiedRootDomainsGetEveryRole() {
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("Bob@NU01.com", true, "nu01.com"));
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of("carol@example.org", true, "Example.org"));
+    void rbacrsRolesGiveTheAppsRoles() {
+        assertEquals(Set.of(Roles.USER), roles.of("ana@example.com", true));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of("pat@example.com", true));
+        // Without counting on rbacr's implications: admin alone is all three.
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.USER), roles.of("boss@example.com", true));
     }
 
     @Test
-    void aRootDomainNeedsItsWorkspaceToVouch() {
-        // A personal Google account registered with a nu01.com address:
-        // verified once, but nu01.com's Workspace doesn't manage it.
-        assertEquals(Set.of(), roles.of("bob@nu01.com", true, null));
-        assertEquals(Set.of(), roles.of("bob@nu01.com", true, " "));
-        // Another Workspace's account with a nu01.com address.
-        assertEquals(Set.of(), roles.of("bob@nu01.com", true, "evil.example"));
-        // nu01.com's Workspace, but another domain's address.
-        assertEquals(Set.of(), roles.of("bob@example.com", true, "nu01.com"));
-        var auth = new AuthHandler(roles, profiles());
-        assertEquals("{\"email\":\"bob@nu01.com\",\"profile\":null,\"roles\":[]}", auth.handleRequest(
-                event(Map.of("email", "bob@nu01.com", "email_verified", "true")), null).getBody());
-        assertEquals("{\"email\":\"bob@nu01.com\",\"profile\":null,"
-                + "\"roles\":[\"presence_admin\",\"presence_root\",\"presence_user\"]}", auth.handleRequest(
-                event(Map.of("email", "bob@nu01.com", "email_verified", "true", "hd", "nu01.com")), null).getBody());
+    void rbacrsRootsGetEveryRole() {
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.ROOT, Roles.USER), roles.of("julio@nu01.com", true));
+        // Root alone (an rbacr whose presence system has no roles yet).
+        var root = new Roles(email -> Set.of(Rbacr.ROOT));
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.ROOT, Roles.USER), root.of("julio@nu01.com", true));
     }
 
     @Test
-    void verifiedRootEmailsGetEveryRole() {
-        // A Gmail address: no hd, and nobody else can register it.
-        assertEquals(Set.of("presence_admin", "presence_root", "presence_user"), roles.of(" root@GMAIL.com", true, null));
-        assertEquals(Set.of(), roles.of("root@gmail.com", false, null));
-        // The whole address: not the domain, nor a longer one.
-        assertEquals(Set.of(), roles.of("other@gmail.com", true, null));
-        assertEquals(Set.of(), roles.of("xroot@gmail.com", true, null));
+    void rbacrIsAskedAboutTheVerifiedEmailLowerCased() {
+        assertEquals(Set.of(Roles.USER), roles.of(" ANA@Example.com ", true));
+        assertEquals(List.of("ana@example.com"), asked);
     }
 
     @Test
-    void onlyTheAllowlistGivesRoot() {
-        // The roles table can't make a root.
-        assertEquals(Set.of(Roles.USER), roles.of("eve@example.com", true, null));
-    }
-
-    @Test
-    void domainsAndRolesComeFromCommaSeparatedSettings() {
-        assertEquals(Set.of("nu01.com", "example.org"), Roles.list(" nu01.com, ,example.org"));
-        assertEquals(Set.of(), Roles.list(null));
-    }
-
-    @Test
-    void theDomainMustMatchExactlyAndBeVerified() {
-        assertEquals(Set.of(), roles.of("bob@nu01.com", false, "nu01.com"));
-        assertEquals(Set.of(), roles.of("bob@evilnu01.com", true, "evilnu01.com"));
-        assertEquals(Set.of(), roles.of("bob@nu01.com.evil.example", true, "nu01.com.evil.example"));
-        assertEquals(Set.of(), roles.of("bob@sub.nu01.com", true, "sub.nu01.com"));
-    }
-
-    @Test
-    void theTableDeclaresRolesByEmail() {
-        assertEquals(Set.of("viewer"), roles.of(" ANA@example.com ", true, null));
-        assertEquals(Set.of("owner", "presence_admin", "presence_root", "presence_user"),
-                roles.of("julia@nu01.com", true, "nu01.com"));
-        // Without the Workspace, just what the table declares.
-        assertEquals(Set.of("owner"), roles.of("julia@nu01.com", true, null));
-    }
-
-    @Test
-    void unverifiedOrMissingEmailsGetNothing() {
-        assertEquals(Set.of(), roles.of("ana@example.com", false, null));
-        assertEquals(Set.of(), roles.of(null, true, null));
-        assertEquals(Set.of(), roles.of(" ", true, null));
+    void unverifiedOrMissingEmailsGetNothingAndRbacrIsntAsked() {
+        assertEquals(Set.of(), roles.of("ana@example.com", false));
+        assertEquals(Set.of(), roles.of(null, true));
+        assertEquals(Set.of(), roles.of(" ", true));
+        assertEquals(List.of(), asked);
     }
 
     @Test
     void theHandlerReturnsTheRolesAsJson() {
         var handler = new AuthHandler(roles, profiles());
-        var response = handler.handleRequest(event(Map.of(
-                "email", "julia@nu01.com", "email_verified", "true", "hd", "nu01.com")), null);
+        var response = handler.handleRequest(event(verified("julio@nu01.com")), null);
         assertEquals(200, response.getStatusCode());
         assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
-        assertEquals("{\"email\":\"julia@nu01.com\",\"profile\":null,\"roles\":[\"owner\",\"presence_admin\",\"presence_root\",\"presence_user\"]}", response.getBody());
+        assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\","
+                + "\"presence_premium\",\"presence_root\",\"presence_user\"]}", response.getBody());
 
         var none = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
         assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", none.getBody());
@@ -124,14 +93,16 @@ class RolesTest {
         assertEquals(200, response.getStatusCode());
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
         assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
-                + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false}}", response.getBody());
+                + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false},"
+                + "\"maintenance\":{\"on\":false,\"message\":\"\"}}", response.getBody());
     }
 
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
         var handler = new AuthHandler(roles, profiles(), ExecutionMode.DEV);
         assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_premium\",\"presence_root\",\"presence_user\"],"
-                + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false}}",
+                + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false},"
+                + "\"maintenance\":{\"on\":false,\"message\":\"\"}}",
                 handler.handleRequest(anonymous(), null).getBody());
     }
 
@@ -140,7 +111,7 @@ class RolesTest {
         var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC,
                 Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket"));
         assertTrue(handler.handleRequest(anonymous(), null).getBody()
-                .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":false}}"));
+                .contains(",\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":false},"));
         assertEquals(new Settings(false, false), Settings.of(null, " ", ""));
         // AWS sync needs both the identity pool and the bucket.
         assertEquals(new Settings(true, false), Settings.of("id", "us-east-1:pool", null));
@@ -156,7 +127,7 @@ class RolesTest {
         assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
     }
 
-    private static APIGatewayV2HTTPEvent anonymous() {
+    static APIGatewayV2HTTPEvent anonymous() {
         var event = new APIGatewayV2HTTPEvent();
         event.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
         return event;
@@ -164,7 +135,7 @@ class RolesTest {
 
     @Test
     void emailsAreEscapedInTheResponse() {
-        var handler = new AuthHandler(new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of()), profiles());
+        var handler = new AuthHandler(new Roles(e -> Set.of()), profiles());
         var response = handler.handleRequest(event(Map.of("email", "a\"b@example.com", "email_verified", "true")), null);
         assertEquals("{\"email\":\"a\\\"b@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
     }
@@ -176,7 +147,7 @@ class RolesTest {
 
     /**
      * A verified Google account's claims; a nu01.com address is one of
-     * nu01.com's Workspace (hd), as a root's is.
+     * nu01.com's Workspace (hd).
      */
     static Map<String, String> verified(String email) {
         var claims = new java.util.HashMap<>(Map.of("email", email, "email_verified", "true", "name", "Ana"));
@@ -194,8 +165,8 @@ class RolesTest {
     }
 
     @Test
-    void aFailingTableAnswersASanitized502() {
-        var failing = new Roles(Set.of(), Set.of(), e -> {
+    void aFailureAnswersASanitized502() {
+        var failing = new Roles(e -> {
             throw new IllegalStateException("arn:aws:dynamodb:us-east-1:123456789012:table/x");
         });
         var response = new AuthHandler(failing, profiles()).handleRequest(event(verified("ana@example.com")), null);

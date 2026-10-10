@@ -8,7 +8,11 @@
   stack `presence-sh` (us-east-1): an ACM certificate for
   `sh.presence.nu01.com` (DNS-validated in the `nu01.com` zone), a private
   encrypted S3 bucket readable only by the distribution (OAC), a CloudFront
-  distribution, and Route 53 A/AAAA aliases.
+  distribution, and Route 53 A/AAAA aliases. The certificate and
+  distribution carry the tag `presence:stage=prod` (the template's
+  `Stage`, which only allows `prod`): the production deploy role may
+  change only distributions and certificates with that tag (see
+  [Production deploy](deploy.md#github-access)).
 - **Distribution:** a viewer-request CloudFront Function maps every URI to
   `/install.sh`. HTTPS only: plain http gets 403, not a redirect, so
   `curl http://… | sh` fails instead of running a script fetched in the
@@ -21,7 +25,11 @@
   propagates) and that http answers 403. The
   [Deploy workflow](../.github/workflows/deploy.yml) runs it after
   `scripts/deploy.sh` on every `*GA` tag, with the `presence-github-deploy`
-  role (its `presence-*` stack and bucket scope already covers it).
+  role: its `presence-*` stack, bucket and function names cover it, its
+  records are under `*.presence.nu01.com`, and its distribution and
+  certificate are tagged `prod`. The RC role can't change its stack, bucket,
+  distribution or certificate (its origin access control is another
+  matter: see [Stage separation](deploy.md#stage-separation)).
 
 ## Known limitations
 

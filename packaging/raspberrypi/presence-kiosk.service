@@ -32,7 +32,29 @@ StandardOutput=journal
 StandardError=journal
 UtmpIdentifier=tty1
 UtmpMode=user
-ProtectHome=yes
+
+# Hardening, kept compatible with Chromium's sandbox (its renderers run in
+# their own user namespace with seccomp; verified under exactly these
+# settings): see specs/raspberry-pi.md. Left out on purpose:
+# RestrictNamespaces= (Chromium's sandbox needs user namespaces),
+# MemoryDenyWriteExecute= (V8's JIT and WebAssembly), PrivateDevices= (the
+# camera, GPU and input devices), PrivateUsers= and SystemCallFilter=
+# (Chromium installs its own seccomp filters per process).
+NoNewPrivileges=yes
+ProtectSystem=strict
+# The profile (sign-in, events, clips) in the home; /run/user/<uid>, the
+# logind session's runtime directory, for cage's Wayland socket.
+ReadWritePaths=/var/lib/presence -/run/user
+# Not ProtectHome=yes: that also hides /run/user, where cage must put its
+# Wayland socket. Other users' homes stay out of reach.
+InaccessiblePaths=-/home -/root
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
 
 [Install]
 WantedBy=multi-user.target

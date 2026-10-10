@@ -96,12 +96,67 @@ void main() {
           findsOneWidget,
         );
       }
-      // The account stays in the top right.
+      // The profile is the last tab, in the bar too, after Settings.
       final account = tester.getCenter(find.byKey(const Key('account-button')));
-      expect(account.dy, lessThan(kToolbarHeight));
+      expect(bar.contains(account), isTrue);
+      expect(settings.dx, lessThan(account.dx));
+      expect(
+        find.descendant(
+          of: find.byType(HomeNavigationBar),
+          matching: find.text('Profile'),
+        ),
+        findsOneWidget,
+      );
       // No About button: what Presence is, is in the account sheet.
       expect(find.byTooltip('About'), findsNothing);
       expect(find.byTooltip('Device'), findsNothing);
+    });
+
+    testWidgets('the profile is a tab like the others at $name', (
+      tester,
+    ) async {
+      await pumpAt(tester, size);
+      // Its icon is the avatar (Ana's initial: no photo), and its tooltip
+      // says who's signed in. Nothing in the app bar.
+      final account = find.byKey(const Key('account-button'));
+      expect(
+        find.descendant(of: account, matching: find.byType(CircleAvatar)),
+        findsOneWidget,
+      );
+      expect(
+        find.byTooltip('Signed in as Ana · ana@example.com'),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: account),
+        findsNothing,
+      );
+
+      await tester.tap(account);
+      await tester.pumpAndSettle();
+      expect(tabs(tester).index, tabs(tester).length - 1);
+      // A page of the tabs, named in the app bar, not a sheet over them.
+      expect(find.byKey(const Key('account-page')), findsOneWidget);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('screen-title'))).data,
+        'Profile',
+      );
+      expect(find.text('ana@example.com'), findsOneWidget);
+      expect(find.byType(HomeNavigationBar), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      // Signing out from it goes back to the camera, with no tabs. (Wide
+      // only: signed out, the app bar's "Sign in with Google" is wider than
+      // 320 dp in the test font, whose every letter is a square.)
+      if (size.width < 600) return;
+      await tester.ensureVisible(find.byKey(const Key('sign-out')));
+      await tester.tap(find.byKey(const Key('sign-out')));
+      await tester.pumpAndSettle();
+      expect(find.byType(HomeNavigationBar), findsNothing);
+      expect(find.byKey(const Key('camera-page')), findsOneWidget);
+      expect(find.byKey(const Key('account-page')), findsNothing);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('the app bar names the open screen at $name', (tester) async {
@@ -354,6 +409,7 @@ void main() {
       mode: ExecutionMode.rbac,
       roles: [anonymousRole],
       settings: (oidc: true, aws: false, rbacr: null),
+      maintenance: noMaintenance,
     ));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

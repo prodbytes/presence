@@ -13,6 +13,13 @@ Parameters:
   HostedZoneId:
     Type: AWS::Route53::HostedZone::Id
     Description: The public zone of DomainName (HOSTED_ZONE_ID in the private .env)
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod]
+    Description: >
+      The presence:stage tag on the certificate and distribution, which the
+      production deploy role (presence_infra/github-deploy.yaml) is scoped by.
 
 Resources:
   Certificate:
@@ -23,6 +30,9 @@ Resources:
       DomainValidationOptions:
         - DomainName: !Ref DomainName
           HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: presence:stage
+          Value: !Ref Stage
 
   ScriptBucket:
     Type: AWS::S3::Bucket
@@ -85,6 +95,9 @@ Resources:
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
+      Tags:
+        - Key: presence:stage
+          Value: !Ref Stage
       DistributionConfig:
         Comment: Presence install script (sh.presence.nu01.com)
         Enabled: true

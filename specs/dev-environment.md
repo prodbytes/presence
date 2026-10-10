@@ -13,9 +13,11 @@
 - The dev container ([.devcontainer/](../.devcontainer)) installs devbox and
   includes the Dart and Flutter VS Code extensions. It forwards ports 8080
   (Flutter web), 4566 (Floci), 8081 (index) and 8443 (Floci HTTPS).
-  - It pins devbox (0.18.1) and Nix (2.35.0, its installer checked against
-    the published SHA-256), and the docker-in-docker feature
-    (`devcontainer-lock.json`).
+  - It pins devbox (0.18.1: the release's `linux_amd64` or `linux_arm64`
+    binary from GitHub, checked against the release's published SHA-256,
+    instead of piping `get.jetify.com/devbox` into bash) and Nix (2.35.0,
+    its installer checked against the published SHA-256), and the
+    docker-in-docker feature (`devcontainer-lock.json`).
   - It asks for a 4-core, 16 GB machine (`hostRequirements`).
   - It sets `PRESENCE_BIND_HOST=0.0.0.0`, so Floci in docker-in-docker
     reaches the dev servers (see [Local CDN](local-cdn.md)).
@@ -60,13 +62,26 @@
     http://localhost:8081, `INDEX_PORT`; see [Site index](site-index.md))
   - the health monitor
     ([scripts/health-check.sh](../scripts/health-check.sh)): every 15 s
-    (`HEALTH_CHECK_INTERVAL`), one line per check, each with the time, an
-    emoji, ✅ / ❌ / ⚪ and a reason. It checks the index, the web app, the
-    CDN, the CDN over HTTPS, and the auth API through the CDN
-    (`/api/auth/anonymous`: its mode). From the API's answer it also
-    reports OIDC (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off) and
-    AWS (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪
-    nothing shipped to S3); both are ❌ when the API doesn't answer.
+    (`HEALTH_CHECK_INTERVAL`), **one line per run**: the time, then each
+    check as its emoji, a short label and ✅ (ok) / ❌ (failed) / ⚪ (not
+    set), separated by ` · `, with no reasons. In order: 🏠 Index (the
+    site index), 🌐 Web (the web app), 🚚 CDN, 🔒 HTTPS (the CDN over
+    HTTPS), 🔌 API (the auth API through the CDN, `/api/auth/anonymous`),
+    then from the API's answer 🔑 OIDC
+    (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
+    (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
+    shipped to S3) and 👮 RBACR (`.env`'s `RBACR_RC_TOKEN` set, or ⚪ nobody who signs in has a role),
+    all three ❌ when the API doesn't answer. With AWS set, it also asks
+    Floci whether it implements Cognito Identity (an unsigned `GetId` for
+    a made-up pool): Floci answers `UnknownOperationException`, so ☁️ AWS
+    is ❌, since the local auth API can't issue credentials and the app's
+    cloud sync fails here (test it on the RC, or remove the settings from
+    `.env` to turn it off); if Floci ever implements it, it goes back to
+    ✅ by itself; last 💎 RBACR svc, the /health of
+    rbacr's RC (`RBACR_RC_URL`, default https://rc.rbacr.nu01.com), which
+    gives the local stack's roles. For example: `🏠 Index ✅ · … · 🔑 OIDC ⚪ · …`.
+    Sourcing the script defines `run_checks` (one pass) without starting
+    the loop.
 
   The health monitor waits until the web server, Floci and the index all
   pass
@@ -183,16 +198,15 @@ generates them per machine from its own mkcert CA.
   `devbox shell` work on Apple Silicon Macs as well as Linux.
 - The Nix Flutter package has no `x86_64-darwin` (Intel Mac) build.
 
-## Claude Code permissions
+## Claude Code settings
 
-[.claude/settings.json](../.claude/settings.json) allowlists commands agents
-run often without asking. Besides the broad `Bash(*)` (which auto mode
-ignores), it names read-only ones that auto mode honours: `flutter test`
-and `flutter analyze`, `git fetch`, `sam validate`, `npm view`, `adb
-devices`, Notion fetch and search, and AWS reads used to debug production
-(CloudFormation `describe-*` and `validate-template`, `sts
-get-caller-identity`, Lambda `list-functions` and
-`get-function-configuration`, S3 listings, DynamoDB `list-tables`, `scan`
-and `get-item`, CloudWatch `filter-log-events`, and Cognito Identity
-`lookup-developer-identity` and `describe-identity`). Nothing that writes,
-deploys or deletes is listed.
+The whole `.claude/` folder is git-ignored: each checkout keeps its own
+`.claude/settings.json` (the command allowlist agents grow as you approve
+commands) and `.claude/worktrees/` (the worktrees agents work in). Neither
+is shared through git, so approving a command never leaves a change to
+commit.
+
+[.vscode/settings.json](../.vscode/settings.json) keeps the agent worktrees
+out of VS Code. It turns off worktree detection, and it skips `.claude` when
+scanning for repositories, so Source Control lists only this repo. It also
+hides `.claude/worktrees` from the Explorer, search and the file watcher.

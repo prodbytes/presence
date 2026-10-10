@@ -13,4 +13,8 @@ lint = true
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
-resolve_s3 = true
+# No resolve_s3: SAM's shared aws-sam-cli-managed-default bucket would be
+# writable by both stages. scripts/deploy.sh passes each stage's own bucket
+# (--s3-bucket <prefix>-sam-artifacts-<account>, from
+# presence_infra/github-deploy.yaml); a manual sam deploy needs
+# --s3-bucket or --resolve-s3.

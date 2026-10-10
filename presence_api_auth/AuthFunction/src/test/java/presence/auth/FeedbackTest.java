@@ -32,7 +32,13 @@ class FeedbackTest {
     private Instant now = NOW;
 
     private final FeedbackHandler feedback = new FeedbackHandler(
-            new Roles(Set.of("nu01.com"), Set.of(), e -> declared.getOrDefault(e, Set.of())),
+            // rbacr: nu01.com's people are roots; the others have the rbacr
+            // roles that give their declared app roles.
+            new Roles(e -> e.endsWith("@nu01.com")
+                    ? Set.of(Rbacr.ROOT)
+                    : declared.getOrDefault(e, Set.<String>of()).stream()
+                            .map(Roles.GRANTED_AS::get)
+                            .collect(java.util.stream.Collectors.toSet())),
             subject -> null,
             new FeedbackHandler.Store() {
                 @Override
@@ -138,9 +144,9 @@ class FeedbackTest {
         assertEquals(403, feedback.handleRequest(
                 route("POST /api/auth/feedback/reply", "bob@example.com", reply("ana@example.com", "no")), null)
                 .getStatusCode());
-        // presence_admin without presence_user isn't enough.
+        // rbacr's admin gives both roles: an admin may list.
         declared.put("half@example.com", Set.of(Roles.ADMIN));
-        assertEquals(403, feedback.handleRequest(
+        assertEquals(200, feedback.handleRequest(
                 route("GET /api/auth/feedback/threads", "half@example.com", null), null).getStatusCode());
         assertEquals(1, messages.size());
     }

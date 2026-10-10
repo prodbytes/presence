@@ -104,6 +104,19 @@ public final class Profiles {
 
         /** Sets the profile's identity unless it has one; the profile after. */
         Profile identity(String profileId, String identityId);
+
+        /**
+         * Adds {@code deviceId} at the end of the profile's devices, unless
+         * it's there already or the profile has {@code max} of them; the
+         * profile's devices after, in the order they were added.
+         */
+        List<String> addDevice(String profileId, String deviceId, int max);
+
+        /** Takes {@code deviceId} out of the profile's devices; the devices left. */
+        List<String> removeDevice(String profileId, String deviceId);
+
+        /** The profile's devices, in the order they were added. */
+        List<String> devices(String profileId);
     }
 
     /** How many taken IDs a first sign-in tries before giving up. */
@@ -243,7 +256,8 @@ public final class Profiles {
     /**
      * Profiles in {@code profilesTable} ({@code id}, a {@link ProfileId},
      * {@code createdAt}, {@code lastSignInAt}, {@code ownerSubject},
-     * {@code ownerEmail}, {@code ownerHd}, {@code identityId}) and links in
+     * {@code ownerEmail}, {@code ownerHd}, {@code identityId}, {@code devices},
+     * a list of device IDs in the order they were added) and links in
      * {@code subjectsTable} ({@code subject}, {@code profileId}, {@code email},
      * {@code linkedAt}; indexed by {@code profileId}). Times are epoch
      * milliseconds.
@@ -401,7 +415,76 @@ public final class Profiles {
                     return profile(profileId);
                 }
             }
+
+            @Override
+            public List<String> addDevice(String profileId, String deviceId, int max) {
+                try {
+                    return devicesOf(dynamo.updateItem(UpdateItemRequest.builder()
+                            .tableName(profilesTable)
+                            .key(Map.of("id", AttributeValue.fromS(profileId)))
+                            .updateExpression("SET devices = list_append(if_not_exists(devices, :none), :device)")
+                            // Once each, and never more than max: two devices
+                            // adding themselves at once both land, in order.
+                            .conditionExpression("attribute_exists(id) AND (attribute_not_exists(devices)"
+                                    + " OR (NOT contains(devices, :id) AND size(devices) < :max))")
+                            .expressionAttributeValues(Map.of(
+                                    ":none", AttributeValue.fromL(List.of()),
+                                    ":device", AttributeValue.fromL(List.of(AttributeValue.fromS(deviceId))),
+                                    ":id", AttributeValue.fromS(deviceId),
+                                    ":max", AttributeValue.fromN(Integer.toString(max))))
+                            .returnValues(ReturnValue.ALL_NEW)
+                            .build()).attributes());
+                } catch (ConditionalCheckFailedException e) {
+                    return devices(profileId);
+                }
+            }
+
+            @Override
+            public List<String> removeDevice(String profileId, String deviceId) {
+                // A list's element is removed by its index: the condition
+                // checks it's still the device's, and a change meanwhile
+                // reads the list again.
+                for (var attempt = 0; attempt < ATTEMPTS; attempt++) {
+                    var devices = devices(profileId);
+                    var index = devices.indexOf(deviceId);
+                    if (index < 0) {
+                        return devices;
+                    }
+                    try {
+                        return devicesOf(dynamo.updateItem(UpdateItemRequest.builder()
+                                .tableName(profilesTable)
+                                .key(Map.of("id", AttributeValue.fromS(profileId)))
+                                .updateExpression("REMOVE devices[" + index + "]")
+                                .conditionExpression("devices[" + index + "] = :id")
+                                .expressionAttributeValues(Map.of(":id", AttributeValue.fromS(deviceId)))
+                                .returnValues(ReturnValue.ALL_NEW)
+                                .build()).attributes());
+                    } catch (ConditionalCheckFailedException e) {
+                        // Changed meanwhile: again.
+                    }
+                }
+                throw new IllegalStateException("the devices kept changing");
+            }
+
+            @Override
+            public List<String> devices(String profileId) {
+                var item = dynamo.getItem(GetItemRequest.builder()
+                        .tableName(profilesTable)
+                        .key(Map.of("id", AttributeValue.fromS(profileId)))
+                        .consistentRead(true)
+                        .build()).item();
+                return devicesOf(item);
+            }
         };
+    }
+
+    /** The {@code devices} list of a profile's item, in order; empty without one. */
+    private static List<String> devicesOf(Map<String, AttributeValue> item) {
+        var list = item == null ? null : item.get("devices");
+        if (list == null || !list.hasL()) {
+            return List.of();
+        }
+        return list.l().stream().map(AttributeValue::s).filter(Objects::nonNull).toList();
     }
 
     private static Map<String, AttributeValue> linkItem(String subject, String profileId, String email, Instant now) {

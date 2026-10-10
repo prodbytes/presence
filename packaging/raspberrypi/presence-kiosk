@@ -43,6 +43,22 @@ display_manager() {
 
 running() { [ -d /run/systemd/system ]; }
 
+# Whether this runs from tty1, the kiosk's console (as postinst checks):
+# starting the kiosk would end this very session.
+on_tty1() {
+  pid=$$
+  while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
+    stat=$(cat "/proc/$pid/stat" 2>/dev/null) || return 1
+    set -f
+    # shellcheck disable=SC2086
+    set -- ${stat##*) }
+    set +f
+    [ "${5:-}" = 1025 ] && return 0
+    pid=${2:-}
+  done
+  return 1
+}
+
 kiosk_enable() {
   need_root enable
   systemctl enable "$UNIT"
@@ -58,9 +74,13 @@ kiosk_enable() {
       return 0
     fi
   fi
-  if running; then
+  if running && on_tty1; then
+    say "enabled; you're on tty1, which the kiosk takes over: reboot to start it (sudo reboot)"
+  elif running; then
     systemctl restart "$UNIT"
     say "started; it starts at every boot"
+  else
+    say "enabled; it starts at the next boot"
   fi
 }
 

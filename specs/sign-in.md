@@ -111,10 +111,8 @@ there's no separate sign-in screen:
   - **With `presence_admin` too,** an **Admin** icon also shows, left of
     the account button (see [Membership](membership.md)). With
     `presence_root` as well (`RolesService.isRoot`), its voucher form also
-    offers Admin codes. A root on a root domain (`nu01.com`) must sign in
-    with that domain's Google Workspace account (the ID token's `hd`); a
-    personal Google account registered with a `nu01.com` address gets no
-    root roles (see [Auth API](auth-api.md)).
+    offers Admin codes. Every role comes from rbacr, roots from its root
+    list (see [Auth API](auth-api.md)).
   - **Without `presence_user`, or if the check fails** (deny by default),
     the app shows only the camera, the account button and a **sign-up**
     icon. The icon opens "Request access", where the user writes a message
@@ -136,12 +134,15 @@ there's no separate sign-in screen:
   - Web asks its own origin (`/api/auth`). Android and iOS ask
     `API_BASE_URL`, `https://presence.nu01.com` by default.
 - **Signed in as a `presence_user`:** all the buttons: the camera's view, Flip and Clip
-  (with its readiness colors), the Camera / Events / Settings tabs and
-  the **account button**, your avatar with the tooltip "Signed in as
-  <name> · <email>". It opens a bottom sheet with avatar, name, email,
+  (with its readiness colors), the tabs and, last among them, the
+  **Profile** tab: your avatar with the tooltip "Signed in as
+  <name> · <email>" (see [Navigation](navigation.md)). It opens, as a
+  page of the tabs, the **account sheet**'s content: avatar, name, email,
   the user's **roles**, this device's **connectivity**, the [cloud sync](cloud-sync.md) status,
-  the **profile** and its **devices**, and **Sign out**. Signing out closes the sheet, returns to the camera and
-  hides the navigation again. The camera keeps running.
+  the **profile** and its **devices**, and **Sign out**. Signing out returns to the camera and
+  hides the navigation again (closing the sheet, where it's one: signed
+  in without access, the app bar's account button still opens it as a
+  bottom sheet). The camera keeps running.
   - **Roles**, always, right under the email (`AccountRoles`): a small
     outlined chip per role the auth API gave, named for people (Member,
     Premium, Admin, Root; another role keeps its ID), in that order, the
@@ -227,6 +228,10 @@ there's no separate sign-in screen:
       devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with
       an ellipsis.
+  - Devices past the plan's limit are labelled **hidden**, and under the
+    list a box says whether the account is **Free** or **Premium**, what
+    that gives, and for Free a **Sign up at nu01.com** button; see
+    [Premium and free](premium.md#in-the-app).
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
   - The account sheet ends with a short paragraph on what Presence is and

@@ -50,6 +50,7 @@ workflow's `linux-arm64` job runs `make deb` and uploads it as
 | `/etc/default/presence` | settings (conffile) |
 | `/etc/pam.d/presence-kiosk` | the kiosk's logind session (conffile) |
 | `/etc/chromium/policies/managed/presence.json` | camera and mic allowed for Presence (conffile) |
+| `/usr/share/polkit-1/rules.d/50-presence-kiosk.rules` | denies the `presence` user power, network and storage actions |
 | `/var/lib/presence/` | the `presence` user's home: the Chromium profile (sign-in, events, clips) |
 
 - **Depends:** `cage`, `xwayland` (Debian's cage won't start without it),
@@ -76,6 +77,30 @@ workflow's `linux-arm64` job runs `make deb` and uploads it as
   or mouse. With no screen connected (no `connected` DRM connector) it
   runs on a headless output, so the camera still records.
 - **No blanking:** cage has no idle timeout, so the screen stays on.
+- **Hardening** (in the unit), all compatible with Chromium's sandbox:
+  `NoNewPrivileges`, `ProtectSystem=strict` with `ReadWritePaths=` the
+  home (`/var/lib/presence`) and `/run/user` (the logind session's
+  runtime directory, where cage puts its Wayland socket), `PrivateTmp`,
+  `ProtectKernelTunables`, `ProtectKernelModules`, `ProtectKernelLogs`,
+  `ProtectControlGroups`, `RestrictSUIDSGID`, `LockPersonality`, and
+  `InaccessiblePaths=/home /root`.
+  - **Not `ProtectHome=yes`** (the unit had it before): it also hides
+    `/run/user`, so the runtime directory wasn't writable and cage
+    couldn't create its socket under systemd.
+  - Left out on purpose: `RestrictNamespaces=` (Chromium's sandbox puts
+    renderers in their own user namespace), `MemoryDenyWriteExecute=`
+    (V8's JIT, WebAssembly), `PrivateDevices=` (camera, GPU, input),
+    `PrivateUsers=` and `SystemCallFilter=` (Chromium installs its own
+    seccomp filters).
+  - With `NoNewPrivileges`, Chromium's setuid sandbox can't be used, so it
+    needs unprivileged user namespaces, which Raspberry Pi OS and Debian
+    12 enable; it prefers them anyway.
+- **polkit:** a rule denies the `presence` user (the active seat0 session,
+  which logind lets power off or reboot without asking) every
+  `org.freedesktop.login1` power-off, reboot, halt, suspend, hibernate and
+  reboot-setting action, NetworkManager, wpa_supplicant, systemd-networkd
+  and -resolved, ModemManager and UDisks2 actions. Other actions (e.g.
+  idle inhibitors) are left to their defaults.
 - **Chromium** (`chromium` or `chromium-browser`) runs `--kiosk` on
   Wayland with its profile in `/var/lib/presence/chromium`, which keeps the
   sign-in and the app's IndexedDB events and clips across reboots. Before
@@ -103,15 +128,22 @@ workflow's `linux-arm64` job runs `make deb` and uploads it as
 ## Install, upgrade, remove
 
 - **postinst:** creates the `presence` user and its groups. On a **fresh
-  install** (or an install after a remove) it enables and starts the
-  service, unless a display manager is enabled (the
+  install** (or an install after a remove) it enables the service, unless
+  a display manager is enabled (the
   `/etc/systemd/system/display-manager.service` link): then it says so and
-  leaves the desktop alone. On **upgrade** it only restarts the service if
-  it's enabled; a kiosk turned off stays off.
+  leaves the desktop alone. It **starts** the kiosk now only when systemd
+  is running and the install doesn't run from **tty1**, the kiosk's own
+  console (this process or an ancestor has tty1 as its controlling
+  terminal, read from `/proc/<pid>/stat`; sudo's `use_pty` doesn't hide
+  it): starting there would take tty1 from under the install. Otherwise it
+  says the kiosk starts at the next boot and asks for a reboot. On
+  **upgrade** it only restarts the service if it's enabled and running
+  (and not from tty1); a kiosk turned off stays off.
 - **`presence-kiosk enable`** enables the service; on a desktop image it
   also disables the display manager, remembering which in
   `/var/lib/presence-kiosk/display-manager` (root-owned, checked to be a
-  plain unit name), and asks for a reboot if the desktop is running.
+  plain unit name), and asks for a reboot if the desktop is running, or
+  if it runs from tty1 (as postinst).
   **`disable`** turns the kiosk off and re-enables that display manager.
 - **prerm** (remove only) runs `presence-kiosk disable`. **postrm** on
   purge deletes `/var/lib/presence` and `/var/lib/presence-kiosk`; dpkg
@@ -130,6 +162,32 @@ session is kept in the Chromium profile, so after a reboot the web app's
 silent FedCM sign-in restores it, as in any browser ([Sign-in](sign-in.md)).
 
 ## Verified
+
+In a Debian 12 arm64 container booted with systemd (2026-10-07), with
+Chromium 154 from Debian and the package built by `scripts/deb.sh` from a
+stub bundle:
+
+- A transient unit with the service's user, a PAM session and exactly its
+  hardening: `XDG_RUNTIME_DIR` (`/run/user/<uid>`) and the home are
+  writable, `/etc` read-only, `/dev/shm` writable, unprivileged user
+  namespaces work, and headless Chromium (no `--no-sandbox`) renders a
+  page with its renderers in their own user namespace and under seccomp.
+  The same with `ProtectHome=yes` left `XDG_RUNTIME_DIR` inaccessible
+  (permission denied), hence the change.
+- `apt install` of the package: `systemd-analyze verify` passes, the
+  polkit rule loads (`Finished loading, compiling and executing 3
+  rules`), and `pkcheck` as `presence` is refused `login1.power-off`,
+  `login1.reboot-multiple-sessions`, `udisks2.filesystem-mount` and
+  `NetworkManager.network-control` (registered as allowed for anyone for
+  the test) but still allowed `login1.inhibit-block-idle`; another user
+  is unaffected.
+- The tty1 check finds a controlling terminal through a parent process
+  with stdin redirected (a pseudo-terminal in the test; tty1 is the same
+  check with tty1's number, 1025).
+
+Not yet on a Raspberry Pi with a screen (cage and the real tty1).
+
+Earlier:
 
 In Debian 12 arm64 containers (Raspberry Pi OS Bookworm's base), with the
 `0.6.202610061530-RC` arm64 bundle:
