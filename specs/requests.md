@@ -4286,3 +4286,34 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        they shifted down). Tests: `widget_test.dart` (the feed card, the
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
+
+324. **Every role from rbacr.** (2026-10-10)
+     - Asked: migrate authorization from the auth API (`presence_api_auth`)
+       to rbacr, so everything about authorization is an rbacr call. Roles
+       map `free` to member and `admin` to admin; vouchers stay here for
+       now (rbacr will get creating and redeeming for another address);
+       the old roles table is copied into rbacr.
+     - Changed: `Roles` takes every role from rbacr's `presence` system
+       (`RBACR_SYSTEM`): `free`, `premium` or `admin` gives
+       `presence_user`, `premium` or `admin` `presence_premium`, `admin`
+       `presence_admin`, and an rbacr root (its root list) all four with
+       `presence_root`. `Rbacr` asks once per email (`POST /api/roles`, no
+       `systemId`, so `globalRoles` says root), and grants (`POST
+       /api/systems/:id/grants`): an approved membership grants `free`, a
+       redeemed voucher `free` or `admin` (its answer lists the app's
+       roles that gives). Gone: the root allowlist (`RootDomains`,
+       `RootEmails`, `PRESENCE_ROOT_*` in deploy, CI, Floci and `.env`),
+       and reading or writing `UserRolesTable`'s roles, which now holds
+       only the voucher lockout (and its IAM is cut to that). Without an
+       rbacr token nobody has a role: `deploy.sh` requires one (no more
+       `RBACR_TOKEN=none`), `/health`'s `rbacr` check fails without it,
+       and the app's 🛂 RBACR card warns. The local Floci stack gets
+       `RBACR_*` from `.env`. New `scripts/migrate-roles-to-rbacr.sh`
+       copies the table's roles into rbacr (dry run by default). Tests:
+       `RolesTest`, `RbacrTest`, `MembershipTest`, `VoucherTest`,
+       `ProfileTest`, `ProfilesTest`, `UserRolesTest`, app
+       `system_health_test.dart`. Specs: [Auth API](auth-api.md),
+       [Membership](membership.md), [Premium and free](premium.md),
+       [Profiles](profiles.md), [Sign-in](sign-in.md),
+       [Health check](health-check.md), [Execution mode](execution-mode.md),
+       [Deploy](deploy.md), [Local CDN](local-cdn.md).

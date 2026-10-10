@@ -109,12 +109,11 @@ class ProfileTest {
         }
     };
 
-    /** rbacr's roles in the presence system, by email. */
-    private final Map<String, Set<String>> rbacr = new HashMap<>();
+    /** rbacr's roles in the presence system, by email: julio@ and ana@nu01.com are (free) members, others nothing. */
+    private final Map<String, Set<String>> rbacr = new HashMap<>(Map.of(
+            "julio@nu01.com", Set.of("free"), "ana@nu01.com", Set.of("free")));
 
-    /** nu01.com gets both roles; julio@gmail.com and others none; premium from {@link #rbacr}. */
-    private final Roles roles = new Roles(Set.of("nu01.com"), Set.of(), e -> Set.of(),
-            e -> rbacr.getOrDefault(e, Set.of()));
+    private final Roles roles = new Roles(e -> rbacr.getOrDefault(e, Set.of()));
 
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
@@ -164,6 +163,7 @@ class ProfileTest {
 
     @Test
     void aLinkedAccountGetsTheSameFolderAndMembershipButNotAdministration() {
+        rbacr.put("julio@nu01.com", Set.of("admin"));
         googleIdentities.put("tok-work", "us-east-1:work");
         foldersWithData.add("us-east-1:work");
         var code = linkCode("work", "julio@nu01.com");
@@ -175,13 +175,13 @@ class ProfileTest {
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
-        // The gmail account now has nu01.com's folder and membership, here
-        // and in GET /api/auth, but not its administration.
+        // The gmail account now has nu01.com's folder, membership and
+        // premium, here and in GET /api/auth, but not its administration.
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
-        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_user\"]}",
+        assertEquals("{\"email\":\"julio@gmail.com\",\"profile\":\"profile_1\",\"roles\":[\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "home", "julio@gmail.com", null), null).getBody());
         // And the Admin routes, which never make a profile: no admin.
         var admin = new AdminHandler(roles, new Profiles(store)::existing, null, new VoucherTest.MemoryStore(), clock);
@@ -195,8 +195,8 @@ class ProfileTest {
     }
 
     @Test
-    void anOwnerWithoutItsWorkspaceSharesNoMembership() {
-        // The owner's nu01.com address is a personal Google account (no hd).
+    void anOwnerWithoutRolesSharesNoMembership() {
+        // rbacr gives mallory@nu01.com nothing.
         var event = call("POST /api/auth/profile/link-code", "mallory", "mallory@nu01.com", null);
         event.getRequestContext().getAuthorizer().getJwt().setClaims(Map.of("iss", GOOGLE, "sub", "mallory",
                 "email", "mallory@nu01.com", "email_verified", "true"));
@@ -334,7 +334,7 @@ class ProfileTest {
     @Test
     void credentialsAreTaggedPremiumOnlyWhenRbacrSaysSo() {
         googleIdentities.put("tok-work", "us-east-1:work");
-        // A member rbacr knows nothing of: free, live sync only.
+        // A free member: live sync only.
         var free = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
         assertEquals(200, free.getStatusCode());
         assertTrue(free.getBody().endsWith(",\"tier\":\"free\"}"), free.getBody());
@@ -352,7 +352,7 @@ class ProfileTest {
         rbacr.put("julio@nu01.com", Set.of("premium"));
         var auth = new AuthHandler(roles, new Profiles(store, clock, () -> "unused"));
         assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":\"profile_1\",\"roles\":["
-                        + "\"presence_admin\",\"presence_premium\",\"presence_root\",\"presence_user\"]}",
+                        + "\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "work", "julio@nu01.com", null), null).getBody());
     }
 
@@ -366,20 +366,18 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertTrue(response.getBody().endsWith(",\"tier\":\"premium\"}"), response.getBody());
         // The owner's premium gone: the folder is free for both.
-        rbacr.remove("julio@nu01.com");
+        rbacr.put("julio@nu01.com", Set.of("free"));
         response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertTrue(response.getBody().endsWith(",\"tier\":\"free\"}"), response.getBody());
     }
 
     @Test
-    void premiumComesFromRbacrAloneNeverFromTheRolesTable() {
-        var tabled = new Roles(Set.of(), Set.of(), e -> Set.of(Roles.USER, Roles.PREMIUM));
-        assertEquals(Set.of(Roles.USER), tabled.of("ana@example.com", true, null));
-        // And not for an unverified email, whatever rbacr says.
-        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
+    void premiumIsOnlyForAVerifiedEmail() {
+        // Not for an unverified email, whatever rbacr says.
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false));
         rbacr.put("julio@gmail.com", Set.of("premium"));
-        assertEquals(Set.of(), roles.of("julio@gmail.com", false, null));
-        assertEquals(Set.of(Roles.PREMIUM), roles.of("julio@gmail.com", true, null));
+        assertEquals(Set.of(), roles.of("julio@gmail.com", false));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of("julio@gmail.com", true));
     }
 
     @Test
@@ -393,12 +391,9 @@ class ProfileTest {
         assertEquals(Set.of(), roles.of(unverified, owned));
         assertEquals(Set.of(), roles.of(gmail, null));
         assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", null, null)));
-        // An owner without its Workspace is no member to share.
-        assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", "julio@nu01.com", null)));
-        // A member by the roles table shares that.
-        var members = new Roles(Set.of(), Set.of(), e -> e.equals("ana@example.com")
-                ? Set.of(Roles.USER, Roles.ADMIN) : Set.of());
-        assertEquals(Set.of(Roles.USER),
+        // An admin owner shares membership and premium, never the administration.
+        var members = new Roles(e -> e.equals("ana@example.com") ? Set.of("admin") : Set.of());
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER),
                 members.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#ana", "ana@example.com", null)));
     }
 

@@ -142,12 +142,12 @@ their data.
 
 - [Auth API](auth-api.md): `GET /api/auth`, the signed-in user's
   [profile](profiles.md) and roles
-  (`presence_user`, `presence_admin`, and `presence_root` for the root
-  allowlist: `PRESENCE_ROOT_DOMAINS`, `PRESENCE_ROOT_EMAILS`),
+  (`presence_user`, `presence_premium`, `presence_admin`, and
+  `presence_root` for rbacr's roots, all from rbacr),
   `GET /api/auth/anonymous` (the
   execution mode and which settings are set, no token), the
   membership and voucher routes and the [profile](profiles.md) routes (SAM,
-  Java 25; Google JWT authorizer; roles by domain or a DynamoDB table).
+  Java 25; Google JWT authorizer; roles and grants in rbacr).
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which

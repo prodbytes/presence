@@ -109,9 +109,11 @@
   profile ID for good. After that the profile ID alone works, for every
   account in the profile. A link code links it too, so accounts that join
   (whose Google logins aren't on the identity) get credentials.
-- **Roles:** a subject has its own roles plus the owner's **membership**:
-  `presence_user` when the **owner** (the subject that made the profile)
-  has it, never the owner's `presence_admin` or `presence_root`, which
+- **Roles:** a subject has its own roles (from rbacr, for its own email)
+  plus the owner's **membership** and premium: `presence_user` and
+  `presence_premium` when the **owner** (the subject that made the
+  profile) has them in rbacr, never the owner's `presence_admin` or
+  `presence_root`, which
   each account gets only from its own email. This applies in
   `GET /api/auth`, the Admin routes and the profile routes. A
   `julio@gmail.com` linked to a `julio@nu01.com` profile is a
@@ -119,15 +121,14 @@
   code is a one-time secret any member can make; administration must not
   travel with it.)
 - **The owner's email** is kept on the profile (`ownerEmail`, with its
-  Workspace domain `ownerHd`, the token's `hd`) only from a token whose
-  `email_verified` is true, since linked subjects share the owner's
-  membership through it. A verified new email (or `hd`) replaces it when
+  Workspace domain `ownerHd`, the token's `hd`, kept but no longer used
+  for roles) only from a token whose `email_verified` is true, since
+  linked subjects share the owner's membership through it: rbacr is asked
+  about that email. A verified new email (or `hd`) replaces it when
   the owner signs in; an unverified one never does, and is never stored
   for a new profile or a link either. An `ownerEmail` kept before this
   rule from an unverified token is dropped when the owner signs in with
-  that same email still unverified. An owner on a root domain shares
-  membership only once `ownerHd` says its Workspace manages it (from its
-  next sign-in after the change).
+  that same email still unverified.
 
 ## Linking
 
@@ -301,8 +302,8 @@ deleted, and the contents live only in AWS.
   - a linked subject gets the same identity and the owner's membership
     only, also in `GET /api/auth`, and no admin in the Admin routes, which
     never make a profile;
-  - only membership is shared, from a verified caller, and not from an
-    owner without its Workspace's `hd`;
+  - only membership and premium are shared (an admin owner's too), from a
+    verified caller, and not from an owner rbacr gives nothing;
   - the owner's new email is kept;
   - a refused link leaves the code usable;
   - codes are single-use, expire, are well-formed, and are stored only as
@@ -344,9 +345,8 @@ deleted, and the contents live only in AWS.
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay
   unlinked.
-- Roles are still declared per email in `UserRolesTable`, and membership
-  requests are per email. Linked subjects share the owner's membership
-  only.
+- Roles are still per email (in rbacr), and membership requests are per
+  email. Linked subjects share the owner's membership and premium only.
 - Google stays a login provider of the pool. An account can therefore
   still get credentials straight from Cognito for its own Google
   identity's folder, without the roles check, as before profiles. Remove
