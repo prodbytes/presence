@@ -23,6 +23,7 @@ import '../identity/join_link.dart';
 import '../location/device_location.dart';
 import '../log_view.dart';
 import '../monitoring.dart';
+import '../screen_off.dart';
 import '../settings.dart';
 import '../system_health.dart';
 import '../tab_memory.dart';
@@ -62,7 +63,12 @@ class HomeScreen extends StatefulWidget {
     this.onJoinHandled,
     this.tabMemory,
     this.deleteDevice,
+    this.screenOff,
   });
+
+  /// Darkens the screen while capture goes on (the camera's Screen off
+  /// button), where the platform can.
+  final ScreenOff? screenOff;
 
   /// Deletes another of the profile's devices: from the account sheet's
   /// device list, after a confirmation.
@@ -150,6 +156,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The Camera tab's view button, All: this device's camera in a grid
   /// with every other device's latest image.
   bool _showAll = false;
+
+  /// The Screen off button was tapped: a black cover hides everything
+  /// until a tap brings the screen back.
+  bool _dark = false;
+
+  void _setDark(bool dark) {
+    setState(() => _dark = dark);
+    widget.screenOff?.set(dark);
+  }
 
   /// What the view button shows: One (this camera), All (the grid) or None
   /// (the camera off: [CameraRig.paused], kept in the settings).
@@ -437,9 +452,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
     final joinStatus = _joinStatus();
     // A tapped device name shows its events, anywhere ([ShowDeviceEvents]).
-    return ShowDeviceEvents(
+    final screen = ShowDeviceEvents(
       onShow: _hasAccess ? _showDeviceEvents : null,
       child: _scaffold(context, joinStatus),
+    );
+    if (!_dark) return screen;
+    return Stack(
+      children: [
+        screen,
+        Positioned.fill(child: _ScreenOffCover(onWake: () => _setDark(false))),
+      ],
     );
   }
 
@@ -627,8 +649,41 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               showAll: _showAll,
               onNextViewMode: _nextViewMode,
               onClip: _clip,
+              onScreenOff: widget.screenOff?.supported ?? false
+                  ? () => _setDark(true)
+                  : null,
             )
           : null,
+    );
+  }
+}
+
+/// Covers the app in black while the screen is off ([HomeScreen.screenOff]),
+/// with a faint hint; a tap anywhere brings the screen back. Seen only
+/// before the system's timeout turns the screen off, or after the power
+/// button wakes it.
+class _ScreenOffCover extends StatelessWidget {
+  const _ScreenOffCover({required this.onWake});
+
+  final VoidCallback onWake;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      key: const Key('screen-off-cover'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onWake,
+      // Material, so the hint has a text style outside the Scaffold.
+      child: const Material(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            'Capturing with the screen off. Tap to wake.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF3C3836), fontSize: 14),
+          ),
+        ),
+      ),
     );
   }
 }

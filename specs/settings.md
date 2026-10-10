@@ -74,13 +74,15 @@
   - A **Tag objects in new clips** switch (default on), "Human, cat, dog,
     bicycle, bottle… for search": the [object tags](recognition.md).
     Disabled the same way where there's no runtime.
-  - **Tag automatically when at least** 30–95 % sure, in 5 % steps,
-    default **85 %**, off while the subjects switch is. Under it, "Less
+  - **Tag automatically when at least** 50–95 % sure, in 5 % steps,
+    default **90 %**, off while the subjects switch is. Under it, "Less
     sure than that, it asks you whether it's them.": there's no separate
-    "Ask me" level any more; anyone recognized below it (from 30 %, the
+    "Ask me" level any more; anyone recognized below it (from 50 %, the
     floor) is asked about.
   - Stored as `recognition: {enabled, objects, autoTag}`; an `ask` value
-    in older records is ignored.
+    in older records is ignored. A stored 85 % (the old default, never
+    changed) reads as the new 90 %; a stored level under 50 % reads as
+    50 %.
 - **History** section (see [Event retention](event-retention.md)): **Keep
   events for**, 1–90 days in 1-day steps, default **2 weeks**, shown as
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older

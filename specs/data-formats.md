@@ -26,6 +26,9 @@ record) says which part of the file the clip is; players start there. See
 
 - Measured on the bucket on 2026-10-02: 92 web clips (WebM), 12.7 MB on
   average (6.8–14.9 MB), about 3.4 Mbit/s for a 30 s clip.
+- **Every image and recording is sealed** (encrypted with its device's
+  key, AES-256-GCM in chunks; see [Media encryption](encryption.md)) in
+  storage and in the bucket: the formats below are what's inside.
 - **Images** are JPEG: the clip's **thumbnail** (the camera's frame when
   the clip was asked for, about 20 KB) and each **tagged frame** (the frame
   someone tagged on, at most 960 px wide, about 50 KB; at most 1280 px for
@@ -141,16 +144,18 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
   events/year=2026/day=275/<eventId>.json      JSON: event records
   clips/year=2026/day=275/<clipId>.json        JSON: clip records
   devices/<deviceId>/settings.json             JSON: each device's settings
-  media/<clipId>.webm (or .mp4)                the recording
-  media/<clipId>.jpg                           the thumbnail
-  media/<clipId>/frames/<frameId>.jpg          the frames tags were made on
+  media/<clipId>.webm (or .mp4)                the recording, sealed
+  media/<clipId>.jpg                           the thumbnail, sealed
+  media/<clipId>/frames/<frameId>.jpg          the frames tags were made on, sealed
+  encryption.json                              when the media was first sealed
 ```
 
 - **Partitions** are Hive-style, by the UTC day of the year (`day=001` to
   `day=366`, zero-padded), so the keys sort by date and a query on a few
   days reads only those folders.
-- **Content types:** `application/json`, `video/webm;codecs=…` or
-  `video/mp4`, `image/jpeg`. Objects are stored in Intelligent-Tiering and
+- **Content types:** `application/json`, and `application/octet-stream`
+  for sealed media (the extension, and the clip record's `mimeType`, say
+  what's inside). Objects are stored in Intelligent-Tiering and
   expire after 90 days ([Production deploy](deploy.md)).
 - **Before 2026-10-02** clip records were `clips/<clipId>.json`, next to
   `clips/<clipId>.webm`, `.jpg` and `clips/<clipId>/frames/`. The buckets

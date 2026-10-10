@@ -4226,7 +4226,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        sync over; `AccessDenied` renews credentials once. The account
        sheet and connectivity say Free. RBACR in health: the API's
        `/health` `rbacr` check, `settings.rbacr` in
-       `/api/auth/anonymous`, the app's 🛂 RBACR card, and the local
+       `/api/auth/anonymous`, the app's 👮 RBACR card, and the local
        monitor. `deploy.sh` requires `RBACR_TOKEN` (CI: the repository
        secret) and checks `rbacr` in its smoke test. Tests: auth API
        (`RbacrTest`, roles, tagged credentials), app (`free_sync_test.dart`,
@@ -4244,7 +4244,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
 
-321. **Bottom navigation, Strava-style layout.** (2026-10-10)
+321. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+     - Asked: still too many wrong recognitions; increase the expected
+       confidence threshold.
+     - Changed: subjects are tagged automatically from **90 %** (default;
+       was 85 %; a device left at 85 % moves to 90 %), and asked about
+       from **50 %** (was 30 %; also the slider's minimum, so it reads
+       50–95 %). Object tags need a score of **0.6** on a frame (was 0.5)
+       and 0.8 to count from a single frame (was 0.7); people and pets
+       are detected from 0.5 (was 0.4). Tests: `recognition_test.dart`,
+       `settings_test.dart`. Specs: [Subject recognition](recognition.md),
+       [Settings screen](settings.md), [Configuration](configuration.md).
+
+322. **Bottom navigation, Strava-style layout.** (2026-10-10)
      - Asked: improve the look and feel; instead of the top navigation
        bar, use a bottom navigation bar, as is more common on phones, with
        Strava's UI as the reference for layout and components (keeping
@@ -4264,7 +4276,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md), [Camera](camera.md),
        [Subjects](subjects.md).
 
-322. **Settings in grouped sections.** (2026-10-10)
+323. **Settings in grouped sections.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: group the Settings
        screen's sections.
      - Changed: each Settings section (`SettingsSection`) is a bold
@@ -4274,7 +4286,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
        [Settings](settings.md).
 
-323. **Monitoring as a feed.** (2026-10-10)
+324. **Monitoring as a feed.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: make Monitoring a
        feed of event cards, with a rounded, filled search field.
      - Changed: each timeline entry is one card (`FeedCard`): the device
@@ -4302,3 +4314,64 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the account-sheet tests moved to the tab. Specs:
        [Navigation](navigation.md), [Sign-in](sign-in.md),
        [About](about.md).
+
+326. **Screen off to save battery.** (2026-10-10)
+     - Asked: a good way to save battery on Android; whether the screen
+       can be turned off while capture goes on, and if so a button for
+       it in the camera view.
+     - Changed: capture already went on with the screen off (the capture
+       service and its wake lock), but the app kept the screen on. A new
+       icon-only **Screen off** button on the Camera tab (Android only)
+       covers the app in black, stops keeping the screen on, drops it to
+       the lowest brightness and pauses the preview, so the system's
+       timeout turns the screen off; a tap brings it back. Tests:
+       `screen_off_test.dart`. Specs: [Camera](camera.md),
+
+327. **One health-check line per run.** (2026-10-10)
+     - Asked: make the health check script print only one line per run,
+       one icon per check with a status flag.
+     - Changed: `scripts/health-check.sh` now prints one line per pass:
+       the time, then `<emoji> <label> ✅|❌|⚪` per check joined by ` · `
+       (as the Settings health line), with no reasons. Follow-up: each
+       icon got a short label (`🏠 Index`, `🔌 API`, `👮 RBACR`, …); AWS is ☁️ (as in the
+       app's Settings line, was 🪣), so the CDN is 🚚, and RBACR is 👮 (was
+       🛂). rbacr's own `/health` got
+       its own icon, 💎, apart from the API's 👮 rbacr setting. The pass
+       is a `run_checks` function; sourcing the script defines it without
+       starting the loop. Specs: [Dev environment](dev-environment.md),
+       [Premium and free](premium.md); README sample updated.
+
+328. **Encrypt every image and recording with a key per device.**
+     (2026-10-10)
+     - Asked: generate a symmetric key for each device together with its
+       device ID; encrypt every image with it before it's stored or sent,
+       so all images in storage and in transit are encrypted (in the
+       spec); event metadata (times, subjects, tags) needn't be. Then:
+       delete the existing unencrypted data and events, always encrypt,
+       and share the keys with the profile's other devices so they open
+       each other's events, through the devices' settings in S3.
+     - Changed: an AES-256 key per device, made with the device ID in one
+       transaction (`EventStore.deviceIdentity`). Thumbnails, tagged
+       frames and recordings are sealed (`SealFormat`: chunked
+       AES-256-GCM, the key's device ID in the header) when they're made
+       or saved, and opened only in memory (`SealedImage`) or into a
+       temporary file deleted after playing or searching (`MediaUrls`
+       now tracks files off the web). Native recordings are
+       `clips/<id>.sealed`. Cloud sync and live sync move only sealed
+       media (S3 type `application/octet-stream`); unsealed images are
+       never sent and are skipped when received. Keys: `mediaKey` in
+       `devices/<id>/settings.json`, read for the profile's other devices
+       on the first pass, hourly and when one is missing; also in each
+       live event message (free profiles have no bucket); kept locally in
+       `keys`. Unencrypted data is deleted: on the device, when an older
+       install gets its key; in the cloud, once per device and profile,
+       everything under `events/`, `clips/` and `media/` older than the
+       profile's `encryption.json` marker. Infra: `s3:DeleteObject` on the
+       profile's folder, `DELETE` in the bucket's CORS. Package:
+       `cryptography`. Tests: `media_seal_test.dart`,
+       `encryption_test.dart`, and fixtures sealed across the suite.
+       Specs: [Media encryption](encryption.md) (new),
+       [Devices, users and places](devices-users-places.md),
+       [Cloud sync](cloud-sync.md), [Live sync](live-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Android](android.md).

@@ -27,37 +27,44 @@ class PlatformFrameSampler implements ClipFrameSampler {
     required Duration every,
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
-    final path = await media.resolveUrl();
-    if (path.isEmpty) return;
-    final times = sampleTimes(media, every);
-    final seen = <int>{};
-    for (var i = 0; i < times.length; i += batch) {
-      final ms = times.sublist(i, (i + batch).clamp(0, times.length));
-      final frames = await _channel.invokeListMethod<Map<Object?, Object?>>(
-        'keyframesAt',
-        {'path': path, 'ms': ms, 'maxWidth': maxWidth},
-      );
-      if (frames == null) return;
-      for (final frame in frames) {
-        final at = (frame['ms']! as num).toInt();
-        final width = (frame['width']! as num).toInt();
-        final height = (frame['height']! as num).toInt();
-        final pixels = frame['pixels']! as Uint8List;
-        // Keyframes outside the clip, or already sampled, are skipped.
-        if (at < media.start.inMilliseconds || at > media.end.inMilliseconds) {
-          continue;
-        }
-        if (!seen.add(at) || pixels.length != width * height * 4) continue;
-        yield SampledFrame(
-          Duration(milliseconds: at),
-          RgbaImage(width, height, pixels),
-          () => _channel.invokeMethod<Uint8List>('encodeJpeg', {
-            'width': width,
-            'height': height,
-            'pixels': pixels,
-          }),
+    // Held while sampling: an opened copy of a sealed recording is
+    // deleted once let go.
+    final path = await media.acquireUrl();
+    try {
+      if (path.isEmpty) return;
+      final times = sampleTimes(media, every);
+      final seen = <int>{};
+      for (var i = 0; i < times.length; i += batch) {
+        final ms = times.sublist(i, (i + batch).clamp(0, times.length));
+        final frames = await _channel.invokeListMethod<Map<Object?, Object?>>(
+          'keyframesAt',
+          {'path': path, 'ms': ms, 'maxWidth': maxWidth},
         );
+        if (frames == null) return;
+        for (final frame in frames) {
+          final at = (frame['ms']! as num).toInt();
+          final width = (frame['width']! as num).toInt();
+          final height = (frame['height']! as num).toInt();
+          final pixels = frame['pixels']! as Uint8List;
+          // Keyframes outside the clip, or already sampled, are skipped.
+          if (at < media.start.inMilliseconds ||
+              at > media.end.inMilliseconds) {
+            continue;
+          }
+          if (!seen.add(at) || pixels.length != width * height * 4) continue;
+          yield SampledFrame(
+            Duration(milliseconds: at),
+            RgbaImage(width, height, pixels),
+            () => _channel.invokeMethod<Uint8List>('encodeJpeg', {
+              'width': width,
+              'height': height,
+              'pixels': pixels,
+            }),
+          );
+        }
       }
+    } finally {
+      media.releaseUrl(path);
     }
   }
 }
