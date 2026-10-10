@@ -60,6 +60,9 @@ delete it from another device.
   and live sync forgets when it last heard from it (`LiveSync.forget`).
   Answering pings alone doesn't bring it back; once it posts new events it
   reappears, its dot from the pings and pongs heard from then on.
+- It's taken off the profile's device list at the auth API
+  (`CloudSync.releaseDevice`), so the next device takes its place among
+  those whose events show ([Premium and free](premium.md#devices)).
 - Returns how many events it deleted.
 
 ## One event

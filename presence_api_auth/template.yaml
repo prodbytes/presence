@@ -241,6 +241,21 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # The system's own state, one item per setting: {"id": "maintenance",
+  # "on", "message", "since" (epoch ms), "by" (the admin's email)}.
+  SystemTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -311,8 +326,13 @@ Resources:
           # GET /api/auth/anonymous says whether these are set (Settings).
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
+          # GET /api/auth/anonymous says whether maintenance mode is on.
+          SYSTEM_TABLE: !Ref SystemTable
       Policies:
         - Statement:
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt SystemTable.Arn
             # Finds the subject's profile, or links it to a new one.
             - Effect: Allow
               Action:
@@ -416,6 +436,7 @@ Resources:
           VOUCHER_TABLE: !Ref VoucherTable
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          SYSTEM_TABLE: !Ref SystemTable
       Policies:
         - Statement:
             # The caller's profile owner, whose membership a linked subject shares.
@@ -439,6 +460,12 @@ Resources:
                 - dynamodb:Scan
                 - dynamodb:DeleteItem
               Resource: !GetAtt VoucherTable.Arn
+            # Reads and switches maintenance mode.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt SystemTable.Arn
       Events:
         List:
           Type: HttpApi
@@ -475,6 +502,18 @@ Resources:
           Properties:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/vouchers/delete
+            Method: post
+        GetMaintenance:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/maintenance
+            Method: get
+        SetMaintenance:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/maintenance
             Method: post
 
   ProfileFunction:
@@ -580,6 +619,12 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/unlink
             Method: post
+        RemoveDevice:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/devices/remove
+            Method: post
 
   # GET /health: whether every dependency answers (presence.auth.HealthHandler),
   # polled by the site's Route 53 health check. Read-only: it only
@@ -606,6 +651,7 @@ Resources:
               - !Ref MembershipTable
               - !Ref VoucherTable
               - !Ref LinkCodesTable
+              - !Ref SystemTable
       Policies:
         - Statement:
             - Effect: Allow
@@ -617,6 +663,7 @@ Resources:
                 - !GetAtt MembershipTable.Arn
                 - !GetAtt VoucherTable.Arn
                 - !GetAtt LinkCodesTable.Arn
+                - !GetAtt SystemTable.Arn
             # HeadBucket needs ListBucket; the bucket only ("none" when unset).
             - Effect: Allow
               Action: s3:ListBucket
@@ -657,3 +704,6 @@ Outputs:
   VoucherTableName:
     Description: Voucher codes (code -> role, expiresAt, maxUses, uses)
     Value: !Ref VoucherTable
+  SystemTableName:
+    Description: The system's state (maintenance -> on, message, since, by)
+    Value: !Ref SystemTable

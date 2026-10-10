@@ -322,6 +322,10 @@ check() {
   # must have every expected setting.
   local anonymous
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
+  # Maintenance mode (on or off, as an admin left it) isn't the deploy's
+  # business: it's checked to be there, then left out.
+  [[ "$anonymous" == *',"maintenance":{"on":'* ]] || { echo "    /api/auth/anonymous answered $anonymous, want its maintenance mode"; return 1; }
+  anonymous="${anonymous%%,\"maintenance\":*}}"
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
   # What the Route 53 health check polls: every dependency must be ok, and

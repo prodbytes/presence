@@ -345,9 +345,9 @@ void main() {
       FakeRolesClient roles, [
       FakeMembershipClient? membership,
     ]) async {
-      // Tall enough for the Admin page's voucher list above the navigation
-      // bar.
-      tester.view.physicalSize = const Size(1280, 900);
+      // Tall enough for the Admin page's voucher list, under its
+      // maintenance card, above the navigation bar.
+      tester.view.physicalSize = const Size(1280, 1200);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final camera = FakeCameraSource('Main');

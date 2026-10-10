@@ -139,8 +139,9 @@ with the app bar naming it "Admin", with no back button, and a browser refresh c
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,
-up to 720 dp wide, with two sections. It loads both lists each time it's
-opened.
+up to 720 dp wide, with three sections: the [maintenance mode](maintenance.md#switching-it)
+card (with Reload by its heading), then the two below. It loads all three
+each time it's opened.
 
 **Membership requests:**
 
@@ -185,8 +186,8 @@ opened.
   the API sends it without its code (`"code": null, "hidden": true`) and
   refuses to delete it (403), so an admin can't pass the Admin role on.
 
-**Reload** (a refresh icon beside the "Membership requests" heading) and
-pull to refresh fetch both lists again; each section
+**Reload** (a refresh icon beside the "Maintenance mode" heading, the
+page's first) and pull to refresh fetch all three again; each section
 shows its own loading error.
 
 The admin routes check both roles themselves, as the app does, so hiding

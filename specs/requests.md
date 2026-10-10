@@ -4488,7 +4488,68 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Recording and data formats](data-formats.md),
        [Android](android.md).
 
-333. **Deploy RC failed at its first step: fixed.** (2026-10-10)
+333. **Tell free and premium users apart, and limit their devices.**
+     (2026-10-10)
+     - Asked: differentiate free and premium users, said clearly with a
+       message in the profile screen; free users sync up to 2 devices,
+       other devices can sync but their data is hidden and the user is
+       asked to sign up by visiting nu01.com; premium users sync up to 50
+       devices.
+     - Changed: the auth API keeps each profile's devices in the order
+       they came (`devices` on the profiles table's item, up to 50):
+       `POST /api/auth/credentials` takes the device ID as its body and
+       answers with `deviceLimit` (2 free, 50 premium) and `devices`; the
+       new `POST /api/auth/profile/devices/remove` takes a deleted device
+       off it. The app (`DeviceSlots`, `CloudSync.deviceSlots`) hides the
+       events of devices past the limit (`EventLog.visibleDevices`): on a
+       device that shows, the others'; past the limit, every other
+       device's. They still sync. A device the list doesn't know, while
+       there's room, gets the list again (once per device, at most every
+       30 s). The
+       account sheet has a Free / Premium box under the devices (what
+       each gives, a **Sign up at nu01.com** button for Free, a warning
+       when devices are hidden) and labels hidden devices; the Monitoring
+       tab shows a card with a Sign up button while events are hidden.
+       The free sync line is now "Your devices sync with each other
+       while online". Local Floci routes the new endpoint. Tests:
+       `ProfileTest` (the list, its limit of 50, refusals, removal),
+       `device_slots_test.dart` (the slots, the credentials request, the
+       event filter, the sync's refresh and release, both messages, the
+       account sheet). Specs: [Premium and free](premium.md),
+       [Profiles](profiles.md), [Auth API](auth-api.md),
+       [Sign-in](sign-in.md), [Monitoring](monitoring.md),
+       [Device deletion](device-deletion.md), [README](README.md).
+
+334. **Maintenance mode.** (2026-10-10)
+     - Asked: let admins put the system in maintenance mode; while it's
+       on, no UI is shown at all, just a sorry message.
+     - Changed: a `SystemTable` in the auth API keeps the state
+       (`Maintenance`); `GET /api/auth/anonymous` reports it
+       (`"maintenance": {"on", "message", "since"}`, off if unreadable),
+       and the new admin routes `GET`/`POST /api/auth/maintenance` read and
+       switch it (form `on`, optional `message` up to 500 characters). The
+       app asks every minute; `MaintenanceGate` (in `MaterialApp.builder`)
+       replaces the whole app with `MaintenanceScreen` for everyone but
+       admins, who keep the app under a yellow strip. The Admin tab starts
+       with a Maintenance mode card (switch, message, Update message).
+       `scripts/maintenance.sh` switches it with AWS credentials, for a
+       signed-out admin. The deploy smoke test accepts either state; the
+       health check lists the new table; Floci gets the two routes. UI
+       only: recording and sync go on behind the sorry screen. Tests:
+       `MaintenanceTest.java`, `maintenance_test.dart`. Specs:
+       [Maintenance mode](maintenance.md) (new), [Auth API](auth-api.md),
+       [Membership](membership.md), [Execution mode](execution-mode.md),
+       [Production deploy](deploy.md), [Health check](health-check.md).
+
+335. **Commit everything: the local certificates stay out.** (2026-10-10)
+     - Asked: commit every pending change, with PRs.
+     - Found: a worktree showed `presence_floci/certs` as untracked: the
+       main folder's mkcert certificate and private key, linked in. The
+       ignore rule (`presence_floci/certs/`) only matched a folder.
+     - Changed: `.gitignore` ignores `presence_floci/certs` as a
+       folder or a link, so the key can't be committed from a worktree.
+
+336. **Deploy RC failed at its first step: fixed.** (2026-10-10)
      - Found: the `0.6.202610101329-RC` Deploy RC run stopped in "Resolve
        the tag" with `unexpected EOF while looking for matching '`: its
        message `${tag:-main's commit}` has an apostrophe inside a
@@ -4498,7 +4559,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        workflow's `run:` scripts now pass `bash -n`. Spec: none (the
        workflow's behavior is unchanged).
 
-334. **Status pills at the top of the camera.** (2026-10-10)
+337. **Status pills at the top of the camera.** (2026-10-10)
      - Asked: move the pills (battery, temperature, …) to the top of the
        screen, so they're not layered over the buttons.
      - Changed: the camera's status pills (health warning, battery,

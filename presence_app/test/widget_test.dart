@@ -409,6 +409,7 @@ void main() {
       mode: ExecutionMode.rbac,
       roles: [anonymousRole],
       settings: (oidc: true, aws: false, rbacr: null),
+      maintenance: noMaintenance,
     ));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

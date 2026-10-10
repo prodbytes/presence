@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -294,19 +295,43 @@ class EventLog extends ChangeNotifier {
   int get version => _version;
   int _version = 0;
 
-  /// [profileId]'s events ([EventTimeline.ofProfile]), kept until the log
-  /// changes.
+  /// [profileId]'s events ([EventTimeline.ofProfile]) of the devices that
+  /// show ([visibleDevices]), kept until the log changes.
   List<AppEvent> eventsOf(String? profileId) {
     if (_ofProfile case (final v, final p, final list)
         when v == _version && p == profileId) {
       return list;
     }
-    final list = List<AppEvent>.unmodifiable(
-      EventTimeline.ofProfile(events, profileId),
-    );
+    final visible = _visibleDevices;
+    final list = List<AppEvent>.unmodifiable([
+      for (final e in EventTimeline.ofProfile(events, profileId))
+        if (visible == null || shows(e.deviceId)) e,
+    ]);
     _ofProfile = (_version, profileId, list);
     return list;
   }
+
+  /// The devices whose events [eventsOf] shows (`DeviceSlots.visibleFrom`
+  /// this device); null, every device's. A free profile's devices past its
+  /// first two sync, but their events are hidden.
+  Set<String>? get visibleDevices => _visibleDevices;
+  Set<String>? _visibleDevices;
+
+  set visibleDevices(Set<String>? devices) {
+    final was = _visibleDevices;
+    if (devices == null
+        ? was == null
+        : was != null && setEquals(was, devices)) {
+      return;
+    }
+    _visibleDevices = devices == null ? null : Set.unmodifiable(devices);
+    _changed();
+  }
+
+  /// Whether events of [device] show ([visibleDevices]). Events without a
+  /// device ID (not saved yet) are this device's, and always show.
+  bool shows(String? device) =>
+      device == null || (_visibleDevices?.contains(device) ?? true);
 
   (int, String?, List<AppEvent>)? _ofProfile;
 

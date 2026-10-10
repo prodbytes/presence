@@ -16,7 +16,7 @@ and emails when it fails or recovers.
   - **`settings`**: an OIDC client (so RBAC mode), the identity pool and
     the user-data bucket are configured (as in `GET /api/auth/anonymous`);
   - **`dynamodb`**: every auth API table (`UserRoles`, `Profiles`,
-    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, listed in
+    `ProfileSubjects`, `Membership`, `Voucher`, `LinkCodes`, `System`, listed in
     `HEALTH_TABLES`) is `ACTIVE`;
   - **`s3`**: the [cloud sync](cloud-sync.md) user-data bucket answers
     `HeadBucket`;
@@ -44,7 +44,7 @@ and emails when it fails or recovers.
   checkers don't each call every service.
 - The function has 1024 MB of memory, which gives it more CPU, so a cold
   start still answers in time. Its permissions are read-only:
-  `dynamodb:DescribeTable` on the six tables, `s3:ListBucket` on the
+  `dynamodb:DescribeTable` on the seven tables, `s3:ListBucket` on the
   bucket and `cognito-identity:DescribeIdentityPool` on the pool.
 - **AWS only.** The local [Floci](local-cdn.md) API has no `/health`
   route. The identity pool and bucket in `.env` are AWS's, which the

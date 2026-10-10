@@ -14,6 +14,7 @@ import '../storage/event_store.dart';
 import '../storage/media_store.dart';
 import '../storage/records.dart';
 import 'cognito.dart';
+import 'device_slots.dart';
 import 'event_copies.dart';
 import 'live_sync.dart';
 import 's3.dart';
@@ -22,6 +23,7 @@ import 'sigv4.dart';
 import 'cloud_backend.dart';
 
 export 'cloud_backend.dart';
+export 'device_slots.dart';
 
 part 'cloud_sync_copies.dart';
 part 'cloud_sync_fetch.dart';
@@ -353,6 +355,83 @@ class CloudSync extends ChangeNotifier {
   /// Whether syncing has stopped after credentials failed (see [retry]).
   bool get stopped => _stoppedFor != null;
 
+  /// The profile's devices and how many of them show their events
+  /// ([DeviceSlots]), as the auth API listed them with the latest
+  /// credentials; null until then, signed out, or from an API that doesn't
+  /// list them (nothing is hidden then).
+  DeviceSlots? get deviceSlots => _deviceSlots;
+  DeviceSlots? _deviceSlots;
+
+  void _setSlots(DeviceSlots? slots) {
+    if (slots == _deviceSlots) return;
+    _deviceSlots = slots;
+    notifyListeners();
+  }
+
+  /// Takes the slots of [session], when it has them.
+  void _noteSlots(CloudSession session) {
+    if (session case final DeviceSlotsSession s) {
+      if (s.deviceSlots case final slots?) _setSlots(slots);
+    }
+  }
+
+  /// When the slots were last asked for again ([noticeDevices]).
+  DateTime? _slotsAskedAt;
+
+  /// The devices [noticeDevices] has asked about: each one once.
+  final Set<String> _slotsAskedFor = {};
+
+  /// How often [noticeDevices] asks for the slots again, at most.
+  static const Duration slotsRefresh = Duration(seconds: 30);
+
+  /// Devices of the profile seen here (in its events): one the slots don't
+  /// list while there's still room may be a new device that now shows, so
+  /// new credentials are asked for, with the devices as they are now. A
+  /// device has its place before its events reach another (it needs
+  /// credentials to send them), so each one is asked about once, at most
+  /// every [slotsRefresh]; one that's still not listed (an older app)
+  /// isn't asked about again.
+  void noticeDevices(Iterable<String> devices) {
+    final slots = _deviceSlots;
+    if (slots == null || slots.full || _owner == null || stopped) return;
+    final unknown = {
+      for (final d in devices)
+        if (!slots.devices.contains(d) && !_slotsAskedFor.contains(d)) d,
+    };
+    if (unknown.isEmpty) return;
+    final now = _now();
+    final asked = _slotsAskedAt;
+    if (asked != null && now.difference(asked) < slotsRefresh) return;
+    _slotsAskedAt = now;
+    _slotsAskedFor.addAll(unknown);
+    backend.reset();
+    _schedule(immediately: true);
+  }
+
+  /// Takes the deleted [device] out of the profile's devices at the auth
+  /// API, so the next device takes its place among those that show. It's
+  /// listed again, last, if it asks for credentials again.
+  Future<void> releaseDevice(String device) async {
+    final idToken = auth.idToken;
+    if (backend case final DeviceRegistry registry
+        when idToken != null && _owner != null) {
+      await _release(registry, idToken, device);
+    }
+  }
+
+  Future<void> _release(
+    DeviceRegistry registry,
+    String idToken,
+    String device,
+  ) async {
+    try {
+      final slots = await registry.removeDevice(idToken, device);
+      if (slots != null && !_disposed) _setSlots(slots);
+    } catch (e) {
+      debugPrint('Presence: could not release device $device: $e');
+    }
+  }
+
   CloudSyncState get state => _state;
 
   /// Why the last sync failed, when [state] is [CloudSyncState.error].
@@ -420,6 +499,8 @@ class CloudSync extends ChangeNotifier {
     _premiumWas = premium;
     _owner = profile;
     _stoppedFor = null;
+    _setSlots(null);
+    _slotsAskedFor.clear();
     backend.reset();
     _liveBridge.stop();
     _periodic?.cancel();
@@ -583,6 +664,7 @@ class CloudSync extends ChangeNotifier {
     CloudSession? used;
     Future<void> run(CloudSession session) async {
       final pass = _Pass(this, session, await _store, owner, epoch)..check();
+      _noteSlots(session);
       used = session;
       _identity = session.prefix;
       final now = _now().toUtc();
@@ -631,6 +713,7 @@ class CloudSync extends ChangeNotifier {
       if (!premium) {
         // Free: live sync only, never the bucket.
         final session = await backend.connect(idToken);
+        if (epoch == _epoch) _noteSlots(session);
         _identity = session.prefix;
         await _liveBridge.start(session, owner);
         await _publisher.publish(owner, epoch, reconcile ? null : dirty);

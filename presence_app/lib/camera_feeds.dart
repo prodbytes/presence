@@ -132,7 +132,8 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
           final available = liveAvailable(live);
           final lastEvents = all
               ? lastEventByDevice(
-                  log?.events ?? const [],
+                  // Only the devices that show (a free profile's first two).
+                  log?.eventsOf(widget.profileId) ?? const [],
                   profileId: widget.profileId,
                 )
               : const <String, DateTime>{};
@@ -140,7 +141,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
           final others = all
               ? byActivity(
                   latestByDevice(
-                    log?.events ?? const [],
+                    log?.eventsOf(widget.profileId) ?? const [],
                     thisDevice: widget.deviceId,
                     profileId: widget.profileId,
                   ),

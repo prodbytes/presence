@@ -153,6 +153,30 @@ abstract class MembershipClient {
 
   /// Deletes the voucher [code] (admins only).
   Future<void> deleteVoucher(String idToken, String code);
+
+  /// Whether the system is in maintenance, and which admin switched it
+  /// (admins only).
+  Future<MaintenanceSwitch> maintenance(String idToken);
+
+  /// Switches maintenance mode [on] or off, with the sorry screen's
+  /// [message] (admins only); answers the new state.
+  Future<MaintenanceSwitch> setMaintenance(
+    String idToken, {
+    required bool on,
+    String message = '',
+  });
+}
+
+/// Maintenance mode as the admin routes answer it: the [state], and the
+/// email of the admin who last switched it ([by], empty if none did).
+typedef MaintenanceSwitch = ({MaintenanceState state, String by});
+
+MaintenanceSwitch _maintenanceSwitch(String body) {
+  final json = jsonDecode(body);
+  return (
+    state: maintenanceFromJson(json),
+    by: json is Map && json['by'] is String ? json['by'] as String : '',
+  );
 }
 
 /// The real client, next to `GET /api/auth` (see [HttpRolesClient]).
@@ -271,4 +295,29 @@ class HttpMembershipClient implements MembershipClient {
   @override
   Future<void> deleteVoucher(String idToken, String code) =>
       _post('/api/auth/vouchers/delete', idToken, code);
+
+  @override
+  Future<MaintenanceSwitch> maintenance(String idToken) async {
+    final response = await _client.get(
+      base.resolve('/api/auth/maintenance'),
+      headers: {'authorization': 'Bearer $idToken'},
+    );
+    if (response.statusCode != 200) throw RolesException(response.statusCode);
+    return _maintenanceSwitch(response.body);
+  }
+
+  @override
+  Future<MaintenanceSwitch> setMaintenance(
+    String idToken, {
+    required bool on,
+    String message = '',
+  }) async {
+    final response = await _post(
+      '/api/auth/maintenance',
+      idToken,
+      Uri(queryParameters: {'on': '$on', 'message': message.trim()}).query,
+      contentType: 'application/x-www-form-urlencoded',
+    );
+    return _maintenanceSwitch(response.body);
+  }
 }

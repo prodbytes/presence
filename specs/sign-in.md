@@ -228,6 +228,10 @@ there's no separate sign-in screen:
       devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with
       an ellipsis.
+  - Devices past the plan's limit are labelled **hidden**, and under the
+    list a box says whether the account is **Free** or **Premium**, what
+    that gives, and for Free a **Sign up at nu01.com** button; see
+    [Premium and free](premium.md#in-the-app).
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
   - The account sheet ends with a short paragraph on what Presence is and

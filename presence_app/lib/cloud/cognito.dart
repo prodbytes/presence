@@ -2,15 +2,24 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'device_slots.dart';
 import 'sigv4.dart';
 
 /// A Cognito identity (its ID is the user's prefix in the bucket) with its
 /// temporary AWS credentials.
 class CognitoSession {
-  const CognitoSession({required this.identityId, required this.credentials});
+  const CognitoSession({
+    required this.identityId,
+    required this.credentials,
+    this.deviceSlots,
+  });
 
   final String identityId;
   final AwsCredentials credentials;
+
+  /// The profile's devices, as the auth API listed them with the
+  /// credentials; null when it didn't.
+  final DeviceSlots? deviceSlots;
 }
 
 /// Why Cognito, or the auth API on its behalf, refused (for example, an
@@ -39,11 +48,13 @@ class CognitoException implements Exception {
 /// profile's Cognito identity and a developer-identity token for it, which
 /// `GetCredentialsForIdentity` (unsigned: the token is the proof) trades for
 /// credentials. Every Google account linked to the profile gets the same
-/// identity, so the same folder.
+/// identity, so the same folder. With [deviceId], the request names this
+/// device, which joins the profile's [DeviceSlots].
 class CognitoCredentials {
   CognitoCredentials({
     required this.region,
     required this.api,
+    this.deviceId,
     http.Client? client,
     DateTime Function()? now,
   }) : _client = client ?? http.Client(),
@@ -57,6 +68,9 @@ class CognitoCredentials {
 
   /// The site the auth API is under (`ApiConfig.baseUrl`).
   final Uri api;
+
+  /// This device's ID, sent with each request for credentials.
+  final Future<String?> Function()? deviceId;
   final http.Client _client;
   final DateTime Function() _now;
 
@@ -116,6 +130,7 @@ class CognitoCredentials {
     final expiration = c['Expiration'];
     final session = CognitoSession(
       identityId: result['IdentityId'] as String? ?? identityId,
+      deviceSlots: profile.deviceSlots,
       credentials: AwsCredentials(
         accessKeyId: c['AccessKeyId']! as String,
         secretAccessKey: c['SecretKey']! as String,
@@ -131,22 +146,26 @@ class CognitoCredentials {
     return session;
   }
 
-  /// The profile's identity and a token for it, from the auth API. A
-  /// rejected Google token (401) needs a new sign-in, as Cognito's own
-  /// `NotAuthorizedException` would.
-  Future<({String identityId, String token})> _profileToken(
-    String idToken,
-  ) async {
+  /// The profile's identity and a token for it, from the auth API, with
+  /// its devices. A rejected Google token (401) needs a new sign-in, as
+  /// Cognito's own `NotAuthorizedException` would.
+  Future<({String identityId, String token, DeviceSlots? deviceSlots})>
+  _profileToken(String idToken) async {
+    String? device;
+    try {
+      device = await deviceId?.call();
+    } catch (_) {
+      // Credentials all the same, without a place among the devices.
+    }
     final response = await _client.post(
       api.resolve('/api/auth/credentials'),
-      headers: {'authorization': 'Bearer $idToken'},
+      headers: {
+        'authorization': 'Bearer $idToken',
+        if (device != null) 'content-type': 'text/plain; charset=utf-8',
+      },
+      body: device,
     );
-    Map<String, Object?> body;
-    try {
-      body = (jsonDecode(response.body) as Map).cast<String, Object?>();
-    } catch (_) {
-      body = const {};
-    }
+    final body = _json(response.body);
     if (response.statusCode != 200) {
       final detail = [
         if (body['cause'] case final String cause) 'cause: $cause',
@@ -165,7 +184,32 @@ class CognitoCredentials {
     return (
       identityId: body['identityId']! as String,
       token: body['token']! as String,
+      deviceSlots: DeviceSlots.fromJson(body),
     );
+  }
+
+  /// Takes [device] out of the profile's devices
+  /// (`POST /api/auth/profile/devices/remove`); the slots after, or null
+  /// when the auth API refused or didn't say.
+  Future<DeviceSlots?> removeDevice(String idToken, String device) async {
+    final response = await _client.post(
+      api.resolve('/api/auth/profile/devices/remove'),
+      headers: {
+        'authorization': 'Bearer $idToken',
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      body: device,
+    );
+    if (response.statusCode != 200) return null;
+    return DeviceSlots.fromJson(_json(response.body));
+  }
+
+  static Map<String, Object?> _json(String text) {
+    try {
+      return (jsonDecode(text) as Map).cast<String, Object?>();
+    } catch (_) {
+      return const {};
+    }
   }
 
   /// Forgets the session (on sign-out).
