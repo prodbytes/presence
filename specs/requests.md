@@ -4244,7 +4244,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        "Checking roles…" meanwhile. Tests: `account_sheet_test.dart`.
        Spec: [Sign-in](sign-in.md).
 
-321. **Bottom navigation, Strava-style layout.** (2026-10-10)
+321. **Stricter recognition: higher confidence thresholds.** (2026-10-10)
+     - Asked: still too many wrong recognitions; increase the expected
+       confidence threshold.
+     - Changed: subjects are tagged automatically from **90 %** (default;
+       was 85 %; a device left at 85 % moves to 90 %), and asked about
+       from **50 %** (was 30 %; also the slider's minimum, so it reads
+       50–95 %). Object tags need a score of **0.6** on a frame (was 0.5)
+       and 0.8 to count from a single frame (was 0.7); people and pets
+       are detected from 0.5 (was 0.4). Tests: `recognition_test.dart`,
+       `settings_test.dart`. Specs: [Subject recognition](recognition.md),
+       [Settings screen](settings.md), [Configuration](configuration.md).
+
+322. **Bottom navigation, Strava-style layout.** (2026-10-10)
      - Asked: improve the look and feel; instead of the top navigation
        bar, use a bottom navigation bar, as is more common on phones, with
        Strava's UI as the reference for layout and components (keeping
@@ -4264,7 +4276,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device location](device-location.md), [Camera](camera.md),
        [Subjects](subjects.md).
 
-322. **Settings in grouped sections.** (2026-10-10)
+323. **Settings in grouped sections.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: group the Settings
        screen's sections.
      - Changed: each Settings section (`SettingsSection`) is a bold
@@ -4274,7 +4286,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `settings_test.dart` (the groups at 320 and 1280 dp). Spec:
        [Settings](settings.md).
 
-323. **Monitoring as a feed.** (2026-10-10)
+324. **Monitoring as a feed.** (2026-10-10)
      - Asked: follow-up to the Strava-style layout: make Monitoring a
        feed of event cards, with a rounded, filled search field.
      - Changed: each timeline entry is one card (`FeedCard`): the device
@@ -4287,7 +4299,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        search field). Specs: [Events](events.md),
        [Event copies](event-copies.md).
 
-324. **Encrypt every image and recording with a key per device.**
+325. **Encrypt every image and recording with a key per device.**
      (2026-10-10)
      - Asked: generate a symmetric key for each device together with its
        device ID; encrypt every image with it before it's stored or sent,
