@@ -4488,7 +4488,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Recording and data formats](data-formats.md),
        [Android](android.md).
 
-326. **Status pills at the top of the camera.** (2026-10-10)
+333. **Deploy RC failed at its first step: fixed.** (2026-10-10)
+     - Found: the `0.6.202610101329-RC` Deploy RC run stopped in "Resolve
+       the tag" with `unexpected EOF while looking for matching '`: its
+       message `${tag:-main's commit}` has an apostrophe inside a
+       parameter default, which bash reads as an opening quote (from the
+       hardened workflow, #245).
+     - Changed: the message says "the commit on main" instead. Every
+       workflow's `run:` scripts now pass `bash -n`. Spec: none (the
+       workflow's behavior is unchanged).
+
+334. **Status pills at the top of the camera.** (2026-10-10)
      - Asked: move the pills (battery, temperature, …) to the top of the
        screen, so they're not layered over the buttons.
      - Changed: the camera's status pills (health warning, battery,
