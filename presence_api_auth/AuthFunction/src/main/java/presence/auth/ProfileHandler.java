@@ -109,6 +109,18 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return openIdToken(identityId, profileId, googleIdToken);
         }
 
+        /**
+         * {@link #openIdToken(String, String, String, String)}, also tagged
+         * {@link #ADMIN_TAG} {@code true} for an administrator (from the
+         * caller's own email, never a linked owner's): the role's Feedback
+         * permissions let it read every conversation and reply
+         * (presence_infra/identity.yaml).
+         */
+        default String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
+                                   boolean admin) {
+            return openIdToken(identityId, profileId, googleIdToken, tier);
+        }
+
         /** Whether the identity's folder in the bucket holds nothing. */
         boolean folderEmpty(String identityId);
 
@@ -123,6 +135,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     /** The principal tag the credentials carry: whether they may use the bucket. */
     static final String TIER_TAG = "tier";
+
+    /** The principal tag of administrators' credentials ({@code true}), for Feedback. */
+    static final String ADMIN_TAG = "admin";
 
     /** {@link #TIER_TAG}'s value for {@link Roles#PREMIUM}: S3 and live sync. */
     static final String PREMIUM = "premium";
@@ -208,7 +223,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         profile = withIdentity(caller, profile);
         var premium = granted.contains(Roles.PREMIUM);
         var tier = premium ? PREMIUM : FREE;
-        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken(), tier);
+        // Administration is never shared with a linked owner (Roles.of).
+        var admin = granted.contains(Roles.ADMIN);
+        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken(), tier, admin);
         backend.allowLiveSync(profile.identityId());
         // Every device is listed, up to Premium's limit, whatever the tier:
         // a profile that becomes premium shows the devices it already had.

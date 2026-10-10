@@ -119,8 +119,8 @@ class PresenceApp extends StatefulWidget {
   /// tests); defaults to the auth API's.
   final MembershipClient? membershipClient;
 
-  /// Overrides Feedback and Help (used by tests); defaults to
-  /// `/api/auth/feedback`.
+  /// Overrides Feedback and Help (used by tests); defaults to its DynamoDB
+  /// table, with the profile's credentials (`DynamoFeedbackClient`).
   final FeedbackClient? feedbackClient;
 
   /// Overrides the profile routes (used by tests); defaults to
@@ -233,7 +233,7 @@ class _PresenceAppState extends State<PresenceApp> {
     );
     _auth.init().ignore();
     _roles.addListener(_onProfileChanged);
-    final cloud =
+    final cloud = _cloud =
         widget.cloud ??
         (CloudConfig.enabled
             ? AwsCloudBackend(
@@ -520,7 +520,16 @@ class _PresenceAppState extends State<PresenceApp> {
   late final MembershipClient _membership =
       widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
   late final FeedbackClient _feedback =
-      widget.feedbackClient ?? HttpFeedbackClient(ApiConfig.baseUrl);
+      widget.feedbackClient ??
+      DynamoFeedbackClient(
+        backend: _cloud,
+        table: CloudConfig.feedbackTable,
+        user: () => _auth.user,
+      );
+
+  /// The profile's AWS access (null without cloud settings): cloud sync's,
+  /// and Feedback and Help's.
+  CloudBackend? _cloud;
   late final ProfileClient _profiles =
       widget.profileClient ?? HttpProfileClient(ApiConfig.baseUrl);
   CloudSync? _sync;

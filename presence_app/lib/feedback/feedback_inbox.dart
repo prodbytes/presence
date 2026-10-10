@@ -25,7 +25,7 @@ class FeedbackThreadCard extends StatelessWidget {
     final last = thread.messages.last.sentAt.toLocal();
     final when = '${formatDate(last)} ${formatHourMinute(last)}';
     return Card(
-      key: Key('feedback-${thread.email}'),
+      key: Key('feedback-${thread.conversation}'),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
         shape: const Border(),
@@ -52,7 +52,7 @@ class FeedbackThreadCard extends StatelessWidget {
           FeedbackConversation(messages: thread.messages, adminView: true),
           const SizedBox(height: 16),
           FeedbackComposer(
-            key: Key('feedback-reply-${thread.email}'),
+            key: Key('feedback-reply-${thread.conversation}'),
             label: 'Reply',
             action: 'Reply',
             onSend: onReply,

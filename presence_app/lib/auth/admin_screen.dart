@@ -108,7 +108,11 @@ class _AdminViewState extends State<AdminView> {
     if (token == null) return false;
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final reply = await widget.feedback.reply(token, thread.email, text);
+      final reply = await widget.feedback.reply(
+        token,
+        thread.conversation,
+        text,
+      );
       if (!mounted) return true;
       setState(() {
         final threads = _threads;
@@ -116,11 +120,12 @@ class _AdminViewState extends State<AdminView> {
         // Answered last: first in the list.
         _threads = [
           FeedbackThread(
+            conversation: thread.conversation,
             email: thread.email,
             name: thread.name,
             messages: [...thread.messages, reply],
           ),
-          ...threads.where((t) => t.email != thread.email),
+          ...threads.where((t) => t.conversation != thread.conversation),
         ];
       });
       return true;
@@ -263,7 +268,7 @@ class _AdminViewState extends State<AdminView> {
                     Padding(
                       // Moves with its thread (a reply puts it first),
                       // staying open.
-                      key: ValueKey('thread-${thread.email}'),
+                      key: ValueKey('thread-${thread.conversation}'),
                       padding: const EdgeInsets.only(bottom: 8),
                       child: FeedbackThreadCard(
                         thread: thread,

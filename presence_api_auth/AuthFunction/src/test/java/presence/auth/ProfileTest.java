@@ -42,6 +42,8 @@ class ProfileTest {
     private final List<String> tokensIssued = new ArrayList<>();
     /** The tier each credentials token was tagged with, in order. */
     private final List<String> tiers = new ArrayList<>();
+    /** Whether each token issued was tagged admin. */
+    private final List<Boolean> admins = new ArrayList<>();
     /** Identities the live-sync IoT policy was attached to, in order. */
     private final List<String> liveSyncAllowed = new ArrayList<>();
     private Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
@@ -96,6 +98,13 @@ class ProfileTest {
             var token = openIdToken(identityId, profileId, googleIdToken);
             tiers.add(tier);
             return token;
+        }
+
+        @Override
+        public String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
+                                  boolean admin) {
+            admins.add(admin);
+            return openIdToken(identityId, profileId, googleIdToken, tier);
         }
 
         @Override
@@ -424,6 +433,21 @@ class ProfileTest {
         assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":\"profile_1\",\"roles\":["
                         + "\"presence_premium\",\"presence_user\"]}",
                 auth.handleRequest(call("GET /api/auth", "work", "julio@nu01.com", null), null).getBody());
+    }
+
+    @Test
+    void onlyAnAdministratorsOwnCredentialsAreTaggedAdmin() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        rbacr.put("julio@nu01.com", Set.of("free"));
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        rbacr.put("julio@nu01.com", Set.of("admin"));
+        profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        // A linked account shares the admin owner's membership, never the
+        // administration: its credentials aren't tagged admin.
+        var code = linkCode("work", "julio@nu01.com");
+        profiles.handleRequest(call("POST /api/auth/profile/link", "home", "julio@gmail.com", code), null);
+        profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
+        assertEquals(List.of(false, true, false), admins);
     }
 
     @Test

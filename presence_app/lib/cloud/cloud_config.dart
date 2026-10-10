@@ -21,6 +21,11 @@ abstract final class CloudConfig {
     'USER_DATA_BUCKET',
   );
 
+  /// The Feedback and Help table (`FeedbackTable` of presence-user-data),
+  /// which the app reads and writes with the profile's credentials. Empty:
+  /// Feedback and Help is off.
+  static const String feedbackTable = String.fromEnvironment('FEEDBACK_TABLE');
+
   static bool get enabled =>
       identityPoolId.isNotEmpty && userDataBucket.isNotEmpty;
 
