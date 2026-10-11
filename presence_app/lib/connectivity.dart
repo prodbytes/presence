@@ -6,6 +6,7 @@ import 'auth/roles_service.dart';
 import 'cloud/cloud_sync.dart';
 import 'cloud/live_sync.dart';
 import 'device_presence.dart';
+import 'l10n/l10n.dart';
 import 'system_health.dart';
 
 /// This device's connectivity, from the health checks
@@ -23,7 +24,11 @@ class Connectivity {
     required this.api,
     required this.aws,
     required this.live,
+    this.l10n,
   });
+
+  /// The language [headline] is in; English when null.
+  final AppLocalizations? l10n;
 
   /// Green, amber or red.
   final PresenceLevel level;
@@ -36,56 +41,61 @@ class Connectivity {
   final HealthPart aws;
   final HealthPart live;
 
-  /// The connectivity as it stands now. [live] defaults to [sync]'s.
+  /// The connectivity as it stands now. [live] defaults to [sync]'s. Worded
+  /// in [l], English by default.
   factory Connectivity.of(
     RolesService roles,
     CloudSync? sync, {
     LiveSync? live,
     bool? oidcClient,
+    AppLocalizations? l,
   }) {
+    final t = l ?? lookupAppLocalizations(const Locale('en'));
     final status = SystemHealth.statusOf(
       roles,
       sync,
       oidcClient: oidcClient ?? hasOidcClient,
+      l: t,
     );
     final liveSync = live ?? sync?.live;
-    final livePart = SystemHealth.liveStatusOf(liveSync);
+    final livePart = SystemHealth.liveStatusOf(liveSync, t);
     final checks = <(PresenceLevel, String)>[
       switch (status.api.$1) {
-        '✅' => (PresenceLevel.live, 'Online'),
-        '❌' => (PresenceLevel.old, "Offline: can't reach the server"),
-        _ => (PresenceLevel.recent, 'Checking the connection…'),
+        '✅' => (PresenceLevel.live, t.connectivityOnline),
+        '❌' => (PresenceLevel.old, t.connectivityOffline),
+        _ => (PresenceLevel.recent, t.connectivityChecking),
       },
       switch (status.aws.$1) {
         // A pass runs every 15 s: syncing is the normal course, not a
         // reason to turn amber and back each time.
         '✅' || '🔄' when sync?.premium == false => (
           PresenceLevel.live,
-          'Free: devices sync over live sync',
+          t.connectivityFree,
         ),
-        '✅' || '🔄' => (PresenceLevel.live, 'Cloud sync on'),
-        '❌' => (PresenceLevel.old, 'Cloud sync failed'),
-        '⚠️' => (PresenceLevel.recent, 'Cloud sync is set up on one side only'),
-        _ => (PresenceLevel.recent, "Cloud sync isn't set up in this build"),
+        '✅' || '🔄' => (PresenceLevel.live, t.connectivityCloudOn),
+        '❌' => (PresenceLevel.old, t.connectivityCloudFailed),
+        '⚠️' => (PresenceLevel.recent, t.connectivityCloudOneSide),
+        _ => (PresenceLevel.recent, t.connectivityCloudNotSet),
       },
       switch (livePart.$1) {
         '✅' when liveSync?.state == LiveSyncState.connected => (
           PresenceLevel.live,
-          'Live sync connected',
+          t.connectivityLiveConnected,
         ),
-        '✅' => (PresenceLevel.recent, 'Live sync connects once synced'),
-        '⏳' => (PresenceLevel.recent, 'Connecting to live sync…'),
+        '✅' => (PresenceLevel.recent, t.connectivityLiveOnceSynced),
+        '⏳' => (PresenceLevel.recent, t.connectivityLiveConnecting),
         '💤' => (
           PresenceLevel.recent,
-          'Live sync idle · next in '
-              '${SystemHealth.formatNextIn(liveSync?.untilNext)}',
+          t.connectivityLiveIdle(
+            SystemHealth.formatNextIn(liveSync?.untilNext),
+          ),
         ),
-        '❌' => (PresenceLevel.old, 'Live sync failed'),
+        '❌' => (PresenceLevel.old, t.connectivityLiveFailed),
         _ when liveSync == null || !liveSync.enabled => (
           PresenceLevel.recent,
-          "Live sync isn't set up in this build",
+          t.connectivityLiveNotSet,
         ),
-        _ => (PresenceLevel.recent, 'Live sync is off'),
+        _ => (PresenceLevel.recent, t.connectivityLiveOff),
       },
     ];
     // The worst check decides; the first of equals (API, then cloud
@@ -95,19 +105,22 @@ class Connectivity {
     );
     return Connectivity(
       level: level,
-      headline: level == PresenceLevel.live
-          ? 'Online · live sync connected'
-          : headline,
+      headline: level == PresenceLevel.live ? t.connectivityAllGood : headline,
       api: status.api,
       aws: status.aws,
       live: livePart,
+      l10n: l,
     );
   }
 
   /// This device's presence dot in the devices list: the same color, and
   /// the headline as its reason.
-  DevicePresence get presence =>
-      DevicePresence(level, 'This device — $headline');
+  DevicePresence get presence => DevicePresence(
+    level,
+    (l10n ?? lookupAppLocalizations(const Locale('en'))).connectivityThisDevice(
+      headline,
+    ),
+  );
 
   /// The checks' lines, emoji first, for the details.
   List<String> get details => [
@@ -198,6 +211,7 @@ class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
         widget.sync,
         live: _live,
         oidcClient: widget.oidcClient,
+        l: context.l10n,
       ),
     ),
   );
@@ -209,8 +223,9 @@ class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
     final small = theme.textTheme.bodySmall?.copyWith(
       color: scheme.onSurfaceVariant,
     );
+    final l = context.l10n;
     final label = [
-      'Connectivity: ${status.headline}',
+      l.connectivityLabel(status.headline),
       ...status.details.map((line) => line.substring(line.indexOf(' ') + 1)),
     ].join('\n');
     return Container(
@@ -278,11 +293,7 @@ class _ConnectivityIndicatorState extends State<ConnectivityIndicator> {
                       children: [
                         for (final line in status.details)
                           Text(line, style: small),
-                        Text(
-                          'Other devices see this one live only while live '
-                          'sync is connected.',
-                          style: small,
-                        ),
+                        Text(l.connectivityNote, style: small),
                       ],
                     ),
                   ),

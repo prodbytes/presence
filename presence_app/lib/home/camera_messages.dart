@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../status_pill.dart';
 
 /// A message over the camera: a clip that started, a sign-in that failed.
@@ -46,7 +47,9 @@ class CameraMessagePill extends StatelessWidget {
         color: message.error ? scheme.error : scheme.primary,
       ),
       label: label,
-      semantics: onView == null ? label : '$label. Tap to view it.',
+      semantics: onView == null
+          ? label
+          : context.l10n.homeMessageTapToView(label),
       // News: read out when it shows.
       liveRegion: true,
       onTap: onView,

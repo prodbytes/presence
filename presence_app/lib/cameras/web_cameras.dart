@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
 import '../clips.dart';
+import '../l10n/l10n.dart';
 import '../motion.dart';
 import 'camera_source.dart';
 import 'clip_player_controller.dart';
@@ -742,10 +743,10 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
             child: CircularProgressIndicator(color: Color(0xFFFABD2F)),
           ),
         if (_loadFailed)
-          const Center(
+          Center(
             child: Text(
-              "Couldn't load this clip",
-              style: TextStyle(color: Color(0xFFFB4934)),
+              context.l10n.cameraClipLoadFailed,
+              style: const TextStyle(color: Color(0xFFFB4934)),
             ),
           ),
         if (_current != null && !_onFull && !_waiting)
@@ -769,7 +770,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
                     vertical: 4,
                   ),
                   child: Text(
-                    'Recording the next ${_clip.after.inSeconds} s…',
+                    context.l10n.cameraClipRecordingNext(_clip.after.inSeconds),
                     style: const TextStyle(color: Color(0xFFEBDBB2)),
                   ),
                 ),
@@ -787,15 +788,18 @@ class _PreviewLabel extends StatelessWidget {
   const _PreviewLabel();
 
   @override
-  Widget build(BuildContext context) => const DecoratedBox(
-    key: Key('clip-preview'),
-    decoration: BoxDecoration(
+  Widget build(BuildContext context) => DecoratedBox(
+    key: const Key('clip-preview'),
+    decoration: const BoxDecoration(
       color: Color(0xCC282828),
       borderRadius: BorderRadius.all(Radius.circular(4)),
     ),
     child: Padding(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Text('Preview', style: TextStyle(color: Color(0xFFEBDBB2))),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Text(
+        context.l10n.cameraClipPreview,
+        style: const TextStyle(color: Color(0xFFEBDBB2)),
+      ),
     ),
   );
 }

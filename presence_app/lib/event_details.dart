@@ -7,6 +7,7 @@ import 'device_events.dart';
 import 'device_presence.dart';
 import 'events.dart';
 import 'identity/device_os.dart';
+import 'l10n/l10n.dart';
 import 'location/device_location.dart';
 import 'location/map_parts.dart';
 import 'theme.dart';
@@ -79,20 +80,21 @@ class EventDetailsFooter extends StatelessWidget {
     final profile = scope?.profileId;
     final canDelete =
         delete != null && profile != null && event.profileId == profile;
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
-        const _Heading(
-          key: Key('event-map-heading'),
+        _Heading(
+          key: const Key('event-map-heading'),
           icon: Icons.place_outlined,
-          title: 'Where',
+          title: l.eventWhere,
         ),
         EventMap(location: event.location, tiles: scope?.tiles),
-        const _Heading(
-          key: Key('event-device-heading'),
+        _Heading(
+          key: const Key('event-device-heading'),
           icon: Icons.devices_other,
-          title: 'Device',
+          title: l.eventDevice,
         ),
         EventDevice(event: event, scope: scope),
         if (canDelete) ...[
@@ -106,7 +108,7 @@ class EventDetailsFooter extends StatelessWidget {
                 side: BorderSide(color: Theme.of(context).colorScheme.error),
               ),
               icon: const Icon(Icons.delete_outline),
-              label: const Text('Delete event'),
+              label: Text(l.eventDelete),
               onPressed: () => deleteEventAfterConfirming(
                 context,
                 event: event,
@@ -160,15 +162,20 @@ class EventMap extends StatelessWidget {
   static const double height = 140;
   static const double zoom = 15;
 
-  /// How [location] was found, in words.
-  static String sourceOf(DeviceLocation location) {
-    if (location.pinned) return 'Pinned';
+  /// How [location] was found, in words: in the language of [l], English
+  /// without.
+  static String sourceOf(
+    DeviceLocation location, [
+    AppLocalizations? language,
+  ]) {
+    final l = language ?? lookupAppLocalizations(const Locale('en'));
+    if (location.pinned) return l.eventLocationPinned;
     return switch (location.source) {
       LocationSource.device => [
-        "The device's position",
+        l.eventLocationDevice,
         if (location.accuracy case final accuracy?) '±${accuracy.round()} m',
       ].join(' · '),
-      LocationSource.map => 'Set on the map',
+      LocationSource.map => l.eventLocationMap,
     };
   }
 
@@ -182,7 +189,7 @@ class EventMap extends StatelessWidget {
     final at = location;
     if (at == null) {
       return Text(
-        'No location for this event',
+        context.l10n.eventNoLocation,
         key: const Key('event-no-location'),
         style: TextStyle(color: scheme.onSurfaceVariant),
       );
@@ -232,7 +239,8 @@ class EventMap extends StatelessWidget {
         ),
         Text(
           '${at.latitude.toStringAsFixed(5)}, '
-          '${at.longitude.toStringAsFixed(5)} · ${sourceOf(at)}',
+          '${at.longitude.toStringAsFixed(5)} · '
+          '${sourceOf(at, context.l10n)}',
           key: const Key('event-location-text'),
           style: small,
         ),
@@ -262,7 +270,7 @@ class EventDevice extends StatelessWidget {
     // Not saved yet: recorded here.
     final device = event.deviceId ?? thisDevice;
     if (device == null) {
-      return Text('Device unknown', style: muted);
+      return Text(context.l10n.eventDeviceUnknown, style: muted);
     }
     final os = event.os;
     final profile = scope?.profileId;
@@ -272,7 +280,7 @@ class EventDevice extends StatelessWidget {
       spacing: 8,
       children: [
         Tooltip(
-          message: os ?? 'Operating system unknown',
+          message: os ?? context.l10n.eventOsUnknown,
           child: Icon(
             DeviceOs.iconOf(os),
             key: const Key('event-device-icon'),
@@ -294,6 +302,7 @@ class EventDevice extends StatelessWidget {
                       builder: (context) => PresenceDot(
                         key: const Key('event-device-presence'),
                         presence: DevicePresence.of(
+                          l: context.l10n,
                           answeredAt: live?.seenOf(device),
                           lastEvent: lastEventByDevice(
                             scope?.log?.events ?? const [],
@@ -317,7 +326,8 @@ class EventDevice extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (device == thisDevice) Text('this device', style: muted),
+                  if (device == thisDevice)
+                    Text(context.l10n.eventThisDevice, style: muted),
                 ],
               ),
               if (os != null)
@@ -349,6 +359,7 @@ Future<void> deleteEventAfterConfirming(
 }) async {
   // Found now: the player asking is gone once it's deleted.
   final messenger = ScaffoldMessenger.maybeOf(context);
+  final l = context.l10n;
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => const DeleteEventDialog(),
@@ -360,15 +371,13 @@ Future<void> deleteEventAfterConfirming(
     messenger?.showSnackBar(
       SnackBar(
         content: Text(
-          deleted ? 'Event deleted on every device' : 'Event already deleted',
+          deleted ? l.eventDeletedEverywhere : l.eventAlreadyDeleted,
         ),
       ),
     );
   } catch (e) {
     debugPrint('Presence: could not delete event ${event.id}: $e');
-    messenger?.showSnackBar(
-      const SnackBar(content: Text('Could not delete the event')),
-    );
+    messenger?.showSnackBar(SnackBar(content: Text(l.eventDeleteFailed)));
   }
 }
 
@@ -381,22 +390,20 @@ class DeleteEventDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l = context.l10n;
     return AlertDialog(
       key: const Key('delete-event-dialog'),
       icon: const Icon(Icons.delete_outline),
-      title: const Text('Delete event?'),
+      title: Text(l.eventDeleteTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 12,
           children: [
-            const Text(
-              'Delete this event? It will be hidden on every device.',
-              key: Key('delete-event-message'),
-            ),
+            Text(l.eventDeleteMessage, key: const Key('delete-event-message')),
             Text(
-              'Its clip stays in the cloud until it expires.',
+              l.eventDeleteClipNote,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -408,7 +415,7 @@ class DeleteEventDialog extends StatelessWidget {
         TextButton(
           key: const Key('delete-event-cancel'),
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l.eventCancel),
         ),
         FilledButton(
           key: const Key('delete-event-confirm'),
@@ -417,7 +424,7 @@ class DeleteEventDialog extends StatelessWidget {
             foregroundColor: scheme.onError,
           ),
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Delete'),
+          child: Text(l.eventDeleteConfirm),
         ),
       ],
     );

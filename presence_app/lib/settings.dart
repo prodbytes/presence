@@ -123,6 +123,7 @@ class _SettingsViewState extends State<SettingsView> {
         void setSubjects(SubjectsConfig Function(SubjectsConfig) f) =>
             config.update((x) => x.copyWith(subjects: f(x.subjects)));
         final recognition = config.recognition;
+        final l = context.l10n;
         // How live sync connects for this user (admins: always; others:
         // as saved, at most every 30 s), not just what's saved.
         final live = config.live.effective(isAdmin: widget.liveAdmin);
@@ -133,7 +134,6 @@ class _SettingsViewState extends State<SettingsView> {
             config.update((x) => x.copyWith(history: f(x.history)));
         void setRecognition(RecognitionConfig Function(RecognitionConfig) f) =>
             config.update((x) => x.copyWith(recognition: f(x.recognition)));
-        String percent(double v) => '${(v * 100).round()} %';
         const confidenceSteps =
             ((RecognitionConfig.maxConfidence -
                         RecognitionConfig.minConfidence) /
@@ -150,7 +150,7 @@ class _SettingsViewState extends State<SettingsView> {
             // First: where this device is, its position and the map.
             if (location != null)
               SettingsSection(
-                title: 'Location',
+                title: l.settingsLocationSection,
                 children: [
                   LocationSettings(
                     location: location,
@@ -160,11 +160,11 @@ class _SettingsViewState extends State<SettingsView> {
                 ],
               ),
             SettingsSection(
-              title: 'Camera',
+              title: l.settingsCameraSection,
               children: [
                 _LabeledSlider(
                   key: const Key('brightness-slider'),
-                  label: 'Brightness',
+                  label: l.settingsBrightness,
                   format: _formatBrightness,
                   value: camera.brightness,
                   min: CameraConfig.minBrightness,
@@ -180,20 +180,20 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             SettingsSection(
-              title: 'Motion',
+              title: l.settingsMotionSection,
               children: [
                 SwitchListTile(
                   key: const Key('motion-switch'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Clip automatically on motion'),
-                  subtitle: const Text('Same as pressing Clip'),
+                  title: Text(l.settingsMotionSwitch),
+                  subtitle: Text(l.settingsSameAsClip),
                   value: motion.enabled,
                   onChanged: (on) => setMotion((m) => m.copyWith(enabled: on)),
                 ),
                 _LabeledSlider(
                   key: const Key('motion-threshold-slider'),
-                  label: 'Motion threshold',
-                  format: (v) => '${v.round()} % of the picture',
+                  label: l.settingsMotionThreshold,
+                  format: (v) => l.settingsMotionThresholdValue(v.round()),
                   value: motion.threshold,
                   min: MotionConfig.minThreshold,
                   max: MotionConfig.maxThreshold,
@@ -208,7 +208,7 @@ class _SettingsViewState extends State<SettingsView> {
                   _MotionMeter(level: level, threshold: motion.threshold),
                 _LabeledSlider(
                   key: const Key('motion-cooldown-slider'),
-                  label: 'At most one automatic clip every',
+                  label: l.settingsMotionCooldown,
                   format: (v) => '${v.round()} min',
                   value: motion.cooldown.inMinutes.toDouble(),
                   min: MotionConfig.minCooldown.inMinutes.toDouble(),
@@ -225,7 +225,7 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             SettingsSection(
-              title: 'Clips',
+              title: l.settingsClipsSection,
               children: [
                 // Side by side: before on the left, after on the right.
                 Row(
@@ -236,7 +236,7 @@ class _SettingsViewState extends State<SettingsView> {
                     Expanded(
                       child: _LabeledSlider(
                         key: const Key('clip-before-slider'),
-                        label: 'Before press',
+                        label: l.settingsClipBefore,
                         format: (v) => '${v.round()} s',
                         value: clip.before.inSeconds.toDouble(),
                         min: ClipConfig.min.inSeconds.toDouble(),
@@ -253,7 +253,7 @@ class _SettingsViewState extends State<SettingsView> {
                     Expanded(
                       child: _LabeledSlider(
                         key: const Key('clip-after-slider'),
-                        label: 'After press',
+                        label: l.settingsClipAfter,
                         format: (v) => '${v.round()} s',
                         value: clip.after.inSeconds.toDouble(),
                         min: ClipConfig.min.inSeconds.toDouble(),
@@ -271,9 +271,7 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Clips play ${clip.total.inSeconds} s in total. Changing '
-                  '"Before" takes up to that long to apply, while the cameras '
-                  'build up enough history.',
+                  l.settingsClipsNote(clip.total.inSeconds),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -281,20 +279,20 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             SettingsSection(
-              title: 'Scheduled clips',
+              title: l.settingsScheduleSection,
               children: [
                 SwitchListTile(
                   key: const Key('schedule-switch'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Clip at start and on a timer'),
-                  subtitle: const Text('Same as pressing Clip'),
+                  title: Text(l.settingsScheduleSwitch),
+                  subtitle: Text(l.settingsSameAsClip),
                   value: schedule.enabled,
                   onChanged: (on) =>
                       setSchedule((x) => x.copyWith(enabled: on)),
                 ),
                 _LabeledSlider(
                   key: const Key('schedule-every-slider'),
-                  label: 'One clip every',
+                  label: l.settingsScheduleEvery,
                   format: (v) => formatEvery(Duration(minutes: v.round())),
                   value: schedule.every.inMinutes.toDouble(),
                   min: ScheduleConfig.minEvery.inMinutes.toDouble(),
@@ -315,16 +313,16 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             SettingsSection(
-              title: 'Recognition',
+              title: l.settingsRecognitionSection,
               children: [
                 SwitchListTile(
                   key: const Key('recognition-switch'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Recognize subjects in new clips'),
+                  title: Text(l.settingsRecognitionSwitch),
                   subtitle: Text(
                     _recognitionSupported
-                        ? 'People and pets tagged before, found on this device'
-                        : 'Not available on this device yet',
+                        ? l.settingsRecognitionSubtitle
+                        : l.settingsRecognitionUnavailable,
                   ),
                   value: recognition.enabled && _recognitionSupported,
                   onChanged: _recognitionSupported
@@ -334,11 +332,11 @@ class _SettingsViewState extends State<SettingsView> {
                 SwitchListTile(
                   key: const Key('recognition-objects-switch'),
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Tag objects in new clips'),
+                  title: Text(l.settingsObjectsSwitch),
                   subtitle: Text(
                     _recognitionSupported
-                        ? 'Human, cat, dog, bicycle, bottle… for search'
-                        : 'Not available on this device yet',
+                        ? l.settingsObjectsSubtitle
+                        : l.settingsRecognitionUnavailable,
                   ),
                   value: recognition.objects && _recognitionSupported,
                   onChanged: _recognitionSupported
@@ -347,8 +345,9 @@ class _SettingsViewState extends State<SettingsView> {
                 ),
                 _LabeledSlider(
                   key: const Key('recognition-auto-slider'),
-                  label: 'Tag automatically when at least',
-                  format: (v) => '${percent(_toStep(v))} sure',
+                  label: l.settingsAutoTag,
+                  format: (v) =>
+                      l.settingsAutoTagValue((_toStep(v) * 100).round()),
                   value: recognition.autoTag,
                   min: RecognitionConfig.minConfidence,
                   max: RecognitionConfig.maxConfidence,
@@ -360,7 +359,7 @@ class _SettingsViewState extends State<SettingsView> {
                       : null,
                 ),
                 Text(
-                  'Less sure than that, it asks you whether it\'s them.',
+                  l.settingsAskNote,
                   key: const Key('recognition-ask-note'),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -370,12 +369,12 @@ class _SettingsViewState extends State<SettingsView> {
               ],
             ),
             SettingsSection(
-              title: 'History',
+              title: l.settingsHistorySection,
               children: [
                 _LabeledSlider(
                   key: const Key('history-keep-slider'),
-                  label: 'Keep events for',
-                  format: (v) => formatKeep(Duration(days: v.round())),
+                  label: l.settingsKeep,
+                  format: (v) => formatKeep(Duration(days: v.round()), l),
                   value: config.history.keep.inDays.toDouble(),
                   min: HistoryConfig.minKeep.inDays.toDouble(),
                   max: HistoryConfig.maxKeep.inDays.toDouble(),
@@ -387,8 +386,7 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ),
                 Text(
-                  'Older events and their clips are deleted from this device '
-                  'when the app starts and every 3 hours.',
+                  l.settingsHistoryNote,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -439,12 +437,12 @@ class _SettingsViewState extends State<SettingsView> {
             // Under History: how this device hears of the others' events.
             if (widget.liveSync)
               SettingsSection(
-                title: 'Live sync',
+                title: l.settingsLiveSection,
                 children: [
                   _LabeledSlider(
                     key: const Key('live-connect-slider'),
-                    label: 'Connect to live sync',
-                    format: (v) => LiveConfig.ofStep(v.round()).label,
+                    label: l.settingsLiveConnect,
+                    format: (v) => _liveLabel(LiveConfig.ofStep(v.round()), l),
                     value: live.step.toDouble(),
                     min: 0,
                     max: liveMax.toDouble(),
@@ -459,21 +457,12 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   Text(
                     switch (live.mode) {
-                      _ when widget.liveAdmin =>
-                        'Always connected for admins, so this device is always '
-                            'reachable: other devices\' events arrive within a '
-                            'second.',
-                      LiveMode.never =>
-                        'Other devices\' events arrive with each sync (15 s), '
-                            'and this device\'s reach them the same way.',
-                      LiveMode.always =>
-                        'Stays connected: other devices\' events arrive within '
-                            'a second.',
-                      LiveMode.scheduled =>
-                        'Connects about every '
-                            '${LiveConfig.formatEvery(live.every)} for what '
-                            'other devices sent meanwhile, and at once to send '
-                            'this device\'s events.',
+                      _ when widget.liveAdmin => l.settingsLiveAdminNote,
+                      LiveMode.never => l.settingsLiveNeverNote,
+                      LiveMode.always => l.settingsLiveAlwaysNote,
+                      LiveMode.scheduled => l.settingsLiveScheduledNote(
+                        LiveConfig.formatEvery(live.every),
+                      ),
                     },
                     key: const Key('live-connect-note'),
                     style: theme.textTheme.bodySmall?.copyWith(
@@ -484,15 +473,13 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             if (widget.logTabDefault case final dev?)
               SettingsSection(
-                title: 'Advanced',
+                title: l.settingsAdvancedSection,
                 children: [
                   SwitchListTile(
                     key: const Key('show-log-switch'),
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show the Log tab'),
-                    subtitle: const Text(
-                      'The app\'s latest messages and health',
-                    ),
+                    title: Text(l.settingsShowLog),
+                    subtitle: Text(l.settingsShowLogSubtitle),
                     value: config.log.showIn(dev: dev),
                     onChanged: (v) => config.update(
                       (x) => x.copyWith(log: x.log.copyWith(show: v)),
@@ -502,11 +489,11 @@ class _SettingsViewState extends State<SettingsView> {
               ),
             // Last: how much the Subjects screens load.
             SettingsSection(
-              title: 'Subjects',
+              title: l.settingsSubjectsSection,
               children: [
                 _LabeledSlider(
                   key: const Key('subject-events-slider'),
-                  label: 'How many events to load at once',
+                  label: l.settingsSubjectEvents,
                   format: (v) => '${v.round()}',
                   value: subjects.mapEvents.toDouble(),
                   min: SubjectsConfig.minMapEvents.toDouble(),
@@ -563,16 +550,16 @@ class _SettingsViewState extends State<SettingsView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _IdLine(
-                    label: 'Device',
+                    label: l.settingsDevice,
                     id: widget.deviceId,
-                    missing: 'loading…',
+                    missing: l.settingsDeviceLoading,
                     idKey: const Key('device-id'),
                   ),
                   _IdLine(
-                    label: 'Profile',
+                    label: l.settingsProfile,
                     id: widget.profileId,
                     // A profile is the signed-in account's.
-                    missing: 'none until signed in',
+                    missing: l.settingsProfileNone,
                     idKey: const Key('profile-id'),
                   ),
                 ],
@@ -686,11 +673,12 @@ class _ScheduledClipCountdownState extends State<ScheduledClipCountdown> {
     final rig = widget.rig;
     final left = rig.untilScheduledClip;
     if (left == null) return const SizedBox.shrink();
+    final l = context.l10n;
     final text = rig.startupClipPending
-        ? 'Startup clip: once the camera is ready'
+        ? l.settingsStartupClip
         : left == Duration.zero
-        ? 'Next clip: due, once a camera is open'
-        : 'Next clip in ${formatCountdown(left)}';
+        ? l.settingsNextClipDue
+        : l.settingsNextClipIn(formatCountdown(left));
     return Row(
       key: const Key('schedule-countdown'),
       children: [
@@ -703,16 +691,24 @@ class _ScheduledClipCountdownState extends State<ScheduledClipCountdown> {
 }
 
 /// How long events are kept, as "1 day", "10 days", "2 weeks" or
-/// "90 days": whole weeks read as weeks.
-String formatKeep(Duration keep) {
+/// "90 days": whole weeks read as weeks. In [l]'s language when given,
+/// else English.
+String formatKeep(Duration keep, [AppLocalizations? l]) {
+  final loc = l ?? lookupAppLocalizations(const Locale('en'));
   final days = keep.inDays;
-  if (days == 1) return '1 day';
   if (days % 7 == 0 && days <= 8 * 7) {
-    final weeks = days ~/ 7;
-    return weeks == 1 ? '1 week' : '$weeks weeks';
+    return loc.settingsKeepWeeks(days ~/ 7);
   }
-  return '$days days';
+  return loc.settingsKeepDays(days);
 }
+
+/// A live sync step's label: "Never", "Every 30 s", "Every 60 min",
+/// "Always" ([LiveConfig.label], in [l]'s language).
+String _liveLabel(LiveConfig live, AppLocalizations l) => switch (live.mode) {
+  LiveMode.never => l.settingsLiveNever,
+  LiveMode.always => l.settingsLiveAlways,
+  LiveMode.scheduled => l.settingsLiveEvery(LiveConfig.formatEvery(live.every)),
+};
 
 /// Whether subject recognition can run here (see `recognition/`).
 final bool _recognitionSupported = TfliteRuntime().supported;
@@ -843,8 +839,8 @@ class _MotionMeter extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 score == null
-                    ? 'Motion now: waiting for the camera…'
-                    : 'Motion now: ${score.round()} %',
+                    ? context.l10n.settingsMotionNowWaiting
+                    : context.l10n.settingsMotionNow(score.round()),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),

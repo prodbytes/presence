@@ -1,0 +1,362 @@
+{
+  "@@locale": "en",
+  "eventTitleAppStarted": "Application started",
+  "eventTitleCaptureAll": "Capture all",
+  "eventDetailCaptureAll": "Every device takes a clip",
+  "eventTitleConsentGiven": "Recording consent given",
+  "eventTitleSignedIn": "Signed in",
+  "eventTitleSignedOut": "Signed out",
+  "eventTitleGeneric": "Event",
+  "eventDetailClipMissing": "Clip recording missing",
+  "eventTitleMotion": "Motion detected",
+  "eventTitleScheduled": "Scheduled clip",
+  "eventTitleStartup": "Startup clip",
+  "eventTitleClipRequested": "Clip requested",
+  "eventTitleIsThis": "Is this {name}?",
+  "@eventTitleIsThis": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventDetailSure": "{percent} % sure",
+  "@eventDetailSure": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "eventsNone": "No events",
+  "eventsNoGrabs": "No grabs yet: system events are hidden",
+  "eventsNoMatch": "No events match \"{query}\"",
+  "@eventsNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "eventsSearch": "Search events",
+  "eventsSearchClear": "Clear search",
+  "eventsCountTooltip": "{shown} of {all} events shown",
+  "@eventsCountTooltip": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "all": {
+        "type": "int"
+      }
+    }
+  },
+  "eventsShowDevice": "Show this device's events",
+  "eventsShowEveryDevice": "Show every device's events",
+  "eventsShowSystem": "Show system events",
+  "eventsHideSystem": "Hide system events",
+  "eventFlagUnidentified": "Unidentified subject",
+  "eventFlagUnidentifiedTooltip": "Unidentified subject — identify",
+  "eventFlagIdentify": "{label} · Identify",
+  "@eventFlagIdentify": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSuggestionClipMissing": "The clip is missing",
+  "eventSuggestionYes": "Yes, it's {name}",
+  "@eventSuggestionYes": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSuggestionNo": "No",
+  "eventSuggestionTagged": "Tagged as {name}",
+  "@eventSuggestionTagged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSuggestionNot": "Not {name}",
+  "@eventSuggestionNot": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventWhere": "Where",
+  "eventDevice": "Device",
+  "eventDelete": "Delete event",
+  "eventLocationPinned": "Pinned",
+  "eventLocationDevice": "The device's position",
+  "eventLocationMap": "Set on the map",
+  "eventNoLocation": "No location for this event",
+  "eventDeviceUnknown": "Device unknown",
+  "eventOsUnknown": "Operating system unknown",
+  "eventThisDevice": "this device",
+  "eventDeletedEverywhere": "Event deleted on every device",
+  "eventAlreadyDeleted": "Event already deleted",
+  "eventDeleteFailed": "Could not delete the event",
+  "eventDeleteTitle": "Delete event?",
+  "eventDeleteMessage": "Delete this event? It will be hidden on every device.",
+  "eventDeleteClipNote": "Its clip stays in the cloud until it expires.",
+  "eventCancel": "Cancel",
+  "eventDeleteConfirm": "Delete",
+  "eventCopiesNotSynced": "Not synced",
+  "eventCopies": "{count, plural, =1{1 copy} other{{count} copies}}",
+  "@eventCopies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventCopiesNone": "No copy known",
+  "eventCopiesLiveOff": "Live sync is off: other devices' copies are unknown",
+  "eventCopiesThisDevice": "This device",
+  "eventCopiesCloud": "Cloud",
+  "subjectsRecognizedAuto": "Recognized automatically",
+  "subjectsNobodyTagged": "Nobody is tagged with this name any more.",
+  "subjectsOpenEvent": "Open event {label}",
+  "@subjectsOpenEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "subjectsOpen": "Open {name}",
+  "@subjectsOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "subjectsLatestEvents": "Latest {shown} of {total} events",
+  "@subjectsLatestEvents": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "subjectsEvents": "{count, plural, =1{1 event} other{{count} events}}",
+  "@subjectsEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "subjectsNoLocation": "No location",
+  "clipUnsupported": "Video clips aren't supported on this platform",
+  "clipRecordingElsewhere": "Recording on another device…",
+  "clipReady": "{seconds} s clip ready",
+  "@clipReady": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "clipNotRecordedClosed": "Not recorded: the app closed while recording",
+  "clipPreviousOnly": "Previous {before} s only: the app closed before the next {after} s were recorded",
+  "@clipPreviousOnly": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      },
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipNoVideo": "No video recorded",
+  "clipRecordingFailed": "Recording failed",
+  "clipPreviousReady": "Previous {before} s ready · recording next {after} s…",
+  "@clipPreviousReady": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      },
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipRecordingNext": "Recording next {after} s…",
+  "@clipRecordingNext": {
+    "placeholders": {
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipSavingPrevious": "Saving previous {before} s…",
+  "@clipSavingPrevious": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      }
+    }
+  },
+  "clipNotSaved": "{status} · not saved: {error}",
+  "@clipNotSaved": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "clipShowEveryEvent": "Show every event",
+  "clipShowOnlyWith": "Show only events with {label}",
+  "@clipShowOnlyWith": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipPlay": "Play the clip",
+  "clipShowAt": "Show at {time}",
+  "@clipShowAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "clipRemoveSubjectFromEvent": "Remove subject {label} from this event",
+  "@clipRemoveSubjectFromEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipRemoveTagFromEvent": "Remove tag {label} from this event",
+  "@clipRemoveTagFromEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipFrameTagLabel": "Frame to name subjects on: click a person or pet to name them",
+  "clipGrabFailed": "Couldn't grab this frame; try again",
+  "clipWhoIsThis": "Who is this?",
+  "clipAutoFailed": "Couldn't run recognition; try again.",
+  "clipRenameSubject": "Rename subject",
+  "clipClose": "Close",
+  "clipSubjects": "Subjects",
+  "clipTags": "Tags",
+  "clipAutoTooltip": "Find the subjects named before, and tag the things seen, on this device",
+  "clipAutoUnavailable": "Not available on this device yet",
+  "clipAuto": "Auto",
+  "clipNameSubject": "Name subject",
+  "clipDone": "Done",
+  "clipTagHint": "Click each person or pet on the video to name them as a subject (frame at {time}).",
+  "@clipTagHint": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoLooking": "Looking for the subjects named before…",
+  "clipAutoWaiting": "Waiting for the clip to finish recording…",
+  "clipIdentifyHint": "{label}: click them on the video to name them, or try Auto.",
+  "@clipIdentifyHint": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipNoSubjects": "No subjects yet. Click a person or pet on the video to name them.",
+  "clipNameMore": "Name more subjects on this frame",
+  "clipRemoveSubject": "Remove subject",
+  "clipShowEveryHold": "Show every event (hold to rename)",
+  "clipShowOnlyHold": "Show only events with {name} (hold to rename)",
+  "@clipShowOnlyHold": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "clipNoTagsYet": "No tags yet. Things seen on the clip, like bottle or bicycle, show here once it has been searched.",
+  "clipNoTagsYetTryAuto": "No tags yet. Things seen on the clip, like bottle or bicycle, show here once it has been searched (try Auto).",
+  "clipNoTags": "No tags: nothing was seen on this clip.",
+  "clipNameHint": "Name",
+  "clipCancel": "Cancel",
+  "clipSave": "Save",
+  "clipNamesAnd": "{first} and {last}",
+  "@clipNamesAnd": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "last": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoUnsupported": "Recognition is not available on this device yet.",
+  "clipAutoNoReferences": "No subjects to look for yet: name someone on another clip first.",
+  "clipAutoAllTagged": "Every subject named before is already on this clip.",
+  "clipAutoDeferred": "The phone is low on memory: try again in a moment.",
+  "clipAutoNone": "No subjects recognized.",
+  "clipAutoFound": "Found {names}.",
+  "@clipAutoFound": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoNotSureOne": "Not sure about {names}: answer \"Is this {name}?\" in the events.",
+  "@clipAutoNotSureOne": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoNotSureMany": "Not sure about {names}: answer the questions in the events.",
+  "@clipAutoNotSureMany": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoTags": "{subjects} Tags: {tags}.",
+  "@clipAutoTags": {
+    "placeholders": {
+      "subjects": {
+        "type": "String"
+      },
+      "tags": {
+        "type": "String"
+      }
+    }
+  }
+}

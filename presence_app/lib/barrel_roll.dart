@@ -22,9 +22,11 @@ class BarrelRoll extends StatefulWidget {
       ._roll(context);
 
   /// Whether [text] asks for a barrel roll: "do a barrel roll" (or
-  /// "barrell"), ignoring case and extra spaces.
+  /// "barrell"), or in Spanish "haz un barrel roll" and Portuguese "faça um
+  /// barrel roll", ignoring case and extra spaces. Any language's phrase
+  /// works whatever the app's language.
   static bool asks(String text) => RegExp(
-    r'^do\s+a\s+barrell?\s+roll$',
+    r'^(do\s+a|haz\s+un|fa[çc]a\s+um)\s+barrell?\s+roll$',
     caseSensitive: false,
   ).hasMatch(text.trim());
 

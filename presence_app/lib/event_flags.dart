@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'annotations.dart';
+import 'l10n/l10n.dart';
 import 'subjects.dart';
 import 'theme.dart';
 
@@ -17,9 +18,17 @@ enum EventFlag {
     unidentified => Gruvbox.yellow,
   };
 
-  /// Its tooltip and screen-reader label.
-  String get tooltip => switch (this) {
-    unidentified => 'Unidentified subject — identify',
+  /// Its tooltip and screen-reader label, in English ([tooltipIn]).
+  String get tooltip => tooltipIn(lookupAppLocalizations(const Locale('en')));
+
+  /// Its tooltip and screen-reader label, in the language of [l].
+  String tooltipIn(AppLocalizations l) => switch (this) {
+    unidentified => l.eventFlagUnidentifiedTooltip,
+  };
+
+  /// What it's called on the card, in the language of [l].
+  String labelIn(AppLocalizations l) => switch (this) {
+    unidentified => l.eventFlagUnidentified,
   };
 }
 
@@ -57,8 +66,11 @@ class Unidentified {
   final int ms;
 
   /// "Unidentified subject": people and pets are both subjects, which is
-  /// how the Monitoring screen calls them.
-  String get label => 'Unidentified subject';
+  /// how the Monitoring screen calls them. In English ([labelIn]).
+  String get label => labelIn(lookupAppLocalizations(const Locale('en')));
+
+  /// [label] in the language of [l].
+  String labelIn(AppLocalizations l) => EventFlag.unidentified.labelIn(l);
 }
 
 /// Whether [annotations] leave a person or pet unidentified, and about
@@ -111,6 +123,9 @@ class EventFlags extends StatelessWidget {
       if (unidentified == null) return const SizedBox.shrink();
       const flag = EventFlag.unidentified;
       final theme = Theme.of(context);
+      final l = context.l10n;
+      final label = unidentified.labelIn(l);
+      final tooltip = flag.tooltipIn(l);
       final identify = onIdentify;
       final content = Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -121,9 +136,7 @@ class EventFlags extends StatelessWidget {
             Icon(Icons.flag, size: 16, color: flag.color),
             Flexible(
               child: Text(
-                identify == null
-                    ? unidentified.label
-                    : '${unidentified.label} · Identify',
+                identify == null ? label : l.eventFlagIdentify(label),
                 style: theme.textTheme.labelMedium?.copyWith(color: flag.color),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -134,10 +147,10 @@ class EventFlags extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 6),
         child: Tooltip(
-          message: flag.tooltip,
+          message: tooltip,
           child: Semantics(
             button: identify != null,
-            label: flag.tooltip,
+            label: tooltip,
             excludeSemantics: true,
             child: Container(
               key: const Key('event-flag-unidentified'),

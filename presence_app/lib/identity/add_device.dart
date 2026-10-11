@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../l10n/l10n.dart';
 import 'join_link.dart';
 
 /// Near the end of Settings (above the IDs): a QR code of [link]
@@ -23,20 +24,22 @@ class AddDeviceSection extends StatelessWidget {
   static Future<void> _copy(BuildContext context, Uri link) async {
     await Clipboard.setData(ClipboardData(text: '$link'));
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Link copied')));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(context.l10n.settingsAddDeviceLinkCopied)),
+    );
   }
 
   /// The system's share sheet (the Web Share API on web); copies the link
   /// where there's none.
   static Future<void> _share(BuildContext context, Uri link) async {
     final box = context.findRenderObject() as RenderBox?;
+    final title = context.l10n.settingsAddDeviceShareTitle;
     try {
       await SharePlus.instance.share(
         ShareParams(
           uri: link,
-          title: 'Open Presence',
-          subject: 'Open Presence',
+          title: title,
+          subject: title,
           // Anchors the sheet on iPads and Macs.
           sharePositionOrigin: box == null
               ? null
@@ -52,7 +55,7 @@ class AddDeviceSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final who = email == null ? '' : ' as $email';
+    final l = context.l10n;
     return Column(
       key: const Key('add-device'),
       children: [
@@ -61,7 +64,7 @@ class AddDeviceSection extends StatelessWidget {
           spacing: 8,
           children: [
             const Icon(Icons.qr_code_2),
-            Text('Add a device', style: theme.textTheme.titleMedium),
+            Text(l.settingsAddDeviceTitle, style: theme.textTheme.titleMedium),
           ],
         ),
         const SizedBox(height: 12),
@@ -76,14 +79,16 @@ class AddDeviceSection extends StatelessWidget {
               data: '$link',
               size: 200,
               padding: EdgeInsets.zero,
-              semanticsLabel: 'QR code for $link',
+              semanticsLabel: l.settingsAddDeviceQr('$link'),
             ),
           ),
         ),
         const SizedBox(height: 12),
         Text(
-          'Scan with another device to open Presence there$who. '
-          'It becomes a new device, with its own ID.',
+          switch (email) {
+            final email? => l.settingsAddDeviceScanAs(email),
+            null => l.settingsAddDeviceScan,
+          },
           textAlign: TextAlign.center,
           style: theme.textTheme.bodyMedium,
         ),
@@ -105,14 +110,14 @@ class AddDeviceSection extends StatelessWidget {
             TextButton.icon(
               key: const Key('add-device-copy'),
               icon: const Icon(Icons.copy),
-              label: const Text('Copy link'),
+              label: Text(l.settingsAddDeviceCopy),
               onPressed: () => _copy(context, link),
             ),
             Builder(
               builder: (context) => FilledButton.icon(
                 key: const Key('add-device-share'),
                 icon: const Icon(Icons.share),
-                label: const Text('Share'),
+                label: Text(l.settingsAddDeviceShare),
                 onPressed: () => _share(context, link),
               ),
             ),
@@ -147,23 +152,17 @@ class JoinBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final (icon, message) = switch (status) {
-      JoinStatus.signIn => (
-        Icons.login,
-        'To add this device, sign in with the Google account that shared '
-            'the link.',
-      ),
+      JoinStatus.signIn => (Icons.login, l.settingsJoinSignIn),
       JoinStatus.otherUser => (
         Icons.no_accounts,
-        'The link was shared by another Google account than '
-            '${email ?? 'yours'}. Sign out, and sign in with that one, to add '
-            'this device.',
+        switch (email) {
+          final email? => l.settingsJoinOtherUser(email),
+          null => l.settingsJoinOtherUserUnknown,
+        },
       ),
-      JoinStatus.sameDevice => (
-        Icons.devices,
-        'This is the device that shared the link. Open it on another '
-            'device to add that one.',
-      ),
+      JoinStatus.sameDevice => (Icons.devices, l.settingsJoinSameDevice),
       JoinStatus.waiting || JoinStatus.joined => (null, null),
     };
     if (icon == null || message == null) return const SizedBox.shrink();
@@ -180,9 +179,12 @@ class JoinBanner extends StatelessWidget {
             Icon(icon, color: scheme.primary),
             Expanded(child: Text(message)),
             if (status == JoinStatus.otherUser && onSignOut != null)
-              TextButton(onPressed: onSignOut, child: const Text('Sign out')),
+              TextButton(
+                onPressed: onSignOut,
+                child: Text(l.settingsJoinSignOut),
+              ),
             IconButton(
-              tooltip: 'Dismiss',
+              tooltip: l.settingsJoinDismiss,
               icon: const Icon(Icons.close),
               onPressed: onDismiss,
             ),

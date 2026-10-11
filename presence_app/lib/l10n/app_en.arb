@@ -1,8 +1,1186 @@
 {
   "@@locale": "en",
+  "aboutLinkCopied": "Link copied",
+  "aboutOpenSource": "Presence is open source:",
+  "aboutParagraph": "Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
+  "authAccessAdmin": "Admin Access",
+  "authAccessFree": "Free Access",
+  "authAccessPremium": "Premium Access",
+  "authBackedUp": "Clips and events are backed up",
+  "authBackedUpBoth": "Backed up ({up} uploaded, {down} restored)",
+  "@authBackedUpBoth": {
+    "placeholders": {
+      "up": {
+        "type": "int"
+      },
+      "down": {
+        "type": "int"
+      }
+    }
+  },
+  "authBackedUpRestored": "Backed up ({down} restored)",
+  "@authBackedUpRestored": {
+    "placeholders": {
+      "down": {
+        "type": "int"
+      }
+    }
+  },
+  "authBackedUpUploaded": "Backed up ({up} uploaded)",
+  "@authBackedUpUploaded": {
+    "placeholders": {
+      "up": {
+        "type": "int"
+      }
+    }
+  },
+  "authBackupOff": "Cloud backup is off",
+  "authCheckAgain": "Check again",
+  "authCheckingRoles": "Checking roles…",
+  "authDeleteDevice": "Delete {device}",
+  "@authDeleteDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeviceCount": "{count, plural, =1{1 device} other{{count} devices}}",
+  "@authDeviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authDevicesHidden": "{count, plural, =1{1 device's events are hidden: {plan} shows your first {limit} devices.} other{{count} devices' events are hidden: {plan} shows your first {limit} devices.}}",
+  "@authDevicesHidden": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authFeedback": "Feedback",
+  "authFeedbackIntro": "Members' messages from the Help tab, the latest active first. Your replies show there.",
+  "authFeedbackLoadFailed": "Couldn't load feedback ({error}).",
+  "@authFeedbackLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authHaveCode": "Have a code from your other account? Enter it to link this one to it.",
+  "authHidden": "hidden",
+  "@authHidden": {
+    "description": "A device whose events are hidden"
+  },
+  "authHiddenTooltip": "Past the plan's device limit: it syncs, but its events are hidden here",
+  "authLinkAnother": "Link another account",
+  "authLinkCode": "Link code",
+  "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",
+  "authLinkCodeWrong": "That code is wrong, already used or expired.",
+  "authLinkConflict": "This account can't be linked: it has cloud data of its own, or other accounts are linked to it.",
+  "authLinkNoBackup": "Cloud backup isn't set up, so accounts can't be linked.",
+  "authLinkOtherAccount": "Have access with another Google account? Link it",
+  "authLinkThis": "Link this account",
+  "authLinkTooMany": "Too many tries. Wait a minute and try again.",
+  "authLinkedAccounts": "Linked accounts",
+  "authLinkedIntro": "Any of these Google accounts reaches the same clips and events.",
+  "authLinkedTo": "Linked to {owner}.",
+  "@authLinkedTo": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "authLinkedToProfile": "Linked to the profile.",
+  "authMoreHidden": "{count, plural, =1{1 more device syncs, but its events are hidden: {plan} shows your first {limit}.} other{{count} more devices sync, but their events are hidden: {plan} shows your first {limit}.}}",
+  "@authMoreHidden": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authNoEvents": "No events",
+  "authNoFeedback": "No feedback yet.",
+  "authNoRoles": "No roles yet",
+  "authNotSignedIn": "Not signed in.",
+  "authOpenHost": "Open {host}",
+  "@authOpenHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "authOsUnknown": "Operating system unknown",
+  "authOthersHidden": "Your other devices' events are hidden on this one: {plan} shows your first {limit} devices.",
+  "@authOthersHidden": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authOwner": "Owner",
+  "@authOwner": {
+    "description": "The profile's owner account"
+  },
+  "authPastLimit": "This device is past your first {limit}: it syncs, but its events are hidden on your other devices, and theirs here.",
+  "@authPastLimit": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authPlanFree": "Free",
+  "@authPlanFree": {
+    "description": "The free plan's name"
+  },
+  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to {premium} devices.",
+  "@authPlanFreeText": {
+    "placeholders": {
+      "free": {
+        "type": "int"
+      },
+      "premium": {
+        "type": "int"
+      }
+    }
+  },
+  "authPlanPremium": "Premium",
+  "@authPlanPremium": {
+    "description": "The paid plan's name"
+  },
+  "authPlanPremiumText": "Premium: cloud backup, and up to {limit} devices sync.",
+  "@authPlanPremiumText": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authProfile": "Profile",
+  "@authProfile": {
+    "description": "Account sheet: label above the profile ID"
+  },
+  "authRbacrText": "Voucher codes and maintenance mode are managed in rbacr, which keeps every role. Members redeem codes on the Sign up sheet.",
+  "authRedeem": "Redeem",
+  "authReload": "Reload",
+  "authReplyFailed": "Couldn't reply to {email} ({error})",
+  "@authReplyFailed": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authRequestFailed": "The request failed (HTTP {status}).",
+  "@authRequestFailed": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "authRetry": "Retry",
+  "authRoleRoot": "Root",
+  "@authRoleRoot": {
+    "description": "The root role's name"
+  },
+  "authRolesSemantics": "Roles: {roles}",
+  "@authRolesSemantics": {
+    "placeholders": {
+      "roles": {
+        "type": "String"
+      }
+    }
+  },
+  "authSignIn": "Sign in",
+  "@authSignIn": {
+    "description": "Account button tooltip, signed out"
+  },
+  "authSignInToPresence": "Sign in to Presence",
+  "authSignInWithGoogle": "Sign in with Google",
+  "authSignOut": "Sign out",
+  "authSignUp": "Sign up",
+  "authSignUpForPremium": "{text} Sign up at nu01.com for Premium and up to {limit}.",
+  "@authSignUpForPremium": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authSignUpNu01": "Sign up at nu01.com",
+  "authSignedInAs": "Signed in as {identity}",
+  "@authSignedInAs": {
+    "placeholders": {
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "authSomethingWrong": "Something went wrong ({error}).",
+  "@authSomethingWrong": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authSubscribe": "Subscribe",
+  "authSubscribeButton": "Subscribe at nu01.com",
+  "authSubscribeText": "{email} doesn't have access to Presence yet. Subscribe at nu01.com: Free, or Premium for cloud backup and more devices. Then check again here.",
+  "@authSubscribeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authSyncFree": "Your devices sync with each other while online",
+  "authThisAccount": "This account",
+  "authThisDevice": "this device",
+  "authUnavailable": "Sign-in is unavailable.",
+  "authUnlink": "Unlink",
+  "authUnlinked": "{email} was unlinked.",
+  "@authUnlinked": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authUploadFailed": "Upload failed",
+  "authUploading": "Uploading…",
+  "authVoucherDiscount": "That code gives {discount}% off. Paying the rest isn't available yet, so it can't let you in.",
+  "@authVoucherDiscount": {
+    "placeholders": {
+      "discount": {
+        "type": "int"
+      }
+    }
+  },
+  "authVoucherFailed": "Couldn't redeem the code.",
+  "authVoucherFailedDetail": "Couldn't redeem the code ({error}).",
+  "@authVoucherFailedDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authVoucherInvalid": "That code is invalid, expired or used up.",
+  "authVoucherLabel": "Voucher code",
+  "authVoucherPayment": "That code needs a payment, which isn't available yet, so it can't let you in.",
+  "authVoucherPrompt": "Have a voucher code? Redeem it to get in right away.",
+  "authVoucherTooMany": "Too many tries. Wait a while and try again.",
+  "authVouchersTitle": "Vouchers and maintenance",
+  "authYourAccount": "Your account",
+  "cameraActionAll": "Show all devices",
+  "cameraActionNormal": "Back to normal: this camera",
+  "cameraActionStopped": "Stop: no capturing or syncing",
+  "cameraActionUnattended": "Go unattended: screen off, still capturing",
+  "cameraAgeDays": "{days} d ago",
+  "@cameraAgeDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeHours": "{hours} h ago",
+  "@cameraAgeHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeJustNow": "just now",
+  "cameraAgeMinutes": "{minutes} min ago",
+  "@cameraAgeMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeSeconds": "{seconds} s ago",
+  "@cameraAgeSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAskedFreshGrab": "Asked for a fresh grab",
+  "cameraClip": "Clip",
+  "@cameraClip": {
+    "description": "The Clip button's label"
+  },
+  "cameraClipCameraOff": "Camera off",
+  "cameraClipCountdown": "Clip · {time}",
+  "@cameraClipCountdown": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraClipLoadFailed": "Couldn't load this clip",
+  "cameraClipNextIn": "Next automatic clip in {countdown}",
+  "@cameraClipNextIn": {
+    "placeholders": {
+      "countdown": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraClipNoCamera": "No camera",
+  "cameraClipNotReady": "Camera not ready",
+  "cameraClipPreview": "Preview",
+  "cameraClipReady": "Ready",
+  "cameraClipRecordingNext": "Recording the next {seconds} s…",
+  "@cameraClipRecordingNext": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraClipSaving": "Clip saving…",
+  "cameraClipSavingNext": "Clip saving… {next}",
+  "@cameraClipSavingNext": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraClipStarting": "Camera starting…",
+  "cameraClipUnavailable": "Camera unavailable",
+  "cameraCouldNotOpen": "Could not open the camera\n{reason}",
+  "@cameraCouldNotOpen": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraErrorBlocked": "Camera access is blocked for this site. Allow the camera in the browser's site settings, then retry.",
+  "cameraErrorDenied": "Camera permission was denied. Allow it in Settings.",
+  "cameraErrorGeneric": "Something went wrong while starting the camera.",
+  "cameraErrorInUse": "The camera is in use by another app, or couldn't start. Close other apps using it, then retry.",
+  "cameraErrorInsecure": "The camera only works on a secure page. Open Presence over HTTPS.",
+  "cameraErrorNoneFound": "No camera was found. Connect one, then retry.",
+  "cameraErrorStopped": "The camera stopped (unplugged or taken away)",
+  "cameraFlip": "Flip camera",
+  "cameraLiveLabel": "{device} · live",
+  "@cameraLiveLabel": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraModeAll": "All",
+  "@cameraModeAll": {
+    "description": "Camera mode: every device in a grid"
+  },
+  "cameraModeNormal": "Normal",
+  "@cameraModeNormal": {
+    "description": "Camera mode: this device's camera"
+  },
+  "cameraModeStopped": "Stopped",
+  "@cameraModeStopped": {
+    "description": "Camera mode: nothing captured or synced"
+  },
+  "cameraModeUnattended": "Unattended",
+  "@cameraModeUnattended": {
+    "description": "Camera mode: screen off, still capturing"
+  },
+  "cameraNotFound": "No camera found",
+  "cameraOffMessage": "Camera off\nNothing is recorded until you turn it on.",
+  "cameraRetry": "Retry",
+  "cameraThisDevice": "This device",
+  "cameraTurnOn": "Turn on",
+  "clipAuto": "Auto",
+  "clipAutoAllTagged": "Every subject named before is already on this clip.",
+  "clipAutoDeferred": "The phone is low on memory: try again in a moment.",
+  "clipAutoFailed": "Couldn't run recognition; try again.",
+  "clipAutoFound": "Found {names}.",
+  "@clipAutoFound": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoLooking": "Looking for the subjects named before…",
+  "clipAutoNoReferences": "No subjects to look for yet: name someone on another clip first.",
+  "clipAutoNone": "No subjects recognized.",
+  "clipAutoNotSureMany": "Not sure about {names}: answer the questions in the events.",
+  "@clipAutoNotSureMany": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoNotSureOne": "Not sure about {names}: answer \"Is this {name}?\" in the events.",
+  "@clipAutoNotSureOne": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoTags": "{subjects} Tags: {tags}.",
+  "@clipAutoTags": {
+    "placeholders": {
+      "subjects": {
+        "type": "String"
+      },
+      "tags": {
+        "type": "String"
+      }
+    }
+  },
+  "clipAutoTooltip": "Find the subjects named before, and tag the things seen, on this device",
+  "clipAutoUnavailable": "Not available on this device yet",
+  "clipAutoUnsupported": "Recognition is not available on this device yet.",
+  "clipAutoWaiting": "Waiting for the clip to finish recording…",
+  "clipCancel": "Cancel",
+  "clipClose": "Close",
+  "clipDone": "Done",
+  "clipFrameTagLabel": "Frame to name subjects on: click a person or pet to name them",
+  "clipGrabFailed": "Couldn't grab this frame; try again",
+  "clipIdentifyHint": "{label}: click them on the video to name them, or try Auto.",
+  "@clipIdentifyHint": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipNameHint": "Name",
+  "clipNameMore": "Name more subjects on this frame",
+  "clipNameSubject": "Name subject",
+  "clipNamesAnd": "{first} and {last}",
+  "@clipNamesAnd": {
+    "placeholders": {
+      "first": {
+        "type": "String"
+      },
+      "last": {
+        "type": "String"
+      }
+    }
+  },
+  "clipNoSubjects": "No subjects yet. Click a person or pet on the video to name them.",
+  "clipNoTags": "No tags: nothing was seen on this clip.",
+  "clipNoTagsYet": "No tags yet. Things seen on the clip, like bottle or bicycle, show here once it has been searched.",
+  "clipNoTagsYetTryAuto": "No tags yet. Things seen on the clip, like bottle or bicycle, show here once it has been searched (try Auto).",
+  "clipNoVideo": "No video recorded",
+  "clipNotRecordedClosed": "Not recorded: the app closed while recording",
+  "clipNotSaved": "{status} · not saved: {error}",
+  "@clipNotSaved": {
+    "placeholders": {
+      "status": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "clipPlay": "Play the clip",
+  "clipPreviousOnly": "Previous {before} s only: the app closed before the next {after} s were recorded",
+  "@clipPreviousOnly": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      },
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipPreviousReady": "Previous {before} s ready · recording next {after} s…",
+  "@clipPreviousReady": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      },
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipReady": "{seconds} s clip ready",
+  "@clipReady": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "clipRecordingElsewhere": "Recording on another device…",
+  "clipRecordingFailed": "Recording failed",
+  "clipRecordingNext": "Recording next {after} s…",
+  "@clipRecordingNext": {
+    "placeholders": {
+      "after": {
+        "type": "int"
+      }
+    }
+  },
+  "clipRemoveSubject": "Remove subject",
+  "clipRemoveSubjectFromEvent": "Remove subject {label} from this event",
+  "@clipRemoveSubjectFromEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipRemoveTagFromEvent": "Remove tag {label} from this event",
+  "@clipRemoveTagFromEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipRenameSubject": "Rename subject",
+  "clipSave": "Save",
+  "clipSavingPrevious": "Saving previous {before} s…",
+  "@clipSavingPrevious": {
+    "placeholders": {
+      "before": {
+        "type": "int"
+      }
+    }
+  },
+  "clipShowAt": "Show at {time}",
+  "@clipShowAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "clipShowEveryEvent": "Show every event",
+  "clipShowEveryHold": "Show every event (hold to rename)",
+  "clipShowOnlyHold": "Show only events with {name} (hold to rename)",
+  "@clipShowOnlyHold": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "clipShowOnlyWith": "Show only events with {label}",
+  "@clipShowOnlyWith": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "clipSubjects": "Subjects",
+  "clipTagHint": "Click each person or pet on the video to name them as a subject (frame at {time}).",
+  "@clipTagHint": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "clipTags": "Tags",
+  "clipUnsupported": "Video clips aren't supported on this platform",
+  "clipWhoIsThis": "Who is this?",
+  "connectivityAllGood": "Online · live sync connected",
+  "connectivityChecking": "Checking the connection…",
+  "connectivityCloudFailed": "Cloud sync failed",
+  "connectivityCloudNotSet": "Cloud sync isn't set up in this build",
+  "connectivityCloudOn": "Cloud sync on",
+  "connectivityCloudOneSide": "Cloud sync is set up on one side only",
+  "connectivityFree": "Free: devices sync over live sync",
+  "connectivityLabel": "Connectivity: {headline}",
+  "@connectivityLabel": {
+    "placeholders": {
+      "headline": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityLiveConnected": "Live sync connected",
+  "connectivityLiveConnecting": "Connecting to live sync…",
+  "connectivityLiveFailed": "Live sync failed",
+  "connectivityLiveIdle": "Live sync idle · next in {next}",
+  "@connectivityLiveIdle": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityLiveNotSet": "Live sync isn't set up in this build",
+  "connectivityLiveOff": "Live sync is off",
+  "connectivityLiveOnceSynced": "Live sync connects once synced",
+  "connectivityNote": "Other devices see this one live only while live sync is connected.",
+  "connectivityOffline": "Offline: can't reach the server",
+  "connectivityOnline": "Online",
+  "connectivityPresenceAnswered": "Live — answered {since}",
+  "@connectivityPresenceAnswered": {
+    "placeholders": {
+      "since": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityPresenceLastSeen": "Last seen {since}{unavailable}",
+  "@connectivityPresenceLastSeen": {
+    "placeholders": {
+      "since": {
+        "type": "String"
+      },
+      "unavailable": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityPresenceNever": "Never seen{unavailable}",
+  "@connectivityPresenceNever": {
+    "placeholders": {
+      "unavailable": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityPresenceThisLive": "Live — this device, connected to live sync",
+  "connectivityPresenceThisNotConnected": "This device — not connected to live sync now",
+  "connectivityPresenceThisUnavailable": "This device — live status unavailable",
+  "connectivityPresenceUnavailable": " · live status unavailable",
+  "@connectivityPresenceUnavailable": {
+    "description": "Appended to a device's presence; starts with a space"
+  },
+  "connectivityThisDevice": "This device — {headline}",
+  "@connectivityThisDevice": {
+    "placeholders": {
+      "headline": {
+        "type": "String"
+      }
+    }
+  },
+  "consentAgree": "I agree",
+  "consentBiometricsDetail": "Under the GDPR, faces used to identify people, as when naming them in clips, need care: clear consent, safe keeping, and deleting on request.",
+  "@consentBiometricsDetail": {
+    "description": "GDPR: the EU General Data Protection Regulation (RGPD in Spanish)"
+  },
+  "consentBiometricsTitle": "Faces are biometric data, and I am responsible.",
+  "consentFootnote": "Asked once on this device. Not legal advice.",
+  "consentIntro": "By continuing, you confirm:",
+  "consentRightDetail": "I own or manage this place, or have permission, and people who may be filmed know about it.",
+  "consentRightTitle": "I have the right to record here.",
+  "consentTitle": "Before Presence starts recording",
+  "devModeTooltip": "Development mode: sign-in isn't configured, so everything is open to everyone.",
+  "devModeTooltipVersion": "Development mode, version {version}: sign-in isn't configured, so everything is open to everyone.",
+  "@devModeTooltipVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "eventAlreadyDeleted": "Event already deleted",
+  "eventCancel": "Cancel",
+  "eventCopies": "{count, plural, =1{1 copy} other{{count} copies}}",
+  "@eventCopies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventCopiesCloud": "Cloud",
+  "eventCopiesLiveOff": "Live sync is off: other devices' copies are unknown",
+  "eventCopiesNone": "No copy known",
+  "eventCopiesNotSynced": "Not synced",
+  "eventCopiesThisDevice": "This device",
+  "eventDelete": "Delete event",
+  "eventDeleteClipNote": "Its clip stays in the cloud until it expires.",
+  "eventDeleteConfirm": "Delete",
+  "eventDeleteFailed": "Could not delete the event",
+  "eventDeleteMessage": "Delete this event? It will be hidden on every device.",
+  "eventDeleteTitle": "Delete event?",
+  "eventDeletedEverywhere": "Event deleted on every device",
+  "eventDetailCaptureAll": "Every device takes a clip",
+  "eventDetailClipMissing": "Clip recording missing",
+  "eventDetailSure": "{percent} % sure",
+  "@eventDetailSure": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "eventDevice": "Device",
+  "eventDeviceUnknown": "Device unknown",
+  "eventFlagIdentify": "{label} · Identify",
+  "@eventFlagIdentify": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "eventFlagUnidentified": "Unidentified subject",
+  "eventFlagUnidentifiedTooltip": "Unidentified subject — identify",
+  "eventLocationDevice": "The device's position",
+  "eventLocationMap": "Set on the map",
+  "eventLocationPinned": "Pinned",
+  "eventNoLocation": "No location for this event",
+  "eventOsUnknown": "Operating system unknown",
+  "eventSuggestionClipMissing": "The clip is missing",
+  "eventSuggestionNo": "No",
+  "eventSuggestionNot": "Not {name}",
+  "@eventSuggestionNot": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSuggestionTagged": "Tagged as {name}",
+  "@eventSuggestionTagged": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSuggestionYes": "Yes, it's {name}",
+  "@eventSuggestionYes": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventThisDevice": "this device",
+  "eventTitleAppStarted": "Application started",
+  "eventTitleCaptureAll": "Capture all",
+  "eventTitleClipRequested": "Clip requested",
+  "eventTitleConsentGiven": "Recording consent given",
+  "eventTitleGeneric": "Event",
+  "eventTitleIsThis": "Is this {name}?",
+  "@eventTitleIsThis": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "eventTitleMotion": "Motion detected",
+  "eventTitleScheduled": "Scheduled clip",
+  "eventTitleSignedIn": "Signed in",
+  "eventTitleSignedOut": "Signed out",
+  "eventTitleStartup": "Startup clip",
+  "eventWhere": "Where",
+  "eventsCountTooltip": "{shown} of {all} events shown",
+  "@eventsCountTooltip": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "all": {
+        "type": "int"
+      }
+    }
+  },
+  "eventsHideSystem": "Hide system events",
+  "eventsNoGrabs": "No grabs yet: system events are hidden",
+  "eventsNoMatch": "No events match \"{query}\"",
+  "@eventsNoMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "eventsNone": "No events",
+  "eventsSearch": "Search events",
+  "eventsSearchClear": "Clear search",
+  "eventsShowDevice": "Show this device's events",
+  "eventsShowEveryDevice": "Show every device's events",
+  "eventsShowSystem": "Show system events",
+  "feedbackAdmin": "Admin",
+  "feedbackAnswered": "Answered",
+  "feedbackAwaitingReply": "Awaiting a reply",
+  "feedbackMember": "Member",
+  "feedbackReply": "Reply",
+  "feedbackSendFailed": "Couldn't send it ({error}).",
+  "@feedbackSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackSentTooMuch": "You've sent a lot today. Try again tomorrow.",
+  "feedbackTeam": "Presence team",
+  "feedbackTooManyTries": "Too many tries. Wait a minute.",
+  "feedbackYou": "You",
+  "healthApiAnswered": "Auth API: answered ({mode} mode)",
+  "@healthApiAnswered": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "healthApiChecking": "Auth API: checking",
+  "healthApiUnreachable": "Auth API: unreachable ({error})",
+  "@healthApiUnreachable": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAuthApiName": "Auth API",
+  "@healthAuthApiName": {
+    "description": "Health card title"
+  },
+  "healthAwsOff": "events stay on this device",
+  "healthAwsSet": "AWS: set; syncs once signed in",
+  "healthAwsSyncFailed": "AWS: sync failed ({error})",
+  "@healthAwsSyncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAwsSynced": "AWS: synced",
+  "healthAwsSyncing": "AWS: syncing",
+  "healthChecking": "Checking…",
+  "healthChecks": "{count, plural, =1{1 check} other{{count} checks}}",
+  "@healthChecks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "healthDevicesHere": "In the events on this device",
+  "healthDevicesProfile": "In the profile's events",
+  "healthDevicesSemantics": "{count, plural, =1{1 device in the events} other{{count} devices in the events}}",
+  "@healthDevicesSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "healthDevicesTitle": "Devices",
+  "healthDevicesTooltip": "{what}, here and synced from the cloud",
+  "@healthDevicesTooltip": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLastUpdate": "Last update {time}",
+  "@healthLastUpdate": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveConnected": "Live: connected ({counts})",
+  "@healthLiveConnected": {
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveConnecting": "Live: connecting",
+  "healthLiveCounts": "{received} received, {sent} sent",
+  "@healthLiveCounts": {
+    "placeholders": {
+      "received": {
+        "type": "int"
+      },
+      "sent": {
+        "type": "int"
+      }
+    }
+  },
+  "healthLiveFailed": "Live: failed ({error}); events arrive with each sync",
+  "@healthLiveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveIdle": "Live: idle · next in {next} ({mode}; {counts})",
+  "@healthLiveIdle": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      },
+      "mode": {
+        "type": "String"
+      },
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveName": "Live",
+  "@healthLiveName": {
+    "description": "Health card title: live sync"
+  },
+  "healthLiveNever": "Live: off (Never); events arrive with each sync (15 s)",
+  "healthLiveNotSet": "Live: not set; events arrive with each sync (15 s)",
+  "healthLiveOff": "Live: set; connects once synced",
+  "healthMinutes": "{minutes} min",
+  "@healthMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "healthOidcOff": "sign-in is off",
+  "healthOidcSet": "OIDC: Google sign-in set",
+  "healthRbacrDev": "RBACR: not used in DEV mode (nobody signs in)",
+  "healthRbacrFree": "RBACR: set; this profile is Free (its devices sync with each other)",
+  "healthRbacrMissing": "RBACR: not set on the auth API; nobody who signs in has a role",
+  "healthRbacrPremium": "RBACR: set; this profile is Premium (cloud backup)",
+  "healthRbacrSet": "RBACR: set; gives the roles",
+  "healthRbacrUnknown": "RBACR: the auth API doesn't say",
+  "healthRunFailed": "failed",
+  "healthRunPassed": "all passed",
+  "healthSeconds": "{seconds} s",
+  "@healthSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "healthSettingNotInBuild": "{name}: not set in this build; {off}",
+  "@healthSettingNotInBuild": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingNotSet": "{name}: not set; {off}",
+  "@healthSettingNotSet": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingOnlyApi": "{name}: set in the auth API but not in this build; {off}",
+  "@healthSettingOnlyApi": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingOnlyBuild": "{name}: set in this build but not in the auth API",
+  "@healthSettingOnlyBuild": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "healthTapForDetails": "Tap for details.",
+  "healthTimeline": "Timeline",
+  "healthTimelineSummary": "{checks} · every {interval}",
+  "@healthTimelineSummary": {
+    "placeholders": {
+      "checks": {
+        "type": "String"
+      },
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "healthTitle": "Health",
+  "healthToneChecking": "Checking",
+  "healthToneFailed": "Failed",
+  "healthToneIdle": "Idle",
+  "healthToneMismatch": "Mismatch",
+  "healthToneOff": "Off",
+  "healthToneOk": "OK",
+  "healthToneSyncing": "Syncing",
+  "healthUnknownError": "unknown error",
+  "healthWarningFailed": "Health check failed",
+  "helpIntro": "Questions, ideas or something not working? Send a message; an administrator will answer here.",
+  "helpLoadFailed": "Couldn't load messages ({error}).",
+  "@helpLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "helpMessage": "Message",
+  "helpNoMessages": "No messages yet.",
+  "helpNotSignedIn": "Not signed in.",
+  "helpReload": "Reload",
+  "helpSend": "Send",
+  "helpTitle": "Write to the Presence team",
+  "homeAskedGrabs": "{count, plural, =0{Asked every device for a fresh grab} =1{Asked 1 device for a fresh grab…} other{Asked {count} devices for a fresh grab…}}",
+  "@homeAskedGrabs": {
+    "description": "Message after opening the All grid",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeBatteryCharging": "charging",
+  "homeBatteryFull": "full",
+  "homeBatteryLevel": "Battery {level} %",
+  "@homeBatteryLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "homeBatteryOnBattery": "on battery",
+  "homeBatteryPlugged": "plugged in, not charging",
+  "homeBatteryTemperature": "Battery temperature {temperature}",
+  "@homeBatteryTemperature": {
+    "placeholders": {
+      "temperature": {
+        "type": "String"
+      }
+    }
+  },
+  "homeBatteryTemperatureHot": "Battery temperature {temperature}, hot",
+  "@homeBatteryTemperatureHot": {
+    "placeholders": {
+      "temperature": {
+        "type": "String"
+      }
+    }
+  },
+  "homeClipAll": "Capture all",
+  "homeClipManual": "Clip started",
+  "homeClipMotion": "Motion detected",
+  "homeClipSaving": "{started} · saving the next {seconds} s",
+  "@homeClipSaving": {
+    "placeholders": {
+      "started": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "homeClipScheduled": "Scheduled clip",
+  "homeClipStartup": "Startup clip",
+  "homeJoinedAccount": "This device is now one of {email}'s: {deviceId}",
+  "@homeJoinedAccount": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "homeJoinedOpen": "Presence is open on this device: {deviceId}",
+  "@homeJoinedOpen": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "homeMessageTapToView": "{label}. Tap to view it.",
+  "@homeMessageTapToView": {
+    "description": "Screen reader label of a message pill that opens its event",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "homeScreenOffHint": "Unattended: capturing with the screen off. Tap to wake.",
+  "homeSignInFailed": "Sign-in failed: {error}",
+  "@homeSignInFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeUnattendedWoken": "Unattended: dark again 15 s after the last touch",
   "languageEnglish": "English",
   "languageLabel": "App language",
-  "languageNote": "Event titles saved before keep the language they were made in.",
+  "languageNote": "Names, tags and device IDs show as they were written.",
   "languagePortuguese": "Português",
   "languageSection": "Language",
   "@languageSection": {
@@ -12,5 +1190,342 @@
   "languageSystem": "Same as the device",
   "@languageSystem": {
     "description": "Language choice: follow the device's language"
-  }
+  },
+  "logClear": "Clear",
+  "logCopied": "Log copied",
+  "logCopy": "Copy",
+  "logEmpty": "Nothing logged yet.",
+  "logTitle": "Log",
+  "logTitleCount": "Log · {count} latest",
+  "@logTitleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "maintenanceBody": "We'll be back soon. This page comes back on its own.",
+  "maintenanceTitle": "Sorry, Presence is down for maintenance.",
+  "navAdmin": "Admin",
+  "@navAdmin": {
+    "description": "Navigation bar: the Admin tab"
+  },
+  "navCamera": "Camera",
+  "@navCamera": {
+    "description": "Navigation bar: the Camera tab"
+  },
+  "navHelp": "Help",
+  "@navHelp": {
+    "description": "Navigation bar: the Help tab"
+  },
+  "navHelpTitle": "Feedback & Help",
+  "@navHelpTitle": {
+    "description": "App bar title of the Help tab"
+  },
+  "navLog": "Log",
+  "@navLog": {
+    "description": "Navigation bar: the Log tab"
+  },
+  "navMonitoring": "Monitoring",
+  "@navMonitoring": {
+    "description": "Navigation bar: the Monitoring tab"
+  },
+  "navProfile": "Profile",
+  "@navProfile": {
+    "description": "Navigation bar: the Profile tab"
+  },
+  "navSettings": "Settings",
+  "@navSettings": {
+    "description": "Navigation bar: the Settings tab"
+  },
+  "navSignedInAs": "Signed in as {identity}",
+  "@navSignedInAs": {
+    "description": "Profile tab tooltip",
+    "placeholders": {
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAddDeviceCopy": "Copy link",
+  "settingsAddDeviceLinkCopied": "Link copied",
+  "settingsAddDeviceQr": "QR code for {link}",
+  "@settingsAddDeviceQr": {
+    "placeholders": {
+      "link": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAddDeviceScan": "Scan with another device to open Presence there. It becomes a new device, with its own ID.",
+  "settingsAddDeviceScanAs": "Scan with another device to open Presence there as {email}. It becomes a new device, with its own ID.",
+  "@settingsAddDeviceScanAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAddDeviceShare": "Share",
+  "settingsAddDeviceShareTitle": "Open Presence",
+  "settingsAddDeviceTitle": "Add a device",
+  "settingsAdvancedSection": "Advanced",
+  "settingsAskNote": "Less sure than that, it asks you whether it's them.",
+  "settingsAutoTag": "Tag automatically when at least",
+  "settingsAutoTagValue": "{percent} % sure",
+  "@settingsAutoTagValue": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsBrightness": "Brightness",
+  "settingsCameraSection": "Camera",
+  "settingsClipAfter": "After press",
+  "settingsClipBefore": "Before press",
+  "settingsClipsNote": "Clips play {seconds} s in total. Changing \"Before\" takes up to that long to apply, while the cameras build up enough history.",
+  "@settingsClipsNote": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsClipsSection": "Clips",
+  "settingsCloudFailed": "Couldn't train now; it tries again later.",
+  "settingsCloudLastTrained": "Last trained {time}",
+  "@settingsCloudLastTrained": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCloudNoLabels": "Nothing to learn yet: tag people and pets.",
+  "settingsCloudNotPremium": "Cloud recognition is Premium only.",
+  "settingsCloudNotTrained": "Not trained yet",
+  "settingsCloudStatus": "{when}. Learns from the people and pets you tag; checked daily.",
+  "@settingsCloudStatus": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCloudTitle": "Cloud recognition (Premium)",
+  "settingsCloudTrain": "Train now",
+  "settingsCloudTrained": "Trained.",
+  "settingsCloudUpToDate": "Up to date.",
+  "settingsCoordinatesAxes": "Give one latitude (N or S) and one longitude (E or W)",
+  "settingsCoordinatesEmpty": "Paste a latitude and longitude",
+  "settingsCoordinatesInvalid": "Not a position: use latitude, longitude, e.g. 38.7223, -9.1393",
+  "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
+  "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
+  "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
+  "settingsDeleteDeviceCancel": "Cancel",
+  "settingsDeleteDeviceConfirm": "Delete",
+  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
+  "@settingsDeleteDeviceDone": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
+  "@settingsDeleteDeviceFailed": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteDeviceMessage": "Delete device {deviceId}? {count, plural, =1{Its 1 event will be hidden} other{Its {count} events will be hidden}} on every device.",
+  "@settingsDeleteDeviceMessage": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceNote": "Its clips stay in the cloud. If it records again, it shows again with its new events.",
+  "settingsDeleteDeviceTitle": "Delete device?",
+  "settingsDevice": "Device",
+  "settingsDeviceLoading": "loading…",
+  "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",
+  "settingsHistorySection": "History",
+  "settingsJoinDismiss": "Dismiss",
+  "settingsJoinOtherUser": "The link was shared by another Google account than {email}. Sign out, and sign in with that one, to add this device.",
+  "@settingsJoinOtherUser": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsJoinOtherUserUnknown": "The link was shared by another Google account than yours. Sign out, and sign in with that one, to add this device.",
+  "settingsJoinSameDevice": "This is the device that shared the link. Open it on another device to add that one.",
+  "settingsJoinSignIn": "To add this device, sign in with the Google account that shared the link.",
+  "settingsJoinSignOut": "Sign out",
+  "settingsKeep": "Keep events for",
+  "settingsKeepDays": "{count, plural, =1{1 day} other{{count} days}}",
+  "@settingsKeepDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsKeepWeeks": "{count, plural, =1{1 week} other{{count} weeks}}",
+  "@settingsKeepWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsLiveAdminNote": "Always connected for admins, so this device is always reachable: other devices' events arrive within a second.",
+  "settingsLiveAlways": "Always",
+  "settingsLiveAlwaysNote": "Stays connected: other devices' events arrive within a second.",
+  "settingsLiveConnect": "Connect to live sync",
+  "settingsLiveEvery": "Every {interval}",
+  "@settingsLiveEvery": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLiveNever": "Never",
+  "settingsLiveNeverNote": "Other devices' events arrive with each sync (15 s), and this device's reach them the same way.",
+  "settingsLiveScheduledNote": "Connects about every {interval} for what other devices sent meanwhile, and at once to send this device's events.",
+  "@settingsLiveScheduledNote": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLiveSection": "Live sync",
+  "settingsLocationDenied": "Location permission was denied",
+  "settingsLocationFinding": "Finding this device…",
+  "settingsLocationMoveMap": "{reason}. Move the map to set it.",
+  "@settingsLocationMoveMap": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLocationMyLocation": "My location",
+  "settingsLocationOff": "Location is turned off",
+  "settingsLocationPaste": "Paste position",
+  "settingsLocationPin": "Pin position",
+  "settingsLocationPinThis": "Pin this position",
+  "settingsLocationPinnedLabel": "Pinned:",
+  "settingsLocationPinnedStatus": "Pinned · used for every event",
+  "settingsLocationPositionLabel": "Position (latitude, longitude)",
+  "settingsLocationSection": "Location",
+  "settingsLocationSetOnMap": "Set on the map",
+  "settingsLocationSetThis": "Set this position",
+  "settingsLocationThisDevice": "This device's location",
+  "settingsLocationUnavailable": "Location unavailable",
+  "settingsLocationUnknown": "Location unknown",
+  "settingsLocationUnpin": "Unpin",
+  "settingsLocationUnpinToLocate": "Unpin to use my location",
+  "settingsMapAttribution": "© OpenStreetMap contributors",
+  "settingsMapZoomIn": "Zoom in",
+  "settingsMapZoomOut": "Zoom out",
+  "settingsMotionCooldown": "At most one automatic clip every",
+  "settingsMotionNow": "Motion now: {percent} %",
+  "@settingsMotionNow": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMotionNowWaiting": "Motion now: waiting for the camera…",
+  "settingsMotionSection": "Motion",
+  "settingsMotionSwitch": "Clip automatically on motion",
+  "settingsMotionThreshold": "Motion threshold",
+  "settingsMotionThresholdValue": "{percent} % of the picture",
+  "@settingsMotionThresholdValue": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNextClipDue": "Next clip: due, once a camera is open",
+  "settingsNextClipIn": "Next clip in {time}",
+  "@settingsNextClipIn": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsObjectsSubtitle": "Human, cat, dog, bicycle, bottle… for search",
+  "settingsObjectsSwitch": "Tag objects in new clips",
+  "settingsProfile": "Profile",
+  "settingsProfileNone": "none until signed in",
+  "settingsRecognitionSection": "Recognition",
+  "settingsRecognitionSubtitle": "People and pets tagged before, found on this device",
+  "settingsRecognitionSwitch": "Recognize subjects in new clips",
+  "settingsRecognitionUnavailable": "Not available on this device yet",
+  "settingsSameAsClip": "Same as pressing Clip",
+  "settingsScheduleEvery": "One clip every",
+  "settingsScheduleSection": "Scheduled clips",
+  "settingsScheduleSwitch": "Clip at start and on a timer",
+  "settingsShowLog": "Show the Log tab",
+  "settingsShowLogSubtitle": "The app's latest messages and health",
+  "settingsStartupClip": "Startup clip: once the camera is ready",
+  "settingsSubjectEvents": "How many events to load at once",
+  "settingsSubjectsSection": "Subjects",
+  "subjectsEvents": "{count, plural, =1{1 event} other{{count} events}}",
+  "@subjectsEvents": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "subjectsLatestEvents": "Latest {shown} of {total} events",
+  "@subjectsLatestEvents": {
+    "placeholders": {
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "subjectsNoLocation": "No location",
+  "subjectsNobodyTagged": "Nobody is tagged with this name any more.",
+  "subjectsOpen": "Open {name}",
+  "@subjectsOpen": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "subjectsOpenEvent": "Open event {label}",
+  "@subjectsOpenEvent": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "subjectsRecognizedAuto": "Recognized automatically"
 }

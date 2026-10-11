@@ -1,0 +1,590 @@
+{
+  "@@locale": "en",
+  "navCamera": "Camera",
+  "@navCamera": {
+    "description": "Navigation bar: the Camera tab"
+  },
+  "navMonitoring": "Monitoring",
+  "@navMonitoring": {
+    "description": "Navigation bar: the Monitoring tab"
+  },
+  "navSettings": "Settings",
+  "@navSettings": {
+    "description": "Navigation bar: the Settings tab"
+  },
+  "navHelp": "Help",
+  "@navHelp": {
+    "description": "Navigation bar: the Help tab"
+  },
+  "navHelpTitle": "Feedback & Help",
+  "@navHelpTitle": {
+    "description": "App bar title of the Help tab"
+  },
+  "navLog": "Log",
+  "@navLog": {
+    "description": "Navigation bar: the Log tab"
+  },
+  "navAdmin": "Admin",
+  "@navAdmin": {
+    "description": "Navigation bar: the Admin tab"
+  },
+  "navProfile": "Profile",
+  "@navProfile": {
+    "description": "Navigation bar: the Profile tab"
+  },
+  "navSignedInAs": "Signed in as {identity}",
+  "@navSignedInAs": {
+    "description": "Profile tab tooltip",
+    "placeholders": {
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "homeUnattendedWoken": "Unattended: dark again 15 s after the last touch",
+  "homeAskedGrabs": "{count, plural, =0{Asked every device for a fresh grab} =1{Asked 1 device for a fresh grab…} other{Asked {count} devices for a fresh grab…}}",
+  "@homeAskedGrabs": {
+    "description": "Message after opening the All grid",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeSignInFailed": "Sign-in failed: {error}",
+  "@homeSignInFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "homeJoinedOpen": "Presence is open on this device: {deviceId}",
+  "@homeJoinedOpen": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "homeJoinedAccount": "This device is now one of {email}'s: {deviceId}",
+  "@homeJoinedAccount": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "homeClipMotion": "Motion detected",
+  "homeClipScheduled": "Scheduled clip",
+  "homeClipStartup": "Startup clip",
+  "homeClipManual": "Clip started",
+  "homeClipAll": "Capture all",
+  "homeClipSaving": "{started} · saving the next {seconds} s",
+  "@homeClipSaving": {
+    "placeholders": {
+      "started": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "homeScreenOffHint": "Unattended: capturing with the screen off. Tap to wake.",
+  "homeMessageTapToView": "{label}. Tap to view it.",
+  "@homeMessageTapToView": {
+    "description": "Screen reader label of a message pill that opens its event",
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "homeBatteryCharging": "charging",
+  "homeBatteryFull": "full",
+  "homeBatteryPlugged": "plugged in, not charging",
+  "homeBatteryOnBattery": "on battery",
+  "homeBatteryLevel": "Battery {level} %",
+  "@homeBatteryLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "homeBatteryTemperature": "Battery temperature {temperature}",
+  "@homeBatteryTemperature": {
+    "placeholders": {
+      "temperature": {
+        "type": "String"
+      }
+    }
+  },
+  "homeBatteryTemperatureHot": "Battery temperature {temperature}, hot",
+  "@homeBatteryTemperatureHot": {
+    "placeholders": {
+      "temperature": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraModeNormal": "Normal",
+  "@cameraModeNormal": {
+    "description": "Camera mode: this device's camera"
+  },
+  "cameraModeAll": "All",
+  "@cameraModeAll": {
+    "description": "Camera mode: every device in a grid"
+  },
+  "cameraModeUnattended": "Unattended",
+  "@cameraModeUnattended": {
+    "description": "Camera mode: screen off, still capturing"
+  },
+  "cameraModeStopped": "Stopped",
+  "@cameraModeStopped": {
+    "description": "Camera mode: nothing captured or synced"
+  },
+  "cameraActionNormal": "Back to normal: this camera",
+  "cameraActionAll": "Show all devices",
+  "cameraActionUnattended": "Go unattended: screen off, still capturing",
+  "cameraActionStopped": "Stop: no capturing or syncing",
+  "cameraFlip": "Flip camera",
+  "cameraClip": "Clip",
+  "@cameraClip": {
+    "description": "The Clip button's label"
+  },
+  "cameraClipCountdown": "Clip · {time}",
+  "@cameraClipCountdown": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraClipCameraOff": "Camera off",
+  "cameraClipUnavailable": "Camera unavailable",
+  "cameraClipStarting": "Camera starting…",
+  "cameraClipNoCamera": "No camera",
+  "cameraClipNotReady": "Camera not ready",
+  "cameraClipSaving": "Clip saving…",
+  "cameraClipReady": "Ready",
+  "cameraClipNextIn": "Next automatic clip in {countdown}",
+  "@cameraClipNextIn": {
+    "placeholders": {
+      "countdown": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraClipSavingNext": "Clip saving… {next}",
+  "@cameraClipSavingNext": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraThisDevice": "This device",
+  "cameraLiveLabel": "{device} · live",
+  "@cameraLiveLabel": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraOffMessage": "Camera off\nNothing is recorded until you turn it on.",
+  "cameraTurnOn": "Turn on",
+  "cameraCouldNotOpen": "Could not open the camera\n{reason}",
+  "@cameraCouldNotOpen": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "cameraRetry": "Retry",
+  "cameraNotFound": "No camera found",
+  "cameraErrorGeneric": "Something went wrong while starting the camera.",
+  "cameraErrorDenied": "Camera permission was denied. Allow it in Settings.",
+  "cameraErrorInsecure": "The camera only works on a secure page. Open Presence over HTTPS.",
+  "cameraErrorBlocked": "Camera access is blocked for this site. Allow the camera in the browser's site settings, then retry.",
+  "cameraErrorNoneFound": "No camera was found. Connect one, then retry.",
+  "cameraErrorInUse": "The camera is in use by another app, or couldn't start. Close other apps using it, then retry.",
+  "cameraErrorStopped": "The camera stopped (unplugged or taken away)",
+  "cameraAgeJustNow": "just now",
+  "cameraAgeSeconds": "{seconds} s ago",
+  "@cameraAgeSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeMinutes": "{minutes} min ago",
+  "@cameraAgeMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeHours": "{hours} h ago",
+  "@cameraAgeHours": {
+    "placeholders": {
+      "hours": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAgeDays": "{days} d ago",
+  "@cameraAgeDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraAskedFreshGrab": "Asked for a fresh grab",
+  "cameraClipLoadFailed": "Couldn't load this clip",
+  "cameraClipPreview": "Preview",
+  "cameraClipRecordingNext": "Recording the next {seconds} s…",
+  "@cameraClipRecordingNext": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "healthApiChecking": "Auth API: checking",
+  "healthApiUnreachable": "Auth API: unreachable ({error})",
+  "@healthApiUnreachable": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthApiAnswered": "Auth API: answered ({mode} mode)",
+  "@healthApiAnswered": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAwsOff": "events stay on this device",
+  "healthAwsSyncFailed": "AWS: sync failed ({error})",
+  "@healthAwsSyncFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthUnknownError": "unknown error",
+  "healthAwsSyncing": "AWS: syncing",
+  "healthAwsSynced": "AWS: synced",
+  "healthAwsSet": "AWS: set; syncs once signed in",
+  "healthOidcOff": "sign-in is off",
+  "healthOidcSet": "OIDC: Google sign-in set",
+  "healthRbacrDev": "RBACR: not used in DEV mode (nobody signs in)",
+  "healthRbacrUnknown": "RBACR: the auth API doesn't say",
+  "healthRbacrMissing": "RBACR: not set on the auth API; nobody who signs in has a role",
+  "healthRbacrSet": "RBACR: set; gives the roles",
+  "healthRbacrPremium": "RBACR: set; this profile is Premium (cloud backup)",
+  "healthRbacrFree": "RBACR: set; this profile is Free (its devices sync with each other)",
+  "healthLiveNotSet": "Live: not set; events arrive with each sync (15 s)",
+  "healthLiveNever": "Live: off (Never); events arrive with each sync (15 s)",
+  "healthLiveCounts": "{received} received, {sent} sent",
+  "@healthLiveCounts": {
+    "placeholders": {
+      "received": {
+        "type": "int"
+      },
+      "sent": {
+        "type": "int"
+      }
+    }
+  },
+  "healthLiveConnected": "Live: connected ({counts})",
+  "@healthLiveConnected": {
+    "placeholders": {
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveConnecting": "Live: connecting",
+  "healthLiveIdle": "Live: idle · next in {next} ({mode}; {counts})",
+  "@healthLiveIdle": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      },
+      "mode": {
+        "type": "String"
+      },
+      "counts": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveFailed": "Live: failed ({error}); events arrive with each sync",
+  "@healthLiveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "healthLiveOff": "Live: set; connects once synced",
+  "healthSettingNotSet": "{name}: not set; {off}",
+  "@healthSettingNotSet": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingNotInBuild": "{name}: not set in this build; {off}",
+  "@healthSettingNotInBuild": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingOnlyApi": "{name}: set in the auth API but not in this build; {off}",
+  "@healthSettingOnlyApi": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "off": {
+        "type": "String"
+      }
+    }
+  },
+  "healthSettingOnlyBuild": "{name}: set in this build but not in the auth API",
+  "@healthSettingOnlyBuild": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAuthApiName": "Auth API",
+  "@healthAuthApiName": {
+    "description": "Health card title"
+  },
+  "healthLiveName": "Live",
+  "@healthLiveName": {
+    "description": "Health card title: live sync"
+  },
+  "healthWarningFailed": "Health check failed",
+  "healthTapForDetails": "Tap for details.",
+  "healthToneOk": "OK",
+  "healthToneFailed": "Failed",
+  "healthToneMismatch": "Mismatch",
+  "healthToneChecking": "Checking",
+  "healthToneSyncing": "Syncing",
+  "healthToneIdle": "Idle",
+  "healthToneOff": "Off",
+  "healthTitle": "Health",
+  "healthLastUpdate": "Last update {time}",
+  "@healthLastUpdate": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "healthChecking": "Checking…",
+  "healthDevicesHere": "In the events on this device",
+  "healthDevicesProfile": "In the profile's events",
+  "healthDevicesSemantics": "{count, plural, =1{1 device in the events} other{{count} devices in the events}}",
+  "@healthDevicesSemantics": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "healthDevicesTitle": "Devices",
+  "healthDevicesTooltip": "{what}, here and synced from the cloud",
+  "@healthDevicesTooltip": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "healthTimeline": "Timeline",
+  "healthChecks": "{count, plural, =1{1 check} other{{count} checks}}",
+  "@healthChecks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "healthTimelineSummary": "{checks} · every {interval}",
+  "@healthTimelineSummary": {
+    "placeholders": {
+      "checks": {
+        "type": "String"
+      },
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "healthMinutes": "{minutes} min",
+  "@healthMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "healthSeconds": "{seconds} s",
+  "@healthSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "healthRunFailed": "failed",
+  "healthRunPassed": "all passed",
+  "connectivityOnline": "Online",
+  "connectivityOffline": "Offline: can't reach the server",
+  "connectivityChecking": "Checking the connection…",
+  "connectivityFree": "Free: devices sync over live sync",
+  "connectivityCloudOn": "Cloud sync on",
+  "connectivityCloudFailed": "Cloud sync failed",
+  "connectivityCloudOneSide": "Cloud sync is set up on one side only",
+  "connectivityCloudNotSet": "Cloud sync isn't set up in this build",
+  "connectivityLiveConnected": "Live sync connected",
+  "connectivityLiveOnceSynced": "Live sync connects once synced",
+  "connectivityLiveConnecting": "Connecting to live sync…",
+  "connectivityLiveIdle": "Live sync idle · next in {next}",
+  "@connectivityLiveIdle": {
+    "placeholders": {
+      "next": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityLiveFailed": "Live sync failed",
+  "connectivityLiveNotSet": "Live sync isn't set up in this build",
+  "connectivityLiveOff": "Live sync is off",
+  "connectivityAllGood": "Online · live sync connected",
+  "connectivityThisDevice": "This device — {headline}",
+  "@connectivityThisDevice": {
+    "placeholders": {
+      "headline": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityLabel": "Connectivity: {headline}",
+  "@connectivityLabel": {
+    "placeholders": {
+      "headline": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityNote": "Other devices see this one live only while live sync is connected.",
+  "connectivityPresenceThisLive": "Live — this device, connected to live sync",
+  "connectivityPresenceThisNotConnected": "This device — not connected to live sync now",
+  "connectivityPresenceThisUnavailable": "This device — live status unavailable",
+  "connectivityPresenceUnavailable": " · live status unavailable",
+  "@connectivityPresenceUnavailable": {
+    "description": "Appended to a device's presence; starts with a space"
+  },
+  "connectivityPresenceAnswered": "Live — answered {since}",
+  "@connectivityPresenceAnswered": {
+    "placeholders": {
+      "since": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityPresenceNever": "Never seen{unavailable}",
+  "@connectivityPresenceNever": {
+    "placeholders": {
+      "unavailable": {
+        "type": "String"
+      }
+    }
+  },
+  "connectivityPresenceLastSeen": "Last seen {since}{unavailable}",
+  "@connectivityPresenceLastSeen": {
+    "placeholders": {
+      "since": {
+        "type": "String"
+      },
+      "unavailable": {
+        "type": "String"
+      }
+    }
+  },
+  "logTitle": "Log",
+  "logTitleCount": "Log · {count} latest",
+  "@logTitleCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logCopy": "Copy",
+  "logCopied": "Log copied",
+  "logClear": "Clear",
+  "logEmpty": "Nothing logged yet.",
+  "feedbackSentTooMuch": "You've sent a lot today. Try again tomorrow.",
+  "feedbackTooManyTries": "Too many tries. Wait a minute.",
+  "feedbackSendFailed": "Couldn't send it ({error}).",
+  "@feedbackSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "feedbackYou": "You",
+  "feedbackMember": "Member",
+  "feedbackTeam": "Presence team",
+  "feedbackAdmin": "Admin",
+  "feedbackAwaitingReply": "Awaiting a reply",
+  "feedbackAnswered": "Answered",
+  "feedbackReply": "Reply",
+  "helpNotSignedIn": "Not signed in.",
+  "helpLoadFailed": "Couldn't load messages ({error}).",
+  "@helpLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "helpTitle": "Write to the Presence team",
+  "helpReload": "Reload",
+  "helpIntro": "Questions, ideas or something not working? Send a message; an administrator will answer here.",
+  "helpNoMessages": "No messages yet.",
+  "helpMessage": "Message",
+  "helpSend": "Send"
+}

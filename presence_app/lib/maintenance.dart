@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth/roles_service.dart';
+import 'l10n/l10n.dart';
 
 /// Maintenance mode (`RolesService.inMaintenance`, rbacr's flag for
 /// Presence's system) over the whole app: while it's on, the signed-in user
@@ -51,13 +52,13 @@ class MaintenanceScreen extends StatelessWidget {
                   Icon(Icons.construction, size: 56, color: scheme.primary),
                   const SizedBox(height: 16),
                   Text(
-                    'Sorry, Presence is down for maintenance.',
+                    context.l10n.maintenanceTitle,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'We\'ll be back soon. This page comes back on its own.',
+                    context.l10n.maintenanceBody,
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: scheme.onSurfaceVariant,

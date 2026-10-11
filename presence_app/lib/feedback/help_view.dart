@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../auth/roles_service.dart';
 import '../time_format.dart';
+import '../l10n/l10n.dart';
 import 'feedback_client.dart';
 
-/// What a failed send says.
-String feedbackSendError(Object e) => switch (e) {
-  RolesException(statusCode: 409) =>
-    'You\'ve sent a lot today. Try again tomorrow.',
-  RolesException(statusCode: 429) => 'Too many tries. Wait a minute.',
-  _ => 'Couldn\'t send it ($e).',
-};
+/// What a failed send says, in [l] (English by default).
+String feedbackSendError(Object e, [AppLocalizations? l]) {
+  l ??= lookupAppLocalizations(const Locale('en'));
+  return switch (e) {
+    RolesException(statusCode: 409) => l.feedbackSentTooMuch,
+    RolesException(statusCode: 429) => l.feedbackTooManyTries,
+    _ => l.feedbackSendFailed('$e'),
+  };
+}
 
 /// The Help tab's page (Feedback and Help), for members: their
 /// conversation with the administrators, oldest first, and a field to write
@@ -29,7 +32,9 @@ class HelpView extends StatefulWidget {
 
 class _HelpViewState extends State<HelpView> {
   List<FeedbackMessage>? _messages;
-  String? _error;
+
+  /// Why the messages didn't load, worded in the language shown.
+  String Function(AppLocalizations l)? _error;
 
   @override
   void initState() {
@@ -40,7 +45,7 @@ class _HelpViewState extends State<HelpView> {
   Future<void> _load() async {
     final token = widget.auth.idToken;
     if (token == null) {
-      setState(() => _error = 'Not signed in.');
+      setState(() => _error = (l) => l.helpNotSignedIn);
       return;
     }
     setState(() => _error = null);
@@ -48,7 +53,9 @@ class _HelpViewState extends State<HelpView> {
       final messages = await widget.feedback.mine(token);
       if (mounted) setState(() => _messages = messages);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Couldn\'t load messages ($e).');
+      if (mounted) {
+        setState(() => _error = (l) => l.helpLoadFailed('$e'));
+      }
     }
   }
 
@@ -57,12 +64,13 @@ class _HelpViewState extends State<HelpView> {
     final token = widget.auth.idToken;
     if (token == null) return false;
     final messenger = ScaffoldMessenger.of(context);
+    final l = context.l10n;
     try {
       final sent = await widget.feedback.send(token, text);
       if (mounted) setState(() => _messages = [...?_messages, sent]);
       return true;
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(feedbackSendError(e))));
+      messenger.showSnackBar(SnackBar(content: Text(feedbackSendError(e, l))));
       return false;
     }
   }
@@ -71,6 +79,7 @@ class _HelpViewState extends State<HelpView> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l = context.l10n;
     final messages = _messages;
     return Center(
       key: const Key('help-view'),
@@ -84,14 +93,11 @@ class _HelpViewState extends State<HelpView> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Write to the Presence team',
-                      style: theme.textTheme.titleLarge,
-                    ),
+                    child: Text(l.helpTitle, style: theme.textTheme.titleLarge),
                   ),
                   IconButton(
                     key: const Key('help-reload'),
-                    tooltip: 'Reload',
+                    tooltip: l.helpReload,
                     icon: const Icon(Icons.refresh),
                     onPressed: _load,
                   ),
@@ -99,8 +105,7 @@ class _HelpViewState extends State<HelpView> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Questions, ideas or something not working? Send a message; '
-                'an administrator will answer here.',
+                l.helpIntro,
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
@@ -109,7 +114,7 @@ class _HelpViewState extends State<HelpView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Text(
-                      error,
+                      error(l),
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.error),
                     ),
@@ -125,7 +130,7 @@ class _HelpViewState extends State<HelpView> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Text(
-                      'No messages yet.',
+                      l.helpNoMessages,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
@@ -138,8 +143,8 @@ class _HelpViewState extends State<HelpView> {
               const SizedBox(height: 16),
               FeedbackComposer(
                 key: const Key('help-composer'),
-                label: 'Message',
-                action: 'Send',
+                label: l.helpMessage,
+                action: l.helpSend,
                 onSend: _send,
               ),
             ],
@@ -167,6 +172,7 @@ class FeedbackConversation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
@@ -176,10 +182,10 @@ class FeedbackConversation extends StatelessWidget {
             builder: (context) {
               final own = m.fromAdmin == adminView;
               final who = switch ((m.fromAdmin, adminView)) {
-                (false, false) => 'You',
-                (false, true) => 'Member',
-                (true, false) => 'Presence team',
-                (true, true) => m.by.isEmpty ? 'Admin' : m.by,
+                (false, false) => l.feedbackYou,
+                (false, true) => l.feedbackMember,
+                (true, false) => l.feedbackTeam,
+                (true, true) => m.by.isEmpty ? l.feedbackAdmin : m.by,
               };
               final at = m.sentAt.toLocal();
               return Align(

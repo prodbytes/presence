@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import 'events.dart';
+import 'l10n/l10n.dart';
 
 /// What the Monitoring tab shows of the [EventLog], in one place: the "Show
 /// system events" toggle ([showSystemEvents]) and the search ([search]),
@@ -89,6 +90,7 @@ class EventFilters extends ChangeNotifier {
   (Object, bool)? _kindsKey;
   List<AppEvent> _ofKinds = const [];
   (Object, String, int)? _shownKey;
+  String? _shownLanguage;
   List<AppEvent> _shown = const [];
 
   /// The events of [log] these filters show, step by step (each step's
@@ -100,8 +102,14 @@ class EventFilters extends ChangeNotifier {
   ///   [deviceId]'s;
   /// - [EventView.ofKinds]: of them, only grabs unless [showSystemEvents];
   /// - [EventView.shown]: of them, those matching [search], matched again
-  ///   when a clip's tags change ([EventLog.annotationsVersion]).
-  EventView viewOf(EventLog log, {String? deviceId, String? profileId}) {
+  ///   when a clip's tags change ([EventLog.annotationsVersion]); with
+  ///   [l], the titles as shown in its language match too.
+  EventView viewOf(
+    EventLog log, {
+    String? deviceId,
+    String? profileId,
+    AppLocalizations? l,
+  }) {
     final mine = log.eventsOf(profileId);
     final query = search.value;
     final searchedKey = (mine, deviceId, query);
@@ -129,9 +137,16 @@ class EventFilters extends ChangeNotifier {
     // Tags matter only while searching.
     final tags = query.trim().isEmpty ? -1 : log.annotationsVersion;
     final shownKey = (_ofKinds, query, tags);
-    if (!_sameKey(shownKey, _shownKey)) {
+    final language = l?.localeName;
+    if (!_sameKey(shownKey, _shownKey) || language != _shownLanguage) {
       _shownKey = shownKey;
-      _shown = EventTimeline.matching(_ofKinds, query, deviceId: deviceId);
+      _shownLanguage = language;
+      _shown = EventTimeline.matching(
+        _ofKinds,
+        query,
+        deviceId: deviceId,
+        l: l,
+      );
     }
     return EventView(
       all: log.events,

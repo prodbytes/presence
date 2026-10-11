@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'event_filters.dart' show EventFilters;
-import 'events.dart' show EventDeviceTag;
+import 'l10n/l10n.dart';
 
 /// Shows a device's events from anywhere in the app: a tapped device name
 /// (the event details' device, the account sheet's device list, the All
@@ -64,7 +64,7 @@ class DeviceEventsLink extends StatelessWidget {
     final show = ShowDeviceEvents.maybeOf(context);
     if (show == null) return builder(context, null);
     return Tooltip(
-      message: EventDeviceTag.showTooltip,
+      message: context.l10n.eventsShowDevice,
       child: Semantics(
         button: true,
         child: builder(context, () => show(device)),

@@ -8,6 +8,7 @@ import 'cloud/cloud_sync.dart';
 import 'cloud/live_sync.dart';
 import 'config.dart';
 import 'events.dart';
+import 'l10n/l10n.dart';
 import 'status_pill.dart';
 import 'theme.dart';
 import 'time_format.dart';
@@ -45,81 +46,80 @@ class SystemHealth extends StatelessWidget {
 
   final bool oidcClient;
 
-  /// The checks as they stand now.
+  /// The checks as they stand now, worded in [l] (English by default).
   static HealthStatus statusOf(
     RolesService roles,
     CloudSync? sync, {
     required bool oidcClient,
+    AppLocalizations? l,
   }) {
+    l ??= _english;
     final api = switch (roles.mode) {
-      null => ('⏳', 'Auth API: checking'),
+      null => ('⏳', l.healthApiChecking),
       _ when roles.apiError != null => (
         '❌',
-        'Auth API: unreachable (${roles.apiError})',
+        l.healthApiUnreachable('${roles.apiError}'),
       ),
-      final mode => ('✅', 'Auth API: answered (${mode.name} mode)'),
+      final mode => ('✅', l.healthApiAnswered(mode.name)),
     };
     final settings = roles.apiSettings;
     final aws = switch (_setting(
+      l,
       'AWS',
       api: settings.aws,
       app: sync != null,
-      off: 'events stay on this device',
+      off: l.healthAwsOff,
     )) {
       final status? => status,
       // Set on both sides: how the sync is going.
       _ => switch (sync?.state) {
         CloudSyncState.error => (
           '❌',
-          'AWS: sync failed (${sync!.error ?? 'unknown error'})',
+          l.healthAwsSyncFailed(sync!.error ?? l.healthUnknownError),
         ),
-        CloudSyncState.syncing => ('🔄', 'AWS: syncing'),
-        CloudSyncState.synced => ('✅', 'AWS: synced'),
-        _ => ('✅', 'AWS: set; syncs once signed in'),
+        CloudSyncState.syncing => ('🔄', l.healthAwsSyncing),
+        CloudSyncState.synced => ('✅', l.healthAwsSynced),
+        _ => ('✅', l.healthAwsSet),
       },
     };
     final oidc =
         _setting(
+          l,
           'OIDC',
           api: settings.oidc,
           app: oidcClient,
-          off: 'sign-in is off',
+          off: l.healthOidcOff,
         ) ??
-        ('✅', 'OIDC: Google sign-in set');
+        ('✅', l.healthOidcSet);
     return (
       api: api,
       aws: aws,
       oidc: oidc,
-      rbacr: rbacrOf(roles),
-      live: liveOf(sync),
+      rbacr: rbacrOf(roles, l),
+      live: liveOf(sync, l),
     );
   }
+
+  static AppLocalizations get _english =>
+      lookupAppLocalizations(const Locale('en'));
 
   /// RBACR, which gives every role (membership, premium, administration),
   /// as the auth API reports it ([ApiSettings.rbacr]): set, and whether
   /// this profile is Premium or Free; ⚠️ when the API has no RBACR, so
   /// nobody who signs in has a role; ⚪ when the API doesn't say (it hasn't
   /// answered, or predates RBACR) and in DEV, where nobody signs in.
-  static HealthPart rbacrOf(RolesService roles) {
+  static HealthPart rbacrOf(RolesService roles, [AppLocalizations? l]) {
+    l ??= _english;
     final settings = roles.apiSettings;
     if (roles.mode == ExecutionMode.dev) {
-      return ('⚪', 'RBACR: not used in DEV mode (nobody signs in)');
+      return ('⚪', l.healthRbacrDev);
     }
     return switch (settings.rbacr) {
-      null => ('⚪', "RBACR: the auth API doesn't say"),
-      false => (
-        '⚠️',
-        'RBACR: not set on the auth API; nobody who signs in has a role',
-      ),
-      true when !roles.hasAccess => ('✅', 'RBACR: set; gives the roles'),
-      true when roles.isPremium => (
-        '✅',
-        'RBACR: set; this profile is Premium (cloud backup)',
-      ),
-      true => (
-        '✅',
-        'RBACR: set; this profile is Free (its devices sync with each other)',
-      ),
+      null => ('⚪', l.healthRbacrUnknown),
+      false => ('⚠️', l.healthRbacrMissing),
+      true when !roles.hasAccess => ('✅', l.healthRbacrSet),
+      true when roles.isPremium => ('✅', l.healthRbacrPremium),
+      true => ('✅', l.healthRbacrFree),
     };
   }
 
@@ -127,31 +127,35 @@ class SystemHealth extends StatelessWidget {
   /// without cloud sync), or when set to Never; else how its connection
   /// is. Idle between scheduled connections, and off, aren't failures: only
   /// a failed connection is (❌).
-  static HealthPart liveOf(CloudSync? sync) => liveStatusOf(sync?.live);
+  static HealthPart liveOf(CloudSync? sync, [AppLocalizations? l]) =>
+      liveStatusOf(sync?.live, l);
 
   /// [liveOf] for [live] itself.
-  static HealthPart liveStatusOf(LiveSync? live) {
+  static HealthPart liveStatusOf(LiveSync? live, [AppLocalizations? l]) {
+    l ??= _english;
     if (live == null || !live.enabled) {
-      return ('⚪', 'Live: not set; events arrive with each sync (15 s)');
+      return ('⚪', l.healthLiveNotSet);
     }
     if (live.config.mode == LiveMode.never) {
-      return ('⚪', 'Live: off (Never); events arrive with each sync (15 s)');
+      return ('⚪', l.healthLiveNever);
     }
-    final counts = '${live.received} received, ${live.sent} sent';
+    final counts = l.healthLiveCounts(live.received, live.sent);
     return switch (live.state) {
-      LiveSyncState.connected => ('✅', 'Live: connected ($counts)'),
-      LiveSyncState.connecting => ('⏳', 'Live: connecting'),
+      LiveSyncState.connected => ('✅', l.healthLiveConnected(counts)),
+      LiveSyncState.connecting => ('⏳', l.healthLiveConnecting),
       LiveSyncState.idle => (
         '💤',
-        'Live: idle · next in ${formatNextIn(live.untilNext)} '
-            '(${live.config.label.toLowerCase()}; $counts)',
+        l.healthLiveIdle(
+          formatNextIn(live.untilNext),
+          live.config.label.toLowerCase(),
+          counts,
+        ),
       ),
       LiveSyncState.error => (
         '❌',
-        'Live: failed (${live.error ?? 'unknown error'}); events arrive '
-            'with each sync',
+        l.healthLiveFailed(live.error ?? l.healthUnknownError),
       ),
-      LiveSyncState.off => ('✅', 'Live: set; connects once synced'),
+      LiveSyncState.off => ('✅', l.healthLiveOff),
     };
   }
 
@@ -164,10 +168,11 @@ class SystemHealth extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     return ListenableBuilder(
       listenable: Listenable.merge([roles, ?sync]),
       builder: (context, _) {
-        final status = statusOf(roles, sync, oidcClient: oidcClient);
+        final status = statusOf(roles, sync, oidcClient: oidcClient, l: l);
         final style = theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.onSurfaceVariant,
         );
@@ -187,7 +192,7 @@ class SystemHealth extends StatelessWidget {
             part('api', '🔌 API', status.api),
             part('aws', '☁️ AWS', status.aws),
             part('oidc', '🔑 OIDC', status.oidc),
-            part('live', '📡 Live', status.live),
+            part('live', '📡 ${l.healthLiveName}', status.live),
           ],
         );
       },
@@ -197,19 +202,17 @@ class SystemHealth extends StatelessWidget {
   /// A setting's status from what the auth API reports ([api]; null when
   /// it didn't) and this build's own ([app]). Null when both have it.
   static HealthPart? _setting(
+    AppLocalizations l,
     String name, {
     required bool? api,
     required bool app,
     required String off,
   }) => switch ((api, app)) {
     (true, true) || (null, true) => null,
-    (false, false) => ('⚪', '$name: not set; $off'),
-    (null, false) => ('⚪', '$name: not set in this build; $off'),
-    (true, false) => (
-      '⚠️',
-      '$name: set in the auth API but not in this build; $off',
-    ),
-    (false, true) => ('⚠️', '$name: set in this build but not in the auth API'),
+    (false, false) => ('⚪', l.healthSettingNotSet(name, off)),
+    (null, false) => ('⚪', l.healthSettingNotInBuild(name, off)),
+    (true, false) => ('⚠️', l.healthSettingOnlyApi(name, off)),
+    (false, true) => ('⚠️', l.healthSettingOnlyBuild(name)),
   };
 }
 
@@ -231,11 +234,13 @@ class HealthWarningPill extends StatelessWidget {
     RolesService roles,
     CloudSync? sync, {
     bool? oidcClient,
+    AppLocalizations? l,
   }) {
     final status = SystemHealth.statusOf(
       roles,
       sync,
       oidcClient: oidcClient ?? hasOidcClient,
+      l: l,
     );
     return [
       for (final part in [
@@ -261,9 +266,9 @@ class HealthWarningPill extends StatelessWidget {
       color: Theme.of(context).colorScheme.error,
     ),
     semantics: [
-      'Health check failed',
+      context.l10n.healthWarningFailed,
       ...failed,
-      if (onTap != null) 'Tap for details.',
+      if (onTap != null) context.l10n.healthTapForDetails,
     ].join('\n'),
   );
 }
@@ -306,14 +311,18 @@ class HealthHistory extends ChangeNotifier {
 }
 
 /// What a check's emoji means, short, for its pill, and the pill's color.
-(String, Color) _tone(HealthPart part, ColorScheme scheme) => switch (part.$1) {
-  '✅' => ('OK', Gruvbox.green),
-  '❌' => ('Failed', scheme.error),
-  '⚠️' => ('Mismatch', Gruvbox.yellow),
-  '⏳' => ('Checking', Gruvbox.blue),
-  '🔄' => ('Syncing', Gruvbox.blue),
-  '💤' => ('Idle', Gruvbox.blue),
-  _ => ('Off', Gruvbox.gray),
+(String, Color) _tone(
+  HealthPart part,
+  ColorScheme scheme,
+  AppLocalizations l,
+) => switch (part.$1) {
+  '✅' => (l.healthToneOk, Gruvbox.green),
+  '❌' => (l.healthToneFailed, scheme.error),
+  '⚠️' => (l.healthToneMismatch, Gruvbox.yellow),
+  '⏳' => (l.healthToneChecking, Gruvbox.blue),
+  '🔄' => (l.healthToneSyncing, Gruvbox.blue),
+  '💤' => (l.healthToneIdle, Gruvbox.blue),
+  _ => (l.healthToneOff, Gruvbox.gray),
 };
 
 /// A check's explanation without its name ("Auth API: answered" →
@@ -324,15 +333,22 @@ String _detail(HealthPart part) {
   return text.isEmpty ? text : text[0].toUpperCase() + text.substring(1);
 }
 
-/// The checks the panel shows, in order: key, emoji, name, and the part of
-/// a [HealthStatus] it is.
-final List<(String, String, String, HealthPart Function(HealthStatus))>
+/// The checks the panel shows, in order: key, emoji, name (in the
+/// language shown), and the part of a [HealthStatus] it is.
+final List<
+  (
+    String,
+    String,
+    String Function(AppLocalizations),
+    HealthPart Function(HealthStatus),
+  )
+>
 _checks = [
-  ('api', '🔌', 'Auth API', (s) => s.api),
-  ('aws', '☁️', 'AWS', (s) => s.aws),
-  ('oidc', '🔑', 'OIDC', (s) => s.oidc),
-  ('rbacr', '🛂', 'RBACR', (s) => s.rbacr),
-  ('live', '📡', 'Live', (s) => s.live),
+  ('api', '🔌', (l) => l.healthAuthApiName, (s) => s.api),
+  ('aws', '☁️', (_) => 'AWS', (s) => s.aws),
+  ('oidc', '🔑', (_) => 'OIDC', (s) => s.oidc),
+  ('rbacr', '🛂', (_) => 'RBACR', (s) => s.rbacr),
+  ('live', '📡', (l) => l.healthLiveName, (s) => s.live),
 ];
 
 /// The Log tab's health panel: a card per check (the auth API, AWS, OIDC,
@@ -430,7 +446,8 @@ class _HealthPanelState extends State<HealthPanel> {
   /// (read each time, as the start check may change the mode).
   Future<void> _check() async {
     await widget.roles.checkApi();
-    if (_disposed) return;
+    if (_disposed || !mounted) return;
+    final l = context.l10n;
     _timer = Timer(widget.intervalOf(widget.roles), _check);
     // Before the start check, there's nothing to record yet.
     if (widget.roles.mode == null) return;
@@ -441,6 +458,7 @@ class _HealthPanelState extends State<HealthPanel> {
           widget.roles,
           widget.sync,
           oidcClient: widget.oidcClient,
+          l: l,
         ),
       ),
     );
@@ -457,6 +475,7 @@ class _HealthPanelState extends State<HealthPanel> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     final small = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -470,14 +489,14 @@ class _HealthPanelState extends State<HealthPanel> {
           Row(
             children: [
               Expanded(
-                child: Text('Health', style: theme.textTheme.titleMedium),
+                child: Text(l.healthTitle, style: theme.textTheme.titleMedium),
               ),
               ListenableBuilder(
                 listenable: widget.roles,
                 builder: (context, _) => Text(
                   switch (widget.roles.apiCheckedAt) {
-                    final at? => 'Last update ${formatEventTime(at)}',
-                    null => 'Checking…',
+                    final at? => l.healthLastUpdate(formatEventTime(at)),
+                    null => l.healthChecking,
                   },
                   key: const Key('health-checked'),
                   style: small,
@@ -517,21 +536,23 @@ class _HealthPanelState extends State<HealthPanel> {
   );
 
   List<Widget> _cardList(ThemeData theme, {required bool pillBeside}) {
+    final l = context.l10n;
     final status = SystemHealth.statusOf(
       widget.roles,
       widget.sync,
       oidcClient: widget.oidcClient,
+      l: l,
     );
     return <Widget>[
       for (final (key, emoji, name, part) in _checks)
         _HealthCard(
           key: Key('health-$key'),
           emoji: emoji,
-          title: name,
+          title: name(l),
           tooltip: part(status).$2,
           detail: _detail(part(status)),
           pillBeside: pillBeside,
-          pill: switch (_tone(part(status), theme.colorScheme)) {
+          pill: switch (_tone(part(status), theme.colorScheme, l)) {
             (final label, final color) => _Pill(
               key: Key('health-$key-status'),
               text: label,
@@ -573,17 +594,18 @@ class _HealthPanelState extends State<HealthPanel> {
       events.eventsOf(widget.profileId),
       deviceId: widget.deviceId,
     );
+    final l = context.l10n;
     final what = widget.profileId == null
-        ? 'In the events on this device'
-        : 'In the profile\'s events';
+        ? l.healthDevicesHere
+        : l.healthDevicesProfile;
     return Semantics(
-      label: '$n ${n == 1 ? 'device' : 'devices'} in the events',
+      label: l.healthDevicesSemantics(n),
       excludeSemantics: true,
       child: _HealthCard(
         key: const Key('health-devices'),
         emoji: '📱',
-        title: 'Devices',
-        tooltip: '$what, here and synced from the cloud',
+        title: l.healthDevicesTitle,
+        tooltip: l.healthDevicesTooltip(what),
         detail: what,
         pillBeside: pillBeside,
         pill: _Pill(
@@ -605,6 +627,7 @@ class _HealthPanelState extends State<HealthPanel> {
     const labelHeight = 18.0;
     final blockHeight = HealthPanel.blockSize.height;
     final every = widget.intervalOf(widget.roles).inSeconds;
+    final l = context.l10n;
     return Card(
       key: const Key('health-timeline'),
       margin: EdgeInsets.zero,
@@ -616,13 +639,20 @@ class _HealthPanelState extends State<HealthPanel> {
             Row(
               children: [
                 Expanded(
-                  child: Text('Timeline', style: theme.textTheme.titleSmall),
+                  child: Text(
+                    l.healthTimeline,
+                    style: theme.textTheme.titleSmall,
+                  ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
-                    '${checks.length} ${checks.length == 1 ? 'check' : 'checks'}'
-                    ' · every ${every >= 60 ? '${every ~/ 60} min' : '$every s'}',
+                    l.healthTimelineSummary(
+                      l.healthChecks(checks.length),
+                      every >= 60
+                          ? l.healthMinutes(every ~/ 60)
+                          : l.healthSeconds(every),
+                    ),
                     style: small,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -665,7 +695,7 @@ class _HealthPanelState extends State<HealthPanel> {
                 child: SelectableText(
                   [
                     '${formatEventTime(selected.time)} · '
-                        '${selected.failed ? 'failed' : 'all passed'}',
+                        '${selected.failed ? l.healthRunFailed : l.healthRunPassed}',
                     for (final (_, _, _, part) in _checks)
                       '${part(selected.status).$1} ${part(selected.status).$2}',
                   ].join('\n'),
@@ -699,7 +729,9 @@ class _HealthPanelState extends State<HealthPanel> {
     final t = check.time;
     return Semantics(
       button: true,
-      label: '${formatEventTime(t)}: ${check.failed ? 'failed' : 'all passed'}',
+      label:
+          '${formatEventTime(t)}: '
+          '${check.failed ? context.l10n.healthRunFailed : context.l10n.healthRunPassed}',
       child: GestureDetector(
         key: Key('health-brick-$i'),
         behavior: HitTestBehavior.opaque,

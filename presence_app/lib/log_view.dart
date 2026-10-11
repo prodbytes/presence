@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app_log.dart';
+import 'l10n/l10n.dart';
 import 'time_format.dart';
 
 /// The **Log** tab, for admins (and everyone in DEV): the app's latest log
@@ -21,6 +22,7 @@ class LogView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l = context.l10n;
     final mono = theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
     final health = this.health;
     return ListenableBuilder(
@@ -39,14 +41,14 @@ class LogView extends StatelessWidget {
                   Expanded(
                     child: Text(
                       entries.isEmpty
-                          ? 'Log'
-                          : 'Log · ${entries.length} latest',
+                          ? l.logTitle
+                          : l.logTitleCount(entries.length),
                       style: theme.textTheme.titleMedium,
                     ),
                   ),
                   IconButton(
                     key: const Key('log-copy'),
-                    tooltip: 'Copy',
+                    tooltip: l.logCopy,
                     icon: const Icon(Icons.copy),
                     onPressed: entries.isEmpty
                         ? null
@@ -56,13 +58,13 @@ class LogView extends StatelessWidget {
                               ClipboardData(text: _text(log.entries)),
                             );
                             messenger.showSnackBar(
-                              const SnackBar(content: Text('Log copied')),
+                              SnackBar(content: Text(l.logCopied)),
                             );
                           },
                   ),
                   IconButton(
                     key: const Key('log-clear'),
-                    tooltip: 'Clear',
+                    tooltip: l.logClear,
                     icon: const Icon(Icons.delete_sweep),
                     onPressed: entries.isEmpty ? null : log.clear,
                   ),
@@ -71,7 +73,7 @@ class LogView extends StatelessWidget {
             ),
             Expanded(
               child: entries.isEmpty
-                  ? const Center(child: Text('Nothing logged yet.'))
+                  ? Center(child: Text(l.logEmpty))
                   : SelectionArea(
                       child: ListView.separated(
                         padding: const EdgeInsets.all(16),

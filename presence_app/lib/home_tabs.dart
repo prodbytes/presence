@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 
+import 'l10n/l10n.dart';
 import 'tab_memory.dart';
 
 /// The top-level destinations, in the bottom navigation bar.
@@ -44,6 +45,21 @@ enum HomeTab {
 
   /// The app bar's name for the open tab: [label], unless it has a longer one.
   final String title;
+
+  /// [label] in the language shown.
+  String labelIn(AppLocalizations l) => switch (this) {
+    HomeTab.camera => l.navCamera,
+    HomeTab.monitoring => l.navMonitoring,
+    HomeTab.settings => l.navSettings,
+    HomeTab.help => l.navHelp,
+    HomeTab.log => l.navLog,
+    HomeTab.admin => l.navAdmin,
+    HomeTab.profile => l.navProfile,
+  };
+
+  /// [title] in the language shown.
+  String titleIn(AppLocalizations l) =>
+      this == HomeTab.help ? l.navHelpTitle : labelIn(l);
 
   /// Outlined, while another tab is open.
   final IconData icon;

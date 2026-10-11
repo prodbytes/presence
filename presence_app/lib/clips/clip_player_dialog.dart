@@ -8,6 +8,7 @@ import '../device_events.dart';
 import '../event_details.dart';
 import '../event_flags.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import '../recognition/recognizer.dart';
 import 'clip_labels.dart';
 import 'clip_model.dart';
@@ -131,9 +132,8 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
       if (frame != null) _frame = frame;
     });
     if (captured == null) {
-      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-        const SnackBar(content: Text("Couldn't grab this frame; try again")),
-      );
+      ScaffoldMessenger.maybeOf(context)
+          ?.showSnackBar(SnackBar(content: Text(context.l10n.clipGrabFailed)));
     }
     return _frame;
   }
@@ -152,7 +152,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   }
 
   Future<void> _tag(TagFrame frame, Offset fraction) async {
-    final name = await _askName(context, title: 'Who is this?');
+    final name = await _askName(context, title: context.l10n.clipWhoIsThis);
     if (name == null || !mounted) return;
     _annotations.add(name, fraction.dx, fraction.dy, frame: frame);
   }
@@ -166,12 +166,14 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
     });
     String message;
     try {
-      message = autoTagMessage(await recognizer.recognizeNow(_event));
+      final result = await recognizer.recognizeNow(_event);
+      if (!mounted) return;
+      message = autoTagMessage(result, context.l10n);
     } catch (e) {
       debugPrint('Presence: Auto failed on ${_event.id}: $e');
-      message = "Couldn't run recognition; try again.";
+      if (!mounted) return;
+      message = context.l10n.clipAutoFailed;
     }
-    if (!mounted) return;
     setState(() {
       _recognizing = false;
       _autoResult = message;
@@ -181,7 +183,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
   Future<void> _rename(Annotation annotation) async {
     final name = await _askName(
       context,
-      title: 'Rename subject',
+      title: context.l10n.clipRenameSubject,
       initial: annotation.name,
     );
     if (name != null) _annotations.rename(annotation.id, name);
@@ -233,7 +235,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                   ),
                 ),
                 trailing: IconButton(
-                  tooltip: 'Close',
+                  tooltip: context.l10n.clipClose,
                   icon: const Icon(Icons.close),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
@@ -274,7 +276,8 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                 child: ListenableBuilder(
                   listenable: _event.clip,
-                  builder: (context, _) => Text(_event.clip.status),
+                  builder: (context, _) =>
+                      Text(_event.clip.statusIn(context.l10n)),
                 ),
               ),
               Padding(
@@ -373,6 +376,7 @@ class _SubjectsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     final frame = this.frame;
     final recognizer = this.recognizer;
     final frames = annotations.tagFrames.values.toList()
@@ -388,10 +392,10 @@ class _SubjectsSection extends StatelessWidget {
           crossAxisAlignment: WrapCrossAlignment.center,
           runSpacing: 8,
           children: [
-            const _SectionHeading(
-              key: Key('subjects-heading'),
+            _SectionHeading(
+              key: const Key('subjects-heading'),
               icon: Icons.face,
-              title: 'Subjects',
+              title: l.clipSubjects,
             ),
             Wrap(
               spacing: 8,
@@ -400,9 +404,8 @@ class _SubjectsSection extends StatelessWidget {
                 if (frame == null && recognizer != null)
                   Tooltip(
                     message: recognizer.supported
-                        ? 'Find the subjects named before, and tag '
-                              'the things seen, on this device'
-                        : 'Not available on this device yet',
+                        ? l.clipAutoTooltip
+                        : l.clipAutoUnavailable,
                     child: FilledButton.tonalIcon(
                       key: const Key('auto-tag'),
                       icon: recognizing
@@ -411,7 +414,7 @@ class _SubjectsSection extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.auto_awesome),
-                      label: const Text('Auto'),
+                      label: Text(l.clipAuto),
                       onPressed: recognizing || !recognizer.supported
                           ? null
                           : onAuto,
@@ -426,14 +429,14 @@ class _SubjectsSection extends StatelessWidget {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.crop_free),
-                    label: const Text('Name subject'),
+                    label: Text(l.clipNameSubject),
                     onPressed: grabbing ? null : onGrab,
                   )
                 else
                   FilledButton(
                     key: const Key('done-tagging'),
                     onPressed: onDone,
-                    child: const Text('Done'),
+                    child: Text(l.clipDone),
                   ),
               ],
             ),
@@ -441,16 +444,12 @@ class _SubjectsSection extends StatelessWidget {
         ),
         if (frame != null)
           Text(
-            'Click each person or pet on the video to name '
-            'them as a subject (frame at '
-            '${formatClipTime(frame.ms)}).',
+            l.clipTagHint(formatClipTime(frame.ms)),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         if (recognizing)
           Text(
-            clip.fullDone
-                ? 'Looking for the subjects named before…'
-                : 'Waiting for the clip to finish recording…',
+            clip.fullDone ? l.clipAutoLooking : l.clipAutoWaiting,
             key: const Key('auto-tag-status'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           )
@@ -468,18 +467,12 @@ class _SubjectsSection extends StatelessWidget {
               spacing: 6,
               children: [
                 Icon(Icons.flag, size: 18, color: EventFlag.unidentified.color),
-                Expanded(
-                  child: Text(
-                    '${u.label}: click them on the video to '
-                    'name them, or try Auto.',
-                  ),
-                ),
+                Expanded(child: Text(l.clipIdentifyHint(u.labelIn(l)))),
               ],
             ),
         if (annotations.tags.isEmpty && frame == null)
           Text(
-            'No subjects yet. Click a person or pet on the '
-            'video to name them.',
+            l.clipNoSubjects,
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
         for (final f in frames)
@@ -526,7 +519,7 @@ class _FrameRow extends StatelessWidget {
       spacing: 12,
       children: [
         Tooltip(
-          message: 'Name more subjects on this frame',
+          message: context.l10n.clipNameMore,
           child: InkWell(
             key: Key('frame-${frame.id}'),
             onTap: onOpen,
@@ -590,6 +583,7 @@ class _SubjectChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = annotation;
     final search = this.search;
+    final l = context.l10n;
     final chip = InputChip(
       key: Key('annotation-${a.id}'),
       // Recognized ones show how sure.
@@ -603,12 +597,12 @@ class _SubjectChip extends StatelessWidget {
                   '${(a.confidence! * 100).round()} %'
             : a.name,
       ),
-      tooltip: search == null ? 'Rename subject' : null,
+      tooltip: search == null ? l.clipRenameSubject : null,
       selected:
           search != null && EventSearchScope.isActive(search.value, a.name),
       showCheckmark: false,
       onPressed: search == null ? onRename : onFilter,
-      deleteButtonTooltipMessage: 'Remove subject',
+      deleteButtonTooltipMessage: l.clipRemoveSubject,
       onDeleted: onRemove,
     );
     if (search == null) return chip;
@@ -616,9 +610,7 @@ class _SubjectChip extends StatelessWidget {
     return Tooltip(
       // Shown on hover; a long press renames.
       triggerMode: TooltipTriggerMode.manual,
-      message: active
-          ? 'Show every event (hold to rename)'
-          : 'Show only events with ${a.name} (hold to rename)',
+      message: active ? l.clipShowEveryHold : l.clipShowOnlyHold(a.name),
       child: GestureDetector(
         key: Key('annotation-rename-${a.id}'),
         onLongPress: onRename,
@@ -645,15 +637,16 @@ class _TagsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 8,
       children: [
-        const _SectionHeading(
-          key: Key('tags-heading'),
+        _SectionHeading(
+          key: const Key('tags-heading'),
           icon: Icons.sell_outlined,
-          title: 'Tags',
+          title: l.clipTags,
         ),
         if (annotations.objects?.isNotEmpty ?? false)
           ClipObjectTags(
@@ -664,11 +657,10 @@ class _TagsSection extends StatelessWidget {
         else
           Text(
             annotations.objects == null
-                ? 'No tags yet. Things seen on the clip, like '
-                      'bottle or bicycle, show here once it has '
-                      'been searched'
-                      '${(recognizer?.supported ?? false) ? ' (try Auto)' : ''}.'
-                : 'No tags: nothing was seen on this clip.',
+                ? (recognizer?.supported ?? false)
+                      ? l.clipNoTagsYetTryAuto
+                      : l.clipNoTagsYet
+                : l.clipNoTags,
             key: const Key('tags-empty'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
@@ -702,31 +694,33 @@ class _SectionHeading extends StatelessWidget {
   }
 }
 
-/// What Auto says it did, from [result].
-String autoTagMessage(RecognitionResult result) {
+/// What Auto says it did, from [result]: in the language of [l], English
+/// without.
+String autoTagMessage(RecognitionResult result, [AppLocalizations? language]) {
+  final l = language ?? lookupAppLocalizations(const Locale('en'));
   String names(List<String> n) => n.length == 1
       ? n.single
-      : '${n.sublist(0, n.length - 1).join(', ')} and ${n.last}';
+      : l.clipNamesAnd(n.sublist(0, n.length - 1).join(', '), n.last);
   final subjects = switch (result) {
     RecognitionResult(outcome: RecognitionOutcome.unsupported) =>
-      'Recognition is not available on this device yet.',
+      l.clipAutoUnsupported,
     RecognitionResult(outcome: RecognitionOutcome.noReferences) =>
-      'No subjects to look for yet: name someone on another clip first.',
+      l.clipAutoNoReferences,
     RecognitionResult(outcome: RecognitionOutcome.allTagged) =>
-      'Every subject named before is already on this clip.',
+      l.clipAutoAllTagged,
     RecognitionResult(outcome: RecognitionOutcome.deferred) =>
-      'The phone is low on memory: try again in a moment.',
-    RecognitionResult(tagged: [], asked: []) => 'No subjects recognized.',
+      l.clipAutoDeferred,
+    RecognitionResult(tagged: [], asked: []) => l.clipAutoNone,
     RecognitionResult(:final tagged, :final asked) => [
-      if (tagged.isNotEmpty) 'Found ${names(tagged)}.',
+      if (tagged.isNotEmpty) l.clipAutoFound(names(tagged)),
       if (asked.isNotEmpty)
-        'Not sure about ${names(asked)}: answer '
-            '${asked.length == 1 ? '"Is this ${asked.single}?"' : 'the questions'}'
-            ' in the events.',
+        asked.length == 1
+            ? l.clipAutoNotSureOne(names(asked), asked.single)
+            : l.clipAutoNotSureMany(names(asked)),
     ].join(' '),
   };
   if (result.objects.isEmpty) return subjects;
-  return '$subjects Tags: ${result.objects.join(', ')}.';
+  return l.clipAutoTags(subjects, result.objects.join(', '));
 }
 
 /// Asks for a name; null when cancelled or left blank.
@@ -772,18 +766,18 @@ class _NameDialogState extends State<_NameDialog> {
       controller: _controller,
       autofocus: true,
       textCapitalization: TextCapitalization.words,
-      decoration: const InputDecoration(hintText: 'Name'),
+      decoration: InputDecoration(hintText: context.l10n.clipNameHint),
       onSubmitted: (value) => Navigator.of(context).pop(value),
     ),
     actions: [
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
+        child: Text(context.l10n.clipCancel),
       ),
       FilledButton(
         key: const Key('save-name'),
         onPressed: () => Navigator.of(context).pop(_controller.text),
-        child: const Text('Save'),
+        child: Text(context.l10n.clipSave),
       ),
     ],
   );

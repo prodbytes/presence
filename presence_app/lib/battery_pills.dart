@@ -2,6 +2,7 @@ import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/material.dart';
 
 import 'battery.dart';
+import 'l10n/l10n.dart';
 import 'status_pill.dart';
 
 /// The battery's charge over the camera, as a [StatusPill]: "82 %" with an
@@ -32,11 +33,12 @@ class BatteryPill extends StatelessWidget {
         _ when level < low => Icons.battery_alert,
         _ => _levelIcons[(level * (_levelIcons.length - 1) / 100).round()],
       };
+      final l = context.l10n;
       final state = switch (reading.state) {
-        BatteryState.charging => 'charging',
-        BatteryState.full => 'full',
-        BatteryState.connectedNotCharging => 'plugged in, not charging',
-        BatteryState.discharging => 'on battery',
+        BatteryState.charging => l.homeBatteryCharging,
+        BatteryState.full => l.homeBatteryFull,
+        BatteryState.connectedNotCharging => l.homeBatteryPlugged,
+        BatteryState.discharging => l.homeBatteryOnBattery,
         BatteryState.unknown => null,
       };
       return StatusPill(
@@ -48,7 +50,7 @@ class BatteryPill extends StatelessWidget {
         ),
         label: '$level %',
         labelColor: isLow ? scheme.error : null,
-        semantics: ['Battery $level %', ?state].join(', '),
+        semantics: [l.homeBatteryLevel(level), ?state].join(', '),
       );
     },
   );
@@ -96,7 +98,9 @@ class BatteryTemperaturePill extends StatelessWidget {
         ),
         label: text,
         labelColor: isHot ? scheme.error : null,
-        semantics: 'Battery temperature $text${isHot ? ', hot' : ''}',
+        semantics: isHot
+            ? context.l10n.homeBatteryTemperatureHot(text)
+            : context.l10n.homeBatteryTemperature(text),
       );
     },
   );
