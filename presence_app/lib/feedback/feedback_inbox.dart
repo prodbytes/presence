@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
 import '../time_format.dart';
 import 'feedback_client.dart';
 import 'help_view.dart';
@@ -22,6 +23,7 @@ class FeedbackThreadCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     final last = thread.messages.last.sentAt.toLocal();
     final when = '${formatDate(last)} ${formatHourMinute(last)}';
     return Card(
@@ -32,11 +34,11 @@ class FeedbackThreadCard extends StatelessWidget {
         collapsedShape: const Border(),
         leading: thread.awaitingReply
             ? Tooltip(
-                message: 'Awaiting a reply',
+                message: l.feedbackAwaitingReply,
                 child: Icon(Icons.mark_chat_unread, color: scheme.primary),
               )
             : Tooltip(
-                message: 'Answered',
+                message: l.feedbackAnswered,
                 child: Icon(
                   Icons.chat_bubble_outline,
                   color: scheme.onSurfaceVariant,
@@ -53,8 +55,8 @@ class FeedbackThreadCard extends StatelessWidget {
           const SizedBox(height: 16),
           FeedbackComposer(
             key: Key('feedback-reply-${thread.conversation}'),
-            label: 'Reply',
-            action: 'Reply',
+            label: l.feedbackReply,
+            action: l.feedbackReply,
             onSend: onReply,
           ),
         ],

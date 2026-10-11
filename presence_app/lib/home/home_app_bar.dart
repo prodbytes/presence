@@ -9,6 +9,7 @@ import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
 import '../events.dart';
 import '../home_tabs.dart';
+import '../l10n/l10n.dart';
 import 'dev_mode_label.dart';
 
 /// The home screen's app bar: on the left the open screen's name, bold
@@ -62,7 +63,15 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
       title: Row(
         children: [
           if (hasAccess && !onCamera) ...[
-            Text(tabs.current.title, key: const Key('screen-title')),
+            // Shrinks rather than overflow (longer languages, phones).
+            Flexible(
+              child: Text(
+                tabs.current.titleIn(context.l10n),
+                key: const Key('screen-title'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (dev) const SizedBox(width: 12),
           ],
           if (dev) const Flexible(child: DevModeLabel()),

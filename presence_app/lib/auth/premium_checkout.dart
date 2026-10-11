@@ -17,10 +17,6 @@ import '../cloud/device_slots.dart';
 abstract final class PremiumCheckout {
   static const String _link = String.fromEnvironment('STRIPE_PAYMENT_LINK');
 
-  /// What Premium costs, as the button says it. The price itself is the
-  /// Payment Link's, set in Stripe.
-  static const price = r'US$20 a month, the first week free';
-
   /// The checkout for [email] (prefilled and locked) and [profileId]
   /// (Stripe's `client_reference_id`, for support), on [link]
   /// (`STRIPE_PAYMENT_LINK` by default); nu01.com without a usable link.

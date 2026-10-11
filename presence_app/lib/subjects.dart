@@ -12,6 +12,7 @@ import 'config.dart';
 import 'dot.dart';
 import 'device_events.dart';
 import 'events.dart';
+import 'l10n/l10n.dart';
 import 'location/map_parts.dart';
 import 'theme.dart';
 import 'time_format.dart';
@@ -203,7 +204,12 @@ class SubjectsMap extends StatelessWidget {
       events: () => switch (filters) {
         final filters? =>
           filters
-              .viewOf(log, deviceId: deviceId, profileId: profileId)
+              .viewOf(
+                log,
+                deviceId: deviceId,
+                profileId: profileId,
+                l: context.l10n,
+              )
               .ofDevices,
         null => log.eventsOf(profileId),
       },
@@ -245,7 +251,12 @@ class SubjectsMap extends StatelessWidget {
           // Fitted again to the dots shown when the device searched for
           // changes.
           fitKey: filters
-              ?.viewOf(log, deviceId: deviceId, profileId: profileId)
+              ?.viewOf(
+                log,
+                deviceId: deviceId,
+                profileId: profileId,
+                l: context.l10n,
+              )
               .device,
           closeUp: true,
           dots: dots,
@@ -362,7 +373,7 @@ class EventSubjects extends StatelessWidget {
                               // Found by recognition, not tagged by someone.
                               if (t.detected)
                                 Tooltip(
-                                  message: 'Recognized automatically',
+                                  message: context.l10n.subjectsRecognizedAuto,
                                   child: Icon(
                                     Icons.auto_awesome,
                                     key: Key('event-subject-detected-${t.id}'),
@@ -569,9 +580,9 @@ class SubjectScreen extends StatelessWidget {
           // Every tag was removed while this was open.
           return Scaffold(
             appBar: AppBar(),
-            body: const FeedMessage(
+            body: FeedMessage(
               icon: Icons.person_off_outlined,
-              message: 'Nobody is tagged with this name any more.',
+              message: context.l10n.subjectsNobodyTagged,
             ),
           );
         }
@@ -929,7 +940,7 @@ class _MapDot extends StatelessWidget {
       message: label,
       child: Semantics(
         button: open != null,
-        label: open != null ? 'Open event $label' : label,
+        label: open != null ? context.l10n.subjectsOpenEvent(label) : label,
         child: MouseRegion(
           cursor: open != null ? SystemMouseCursors.click : MouseCursor.defer,
           child: GestureDetector(
@@ -965,7 +976,7 @@ class _MapName extends StatelessWidget {
         padding: const EdgeInsets.only(left: 12),
         child: Semantics(
           button: true,
-          label: 'Open ${subject.name}',
+          label: context.l10n.subjectsOpen(subject.name),
           excludeSemantics: true,
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
@@ -1024,8 +1035,8 @@ class _SightingList extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Text(
             shown.length < total
-                ? 'Latest ${shown.length} of $total events'
-                : (total == 1 ? '1 event' : '$total events'),
+                ? context.l10n.subjectsLatestEvents(shown.length, total)
+                : context.l10n.subjectsEvents(total),
             style: small,
           ),
         ),
@@ -1038,7 +1049,7 @@ class _SightingList extends StatelessWidget {
               final at? =>
                 '${at.latitude.toStringAsFixed(5)}, '
                     '${at.longitude.toStringAsFixed(5)}',
-              null => 'No location',
+              null => context.l10n.subjectsNoLocation,
             }, style: small),
             // The same dot as on the map, to match them up.
             trailing: located.contains(s)

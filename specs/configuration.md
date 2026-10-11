@@ -10,6 +10,7 @@ All user configuration is one immutable object, **`PresenceConfig`**
 | `motion` (`MotionConfig`) | `enabled` (on), `threshold` (15 % of the picture, 1–50 %), `cooldown` (5 min, 1–60 min) |
 | `schedule` (`ScheduleConfig`) | `enabled` (on), `every` (180 min, 30 min–24 h in 30 min steps): [scheduled clips](scheduled-clips.md) |
 | `subjects` (`SubjectsConfig`) | `mapEvents` (100, 10–500 in steps of 10): "How many events to load at once", events per subject on the [subjects](subjects.md) screens |
+| `language` (`LanguageConfig`) | `code`: `en`, `es` or `pt`; left out to follow the device ([Languages](i18n.md)) |
 | `recognition` (`RecognitionConfig`) | `enabled` (on), `objects` (on), `autoTag` (90 %, 50–95 % in 5 % steps; a stored 85 %, the old default, reads as 90 %): below it, from `askFloor` (50 %), it asks ([recognition](recognition.md)); the old `ask` field is ignored; `cloudTrainedAt` and `cloudCheckedAt` (ms; left out until set) are when the profile's cloud model was last trained and when this device last checked ([Cloud recognition](cloud-recognition.md)) |
 | `log` (`LogConfig`) | `show` (unset: follows the execution mode): the [Log](log.md) tab |
 | `history` (`HistoryConfig`) | `keep` (14 days, 1–90 days in 1-day steps): events older than this are deleted from the device ([event retention](event-retention.md)) |

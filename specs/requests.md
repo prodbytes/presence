@@ -4900,7 +4900,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        The side column (36 % of the width) is gone. Spec: [Device
        location](device-location.md).
 
-357. **Upgrade to Premium.** (2026-10-11)
+357. **Languages: English, Spanish and Portuguese.** (2026-10-11)
+     - Asked: internationalization, with a Settings option to pick the
+       language; support English, Spanish and Portuguese; create the
+       bundles and externalize the strings.
+     - Changed: [Languages](i18n.md), new. `flutter_localizations` and
+       `gen_l10n` (l10n.yaml), ARB fragments per area in
+       `lib/l10n/parts/` merged by `scripts/l10n-merge.py` into
+       `app_en/es/pt.arb` (513 messages each), `context.l10n` with an
+       English fallback; Settings' **Language** (the device's, English,
+       Español, Português), kept as `language.code`; about 50 files'
+       visible text externalized, English unchanged; event titles shown
+       translated (stored English unchanged); the app bar title shrinks
+       instead of overflowing. Specs: [Configuration](configuration.md),
+       [Settings](settings.md), [README](README.md).
+
+358. **Upgrade to Premium.** (2026-10-11)
      - Asked: a button on the profile page for free users (not premium
        ones) to upgrade to Premium: on web the Stripe payment page, on
        Android the Play Store subscription, on iOS the App Store's;
@@ -4918,7 +4933,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        became **Upgrade**. The link is the new build setting
        `STRIPE_PAYMENT_LINK` (`.env`, the repository variable in CI);
        unset, the buttons open nu01.com as before. The price and the
-       trial are set on the Payment Link in Stripe. Specs: [Upgrade to
+       trial are set on the Payment Link in Stripe. The new strings are in
+       English, Spanish and Portuguese (`authUpgradePremium`,
+       `authUpgrade`, `authPremiumShowsUpTo`). Specs: [Upgrade to
        Premium](upgrade.md) (new), [Premium and free](premium.md),
        [Monitoring](monitoring.md), [Sign-in](sign-in.md),
        [Membership](membership.md), [Configuration](configuration.md).

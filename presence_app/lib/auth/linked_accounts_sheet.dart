@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../cloud/cloud_sync.dart';
+import '../l10n/l10n.dart';
 import 'auth_service.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
@@ -34,8 +35,10 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
   List<ProfileAccount>? _accounts;
   LinkCode? _linkCode;
   bool _busy = false;
-  String? _error;
-  String? _done;
+
+  /// The last failure and the last success, in the language shown.
+  String Function(AppLocalizations l10n)? _error;
+  String Function(AppLocalizations l10n)? _done;
 
   @override
   void initState() {
@@ -65,26 +68,27 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
     try {
       await action(token);
     } on RolesException catch (e) {
-      if (mounted) setState(() => _error = _describe(e.statusCode));
+      if (mounted) setState(() => _error = (l) => _describe(l, e.statusCode));
     } catch (e) {
-      if (mounted) setState(() => _error = 'Something went wrong ($e).');
+      if (mounted) setState(() => _error = (l) => l.authSomethingWrong('$e'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  static String _describe(int status) => switch (status) {
-    404 => 'That code is wrong, already used or expired.',
-    409 =>
-      'This account can\'t be linked: it has cloud data of its own, or '
-          'other accounts are linked to it.',
-    429 => 'Too many tries. Wait a minute and try again.',
-    503 => 'Cloud backup isn\'t set up, so accounts can\'t be linked.',
-    _ => 'The request failed (HTTP $status).',
+  static String _describe(AppLocalizations l, int status) => switch (status) {
+    404 => l.authLinkCodeWrong,
+    409 => l.authLinkConflict,
+    429 => l.authLinkTooMany,
+    503 => l.authLinkNoBackup,
+    _ => l.authRequestFailed(status),
   };
 
   /// The account joined or left a profile: new roles, and a new folder.
-  void _changed(List<ProfileAccount> accounts, String message) {
+  void _changed(
+    List<ProfileAccount> accounts,
+    String Function(AppLocalizations l10n) message,
+  ) {
     setState(() {
       _accounts = accounts;
       _done = message;
@@ -105,19 +109,21 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
     final owner = accounts.where((a) => a.owner).map((a) => a.email);
     _changed(
       accounts,
-      'Linked to ${owner.isEmpty ? 'the profile' : owner.first}.',
+      (l) =>
+          owner.isEmpty ? l.authLinkedToProfile : l.authLinkedTo(owner.first),
     );
   });
 
   void _unlink(ProfileAccount account) => _run((token) async {
     final accounts = await widget.profiles.unlink(token, account.email);
     if (!mounted) return;
-    _changed(accounts, '${account.email} was unlinked.');
+    _changed(accounts, (l) => l.authUnlinked(account.email));
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = context.l10n;
     final scheme = theme.colorScheme;
     final muted = TextStyle(color: scheme.onSurfaceVariant);
     final accounts = _accounts;
@@ -137,10 +143,9 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
             mainAxisSize: MainAxisSize.min,
             spacing: 12,
             children: [
-              Text('Linked accounts', style: theme.textTheme.titleLarge),
+              Text(l10n.authLinkedAccounts, style: theme.textTheme.titleLarge),
               Text(
-                'Any of these Google accounts reaches the same clips and '
-                'events.',
+                l10n.authLinkedIntro,
                 textAlign: TextAlign.center,
                 style: muted,
               ),
@@ -155,15 +160,15 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
                   title: Text(account.email),
                   subtitle: Text(
                     [
-                      if (account.owner) 'Owner',
-                      if (account.current) 'This account',
+                      if (account.owner) l10n.authOwner,
+                      if (account.current) l10n.authThisAccount,
                     ].join(' · '),
                   ),
                   trailing: account.owner
                       ? null
                       : IconButton(
                           key: Key('unlink-${account.email}'),
-                          tooltip: 'Unlink',
+                          tooltip: l10n.authUnlink,
                           icon: const Icon(Icons.link_off),
                           onPressed: _busy ? null : () => _unlink(account),
                         ),
@@ -174,7 +179,7 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
                   FilledButton.icon(
                     key: const Key('make-link-code'),
                     icon: const Icon(Icons.add_link),
-                    label: const Text('Link another account'),
+                    label: Text(l10n.authLinkAnother),
                     onPressed: _busy ? null : _makeCode,
                   )
                 else ...[
@@ -187,8 +192,7 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
                     ),
                   ),
                   Text(
-                    'Within 10 minutes, sign in with the other Google '
-                    'account and enter this code under Linked accounts.',
+                    l10n.authLinkCodeHelp,
                     textAlign: TextAlign.center,
                     style: muted,
                   ),
@@ -196,8 +200,7 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
               ],
               const Divider(),
               Text(
-                'Have a code from your other account? Enter it to link this '
-                'one to it.',
+                l10n.authHaveCode,
                 textAlign: TextAlign.center,
                 style: muted,
               ),
@@ -206,28 +209,28 @@ class _LinkedAccountsSheetState extends State<LinkedAccountsSheet> {
                 controller: _code,
                 enabled: !_busy,
                 textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Link code',
+                decoration: InputDecoration(
+                  labelText: l10n.authLinkCode,
                   hintText: 'ABCD-EFGH',
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                 ),
                 onSubmitted: (_) => _code.text.trim().isEmpty ? null : _link(),
               ),
               OutlinedButton.icon(
                 key: const Key('use-link-code'),
                 icon: const Icon(Icons.link),
-                label: const Text('Link this account'),
+                label: Text(l10n.authLinkThis),
                 onPressed: _busy || _code.text.trim().isEmpty ? null : _link,
               ),
               if (_done case final done?)
                 Text(
-                  done,
+                  done(l10n),
                   key: const Key('linked-done'),
                   textAlign: TextAlign.center,
                 ),
               if (_error case final error?)
                 Text(
-                  error,
+                  error(l10n),
                   key: const Key('linked-error'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: scheme.error),

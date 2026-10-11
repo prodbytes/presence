@@ -10,6 +10,7 @@ import '../connectivity.dart';
 import '../device_presence.dart';
 import '../events.dart';
 import '../identity/device_os.dart';
+import '../l10n/l10n.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
@@ -54,7 +55,9 @@ class AccountButton extends StatelessWidget {
         final user = auth.user;
         return IconButton(
           key: const Key('account-button'),
-          tooltip: user == null ? 'Sign in' : 'Signed in as ${user.identity}',
+          tooltip: user == null
+              ? context.l10n.authSignIn
+              : context.l10n.authSignedInAs(user.identity),
           icon: user == null
               ? const Icon(Icons.person)
               : UserAvatar(user: user, radius: 14),
@@ -101,7 +104,7 @@ class SignInAction extends StatelessWidget {
           FilledButton.icon(
             key: const Key('google-sign-in'),
             icon: const Icon(Icons.login, size: 18),
-            label: const Text('Sign in with Google'),
+            label: Text(context.l10n.authSignInWithGoogle),
             onPressed: auth.signIn,
           ),
     );
@@ -178,13 +181,13 @@ class AccountSheet extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      auth.unavailableReason ?? 'Sign-in is unavailable.',
+                      auth.unavailableReason ?? context.l10n.authUnavailable,
                       textAlign: TextAlign.center,
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
                   ] else if (user == null) ...[
                     Text(
-                      'Sign in to Presence',
+                      context.l10n.authSignInToPresence,
                       style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
@@ -192,7 +195,7 @@ class AccountSheet extends StatelessWidget {
                         FilledButton.icon(
                           key: const Key('google-sign-in'),
                           icon: const Icon(Icons.login),
-                          label: const Text('Sign in with Google'),
+                          label: Text(context.l10n.authSignInWithGoogle),
                           onPressed: auth.signIn,
                         ),
                   ] else ...[
@@ -242,6 +245,7 @@ class AccountSheet extends StatelessWidget {
                             final roles? => Connectivity.of(
                               roles,
                               sync,
+                              l: context.l10n,
                             ).presence,
                             null => null,
                           },
@@ -304,7 +308,7 @@ class AccountSheet extends StatelessWidget {
                     OutlinedButton.icon(
                       key: const Key('sign-out'),
                       icon: const Icon(Icons.logout),
-                      label: const Text('Sign out'),
+                      label: Text(context.l10n.authSignOut),
                       // Close the sheet first (as a page of the tabs there's
                       // nothing to close): signing out swaps the whole app
                       // for the sign-in screen.
@@ -455,29 +459,27 @@ class ProfileDevices extends StatelessWidget {
     );
     final at = (now ?? DateTime.now)();
     final available = liveAvailable(live);
+    final l10n = context.l10n;
     return Column(
       key: const Key('profile-devices'),
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
       children: [
-        Text('Profile', style: muted),
+        Text(l10n.authProfile, style: muted),
         SelectableText(
           profile,
           key: const Key('profile-id'),
           style: theme.textTheme.titleMedium,
         ),
         const SizedBox(height: 8),
-        Text(
-          devices.length == 1 ? '1 device' : '${devices.length} devices',
-          style: muted,
-        ),
+        Text(l10n.authDeviceCount(devices.length), style: muted),
         for (final device in devices)
           Row(
             key: Key('profile-device-${device.id}'),
             spacing: 8,
             children: [
               Tooltip(
-                message: device.os ?? 'Operating system unknown',
+                message: device.os ?? l10n.authOsUnknown,
                 child: Icon(
                   DeviceOs.iconOf(device.os),
                   key: Key('profile-device-os-${device.id}'),
@@ -502,6 +504,7 @@ class ProfileDevices extends StatelessWidget {
                             final presence? when device.id == thisDevice =>
                               presence,
                             _ => DevicePresence.of(
+                              l: l10n,
                               answeredAt: live?.seenOf(device.id),
                               lastEvent: device.lastEvent,
                               now: at,
@@ -525,14 +528,12 @@ class ProfileDevices extends StatelessWidget {
                           ),
                         ),
                         if (device.id == thisDevice)
-                          Text('this device', style: muted),
+                          Text(l10n.authThisDevice, style: muted),
                         if (hidden.contains(device.id))
                           Tooltip(
-                            message:
-                                'Past the plan\'s device limit: it syncs, '
-                                'but its events are hidden here',
+                            message: l10n.authHiddenTooltip,
                             child: Text(
-                              'hidden',
+                              l10n.authHidden,
                               key: Key('profile-device-hidden-${device.id}'),
                               style: muted.copyWith(
                                 color: theme.colorScheme.tertiary,
@@ -551,8 +552,11 @@ class ProfileDevices extends StatelessWidget {
                               TextSpan(text: '$os · '),
                             TextSpan(
                               text: switch (device.lastEvent) {
-                                null => 'No events',
-                                final last => describeAge(at.difference(last)),
+                                null => l10n.authNoEvents,
+                                final last => describeAge(
+                                  at.difference(last),
+                                  l10n,
+                                ),
                               },
                             ),
                           ],
@@ -568,7 +572,7 @@ class ProfileDevices extends StatelessWidget {
               if (onDelete case final onDelete? when device.id != thisDevice)
                 IconButton(
                   key: Key('profile-device-delete-${device.id}'),
-                  tooltip: 'Delete ${device.id}',
+                  tooltip: l10n.authDeleteDevice(device.id),
                   visualDensity: VisualDensity.compact,
                   icon: const Icon(Icons.delete_outline, size: 20),
                   onPressed: () => onDelete(device.id),
@@ -594,20 +598,22 @@ class LinkedAccountsButton extends StatelessWidget {
     required this.roles,
     required this.profiles,
     this.sync,
-    this.label = 'Linked accounts',
+    this.label,
   });
 
   final AuthService auth;
   final RolesService roles;
   final ProfileClient profiles;
   final CloudSync? sync;
-  final String label;
+
+  /// The button's text; "Linked accounts" by default.
+  final String? label;
 
   @override
   Widget build(BuildContext context) => TextButton.icon(
     key: const Key('linked-accounts'),
     icon: const Icon(Icons.link),
-    label: Text(label),
+    label: Text(label ?? context.l10n.authLinkedAccounts),
     onPressed: () => showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -670,26 +676,34 @@ class AccountRoles extends StatelessWidget {
       ? 'free'
       : null;
 
-  /// What an rbacr [access] role is called here.
-  static String accessLabel(String access) => switch (access) {
-    'admin' => 'Admin Access',
-    'premium' => 'Premium Access',
-    _ => 'Free Access',
-  };
+  /// What an rbacr [access] role is called here, in [l10n]'s language
+  /// (English without).
+  static String accessLabel(String access, [AppLocalizations? l10n]) {
+    final l = l10n ?? lookupAppLocalizations(const Locale('en'));
+    return switch (access) {
+      'admin' => l.authAccessAdmin,
+      'premium' => l.authAccessPremium,
+      _ => l.authAccessFree,
+    };
+  }
 
   /// The roles [accessOf] stands for, which get no chip of their own.
   static const _accessRoles = {userRole, premiumRole, adminRole};
 
-  /// What another role is called here; an unknown one keeps its ID.
-  static String labelOf(String role) => switch (role) {
-    rootRole => 'Root',
-    _ => role,
-  };
+  /// What another role is called here, in [l10n]'s language (English
+  /// without); an unknown one keeps its ID.
+  static String labelOf(String role, [AppLocalizations? l10n]) =>
+      switch (role) {
+        rootRole =>
+          (l10n ?? lookupAppLocalizations(const Locale('en'))).authRoleRoot,
+        _ => role,
+      };
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(context).textTheme.labelMedium;
+    final l10n = context.l10n;
     final access = accessOf(roles.roles);
     final others =
         [
@@ -706,11 +720,11 @@ class AccountRoles extends StatelessWidget {
       if (access != null)
         (
           key: 'account-access',
-          label: accessLabel(access),
+          label: accessLabel(access, l10n),
           tip: 'rbacr: $access',
         ),
       for (final role in others)
-        (key: 'account-role-$role', label: labelOf(role), tip: role),
+        (key: 'account-role-$role', label: labelOf(role, l10n), tip: role),
     ];
     Widget note(String text) =>
         Text(text, style: style?.copyWith(color: scheme.onSurfaceVariant));
@@ -718,13 +732,13 @@ class AccountRoles extends StatelessWidget {
       container: true,
       label: shown.isEmpty
           ? null
-          : 'Roles: ${shown.map((chip) => chip.label).join(', ')}',
+          : l10n.authRolesSemantics(shown.map((chip) => chip.label).join(', ')),
       child: KeyedSubtree(
         key: const Key('account-roles'),
         child: switch (roles.state) {
-          AccessState.starting ||
-          AccessState.checking when shown.isEmpty => note('Checking roles…'),
-          _ when shown.isEmpty => note('No roles yet'),
+          AccessState.starting || AccessState.checking when shown.isEmpty =>
+            note(l10n.authCheckingRoles),
+          _ when shown.isEmpty => note(l10n.authNoRoles),
           _ => Wrap(
             alignment: WrapAlignment.center,
             spacing: 6,
@@ -772,37 +786,37 @@ class CloudSyncStatus extends StatelessWidget {
     return ListenableBuilder(
       listenable: sync,
       builder: (context, _) {
+        final l10n = context.l10n;
         final free = !sync.premium;
         final (icon, text, color) = switch (sync.state) {
           CloudSyncState.syncing || CloudSyncState.synced when free => (
             Icons.devices_outlined,
-            'Your devices sync with each other while online',
+            l10n.authSyncFree,
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.off => (
             Icons.cloud_off_outlined,
-            'Cloud backup is off',
+            l10n.authBackupOff,
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.syncing => (
             Icons.cloud_upload_outlined,
-            'Uploading…',
+            l10n.authUploading,
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.synced => (
             Icons.cloud_done_outlined,
             switch ((sync.uploaded, sync.downloaded)) {
-              (0, 0) => 'Clips and events are backed up',
-              (final up, 0) => 'Backed up ($up uploaded)',
-              (0, final down) => 'Backed up ($down restored)',
-              (final up, final down) =>
-                'Backed up ($up uploaded, $down restored)',
+              (0, 0) => l10n.authBackedUp,
+              (final up, 0) => l10n.authBackedUpUploaded(up),
+              (0, final down) => l10n.authBackedUpRestored(down),
+              (final up, final down) => l10n.authBackedUpBoth(up, down),
             },
             scheme.onSurfaceVariant,
           ),
           CloudSyncState.error => (
             Icons.cloud_off_outlined,
-            sync.error ?? 'Upload failed',
+            sync.error ?? l10n.authUploadFailed,
             scheme.error,
           ),
         };
@@ -819,7 +833,7 @@ class CloudSyncStatus extends StatelessWidget {
               TextButton(
                 key: const Key('cloud-sync-retry'),
                 onPressed: sync.retry,
-                child: const Text('Retry'),
+                child: Text(l10n.authRetry),
               ),
           ],
         );
@@ -851,7 +865,7 @@ class SignUpButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => IconButton(
     key: const Key('sign-up'),
-    tooltip: 'Sign up',
+    tooltip: context.l10n.authSignUp,
     icon: const Icon(Icons.person_add_alt_1),
     onPressed: () => showModalBottomSheet<void>(
       context: context,
@@ -902,7 +916,9 @@ const _redeemSettle = Duration(seconds: 2);
 class _SignUpSheetState extends State<SignUpSheet> {
   final _code = TextEditingController();
   bool _redeeming = false;
-  String? _codeError;
+
+  /// Why the code wasn't redeemed, in the language shown.
+  String Function(AppLocalizations l10n)? _codeError;
 
   @override
   void initState() {
@@ -939,24 +955,21 @@ class _SignUpSheetState extends State<SignUpSheet> {
     } on RolesException catch (e) {
       if (mounted) {
         setState(
-          () => _codeError = switch (e.statusCode) {
+          () => _codeError = (l) => switch (e.statusCode) {
             402 when e is PaymentRequiredException && e.discount != null =>
-              'That code gives ${e.discount}% off. Paying the rest isn\'t '
-                  'available yet, so it can\'t let you in.',
-            402 =>
-              'That code needs a payment, which isn\'t available yet, so '
-                  'it can\'t let you in.',
+              l.authVoucherDiscount(e.discount!),
+            402 => l.authVoucherPayment,
             // rbacr: 404 an unknown code; 409 one that isn't active (not
             // started, expired, used up or disabled) or that this account
             // already redeemed.
-            404 || 409 => 'That code is invalid, expired or used up.',
-            429 => 'Too many tries. Wait a while and try again.',
-            _ => 'Couldn\'t redeem the code ($e).',
+            404 || 409 => l.authVoucherInvalid,
+            429 => l.authVoucherTooMany,
+            _ => l.authVoucherFailedDetail('$e'),
           },
         );
       }
     } catch (e) {
-      if (mounted) setState(() => _codeError = 'Couldn\'t redeem the code.');
+      if (mounted) setState(() => _codeError = (l) => l.authVoucherFailed);
     } finally {
       if (mounted) setState(() => _redeeming = false);
     }
@@ -966,7 +979,8 @@ class _SignUpSheetState extends State<SignUpSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final email = widget.auth.user?.email ?? 'Your account';
+    final l10n = context.l10n;
+    final email = widget.auth.user?.email ?? l10n.authYourAccount;
     return ListenableBuilder(
       listenable: widget.roles,
       builder: (context, _) => SafeArea(
@@ -983,11 +997,9 @@ class _SignUpSheetState extends State<SignUpSheet> {
             spacing: 12,
             children: [
               Icon(Icons.person_add_alt_1, size: 40, color: scheme.primary),
-              Text('Subscribe', style: theme.textTheme.titleLarge),
+              Text(l10n.authSubscribe, style: theme.textTheme.titleLarge),
               Text(
-                '$email doesn\'t have access to Presence yet. Subscribe at '
-                'nu01.com: Free, or Premium for cloud backup and more '
-                'devices. Then check again here.',
+                l10n.authSubscribeText(email),
                 key: const Key('subscribe-text'),
                 textAlign: TextAlign.center,
                 style: TextStyle(color: scheme.onSurfaceVariant),
@@ -995,7 +1007,7 @@ class _SignUpSheetState extends State<SignUpSheet> {
               FilledButton.icon(
                 key: const Key('subscribe'),
                 icon: const Icon(Icons.open_in_new),
-                label: const Text('Subscribe at nu01.com'),
+                label: Text(l10n.authSubscribeButton),
                 onPressed: () => openOrCopyLink(
                   context,
                   DeviceSlots.signUp,
@@ -1004,7 +1016,7 @@ class _SignUpSheetState extends State<SignUpSheet> {
               ),
               const Divider(),
               Text(
-                'Have a voucher code? Redeem it to get in right away.',
+                l10n.authVoucherPrompt,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
@@ -1018,10 +1030,10 @@ class _SignUpSheetState extends State<SignUpSheet> {
                       enabled: !_redeeming,
                       textCapitalization: TextCapitalization.characters,
                       maxLength: maxVoucherCode,
-                      decoration: const InputDecoration(
-                        labelText: 'Voucher code',
+                      decoration: InputDecoration(
+                        labelText: l10n.authVoucherLabel,
                         hintText: '2026Q4-OTTER-FALCON-LEMUR',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                         counterText: '',
                       ),
                       onSubmitted: (_) => _redeem(),
@@ -1035,13 +1047,13 @@ class _SignUpSheetState extends State<SignUpSheet> {
                       : FilledButton.tonal(
                           key: const Key('redeem-voucher'),
                           onPressed: _code.text.trim().isEmpty ? null : _redeem,
-                          child: const Text('Redeem'),
+                          child: Text(l10n.authRedeem),
                         ),
                 ],
               ),
               if (_codeError case final error?)
                 Text(
-                  error,
+                  error(l10n),
                   key: const Key('voucher-error'),
                   textAlign: TextAlign.center,
                   style: TextStyle(color: scheme.error),
@@ -1051,14 +1063,14 @@ class _SignUpSheetState extends State<SignUpSheet> {
                   auth: widget.auth,
                   roles: widget.roles,
                   profiles: profiles,
-                  label: 'Have access with another Google account? Link it',
+                  label: l10n.authLinkOtherAccount,
                 ),
               widget.roles.state == AccessState.checking
                   ? const CircularProgressIndicator()
                   : TextButton.icon(
                       key: const Key('check-access'),
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Check again'),
+                      label: Text(l10n.authCheckAgain),
                       onPressed: widget.roles.refresh,
                     ),
             ],

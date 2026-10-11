@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'l10n/l10n.dart';
+
 /// Opens [url] outside the app; false when it couldn't.
 typedef LinkOpener = Future<bool> Function(Uri url);
 
@@ -25,7 +27,7 @@ Future<void> openOrCopyLink(
   Clipboard.setData(ClipboardData(text: '$url'));
   if (context.mounted) {
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text('Link copied')));
+        .showSnackBar(SnackBar(content: Text(context.l10n.aboutLinkCopied)));
   }
 }
 
@@ -50,18 +52,12 @@ class AboutParagraph extends StatelessWidget {
       key: const Key('about'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Presence turns a phone, tablet, laptop or Raspberry Pi into an '
-          'always-on camera for a place you look after: live feeds, clips '
-          'that include the moments before, and clips on motion. Only record '
-          'where you\'re allowed to.',
-          style: muted,
-        ),
+        Text(context.l10n.aboutParagraph, style: muted),
         const SizedBox(height: 4),
         Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text('Presence is open source:', style: muted),
+            Text(context.l10n.aboutOpenSource, style: muted),
             TextButton(
               key: const Key('about-source'),
               style: TextButton.styleFrom(

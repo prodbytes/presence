@@ -1,0 +1,16 @@
+{
+  "@@locale": "en",
+  "languageSection": "Language",
+  "@languageSection": {
+    "description": "Settings: the language section's title"
+  },
+  "languageLabel": "App language",
+  "languageSystem": "Same as the device",
+  "@languageSystem": {
+    "description": "Language choice: follow the device's language"
+  },
+  "languageEnglish": "English",
+  "languageSpanish": "Español",
+  "languagePortuguese": "Português",
+  "languageNote": "Names, tags and device IDs show as they were written."
+}

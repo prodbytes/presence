@@ -43,8 +43,8 @@ Payment Link (see [Configuration](configuration.md)):
 
 The price and the trial are the Payment Link's, set in Stripe: a
 recurring price of US$20 a month, with a 7-day free trial
-(`subscription_data.trial_period_days`). The app only says so
-(`PremiumCheckout.price`).
+(`subscription_data.trial_period_days`). The app only says so (the
+`authPlanFreeText` string, in English, Spanish and Portuguese).
 
 ## How it becomes Premium
 

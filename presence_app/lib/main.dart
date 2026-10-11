@@ -34,6 +34,7 @@ import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'maintenance.dart';
+import 'l10n/l10n.dart';
 import 'recognition/cloud_recognition.dart';
 import 'recognition/recognizer.dart';
 import 'screen_off.dart';
@@ -649,50 +650,57 @@ class _PresenceAppState extends State<PresenceApp> {
               now: widget.now,
               child: app!,
             ),
-            child: MaterialApp(
-              title: AppVersion.title,
-              debugShowCheckedModeBanner: false,
-              theme: gruvboxSoftDarkTheme(),
-              // The "do a barrel roll" search spins everything. In rbacr's
-              // maintenance mode, nobody gets past the sorry message.
-              builder: (context, app) => BarrelRoll(
-                child: MaintenanceGate(roles: _roles, child: app!),
-              ),
-              home: switch (_consented) {
-                // Nothing shows until the device's consent is known.
-                null => const Scaffold(
-                  body: Center(
-                    child: CircularProgressIndicator(
-                      key: Key('checking-consent'),
-                    ),
-                  ),
-                ),
-                false => ConsentScreen(onAgree: _agree),
-                true => HomeScreen(
-                  log: _log,
-                  rig: _rig,
-                  config: _config,
-                  auth: _auth,
-                  roles: _roles,
-                  rbacr: _rbacr,
-                  feedback: _feedback,
-                  profiles: _profiles,
-                  sync: _sync,
-                  deviceId: _deviceId,
-                  location: _location,
-                  mapTiles: widget.mapTiles,
-                  battery: widget.battery,
-                  join: _join,
-                  onJoinHandled: _joinHandled,
-                  tabMemory: widget.tabMemory,
-                  deleteDevice: _deleteDevice,
-                  screenOff: _screenOff,
-                ),
-              },
+            child: ListenableBuilder(
+              listenable: _config,
+              builder: (context, _) => _app(context),
             ),
           ),
         ),
       ),
     );
   }
+
+  /// The app in the language Settings picked (or the device's).
+  Widget _app(BuildContext context) => MaterialApp(
+    title: AppVersion.title,
+    debugShowCheckedModeBanner: false,
+    theme: gruvboxSoftDarkTheme(),
+    locale: _config.config.language.locale,
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    // The "do a barrel roll" search spins everything. In rbacr's
+    // maintenance mode, nobody gets past the sorry message.
+    builder: (context, app) => BarrelRoll(
+      child: MaintenanceGate(roles: _roles, child: app!),
+    ),
+    home: switch (_consented) {
+      // Nothing shows until the device's consent is known.
+      null => const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(key: Key('checking-consent')),
+        ),
+      ),
+      false => ConsentScreen(onAgree: _agree),
+      true => HomeScreen(
+        log: _log,
+        rig: _rig,
+        config: _config,
+        auth: _auth,
+        roles: _roles,
+        rbacr: _rbacr,
+        feedback: _feedback,
+        profiles: _profiles,
+        sync: _sync,
+        deviceId: _deviceId,
+        location: _location,
+        mapTiles: widget.mapTiles,
+        battery: widget.battery,
+        join: _join,
+        onJoinHandled: _joinHandled,
+        tabMemory: widget.tabMemory,
+        deleteDevice: _deleteDevice,
+        screenOff: _screenOff,
+      ),
+    },
+  );
 }

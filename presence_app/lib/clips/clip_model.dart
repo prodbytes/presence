@@ -6,6 +6,7 @@ import '../annotations.dart';
 import '../cameras/cameras.dart';
 import '../event_flags.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import 'clip_card.dart';
 
 /// A clip around one Clip press, for one camera. Its recordings arrive over
@@ -130,30 +131,34 @@ class VideoClip extends ChangeNotifier {
     notifyListeners();
   }
 
-  String get status {
-    final saved = saveError == null ? '' : ' · not saved: $saveError';
-    return _recordingStatus + saved;
+  /// Where the recording is, in English ([statusIn]).
+  String get status => statusIn(lookupAppLocalizations(const Locale('en')));
+
+  /// Where the recording is ("15 s clip ready"), in the language of [l].
+  String statusIn(AppLocalizations l) {
+    final recording = _recordingStatus(l);
+    return saveError == null
+        ? recording
+        : l.clipNotSaved(recording, '$saveError');
   }
 
-  String get _recordingStatus {
-    if (!supported) return "Video clips aren't supported on this platform";
-    if (awaitingRemote) return 'Recording on another device…';
-    if (full != null) return '${(before + after).inSeconds} s clip ready';
+  String _recordingStatus(AppLocalizations l) {
+    if (!supported) return l.clipUnsupported;
+    if (awaitingRemote) return l.clipRecordingElsewhere;
+    if (full != null) return l.clipReady((before + after).inSeconds);
     if (interrupted) {
       return past == null
-          ? 'Not recorded: the app closed while recording'
-          : 'Previous ${before.inSeconds} s only: the app closed '
-                'before the next ${after.inSeconds} s were recorded';
+          ? l.clipNotRecordedClosed
+          : l.clipPreviousOnly(before.inSeconds, after.inSeconds);
     }
     if (fullDone) {
-      return error == null ? 'No video recorded' : 'Recording failed';
+      return error == null ? l.clipNoVideo : l.clipRecordingFailed;
     }
     if (past != null) {
-      return 'Previous ${before.inSeconds} s ready · '
-          'recording next ${after.inSeconds} s…';
+      return l.clipPreviousReady(before.inSeconds, after.inSeconds);
     }
-    if (pastDone) return 'Recording next ${after.inSeconds} s…';
-    return 'Saving previous ${before.inSeconds} s…';
+    if (pastDone) return l.clipRecordingNext(after.inSeconds);
+    return l.clipSavingPrevious(before.inSeconds);
   }
 }
 
@@ -236,6 +241,15 @@ class ClipRequested extends AppEvent {
     // What recognition saw (for search); absent until the clip is searched.
     if (annotations.objects case final objects?)
       'objectTags': [for (final o in objects) o.toJson()],
+  };
+
+  @override
+  String displayTitle(AppLocalizations l) => switch (trigger) {
+    ClipTrigger.motion => l.eventTitleMotion,
+    ClipTrigger.scheduled => l.eventTitleScheduled,
+    ClipTrigger.startup => l.eventTitleStartup,
+    ClipTrigger.manual => l.eventTitleClipRequested,
+    ClipTrigger.all => l.eventTitleCaptureAll,
   };
 
   @override

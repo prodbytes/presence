@@ -1,0 +1,10 @@
+{
+  "@@locale": "es",
+  "languageSection": "Idioma",
+  "languageLabel": "Idioma de la aplicación",
+  "languageSystem": "El mismo que el dispositivo",
+  "languageEnglish": "English",
+  "languageSpanish": "Español",
+  "languagePortuguese": "Português",
+  "languageNote": "Los nombres, las etiquetas y los ID de dispositivo se muestran tal como se escribieron."
+}

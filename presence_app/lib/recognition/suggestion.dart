@@ -4,6 +4,7 @@ import '../crypto/sealed_image.dart';
 import '../annotations.dart';
 import '../clips.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import '../subjects.dart';
 
 /// Recognition thinks [subjectName] is on a clip, but isn't sure enough to
@@ -75,6 +76,13 @@ class SubjectSuggestion extends AppEvent {
   }
 
   @override
+  String displayTitle(AppLocalizations l) => l.eventTitleIsThis(subjectName);
+
+  @override
+  String? displayDetail(AppLocalizations l) =>
+      l.eventDetailSure((confidence * 100).round());
+
+  @override
   Widget buildCard(BuildContext context) => SuggestionCard(suggestion: this);
 }
 
@@ -110,6 +118,7 @@ class SuggestionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final name = suggestion.subjectName;
+    final l = context.l10n;
     final pending = annotation?.source == TagSource.suggested;
     final quiet = theme.textTheme.bodySmall?.copyWith(
       color: scheme.onSurfaceVariant,
@@ -117,7 +126,7 @@ class SuggestionCard extends StatelessWidget {
     final color = Subject.colorOf(Subject.idOf(name));
     final Widget answer;
     if (clip == null) {
-      answer = Text('The clip is missing', style: quiet);
+      answer = Text(l.eventSuggestionClipMissing, style: quiet);
     } else if (pending) {
       answer = Wrap(
         spacing: 8,
@@ -126,12 +135,12 @@ class SuggestionCard extends StatelessWidget {
           FilledButton.tonal(
             key: const Key('suggestion-yes'),
             onPressed: () => clip.annotations.confirm(annotation!.id),
-            child: Text("Yes, it's $name"),
+            child: Text(l.eventSuggestionYes(name)),
           ),
           TextButton(
             key: const Key('suggestion-no'),
             onPressed: () => clip.annotations.remove(annotation!.id),
-            child: const Text('No'),
+            child: Text(l.eventSuggestionNo),
           ),
         ],
       );
@@ -146,7 +155,10 @@ class SuggestionCard extends StatelessWidget {
             size: 18,
             color: tagged ? scheme.primary : scheme.onSurfaceVariant,
           ),
-          Text(tagged ? 'Tagged as $name' : 'Not $name', style: quiet),
+          Text(
+            tagged ? l.eventSuggestionTagged(name) : l.eventSuggestionNot(name),
+            style: quiet,
+          ),
         ],
       );
     }
@@ -174,7 +186,7 @@ class SuggestionCard extends StatelessWidget {
                       SubjectSwatch(color: color, size: 12),
                       Expanded(
                         child: Text(
-                          suggestion.title,
+                          suggestion.displayTitle(l),
                           style: theme.textTheme.titleSmall,
                         ),
                       ),
@@ -188,7 +200,7 @@ class SuggestionCard extends StatelessWidget {
                   ),
                   Text(
                     [
-                      suggestion.detail!,
+                      suggestion.displayDetail(l)!,
                       if (clip != null) clip.clip.cameraLabel,
                     ].join(' · '),
                     style: quiet,

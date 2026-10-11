@@ -301,9 +301,7 @@ void main() {
       return opened;
     }
 
-    testWidgets('Free: two devices, the price, and upgrading', (
-      tester,
-    ) async {
+    testWidgets('Free: two devices, the price, and upgrading', (tester) async {
       var checked = 0;
       final opened = await show(
         tester,

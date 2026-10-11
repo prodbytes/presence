@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'cloud/live_sync.dart';
 import 'events.dart';
+import 'l10n/l10n.dart';
 import 'theme.dart';
 
 /// How recently one of the profile's devices showed it's running: [live]
@@ -30,8 +31,10 @@ class DevicePresence {
   /// [answeredAt] ([LiveSync.seenOf]) and whose latest event is from
   /// [lastEvent], at [now]. [liveAvailable]: live sync is on here (without
   /// it nothing answers, so nothing is green, and the reason says so).
-  /// [thisDevice]: this one, green while [connected] to live sync.
+  /// [thisDevice]: this one, green while [connected] to live sync. The
+  /// reason is worded in [l], English by default.
   factory DevicePresence.of({
+    AppLocalizations? l,
     DateTime? answeredAt,
     DateTime? lastEvent,
     required DateTime now,
@@ -39,26 +42,24 @@ class DevicePresence {
     bool thisDevice = false,
     bool connected = false,
   }) {
+    final t = l ?? lookupAppLocalizations(const Locale('en'));
     if (thisDevice) {
       return connected
-          ? const DevicePresence(
-              PresenceLevel.live,
-              'Live — this device, connected to live sync',
-            )
+          ? DevicePresence(PresenceLevel.live, t.connectivityPresenceThisLive)
           : DevicePresence(
               PresenceLevel.recent,
               liveAvailable
-                  ? 'This device — not connected to live sync now'
-                  : 'This device — live status unavailable',
+                  ? t.connectivityPresenceThisNotConnected
+                  : t.connectivityPresenceThisUnavailable,
             );
     }
-    final unavailable = liveAvailable ? '' : ' · live status unavailable';
+    final unavailable = liveAvailable ? '' : t.connectivityPresenceUnavailable;
     if (liveAvailable && answeredAt != null) {
       final age = now.difference(answeredAt);
       if (age < liveWithin) {
         return DevicePresence(
           PresenceLevel.live,
-          'Live — answered ${describeSince(age)}',
+          t.connectivityPresenceAnswered(describeSince(age, t)),
         );
       }
     }
@@ -69,12 +70,15 @@ class DevicePresence {
       (null, null) => null,
     };
     if (last == null) {
-      return DevicePresence(PresenceLevel.old, 'Never seen$unavailable');
+      return DevicePresence(
+        PresenceLevel.old,
+        t.connectivityPresenceNever(unavailable),
+      );
     }
     final age = now.difference(last);
     return DevicePresence(
       age < recentWithin ? PresenceLevel.recent : PresenceLevel.old,
-      'Last seen ${describeSince(age)}$unavailable',
+      t.connectivityPresenceLastSeen(describeSince(age, t), unavailable),
     );
   }
 
@@ -86,13 +90,14 @@ class DevicePresence {
 }
 
 /// "5 s ago", "4 min ago", "3 h ago", "2 d ago" ("just now" under a
-/// second, or for a time a clock put ahead).
-String describeSince(Duration age) {
-  if (age.inSeconds < 1) return 'just now';
-  if (age.inMinutes < 1) return '${age.inSeconds} s ago';
-  if (age.inHours < 1) return '${age.inMinutes} min ago';
-  if (age.inDays < 1) return '${age.inHours} h ago';
-  return '${age.inDays} d ago';
+/// second, or for a time a clock put ahead); in [l], English by default.
+String describeSince(Duration age, [AppLocalizations? l]) {
+  l ??= lookupAppLocalizations(const Locale('en'));
+  if (age.inSeconds < 1) return l.cameraAgeJustNow;
+  if (age.inMinutes < 1) return l.cameraAgeSeconds(age.inSeconds);
+  if (age.inHours < 1) return l.cameraAgeMinutes(age.inMinutes);
+  if (age.inDays < 1) return l.cameraAgeHours(age.inHours);
+  return l.cameraAgeDays(age.inDays);
 }
 
 /// The time of each device's latest event in [events] (of [profileId],

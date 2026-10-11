@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../auth/account_sheet.dart';
 import '../auth/auth_service.dart';
 import '../home_tabs.dart';
+import '../l10n/l10n.dart';
 
 /// The home screen's bottom navigation bar, as on most phone apps: one
 /// destination per shown tab ([HomeTabs.tabs]), each an icon over its label,
@@ -28,6 +29,7 @@ class HomeNavigationBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     return DecoratedBox(
       // A hairline between the page and the bar.
       decoration: BoxDecoration(
@@ -42,8 +44,8 @@ class HomeNavigationBar extends StatelessWidget {
               (HomeTab.profile, final user?) => NavigationDestination(
                 icon: _Avatar(user: user, ring: null),
                 selectedIcon: _Avatar(user: user, ring: scheme.primary),
-                label: tab.label,
-                tooltip: 'Signed in as ${user.identity}',
+                label: tab.labelIn(l),
+                tooltip: l.navSignedInAs(user.identity),
               ),
               _ => NavigationDestination(
                 icon: Icon(
@@ -53,7 +55,7 @@ class HomeNavigationBar extends StatelessWidget {
                       : null,
                 ),
                 selectedIcon: Icon(tab.selectedIcon),
-                label: tab.label,
+                label: tab.labelIn(l),
               ),
             },
         ],

@@ -5,6 +5,7 @@ import '../battery_pills.dart';
 import '../auth/roles_service.dart';
 import '../camera_feeds.dart';
 import '../cloud/cloud_sync.dart';
+import '../l10n/l10n.dart';
 import '../system_health.dart';
 import 'clip_button.dart';
 
@@ -70,7 +71,7 @@ class CameraStatus extends StatelessWidget {
             builder: (context, _) {
               final reading = full ? battery.reading : null;
               final failed = full
-                  ? HealthWarningPill.failedChecks(roles, sync)
+                  ? HealthWarningPill.failedChecks(roles, sync, l: context.l10n)
                   : const <String>[];
               return Wrap(
                 key: const Key('camera-status'),

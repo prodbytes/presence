@@ -8,6 +8,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../annotations.dart';
+import '../l10n/l10n.dart';
 
 /// A grabbed frame, with markers for its tags; a click anywhere on it
 /// reports where, as fractions (0 to 1) of the frame's width and height.
@@ -36,9 +37,7 @@ class FrameTagger extends StatelessWidget {
           aspectRatio: ratio,
           child: LayoutBuilder(
             builder: (context, box) => Semantics(
-              label:
-                  'Frame to name subjects on: click a person or pet to '
-                  'name them',
+              label: context.l10n.clipFrameTagLabel,
               child: GestureDetector(
                 key: const Key('tag-surface'),
                 behavior: HitTestBehavior.opaque,

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../camera_feeds.dart';
+import '../l10n/l10n.dart';
 import '../theme.dart';
 import '../time_format.dart';
 
@@ -49,34 +50,39 @@ class ClipButtonStatus {
     return seconds >= 60 ? formatMinutesSeconds(seconds) : '$seconds s';
   }
 
-  static ClipButtonStatus of(CameraRig rig) {
+  /// The state of [rig], worded in [l] (English by default).
+  static ClipButtonStatus of(CameraRig rig, [AppLocalizations? l]) {
+    l ??= lookupAppLocalizations(const Locale('en'));
     final readiness = rig.readiness;
     switch (readiness.state) {
       case ClipReadinessState.paused:
-        return const ClipButtonStatus(ClipTone.disabled, status: 'Camera off');
+        return ClipButtonStatus(
+          ClipTone.disabled,
+          status: l.cameraClipCameraOff,
+        );
       case ClipReadinessState.unavailable:
         return ClipButtonStatus(
           ClipTone.disabled,
           status: rig.error != null
-              ? 'Camera unavailable'
+              ? l.cameraClipUnavailable
               : rig.busy
-              ? 'Camera starting…'
+              ? l.cameraClipStarting
               : rig.devices.isEmpty
-              ? 'No camera'
-              : 'Camera not ready',
+              ? l.cameraClipNoCamera
+              : l.cameraClipNotReady,
         );
       case ClipReadinessState.ready:
         return readiness.recording
-            ? const ClipButtonStatus(ClipTone.recording, status: 'Clip saving…')
-            : const ClipButtonStatus(ClipTone.ready, status: 'Ready');
+            ? ClipButtonStatus(ClipTone.recording, status: l.cameraClipSaving)
+            : ClipButtonStatus(ClipTone.ready, status: l.cameraClipReady);
       case ClipReadinessState.cooldown:
         final countdown = formatCountdown(readiness.remaining);
-        final next = 'Next automatic clip in $countdown';
+        final next = l.cameraClipNextIn(countdown);
         return readiness.recording
             ? ClipButtonStatus(
                 ClipTone.recording,
                 countdown: countdown,
-                status: 'Clip saving… $next',
+                status: l.cameraClipSavingNext(next),
               )
             : ClipButtonStatus(
                 ClipTone.cooldown,
@@ -162,7 +168,7 @@ class _ClipButtonState extends State<ClipButton> {
     super.initState();
     // The countdown moves with time.
     _ticker = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      final status = ClipButtonStatus.of(widget.rig);
+      final status = ClipButtonStatus.of(widget.rig, context.l10n);
       if (_key(status) != _shown) setState(() {});
     });
   }
@@ -179,7 +185,8 @@ class _ClipButtonState extends State<ClipButton> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final status = ClipButtonStatus.of(widget.rig);
+    final l = context.l10n;
+    final status = ClipButtonStatus.of(widget.rig, l);
     _shown = _key(status);
     final (background, foreground) = ClipButtonColors.of(
       status.tone,
@@ -191,8 +198,8 @@ class _ClipButtonState extends State<ClipButton> {
     // The longest label that fits: "Clip · 4:59", then the time alone;
     // with none (very large text), the icon alone, the tooltip saying it.
     final label = switch (status.countdown) {
-      null => ['Clip'],
-      final time => ['Clip · $time', time],
+      null => [l.cameraClip],
+      final time => [l.cameraClipCountdown(time), time],
     }.where((text) => _fits(text, style)).firstOrNull;
     return FloatingActionButton.extended(
       key: const Key('clip'),
