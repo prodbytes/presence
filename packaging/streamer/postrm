@@ -1,0 +1,11 @@
+#!/bin/sh
+# presence-streamer: on purge, deletes its state (device key, sign-in,
+# spool). The user stays, as Debian does with system users.
+set -e
+if [ "$1" = purge ]; then
+  rm -rf /var/lib/presence-streamer
+fi
+if [ -d /run/systemd/system ]; then
+  systemctl daemon-reload || true
+fi
+exit 0

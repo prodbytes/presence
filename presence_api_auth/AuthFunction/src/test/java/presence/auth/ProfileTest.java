@@ -162,6 +162,16 @@ class ProfileTest {
     }
 
     @Test
+    void credentialsNameTheBucketWhenItsConfigured() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var withBucket = new ProfileHandler(roles, new Profiles(store, clock, () -> "profile_" + (++ids)), backend,
+                true, new SecureRandom(), "presence-user-data-123");
+        var response = withBucket.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
+        assertTrue(response.getBody().endsWith(",\"tier\":\"free\",\"bucket\":\"presence-user-data-123\"}"),
+                response.getBody());
+    }
+
+    @Test
     void credentialsListTheProfilesDevicesInTheOrderTheyCame() {
         googleIdentities.put("tok-work", "us-east-1:work");
         var first = profiles.handleRequest(

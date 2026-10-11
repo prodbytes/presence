@@ -37,7 +37,9 @@ import static presence.auth.Http.response;
  *       the profile's devices (up to {@link #PREMIUM_DEVICES}); the answer
  *       also has {@code "deviceLimit"} (the first {@link #FREE_DEVICES}
  *       show for a free profile, {@link #PREMIUM_DEVICES} for a premium
- *       one) and {@code "devices"}, in the order they were added;</li>
+ *       one) and {@code "devices"}, in the order they were added, and
+ *       {@code "bucket"}, the user-data bucket, when it's configured (the
+ *       streamer, which has no build-time settings, reads it there);</li>
  *   <li>{@code POST /api/auth/profile/devices/remove} ({@code presence_user}
  *       only): takes the device in the body out of the profile's devices,
  *       answering {@code {"deviceLimit", "devices"}};</li>
@@ -168,23 +170,31 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     private final Backend backend;
     private final boolean configured;
     private final SecureRandom random;
+    private final String bucket;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public ProfileHandler() {
         this(Roles.fromEnvironment(), Profiles.fromEnvironment(), ProfileBackend.fromEnvironment(),
-                ProfileBackend.configured(), new SecureRandom());
+                ProfileBackend.configured(), new SecureRandom(), System.getenv("USER_DATA_BUCKET"));
+    }
+
+    ProfileHandler(Roles roles, Profiles profiles, Backend backend, boolean configured, SecureRandom random) {
+        this(roles, profiles, backend, configured, random, null);
     }
 
     /**
      * @param configured whether cloud sync is set up (an identity pool and a
      *                   bucket); without it, only the listing answers
+     * @param bucket     the user-data bucket the credentials name, or null
      */
-    ProfileHandler(Roles roles, Profiles profiles, Backend backend, boolean configured, SecureRandom random) {
+    ProfileHandler(Roles roles, Profiles profiles, Backend backend, boolean configured, SecureRandom random,
+                   String bucket) {
         this.roles = roles;
         this.profiles = profiles;
         this.backend = backend;
         this.configured = configured;
         this.random = random;
+        this.bucket = bucket == null || bucket.isBlank() ? null : bucket;
     }
 
     @Override
@@ -243,7 +253,8 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 + ",\"token\":" + Json.string(token)
                 + ",\"deviceLimit\":" + (premium ? PREMIUM_DEVICES : FREE_DEVICES)
                 + ",\"devices\":" + devicesJson(devices)
-                + ",\"tier\":" + Json.string(tier) + "}");
+                + ",\"tier\":" + Json.string(tier)
+                + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket)) + "}");
     }
 
     /**

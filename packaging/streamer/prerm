@@ -1,0 +1,10 @@
+#!/bin/sh
+# presence-streamer: stops the service and turns it off on removal.
+set -e
+if [ "$1" = remove ]; then
+  if [ -d /run/systemd/system ]; then
+    systemctl stop presence-streamer.service || true
+  fi
+  systemctl disable presence-streamer.service >/dev/null 2>&1 || true
+fi
+exit 0

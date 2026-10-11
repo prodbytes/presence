@@ -164,6 +164,9 @@ jobs:
           RBACR_TOKEN: ${{ secrets.RBACR_TOKEN }}
           RBACR_URL: ${{ vars.RBACR_URL }}
           RBACR_SYSTEM: ${{ vars.RBACR_SYSTEM }}
+          # presence-streamer's device sign-in client (a public identifier),
+          # whose ID tokens the auth API accepts too; unset: none.
+          GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}
           # Unset: scripts/deploy.sh's default, julio+health@nu01.com.
           PRESENCE_HEALTH_EMAILS: ${{ vars.PRESENCE_HEALTH_EMAILS }}
         run: bash scripts/deploy.sh

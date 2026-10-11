@@ -168,6 +168,13 @@ their data.
 - [Raspberry Pi camera](raspberry-pi.md): the `.deb` that runs Presence
   full screen from boot (cage on tty1, the web app in Chromium, since the
   native Linux app has no camera layer or Google sign-in yet).
+- [Streamer](streamer.md): `presence-streamer`, a CLI (Go) for Raspberry
+  Pis, 32- and 64-bit, with no screen. It takes a profile ID and a Google
+  device sign-in, and only premium profiles (a free one ends it). It
+  records continuously (hardware H.264), uploads sealed chunks to the
+  profile's `ingest/` with rclone, and keeps those with a person or an
+  animal (YOLOv4-tiny) as motion-clip events, deleting the rest. A `.deb`
+  with a service on at every boot, in every release. No live sync yet.
 
 **Backend**
 
