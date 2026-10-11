@@ -5036,7 +5036,30 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        builds and the auth API's deploy pick them up from the next tag.
        Specs: [Streamer](streamer.md).
 
-363. **The streamer: no detection on a Pi under 2 GB; the cloud searches.** (2026-10-11)
+363. **A privacy policy at /privacy and terms of service at /tos.**
+     (2026-10-11)
+     - Asked: using the index component, compose and serve a privacy
+       policy at `/privacy` and terms of service at `/tos`.
+     - Changed: [Privacy policy and terms of service](legal.md), new:
+       `presence_index/site/privacy/index.html`, `site/tos/index.html` and
+       `site/legal.css` (no scripts), written from what Presence does
+       (its data, AWS, Stripe, rbacr, encryption, retention, recording
+       consent, Premium's terms). `site.yaml`: a CloudFront Function
+       (`<stack>-pages`) maps `/privacy` and `/tos` to their `index.html`,
+       and the index's CSP allows `style-src 'self'`. `scripts/deploy.sh`
+       uploads all of `site/` (not `app/`) and smoke-tests both pages.
+       Specs: [Site index](site-index.md), [Production deploy](deploy.md),
+       [README](README.md).
+
+364. **A barrel-roll prompt in `prompts/`.** (2026-10-11)
+     - Asked: run `prompts/do-a-barrel-roll.md` (sync git, merge all PRs,
+       check out main, rebuild, restart local services, update and
+       relaunch the USB devices), committed on `main` locally.
+     - Changed: the prompt file moved to its own PR, as nothing is pushed
+       to `main` directly. No spec change: it's a shorter list than
+       CLAUDE.md's "Do a barrel roll", without releases.
+
+365. **The streamer: no detection on a Pi under 2 GB; the cloud searches.** (2026-10-11)
      - Asked: disable on-device detection when the system has less than
        2 GB of RAM. Then, when asked what to do with the chunks instead:
        upload them to S3 and delete them from the device, tag them on
@@ -5075,7 +5098,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Production deploy](deploy.md), [Install script](install-script.md),
        [Cloud sync](cloud-sync.md), [Recording and data formats](data-formats.md),
        [README](README.md).
-364. **The streamer: no motion, no upload.** (2026-10-11)
+366. **The streamer: no motion, no upload.** (2026-10-11)
      - Asked: filter out, on the device, chunks without any motion (above
        5 %), to save on S3.
      - Changed: before anything is uploaded, ffmpeg decodes each chunk's

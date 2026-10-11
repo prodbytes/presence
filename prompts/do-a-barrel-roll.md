@@ -1,0 +1,6 @@
+- Sync Git
+- Merge all PRs
+- Checkout main branch
+- rebuild
+- restart local services
+- update and relaunch to connected usb devices

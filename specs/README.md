@@ -199,6 +199,8 @@ their data.
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which
   redirects to `/app/`.
+- [Privacy policy and terms of service](legal.md): static pages of
+  `presence_index` at `/privacy` and `/tos`.
 
 **Project**
 
