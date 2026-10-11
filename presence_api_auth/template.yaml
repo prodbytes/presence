@@ -172,6 +172,28 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # Cloud recognition, per profile ("profile", the profile ID): its labels
+  # ("item" label#<id>: name, kind, labeledAt (epoch ms), vector: the crop's
+  # DINOv2 embedding, 1024 float32s; never the crop) and its model ("item"
+  # model: trainedAt (epoch ms), labels, subjects [{name, kind, labels, bias,
+  # weights}]). Learned again from the labels at any time, so no backups.
+  RecognitionTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: profile
+          AttributeType: S
+        - AttributeName: item
+          AttributeType: S
+      KeySchema:
+        - AttributeName: profile
+          KeyType: HASH
+        - AttributeName: item
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -195,6 +217,17 @@ Resources:
         "POST /api/auth/profile/link":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # Cloud recognition: each request runs DINOv2 on up to 8 crops
+        # (a few seconds of a 3 GB function), so these cap the cost.
+        "POST /api/recognition/labels":
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 2
+        "POST /api/recognition/train":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        "POST /api/recognition/identify":
+          ThrottlingBurstLimit: 20
+          ThrottlingRateLimit: 5
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -345,6 +378,135 @@ Resources:
             Path: /api/auth/profile/devices/remove
             Method: post
 
+  # Cloud recognition (premium only; specs/cloud-recognition.md): DINOv2-L
+  # through ONNX Runtime, in its own jar (RecognitionFunction, built by the
+  # Makefile), so the functions above don't carry it. The model (1.2 GB) is
+  # fetched at an instance's first use into /tmp, from the bucket's models/
+  # prefix, or else from Hugging Face (then kept there). An API request
+  # gives up after 30 s; the function goes on (Timeout), so a first fetch
+  # still finishes and the next request finds the model.
+  RecognitionTrainFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: presence.auth.TrainingHandler::handleRequest
+      MemorySize: 3008
+      Timeout: 120
+      EphemeralStorage:
+        Size: 3072
+      Environment:
+        Variables:
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          RECOGNITION_TABLE: !Ref RecognitionTable
+          MODEL_BUCKET: !Ref UserDataBucket
+      Policies:
+        - Statement:
+            # The caller's profile (made at a first sign-in, as GET /api/auth).
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProfileSubjectsTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
+            # The profile's labels and model.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:Query
+              Resource: !GetAtt RecognitionTable.Arn
+            # The model's file, kept in the bucket (only under models/).
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      Events:
+        Status:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/recognition/status
+            Method: get
+        Labels:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/recognition/labels
+            Method: post
+        Train:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/recognition/train
+            Method: post
+
+  RecognitionInferFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: presence.auth.InferenceHandler::handleRequest
+      MemorySize: 3008
+      Timeout: 120
+      EphemeralStorage:
+        Size: 3072
+      Environment:
+        Variables:
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          RECOGNITION_TABLE: !Ref RecognitionTable
+          MODEL_BUCKET: !Ref UserDataBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProfileSubjectsTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
+            # Reads the profile's model only.
+            - Effect: Allow
+              Action: dynamodb:GetItem
+              Resource: !GetAtt RecognitionTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      Events:
+        Identify:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/recognition/identify
+            Method: post
+
 Outputs:
   # The tables' exports (<stack>-<Table>): presence_health imports them to
   # check the tables (DescribeTable). While it does, CloudFormation refuses
@@ -369,3 +531,6 @@ Outputs:
     Value: !Ref LinkCodesTable
     Export:
       Name: !Sub ${AWS::StackName}-LinkCodesTable
+  RecognitionTableName:
+    Description: Cloud recognition (profile, label#<id> or model -> embeddings, weights)
+    Value: !Ref RecognitionTable

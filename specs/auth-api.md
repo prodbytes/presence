@@ -1,7 +1,8 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: two Java 25
-Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
+[presence_api_auth/](../presence_api_auth) is a SAM application: four Java 25
+Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` (and
+`/api/recognition`) on the
 site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)). It's slim: the signed-in user's **own
 roles**, [maintenance mode](maintenance.md) and
@@ -67,7 +68,13 @@ them while the health stack imports them. The API's routes:
   (`FeedbackHandler` was removed on 2026-10-10). For it, `POST
   /api/auth/credentials` tags an administrator's credentials `admin`
   (from their own email's roles). See [Feedback and
-  Help](feedback.md#storage-and-access-no-api).
+  Help](feedback.md#storage-and-access-no-api);
+- **`/api/recognition/*`** (`TrainingHandler`, `InferenceHandler`, in
+  their own jar, `RecognitionFunction`, built by the Makefile): premium
+  profiles' [cloud recognition](cloud-recognition.md) with DINOv2-L, its
+  status, labels and training, and identifying a clip's people and pets;
+  the `RecognitionTable` keeps each profile's labels' embeddings and
+  model.
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,

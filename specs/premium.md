@@ -85,6 +85,7 @@ The bucket enforces it, not just the app:
 | History on a new device (two weeks) | from the bucket | none: only what's published after it connects |
 | This device's settings | backed up, restored at sign-in | stay on the device |
 | Recognition references | every device's tags | the tags this device has |
+| [Cloud recognition](cloud-recognition.md) (DINOv2-L, trained on the profile's labels) | yes | no (the APIs answer 403) |
 | Devices whose events show ([below](#devices)) | the first 50 | the first 2 |
 
 - **Free sync** (`_LivePublisher`, [cloud_sync_free.dart](../presence_app/lib/cloud/cloud_sync_free.dart)):
@@ -167,7 +168,9 @@ they publish, receive and store events as before. Their events are
 
 - **The account sheet** ([Sign-in](sign-in.md)), under the profile's
   devices, a box with the plan (`PlanNotice`,
-  [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)):
+  [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)). It's
+  Premium for `isPremium` or `isAdmin`, so only a free member is asked to
+  sign up; an admin never is, even if its roles lack `presence_premium`:
   - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
     and up to 50 devices sync."
   - **Free**: "Free: up to 2 devices sync with each other while online.

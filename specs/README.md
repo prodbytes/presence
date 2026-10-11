@@ -99,6 +99,11 @@ their data.
   TensorFlow.js on web): subjects, the people and pets tagged before
   (tagged when sure, "Is this Rex?" when unsure), and object tags (human,
   cat, bicycle, bottle…) for search.
+- [Cloud recognition](cloud-recognition.md): premium profiles' subjects
+  also recognized by DINOv2-L in two Lambda APIs (training and
+  inference): labels timed (`labeledAt`), a training check at start and
+  every 24 h (5 new labels, or 7 days), and each subject's confidence the
+  higher of the device's and the cloud's.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, pinning it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule,
@@ -174,6 +179,9 @@ their data.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Test data](test-data.md): real photos and clips (Suerte the cat, other
+  cats) in `presence_app/test/data/`, cleaned for a public repo and
+  labelled in `labels.csv`, with `import.sh` to add more.
 - [Install script](install-script.md): `curl … | sh` downloads, verifies
   and runs the latest release's native Linux bundle (x64 or arm64), or
   opens the web app when there isn't one or it can't run.
