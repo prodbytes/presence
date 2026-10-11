@@ -29,7 +29,7 @@ so a retry starts over safely.
 ```sh
 bash scripts/models.sh presence_ingest/IngestFunction/models   # the model, checked by SHA-256
 cd presence_ingest && sam build                               # Linux arm64 wheels, whatever the machine (PIP=... for another pip)
-python -m pytest -q                                           # with IngestFunction/requirements.txt and pytest installed
+python -m pytest -q                                           # with IngestFunction/requirements.txt, pytest and boto3 (the runtime's own) installed
 ```
 
 Set `MODELS_DIR=<models>` and `PRESENCE_INGEST_PERSON=<photo of a person>`
