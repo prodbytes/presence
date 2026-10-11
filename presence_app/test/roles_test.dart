@@ -6,7 +6,6 @@ import 'package:presence_app/app_log.dart';
 import 'package:presence_app/home/home_navigation_bar.dart';
 import 'package:presence_app/auth/membership_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
-import 'package:presence_app/auth/voucher_code.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/tab_memory.dart';
 
@@ -383,21 +382,16 @@ void main() {
 
       await tester.tap(find.byKey(const Key('sign-up')));
       await tester.pumpAndSettle();
-      expect(find.text('Request access'), findsOneWidget);
+      // No asking for access: subscribe at nu01.com.
+      expect(find.text('Subscribe'), findsOneWidget);
       expect(find.textContaining('ana@example.com'), findsOneWidget);
-
-      // Sending needs a message.
-      final send = find.byKey(const Key('send-membership'));
-      expect(tester.widget<FilledButton>(send).onPressed, isNull);
-      await tester.enterText(
-        find.byKey(const Key('membership-message')),
-        '  I run the front desk  ',
+      expect(find.byKey(const Key('membership-message')), findsNothing);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('subscribe')))
+            .onPressed,
+        isNotNull,
       );
-      await tester.pump();
-      await tester.tap(send);
-      await tester.pumpAndSettle();
-      expect(membership.sent, ['I run the front desk']);
-      expect(find.byKey(const Key('membership-sent')), findsOneWidget);
 
       // Another role isn't enough.
       roles.roles = ['viewer'];
@@ -405,7 +399,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(HomeNavigationBar), findsNothing);
 
-      // An administrator grants presence_user: checking again unlocks
+      // Subscribed (rbacr gives presence_user): checking again unlocks
       // everything.
       roles.roles = [userRole];
       await tester.tap(find.byKey(const Key('check-access')));
@@ -416,22 +410,6 @@ void main() {
       expect(find.byType(HomeNavigationBar), findsOneWidget);
       expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
-    });
-
-    testWidgets('a repeated request says to wait', (tester) async {
-      final membership = FakeMembershipClient()..error = RolesException(409);
-      await launch(tester, FakeRolesClient.none(), membership);
-      await tester.tap(find.byKey(const Key('sign-up')));
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('membership-message')),
-        'again',
-      );
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('send-membership')));
-      await tester.pumpAndSettle();
-      expect(find.textContaining('already sent a request'), findsOneWidget);
-      expect(find.byKey(const Key('membership-sent')), findsNothing);
     });
 
     testWidgets('a voucher code lets the user in at once', (tester) async {
@@ -717,7 +695,7 @@ void main() {
       });
     });
 
-    testWidgets('a presence_admin creates and deletes voucher codes', (
+    testWidgets('a presence_admin lists and deletes voucher codes', (
       tester,
     ) async {
       final membership = FakeMembershipClient()
@@ -746,7 +724,6 @@ void main() {
       await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
       await tester.tap(find.byTooltip('Admin'));
       await tester.pumpAndSettle();
-      expect(find.text('No pending requests.'), findsOneWidget);
       expect(find.text('Voucher codes'), findsOneWidget);
       expect(find.text('Expired'), findsOneWidget);
       expect(find.text('Not yet valid'), findsOneWidget);
@@ -755,52 +732,15 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Redeemed by bob@example.com'), findsOneWidget);
-      // Blank by default (a random code); a suggestion only on request:
-      // the season, an animal and a number.
-      final codeField = find.byKey(const Key('voucher-new-code'));
-      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
-      await tester.tap(find.byKey(const Key('suggest-code')));
-      await tester.pump();
-      final suggested = tester.widget<TextField>(codeField).controller!.text;
-      expect(
-        suggested,
-        matches(RegExp(r'^(WINTER|SPRING|SUMMER|AUTUMN)-[A-Z]+-\d{3,4}$')),
-      );
+      // Codes are created in rbacr: no form here.
+      expect(find.byKey(const Key('voucher-form')), findsNothing);
+      expect(find.byKey(const Key('create-voucher')), findsNothing);
+      expect(find.textContaining('created in rbacr'), findsOneWidget);
 
-      // Uses must be 1 to 1000.
-      final create = find.byKey(const Key('create-voucher'));
-      await tester.enterText(find.byKey(const Key('voucher-max-uses')), '0');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(create).onPressed, isNull);
-      await tester.enterText(find.byKey(const Key('voucher-max-uses')), '5');
-      await tester.pump();
-      await tester.tap(create);
+      await tester.tap(find.byKey(const Key('delete-NEXT-SEAS-3333')));
       await tester.pumpAndSettle();
-      final voucher = membership.codes.first;
-      expect(voucher.role, userRole);
-      expect(voucher.maxUses, 5);
-      expect(voucher.code, suggested);
-      expect(voucher.discount, 100);
-      // The current season: from its first day through its last.
-      final now = DateTime.now();
-      final last = seasonEnd(now);
-      expect(voucher.startsAt, seasonStart(now));
-      expect(voucher.expiresAt, DateTime(last.year, last.month, last.day + 1));
-      expect(find.byKey(Key('voucher-${voucher.code}')), findsOneWidget);
-      expect(
-        find.textContaining('Member · 100% off · 0 of 5 used'),
-        findsOneWidget,
-      );
-      // Blank again for the next one.
-      expect(tester.widget<TextField>(codeField).controller!.text, isEmpty);
-
-      await tester.tap(find.byKey(Key('delete-${voucher.code}')));
-      await tester.pumpAndSettle();
-      expect(membership.codes.map((v) => v.code), [
-        'OLDC-ODEX-2222',
-        'NEXT-SEAS-3333',
-      ]);
-      expect(find.byKey(Key('voucher-${voucher.code}')), findsNothing);
+      expect(membership.codes.map((v) => v.code), ['OLDC-ODEX-2222']);
+      expect(find.byKey(const Key('voucher-NEXT-SEAS-3333')), findsNothing);
     });
 
     testWidgets('an admin sees a root\'s Admin code hidden', (tester) async {
@@ -848,109 +788,6 @@ void main() {
       );
     });
 
-    testWidgets('an admin types the code and a discount', (tester) async {
-      final membership = FakeMembershipClient();
-      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      final create = find.byKey(const Key('create-voucher'));
-      final code = find.byKey(const Key('voucher-new-code'));
-      final discount = find.byKey(const Key('voucher-discount'));
-
-      await tester.enterText(code, 'no');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(create).onPressed, isNull);
-      // Too short to be a secret: nine letters and digits.
-      await tester.enterText(code, 'otter-4821');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(create).onPressed, isNull);
-      await tester.enterText(code, 'friends-2026');
-      await tester.enterText(discount, '0');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(create).onPressed, isNull);
-      await tester.enterText(discount, '101');
-      await tester.pump();
-      expect(tester.widget<FilledButton>(create).onPressed, isNull);
-      await tester.enterText(discount, '25');
-      await tester.pump();
-      await tester.tap(create);
-      await tester.pumpAndSettle();
-      expect(membership.codes.single.code, 'FRIENDS-2026');
-      expect(membership.codes.single.discount, 25);
-      expect(find.textContaining('Member · 25% off'), findsOneWidget);
-
-      // Taken.
-      ScaffoldMessenger.of(tester.element(find.byKey(const Key('admin-view'))))
-          .removeCurrentSnackBar();
-      await tester.enterText(code, 'FRIENDS-2026');
-      await tester.pump();
-      await tester.tap(create);
-      await tester.pumpAndSettle();
-      expect(find.text('That code is taken; pick another.'), findsOneWidget);
-      expect(membership.codes, hasLength(1));
-
-      // Blank: a random code.
-      await tester.enterText(code, '');
-      await tester.pump();
-      await tester.tap(create);
-      await tester.pumpAndSettle();
-      expect(membership.codes.first.code, startsWith('TEST-CODE-'));
-    });
-
-    Finder adminItem() =>
-        find.widgetWithText(DropdownMenuItem<String>, 'Admin');
-    Future<void> openVoucherRoles(
-      WidgetTester tester,
-      List<String> granted,
-      FakeMembershipClient membership,
-    ) async {
-      await launch(tester, FakeRolesClient(granted), membership);
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('voucher-role')));
-      await tester.pumpAndSettle();
-    }
-
-    testWidgets('a presence_admin creates Member vouchers only', (
-      tester,
-    ) async {
-      await openVoucherRoles(tester, [
-        userRole,
-        adminRole,
-      ], FakeMembershipClient());
-      expect(adminItem(), findsNothing);
-      expect(
-        find.textContaining('Only roots create Admin codes'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('a presence_root creates Admin vouchers', (tester) async {
-      final membership = FakeMembershipClient();
-      await openVoucherRoles(tester, [
-        userRole,
-        adminRole,
-        rootRole,
-      ], membership);
-      expect(adminItem(), findsWidgets);
-      await tester.tap(adminItem().last);
-      await tester.pumpAndSettle();
-      // An Admin code is always random: no typing, no suggestion.
-      final code = find.byKey(const Key('voucher-new-code'));
-      expect(tester.widget<TextField>(code).enabled, isFalse);
-      expect(find.text('Admin codes are always random'), findsOneWidget);
-      expect(
-        tester
-            .widget<IconButton>(find.byKey(const Key('suggest-code')))
-            .onPressed,
-        isNull,
-      );
-      await tester.tap(find.byKey(const Key('create-voucher')));
-      await tester.pumpAndSettle();
-      expect(membership.codes.single.role, adminRole);
-      expect(membership.codes.single.code, startsWith('TEST-CODE-'));
-    });
-
     testWidgets('a presence_user: everything but Admin', (tester) async {
       await launch(tester, FakeRolesClient([userRole]));
       expect(find.byType(HomeNavigationBar), findsOneWidget);
@@ -966,45 +803,6 @@ void main() {
       expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
 
-    testWidgets('a presence_admin grants and dismisses requests', (
-      tester,
-    ) async {
-      final membership = FakeMembershipClient()
-        ..requests.addAll([
-          MembershipRequest(
-            email: 'bob@example.com',
-            name: 'Bob',
-            message: 'Night shift',
-            requestedAt: DateTime.utc(2026, 9, 27),
-          ),
-          MembershipRequest(
-            email: 'eve@example.com',
-            name: '',
-            message: 'hi',
-            requestedAt: DateTime.utc(2026, 9, 27),
-          ),
-        ]);
-      await launch(tester, FakeRolesClient([userRole, adminRole]), membership);
-      expect(find.byType(HomeNavigationBar), findsOneWidget);
-
-      await tester.tap(find.byTooltip('Admin'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('admin-view')), findsOneWidget);
-      expect(find.text('Night shift'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('grant-bob@example.com')));
-      await tester.pumpAndSettle();
-      expect(membership.granted, ['bob@example.com']);
-      expect(find.text('Night shift'), findsNothing);
-      expect(find.text('bob@example.com can now use Presence'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('dismiss-eve@example.com')));
-      await tester.pumpAndSettle();
-      expect(membership.granted, ['bob@example.com']);
-      expect(membership.requests, isEmpty);
-      expect(find.text('No pending requests.'), findsOneWidget);
-    });
-
     group('the Admin tab', () {
       final adminTab = find.byTooltip('Admin');
       TabController tabs(WidgetTester tester) => tester
@@ -1014,15 +812,7 @@ void main() {
       testWidgets('an admin flips to it like the other tabs: no back button', (
         tester,
       ) async {
-        final membership = FakeMembershipClient()
-          ..requests.add(
-            MembershipRequest(
-              email: 'bob@example.com',
-              name: 'Bob',
-              message: 'Night shift',
-              requestedAt: DateTime.utc(2026, 9, 27),
-            ),
-          );
+        final membership = FakeMembershipClient();
         await launch(
           tester,
           FakeRolesClient([userRole, adminRole]),
@@ -1062,7 +852,6 @@ void main() {
         // Where the Log tab would be: indices map through the shown tabs.
         expect(tabs(tester).index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
-        expect(find.text('Night shift'), findsOneWidget);
         expect(find.text('Voucher codes'), findsOneWidget);
         // A page of the tabs, not a screen over them.
         expect(find.byType(BackButton), findsNothing);
@@ -1082,7 +871,7 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
-      testWidgets('reload fetches the requests again', (tester) async {
+      testWidgets('reload fetches the vouchers again', (tester) async {
         final membership = FakeMembershipClient();
         await launch(
           tester,
@@ -1091,18 +880,22 @@ void main() {
         );
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(find.text('No pending requests.'), findsOneWidget);
-        membership.requests.add(
-          MembershipRequest(
-            email: 'eve@example.com',
-            name: '',
-            message: 'Late shift',
-            requestedAt: DateTime.utc(2026, 9, 27),
+        expect(find.text('No vouchers.'), findsOneWidget);
+        // No membership requests any more: people subscribe at nu01.com.
+        expect(find.text('Membership requests'), findsNothing);
+        membership.codes.add(
+          Voucher(
+            code: 'LATE-SHFT-2222',
+            role: userRole,
+            expiresAt: DateTime.now().add(const Duration(days: 30)),
+            maxUses: 1,
+            uses: 0,
+            createdAt: DateTime.utc(2026, 9, 27),
           ),
         );
         await tester.tap(find.byKey(const Key('admin-reload')));
         await tester.pumpAndSettle();
-        expect(find.text('Late shift'), findsOneWidget);
+        expect(find.byKey(const Key('voucher-LATE-SHFT-2222')), findsOneWidget);
       });
 
       testWidgets('a refresh comes back to it, and it is remembered by name', (

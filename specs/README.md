@@ -76,11 +76,9 @@ their data.
   lists them, show each other's events; later ones sync, their events
   hidden, with a prompt to sign up at nu01.com. The account sheet says
   Free or Premium.
-- [Membership](membership.md): users without access ask for it or redeem
-  a voucher code; admins grant requests and create voucher codes (their
-  own or a suggested `AUTUMN-OTTER-4821`, role, validity dates (the
-  current season by default), uses, discount)
-  on the Admin tab, under its maintenance mode switch.
+- [Membership](membership.md): users without access subscribe at
+  nu01.com or redeem a voucher code; admins list and delete voucher codes
+  (created in rbacr) on the Admin tab, under its maintenance mode switch.
 - [Feedback and Help](feedback.md): the Help tab ("Feedback & Help"), where
   members write to the administrators and read their replies, one
   conversation each; admins answer on the Admin tab.
@@ -99,6 +97,11 @@ their data.
   TensorFlow.js on web): subjects, the people and pets tagged before
   (tagged when sure, "Is this Rex?" when unsure), and object tags (human,
   cat, bicycle, bottle…) for search.
+- [Cloud recognition](cloud-recognition.md): premium profiles' subjects
+  also recognized by DINOv2-L in two Lambda APIs (training and
+  inference): labels timed (`labeledAt`), a training check at start and
+  every 24 h (5 new labels, or 7 days), and each subject's confidence the
+  higher of the device's and the cloud's.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, pinning it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule,
@@ -174,6 +177,9 @@ their data.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Test data](test-data.md): real photos and clips (Suerte the cat, other
+  cats) in `presence_app/test/data/`, cleaned for a public repo and
+  labelled in `labels.csv`, with `import.sh` to add more.
 - [Install script](install-script.md): `curl … | sh` downloads, verifies
   and runs the latest release's native Linux bundle (x64 or arm64), or
   opens the web app when there isn't one or it can't run.
@@ -185,8 +191,10 @@ their data.
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
-- [Health check](health-check.md): `GET /health` checks the settings,
-  tables, user-data bucket, identity pool and Google's keys; a Route 53
+- [Health check](health-check.md): `GET /health`, its own module and
+  stack (`presence_health`, `presence-health`), checks the auth API's
+  settings, tables, the user-data bucket, identity pool, Google's keys and
+  rbacr; a Route 53
   health check polls it and emails `HealthNotificationEmails` (default
   julio+health@nu01.com) when it fails or recovers.
 

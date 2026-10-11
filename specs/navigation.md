@@ -306,8 +306,8 @@ account.
   [Settings screen](settings.md)).
 - **Log** (admins only, when turned on): the app's latest log messages
   (see [Log](log.md)).
-- **Admin** (signed-in admins only): membership requests and voucher
-  codes, a page of the tabs like Settings, reached with the same slide;
+- **Admin** (signed-in admins only): maintenance mode, feedback and
+  voucher codes, a page of the tabs like Settings, reached with the same slide;
   no back button (see
   [Membership](membership.md#the-admin-tab)). It used to be an app-bar
   button opening a separate screen.

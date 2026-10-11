@@ -128,6 +128,65 @@ Resources:
                     s3:prefix:
                       - ${cognito-identity.amazonaws.com:sub}
                       - ${cognito-identity.amazonaws.com:sub}/*
+        # Feedback and Help (user-data.yaml's FeedbackTable), straight from
+        # the app. Only credentials the auth API issued (they carry the tier
+        # tag, given to members only), never a Google sign-in straight to
+        # the pool.
+        - PolicyName: own-feedback
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # A member reads only their profile's conversation, and never
+              # the replying admin's email (by): only listed attributes.
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource:
+                  Fn::ImportValue: !Sub ${UserDataStackName}-feedback-table-arn
+                Condition:
+                  StringEquals:
+                    aws:PrincipalTag/tier: [premium, free]
+                    dynamodb:Select: SPECIFIC_ATTRIBUTES
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - ${cognito-identity.amazonaws.com:sub}
+                    dynamodb:Attributes:
+                      - conversation
+                      - sentAt
+                      - message
+                      - email
+                      - name
+                      - fromAdmin
+              # And writes only to it, never as an administrator (no
+              # fromAdmin or by).
+              - Effect: Allow
+                Action: dynamodb:PutItem
+                Resource:
+                  Fn::ImportValue: !Sub ${UserDataStackName}-feedback-table-arn
+                Condition:
+                  StringEquals:
+                    aws:PrincipalTag/tier: [premium, free]
+                  ForAllValues:StringEquals:
+                    dynamodb:LeadingKeys:
+                      - ${cognito-identity.amazonaws.com:sub}
+                    dynamodb:Attributes:
+                      - conversation
+                      - sentAt
+                      - message
+                      - email
+                      - name
+              # Administrators (the admin tag, from their own email's rbacr
+              # roles, never a linked owner's) read every conversation and
+              # reply to any.
+              - Effect: Allow
+                Action:
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:PutItem
+                Resource:
+                  Fn::ImportValue: !Sub ${UserDataStackName}-feedback-table-arn
+                Condition:
+                  StringEquals:
+                    aws:PrincipalTag/admin: 'true'
         # Live sync (AWS IoT Core, MQTT over WebSockets). AWS IoT checks
         # this and LivePolicy, attached to the identity: both must allow.
         - PolicyName: own-live-sync

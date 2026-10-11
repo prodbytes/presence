@@ -11,6 +11,7 @@ import '../config.dart';
 import '../crypto/media_seal.dart';
 import '../events.dart';
 import '../subjects.dart';
+import 'cloud_recognition.dart';
 import 'frames.dart';
 import 'image.dart';
 import 'matching.dart';
@@ -94,6 +95,11 @@ class RecognitionResult {
 /// [recognizeNow] runs it on any clip, on request (the player's Auto),
 /// ahead of the new clips waiting; a new clip already searched that way
 /// isn't searched again.
+///
+/// For a premium profile with a trained cloud model ([cloud]), up to
+/// [maxCloudCrops] of the people and pets seen are also sent to cloud
+/// recognition (DINOv2-L), and each subject's confidence is the higher of
+/// the two, the tag placed where the surer one saw them.
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -104,6 +110,7 @@ class SubjectRecognizer {
     Future<Vision> Function()? loadVision,
     Future<RgbaImage?> Function(Uint8List jpeg)? decode,
     MemoryMonitor? memory,
+    this.cloud,
     this.every = defaultEvery,
     this.maxPending = defaultMaxPending,
     this.memoryRetryAfter = defaultMemoryRetryAfter,
@@ -146,6 +153,15 @@ class SubjectRecognizer {
   /// How far a tag may be from a detection's center (in fractions of the
   /// frame) and still pick it, when none contains it.
   static const double maxTagDistance = 0.15;
+
+  /// The most people and pets of a clip sent to cloud recognition (one
+  /// request), from the first frames they're seen on, at most
+  /// [cloudCropsPerFrame] a frame.
+  static const int maxCloudCrops = CloudRecognitionClient.maxBatch;
+  static const int cloudCropsPerFrame = 2;
+
+  /// Cloud recognition, for premium profiles; null: on the device only.
+  final CloudIdentifier? cloud;
 
   final AppEventBus _bus;
   final EventLog log;
@@ -402,6 +418,9 @@ class SubjectRecognizer {
     final tagged = <String>[];
     // Each subject's per-frame confidences, and their best frame so far.
     final sightings = <String, _Sightings>{};
+    // Who to ask cloud recognition about, with where and on which frame.
+    final useCloud = lookForSubjects && (cloud?.available ?? false);
+    final cloudCrops = <_CloudCrop>[];
     // Objects, by label: the first frame each was seen on.
     final objects = <String, _ObjectSightings>{};
     final started = DateTime.now();
@@ -428,9 +447,27 @@ class SubjectRecognizer {
           )).add(score);
         }
       }
+      TagFrame? tagFrame;
+      if (useCloud && lookForSubjects && cloudCrops.length < maxCloudCrops) {
+        final seen = [...analysis.seen]
+          ..sort((a, b) => b.detection.score.compareTo(a.detection.score));
+        for (final s in seen.take(cloudCropsPerFrame)) {
+          if (cloudCrops.length >= maxCloudCrops) break;
+          tagFrame ??= await _tagFrame(event, frame);
+          if (tagFrame == null) break;
+          cloudCrops.add(
+            _CloudCrop(
+              id: '${cloudCrops.length}',
+              kind: CloudCrop.kindOf(s.detection.kind),
+              pixels: CloudCrop.of(frame.image, s.detection.box),
+              spot: s.spot,
+              frame: tagFrame,
+            ),
+          );
+        }
+      }
       if (lookForSubjects) {
         final matches = matchFrame(analysis.seen, gallery, skip: found);
-        TagFrame? tagFrame;
         for (final match in matches) {
           final s = sightings[match.subjectId] ??= _Sightings();
           s.add(match);
@@ -455,47 +492,55 @@ class SubjectRecognizer {
       await Future<void>.delayed(Duration.zero);
     }
     if (outcome == RecognitionOutcome.searched) _searched.add(event.id);
-    // Subjects only good enough to ask about.
-    final asks = <(Match, TagFrame, double)>[];
-    for (final MapEntry(key: id, value: s) in sightings.entries) {
-      final match = s.best;
-      final tagFrame = s.frame;
-      if (match == null || tagFrame == null) continue;
-      final confidence = s.confidence;
-      if (confidence < RecognitionConfig.askFloor) continue;
-      if (confidence >= settings.autoTag) {
-        final (x, y) = match.seen.spot;
-        event.annotations.add(
-          match.entry.name,
-          x,
-          y,
-          frame: tagFrame,
-          source: TagSource.detected,
-          confidence: confidence,
-        );
-        found.add(id);
-        tagged.add(match.entry.name);
-      } else {
-        asks.add((match, tagFrame, confidence));
+    // Each subject's verdict: on the device, or the cloud's when surer.
+    final verdicts = <String, _Verdict>{
+      for (final MapEntry(key: id, value: s) in sightings.entries)
+        if ((s.best, s.frame) case (final match?, final frame?))
+          id: _Verdict(match.entry.name, s.confidence, match.seen.spot, frame),
+    };
+    if (cloudCrops.isNotEmpty && !_disposed) {
+      final fromCloud = await _cloudVerdicts(cloudCrops, skip: found);
+      for (final MapEntry(key: id, value: v) in fromCloud.entries) {
+        if (v.confidence > (verdicts[id]?.confidence ?? -1)) verdicts[id] = v;
       }
     }
-    for (final (match, tagFrame, confidence) in asks) {
-      final (x, y) = match.seen.spot;
+    // Subjects only good enough to ask about.
+    final asks = <_Verdict>[];
+    for (final MapEntry(key: id, value: v) in verdicts.entries) {
+      if (v.confidence < RecognitionConfig.askFloor) continue;
+      if (v.confidence >= settings.autoTag) {
+        final (x, y) = v.spot;
+        event.annotations.add(
+          v.name,
+          x,
+          y,
+          frame: v.frame,
+          source: TagSource.detected,
+          confidence: v.confidence,
+        );
+        found.add(id);
+        tagged.add(v.name);
+      } else {
+        asks.add(v);
+      }
+    }
+    for (final v in asks) {
+      final (x, y) = v.spot;
       final suggestion = event.annotations.add(
-        match.entry.name,
+        v.name,
         x,
         y,
-        frame: tagFrame,
+        frame: v.frame,
         source: TagSource.suggested,
-        confidence: confidence,
+        confidence: v.confidence,
       );
       if (suggestion == null) continue;
       _bus.publish(
         SubjectSuggestion(
           clipEventId: event.id,
           annotationId: suggestion.id,
-          subjectName: match.entry.name,
-          confidence: confidence,
+          subjectName: v.name,
+          confidence: v.confidence,
           clip: event,
           cameraId: event.cameraId,
         ),
@@ -516,9 +561,93 @@ class SubjectRecognizer {
     return RecognitionResult(
       outcome,
       tagged: tagged,
-      asked: [for (final (match, _, _) in asks) match.entry.name],
+      asked: [for (final v in asks) v.name],
       objects: [for (final o in kept) o.label],
     );
+  }
+
+  /// Cloud recognition's verdict on [crops], by subject (not those in
+  /// [skip]): each subject's confidence pooled over their crops as on the
+  /// device (the mean of their best [framesPooled]), placed where they were
+  /// surest. Empty if it couldn't ask.
+  Future<Map<String, _Verdict>> _cloudVerdicts(
+    List<_CloudCrop> crops, {
+    required Set<String> skip,
+  }) async {
+    final answer = await cloud?.identify({
+      for (final c in crops) c.id: (c.kind, c.pixels),
+    });
+    if (answer == null) return const {};
+    final byId = {for (final c in crops) c.id: c};
+    final seen = <String, List<(double, _CloudCrop, String)>>{};
+    for (final MapEntry(key: cropId, value: matches) in answer.entries) {
+      final crop = byId[cropId];
+      if (crop == null) continue;
+      for (final m in matches) {
+        final id = Subject.idOf(m.name);
+        if (id.isEmpty || skip.contains(id)) continue;
+        (seen[id] ??= []).add((m.confidence, crop, m.name));
+      }
+    }
+    return {
+      for (final MapEntry(key: id, value: list) in seen.entries)
+        id: () {
+          list.sort((a, b) => b.$1.compareTo(a.$1));
+          final top = list.take(framesPooled).map((e) => e.$1);
+          final (_, best, name) = list.first;
+          return _Verdict(
+            name,
+            top.reduce((a, b) => a + b) / top.length,
+            best.spot,
+            best.frame,
+          );
+        }(),
+    };
+  }
+
+  /// The crop of the person or pet [tag] points at on its frame, and its
+  /// sort ("person" or "pet"), for cloud recognition's training; null if
+  /// nobody's there, the frame can't be opened yet, or memory is low.
+  /// Waits for the clip being searched (one user of the models at a time),
+  /// and new clips wait for it.
+  Future<(String, Uint8List)?> cloudCrop(
+    ClipRequested clip,
+    Annotation tag,
+  ) async {
+    if (!supported || _disposed) return null;
+    while (_running) {
+      await idle;
+    }
+    _running = true;
+    try {
+      if (!await _roomToRun(wait: false)) return null;
+      final frame = clip.annotations.frames[tag.frameId];
+      if (frame == null) return null;
+      final Uint8List jpeg;
+      try {
+        jpeg = await MediaSeal.instance.open(frame.sealed);
+      } catch (e) {
+        debugPrint('Presence: could not open the frame of tag ${tag.id}: $e');
+        return null;
+      }
+      final image = await _decode(jpeg);
+      if (image == null) return null;
+      final vision = await (_vision ??= _loadVision());
+      final seen = (await vision.analyse(image, faces: false)).seen;
+      final picked = pickTagged(seen, tag.x, tag.y);
+      if (picked == null) return null;
+      return (
+        CloudCrop.kindOf(picked.detection.kind),
+        CloudCrop.of(image, picked.detection.box),
+      );
+    } catch (e) {
+      _vision = null;
+      debugPrint('Presence: no cloud crop for tag ${tag.id}: $e');
+      return null;
+    } finally {
+      _running = false;
+      _pump();
+    }
   }
 
   /// The full recording, once it's done; null if there's none.
@@ -716,6 +845,35 @@ class SubjectRecognizerScope extends InheritedWidget {
   @override
   bool updateShouldNotify(SubjectRecognizerScope oldWidget) =>
       recognizer != oldWidget.recognizer;
+}
+
+/// A person or pet of a clip, cropped for cloud recognition: where to tag
+/// them, and on which frame.
+class _CloudCrop {
+  _CloudCrop({
+    required this.id,
+    required this.kind,
+    required this.pixels,
+    required this.spot,
+    required this.frame,
+  });
+
+  final String id;
+  final String kind;
+  final Uint8List pixels;
+  final (double, double) spot;
+  final TagFrame frame;
+}
+
+/// Who a subject is taken to be on a clip: their [name] (as on their
+/// latest label), how sure, and where to tag them.
+class _Verdict {
+  const _Verdict(this.name, this.confidence, this.spot, this.frame);
+
+  final String name;
+  final double confidence;
+  final (double, double) spot;
+  final TagFrame frame;
 }
 
 /// One subject's matches over a clip: their confidence on each frame they

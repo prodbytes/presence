@@ -287,7 +287,7 @@ class _FeedbackComposerState extends State<FeedbackComposer> {
           controller: _text,
           minLines: 2,
           maxLines: 6,
-          maxLength: HttpFeedbackClient.maxMessage,
+          maxLength: FeedbackClient.maxMessage,
           textCapitalization: TextCapitalization.sentences,
           decoration: InputDecoration(
             labelText: widget.label,

@@ -4,31 +4,6 @@ import 'package:http/http.dart' as http;
 
 import 'roles_service.dart';
 
-/// A user's request for access, as the Admin screen lists it.
-class MembershipRequest {
-  const MembershipRequest({
-    required this.email,
-    required this.name,
-    required this.message,
-    required this.requestedAt,
-  });
-
-  factory MembershipRequest.fromJson(Map<String, Object?> json) =>
-      MembershipRequest(
-        email: '${json['email'] ?? ''}',
-        name: '${json['name'] ?? ''}',
-        message: '${json['message'] ?? ''}',
-        requestedAt:
-            DateTime.tryParse('${json['requestedAt']}') ??
-            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      );
-
-  final String email;
-  final String name;
-  final String message;
-  final DateTime requestedAt;
-}
-
 /// A voucher code that grants [role] to whoever redeems it, as the Admin
 /// screen lists it.
 class Voucher {
@@ -108,27 +83,14 @@ DateTime _instant(Object? value) =>
     DateTime.tryParse('$value') ??
     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 
-/// The auth API's membership routes: users without access ask for it
-/// (`POST /api/auth/membership`) or redeem a voucher code
-/// (`POST /api/auth/voucher`); admins list, grant and dismiss those
-/// requests, and create, list and delete vouchers. Failures throw
-/// [RolesException] with the HTTP status (409: a request was already sent
-/// this hour; 404 from [redeem]: the code is invalid, expired or used up;
+/// The auth API's membership routes: users without access redeem a
+/// voucher code (`POST /api/auth/voucher`; otherwise they subscribe at
+/// nu01.com); admins list and delete vouchers, and switch maintenance
+/// mode. Failures throw [RolesException] with the HTTP status (404 from
+/// [redeem]: the code is invalid, expired or used up;
 /// [PaymentRequiredException] (402) from [redeem]: the code is valid but
 /// its discount isn't full; 429: throttled).
 abstract class MembershipClient {
-  /// Sends [message] as the signed-in user's request for access.
-  Future<void> request(String idToken, String message);
-
-  /// The pending requests, oldest first (admins only).
-  Future<List<MembershipRequest>> list(String idToken);
-
-  /// Gives [email] the `presence_user` role and drops its request.
-  Future<void> grant(String idToken, String email);
-
-  /// Hides [email]'s request without granting anything.
-  Future<void> dismiss(String idToken, String email);
-
   /// Redeems [code] for the signed-in user; returns the voucher's role.
   /// A code with a discount under 100% grants nothing yet: it throws
   /// [PaymentRequiredException].
@@ -136,20 +98,6 @@ abstract class MembershipClient {
 
   /// Every voucher, newest first (admins only).
   Future<List<Voucher>> vouchers(String idToken);
-
-  /// Creates a voucher (admins only) with [code], or a random code when
-  /// it's null or blank, valid from [startsAt] (now when null) until
-  /// [expiresAt], and a [discount] in percent. Throws
-  /// [RolesException] 409 when [code] is taken.
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  });
 
   /// Deletes the voucher [code] (admins only).
   Future<void> deleteVoucher(String idToken, String code);
@@ -214,10 +162,6 @@ class HttpMembershipClient implements MembershipClient {
     return response;
   }
 
-  @override
-  Future<void> request(String idToken, String message) =>
-      _post('/api/auth/membership', idToken, message);
-
   Future<List<Map<String, Object?>>> _getList(
     String path,
     String idToken,
@@ -236,20 +180,6 @@ class HttpMembershipClient implements MembershipClient {
   }
 
   @override
-  Future<List<MembershipRequest>> list(String idToken) async => [
-    for (final r in await _getList('/api/auth/membership', idToken, 'requests'))
-      MembershipRequest.fromJson(r),
-  ];
-
-  @override
-  Future<void> grant(String idToken, String email) =>
-      _post('/api/auth/membership/grant', idToken, email);
-
-  @override
-  Future<void> dismiss(String idToken, String email) =>
-      _post('/api/auth/membership/dismiss', idToken, email);
-
-  @override
   Future<String> redeem(String idToken, String code) async {
     final response = await _post('/api/auth/voucher', idToken, code);
     final body = (jsonDecode(response.body) as Map).cast<String, Object?>();
@@ -261,36 +191,6 @@ class HttpMembershipClient implements MembershipClient {
     for (final v in await _getList('/api/auth/vouchers', idToken, 'vouchers'))
       Voucher.fromJson(v),
   ];
-
-  @override
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  }) async {
-    final response = await _post(
-      '/api/auth/vouchers',
-      idToken,
-      Uri(
-        queryParameters: {
-          'role': role,
-          if (startsAt != null) 'startsAt': startsAt.toUtc().toIso8601String(),
-          'expiresAt': expiresAt.toUtc().toIso8601String(),
-          'maxUses': '$maxUses',
-          'discount': '$discount',
-          if (code != null && code.trim().isNotEmpty) 'code': code.trim(),
-        },
-      ).query,
-      contentType: 'application/x-www-form-urlencoded',
-    );
-    return Voucher.fromJson(
-      (jsonDecode(response.body) as Map).cast<String, Object?>(),
-    );
-  }
 
   @override
   Future<void> deleteVoucher(String idToken, String code) =>

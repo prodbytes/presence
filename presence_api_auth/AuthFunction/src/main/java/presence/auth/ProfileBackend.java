@@ -153,7 +153,15 @@ final class ProfileBackend implements ProfileHandler.Backend {
 
     @Override
     public String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
-        var tags = Map.of(ProfileHandler.TIER_TAG, tier);
+        return openIdToken(identityId, profileId, googleIdToken, tier, false);
+    }
+
+    @Override
+    public String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
+                              boolean admin) {
+        var tags = admin
+                ? Map.of(ProfileHandler.TIER_TAG, tier, ProfileHandler.ADMIN_TAG, "true")
+                : Map.of(ProfileHandler.TIER_TAG, tier);
         GetOpenIdTokenForDeveloperIdentityResponse result;
         try {
             // Once linked, the profile ID alone is the proof.

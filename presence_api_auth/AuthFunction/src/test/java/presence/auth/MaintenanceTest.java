@@ -26,7 +26,7 @@ class MaintenanceTest {
 
     private final Maintenance.Store store = Maintenance.memory();
 
-    private final AdminHandler admin = new AdminHandler(roles, subject -> null, null,
+    private final AdminHandler admin = new AdminHandler(roles, subject -> null,
             new VoucherTest.MemoryStore(), store, Clock.fixed(NOW, ZoneOffset.UTC));
 
     private final AuthHandler auth = new AuthHandler(roles, RolesTest.profiles(), ExecutionMode.RBAC,
@@ -64,6 +64,12 @@ class MaintenanceTest {
                     .getStatusCode());
         }
         assertFalse(store.get().on());
+    }
+
+    @Test
+    void unknownAdminRoutesAnswer404() {
+        assertEquals(404, admin.handleRequest(route("GET /api/auth/other", "boss@nu01.com", null), null)
+                .getStatusCode());
     }
 
     @Test

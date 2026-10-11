@@ -16,7 +16,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
-| `/health` | The same HTTP API's public [health check](health-check.md), not cached |
+| `/health` | The [health check](health-check.md)'s own HTTP API (`presence_health`, stack `presence-health`; origin `health`), public, not cached |
 
 - **Infrastructure as code:**
   - [presence_infra/user-data.yaml](../presence_infra/user-data.yaml) and
@@ -35,6 +35,11 @@ One CloudFront distribution serves the whole site, laid out like the local
     from `PRESENCE_HEALTH_EMAILS`, default `julio+health@nu01.com`). The
     certificate and distribution carry the tag `presence:stage` (`Stage`:
     `prod` or `rc`), which the deploy roles are scoped by.
+  - [presence_api_auth/template.yaml](../presence_api_auth/template.yaml)
+    and [presence_health/template.yaml](../presence_health/template.yaml)
+    (SAM), stacks `presence-auth-api` and `presence-health`: the
+    [auth API](auth-api.md) and the [health check](health-check.md),
+    which imports the auth API's table exports.
   - [presence_sh/template.yaml](../presence_sh/template.yaml), stack
     `presence-sh`: https://sh.presence.nu01.com, the
     [install URL](install-url.md), deployed after the site by
@@ -55,8 +60,12 @@ One CloudFront distribution serves the whole site, laid out like the local
   `WEB_BASE_HREF=/app/`), with the version from the tag, the identity pool
   and bucket IDs and the IoT endpoint (`IOT_ENDPOINT`). After that it
   deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
-  live-sync policy it attaches to each identity), then `site.yaml` (with the API's
-  domain), uploads, invalidates, and **smoke-tests the live site**:
+  live-sync policy it attaches to each identity), then the
+  [health check](health-check.md) (`presence_health`, stack
+  `<prefix>-health`, with `AuthStackName`, the release as `Version`, the
+  same OIDC client, pool and bucket, rbacr's URL but not its token, and
+  the stage's boundary; it imports the auth API's table exports, so it
+  comes after), then `site.yaml` (with both APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth` must refuse a request without a
   token (401), and `/api/auth/anonymous` must answer RBAC with only
