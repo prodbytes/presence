@@ -80,6 +80,7 @@ The bucket enforces it, not just the app:
 | History on a new device (two weeks) | from the bucket | none: only what's published after it connects |
 | This device's settings | backed up, restored at sign-in | stay on the device |
 | Recognition references | every device's tags | the tags this device has |
+| [Cloud recognition](cloud-recognition.md) (DINOv2-L, trained on the profile's labels) | yes | no (the APIs answer 403) |
 | Devices whose events show ([below](#devices)) | the first 50 | the first 2 |
 
 - **Free sync** (`_LivePublisher`, [cloud_sync_free.dart](../presence_app/lib/cloud/cloud_sync_free.dart)):

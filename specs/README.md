@@ -97,6 +97,11 @@ their data.
   TensorFlow.js on web): subjects, the people and pets tagged before
   (tagged when sure, "Is this Rex?" when unsure), and object tags (human,
   cat, bicycle, bottle…) for search.
+- [Cloud recognition](cloud-recognition.md): premium profiles' subjects
+  also recognized by DINOv2-L in two Lambda APIs (training and
+  inference): labels timed (`labeledAt`), a training check at start and
+  every 24 h (5 new labels, or 7 days), and each subject's confidence the
+  higher of the device's and the cloud's.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, pinning it, and the location on every event.
 - [Settings screen](settings.md): the motion, camera, clip, schedule,

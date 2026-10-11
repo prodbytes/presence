@@ -1,7 +1,8 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: four Java 25
-Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
+[presence_api_auth/](../presence_api_auth) is a SAM application: six Java 25
+Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` (and
+`/api/recognition`) on the
 site (`/api/*` in the CloudFront distribution; see
 [Production deploy](deploy.md)). The public **`GET /health`**, which
 checks the API's dependencies for Route 53, is its own module,
@@ -81,6 +82,12 @@ routes:
   how many show (2 free, 50 premium); `POST
   /api/auth/profile/devices/remove` takes a deleted device off the list.
   See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
+- **`/api/recognition/*`** (`TrainingHandler`, `InferenceHandler`, in
+  their own jar, `RecognitionFunction`, built by the Makefile): premium
+  profiles' [cloud recognition](cloud-recognition.md) with DINOv2-L, its
+  status, labels and training, and identifying a clip's people and pets;
+  the `RecognitionTable` keeps each profile's labels' embeddings and
+  model.
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,

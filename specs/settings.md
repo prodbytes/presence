@@ -79,7 +79,12 @@
     sure than that, it asks you whether it's them.": there's no separate
     "Ask me" level any more; anyone recognized below it (from 50 %, the
     floor) is asked about.
-  - Stored as `recognition: {enabled, objects, autoTag}`; an `ask` value
+  - For a premium profile, a **Cloud recognition (Premium)** line: when
+    its cloud model was last trained ("Not trained yet"), that it learns
+    from the people and pets tagged and is checked daily, and **Train
+    now** (see [Cloud recognition](cloud-recognition.md)).
+  - Stored as `recognition: {enabled, objects, autoTag, cloudTrainedAt,
+    cloudCheckedAt}`; an `ask` value
     in older records is ignored. A stored 85 % (the old default, never
     changed) reads as the new 90 %; a stored level under 50 % reads as
     50 %.
