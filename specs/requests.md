@@ -4712,3 +4712,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and `UntagResource` on the stage's APIs again;
        `presence-github-deploy` redeployed. Spec: [Production
        deploy](deploy.md) (unchanged rules; the list was incomplete).
+
+346. **Reusable test data, in the repo.** (2026-10-11)
+     - Asked: copy the useful test data from the local, ignored
+       `test.local/` into a new test data folder, structured and labelled
+       so tests can be re-run.
+     - Changed: `presence_app/test/data/` holds `cats/suerte` (16 photos,
+       6 clips, 31 stills) and `cats/other` (38 photos of other cats), as
+       `<species>/<subject>/{photos,stills,clips}/` with `labels.csv`
+       (`path,species,subject,kind`). The repo is public, so
+       `import.sh` cleans what it copies: metadata and GPS dropped,
+       rotation applied, at most 1280 px, clips as H.264 with a keyframe
+       a second and no audio, HEIC twins of JPEGs skipped (217 MB → 21
+       MB). Spec: [Test data](test-data.md) (new), [Subject
+       recognition](recognition.md), [README](README.md).
