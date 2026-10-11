@@ -312,7 +312,7 @@ class EventDevice extends StatelessWidget {
                       device,
                       key: const Key('event-device-id'),
                       onTap: onTap,
-                      style: theme.textTheme.bodyLarge?.copyWith(
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         color: onTap == null ? null : theme.colorScheme.primary,
                       ),
                     ),
@@ -324,7 +324,9 @@ class EventDevice extends StatelessWidget {
                 Text(
                   os,
                   key: const Key('event-device-os-name'),
-                  style: muted,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/event_details.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/identity/device_os.dart';
 
@@ -198,5 +199,31 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('event-device-os')), findsOneWidget);
+  });
+
+  testWidgets("the details' device: the ID and its OS in small text", (
+    tester,
+  ) async {
+    final event = AppEvent(
+      icon: Icons.circle,
+      title: 'Door opened',
+      time: DateTime(2026, 10, 6, 12),
+      deviceId: 'brave_quiet_lamp',
+    )..os = 'Android';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: EventDevice(event: event)),
+      ),
+    );
+    final theme = Theme.of(tester.element(find.byType(EventDevice)));
+    final id = tester.widget<SelectableText>(
+      find.byKey(const Key('event-device-id')),
+    );
+    expect(id.style!.fontSize, theme.textTheme.bodyMedium!.fontSize);
+    final os = tester.widget<Text>(
+      find.byKey(const Key('event-device-os-name')),
+    );
+    expect(os.style!.fontSize, theme.textTheme.labelSmall!.fontSize);
+    expect(os.style!.fontSize, lessThan(theme.textTheme.bodySmall!.fontSize!));
   });
 }
