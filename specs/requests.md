@@ -5121,3 +5121,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `PRESENCE_STREAMER_PROFILE`), and without one sets up the account's.
        Specs: [Streamer](streamer.md), [Install script](install-script.md),
        [README](README.md).
+
+368. **The install scripts' checksums (found installing the streamer on the Pi).** (2026-10-11)
+     - Asked: install the streamer on the Raspberry Pi and verify clips
+       flow. The live installer stopped: "couldn't get the checksum from
+       GitHub".
+     - Changed: GitHub's release API pretty-prints its JSON for curl, and
+       both `scripts/install.sh` (the kiosk) and
+       `scripts/install-streamer.sh` looked for compact `"name":"…"`
+       fields, so they never found an asset's `digest`, and the installs
+       that require one (kiosk, streamer) stopped. They now strip the
+       JSON's whitespace first. On the Pi, both scripts found the streamer's
+       and the kiosk's digests of 0.6.202610111933-GA, as GitHub lists them.
+       Earlier tests had missed it: their fake curl answered compact JSON.
+       Specs: [Install script](install-script.md).

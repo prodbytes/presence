@@ -16,6 +16,11 @@ https://sh.presence.nu01.com serves the script at every path (see
 - **Release:** the latest GA, read from the `releases/latest` redirect
   rather than the API, which rate-limits anonymous calls. `PRESENCE_TAG`
   picks another tag.
+- **Checksums** come from the release API's `digest` of each asset. GitHub
+  pretty-prints that JSON for curl (`"name": "…"`), so the scripts strip
+  its whitespace before reading it. Until 2026-10-11 they didn't, found no
+  checksum, and the kiosk and streamer installs, which require one,
+  stopped.
 - **Native app** (Linux `x86_64` → `x64`, `aarch64` → `arm64`): downloads
   `presence-<tag>-linux-<arch>.tar.gz` from the release, checks its sha256
   against the digest the release API lists for the asset, and extracts it to
