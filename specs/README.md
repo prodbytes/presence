@@ -174,7 +174,9 @@ their data.
   records continuously (hardware H.264), uploads sealed chunks to the
   profile's `ingest/` with rclone, and keeps those with a person or an
   animal (YOLOv4-tiny) as motion-clip events, deleting the rest. A `.deb`
-  with a service on at every boot, in every release. No live sync yet.
+  with a service on at every boot, in every release, installed with
+  `curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile>`
+  (the account sheet shows it to copy). No live sync yet.
 
 **Backend**
 

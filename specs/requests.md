@@ -4978,3 +4978,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Auth API](auth-api.md), [Cloud sync](cloud-sync.md),
        [Recording and data formats](data-formats.md),
        [Release builds](release.md), [Raspberry Pi camera](raspberry-pi.md).
+
+360. **Install the streamer with one command, from the account sheet.** (2026-10-11)
+     - Asked: a curl | shell script and URL that runs the streamer, with
+       the profile ID passed as a variable or parameter, and a command to
+       copy on the profile view to paste on the Raspberry Pi; once run,
+       the streamer starts at every boot.
+     - Changed: `scripts/install-streamer.sh`, served at
+       https://sh.presence.nu01.com/streamer (the CloudFront function maps
+       `/streamer` to `streamer.sh`; `deploy-sh.sh` uploads and checks
+       both scripts). It takes the profile as its argument (`| sh -s --
+       <ID>`) or `PRESENCE_PROFILE`, installs the release's `.deb` for the
+       Pi's architecture (armhf or arm64; sha256 required), and runs `sudo
+       presence-streamer setup --profile <ID>` on the terminal. That signs
+       in, checks Premium and starts the service, which the package
+       enables for every boot. The account sheet shows a **Stream from a
+       Raspberry Pi** box with the command and **Copy command**, for a
+       premium profile (`StreamerCommand`, in English, Spanish and
+       Portuguese). Specs: [Install script](install-script.md),
+       [Install URL](install-url.md), [Sign-in](sign-in.md),
+       [Streamer](streamer.md), [README](README.md).

@@ -14,6 +14,19 @@ it, publish its events there or answer presence pings, as a phone does.
 Its events reach the profile's devices from the bucket, within their next
 sync pass (15 s). That comes next, once streaming is tested on a Pi.
 
+## Installing it
+
+On the Pi, one command installs the right `.deb` and sets it up for the
+profile; the service then starts at every boot:
+
+```sh
+curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>
+```
+
+The app's account sheet shows it, with the profile filled in and a **Copy
+command** button, for a premium profile. See [Install
+script](install-script.md#streamer).
+
 ## Starting it
 
 `presence-streamer` (or `presence-streamer run`) streams.
