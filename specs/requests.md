@@ -4745,3 +4745,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Configuration](configuration.md), [Settings](settings.md),
        [Premium](premium.md), [Auth API](auth-api.md),
        [README](README.md).
+
+347. **Launch the app on the connected iPhone.** (2026-10-11)
+     - Built a signed release for the iPhone 12 mini (automatic signing
+       with the Mac's development identity), installed it with
+       `devicectl` and launched it; it runs. Spec: [iOS](ios.md), now
+       verified on a physical iPhone (launching, not its features).
