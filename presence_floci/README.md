@@ -10,6 +10,12 @@ would. The index and the app keep running on their own dev servers:
 | `/app*` | Flutter dev server, `flutter run -d web-server --base-href /app/` (`FLUTTER_WEB_PORT`, 8080) |
 | `/api/*` | The auth API ([presence_api_auth](../presence_api_auth)), deployed into Floci itself at every start |
 
+It's also the **local cloud** ([specs/local-cloud.md](../specs/local-cloud.md)):
+the local web app's cloud sync uses Floci's S3 bucket
+(`presence-local-user-data`, at https://localhost:8443/) and live sync its
+MQTT broker (`ws://localhost:4566/mqtt`), with credentials the local auth
+API gives itself, since Floci has no Cognito Identity. Nothing reaches AWS.
+
 Open **http://presence.localhost:4566/** (it redirects to `/app/`) or **http://presence.localhost:4566/app/**. Browsers and curl resolve
 `*.localhost` to loopback, so no hosts-file edit is needed.
 
@@ -21,7 +27,8 @@ serves its own prefix: the app has the `/app/` base href.
 | Path | Holds |
 |------|-------|
 | [compose.yaml](compose.yaml) | The `presence-floci` container, bound to 127.0.0.1 |
-| [init/ready.d/05-auth-api.sh](init/ready.d/05-auth-api.sh) | Ready hook: deploys the auth API stack (Lambdas, tables) and its HTTP API, with the fixed ID `presence` |
+| [init/ready.d/03-local-cloud.sh](init/ready.d/03-local-cloud.sh) | Ready hook: the local cloud's bucket, with CORS for the local origins |
+| [init/ready.d/05-auth-api.sh](init/ready.d/05-auth-api.sh) | Ready hook: deploys the auth API stack (Lambdas, tables, `LocalCloud=true`) and its HTTP API, with the fixed ID `presence` |
 | [init/ready.d/10-cloudfront.sh](init/ready.d/10-cloudfront.sh) | Ready hook: creates the cache policy, origin request policy and distribution |
 | `certs/` (git-ignored) | The local HTTPS certificate and key, from [scripts/local-certs.sh](../scripts/local-certs.sh) |
 

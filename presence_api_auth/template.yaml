@@ -87,6 +87,16 @@ Parameters:
       Empty: nobody has a role (and
       presence_health's rbacr check fails). Set it at deploy (scripts/deploy.sh, from the
       RBACR_TOKEN secret), never in the repository.
+  LocalCloud:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['false', 'true']
+    Description: >
+      LOCAL_CLOUD: 'true' only in the local stack (presence_floci's init),
+      whose Floci has no Cognito Identity: identities are made up from the
+      Google subject and the credentials route answers fake credentials
+      itself (presence.auth.LocalCloudBackend). Never in AWS: scripts/deploy.sh
+      leaves it 'false'.
   RbacrSystem:
     Type: String
     Default: presence
@@ -300,6 +310,8 @@ Resources:
           DEVELOPER_PROVIDER: login.presence.profiles
           # Live sync's IoT policy, attached to each identity (empty: off).
           IOT_POLICY_NAME: !Ref IotPolicyName
+          # The local stack only: no Cognito Identity (LocalCloudBackend).
+          LOCAL_CLOUD: !Ref LocalCloud
       Policies:
         - Statement:
             # Links, moves and unlinks subjects; lists a profile's.

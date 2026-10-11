@@ -21,6 +21,39 @@ void main() {
   group('CognitoCredentials', () {
     final api = Uri.parse('https://presence.example/');
 
+    test('takes the credentials the local auth API answers, without '
+        'Cognito', () async {
+      final calls = <http.Request>[];
+      final cognito = CognitoCredentials(
+        region: 'us-east-1',
+        api: api,
+        now: () => DateTime.utc(2026, 10, 11),
+        client: MockClient((request) async {
+          calls.add(request);
+          return http.Response(
+            jsonEncode({
+              'identityId': 'us-east-1:local',
+              'token': 'local',
+              'credentials': {
+                'AccessKeyId': 'ASIALOCALX',
+                'SecretKey': 'secret',
+                'SessionToken': 'session',
+                'Expiration': 4102444800,
+              },
+            }),
+            200,
+          );
+        }),
+      );
+      final session = await cognito.session('google-token');
+      expect(session.identityId, 'us-east-1:local');
+      expect(session.credentials.accessKeyId, 'ASIALOCALX');
+      expect(session.credentials.sessionToken, 'session');
+      expect(session.credentials.expiration, DateTime.utc(2100));
+      // Only the auth API: Floci has no Cognito Identity.
+      expect(calls.map((r) => r.url.host), ['presence.example']);
+    });
+
     test(
       'trades the profile token from the auth API for credentials',
       () async {

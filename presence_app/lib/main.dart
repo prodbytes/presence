@@ -304,6 +304,7 @@ class _PresenceAppState extends State<PresenceApp> {
                 bucket: S3Bucket(
                   bucket: CloudConfig.userDataBucket,
                   region: CloudConfig.region,
+                  endpoint: CloudConfig.awsEndpoint,
                 ),
               )
             : null);

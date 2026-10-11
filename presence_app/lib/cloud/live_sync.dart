@@ -204,7 +204,8 @@ class LiveSync extends ChangeNotifier {
        _clock = clock ?? (now == null ? AwsClock.shared : AwsClock(now: now)),
        _random = random ?? Random.secure();
 
-  /// The AWS IoT data endpoint (`<id>-ats.iot.<region>.amazonaws.com`).
+  /// The AWS IoT data endpoint (`<id>-ats.iot.<region>.amazonaws.com`), or
+  /// the local stack's broker, `ws://localhost:4566` (Floci).
   final String endpoint;
   final String region;
 
@@ -524,9 +525,13 @@ class LiveSync extends ChangeNotifier {
           throw TimeoutException('credentials took too long', connectTimeout),
     );
     if (!current()) return null;
+    // `ws://localhost:4566`: the local stack's broker; otherwise AWS IoT's
+    // host, over wss.
+    final local = endpoint.startsWith('ws://') ? Uri.parse(endpoint) : null;
     final url = SigV4Signer(region: region, service: 'iotdevicegateway')
         .presignWebSocket(
-          host: endpoint,
+          host: local?.authority ?? endpoint,
+          scheme: local == null ? 'wss' : 'ws',
           credentials: credentials,
           now: _clock.now(),
         );

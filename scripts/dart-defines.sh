@@ -6,11 +6,33 @@
 # into the app (readable in the web bundle), so secrets in .env, such as
 # the client secret, must never be listed here. These are all public
 # identifiers.
-_allowed=(GOOGLE_WEB_CLIENT_ID GOOGLE_IOS_CLIENT_ID AWS_REGION COGNITO_IDENTITY_POOL_ID USER_DATA_BUCKET FEEDBACK_TABLE IOT_ENDPOINT PRESENCE_STAGE)
+_allowed=(GOOGLE_WEB_CLIENT_ID GOOGLE_IOS_CLIENT_ID AWS_REGION COGNITO_IDENTITY_POOL_ID USER_DATA_BUCKET FEEDBACK_TABLE IOT_ENDPOINT PRESENCE_STAGE AWS_ENDPOINT)
+# PRESENCE_LOCAL_CLOUD=1 (scripts/flutter-web.sh's default): cloud sync with
+# the local stack's Floci instead of AWS: its bucket (made by
+# presence_floci/init/ready.d/03-local-cloud.sh), its MQTT broker and its S3
+# endpoint; the pool is a placeholder (the local auth API gives the
+# credentials itself). No Feedback table: Floci's DynamoDB has no CORS.
+# These win over the environment and .env.
+# (A function, not an associative array: macOS's bash 3.2 runs some of these.)
+_local() { # _local <name>: prints its local value; fails when it has none
+  [[ "${PRESENCE_LOCAL_CLOUD:-}" == 1 ]] || return 1
+  case "$1" in
+    COGNITO_IDENTITY_POOL_ID) echo local ;;
+    USER_DATA_BUCKET) echo presence-local-user-data ;;
+    FEEDBACK_TABLE) echo ;;
+    IOT_ENDPOINT) echo "ws://localhost:${FLOCI_PORT:-4566}" ;;
+    AWS_ENDPOINT) echo "https://localhost:${FLOCI_HTTPS_PORT:-8443}" ;;
+    *) return 1 ;;
+  esac
+}
 _env="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
 DART_DEFINES=()
 [[ -f "$_env" ]] || echo "note: no .env; Google sign-in will say it isn't set up (see .env.example)" >&2
 for _name in "${_allowed[@]}"; do
+  if _value="$(_local "$_name")"; then
+    [[ -n "$_value" ]] && DART_DEFINES+=(--dart-define="${_name}=${_value}")
+    continue
+  fi
   _value="${!_name:-}"
   if [[ -z "$_value" && -f "$_env" ]]; then
     _value="$(sed -n "s/^${_name}=//p" "$_env" | tail -1)"
@@ -55,3 +77,4 @@ for _name in RBACR_URL RBACR_SYSTEM; do
 done
 
 unset _allowed _env _name _value _ios
+unset -f _local

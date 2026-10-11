@@ -35,6 +35,20 @@ abstract final class CloudConfig {
   /// still reach the profile's other devices through the bucket.
   static const String iotEndpoint = String.fromEnvironment('IOT_ENDPOINT');
 
+  /// Another AWS than Amazon's for S3 (`AWS_ENDPOINT`): the local stack's
+  /// Floci, `https://localhost:8443`, set by `scripts/flutter-web.sh`
+  /// (`PRESENCE_LOCAL_CLOUD`, see `scripts/dart-defines.sh`). Empty: AWS. Only
+  /// HTTPS, or HTTP to this machine, is taken.
+  static Uri? get awsEndpoint {
+    const value = String.fromEnvironment('AWS_ENDPOINT');
+    final url = Uri.tryParse(value.trim());
+    if (url == null || url.host.isEmpty) return null;
+    final local = url.host == 'localhost' || url.host == '127.0.0.1';
+    return url.scheme == 'https' || (url.scheme == 'http' && local)
+        ? url
+        : null;
+  }
+
   /// The stage in live sync's topics (`presence/<stage>/...`): `rc` for
   /// the release candidate's build, `prod` for every other build (local
   /// builds sync with production's bucket and pool).

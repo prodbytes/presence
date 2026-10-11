@@ -84,7 +84,8 @@ final class ProfileBackend implements ProfileHandler.Backend {
         return new ProfileBackend(
                 Aws.dynamo(),
                 CognitoIdentityClient.builder().httpClient(http).build(),
-                S3Client.builder().httpClient(http).build(),
+                // Floci's S3 (the local stack) is reached path-style.
+                S3Client.builder().httpClient(http).forcePathStyle(LocalCloudBackend.enabled()).build(),
                 System.getenv("LINK_CODES_TABLE"),
                 System.getenv("COGNITO_IDENTITY_POOL_ID"),
                 System.getenv("DEVELOPER_PROVIDER"),

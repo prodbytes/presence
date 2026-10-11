@@ -29,7 +29,9 @@ import static presence.auth.Http.response;
  *   <li>{@code POST /api/auth/credentials} ({@code presence_user} only): an
  *       OpenID token for the profile's Cognito identity, as {@code
  *       {"identityId", "token"}}, which the app trades for AWS credentials
- *       ({@code GetCredentialsForIdentity}). A profile's first call gives it
+ *       ({@code GetCredentialsForIdentity}); in the local stack, which has no
+ *       Cognito Identity, the answer has {@code "credentials"} itself
+ *       ({@link LocalCloudBackend}). A profile's first call gives it
  *       the identity the caller's Google sign-in already had, so data
  *       uploaded before profiles stays where it is. The identity also gets
  *       the live-sync IoT policy ({@link Backend#allowLiveSync}). The body,
@@ -140,6 +142,17 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
          * Never fails: without it, the app still syncs through the bucket.
          */
         void allowLiveSync(String identityId);
+
+        /**
+         * AWS credentials for the identity, as a JSON object in Cognito's
+         * {@code GetCredentialsForIdentity} shape, when the backend gives
+         * them itself ({@link LocalCloudBackend}, the local stack, which has
+         * no Cognito Identity); empty in AWS, where the app trades the
+         * token with Cognito.
+         */
+        default Optional<String> credentials(String identityId) {
+            return Optional.empty();
+        }
     }
 
     /** The principal tag the credentials carry: whether they may use the bucket. */
@@ -174,7 +187,10 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public ProfileHandler() {
-        this(Roles.fromEnvironment(), Profiles.fromEnvironment(), ProfileBackend.fromEnvironment(),
+        this(Roles.fromEnvironment(), Profiles.fromEnvironment(),
+                LocalCloudBackend.enabled()
+                        ? LocalCloudBackend.fromEnvironment(ProfileBackend.fromEnvironment())
+                        : ProfileBackend.fromEnvironment(),
                 ProfileBackend.configured(), new SecureRandom(), System.getenv("USER_DATA_BUCKET"));
     }
 
@@ -254,7 +270,8 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 + ",\"deviceLimit\":" + (premium ? PREMIUM_DEVICES : FREE_DEVICES)
                 + ",\"devices\":" + devicesJson(devices)
                 + ",\"tier\":" + Json.string(tier)
-                + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket)) + "}");
+                + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket))
+                + backend.credentials(profile.identityId()).map(c -> ",\"credentials\":" + c).orElse("") + "}");
     }
 
     /**
