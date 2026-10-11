@@ -8,7 +8,8 @@
 # presence-github-deploy role (presence_infra/github-deploy.yaml), which
 # only trusts *GA tag runs of this repository. Its ARN is the repository
 # variable AWS_DEPLOY_ROLE_ARN. The Google web client ID is the repository
-# variable GOOGLE_WEB_CLIENT_ID (a public identifier, compiled into the app).
+# variable GOOGLE_WEB_CLIENT_ID (a public identifier, compiled into the app),
+# and Premium's Stripe Payment Link the variable STRIPE_PAYMENT_LINK (public).
 #
 # Before anything else, it checks that the tag names a release
 # (X.Y.Z-GA) and that its commit is on main: a GA tag pushed on another
@@ -111,7 +112,10 @@ jobs:
       - name: Write .env
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-        run: printf 'GOOGLE_WEB_CLIENT_ID=%s\n' "$GOOGLE_WEB_CLIENT_ID" > .env
+          STRIPE_PAYMENT_LINK: ${{ vars.STRIPE_PAYMENT_LINK }}
+        run: |
+          printf 'GOOGLE_WEB_CLIENT_ID=%s\nSTRIPE_PAYMENT_LINK=%s\n' \
+            "$GOOGLE_WEB_CLIENT_ID" "$STRIPE_PAYMENT_LINK" > .env
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

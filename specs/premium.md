@@ -5,7 +5,8 @@ profiles sync with the cloud (S3) and over live sync, and up to **50
 devices** show each other's events; free profiles' devices sync with each
 other over [live sync](live-sync.md) (MQTT) only, and only the profile's
 **first 2 devices** show each other's events. The account sheet says which
-the account is, and how to sign up for Premium (at nu01.com).
+the account is, and a free member [upgrades to Premium](upgrade.md) there
+(a Stripe subscription, US$20 a month, the first week free).
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role manager,
 decides who is premium, as it decides every role ([Auth API](auth-api.md)).
 
@@ -126,7 +127,7 @@ The bucket enforces it, not just the app:
 
 A profile's devices past its limit (2 free, 50 premium) **still sync**:
 they publish, receive and store events as before. Their events are
-**hidden**, and the user is asked to sign up for Premium.
+**hidden**, and the user is asked to [upgrade to Premium](upgrade.md).
 
 - **Which devices count.** The auth API keeps the profile's devices in
   the order they came: the profiles table's item gets a **`devices`**
@@ -170,13 +171,14 @@ they publish, receive and store events as before. Their events are
   devices, a box with the plan (`PlanNotice`,
   [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)). It's
   Premium for `isPremium` or `isAdmin`, so only a free member is asked to
-  sign up; an admin never is, even if its roles lack `presence_premium`:
+  upgrade; an admin never is, even if its roles lack `presence_premium`:
   - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
     and up to 50 devices sync."
   - **Free**: "Free: up to 2 devices sync with each other while online.
-    Sign up for Premium at nu01.com for cloud backup and up to 50
-    devices.", and a **Sign up at nu01.com** button that opens
-    https://nu01.com (copied when it can't open).
+    Premium adds cloud backup and up to 50 devices: US$20 a month, the
+    first week free.", an **Upgrade to Premium** button that opens the
+    Stripe checkout, and **Check again** (see [Upgrade to
+    Premium](upgrade.md)).
   - Past the limit, a line in the warning color: on this device, "This
     device is past your first 2: it syncs, but its events are hidden on
     your other devices, and theirs here."; otherwise how many devices are
@@ -188,8 +190,8 @@ they publish, receive and store events as before. Their events are
 - **The Monitoring tab** ([Monitoring](monitoring.md)), when events are
   hidden, a card above the search (`DeviceLimitNotice`): how many
   devices' events are hidden, or that the other devices' are hidden on
-  this one, that Free shows the first 2, and for a free profile a
-  **Sign up** button to nu01.com.
+  this one, that Free shows the first 2, and for a free profile "Premium
+  shows up to 50." and an **Upgrade** button to the Stripe checkout.
 - **The account sheet's** sync line, for a free profile: "Your devices
   sync with each other while online" (`CloudSyncStatus`).
 - **The connectivity check**: "Free: devices sync over live sync" instead

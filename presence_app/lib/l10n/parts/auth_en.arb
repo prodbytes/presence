@@ -197,7 +197,7 @@
       }
     }
   },
-  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to {premium} devices.",
+  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free.",
   "@authPlanFreeText": {
     "placeholders": {
       "free": {
@@ -230,7 +230,8 @@
       }
     }
   },
-  "authSignUpNu01": "Sign up at nu01.com",
+  "authUpgradePremium": "Upgrade to Premium",
+  "authUpgrade": "Upgrade",
   "authOthersHidden": "Your other devices' events are hidden on this one: {plan} shows your first {limit} devices.",
   "@authOthersHidden": {
     "placeholders": {
@@ -256,8 +257,8 @@
       }
     }
   },
-  "authSignUpForPremium": "{text} Sign up at nu01.com for Premium and up to {limit}.",
-  "@authSignUpForPremium": {
+  "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
+  "@authPremiumShowsUpTo": {
     "placeholders": {
       "text": {
         "type": "String"

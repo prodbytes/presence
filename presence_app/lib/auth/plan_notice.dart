@@ -5,6 +5,7 @@ import '../cloud/device_slots.dart';
 import '../events.dart';
 import '../l10n/l10n.dart';
 import 'account_sheet.dart' show profileDevices;
+import 'premium_checkout.dart';
 import 'roles_service.dart';
 
 /// The profile's devices in [log] whose events are hidden here
@@ -26,8 +27,10 @@ List<String> hiddenDevices(
 /// says it, and what's hidden for it:
 ///
 /// - Premium: cloud backup, and up to 50 devices;
-/// - Free: up to 2 devices, syncing while online; Premium (cloud backup and
-///   up to 50 devices) by signing up at nu01.com, with a Sign up button.
+/// - Free: up to 2 devices, syncing while online; an **Upgrade to Premium**
+///   button (cloud backup and up to 50 devices, US$20 a month, the first
+///   week free) that opens the Stripe checkout ([PremiumCheckout]), and
+///   **Check again** for once it's paid.
 ///
 /// Past the limit, it says so: this device's events are hidden on the
 /// others and theirs here, or how many devices are hidden.
@@ -38,6 +41,9 @@ class PlanNotice extends StatelessWidget {
     this.slots,
     this.thisDevice,
     this.hidden = 0,
+    this.email,
+    this.profileId,
+    this.onCheckAgain,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
@@ -51,7 +57,15 @@ class PlanNotice extends StatelessWidget {
   /// How many of the profile's devices are hidden here.
   final int hidden;
 
-  /// Opens the sign-up link; one that can't open is copied.
+  /// The signed-in account's email and profile, for the checkout.
+  final String? email;
+  final String? profileId;
+
+  /// Checks the roles again ([RolesService.refresh]), after paying; no
+  /// Check again button without it.
+  final Future<void> Function()? onCheckAgain;
+
+  /// Opens the checkout; one that can't open is copied.
   final LinkOpener openLink;
 
   /// The text for a [premium] profile, or a free one, in [l10n]'s
@@ -125,15 +139,31 @@ class PlanNotice extends StatelessWidget {
               style: TextStyle(color: scheme.tertiary),
             ),
           if (!premium)
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FilledButton.tonalIcon(
-                key: const Key('plan-sign-up'),
-                icon: const Icon(Icons.open_in_new, size: 18),
-                label: Text(l10n.authSignUpNu01),
-                onPressed: () =>
-                    openOrCopyLink(context, DeviceSlots.signUp, openLink),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilledButton.icon(
+                  key: const Key('plan-upgrade'),
+                  icon: const Icon(Icons.workspace_premium, size: 18),
+                  label: Text(l10n.authUpgradePremium),
+                  onPressed: () => openOrCopyLink(
+                    context,
+                    PremiumCheckout.checkout(
+                      email: email,
+                      profileId: profileId,
+                    ),
+                    openLink,
+                  ),
+                ),
+                if (onCheckAgain case final checkAgain?)
+                  TextButton(
+                    key: const Key('plan-check-again'),
+                    onPressed: checkAgain,
+                    child: Text(l10n.authCheckAgain),
+                  ),
+              ],
             ),
         ],
       ),
@@ -143,7 +173,7 @@ class PlanNotice extends StatelessWidget {
 
 /// Above the Monitoring tab's events, when devices' events are hidden
 /// (a free profile's past its first two): which, and for a free profile
-/// where to sign up for Premium. Nothing when nothing's hidden.
+/// an Upgrade button to the Premium checkout. Nothing when nothing's hidden.
 class DeviceLimitNotice extends StatelessWidget {
   const DeviceLimitNotice({
     super.key,
@@ -151,6 +181,7 @@ class DeviceLimitNotice extends StatelessWidget {
     required this.slots,
     required this.profileId,
     this.thisDevice,
+    this.email,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
@@ -160,6 +191,9 @@ class DeviceLimitNotice extends StatelessWidget {
   final DeviceSlots? slots;
   final String? profileId;
   final String? thisDevice;
+
+  /// The signed-in account's email, for the checkout.
+  final String? email;
   final LinkOpener openLink;
 
   @override
@@ -195,15 +229,18 @@ class DeviceLimitNotice extends StatelessWidget {
               child: Text(
                 slots.premium
                     ? text
-                    : l10n.authSignUpForPremium(text, DeviceSlots.premiumLimit),
+                    : l10n.authPremiumShowsUpTo(text, DeviceSlots.premiumLimit),
               ),
             ),
             if (!slots.premium)
               TextButton(
-                key: const Key('device-limit-sign-up'),
-                onPressed: () =>
-                    openOrCopyLink(context, DeviceSlots.signUp, openLink),
-                child: Text(l10n.authSignUp),
+                key: const Key('device-limit-upgrade'),
+                onPressed: () => openOrCopyLink(
+                  context,
+                  PremiumCheckout.checkout(email: email, profileId: profileId),
+                  openLink,
+                ),
+                child: Text(l10n.authUpgrade),
               ),
           ],
         ),

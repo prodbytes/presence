@@ -157,7 +157,7 @@
   "@authPlanFree": {
     "description": "The free plan's name"
   },
-  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to {premium} devices.",
+  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free.",
   "@authPlanFreeText": {
     "placeholders": {
       "free": {
@@ -175,6 +175,17 @@
   "authPlanPremiumText": "Premium: cloud backup, and up to {limit} devices sync.",
   "@authPlanPremiumText": {
     "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
+  "@authPremiumShowsUpTo": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      },
       "limit": {
         "type": "int"
       }
@@ -227,18 +238,6 @@
   "authSignInWithGoogle": "Sign in with Google",
   "authSignOut": "Sign out",
   "authSignUp": "Sign up",
-  "authSignUpForPremium": "{text} Sign up at nu01.com for Premium and up to {limit}.",
-  "@authSignUpForPremium": {
-    "placeholders": {
-      "text": {
-        "type": "String"
-      },
-      "limit": {
-        "type": "int"
-      }
-    }
-  },
-  "authSignUpNu01": "Sign up at nu01.com",
   "authSignedInAs": "Signed in as {identity}",
   "@authSignedInAs": {
     "placeholders": {
@@ -278,6 +277,8 @@
       }
     }
   },
+  "authUpgrade": "Upgrade",
+  "authUpgradePremium": "Upgrade to Premium",
   "authUploadFailed": "Upload failed",
   "authUploading": "Uploading…",
   "authVoucherDiscount": "That code gives {discount}% off. Paying the rest isn't available yet, so it can't let you in.",

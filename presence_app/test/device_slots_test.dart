@@ -276,6 +276,7 @@ void main() {
       DeviceSlots? slots,
       String? thisDevice,
       int hidden = 0,
+      Future<void> Function()? onCheckAgain,
     }) async {
       final opened = <Uri>[];
       await tester.pumpWidget(
@@ -286,6 +287,9 @@ void main() {
               slots: slots,
               thisDevice: thisDevice,
               hidden: hidden,
+              email: 'ana@example.com',
+              profileId: 'automatic_paranoid_axolotl',
+              onCheckAgain: onCheckAgain,
               openLink: (url) async {
                 opened.add(url);
                 return true;
@@ -297,23 +301,33 @@ void main() {
       return opened;
     }
 
-    testWidgets('Free: two devices, and signing up at nu01.com', (
-      tester,
-    ) async {
-      final opened = await show(tester, premium: false);
+    testWidgets('Free: two devices, the price, and upgrading', (tester) async {
+      var checked = 0;
+      final opened = await show(
+        tester,
+        premium: false,
+        onCheckAgain: () async => checked++,
+      );
       expect(find.text('Free'), findsOneWidget);
       expect(find.textContaining('up to 2 devices sync'), findsOneWidget);
-      expect(find.textContaining('nu01.com'), findsWidgets);
-      await tester.tap(find.byKey(const Key('plan-sign-up')));
+      expect(
+        find.textContaining(r'US$20 a month, the first week free'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('plan-upgrade')));
       await tester.pump();
+      // This build has no STRIPE_PAYMENT_LINK: nu01.com.
       expect(opened, [Uri.parse('https://nu01.com')]);
+      await tester.tap(find.byKey(const Key('plan-check-again')));
+      expect(checked, 1);
     });
 
     testWidgets('Premium: fifty devices, no sign-up', (tester) async {
       await show(tester, premium: true);
       expect(find.text('Premium'), findsOneWidget);
       expect(find.textContaining('up to 50 devices'), findsOneWidget);
-      expect(find.byKey(const Key('plan-sign-up')), findsNothing);
+      expect(find.byKey(const Key('plan-upgrade')), findsNothing);
+      expect(find.byKey(const Key('plan-check-again')), findsNothing);
     });
 
     testWidgets('says when this device is past the limit', (tester) async {
@@ -384,12 +398,12 @@ void main() {
       expect(find.byKey(const Key('device-limit-notice')), findsNothing);
     });
 
-    testWidgets('on a device that shows: how many are hidden, and sign up', (
+    testWidgets('on a device that shows: how many are hidden, and upgrade', (
       tester,
     ) async {
       await show(tester, freeSlots, first);
       expect(find.textContaining("1 device's events are hidden"), findsOne);
-      expect(find.byKey(const Key('device-limit-sign-up')), findsOneWidget);
+      expect(find.byKey(const Key('device-limit-upgrade')), findsOneWidget);
     });
 
     testWidgets("past the limit: the other devices' events are hidden", (
@@ -436,7 +450,7 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.byKey(const Key('plan-notice')), findsOneWidget);
     expect(find.text('Free'), findsOneWidget);
-    expect(find.byKey(const Key('plan-sign-up')), findsOneWidget);
+    expect(find.byKey(const Key('plan-upgrade')), findsOneWidget);
     expect(find.byKey(Key('profile-device-hidden-$third')), findsOneWidget);
     expect(find.byKey(Key('profile-device-hidden-$second')), findsNothing);
 
@@ -444,13 +458,13 @@ void main() {
     await roles.refresh();
     await tester.pumpAndSettle();
     expect(find.text('Premium'), findsWidgets);
-    expect(find.byKey(const Key('plan-sign-up')), findsNothing);
+    expect(find.byKey(const Key('plan-upgrade')), findsNothing);
 
-    // An admin isn't asked to sign up, even without the premium role.
+    // An admin isn't asked to upgrade, even without the premium role.
     client.roles = const [userRole, adminRole];
     await roles.refresh();
     await tester.pumpAndSettle();
     expect(find.text('Premium'), findsWidgets);
-    expect(find.byKey(const Key('plan-sign-up')), findsNothing);
+    expect(find.byKey(const Key('plan-upgrade')), findsNothing);
   });
 }

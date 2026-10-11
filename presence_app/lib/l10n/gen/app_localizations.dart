@@ -379,7 +379,7 @@ abstract class AppLocalizations {
   /// No description provided for @authPlanFreeText.
   ///
   /// In en, this message translates to:
-  /// **'Free: up to {free} devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to {premium} devices.'**
+  /// **'Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US\$20 a month, the first week free.'**
   String authPlanFreeText(int free, int premium);
 
   /// The paid plan's name
@@ -393,6 +393,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Premium: cloud backup, and up to {limit} devices sync.'**
   String authPlanPremiumText(int limit);
+
+  /// No description provided for @authPremiumShowsUpTo.
+  ///
+  /// In en, this message translates to:
+  /// **'{text} Premium shows up to {limit}.'**
+  String authPremiumShowsUpTo(String text, int limit);
 
   /// Account sheet: label above the profile ID
   ///
@@ -478,18 +484,6 @@ abstract class AppLocalizations {
   /// **'Sign up'**
   String get authSignUp;
 
-  /// No description provided for @authSignUpForPremium.
-  ///
-  /// In en, this message translates to:
-  /// **'{text} Sign up at nu01.com for Premium and up to {limit}.'**
-  String authSignUpForPremium(String text, int limit);
-
-  /// No description provided for @authSignUpNu01.
-  ///
-  /// In en, this message translates to:
-  /// **'Sign up at nu01.com'**
-  String get authSignUpNu01;
-
   /// No description provided for @authSignedInAs.
   ///
   /// In en, this message translates to:
@@ -555,6 +549,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{email} was unlinked.'**
   String authUnlinked(String email);
+
+  /// No description provided for @authUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get authUpgrade;
+
+  /// No description provided for @authUpgradePremium.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to Premium'**
+  String get authUpgradePremium;
 
   /// No description provided for @authUploadFailed.
   ///

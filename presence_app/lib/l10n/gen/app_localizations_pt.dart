@@ -207,7 +207,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String authPlanFreeText(int free, int premium) {
-    return 'Grátis: até $free dispositivos sincronizam entre si quando online. Assine o Premium em nu01.com para backup na nuvem e até $premium dispositivos.';
+    return 'Grátis: até $free dispositivos sincronizam entre si quando online. O Premium adiciona backup na nuvem e até $premium dispositivos: US\$20 por mês, a primeira semana grátis.';
   }
 
   @override
@@ -216,6 +216,11 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String authPlanPremiumText(int limit) {
     return 'Premium: backup na nuvem e até $limit dispositivos sincronizados.';
+  }
+
+  @override
+  String authPremiumShowsUpTo(String text, int limit) {
+    return '$text O Premium mostra até $limit.';
   }
 
   @override
@@ -268,14 +273,6 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authSignUp => 'Assinar';
 
   @override
-  String authSignUpForPremium(String text, int limit) {
-    return '$text Assine o Premium em nu01.com para ter até $limit.';
-  }
-
-  @override
-  String get authSignUpNu01 => 'Assine em nu01.com';
-
-  @override
   String authSignedInAs(String identity) {
     return 'Conectado como $identity';
   }
@@ -316,6 +313,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String authUnlinked(String email) {
     return '$email foi desvinculada.';
   }
+
+  @override
+  String get authUpgrade => 'Assinar';
+
+  @override
+  String get authUpgradePremium => 'Assinar o Premium';
 
   @override
   String get authUploadFailed => 'Falha no envio';

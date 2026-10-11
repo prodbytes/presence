@@ -205,7 +205,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String authPlanFreeText(int free, int premium) {
-    return 'Free: up to $free devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to $premium devices.';
+    return 'Free: up to $free devices sync with each other while online. Premium adds cloud backup and up to $premium devices: US\$20 a month, the first week free.';
   }
 
   @override
@@ -214,6 +214,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String authPlanPremiumText(int limit) {
     return 'Premium: cloud backup, and up to $limit devices sync.';
+  }
+
+  @override
+  String authPremiumShowsUpTo(String text, int limit) {
+    return '$text Premium shows up to $limit.';
   }
 
   @override
@@ -266,14 +271,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authSignUp => 'Sign up';
 
   @override
-  String authSignUpForPremium(String text, int limit) {
-    return '$text Sign up at nu01.com for Premium and up to $limit.';
-  }
-
-  @override
-  String get authSignUpNu01 => 'Sign up at nu01.com';
-
-  @override
   String authSignedInAs(String identity) {
     return 'Signed in as $identity';
   }
@@ -313,6 +310,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String authUnlinked(String email) {
     return '$email was unlinked.';
   }
+
+  @override
+  String get authUpgrade => 'Upgrade';
+
+  @override
+  String get authUpgradePremium => 'Upgrade to Premium';
 
   @override
   String get authUploadFailed => 'Upload failed';

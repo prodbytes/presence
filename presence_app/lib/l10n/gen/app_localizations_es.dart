@@ -206,7 +206,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String authPlanFreeText(int free, int premium) {
-    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Suscríbete a Premium en nu01.com para copia en la nube y hasta $premium dispositivos.';
+    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta $premium dispositivos: US\$20 al mes, la primera semana gratis.';
   }
 
   @override
@@ -215,6 +215,11 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String authPlanPremiumText(int limit) {
     return 'Premium: copia en la nube y hasta $limit dispositivos sincronizados.';
+  }
+
+  @override
+  String authPremiumShowsUpTo(String text, int limit) {
+    return '$text Premium muestra hasta $limit.';
   }
 
   @override
@@ -267,14 +272,6 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authSignUp => 'Suscribirse';
 
   @override
-  String authSignUpForPremium(String text, int limit) {
-    return '$text Suscríbete a Premium en nu01.com para tener hasta $limit.';
-  }
-
-  @override
-  String get authSignUpNu01 => 'Suscríbete en nu01.com';
-
-  @override
   String authSignedInAs(String identity) {
     return 'Sesión iniciada como $identity';
   }
@@ -315,6 +312,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String authUnlinked(String email) {
     return 'Se desvinculó $email.';
   }
+
+  @override
+  String get authUpgrade => 'Mejorar';
+
+  @override
+  String get authUpgradePremium => 'Pasar a Premium';
 
   @override
   String get authUploadFailed => 'Error al subir';
