@@ -4889,3 +4889,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        per-device setting. The iPhone's own motion clip (12:59:14) came 7 s
        after its first launch, on the defaults (motion on), before it was
        turned off.
+
+356. **Settings: the map the full width, the position under it.**
+     (2026-10-11)
+     - Asked: in Settings, the location map the full row's width, and the
+       position's label and the paste box in a row below it.
+     - Changed: the Location section is the map (full width), then the
+       position, the paste box (280 px) and Pin in one row; under 520 px,
+       the position on its own row and the paste box and Pin on the next.
+       The side column (36 % of the width) is gone. Spec: [Device
+       location](device-location.md).

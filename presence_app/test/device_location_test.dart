@@ -612,30 +612,48 @@ void main() {
     });
 
     for (final size in [const Size(360, 740), const Size(1280, 800)]) {
-      testWidgets('the position sits right of the map, and a drag there '
-          'scrolls the list, at ${size.width.toInt()} wide', (tester) async {
+      testWidgets('the map spans the width, the position and paste box are '
+          'under it, and a drag there scrolls the list, at '
+          '${size.width.toInt()} wide', (tester) async {
         await launch(tester, FakeLocator(), size: size);
         await openLocation(tester);
-        // Full width: the map on the left, the position on the right.
         final section = tester.getRect(
           find.byKey(const Key('location-settings')),
         );
         expect(section.left, 16);
         expect(section.right, size.width - 16);
         final map = tester.getRect(find.byKey(const Key('location-map')));
-        final side = tester.getRect(find.byKey(const Key('location-position')));
+        final form = tester.getRect(find.byKey(const Key('location-position')));
+        // The map, the full width.
         expect(map.left, 16);
-        expect(side.left, map.right + 16);
-        expect(side.right, size.width - 16);
-        expect(
-          tester.getRect(find.byKey(const Key('device-coordinates'))).left,
-          greaterThanOrEqualTo(side.left),
+        expect(map.right, size.width - 16);
+        // The position, the paste box and Pin under it.
+        expect(form.top, map.bottom + 12);
+        expect(form.left, 16);
+        expect(form.right, size.width - 16);
+        final coordinates = tester.getRect(
+          find.byKey(const Key('device-coordinates')),
         );
+        final paste = tester.getRect(find.byKey(const Key('location-paste')));
+        final pin = tester.getRect(find.byKey(const Key('location-pin')));
+        expect(coordinates.left, 16);
+        if (size.width - 32 >= LocationSettings.oneRowWidth) {
+          // One row: the position, then the paste box, then Pin.
+          expect(paste.left, greaterThan(coordinates.right));
+          expect(pin.left, greaterThan(paste.right));
+          expect(paste.center.dy, closeTo(form.center.dy, 1));
+        } else {
+          // Narrow: the position on its own, the paste box and Pin under it.
+          expect(paste.top, greaterThan(coordinates.bottom));
+          expect(paste.left, 16);
+          expect(pin.left, greaterThan(paste.right));
+          expect(pin.right, size.width - 16);
+        }
         expect(tester.takeException(), isNull);
 
-        // A drag up beside the map scrolls Settings: the map moves too.
+        // A drag up on the row under the map scrolls Settings.
         await tester.dragFrom(
-          Offset(side.center.dx, map.center.dy),
+          Offset(form.left + 4, form.top + 4),
           const Offset(0, -150),
         );
         await tester.pumpAndSettle();

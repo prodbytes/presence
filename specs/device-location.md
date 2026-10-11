@@ -11,13 +11,14 @@ the camera. (There used to be a Device tab for both; it's gone.)
   ([lib/location/location_settings.dart](../presence_app/lib/location/location_settings.dart)).
   The device ID isn't repeated here: Settings already shows it at the
   bottom.
-- **The map on the left, the position on its right**, side by side on
-  every screen. The position's column is 36 % of the section's width,
-  between 120 and 320 px (on a 360 px phone, 120 px beside a 192 px map);
-  the map takes the rest, 16 px from it. That column is plain screen, so
+- **The map the full width of the section, the position under it.** 12 px
+  under the map, one row holds the position, the **Paste position** box
+  (280 px) and **Pin position**, from a section 520 px wide; narrower (a
+  phone), the position has a row of its own and the paste box (the rest of
+  the width) and Pin share the next. Under the map is plain screen, so
   **a drag there scrolls the list**, while a drag on the map moves the
   map.
-- In that column, under a small label, the **Position (latitude,
+- There, under a small label, the **Position (latitude,
   longitude)** (6 decimals, selectable, wrapping where narrow), then where
   it came from:
   - "This device's location · ±12 m": the device's own position, with the
@@ -35,8 +36,8 @@ the camera. (There used to be a Device tab for both; it's gone.)
   [Subjects](subjects.md) maps:
   [lib/location/map_parts.dart](../presence_app/lib/location/map_parts.dart)).
   North stays up. It's **40 % of the screen's height, between 200 and
-  320 px**, so on a phone there's room above and below it, and beside it,
-  to scroll the list.
+  320 px**, so on a phone there's room above and below it to scroll the
+  list.
 - A **red pin** is fixed at the center of the map. Its tip is the device's
   location.
 - **Zoom in (+) and Zoom out (−)** (`MapZoomButtons`, the same control as
@@ -48,11 +49,11 @@ the camera. (There used to be a Device tab for both; it's gone.)
   location asks the device for its position again; it spins while
   waiting, and the map moves to the answer (zoom 17, or closer if already
   zoomed in).
-- **Pin position** (a tonal button with a pin icon, under the position)
+- **Pin position** (a tonal button with a pin icon, after the paste box)
   pins the position shown; while pinned it's **Unpin** (outlined). See
   [Pinning the position](#pinning-the-position).
-- **Paste position**, a compact box in the position's column, right of
-  the map and under the position, not a full row
+- **Paste position**, a compact box beside the position (under it on a
+  phone), not a full row
   ([lib/location/coordinates.dart](../presence_app/lib/location/coordinates.dart)):
   a small text box (hint "38.72, -9.13") with a check button; the button or
   the keyboard's Done sets the location to the pasted latitude and
@@ -233,9 +234,10 @@ the camera. (There used to be a Device tab for both; it's gone.)
     cloud (`persistence_test.dart`);
   - there's no Device tab; the Location section shows the pin, the
     labeled position, the accuracy and the credit, without the device ID;
-  - at 360 and 1280 px, the section spans the width less the 16 px
-    margins, the position column sits right of the map, and a drag up on
-    it scrolls Settings;
+  - at 360 and 1280 px, the section and the map span the width less the
+    16 px margins; under the map, at 1280 the position, the paste box and
+    Pin in one row, at 360 the position, then the paste box and Pin; and
+    a drag up there scrolls Settings;
   - the zoom buttons step the zoom, keep the device's own location, and
     Zoom in turns off at the closest zoom;
   - dragging the map sets the location, moves neither the list nor the

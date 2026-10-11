@@ -48,13 +48,13 @@ class LocationSettings extends StatefulWidget {
   static const double minMapHeight = 200;
   static const double maxMapHeight = 320;
 
-  /// The position's column, right of the map: [sideShare] of the width,
-  /// between [minSideWidth] and [maxSideWidth].
-  static double sideWidthFor(double width) =>
-      (width * sideShare).clamp(minSideWidth, maxSideWidth);
-  static const double sideShare = 0.36;
-  static const double minSideWidth = 120;
-  static const double maxSideWidth = 320;
+  /// Under the map, the position, the paste box and Pin share one row from
+  /// this width; narrower, the position has a row of its own, and the
+  /// paste box and Pin share the next.
+  static const double oneRowWidth = 520;
+
+  /// The paste box's width in that row.
+  static const double pasteWidth = 280;
 
   /// How close the map zooms in on the device's own position.
   static const double deviceZoom = 17;
@@ -345,8 +345,8 @@ class _LocationSettingsState extends State<LocationSettings> {
         ),
       ),
     );
-    // A position copied from elsewhere, e.g. a maps app: a compact box in
-    // the position's column, under the position.
+    // A position copied from elsewhere, e.g. a maps app: a compact box
+    // beside the position, under the map.
     final paste = TextField(
       key: const Key('location-paste'),
       controller: _pasted,
@@ -380,41 +380,63 @@ class _LocationSettingsState extends State<LocationSettings> {
       },
       onSubmitted: (_) => _setPasted(),
     );
-    return LayoutBuilder(
-      builder: (context, box) => Row(
-        key: const Key('location-settings'),
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 16,
-        children: [
-          Expanded(child: map),
-          SizedBox(
-            key: const Key('location-position'),
-            width: LocationSettings.sideWidthFor(box.maxWidth),
-            child: Column(
+    final pin = pinned
+        ? OutlinedButton.icon(
+            key: const Key('location-unpin'),
+            onPressed: _unpin,
+            icon: const Icon(Icons.push_pin_outlined, size: 18),
+            label: const Text('Unpin'),
+          )
+        : FilledButton.tonalIcon(
+            key: const Key('location-pin'),
+            // Events then always use this position.
+            onPressed: location != null || _moved ? _pin : null,
+            icon: const Icon(Icons.push_pin, size: 18),
+            label: const Text('Pin position'),
+          );
+    // The map the full width; under it the position, the paste box and
+    // Pin in a row (where narrow, the position on a row of its own, and
+    // the paste box and Pin under it). That's plain screen: a drag there
+    // scrolls the list.
+    return Column(
+      key: const Key('location-settings'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        map,
+        LayoutBuilder(
+          builder: (context, box) {
+            final position = Expanded(child: _Position(location: _location));
+            if (box.maxWidth >= LocationSettings.oneRowWidth) {
+              return Row(
+                key: const Key('location-position'),
+                crossAxisAlignment: CrossAxisAlignment.center,
+                spacing: 16,
+                children: [
+                  position,
+                  SizedBox(width: LocationSettings.pasteWidth, child: paste),
+                  pin,
+                ],
+              );
+            }
+            return Column(
+              key: const Key('location-position'),
               crossAxisAlignment: CrossAxisAlignment.stretch,
               spacing: 12,
               children: [
                 _Position(location: _location),
-                pinned
-                    ? OutlinedButton.icon(
-                        key: const Key('location-unpin'),
-                        onPressed: _unpin,
-                        icon: const Icon(Icons.push_pin_outlined, size: 18),
-                        label: const Text('Unpin'),
-                      )
-                    : FilledButton.tonalIcon(
-                        key: const Key('location-pin'),
-                        // Events then always use this position.
-                        onPressed: location != null || _moved ? _pin : null,
-                        icon: const Icon(Icons.push_pin, size: 18),
-                        label: const Text('Pin position'),
-                      ),
-                paste,
+                Row(
+                  spacing: 12,
+                  children: [
+                    Expanded(child: paste),
+                    pin,
+                  ],
+                ),
               ],
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        ),
+      ],
     );
   }
 }
