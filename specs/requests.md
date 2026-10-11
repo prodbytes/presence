@@ -5023,3 +5023,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Portuguese). Specs: [Install script](install-script.md),
        [Install URL](install-url.md), [Sign-in](sign-in.md),
        [Streamer](streamer.md), [README](README.md).
+
+362. **The streamer's Google sign-in client.** (2026-10-11)
+     - Asked: set the "TVs and Limited Input devices" OAuth client's
+       credentials (given as Google's client JSON) as the variables, stored
+       and used securely.
+     - Changed: the repository variable `GOOGLE_DEVICE_CLIENT_ID` and the
+       repository secret `GOOGLE_DEVICE_CLIENT_SECRET` are set (the secret
+       through `gh secret set` on stdin, never on a command line), and both
+       are in the private `.env` (git-ignored, mode 600) for local builds
+       and deploys. Checked against Google's device flow. The release
+       builds and the auth API's deploy pick them up from the next tag.
+       Specs: [Streamer](streamer.md).

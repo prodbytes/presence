@@ -305,10 +305,16 @@ paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 ## Infrastructure it needs
 
 - **A Google OAuth client** of type "TVs and Limited Input devices", in the
-  same Google Cloud project as the web client. Its ID goes in the
-  repository variable `GOOGLE_DEVICE_CLIENT_ID` and its secret in the secret
-  `GOOGLE_DEVICE_CLIENT_SECRET`, for the release builds. Until it exists,
-  the released streamer can't sign in.
+  same Google Cloud project as the web client (`presence-492410`): client
+  `104441697281-40fd6nuvjktdmpptc5tgnfu581gek22c` (since 2026-10-11). Its ID
+  is the repository **variable** `GOOGLE_DEVICE_CLIENT_ID` and its secret the
+  repository **secret** `GOOGLE_DEVICE_CLIENT_SECRET`, for the release
+  builds and deploys. Locally both are in the private, git-ignored `.env`
+  (mode 600), which `scripts/streamer.sh` and `scripts/deploy.sh` read; the
+  secret is never committed. Checked against Google: it hands out device
+  codes, and its token endpoint takes the secret (`authorization_pending`,
+  not `invalid_client`). Builds and deploys from before it was set have no
+  client: the next release and deploy carry it.
 - **The auth API accepts its ID tokens:** the JWT authorizer's audiences
   are the web client and `GoogleDeviceClientId` (from
   `GOOGLE_DEVICE_CLIENT_ID`, passed by `scripts/deploy.sh` and the deploy
