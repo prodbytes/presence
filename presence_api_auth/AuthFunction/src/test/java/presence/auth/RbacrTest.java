@@ -13,7 +13,6 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class RbacrTest {
 
@@ -65,35 +64,11 @@ class RbacrTest {
     }
 
     @Test
-    void grantsARoleInThePresenceSystem() {
-        reply = new Rbacr.Reply(201, "{\"systemId\":\"presence\",\"role\":\"free\"}");
-        rbacr.grant(" Ana@Example.com ", "free");
-        assertEquals(List.of("https://rbacr.example/api/systems/presence/grants rbacr_secret "
-                + "{\"role\":\"free\",\"grantee\":\"ana@example.com\"}"), asked);
-    }
-
-    @Test
-    void aGrantForgetsTheOldAnswer() {
-        assertEquals(Set.of("free", "premium"), rbacr.apply("ana@example.com"));
-        reply = new Rbacr.Reply(201, "{}");
-        rbacr.grant("ana@example.com", "admin");
-        reply = new Rbacr.Reply(200, "{\"globalRoles\":[],\"roles\":{\"presence\":[\"admin\",\"free\",\"premium\"]}}");
-        assertEquals(Set.of("admin", "free", "premium"), rbacr.apply("ana@example.com"));
-        assertEquals(3, asked.size());
-    }
-
-    @Test
-    void aRefusedOrFailedGrantThrows() {
-        reply = new Rbacr.Reply(403, "{\"error\":\"Only roots manage\"}");
-        assertThrows(IllegalStateException.class, () -> rbacr.grant("ana@example.com", "free"));
-        fails = new IOException("timed out");
-        assertThrows(IllegalStateException.class, () -> rbacr.grant("ana@example.com", "free"));
-        // Unconfigured: nobody has roles, nothing is granted.
+    void withoutATokenNobodyHasRolesAndRbacrIsntAsked() {
         var none = new Rbacr(URI.create("https://rbacr.example"), null, "presence", (u, t, b) -> {
             throw new AssertionError("asked rbacr without a token");
         }, Clock.systemUTC());
         assertEquals(Set.of(), none.apply("ana@example.com"));
-        assertThrows(IllegalStateException.class, () -> none.grant("ana@example.com", "free"));
     }
 
     @Test

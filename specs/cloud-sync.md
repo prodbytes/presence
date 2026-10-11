@@ -65,8 +65,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   another profile's never do. Fetched events, from the profile's folder,
   get its `profileId`. See [Devices, users and
   places](devices-users-places.md).
-- **Signed out, signed in without `presence_user`, or before the auth API
-  answers with the profile:** nothing is uploaded or fetched (see
+- **Signed out, signed in without `presence_user`, or before the roles
+  check (rbacr and the auth API) answers with the profile:** nothing is uploaded or fetched (see
   [Sign-in](sign-in.md) and [Membership](membership.md)). Sync starts once
   the roles check grants access and gives the profile; another profile
   (after a link) starts it over.

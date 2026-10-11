@@ -7,19 +7,22 @@
 #      live sync's IoT policy), and looks up the account's AWS IoT data
 #      endpoint (live sync)
 #   2. builds the Flutter web app for /app/ (make web, WEB_BASE_HREF=/app/),
-#      with the pool, bucket and IoT endpoint from step 1
+#      with the pool, bucket and IoT endpoint from step 1 and rbacr's URL
+#      and system (the app asks rbacr for its roles itself)
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
-#      presence-auth-api / presence-rc-auth-api), then its health check
+#      presence-auth-api / presence-rc-auth-api) and its health check
 #      (presence_health, stack presence-health / presence-rc-health: GET
-#      /health, which imports the auth API's table exports, so it comes after)
+#      /health, which imports the auth API's table exports): an existing
+#      health stack first, so it lets go of exports the auth API drops; a
+#      new stage's after, once the exports it imports exist
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
 #   5. uploads the index page (/) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site: /app/version.json must report this
-#      version, / must be the index page, and /api/auth must refuse a
-#      request without a token (401: the route and its authorizer are live),
+#      version, / must be the index page, and /api/auth/profile must refuse
+#      a request without a token (401: the route and its authorizer are live),
 #      and /api/auth/anonymous must report RBAC mode, and /health must say
 #      every dependency is ok
 #
@@ -52,7 +55,8 @@
 #   RBACR_TOKEN  an rbacr API token owned by an rbacr root: rbacr keeps every
 #                role (who may use the app, sync with the cloud, administer
 #                it; rbacr's root list makes roots), and subscriptions (at
-#                nu01.com) and vouchers grant there. Required, from the environment (the
+#                nu01.com) and vouchers grant there. Never given to the app,
+#                which asks rbacr with the user's own token. Required, from the environment (the
 #                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
 #   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
 #                the only one prod accepts; also .env)
@@ -236,6 +240,8 @@ echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID, f
 echo "    live sync: policy $LIVE_POLICY_NAME, endpoint $IOT_ENDPOINT"
 
 # 2. The web app
+# The app asks rbacr itself: it reads these at build time (scripts/dart-defines.sh); never the token.
+export RBACR_URL RBACR_SYSTEM
 if [[ "${SKIP_BUILD:-}" != 1 ]]; then
   echo "==> building the web app for /app/"
   WEB_BASE_HREF=/app/ PRESENCE_STAGE="$STAGE" bash scripts/make.sh web
@@ -270,8 +276,36 @@ if [[ "$built" != "$VERSION" ]]; then
   exit 1
 fi
 
-# 3. The auth API, then its health check (which imports the auth API's
-# table exports)
+# 3. The auth API and its health check, which imports the auth API's table
+# exports. CloudFormation refuses to remove an export another stack
+# imports, so an existing health stack is deployed first: its new template
+# stops importing what the auth API drops in this deploy, and still imports
+# only exports the deployed auth API has. A new stage's comes after the
+# auth API, whose exports it imports must exist first. So an export the
+# health check newly imports must ship in an earlier deploy than the import.
+# The health stack needs nothing from the auth API's outputs, so either
+# order gets the same parameters.
+deploy_health() {
+  echo "==> deploying $HEALTH_STACK"
+  # The same settings the auth API got, to check them; rbacr's URL only (the
+  # token is required above, so the auth API has one), never the token.
+  (
+    cd presence_health
+    sam build
+    sam deploy --stack-name "$HEALTH_STACK" --region "$AWS_REGION" \
+      --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$HEALTH_STACK" \
+      --parameter-overrides "AuthStackName=$AUTH_STACK" "Version=$VERSION" \
+        "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
+        "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
+        "RbacrUrl=$RBACR_URL" \
+      --no-confirm-changeset --no-fail-on-empty-changeset
+  )
+}
+health_first=0
+if aws cloudformation describe-stacks --stack-name "$HEALTH_STACK" >/dev/null 2>&1; then
+  health_first=1
+  deploy_health
+fi
 echo "==> deploying $AUTH_STACK"
 (
   cd presence_api_auth
@@ -287,20 +321,9 @@ echo "==> deploying $AUTH_STACK"
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
-echo "==> deploying $HEALTH_STACK"
-# The same settings the auth API got, to check them; rbacr's URL only (the
-# token is required above, so the auth API has one), never the token.
-(
-  cd presence_health
-  sam build
-  sam deploy --stack-name "$HEALTH_STACK" --region "$AWS_REGION" \
-    --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$HEALTH_STACK" \
-    --parameter-overrides "AuthStackName=$AUTH_STACK" "Version=$VERSION" \
-      "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
-      "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
-      "RbacrUrl=$RBACR_URL" \
-    --no-confirm-changeset --no-fail-on-empty-changeset
-)
+if [[ "$health_first" != 1 ]]; then
+  deploy_health
+fi
 health_domain="$(stack_output "$HEALTH_STACK" ApiDomain)"
 echo "    health origin: $health_domain"
 
@@ -312,6 +335,7 @@ aws cloudformation deploy --stack-name "$SITE_STACK" \
   --parameter-overrides "DomainName=$DOMAIN" "Stage=$STAGE" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
     "HealthApiDomainName=$health_domain" \
+    "RbacrUrl=$RBACR_URL" \
     "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
@@ -339,16 +363,12 @@ check() {
   curl -fsS --max-time 20 "https://$DOMAIN/" | grep -q "location.replace('/app/'" || { echo "    / isn't the index page"; return 1; }
   curl -fsS --max-time 20 -o /dev/null "https://$DOMAIN/app/" || { echo "    /app/ failed"; return 1; }
   local auth
-  auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth")"
-  [[ "$auth" == 401 ]] || { echo "    /api/auth without a token answered $auth, want 401"; return 1; }
+  auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth/profile")"
+  [[ "$auth" == 401 ]] || { echo "    /api/auth/profile without a token answered $auth, want 401"; return 1; }
   # Never DEV in AWS: that would give anonymous users every role. And AWS
   # must have every expected setting.
   local anonymous
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
-  # Maintenance mode (on or off, as an admin left it) isn't the deploy's
-  # business: it's checked to be there, then left out.
-  [[ "$anonymous" == *',"maintenance":{"on":'* ]] || { echo "    /api/auth/anonymous answered $anonymous, want its maintenance mode"; return 1; }
-  anonymous="${anonymous%%,\"maintenance\":*}}"
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
   # What the Route 53 health check polls (presence_health): every

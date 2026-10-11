@@ -1,17 +1,22 @@
 # presence_api_auth
 
 The Presence auth API: an [AWS SAM](https://aws.amazon.com/serverless/sam/)
-application with four Java 25 Lambdas (`java25`, arm64) behind one API
+application with two Java 25 Lambdas (`java25`, arm64) behind one API
 Gateway **HTTP API**, served under **`/api/auth`** by the site's CloudFront
 distribution.
 
 | Route | Who | Does |
 |-------|-----|------|
-| `GET /api/auth` | anyone signed in | the caller's profile (found, or created at the first sign-in) and roles: `{"email": "…", "profile": "automatic_paranoid_axolotl", "roles": […]}` |
+| `GET /api/auth/anonymous` | anyone (no token) | the execution mode, the anonymous user's roles and which settings are set: `{"mode": "RBAC", "roles": ["presence_anonymous"], "settings": {"oidc": true, "aws": true, "rbacr": true}}` |
+| `GET /api/auth/profile` | anyone signed in | the caller's profile (found, or created at the first sign-in), the roles it shares from the profile's owner and its accounts: `{"profile": "automatic_paranoid_axolotl", "shared": ["presence_premium", "presence_user"], "accounts": [{"email", "owner", "current"}]}` |
+| `POST /api/auth/credentials` | `presence_user` | the profile's Cognito token for cloud sync |
+| `POST /api/auth/profile/link-code`, `/link`, `/unlink`, `/devices/remove` | signed in | link accounts to a profile, and its devices |
 
-Admins are users with both `presence_user` and `presence_admin`. Users
-get `presence_user` by subscribing at nu01.com (rbacr) or by redeeming a
-voucher; there are no membership requests.
+The app asks [rbacr](https://rbacr.nu01.com) directly, with the user's
+Google ID token, for the user's own roles, maintenance mode and voucher
+redemption; admins manage vouchers and maintenance in rbacr. Users get
+`presence_user` by subscribing at nu01.com or redeeming a voucher (both
+rbacr's); there are no membership requests.
 
 - **Who's calling:** the HTTP API's JWT authorizer checks the Google ID
   token first: signature, expiry, issuer `https://accounts.google.com`, and
@@ -36,37 +41,33 @@ voucher; there are no membership requests.
   system (`RbacrUrl`, `RbacrToken`, `RbacrSystem`):
   - `presence_user` (rbacr's `free`, `premium` or `admin`) uses the app;
     `presence_premium` (`premium` or `admin`) also syncs with the cloud;
-    `presence_admin` (`admin`) also manages Member vouchers and
-    maintenance mode; `presence_root` (an rbacr root, from its
-    root list) gets every role and also creates Admin vouchers (nothing
-    creates root ones);
+    `presence_admin` (`admin`) also administers it (vouchers and
+    maintenance mode are managed in rbacr); `presence_root` (an rbacr
+    root, from its root list) gets every role;
   - nobody has roles by default, and only a verified email is asked
     about: one `POST /api/roles` per email, answers reused 60 s, failing
     closed (no answer, no roles);
-  - the token must be an rbacr root's: it asks about anyone, and grants;
+  - the token must be an rbacr root's: it asks about anyone (a profile's
+    owner, for its linked accounts);
   - an account linked to a profile another account owns gets
     `presence_user` and `presence_premium` when the owner has them, never
-    the owner's `presence_admin` or `presence_root`.
-- **Admin routes**
-  ([AdminHandler.java](AuthFunction/src/main/java/presence/auth/AdminHandler.java)):
-  the function works out the caller's roles itself and answers **403**
-  unless they include both roles. Roles themselves (granting, revoking,
-  `premium`, domains, time limits) are changed in rbacr itself.
+    the owner's `presence_admin` or `presence_root` (`Roles.shared`, the
+    listing's `shared`); credentials use the caller's own roles plus
+    those.
 - The tables' contents (people's emails) live only in AWS, never in this
-  repository. `UserRolesTable` now holds only the voucher lockout; its old
-  `roles` were copied into rbacr by
-  [scripts/migrate-roles-to-rbacr.sh](../scripts/migrate-roles-to-rbacr.sh)
-  (dry run by default; `--apply` grants).
-
-- **Least privilege:** the roles function may only use the profile
-  tables; the admin function may only use the voucher, profile and
-  system tables. Their rbacr token is a root's, so keep it secret and
-  rotate it.
+  repository. The old `UserRolesTable`, `VoucherTable` (both retained) and
+  `SystemTable` are no longer part of the stack: vouchers and maintenance
+  mode are rbacr's.
+- **Least privilege:** the anonymous function uses no table and only
+  reports whether its settings are set; the profile function may only use
+  the profile, subject and link-code tables, the identity pool, the bucket
+  listing and IoT's AttachPolicy. The rbacr token is a root's, so keep it
+  secret and rotate it.
 
 | Path | Holds |
 |------|-------|
 | [template.yaml](template.yaml) | The tables, the HTTP API with its Google JWT authorizer, and the functions |
-| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `AdminHandler`, `Roles`, `Profiles`, `ProfileId` and its word lists) with its tests |
+| [AuthFunction/](AuthFunction) | Maven project (`presence.auth.AuthHandler`, `ProfileHandler`, `Roles`, `Profiles`, `ProfileId` and its word lists) with its tests |
 | [samconfig.toml](samconfig.toml) | Default `sam build` / `deploy` settings (stack `presence-auth-api`) |
 
 ## Commands
@@ -81,6 +82,8 @@ sam build
 
 `scripts/deploy.sh` deploys it as `presence-auth-api` (or
 `presence-rc-auth-api` with `STAGE=rc`), passing the site's web client ID.
-Its outputs export the tables' names (`<stack>-UserRolesTable` and so on)
-for the health check, [presence_health](../presence_health) (`GET
-/health`), which `deploy.sh` deploys right after it.
+Its outputs export the tables' names (`<stack>-ProfilesTable`,
+`-ProfileSubjectsTable`, `-LinkCodesTable`) for the health check,
+[presence_health](../presence_health) (`GET /health`). CloudFormation
+won't remove an export another stack imports, so `deploy.sh` deploys an
+existing health stack before this one (and a new stage's after it).

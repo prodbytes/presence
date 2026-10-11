@@ -155,56 +155,46 @@ class ProfilesTest {
     }
 
     @Test
-    void theHandlerAnswersWithTheProfile() {
-        // rbacr: ana@nu01.com is a root.
-        var handler = new AuthHandler(new Roles(e -> e.equals("ana@nu01.com") ? Set.of(Rbacr.ROOT) : Set.of()),
-                profiles);
-        var claims = Map.of("iss", GOOGLE, "sub", "111", "email", "ana@nu01.com", "email_verified", "true",
-                "hd", "nu01.com");
-        var body = "{\"email\":\"ana@nu01.com\",\"profile\":\"profile-1\",\"roles\":[\"presence_admin\","
-                + "\"presence_premium\",\"presence_root\",\"presence_user\"]}";
-        assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
-        assertEquals(body, handler.handleRequest(RolesTest.event(claims), null).getBody());
+    void aSignInFindsOrMakesTheProfile() {
+        var ana = Caller.of(Map.of("iss", GOOGLE, "sub", "111", "email", "ana@nu01.com", "email_verified", "true",
+                "hd", "nu01.com"));
+        assertEquals("profile-1", profiles.profile(ana, null).id());
+        assertEquals("profile-1", profiles.profile(ana, null).id());
         // Users without roles have a profile too.
-        assertEquals("{\"email\":\"bob@example.com\",\"profile\":\"profile-2\",\"roles\":[]}",
-                handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "222",
-                        "email", "bob@example.com", "email_verified", "true")), null).getBody());
+        assertEquals("profile-2", profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "222",
+                "email", "bob@example.com", "email_verified", "true")), null).id());
         // The app's own profile, claimed at a first sign-in.
-        var event = RolesTest.event(Map.of("iss", GOOGLE, "sub", "333",
-                "email", "cy@example.com", "email_verified", "true"));
-        event.setQueryStringParameters(Map.of("profile", "automatic_paranoid_axolotl"));
-        assertEquals("{\"email\":\"cy@example.com\",\"profile\":\"automatic_paranoid_axolotl\",\"roles\":[]}",
-                handler.handleRequest(event, null).getBody());
+        assertEquals("automatic_paranoid_axolotl", profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "333",
+                "email", "cy@example.com", "email_verified", "true")), "automatic_paranoid_axolotl").id());
         // The anonymous route makes none.
         var anonymous = new com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent();
         anonymous.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
-        handler.handleRequest(anonymous, null);
+        new AuthHandler(ExecutionMode.RBAC).handleRequest(anonymous, null);
         assertEquals(3, store.links.size());
     }
 
     @Test
     void onlyAVerifiedEmailIsKeptAsTheOwners() {
-        var handler = new AuthHandler(new Roles(e -> Set.of()), profiles);
         // A first sign-in with an unverified email: the profile has no owner email.
-        handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "111",
+        profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "111",
                 "email", "victim@example.com", "email_verified", "false")), null);
         var id = store.links.get(GOOGLE + "#111");
         assertNull(store.profile(id).ownerEmail());
         assertEquals("", store.emails.get(GOOGLE + "#111"));
 
         // Verified: kept, with its Workspace domain.
-        handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "111",
+        profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "111",
                 "email", "Ana@NU01.com", "email_verified", "true", "hd", "NU01.com")), null);
         assertEquals("ana@nu01.com", store.profile(id).ownerEmail());
         assertEquals("nu01.com", store.profile(id).ownerHd());
 
         // An unverified new email never replaces it.
-        handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "111",
+        profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "111",
                 "email", "victim@example.com", "email_verified", "false")), null);
         assertEquals("ana@nu01.com", store.profile(id).ownerEmail());
 
         // The same verified email, no longer managed by the Workspace: hd goes.
-        handler.handleRequest(RolesTest.event(Map.of("iss", GOOGLE, "sub", "111",
+        profiles.profile(Caller.of(Map.of("iss", GOOGLE, "sub", "111",
                 "email", "ana@nu01.com", "email_verified", "true")), null);
         assertEquals("ana@nu01.com", store.profile(id).ownerEmail());
         assertNull(store.profile(id).ownerHd());

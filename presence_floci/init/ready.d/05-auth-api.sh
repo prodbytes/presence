@@ -2,7 +2,8 @@
 # Deploys the auth API (presence_api_auth/template.yaml, built on the host by
 # scripts/build-auth-api.sh and mounted at /opt/presence-auth-api) into Floci
 # as the stack presence-local-auth-api: the same Java Lambdas, HTTP API with
-# its Google JWT authorizer, and DynamoDB tables as in AWS. Floci
+# its Google JWT authorizer, and DynamoDB tables (profiles, their subjects
+# and link codes) as in AWS. Floci
 # runs the functions in Docker containers (hence the Docker socket in
 # compose.yaml) and verifies Google ID tokens against Google's JWKS.
 #
@@ -48,8 +49,8 @@ aws s3 mb s3://presence-local-sam >/dev/null
 aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
 # rbacr's RC (rc.rbacr.nu01.com, its own database), from .env's RBACR_RC_*:
-# the roles of whoever signs in (RBAC mode). Its grants (an admin approving
-# a request, a voucher) go there too, never to GA rbacr, which prod uses.
+# what a linked account shares from its profile's owner (RBAC mode), never
+# GA rbacr, which prod uses. The app asks rbacr for its own roles itself.
 if [ -n "$CLIENT_ID" ] && [ -z "${RBACR_TOKEN:-}" ]; then
   echo "presence: RBACR_RC_TOKEN isn't set (.env); nobody who signs in has a role" >&2
 fi
@@ -93,15 +94,9 @@ if [ -n "$CLIENT_ID" ]; then
     --authorizer-type JWT --identity-source '$request.header.Authorization' \
     --jwt-configuration "Issuer=https://accounts.google.com,Audience=$CLIENT_ID" \
     --query AuthorizerId --output text)
-  route "GET /api/auth" AuthFunction "$authorizer"
-  route "POST /api/auth/voucher" VoucherFunction "$authorizer"
-  route "GET /api/auth/vouchers" AdminFunction "$authorizer"
-  route "POST /api/auth/vouchers" AdminFunction "$authorizer"
-  route "POST /api/auth/vouchers/delete" AdminFunction "$authorizer"
-  route "GET /api/auth/maintenance" AdminFunction "$authorizer"
-  route "POST /api/auth/maintenance" AdminFunction "$authorizer"
-  # Profiles. Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the
-  # listing answers; the others say cloud sync isn't set up (503).
+  # Profiles: the listing, which makes the profile at the first sign-in.
+  # Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the listing
+  # answers; the others say cloud sync isn't set up (503).
   route "POST /api/auth/credentials" ProfileFunction "$authorizer"
   route "GET /api/auth/profile" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/link-code" ProfileFunction "$authorizer"
