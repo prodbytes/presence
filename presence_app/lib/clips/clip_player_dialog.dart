@@ -217,9 +217,12 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListTile(
+                // Small: the clip, not its heading, is what matters here.
                 title: Text(
                   '${_event.clip.cameraLabel} · '
                   '${formatEventTime(_event.time)}',
+                  key: const Key('clip-player-title'),
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
                 // Who holds a copy of it.
                 subtitle: Align(

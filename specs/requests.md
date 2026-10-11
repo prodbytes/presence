@@ -4860,3 +4860,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        tags already stored their `score`. Specs: [Clips](clips.md),
        [Subjects](subjects.md), [Subject recognition](recognition.md),
        [Data formats](data-formats.md).
+
+354. **Smaller text in the event's details.** (2026-10-11)
+     - Asked: a smaller title, device ID and device OS label in the event
+       detail view (the clip player).
+     - Changed: the player's title (camera · time) from the list tile's
+       default (`titleMedium`, 16 sp) to `titleSmall` (14 sp); the device
+       ID from `bodyLarge` (16 sp) to `bodyMedium` (14 sp); the OS name
+       from `bodySmall` (12 sp) to `labelSmall` (11 sp). Spec:
+       [Clips](clips.md).

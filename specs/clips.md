@@ -108,7 +108,9 @@ recorders (`RecorderPool` in
 
 ## Subjects and Tags, under the player
 
-The player is the event's details screen. Under it are two sections, each
+The player is the event's details screen. Its title, the camera and the
+time ("Back camera · 11 Oct 10:42"), is in small title text (`titleSmall`,
+14 sp). Under the player are two sections, each
 with its own heading and icon so they read apart at any width (320 dp
 phones to wide screens): **Subjects** (a face icon), the named people and
 pets, and below a divider, **Tags** (a tag icon), the things seen on the
@@ -138,11 +140,12 @@ After Tags, below a divider, the details end with
   scrolls the details. Without a location it says "No location for this
   event".
 - **Device** (`EventDevice`): the recording device's operating system
-  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID
-  (selectable; with access, in the accent color, and a tap closes the
+  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID in body
+  text (`bodyMedium`, 14 sp; selectable; with access, in the accent
+  color, and a tap closes the
   player and shows the device's events in Monitoring, the search set to
   its ID: see [Navigation](navigation.md)), "this device" for this one,
-  and the OS name under it;
+  and the OS name under it, smaller still (`labelSmall`, 11 sp, muted);
   signed in, its [presence dot](device-presence.md) before the ID (the
   devices are pinged while the details show, as in the device list).
 - **Delete event**: an outlined, error-colored button, signed in with the

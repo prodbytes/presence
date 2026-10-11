@@ -91,6 +91,12 @@ void main() {
     await tester.tap(inEvents(find.byKey(const Key('clip-play'))));
     await tester.pumpAndSettle();
     expect(find.byType(ClipPlayerView), findsOneWidget);
+    // Its title (camera and time) in small text.
+    final title = tester.widget<Text>(
+      find.byKey(const Key('clip-player-title')),
+    );
+    final theme = Theme.of(tester.element(find.byType(ClipPlayerView)));
+    expect(title.style!.fontSize, theme.textTheme.titleSmall!.fontSize);
   });
 
   testWidgets('a frame grab that throws brings the button back', (
