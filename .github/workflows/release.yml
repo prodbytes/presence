@@ -239,10 +239,9 @@ jobs:
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
           GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
-          STRIPE_PAYMENT_LINK: ${{ vars.STRIPE_PAYMENT_LINK }}
         run: |
-          printf 'GOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_IOS_CLIENT_ID=%s\nSTRIPE_PAYMENT_LINK=%s\n' \
-            "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_IOS_CLIENT_ID" "$STRIPE_PAYMENT_LINK" > .env
+          printf 'GOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_IOS_CLIENT_ID=%s\n' \
+            "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_IOS_CLIENT_ID" > .env
 
       - name: make ${{ matrix.target }}
         run: make "$TARGET"

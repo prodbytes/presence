@@ -34,6 +34,9 @@ Parameters:
   HealthApiDomainName:
     Type: String
     Description: The health check's execute-api host name (the presence_health stack's ApiDomain output)
+  PaymentsApiDomainName:
+    Type: String
+    Description: The payments API's execute-api host name (the presence_api_payments stack's ApiDomain output)
   Stage:
     Type: String
     Default: prod
@@ -279,6 +282,14 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+          # The payments API (presence_api_payments), default stage:
+          # /api/payments/* -> /api/payments/*
+          - Id: payments
+            DomainName: !Ref PaymentsApiDomainName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
           # The health check's HTTP API (presence_health), default stage: /health -> /health
           - Id: health
             DomainName: !Ref HealthApiDomainName
@@ -313,6 +324,16 @@ Resources:
             TargetOriginId: health
             ViewerProtocolPolicy: redirect-to-https
             AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+          # The payments API, before /api/* (the first match wins), as the
+          # auth API below: nothing cached, Authorization forwarded.
+          - PathPattern: /api/payments/*
+            TargetOriginId: payments
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
             CachedMethods: [GET, HEAD]
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader

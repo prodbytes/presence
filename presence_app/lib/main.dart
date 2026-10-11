@@ -13,6 +13,7 @@ import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
 import 'auth/rbacr_client.dart';
 import 'feedback/feedback_client.dart';
+import 'auth/payments_client.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
@@ -78,6 +79,7 @@ class PresenceApp extends StatefulWidget {
     this.rbacrClient,
     this.feedbackClient,
     this.profileClient,
+    this.paymentsClient,
     this.consentGiven = false,
     this.locator,
     this.mapTiles,
@@ -134,6 +136,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the profile routes (used by tests); defaults to
   /// `/api/auth/profile`.
   final ProfileClient? profileClient;
+
+  /// Overrides the payments API (used by tests); defaults to
+  /// `/api/payments/links`.
+  final PaymentsClient? paymentsClient;
 
   /// Overrides where roles come from (used by tests); defaults to rbacr's
   /// `GET /api/me` with the auth API's `GET /api/auth/profile`.
@@ -205,6 +211,10 @@ class _PresenceAppState extends State<PresenceApp> {
           HttpRolesClient(ApiConfig.baseUrl, rbacr: _rbacr),
       // rbacr's maintenance mode reaches a running app within a minute.
       maintenanceCheckInterval: const Duration(minutes: 1),
+    );
+    _payments = PaymentsService(
+      auth: _auth,
+      client: widget.paymentsClient ?? HttpPaymentsClient(ApiConfig.baseUrl),
     );
     final mediaIo = widget.mediaIo;
     _persistence = Persistence(
@@ -580,6 +590,9 @@ class _PresenceAppState extends State<PresenceApp> {
   CloudBackend? _cloud;
   late final ProfileClient _profiles =
       widget.profileClient ?? HttpProfileClient(ApiConfig.baseUrl);
+
+  /// The Premium plans' Stripe links, loaded at each sign-in.
+  late final PaymentsService _payments;
   CloudSync? _sync;
   String? _signedInAs;
 
@@ -606,6 +619,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _sync?.dispose();
     _copies.dispose();
     _roles.dispose();
+    _payments.dispose();
     _location.dispose();
     _trainer?.dispose();
     _recognizer.dispose();
@@ -690,6 +704,7 @@ class _PresenceAppState extends State<PresenceApp> {
         rbacr: _rbacr,
         feedback: _feedback,
         profiles: _profiles,
+        payments: _payments,
         sync: _sync,
         deviceId: _deviceId,
         location: _location,
