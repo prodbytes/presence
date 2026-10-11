@@ -49,7 +49,8 @@ class Annotation {
 
   final TagSource source;
 
-  /// How sure recognition was, from 0 to 1 (recognized tags only).
+  /// How sure the tag is, from 0 to 1: recognition's confidence, or 1 for
+  /// one someone made or confirmed. Null only for a malformed record.
   final double? confidence;
 
   /// When someone placed it, confirmed it or renamed it (ms since the
@@ -76,18 +77,22 @@ class Annotation {
   final String? frameId;
   final int? frameMs;
 
-  Annotation copyWith({String? name, TagSource? source, int? labeledAt}) =>
-      Annotation(
-        id: id,
-        name: name ?? this.name,
-        x: x,
-        y: y,
-        frameId: frameId,
-        frameMs: frameMs,
-        source: source ?? this.source,
-        confidence: confidence,
-        labeledAt: labeledAt ?? this.labeledAt,
-      );
+  Annotation copyWith({
+    String? name,
+    TagSource? source,
+    double? confidence,
+    int? labeledAt,
+  }) => Annotation(
+    id: id,
+    name: name ?? this.name,
+    x: x,
+    y: y,
+    frameId: frameId,
+    frameMs: frameMs,
+    source: source ?? this.source,
+    confidence: confidence ?? this.confidence,
+    labeledAt: labeledAt ?? this.labeledAt,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -115,6 +120,9 @@ class Annotation {
     final frameMs = json['frameMs'];
     final confidence = json['confidence'];
     final labeledAt = json['labeledAt'];
+    // Older records, and unknown sources, are someone's clicks.
+    final source =
+        TagSource.values.asNameMap()[json['source']] ?? TagSource.manual;
     return Annotation(
       id: id,
       name: name,
@@ -122,9 +130,11 @@ class Annotation {
       y: y.toDouble().clamp(0, 1),
       frameId: frameId is String ? frameId : null,
       frameMs: frameMs is num ? frameMs.toInt() : null,
-      // Older records, and unknown sources, are someone's clicks.
-      source: TagSource.values.asNameMap()[json['source']] ?? TagSource.manual,
-      confidence: confidence is num ? confidence.toDouble().clamp(0, 1) : null,
+      source: source,
+      // Older records kept no confidence for tags someone made.
+      confidence: confidence is num
+          ? confidence.toDouble().clamp(0, 1)
+          : (source.vouched ? 1 : null),
       labeledAt: labeledAt is num ? labeledAt.toInt() : null,
     );
   }
@@ -291,7 +301,8 @@ class ClipAnnotations extends ChangeNotifier {
       );
 
   /// Adds [name] at ([x], [y]) on [frame]; blank names are ignored.
-  /// Recognition passes its [source] and [confidence].
+  /// Recognition passes its [source] and [confidence]; a tag someone made
+  /// is 100 % sure.
   Annotation? add(
     String name,
     double x,
@@ -311,7 +322,7 @@ class ClipAnnotations extends ChangeNotifier {
       frameId: frame?.id,
       frameMs: frame?.ms,
       source: source,
-      confidence: confidence,
+      confidence: confidence ?? (source.vouched ? 1 : null),
       // Someone placed it: a label cloud recognition learns from.
       labeledAt: source.vouched ? Annotation.clock() : null,
     );
@@ -333,12 +344,13 @@ class ClipAnnotations extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Makes a suggestion a tag: someone confirmed it.
+  /// Makes a suggestion a tag: someone confirmed it, so it's 100 % sure.
   void confirm(String id) {
     final i = _items.indexWhere((a) => a.id == id);
     if (i < 0 || _items[i].source != TagSource.suggested) return;
     _items[i] = _items[i].copyWith(
       source: TagSource.confirmed,
+      confidence: 1,
       labeledAt: Annotation.clock(),
     );
     notifyListeners();
