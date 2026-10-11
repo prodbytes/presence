@@ -496,6 +496,30 @@ abstract class AppLocalizations {
   /// **'Something went wrong ({error}).'**
   String authSomethingWrong(String error);
 
+  /// No description provided for @authStreamerBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.'**
+  String get authStreamerBody;
+
+  /// No description provided for @authStreamerCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Command copied: paste it on the Raspberry Pi'**
+  String get authStreamerCopied;
+
+  /// No description provided for @authStreamerCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy command'**
+  String get authStreamerCopy;
+
+  /// No description provided for @authStreamerTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Stream from a Raspberry Pi'**
+  String get authStreamerTitle;
+
   /// No description provided for @authSubscribe.
   ///
   /// In en, this message translates to:

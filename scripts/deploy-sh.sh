@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Deploys https://sh.presence.nu01.com, which serves scripts/install.sh:
+# Deploys https://sh.presence.nu01.com, which serves scripts/install.sh,
+# and scripts/install-streamer.sh at /streamer:
 #   1. deploys the presence-sh stack (presence_sh/template.yaml: certificate,
 #      bucket, CloudFront, DNS)
-#   2. uploads scripts/install.sh and invalidates the CloudFront cache
-#   3. smoke-tests the live URL: / and /install.sh must return the uploaded
-#      script byte for byte, and plain http must be refused
+#   2. uploads both scripts and invalidates the CloudFront cache
+#   3. smoke-tests the live URLs: / and /install.sh must return
+#      install.sh, /streamer and /streamer.sh install-streamer.sh, byte for
+#      byte, and plain http must be refused
 #
 # Run by .github/workflows/deploy.yml on *GA tags, after scripts/deploy.sh,
 # or by hand with admin credentials. Settings, from the environment:
@@ -42,12 +44,15 @@ bucket="$(stack_output ScriptBucketName)"
 distribution="$(stack_output DistributionId)"
 echo "    bucket: $bucket, distribution: $distribution"
 
-# 2. The script. text/plain so a browser shows it rather than downloading
-# it; edge caches keep it 5 minutes, and the invalidation clears them now.
-echo "==> uploading scripts/install.sh"
-aws s3 cp scripts/install.sh "s3://$bucket/install.sh" \
-  --content-type "text/plain; charset=utf-8" --cache-control "public, max-age=300" \
-  --only-show-errors
+# 2. The scripts. text/plain so a browser shows them rather than
+# downloading them; edge caches keep them 5 minutes, and the invalidation
+# clears them now.
+for script in install.sh:install.sh install-streamer.sh:streamer.sh; do
+  echo "==> uploading scripts/${script%%:*} as ${script#*:}"
+  aws s3 cp "scripts/${script%%:*}" "s3://$bucket/${script#*:}" \
+    --content-type "text/plain; charset=utf-8" --cache-control "public, max-age=300" \
+    --only-show-errors
+done
 invalidation="$(aws cloudfront create-invalidation --distribution-id "$distribution" \
   --paths '/*' --query Invalidation.Id --output text)"
 echo "    waiting for invalidation $invalidation"
@@ -57,17 +62,18 @@ aws cloudfront wait invalidation-completed --distribution-id "$distribution" --i
 echo "==> checking https://$DOMAIN/"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-for path in / /install.sh; do
+for check in /:install.sh /install.sh:install.sh /streamer:install-streamer.sh /streamer.sh:install-streamer.sh; do
+  path="${check%%:*}" want="scripts/${check#*:}"
   ok=
   for _ in $(seq 1 30); do # DNS for a new record can take a minute
-    if curl -fsS -o "$tmp/got" "https://$DOMAIN$path" 2>/dev/null && cmp -s "$tmp/got" scripts/install.sh; then
+    if curl -fsS -o "$tmp/got" "https://$DOMAIN$path" 2>/dev/null && cmp -s "$tmp/got" "$want"; then
       ok=1
       break
     fi
     sleep 10
   done
   if [[ -z "$ok" ]]; then
-    echo "error: https://$DOMAIN$path doesn't serve scripts/install.sh" >&2
+    echo "error: https://$DOMAIN$path doesn't serve $want" >&2
     exit 1
   fi
   echo "    $path: ok"
@@ -78,4 +84,4 @@ if [[ "$status" != 403 ]]; then
   exit 1
 fi
 echo "    http: refused (403)"
-echo "==> done: curl -fsSL https://$DOMAIN | sh"
+echo "==> done: curl -fsSL https://$DOMAIN | sh, and curl -fsSL https://$DOMAIN/streamer | sh -s -- <profile>"

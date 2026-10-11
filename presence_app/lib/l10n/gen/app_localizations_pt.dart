@@ -283,6 +283,19 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get authStreamerBody =>
+      'Cole isto num terminal de um Raspberry Pi com câmera (Raspberry Pi OS, 32 ou 64 bits). Ele instala o streamer do Presence, que grava neste perfil a cada inicialização e guarda os clipes com pessoas e animais. Ele pede que você entre com um código.';
+
+  @override
+  String get authStreamerCopied => 'Comando copiado: cole-o no Raspberry Pi';
+
+  @override
+  String get authStreamerCopy => 'Copiar comando';
+
+  @override
+  String get authStreamerTitle => 'Transmitir de um Raspberry Pi';
+
+  @override
   String get authSubscribe => 'Assinar';
 
   @override

@@ -68,6 +68,52 @@ bundle. The 32-bit OS (`armv7l`) has no native build and gets the web app.
 The README's "Raspberry Pi" section has the same steps, and the camera
 `.deb`.
 
+## Streamer
+
+[scripts/install-streamer.sh](../scripts/install-streamer.sh), served at
+https://sh.presence.nu01.com/streamer ([Install URL](install-url.md)),
+installs the [streamer](streamer.md) on a Raspberry Pi and sets it up for a
+profile, so it streams from every boot:
+
+```sh
+curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- automatic_paranoid_axolotl
+curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_paranoid_axolotl sh
+```
+
+- **The profile** is the first argument, else `PRESENCE_PROFILE`. Without
+  one, or with one that isn't a profile ID (`a_b_c`, at most 64), it says
+  how to run it and exits 2.
+- **The app shows the command**, with the profile filled in, to copy and
+  paste on the Pi: the account sheet's **Stream from a Raspberry Pi** box
+  (`StreamerCommand`, [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
+  under the plan, for a premium profile (or an admin) with access, not in
+  DEV. It has the command (selectable, monospace) and **Copy command**,
+  which copies it and says so. Only an ID of lowercase letters and
+  underscores makes a command (no shell quoting needed), else the box
+  doesn't show.
+- **POSIX `sh`**, one `main` call at the end, as the main script. Needs
+  Linux with `apt-get` and `dpkg`. The architecture is `dpkg
+  --print-architecture`: `armhf` (32-bit) or `arm64` (64-bit), anything
+  else refused.
+- **The release:** the latest GA (from the `releases/latest` redirect), or
+  `PRESENCE_TAG`. It downloads `presence-streamer-<tag>-raspberrypi-<arch>.deb`
+  and **requires** its sha256 from the release API, since it installs as
+  root. A mismatch, or no checksum, stops it.
+- **Installs** with `sudo apt-get update` and `sudo apt-get install -y`
+  (no sudo as root), which brings ffmpeg, rclone and OpenCV. The package
+  enables `presence-streamer.service` for every boot.
+- **Sets up** with `sudo presence-streamer setup --profile <ID>`, its stdin
+  the terminal (`/dev/tty`, since the script's own stdin is curl's pipe).
+  That shows the Google sign-in code, checks the profile is Premium, and
+  starts the service. Without a terminal it says the command to run.
+- Verified in Docker (Debian 13 arm64, Debian 12 armhf emulated), with a
+  fake `curl` serving the release's `.deb` and the API's checksum: without
+  a profile, or with `x; rm -rf /`, it exits 2; a wrong checksum stops it
+  before apt; it installs the package and its dependencies, the boot link
+  is made, and `setup` gets the profile from the argument and from
+  `PRESENCE_PROFILE` (stopping there, at the sign-in, for want of the
+  Google client in a local build).
+
 ## Known limitations
 
 - When the release API is unreachable or rate-limited, the download isn't

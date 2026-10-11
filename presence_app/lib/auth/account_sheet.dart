@@ -15,6 +15,7 @@ import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
 import 'plan_notice.dart';
+import 'streamer_command.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
 import 'voucher_code.dart';
@@ -292,6 +293,16 @@ class AccountSheet extends StatelessWidget {
                         openLink: openLink,
                       ),
                     ],
+                    // A premium profile can stream from a Raspberry Pi: the
+                    // command to paste on it, with this profile.
+                    if (roles case final roles?
+                        when roles.hasAccess &&
+                            roles.mode != ExecutionMode.dev &&
+                            (roles.isPremium || roles.isAdmin))
+                      if (roles.profile case final profile?) ...[
+                        const SizedBox(height: 12),
+                        StreamerCommand(profileId: profile),
+                      ],
                     if ((roles, profiles) case (
                       final roles?,
                       final profiles?,

@@ -100,5 +100,9 @@
   "aboutParagraph": "O Presence transforma um celular, tablet, notebook ou Raspberry Pi em uma câmera sempre ligada para um lugar de que você cuida: imagens ao vivo, clipes que incluem os momentos anteriores e clipes ao detectar movimento. Só grave onde for permitido.",
   "aboutOpenSource": "O Presence é de código aberto:",
   "devModeTooltip": "Modo de desenvolvimento: o login não está configurado, então tudo fica aberto a todos.",
-  "devModeTooltipVersion": "Modo de desenvolvimento, versão {version}: o login não está configurado, então tudo fica aberto a todos."
+  "devModeTooltipVersion": "Modo de desenvolvimento, versão {version}: o login não está configurado, então tudo fica aberto a todos.",
+  "authStreamerTitle": "Transmitir de um Raspberry Pi",
+  "authStreamerBody": "Cole isto num terminal de um Raspberry Pi com câmera (Raspberry Pi OS, 32 ou 64 bits). Ele instala o streamer do Presence, que grava neste perfil a cada inicialização e guarda os clipes com pessoas e animais. Ele pede que você entre com um código.",
+  "authStreamerCopy": "Copiar comando",
+  "authStreamerCopied": "Comando copiado: cole-o no Raspberry Pi"
 }

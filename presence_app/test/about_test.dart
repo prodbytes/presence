@@ -52,7 +52,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('is open source'), findsOneWidget);
-      expect(find.textContaining('Raspberry Pi'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: about,
+          matching: find.textContaining('Raspberry Pi'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Presence is open source:'), findsOneWidget);
       expect(find.text('github.com/prodbytes/presence'), findsOneWidget);
       // Nothing asks to become a member.
