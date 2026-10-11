@@ -4899,3 +4899,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the position on its own row and the paste box and Pin on the next.
        The side column (36 % of the width) is gone. Spec: [Device
        location](device-location.md).
+
+357. **Upgrade to Premium.** (2026-10-11)
+     - Asked: a button on the profile page for free users (not premium
+       ones) to upgrade to Premium: on web the Stripe payment page, on
+       Android the Play Store subscription, on iOS the App Store's;
+       US$20 a month, a week's free trial if possible.
+     - Decided (with the user): Stripe on every platform for now. The apps
+       aren't in Google Play or the App Store, and a store purchase
+       wouldn't reach rbacr, which decides who is premium; rbacr already
+       syncs Stripe subscriptions into a `premium` grant (its Q1 to Q3).
+     - Changed: the account sheet's plan box, for a free member, says
+       "Premium adds cloud backup and up to 50 devices: US$20 a month, the
+       first week free." with **Upgrade to Premium** (the Stripe checkout,
+       the account's email prefilled and locked, the profile as
+       `client_reference_id`) and **Check again**, replacing **Sign up at
+       nu01.com**; the Monitoring tab's hidden-devices card's **Sign up**
+       became **Upgrade**. The link is the new build setting
+       `STRIPE_PAYMENT_LINK` (`.env`, the repository variable in CI);
+       unset, the buttons open nu01.com as before. The price and the
+       trial are set on the Payment Link in Stripe. Specs: [Upgrade to
+       Premium](upgrade.md) (new), [Premium and free](premium.md),
+       [Monitoring](monitoring.md), [Sign-in](sign-in.md),
+       [Membership](membership.md), [Configuration](configuration.md).

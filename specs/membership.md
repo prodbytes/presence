@@ -19,7 +19,8 @@ Roots are **rbacr's roots**: the addresses and domains on rbacr's root
 list (`@nu01.com` by default), configured in rbacr, not here. They get
 every role, and nothing else gives `presence_root`. Everyone else starts
 unknown, and gets roles by subscribing at nu01.com (rbacr's Substack
-sync gives `premium`), by redeeming a voucher code, or from a grant in
+sync gives `premium`), by [upgrading to Premium](upgrade.md) in the app
+(a free member; rbacr's same Stripe sync), by redeeming a voucher code, or from a grant in
 rbacr's pages. Admins (rbacr's `admin` in the `presence` system) are
 made in rbacr. An account linked to another's profile shares its
 membership (`presence_user`) and premium only, never `presence_admin` or

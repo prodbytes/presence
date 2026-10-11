@@ -145,7 +145,10 @@ jobs:
       - name: Write .env
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-        run: printf 'GOOGLE_WEB_CLIENT_ID=%s\n' "$GOOGLE_WEB_CLIENT_ID" > .env
+          STRIPE_PAYMENT_LINK: ${{ vars.STRIPE_PAYMENT_LINK }}
+        run: |
+          printf 'GOOGLE_WEB_CLIENT_ID=%s\nSTRIPE_PAYMENT_LINK=%s\n' \
+            "$GOOGLE_WEB_CLIENT_ID" "$STRIPE_PAYMENT_LINK" > .env
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

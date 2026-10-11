@@ -590,6 +590,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         slots: sync.deviceSlots,
                         profileId: widget.roles.profile,
                         thisDevice: widget.deviceId,
+                        email: widget.auth.user?.email,
                       ),
                     ),
                     null => null,

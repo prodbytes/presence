@@ -265,7 +265,7 @@ class AccountSheet extends StatelessWidget {
                     // Free or Premium, and what each gives, under the devices
                     // it limits; not in DEV, where nothing syncs. An admin is
                     // premium (as the auth API makes it), so only a free
-                    // member is asked to sign up.
+                    // member is asked to upgrade.
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
@@ -282,6 +282,9 @@ class AccountSheet extends StatelessWidget {
                           ).length,
                           _ => 0,
                         },
+                        email: auth.user?.email,
+                        profileId: roles.profile,
+                        onCheckAgain: roles.refresh,
                         openLink: openLink,
                       ),
                     ],

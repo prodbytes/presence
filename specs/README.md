@@ -77,6 +77,11 @@ their data.
   lists them, show each other's events; later ones sync, their events
   hidden, with a prompt to sign up at nu01.com. The account sheet says
   Free or Premium.
+- [Upgrade to Premium](upgrade.md): a free member's **Upgrade to
+  Premium** button on the account sheet (and the Monitoring tab's
+  hidden-devices card) opens a Stripe checkout, US$20 a month with the
+  first week free, on every platform; rbacr's Stripe sync grants
+  `premium` to the email; the link is the build's `STRIPE_PAYMENT_LINK`.
 - [Membership](membership.md): users without access subscribe at
   nu01.com or redeem a voucher code with rbacr on the Sign up sheet;
   vouchers are managed in rbacr, which the Admin tab (feedback) links to.
