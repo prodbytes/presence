@@ -3,9 +3,9 @@
 // files of a fixed length (at keyframes, one a second) in the spool.
 //
 //   - Camera module (libcamera): rpicam-vid (libcamera-vid on older
-//     systems) encodes with the Pi's H.264 encoder (Pi 4 and earlier) and
-//     ffmpeg only cuts the stream (-c copy). On a Pi 5, which has no
-//     encoder, rpicam-vid hands ffmpeg raw frames and libx264 encodes.
+//     systems) encodes with the Pi's H.264 encoder (Pi 4 and earlier; a
+//     Pi 5, which has none, with libx264) into MPEG-TS, and ffmpeg only
+//     cuts the stream (-c copy).
 //   - USB camera (v4l2): ffmpeg reads it and encodes with h264_v4l2m2m (the
 //     Pi's encoder) or libx264.
 //   - test: ffmpeg's test pattern, or a video file played in a loop, for
@@ -13,6 +13,7 @@
 package recorder
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -182,18 +183,19 @@ func (c Config) Commands() (camera, ffmpeg []string, err error) {
 		if c.Rotation == 180 {
 			camera = append(camera, "--rotation", "180")
 		}
-		if c.Encoder == "hw" {
-			camera = append(camera, "--codec", "h264", "--inline", "--intra", fps,
-				"--bitrate", strconv.Itoa(c.Bitrate), "--flush", "-o", "-")
-			ffmpeg = append([]string{c.FFmpeg}, ffmpegStart...)
-			ffmpeg = append(ffmpeg, "-f", "h264", "-framerate", fps, "-i", "pipe:0", "-c:v", "copy")
-		} else {
-			camera = append(camera, "--codec", "yuv420", "--flush", "-o", "-")
-			ffmpeg = append([]string{c.FFmpeg}, ffmpegStart...)
-			ffmpeg = append(ffmpeg, "-f", "rawvideo", "-pix_fmt", "yuv420p", "-video_size", c.size(),
-				"-framerate", fps, "-i", "pipe:0")
-			ffmpeg = append(ffmpeg, c.x264()...)
+		// rpicam-vid encodes (the Pi's encoder, or libx264 on a Pi 5) and
+		// sends MPEG-TS, which carries each frame's real time: a Pi that
+		// can't keep up the frame rate (a Zero at 720p makes about 23 fps)
+		// still makes chunks as long as the time they cover. Raw H.264 has
+		// no times, and ffmpeg would assume the asked-for rate.
+		codec := "h264_v4l2m2m"
+		if c.Encoder != "hw" {
+			codec = "libx264"
 		}
+		camera = append(camera, "--codec", "libav", "--libav-format", "mpegts", "--libav-video-codec", codec,
+			"--intra", fps, "--bitrate", strconv.Itoa(c.Bitrate), "-o", "-")
+		ffmpeg = append([]string{c.FFmpeg}, ffmpegStart...)
+		ffmpeg = append(ffmpeg, "-f", "mpegts", "-i", "pipe:0", "-c:v", "copy")
 	case "v4l2":
 		ffmpeg = append([]string{c.FFmpeg}, ffmpegStart...)
 		ffmpeg = append(ffmpeg, "-f", "v4l2", "-framerate", fps, "-video_size", c.size(), "-i", c.Device)
@@ -227,6 +229,23 @@ type Segments struct {
 	mu     sync.Mutex
 	list   string          // the running ffmpeg's segment list; "" when none runs
 	before map[string]bool // the chunks there before it started
+	// done are the chunks the list says are finished, read from it a line
+	// at a time (read is how far): the list keeps growing while ffmpeg runs.
+	done map[string]bool
+	read int64
+	// lengths are the chunks' lengths, from the segment lists' start and
+	// end times (ffmpeg's, so no ffprobe is needed: on a Pi Zero that's
+	// seconds a chunk).
+	lengths map[string]time.Duration
+}
+
+// Length is a finished chunk's length, as ffmpeg listed it; false when it
+// didn't (a chunk from an earlier run).
+func (s *Segments) Length(chunk string) (time.Duration, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	d, ok := s.lengths[filepath.Base(chunk)]
+	return d, ok && d > 0
 }
 
 func chunks(spool string) []string {
@@ -241,7 +260,7 @@ func (s *Segments) started(list string) {
 	for _, n := range chunks(s.Spool) {
 		s.before[n] = true
 	}
-	s.list = list
+	s.list, s.done, s.read = list, map[string]bool{}, 0
 }
 
 func (s *Segments) stopped() {
@@ -260,21 +279,30 @@ func (s *Segments) Finished() []string {
 	defer s.mu.Unlock()
 	names := chunks(s.Spool)
 	if s.list != "" {
-		done := map[string]bool{}
-		if data, err := os.ReadFile(s.list); err == nil {
-			for _, line := range strings.Split(string(data), "\n") {
-				if name, _, ok := strings.Cut(line, ","); ok {
-					done[filepath.Base(strings.Trim(name, `"`))] = true
-				}
-			}
-		}
+		s.readList()
 		finished := names[:0]
 		for _, n := range names {
-			if s.before[n] || done[filepath.Base(n)] {
+			if s.before[n] || s.done[filepath.Base(n)] {
 				finished = append(finished, n)
 			}
 		}
 		names = finished
+	}
+	// Forget the chunks that are gone (processed), so a recorder running for
+	// months doesn't keep every name.
+	present := map[string]bool{}
+	for _, n := range chunks(s.Spool) {
+		present[filepath.Base(n)] = true
+	}
+	for name := range s.lengths {
+		if !present[name] {
+			delete(s.lengths, name)
+		}
+	}
+	for name := range s.done {
+		if !present[name] {
+			delete(s.done, name)
+		}
 	}
 	mtime := map[string]time.Time{}
 	for _, n := range names {
@@ -289,6 +317,44 @@ func (s *Segments) Finished() []string {
 		return names[i] < names[j]
 	})
 	return names
+}
+
+// readList reads the segment list's new lines. Callers hold mu.
+func (s *Segments) readList() {
+	f, err := os.Open(s.list)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if _, err := f.Seek(s.read, 0); err != nil {
+		return
+	}
+	data, err := io.ReadAll(f)
+	if err != nil {
+		return
+	}
+	// Only whole lines: ffmpeg may be writing the next.
+	end := bytes.LastIndexByte(data, '\n')
+	if end < 0 {
+		return
+	}
+	s.read += int64(end + 1)
+	for _, line := range strings.Split(string(data[:end]), "\n") {
+		fields := strings.Split(line, ",")
+		if len(fields) < 3 {
+			continue
+		}
+		name := filepath.Base(strings.Trim(fields[0], `"`))
+		s.done[name] = true
+		start, err1 := strconv.ParseFloat(fields[1], 64)
+		end, err2 := strconv.ParseFloat(strings.TrimSpace(fields[2]), 64)
+		if err1 == nil && err2 == nil && end > start {
+			if s.lengths == nil {
+				s.lengths = map[string]time.Duration{}
+			}
+			s.lengths[name] = time.Duration((end - start) * float64(time.Second))
+		}
+	}
 }
 
 // Run records until ctx ends, starting the recorder again (after a

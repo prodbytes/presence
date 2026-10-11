@@ -5058,3 +5058,54 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the prompt file moved to its own PR, as nothing is pushed
        to `main` directly. No spec change: it's a shorter list than
        CLAUDE.md's "Do a barrel roll", without releases.
+
+365. **The streamer: no detection on a Pi under 2 GB; the cloud searches.** (2026-10-11)
+     - Asked: disable on-device detection when the system has less than
+       2 GB of RAM. Then, when asked what to do with the chunks instead:
+       upload them to S3 and delete them from the device, tag them on
+       the server, run the cloud recognition, and delete from S3 those
+       with no human or animal.
+     - Changed: `--detection auto|local|cloud`. `auto` picks the cloud
+       below 1.5 GiB of `MemTotal`, since 2 GB boards report a little under
+       2 GiB. In the cloud mode the Pi uploads each chunk and then its job
+       (`<clip>.ingest.json`: the clip record and event a phone would
+       store), deletes the chunk, and needs no OpenCV: it moved to
+       Suggests, and the install script adds it only from 2 GB. A new
+       module, **presence_ingest**, is a Python 3.13 Lambda on arm64 that
+       the user-data bucket notifies of each job. It opens the chunk with
+       the device's key from its settings, runs the same YOLOv4-tiny
+       search, and either deletes it or stores it as the profile's event
+       with object tags. It trusts only the job's key. `deploy.sh`
+       deploys it between two user-data deploys (the notification), and
+       the Deploy workflows set up Python. The model list is shared
+       (`presence_streamer/detector/models.txt`, `scripts/models.sh`).
+     - Found on a real Pi Zero W (now reachable for tests):
+       - the camera's raw H.264 lost real time when frames dropped, so
+         the camera now sends MPEG-TS;
+       - ffprobe took about 4 s a chunk there, so lengths now come from
+         ffmpeg's segment list.
+       With 30 s chunks the Zero keeps up even uploading everything. The
+       cloud detector, in AWS's Lambda image, opened and searched the
+       Zero's real chunks.
+     - Reviewed before the commit. The detector now opens only MP4s
+       (OpenCV's FFmpeg limited to local files and the MP4 demuxer), at
+       most 1080p and 5 minutes, gives up before its timeout, and empties
+       its work folder first. Jobs that can't be written are refused up
+       front, and the recorder's segment list is read incrementally and
+       pruned. Left as limitations: the account's Lambda quota (10) allows
+       no reserved concurrency, ingest's deleted versions stay 30 days, and
+       the detector's role reads every profile's keys. Specs: [Streamer](streamer.md),
+       [Production deploy](deploy.md), [Install script](install-script.md),
+       [Cloud sync](cloud-sync.md), [Recording and data formats](data-formats.md),
+       [README](README.md).
+366. **The streamer: no motion, no upload.** (2026-10-11)
+     - Asked: filter out, on the device, chunks without any motion (above
+       5 %), to save on S3.
+     - Changed: before anything is uploaded, ffmpeg decodes each chunk's
+       keyframes (one a second) at 64×48 gray. The highest motion score
+       between consecutive ones is the app's: the share of pixels changed
+       by more than 24/255, the median change taken off. At 5 % or less
+       the chunk is deleted on the Pi (`--motion-min`, 0 turns it off).
+       Verified on the Pi Zero: a still scene's chunks scored 0.0 % and
+       never reached S3, and its ffmpeg passes the motion test. Specs:
+       [Streamer](streamer.md), [README](README.md).

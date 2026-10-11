@@ -100,8 +100,11 @@ curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_pa
   and **requires** its sha256 from the release API, since it installs as
   root. A mismatch, or no checksum, stops it.
 - **Installs** with `sudo apt-get update` and `sudo apt-get install -y`
-  (no sudo as root), which brings ffmpeg, rclone and OpenCV. The package
-  enables `presence-streamer.service` for every boot.
+  (no sudo as root), which brings ffmpeg and rclone. On a Pi with 1.5 GiB
+  of memory (`MemTotal`) or more, it adds OpenCV (`python3-opencv`,
+  `python3-numpy`; the package only suggests them). A smaller Pi searches
+  its chunks in the cloud and doesn't need OpenCV, about 200 MB. The
+  package enables `presence-streamer.service` for every boot.
 - **Sets up** with `sudo presence-streamer setup --profile <ID>`, its stdin
   the terminal (`/dev/tty`, since the script's own stdin is curl's pipe).
   That shows the Google sign-in code, checks the profile is Premium, and

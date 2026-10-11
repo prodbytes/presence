@@ -38,10 +38,18 @@ func TestEndToEnd(t *testing.T) {
 	}
 	person := os.Getenv("PRESENCE_STREAMER_PERSON")
 	tmp := t.TempDir()
+	// On a Pi: PRESENCE_STREAMER_E2E_CAMERA=1 records its real camera (any
+	// source settings from PRESENCE_STREAMER_*), and
+	// PRESENCE_STREAMER_DETECTION=cloud leaves chunks and jobs in ingest for
+	// the cloud detector; PRESENCE_STREAMER_E2E_S3 keeps the bucket there.
+	camera := os.Getenv("PRESENCE_STREAMER_E2E_CAMERA") == "1"
+	cloud := os.Getenv("PRESENCE_STREAMER_DETECTION") == "cloud"
 
 	// The camera: a gray picture, then the person, 10 s each.
 	video := filepath.Join(tmp, "camera.mp4")
-	if out, err := exec.Command("ffmpeg", "-loglevel", "error",
+	if camera {
+		// Its own.
+	} else if out, err := exec.Command("ffmpeg", "-loglevel", "error",
 		"-f", "lavfi", "-t", "10", "-i", "color=gray:s=1280x720:r=10",
 		"-loop", "1", "-t", "10", "-r", "10", "-i", person,
 		"-filter_complex", "[1:v]scale=1280:720,setsar=1[p];[0:v][p]concat=n=2:v=1[v]", "-map", "[v]",
@@ -51,6 +59,9 @@ func TestEndToEnd(t *testing.T) {
 
 	// The bucket.
 	root := filepath.Join(tmp, "s3")
+	if keep := os.Getenv("PRESENCE_STREAMER_E2E_S3"); keep != "" {
+		root = keep
+	}
 	os.MkdirAll(filepath.Join(root, "bucket"), 0o755)
 	l, _ := net.Listen("tcp", "127.0.0.1:0")
 	addr := l.Addr().String()
@@ -86,10 +97,13 @@ func TestEndToEnd(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
-	o, _ := parse("run", []string{
-		"--state-dir", filepath.Join(tmp, "state"), "--s3-endpoint", "http://" + addr, "--source", "test", "--device", video,
-		"--width", "1280", "--height", "720", "--fps", "10", "--chunk", "10s", "--bitrate", "1000000",
-	})
+	args := []string{"--state-dir", filepath.Join(tmp, "state"), "--s3-endpoint", "http://" + addr}
+	if !camera {
+		// Two still pictures: no motion between their keyframes.
+		args = append(args, "--chunk", "10s", "--motion-min", "0", "--source", "test", "--device", video,
+			"--width", "1280", "--height", "720", "--fps", "10", "--bitrate", "1000000")
+	}
+	o, _ := parse("run", args)
 	s, err := state.Load(o.stateDir)
 	if err != nil {
 		t.Fatal(err)
@@ -135,6 +149,29 @@ func TestEndToEnd(t *testing.T) {
 		}
 		return nil
 	})
+	if cloud {
+		// Every chunk and its job wait in ingest for the cloud detector,
+		// and nothing is left here.
+		var chunks, jobs int
+		for _, key := range ingest {
+			switch {
+			case strings.HasSuffix(key, ".ingest.json"):
+				jobs++
+			case strings.HasSuffix(key, ".mp4"):
+				chunks++
+			}
+		}
+		// The chunk being uploaded at the stop may wait for its job: the
+		// next start uploads it.
+		if jobs == 0 || jobs < chunks-1 || jobs > chunks || len(events) != 0 {
+			t.Fatalf("%d chunks, %d jobs, %d events\n%s", chunks, jobs, len(events), logs.String())
+		}
+		left, _ := filepath.Glob(filepath.Join(o.stateDir, "spool", "rec-*.mp4"))
+		if len(left) > 1 { // the one being recorded at the stop
+			t.Errorf("left in the spool: %v", left)
+		}
+		return
+	}
 	if len(events) == 0 {
 		t.Fatalf("no event stored\n%s", logs.String())
 	}

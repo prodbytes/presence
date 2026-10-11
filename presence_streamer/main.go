@@ -54,11 +54,12 @@ const (
 )
 
 type options struct {
-	profile, stateDir, api, bucket, endpoint, clientID, clientSecret string
-	source, device, encoder, cameraLabel, location, bwlimit          string
-	width, height, fps, bitrate, rotation, spoolMaxMB, threads       int
-	chunk                                                            time.Duration
-	detector, models, python, rclone, ffmpeg, ffprobe, rpicam        string
+	profile, stateDir, api, bucket, endpoint, clientID, clientSecret   string
+	source, device, encoder, cameraLabel, location, bwlimit, detection string
+	width, height, fps, bitrate, rotation, spoolMaxMB, threads         int
+	motionMin                                                          float64
+	chunk                                                              time.Duration
+	detector, models, python, rclone, ffmpeg, ffprobe, rpicam          string
 }
 
 // env is the PRESENCE_STREAMER_<name> setting, or def.
@@ -190,6 +191,12 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 	fs.StringVar(&o.source, "source", env("SOURCE", "auto"), "auto, libcamera (camera module), v4l2 (USB) or test")
 	fs.StringVar(&o.device, "device", env("DEVICE", ""), "the v4l2 device (default /dev/video0), or test's video file")
 	fs.StringVar(&o.encoder, "encoder", env("ENCODER", "auto"), "auto, hw (the Pi's H.264 encoder) or sw")
+	motionMin, err := strconv.ParseFloat(env("MOTION_MIN", "5"), 64)
+	if err != nil {
+		motionMin = 5
+	}
+	fs.Float64Var(&o.motionMin, "motion-min", motionMin, "the least motion (percent of the picture changed, as the app measures it) a chunk needs to be uploaded; 0 uploads every chunk")
+	fs.StringVar(&o.detection, "detection", env("DETECTION", "auto"), "where chunks are searched for people and animals: auto (here with 2 GB of memory or more, else in the cloud), local or cloud")
 	fs.IntVar(&o.width, "width", envInt("WIDTH", 1280), "video width")
 	fs.IntVar(&o.height, "height", envInt("HEIGHT", 720), "video height")
 	fs.IntVar(&o.fps, "fps", envInt("FPS", 30), "frames per second")
@@ -436,6 +443,51 @@ func run(o *options, setupOnly bool) int {
 	return streamCamera(ctx, o, s, sess, creds, logf)
 }
 
+// localDetectionMemory is the least memory (MemTotal) a Pi detects with
+// itself: its 2 GB boards report a little less than 2 GiB (some goes to the
+// GPU and the kernel), the 1 GB ones under 1 GiB.
+const localDetectionMemory = 1536 << 20
+
+// memTotal is the system's memory (MemTotal in /proc/meminfo), or 0 when it
+// can't be read.
+func memTotal() int64 {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, "MemTotal:"); ok {
+			kb, err := strconv.ParseInt(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(rest), "kB")), 10, 64)
+			if err == nil {
+				return kb << 10
+			}
+		}
+	}
+	return 0
+}
+
+// detectInCloud says whether chunks are searched in the cloud, and why:
+// mode local or cloud says so; auto decides by the memory (total bytes, 0
+// unknown), the cloud below 2 GB (detecting here takes too much of a smaller Pi's memory and CPU).
+func detectInCloud(mode string, total int64) (bool, string, error) {
+	switch mode {
+	case "local":
+		return false, "here (--detection local)", nil
+	case "cloud":
+		return true, "in the cloud (--detection cloud)", nil
+	case "auto", "":
+		switch {
+		case total == 0:
+			return false, "here (the memory is unknown)", nil
+		case total < localDetectionMemory:
+			return true, fmt.Sprintf("in the cloud (%d MB of memory, less than 2 GB)", total>>20), nil
+		default:
+			return false, fmt.Sprintf("here (%d MB of memory)", total>>20), nil
+		}
+	}
+	return false, "", fmt.Errorf("--detection %q: use auto, local or cloud", mode)
+}
+
 // clockSynced says whether the network has set the clock: systemd's
 // time sync says so. Without systemd (development), the clock counts as set.
 func clockSynced() bool {
@@ -505,7 +557,16 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		log.Printf("--chunk %s: use 10s to 5m", o.chunk)
 		return exitUsage
 	}
-	for _, tool := range []string{o.ffmpeg, o.ffprobe, o.rclone, o.python} {
+	cloud, why, err := detectInCloud(o.detection, memTotal())
+	if err != nil {
+		log.Print(err)
+		return exitUsage
+	}
+	tools := []string{o.ffmpeg, o.ffprobe, o.rclone}
+	if !cloud {
+		tools = append(tools, o.python)
+	}
+	for _, tool := range tools {
 		if _, err := exec.LookPath(tool); err != nil {
 			log.Printf("%s isn't installed (sudo apt install ffmpeg rclone python3-opencv)", tool)
 			return exitUsage
@@ -550,24 +611,35 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}
 	logf("camera: %s (%s, %s encoder), %dx%d at %d fps, %s chunks", label, rec.Source, rec.Encoder, rec.Width, rec.Height, rec.FPS, rec.Chunk)
 
+	logf("detection: %s", why)
+
 	detectorCmd := []string{o.python, "-I", o.detector,
 		"--cfg", filepath.Join(o.models, "yolov4-tiny.cfg"),
 		"--weights", filepath.Join(o.models, "yolov4-tiny.weights")}
 	if o.threads > 0 {
 		detectorCmd = append(detectorCmd, "--threads", strconv.Itoa(o.threads))
 	}
+	// Started only when a chunk is searched here, so never in the cloud's
+	// mode.
 	detector := &detect.Detector{Command: detectorCmd, Log: prefixed("detector: ")}
 	defer detector.Close()
 
+	segments := &recorder.Segments{Spool: spool}
 	st := &stream.Streamer{
-		Spool: spool, Store: folder, Searcher: detector,
+		Spool: spool, Store: folder, Searcher: detector, Cloud: cloud,
 		Keyframes: func(ctx context.Context, chunk, dir string) ([]detect.Frame, error) {
 			return detect.Keyframes(ctx, o.ffmpeg, chunk, dir, time.Second)
 		},
 		Duration: func(ctx context.Context, chunk string) (time.Duration, error) {
 			return detect.Duration(ctx, o.ffprobe, chunk)
 		},
-		Key: key, DeviceID: s.DeviceID, ProfileID: s.ProfileID, UserID: sess.UserID,
+		Length: segments.Length,
+		Motion: func(ctx context.Context, chunk string) (float64, error) {
+			motion, _, err := detect.Motion(ctx, o.ffmpeg, chunk)
+			return motion, err
+		},
+		MotionMin: o.motionMin,
+		Key:       key, DeviceID: s.DeviceID, ProfileID: s.ProfileID, UserID: sess.UserID,
 		Camera:      records.Camera{ID: rec.Source, Label: label},
 		Location:    location,
 		ObjectScore: 0.6,
@@ -599,7 +671,6 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		}
 	}()
 
-	segments := &recorder.Segments{Spool: spool}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {

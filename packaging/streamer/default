@@ -26,6 +26,10 @@
 #PRESENCE_STREAMER_CAMERA_LABEL=
 # Where the camera is, "lat,lng", for the events' map.
 #PRESENCE_STREAMER_LOCATION=
+# Where chunks are searched for people and animals: auto (here with 2 GB of
+# memory or more, else in the cloud), local or cloud. Local needs
+# python3-opencv.
+#PRESENCE_STREAMER_DETECTION=auto
 # The detector's CPU threads (0: OpenCV's default, every core).
 #PRESENCE_STREAMER_DETECTOR_THREADS=0
 # The Presence site: https://presence.nu01.com, or the release candidate's,

@@ -1,0 +1,6 @@
+# The detector's model, YOLOv4-tiny (COCO) from darknet (YOLO license):
+# <file> <URL> <SHA-256>. Downloaded and checked at build time by
+# scripts/streamer.sh (the Pi packages) and presence_ingest's Makefile (the
+# cloud detector), so both detect with the same model.
+yolov4-tiny.cfg https://raw.githubusercontent.com/AlexeyAB/darknet/59596d7880f6504768df41d6daa586f5cb2b932f/cfg/yolov4-tiny.cfg f858e3724962eedf3ac44e3b6cb3f0c3d9ed067c306bb831f539c578b924c90e
+yolov4-tiny.weights https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4-tiny.weights cf9fbfd0f6d4869b35762f56100f50ed05268084078805f0e7989efe5bb8ca87

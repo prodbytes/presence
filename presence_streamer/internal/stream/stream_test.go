@@ -301,6 +301,70 @@ func TestACancelledProbeKeepsTheChunk(t *testing.T) {
 	}
 }
 
+// On a Pi with too little memory, the chunk goes up with its job for the
+// cloud detector, once the device's key is up, and is deleted here.
+func TestCloudDetection(t *testing.T) {
+	b := &bucket{objects: map[string][]byte{}}
+	s, spool := streamer(t, b, "person")
+	s.Cloud = true
+	s.Searcher = failing{errors.New("searched here")}
+	c := chunk(t, spool, "video")
+	if err := s.Process(context.Background(), c); !errors.Is(err, errSettingsPending) {
+		t.Fatalf("before the settings: %v", err)
+	}
+	if err := s.Settings(context.Background(), time.UnixMilli(5)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Process(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if len(b.ops) != 3 || !strings.HasPrefix(b.ops[1], "put ingest/able_adept_gadget/") || !strings.HasSuffix(b.ops[1], ".mp4") ||
+		!strings.HasSuffix(b.ops[2], ".ingest.json") {
+		t.Fatalf("ops %v", b.ops)
+	}
+	var job struct {
+		V     int            `json:"v"`
+		Event map[string]any `json:"event"`
+		Clip  map[string]any `json:"clip"`
+	}
+	jobKey := strings.TrimPrefix(b.ops[2], "put ")
+	if err := json.Unmarshal(b.objects[jobKey], &job); err != nil {
+		t.Fatal(err)
+	}
+	clipID := job.Clip["id"].(string)
+	if job.V != 1 || job.Event["clipId"] != clipID || job.Clip["eventId"] != job.Event["id"] ||
+		job.Event["deviceId"] != "able_adept_gadget" || job.Event["type"] != "clip_requested" ||
+		jobKey != "ingest/able_adept_gadget/"+clipID+".ingest.json" {
+		t.Fatalf("job %s: %+v", jobKey, job)
+	}
+	if got := open(t, b.objects["ingest/able_adept_gadget/"+clipID+".mp4"]); got != "video" {
+		t.Fatalf("the chunk opens to %q", got)
+	}
+	if len(leftovers(spool)) != 0 {
+		t.Fatalf("left %v", leftovers(spool))
+	}
+}
+
+// A chunk without motion is deleted here, before any upload; one with
+// motion goes on.
+func TestMotion(t *testing.T) {
+	for _, c := range []struct {
+		motion float64
+		ops    int
+	}{{2.5, 0}, {5, 0}, {5.1, 5}} {
+		b := &bucket{objects: map[string][]byte{}}
+		s, spool := streamer(t, b, "person")
+		s.MotionMin = 5
+		s.Motion = func(context.Context, string) (float64, error) { return c.motion, nil }
+		if err := s.Process(context.Background(), chunk(t, spool, "video")); err != nil {
+			t.Fatal(err)
+		}
+		if len(b.ops) != c.ops || len(leftovers(spool)) != 0 {
+			t.Errorf("motion %v%%: ops %v, left %v", c.motion, b.ops, leftovers(spool))
+		}
+	}
+}
+
 func TestBrokenChunkIsDeleted(t *testing.T) {
 	b := &bucket{objects: map[string][]byte{}}
 	s, spool := streamer(t, b, "person")
