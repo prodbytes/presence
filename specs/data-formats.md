@@ -145,6 +145,7 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
   clips/year=2026/day=275/<clipId>.json        JSON: clip records
   devices/<deviceId>/settings.json             JSON: each device's settings
   ingest/<deviceId>/<clipId>.mp4               a streamer's chunk, sealed, while it's searched
+  ingest/<deviceId>/<clipId>.ingest.json       its job for the cloud detector (a small Pi's)
   media/<clipId>.webm (or .mp4)                the recording, sealed
   media/<clipId>.jpg                           the thumbnail, sealed
   media/<clipId>/frames/<frameId>.jpg          the frames tags were made on, sealed

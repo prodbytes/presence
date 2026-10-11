@@ -113,9 +113,19 @@ main() {
   fi
   chmod 644 "$tmp/$asset"
 
-  say "installing $asset (apt-get install, with ffmpeg, rclone and OpenCV)"
+  # With 2 GB of memory or more the streamer searches its chunks itself,
+  # with OpenCV (the package suggests it); with less, the cloud does.
+  opencv=
+  mem_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || true)
+  if [ -n "$mem_kb" ] && [ "$mem_kb" -lt 1572864 ]; then
+    say "$((mem_kb / 1024)) MB of memory: chunks are searched in the cloud"
+  else
+    opencv="python3 python3-opencv python3-numpy"
+  fi
+  say "installing $asset (apt-get install, with ffmpeg and rclone${opencv:+ and OpenCV})"
   $sudo apt-get update -qq || say "apt-get update failed; installing with the package lists there are"
-  $sudo apt-get install -y "$tmp/$asset"
+  # shellcheck disable=SC2086 # the package names, or none
+  $sudo apt-get install -y "$tmp/$asset" $opencv
 
   # The sign-in asks on the terminal: this script's own stdin is the pipe
   # from curl.

@@ -10,8 +10,9 @@
 # - armhf is GOARM=6: Raspberry Pi OS 32-bit is ARMv6 hard-float, so one
 #   binary runs on every Pi (Zero, 1 to 5); arm64 is Raspberry Pi OS 64-bit.
 #   Pure Go (CGO_ENABLED=0), static: no libraries to match.
-# - The detector's model (YOLOv4-tiny, COCO) is downloaded once into
-#   presence_streamer/build/models/ and checked against its pinned SHA-256.
+# - The detector's model (YOLOv4-tiny, COCO; presence_streamer/detector/
+#   models.txt) is downloaded once into presence_streamer/build/models/ and
+#   checked against its pinned SHA-256 (scripts/models.sh).
 # - The Google OAuth client for the device sign-in comes from
 #   GOOGLE_DEVICE_CLIENT_ID and GOOGLE_DEVICE_CLIENT_SECRET (the environment,
 #   else .env); without them the streamer asks for them at run time.
@@ -41,31 +42,9 @@ for value in "$client_id" "$client_secret"; do
 done
 [[ -n "$client_id" ]] || echo "warning: no GOOGLE_DEVICE_CLIENT_ID: the streamer will need one at run time" >&2
 
-# The model: darknet's YOLOv4-tiny (COCO), pinned by commit and checksum.
-DARKNET_COMMIT=59596d7880f6504768df41d6daa586f5cb2b932f
-models=(
-  "yolov4-tiny.cfg https://raw.githubusercontent.com/AlexeyAB/darknet/$DARKNET_COMMIT/cfg/yolov4-tiny.cfg f858e3724962eedf3ac44e3b6cb3f0c3d9ed067c306bb831f539c578b924c90e"
-  "yolov4-tiny.weights https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v4_pre/yolov4-tiny.weights cf9fbfd0f6d4869b35762f56100f50ed05268084078805f0e7989efe5bb8ca87"
-)
-sha256() {
-  if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1
-}
-mkdir -p "$out/models"
-for entry in "${models[@]}"; do
-  read -r name url sum <<<"$entry"
-  file=$out/models/$name
-  if [[ ! -f "$file" || "$(sha256 "$file")" != "$sum" ]]; then
-    echo "==> downloading $name"
-    curl -fsSL --retry 3 -o "$file.part" "$url"
-    got=$(sha256 "$file.part")
-    if [[ "$got" != "$sum" ]]; then
-      rm -f "$file.part"
-      echo "error: $name's SHA-256 is $got, not $sum" >&2
-      exit 1
-    fi
-    mv "$file.part" "$file"
-  fi
-done
+# The model (presence_streamer/detector/models.txt), checked against its
+# SHA-256.
+bash scripts/models.sh "$out/models"
 
 ldflags="-s -w -X main.version=$VERSION -X main.googleClientID=$client_id -X main.googleClientSecret=$client_secret"
 

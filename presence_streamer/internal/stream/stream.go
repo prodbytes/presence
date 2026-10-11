@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/prodbytes/presence/presence_streamer/internal/detect"
@@ -58,6 +59,13 @@ type Streamer struct {
 	// how long a chunk is (an error: it's broken).
 	Keyframes func(ctx context.Context, chunk, dir string) ([]detect.Frame, error)
 	Duration  func(ctx context.Context, chunk string) (time.Duration, error)
+	// Length is a chunk's length as the recorder listed it, if it did
+	// (then Duration isn't needed).
+	Length func(chunk string) (time.Duration, bool)
+	// Motion is a chunk's motion, in percent (detect.Motion); MotionMin the
+	// least it must have to be uploaded (0: every chunk is).
+	Motion    func(ctx context.Context, chunk string) (float64, error)
+	MotionMin float64
 
 	Key       []byte
 	DeviceID  string
@@ -73,7 +81,18 @@ type Streamer struct {
 	Logf     func(string, ...any)
 	// Stored is called with each event stored (tests).
 	Stored func(records.Event)
+	// Cloud sends chunks to the cloud detector instead of searching them
+	// here (a Pi with too little memory): each chunk is uploaded to ingest
+	// with its job, and deleted here.
+	Cloud bool
+
+	// settingsUp is whether the device's settings (its media key) are in
+	// the bucket: the cloud detector needs them to open its chunks.
+	settingsUp atomic.Bool
 }
+
+// errSettingsPending holds the cloud's chunks back until the settings are up.
+var errSettingsPending = errors.New("the device's settings (its media key) aren't uploaded yet")
 
 // progress is a chunk's progress, kept in <chunk>.json.
 type progress struct {
@@ -81,6 +100,7 @@ type progress struct {
 	EventID  string         `json:"eventId"`
 	Ingested bool           `json:"ingested"`
 	LengthMs int64          `json:"lengthMs,omitempty"`
+	Motion   *float64       `json:"motion,omitempty"`
 	Failures int            `json:"failures,omitempty"`
 	Result   *detect.Result `json:"result,omitempty"`
 	Moved    bool           `json:"moved,omitempty"`
@@ -114,7 +134,7 @@ func save(path string, p *progress) error {
 // remove deletes a chunk and everything made from it.
 func remove(chunk string) {
 	for _, p := range []string{chunk, chunk + ".json", chunk + ".sealed", chunk + ".jpg", chunk + ".jpg.sealed",
-		chunk + ".clip.json", chunk + ".event.json"} {
+		chunk + ".clip.json", chunk + ".event.json", chunk + ".job.json"} {
 		os.Remove(p)
 	}
 	os.RemoveAll(chunk + ".frames")
@@ -133,6 +153,33 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		return err
 	}
 	ingest := records.IngestKey(s.DeviceID, p.ClipID)
+	// No motion, nothing to keep: deleted here, before it costs an upload
+	// (and S3's storage).
+	if s.MotionMin > 0 && !p.Ingested && p.Motion == nil {
+		motion, err := s.Motion(ctx, chunk)
+		if errors.Is(err, detect.ErrBroken) {
+			s.Logf("%s: broken, deleted (%v)", name, err)
+			remove(chunk)
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if motion <= s.MotionMin {
+			s.Logf("%s: no motion (%.1f%%), deleted", name, motion)
+			remove(chunk)
+			return nil
+		}
+		p.Motion = &motion
+		if err := save(chunk+".json", p); err != nil {
+			return err
+		}
+	}
+	if s.Length != nil && p.LengthMs == 0 {
+		if length, ok := s.Length(chunk); ok {
+			p.LengthMs = max(length.Milliseconds(), 1)
+		}
+	}
 	if p.LengthMs == 0 {
 		length, err := s.Duration(ctx, chunk)
 		if errors.Is(err, detect.ErrBroken) && !p.Ingested {
@@ -151,6 +198,9 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	}
 	length := time.Duration(p.LengthMs) * time.Millisecond
 
+	if s.Cloud && !s.settingsUp.Load() {
+		return errSettingsPending
+	}
 	if !p.Ingested {
 		if err := seal.File(chunk, chunk+".sealed", s.Key, s.DeviceID); err != nil {
 			return fmt.Errorf("sealing %s: %w", name, err)
@@ -164,6 +214,20 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 		if err := save(chunk+".json", p); err != nil {
 			return err
 		}
+	}
+
+	if s.Cloud {
+		// The cloud detector takes it from here: the job, uploaded after
+		// the chunk, is what it's called for.
+		event, clip := records.ClipOf(records.Chunk{Start: start, Duration: length},
+			p.EventID, p.ClipID, s.Camera, s.DeviceID, s.UserID(), s.ProfileID, s.Location)
+		job := records.Job{V: 1, Event: event, Clip: clip}
+		if err := s.putJSON(ctx, chunk+".job.json", records.JobKey(s.DeviceID, p.ClipID), job); err != nil {
+			return fmt.Errorf("uploading %s's job: %w", name, err)
+		}
+		s.Logf("%s: uploaded for the cloud detector", name)
+		remove(chunk)
+		return nil
 	}
 
 	if p.Result == nil {
@@ -306,7 +370,7 @@ func (s *Streamer) putJSON(ctx context.Context, path, key string, record any) er
 func (s *Streamer) Settings(ctx context.Context, now time.Time) error {
 	path := filepath.Join(s.Spool, "settings.json")
 	defer os.Remove(path)
-	return s.putJSON(ctx, path, records.SettingsKey(s.DeviceID), records.Settings{
+	err := s.putJSON(ctx, path, records.SettingsKey(s.DeviceID), records.Settings{
 		DeviceID:  s.DeviceID,
 		ProfileID: s.ProfileID,
 		UpdatedAt: now.UnixMilli(),
@@ -314,6 +378,10 @@ func (s *Streamer) Settings(ctx context.Context, now time.Time) error {
 		Location:  s.Location,
 		MediaKey:  base64.StdEncoding.EncodeToString(s.Key),
 	})
+	if err == nil {
+		s.settingsUp.Store(true)
+	}
+	return err
 }
 
 // Trim deletes the oldest of the finished chunks while the spool holds

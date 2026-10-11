@@ -136,3 +136,17 @@ func TestFixture(t *testing.T) {
 		t.Fatal("Seal no longer makes the committed fixture")
 	}
 }
+
+// BenchmarkSeal seals a 3 MB chunk (10 s at 2.5 Mbit/s), from a file to a
+// file as the streamer does.
+func BenchmarkSeal(b *testing.B) {
+	dir := b.TempDir()
+	src := filepath.Join(dir, "chunk.mp4")
+	os.WriteFile(src, bytes.Repeat([]byte{7}, 3<<20), 0o600)
+	b.SetBytes(3 << 20)
+	for range b.N {
+		if err := File(src, filepath.Join(dir, "chunk.sealed"), fixtureKey(), "a_b_c"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

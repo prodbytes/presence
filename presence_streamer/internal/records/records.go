@@ -169,6 +169,20 @@ func ThumbnailKey(clipID string) string { return "media/" + clipID + ".jpg" }
 
 func SettingsKey(deviceID string) string { return "devices/" + deviceID + "/settings.json" }
 
+// JobKey is where a chunk's job for the cloud detector goes, after the
+// chunk: its upload is what S3 notifies the detector of (presence_ingest).
+func JobKey(deviceID, chunkID string) string {
+	return "ingest/" + deviceID + "/" + chunkID + ".ingest.json"
+}
+
+// Job is a chunk's job for the cloud detector: the clip record and event it
+// stores when the chunk has a subject, but for the object tags it adds.
+type Job struct {
+	V     int   `json:"v"`
+	Event Event `json:"event"`
+	Clip  Clip  `json:"clip"`
+}
+
 // IngestKey is where a chunk lands, sealed, before it's searched: a
 // prefix of the profile's folder that the app never lists.
 func IngestKey(deviceID, chunkID string) string {

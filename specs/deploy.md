@@ -44,6 +44,10 @@ One CloudFront distribution serves the whole site, laid out like the local
   - [presence_api_payments/template.yaml](../presence_api_payments/template.yaml)
     (SAM), stack `presence-payments`: the [payments API](payments-api.md)
     (the Premium plans' Stripe Payment Links) and its table.
+  - [presence_ingest/template.yaml](../presence_ingest/template.yaml)
+    (SAM), stack `presence-ingest`: the [streamer](streamer.md#cloud-detection)'s
+    cloud detector, a Python Lambda the user-data bucket notifies of each
+    job (`IngestFunctionArn` on `user-data.yaml`).
   - [presence_sh/template.yaml](../presence_sh/template.yaml), stack
     `presence-sh`: https://sh.presence.nu01.com, the
     [install URL](install-url.md), deployed after the site by
@@ -75,7 +79,12 @@ One CloudFront distribution serves the whole site, laid out like the local
   exports, so an existing health stack is deployed **before** the auth
   API (it stops importing what the auth API drops; CloudFormation refuses
   to remove an imported export) and a new stage's **after** it; once per
-  run. Then the [payments API](payments-api.md) (`presence_api_payments`,
+  run. Before them, after the user-data and identity stacks, the
+  streamer's cloud detector: its model (`scripts/models.sh`, checked by
+  SHA-256), the `<prefix>-ingest` stack (with the bucket and the
+  boundary), then the user-data stack again with its function as
+  `IngestFunctionArn` (the bucket's notification, which needs the
+  function's permission first) when that changed. Then the [payments API](payments-api.md) (`presence_api_payments`,
   stack `<prefix>-payments`, with the OIDC client, the boundary, rbacr's
   URL, token and system, and `STRIPE_MONTHLY_LINK` and
   `STRIPE_YEARLY_LINK` as its default links: from the environment, else

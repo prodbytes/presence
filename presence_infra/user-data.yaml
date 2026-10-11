@@ -7,7 +7,9 @@ Description: >
   prefix): media under <identityId>/media/ (<clipId>.{webm,mp4,jpg}, tagged
   frames), and JSON only, partitioned by the UTC day of the year, under
   <identityId>/events/year=YYYY/day=DDD/ and <identityId>/clips/year=YYYY/day=DDD/
-  (see specs/data-formats.md). Also the Feedback and Help conversations,
+  (see specs/data-formats.md). presence-streamer's chunks wait under
+  <identityId>/ingest/ for the cloud detector (presence_ingest), which the
+  bucket notifies of each job. Also the Feedback and Help conversations,
   one per profile, keyed by its identity ID (see specs/feedback.md).
 
 Parameters:
@@ -15,6 +17,18 @@ Parameters:
     Type: CommaDelimitedList
     Default: https://presence.nu01.com,https://local.presence.nu01.com:8443,http://localhost:8080
     Description: Web origins the app runs on (browser uploads need CORS)
+  IngestFunctionArn:
+    Type: String
+    Default: ''
+    Description: >
+      presence_ingest's function (its stack's IngestFunctionArn), notified of
+      each streamer job (<identityId>/ingest/<device>/<clip>.ingest.json).
+      Empty: no notification (the ingest stack isn't deployed yet: it needs
+      this bucket first, so scripts/deploy.sh deploys this stack again once
+      it is).
+
+Conditions:
+  HasIngest: !Not [!Equals [!Ref IngestFunctionArn, '']]
 
 Resources:
   UserDataBucket:
@@ -84,6 +98,20 @@ Resources:
             AllowedHeaders: ['*']
             ExposedHeaders: [ETag]
             MaxAge: 3600
+      # A streamer's jobs go to the cloud detector. Only the job's suffix:
+      # what the detector writes back (media/, clips/, events/) never
+      # matches, so it can't call itself.
+      NotificationConfiguration: !If
+        - HasIngest
+        - LambdaConfigurations:
+            - Event: s3:ObjectCreated:*
+              Function: !Ref IngestFunctionArn
+              Filter:
+                S3Key:
+                  Rules:
+                    - Name: suffix
+                      Value: .ingest.json
+        - !Ref AWS::NoValue
 
   # Feedback and Help: one conversation per profile, read and written by the
   # app straight from the device with the profile's credentials

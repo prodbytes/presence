@@ -176,7 +176,10 @@ their data.
   animal (YOLOv4-tiny) as motion-clip events, deleting the rest. A `.deb`
   with a service on at every boot, in every release, installed with
   `curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile>`
-  (the account sheet shows it to copy). No live sync yet.
+  (the account sheet shows it to copy). Chunks without motion (5 % or
+  less, the app's score) are deleted on the Pi before any upload; a Pi
+  under 2 GB of memory has the cloud search its chunks (presence_ingest, a
+  Python Lambda the bucket notifies). No live sync yet.
 
 **Backend**
 

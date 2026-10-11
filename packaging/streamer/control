@@ -6,14 +6,17 @@ Installed-Size: @SIZE@
 Section: video
 Priority: optional
 Homepage: https://github.com/prodbytes/presence
-Depends: adduser, ffmpeg (>= 7:5.1), rclone, python3, python3-opencv, python3-numpy
+Depends: adduser, ffmpeg (>= 7:5.1), rclone
 Recommends: rpicam-apps | libcamera-apps
+Suggests: python3, python3-opencv, python3-numpy
 Description: Presence streamer: a Raspberry Pi camera for a Presence profile
  Records the camera continuously (hardware H.264 where the Pi has an
  encoder), in chunks, and uploads each one, sealed, to a premium Presence
  profile's cloud folder with rclone. Chunks with a person or an animal in
  them (YOLOv4-tiny, OpenCV) become events in the profile, as a phone's
- motion clips; the rest are deleted.
+ motion clips; the rest are deleted. With 2 GB of memory or more, chunks
+ are searched here, with python3-opencv (suggested); with less, in the
+ cloud.
  .
  Set it up with: sudo presence-streamer setup
  (asks for the profile ID and a Google sign-in, then starts
