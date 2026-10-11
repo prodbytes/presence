@@ -288,7 +288,9 @@ take too much of it. There the chunks are searched in the cloud instead:
   - its files are in one work folder, emptied before each job, because a
     run killed mid-way leaves them and Lambda doesn't clear `/tmp`.
 - **Retries:** each step can be done again. A job whose device's key isn't
-  up yet fails and is retried (Lambda: once, within an hour). One whose
+  up yet fails and is retried (Lambda's default for S3's notifications:
+  twice, within 6 hours; changing it needs
+  `lambda:PutFunctionEventInvokeConfig`, which the deploy roles lack). One whose
   chunk is gone has its job deleted, and so does a broken one. What still
   fails stays in ingest until the bucket's lifecycle expires it (90 days).
 - **The function** runs with 2048 MB, 120 s and 2 GB of `/tmp`. It has no

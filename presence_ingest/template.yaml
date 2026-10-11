@@ -61,12 +61,11 @@ Resources:
           BUCKET: !Ref UserDataBucket
           MODELS_DIR: /var/task/models
           OPENCV_LOG_LEVEL: ERROR
-      EventInvokeConfig:
-        # A job whose device's key isn't up yet is tried again (once, a
-        # minute or so later); one that still fails stays in ingest/ until
-        # the bucket's lifecycle expires it.
-        MaximumRetryAttempts: 1
-        MaximumEventAgeInSeconds: 3600
+      # Lambda's own retries for S3's notifications (twice, within 6 hours;
+      # setting them needs lambda:PutFunctionEventInvokeConfig, which the
+      # deploy roles don't have): a job whose device's key isn't up yet is
+      # tried again, and one that still fails stays in ingest/ until the
+      # bucket's lifecycle expires it.
       Policies:
         - Statement:
             # Its jobs, their chunks and the devices' keys.
