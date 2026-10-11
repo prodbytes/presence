@@ -4788,3 +4788,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        names it ("rbacr: premium"). Root and unknown roles keep their own
        chips. Tests: `account_sheet_test.dart`. Specs:
        [Sign-in](sign-in.md).
+
+351. **Always merge.** (2026-10-11)
+     - Asked: always merge pull requests, and add that to CLAUDE.md.
+     - Changed: [CLAUDE.md](../CLAUDE.md) replaces "Merge only when the
+       user says so" with "Always merge": a ready PR (tests pass, code
+       reviewed) is merged into `main` without asking, and a conflicting
+       one is first brought up to date with `origin/main` and retested in
+       its own worktree. Specs: [README](README.md) (Workflow).

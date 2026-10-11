@@ -23,7 +23,9 @@ own pull request:
 - Start from an up-to-date `main` (`git checkout main && git pull`). Stack on
   an unmerged branch only when the new work truly depends on it, and then
   target that branch.
-- Merge only when the user says so.
+- Always merge: once a PR is ready (tests pass, code reviewed), merge it into
+  `main` without asking. If it conflicts, merge `origin/main` into its branch
+  in your own worktree, resolve, rerun the tests, push, then merge.
 - Include the matching `specs/` update in the same PR as the change.
 
 ## Do a barrel roll
