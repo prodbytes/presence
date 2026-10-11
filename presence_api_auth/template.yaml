@@ -25,6 +25,14 @@ Parameters:
       Empty only for local development (Floci): the API then runs in DEV mode,
       where the anonymous user gets every role. scripts/deploy.sh requires it.
     AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
+  GoogleDeviceClientId:
+    Type: String
+    Default: ''
+    Description: >
+      The Google OAuth client presence-streamer signs in with (a "TVs and
+      Limited Input devices" client, for Google's device flow); its ID tokens
+      are accepted too. Empty: only the web client's.
+    AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
   IdentityPoolId:
     Type: String
     Default: ''
@@ -88,6 +96,9 @@ Parameters:
 
 Conditions:
   HasGoogleClient: !Not [!Equals [!Ref GoogleWebClientId, '']]
+  HasDeviceClient: !And
+    - !Condition HasGoogleClient
+    - !Not [!Equals [!Ref GoogleDeviceClientId, '']]
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
@@ -238,9 +249,12 @@ Resources:
             JwtConfiguration:
               issuer: https://accounts.google.com
               # Without a client (DEV), no token can match: only the
-              # anonymous route answers.
-              audience:
-                - !If [HasGoogleClient, !Ref GoogleWebClientId, no-oidc-client]
+              # anonymous route answers. presence-streamer's device sign-in
+              # client is accepted too, when there is one.
+              audience: !If
+                - HasDeviceClient
+                - [!Ref GoogleWebClientId, !Ref GoogleDeviceClientId]
+                - [!If [HasGoogleClient, !Ref GoogleWebClientId, no-oidc-client]]
 
   AuthFunction:
     Type: AWS::Serverless::Function

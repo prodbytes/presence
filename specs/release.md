@@ -23,11 +23,12 @@ app binaries with `make` and publishes them as a GitHub release.
     become "latest".
   - **Pull requests** that change the workflow, the `Makefile`,
     `scripts/make.sh`, `scripts/deb.sh`, `packaging/`,
+    `presence_streamer/`, `scripts/streamer.sh`,
     `scripts/dart-defines.sh`, `scripts/version.sh` or
     the version files run the builds only,
     without a release.
   - Tag names must be letters, digits, `.`, `_` and `-`.
-- **Version:** the `prepare` job resolves one version for all five builds
+- **Version:** the `prepare` job resolves one version for all the builds
   (see [Versioning](#versioning)). A tag that carries `X.Y.Z` (e.g.
   `1.0.202609261530-RC`) keeps its Z, and fails if its X.Y doesn't match the
   version files; any other run gets Z from the current time.
@@ -57,11 +58,20 @@ app binaries with `make` and publishes them as a GitHub release.
   - `presence-<tag>-raspberrypi-arm64.deb`: the arm64 bundle as the
     [Raspberry Pi camera](raspberry-pi.md) package (the job prints its
     `dpkg-deb --info` and contents).
+  - `presence-streamer-<tag>-raspberrypi-armhf.deb` and `-arm64.deb`, and
+    `presence-streamer-<tag>-linux-armhf.tar.gz` and `-arm64.tar.gz`: the
+    [streamer](streamer.md), for 32- and 64-bit Raspberry Pis. The
+    `streamer` job (ubuntu-latest, Go from `presence_streamer/go.mod` with
+    `actions/setup-go`) runs its unit tests and `make streamer`: Go
+    cross-compiles both from one runner.
 - **Settings:** the job writes a `.env` with only the Google client IDs,
   from the repository **variables** `GOOGLE_WEB_CLIENT_ID` and
   `GOOGLE_IOS_CLIENT_ID`. They're public identifiers that get compiled into
-  the app anyway, so they aren't secrets; the client secret is never given
-  to the workflow.
+  the app anyway, so they aren't secrets; the web client's secret is never
+  given to the workflow. The streamer job gets its device sign-in client from
+  the variable `GOOGLE_DEVICE_CLIENT_ID` and the secret
+  `GOOGLE_DEVICE_CLIENT_SECRET` (that kind of client's secret isn't
+  confidential to Google: it ships in the binary).
 - **Security:** actions are pinned to commit SHAs, Flutter to a commit and
   the SAM CLI to a version (1.165.0, in the deploy workflows); the
   workflow token is read-only except in the release job (`contents:

@@ -4939,3 +4939,42 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Premium](upgrade.md) (new), [Premium and free](premium.md),
        [Monitoring](monitoring.md), [Sign-in](sign-in.md),
        [Membership](membership.md), [Configuration](configuration.md).
+
+359. **presence-streamer: a Raspberry Pi camera CLI for premium profiles.** (2026-10-11)
+     - Asked: a new module, a CLI for the Raspberry Pi (32- and 64-bit)
+       that streams continuously to a profile whose ID it asks for at
+       start. It ends for a free profile. For a premium one it records the
+       camera with hardware encoding, saves chunks to disk and uploads them
+       with rclone to a separate ingest prefix. It looks for subjects on each
+       chunk: none (no human or animal), the chunk is deleted; else it's
+       stored as an event, as if from a phone. In the binary builds and
+       releases. Also asked along the way: answering MQTT like a phone,
+       then deferred by the user until streaming is tested.
+     - Decided: a profile ID alone can't grant access to a profile's
+       folder, so after asking for it the streamer signs in with **Google's
+       device flow** (a code entered on a phone). It checks the account's
+       profile is the one given, and takes the tier from the auth API's
+       credentials. Go, cross-compiled static for armhf (ARMv6, every Pi)
+       and arm64. Recording uses rpicam-vid's hardware H.264 (or ffmpeg's
+       h264_v4l2m2m for USB cameras; libx264 on a Pi 5, which has no
+       encoder), cut by ffmpeg. Detection is YOLOv4-tiny in OpenCV's DNN
+       module (`python3-opencv` from apt, on both architectures), on
+       keyframes. Chunks are sealed with the device's key, ingested to
+       `<identity>/ingest/<device>/`, then moved server-side to `media/`
+       with a thumbnail, clip record and a `clip_requested` motion event,
+       or deleted. MQTT (live sync) is left for later.
+     - Changed: new [presence_streamer/](../presence_streamer) (Go module,
+       detector, unit and end-to-end tests), `scripts/streamer.sh` and
+       `make streamer` (tarballs and `.deb`s with a service enabled at
+       boot, `packaging/streamer/`), the Release workflow's `streamer` job
+       and its four assets. The auth API's credentials name the bucket
+       (`bucket`), and its JWT authorizer also accepts the device sign-in
+       client (`GoogleDeviceClientId` / `GOOGLE_DEVICE_CLIENT_ID` in
+       `deploy.sh` and the deploy workflows). The app has a test that opens
+       media sealed by the streamer. Needs a Google "TVs and Limited Input
+       devices" OAuth client (`GOOGLE_DEVICE_CLIENT_ID` variable,
+       `GOOGLE_DEVICE_CLIENT_SECRET` secret) before it can sign in. Specs:
+       [Streamer](streamer.md) (new), [README](README.md),
+       [Auth API](auth-api.md), [Cloud sync](cloud-sync.md),
+       [Recording and data formats](data-formats.md),
+       [Release builds](release.md), [Raspberry Pi camera](raspberry-pi.md).

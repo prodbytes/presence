@@ -54,7 +54,9 @@ them while the health stack imports them. The API's routes:
   policy attached to its identity), and linking and unlinking its
   Google accounts (link and unlink answer the same as the listing). The
   credentials also list the profile's devices and
-  how many show (2 free, 50 premium); `POST
+  how many show (2 free, 50 premium), and name the user-data bucket
+  (`bucket`, when the stack has one: the [streamer](streamer.md), which has
+  no build-time settings, reads it there); `POST
   /api/auth/profile/devices/remove` takes a deleted device off the list.
   See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
 - No roles, maintenance or voucher routes (removed on 2026-10-10 with
@@ -78,7 +80,9 @@ them while the health stack imports them. The API's routes:
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
-  and audience the web OAuth client, so tokens for other apps are refused.
+  and audience the web OAuth client, or the [streamer](streamer.md)'s
+  device sign-in client (`GoogleDeviceClientId`, from
+  `GOOGLE_DEVICE_CLIENT_ID`, when set), so tokens for other apps are refused.
   `GoogleWebClientId` may be empty only for local development: the
   audience is then `no-oidc-client`, which no token matches.
   Otherwise it answers 401 before a function runs. The authorizer passes

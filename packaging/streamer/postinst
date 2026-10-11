@@ -1,0 +1,36 @@
+#!/bin/sh
+# presence-streamer: makes the presence-streamer system user (in the video
+# and render groups, for the camera and the encoder) and its folder, and
+# enables the service for every boot. On upgrade it restarts it if it runs.
+set -e
+
+USER_NAME=presence-streamer
+HOME_DIR=/var/lib/presence-streamer
+UNIT=presence-streamer.service
+
+if [ "$1" = configure ]; then
+  if ! getent passwd "$USER_NAME" >/dev/null; then
+    adduser --system --group --home "$HOME_DIR" \
+      --shell /usr/sbin/nologin --gecos "Presence streamer" "$USER_NAME"
+  fi
+  for group in video render; do
+    if getent group "$group" >/dev/null; then
+      adduser --quiet "$USER_NAME" "$group"
+    fi
+  done
+  install -d -m 700 -o "$USER_NAME" -g "$USER_NAME" "$HOME_DIR"
+
+  if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload || true
+  fi
+  # On at every boot. Until it's set up, it stops at once (and isn't
+  # restarted); `presence-streamer setup` starts it.
+  systemctl enable "$UNIT" >/dev/null 2>&1 || true
+  if [ -d /run/systemd/system ] && [ -s "$HOME_DIR/state.json" ]; then
+    systemctl restart "$UNIT" || true
+  elif [ -z "$2" ]; then
+    echo "presence-streamer: set it up with: sudo presence-streamer setup"
+  fi
+fi
+
+exit 0

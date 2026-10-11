@@ -1,0 +1,33 @@
+# Settings of presence-streamer.service (see `presence-streamer run -h`).
+# The profile, device and sign-in are set with `sudo presence-streamer
+# setup`, not here. After a change: sudo systemctl restart presence-streamer
+
+# auto (the camera module if libcamera sees one, else a USB camera),
+# libcamera or v4l2.
+#PRESENCE_STREAMER_SOURCE=auto
+# The USB camera, for v4l2.
+#PRESENCE_STREAMER_DEVICE=/dev/video0
+# auto (the Pi's H.264 encoder where there is one: a Pi 4 and earlier;
+# a Pi 5 has none), hw or sw.
+#PRESENCE_STREAMER_ENCODER=auto
+#PRESENCE_STREAMER_WIDTH=1280
+#PRESENCE_STREAMER_HEIGHT=720
+#PRESENCE_STREAMER_FPS=30
+#PRESENCE_STREAMER_BITRATE=2500000
+# 0 or 180 (camera module mounted upside down).
+#PRESENCE_STREAMER_ROTATION=0
+# Each chunk's length: 10s to 5m.
+#PRESENCE_STREAMER_CHUNK=30s
+# The most the spool keeps while the network is down, in MB.
+#PRESENCE_STREAMER_SPOOL_MAX_MB=2048
+# rclone's upload bandwidth limit, e.g. 1M.
+#PRESENCE_STREAMER_BWLIMIT=
+# The camera's name on its events.
+#PRESENCE_STREAMER_CAMERA_LABEL=
+# Where the camera is, "lat,lng", for the events' map.
+#PRESENCE_STREAMER_LOCATION=
+# The detector's CPU threads (0: OpenCV's default, every core).
+#PRESENCE_STREAMER_DETECTOR_THREADS=0
+# The Presence site: https://presence.nu01.com, or the release candidate's,
+# https://rc.presence.nu01.com.
+#PRESENCE_STREAMER_API=https://presence.nu01.com

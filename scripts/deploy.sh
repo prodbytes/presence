@@ -45,6 +45,8 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
+#   GOOGLE_DEVICE_CLIENT_ID  presence-streamer's device sign-in client, whose
+#                ID tokens the auth API accepts too (optional; also .env)
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
@@ -157,6 +159,12 @@ for name in GOOGLE_WEB_CLIENT_ID HOSTED_ZONE_ID; do
     exit 1
   fi
 done
+
+# Optional: the streamer's device sign-in client (environment, else .env).
+if [[ -z "${GOOGLE_DEVICE_CLIENT_ID:-}" && -f .env ]]; then
+  GOOGLE_DEVICE_CLIENT_ID="$(sed -n 's/^GOOGLE_DEVICE_CLIENT_ID=//p' .env | tail -1)"
+fi
+GOOGLE_DEVICE_CLIENT_ID="${GOOGLE_DEVICE_CLIENT_ID:-}"
 
 # Health alarm emails: from the environment, else .env, else the default.
 if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
@@ -313,6 +321,7 @@ echo "==> deploying $AUTH_STACK"
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$AUTH_STACK" \
     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+      "GoogleDeviceClientId=$GOOGLE_DEVICE_CLIENT_ID" \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \

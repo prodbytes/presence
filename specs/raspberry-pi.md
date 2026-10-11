@@ -5,6 +5,10 @@ OS 64-bit, Bookworm or newer; Debian arm64 works the same) a Presence
 camera: Presence runs full screen from boot, comes back after a crash, and
 needs no keyboard. The README's "Raspberry Pi" section is the how-to.
 
+For a Pi with no screen, 32- or 64-bit, and a Premium profile, the
+[streamer](streamer.md) (`presence-streamer`, its own `.deb`s) records
+continuously instead, and keeps the chunks with a person or an animal.
+
 ## What the camera runs
 
 **The web app in Chromium, by default**, because the native Linux app

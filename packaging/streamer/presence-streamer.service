@@ -1,0 +1,51 @@
+# presence-streamer: records the camera into the Presence profile set up
+# with `sudo presence-streamer setup`. Enabled at install, so it starts at
+# every boot; until it's set up it stops at once (exit 2), and it never
+# restarts for that or for a free profile (exit 3).
+[Unit]
+Description=Presence streamer (camera to a Presence profile)
+Documentation=https://github.com/prodbytes/presence/blob/main/specs/streamer.md
+Wants=network-online.target
+After=network-online.target time-sync.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+# Its groups (video, and render where there is one) come from /etc/group,
+# where postinst adds them: naming a missing group here would fail the unit.
+User=presence-streamer
+Group=presence-streamer
+EnvironmentFile=-/etc/default/presence-streamer
+Environment=PRESENCE_STREAMER_STATE_DIR=/var/lib/presence-streamer
+ExecStart=/usr/bin/presence-streamer run
+Restart=always
+RestartSec=10
+RestartPreventExitStatus=2 3
+# The recording comes first; searching chunks can wait.
+Nice=5
+
+# Hardening. Not PrivateDevices=, DeviceAllow= or ProtectClock= (which
+# implies a DeviceAllow= list): any of them would shut out the camera, the
+# encoder and the DMA heaps. The clock is protected by the syscall filter
+# and an empty capability set instead.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/presence-streamer
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+CapabilityBoundingSet=
+SystemCallFilter=~@clock @module @mount @reboot @swap
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

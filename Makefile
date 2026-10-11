@@ -7,6 +7,7 @@
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
 #   make linux     Linux bundle (Linux only)
 #   make deb       Linux bundle as the Raspberry Pi camera kiosk .deb (Linux only)
+#   make streamer  presence-streamer for the Raspberry Pi (armhf, arm64): tarballs, and .debs with dpkg-deb
 #   make clean     flutter clean
 
 # One build time for every target in a run, so they share a version (see
@@ -17,7 +18,10 @@ endif
 
 export MODE IOS_CODESIGN BUILD_NUMBER VERSION_Z
 
-.PHONY: all web android ios linux deb clean
+.PHONY: all web android ios linux deb streamer clean
 
 all web android ios linux deb clean:
 	@bash scripts/make.sh $@
+
+streamer:
+	@bash scripts/streamer.sh

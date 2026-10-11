@@ -1,5 +1,6 @@
-# Builds the app binaries with `make` (web, Android, iOS, Linux, and the
-# Raspberry Pi camera kiosk .deb) and publishes them as a GitHub release.
+# Builds the app binaries with `make` (web, Android, iOS, Linux, the
+# Raspberry Pi camera kiosk .deb, and presence-streamer for 32- and 64-bit
+# Raspberry Pis) and publishes them as a GitHub release.
 #
 # - Tag pushes matching *QA or *RC* (e.g. 1.2.0-QA, 1.2.0-RC1) release that
 #   tag as a prerelease; *GA tags (e.g. 1.2.0-GA) as the latest full
@@ -14,7 +15,10 @@
 #
 # The Google client IDs come from the repository variables
 # GOOGLE_WEB_CLIENT_ID and GOOGLE_IOS_CLIENT_ID (public identifiers, not
-# secrets: they're compiled into the app).
+# secrets: they're compiled into the app). The streamer's Google device
+# sign-in client comes from the GOOGLE_DEVICE_CLIENT_ID variable and the
+# GOOGLE_DEVICE_CLIENT_SECRET secret (Google doesn't treat that kind of
+# client's secret as confidential: it ships in the binary).
 name: Release
 
 on:
@@ -41,6 +45,8 @@ on:
       - scripts/make.sh
       - scripts/deb.sh
       - packaging/**
+      - presence_streamer/**
+      - scripts/streamer.sh
       - scripts/dart-defines.sh
       - scripts/version.sh
       - version.X.txt
@@ -283,8 +289,57 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # presence-streamer for the Raspberry Pi, 32-bit (armhf, ARMv6: every
+  # Pi) and 64-bit (arm64). Go cross-compiles, so one runner builds both.
+  streamer:
+    needs: prepare
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION_Z: ${{ needs.prepare.outputs.version_z }}
+      BUILD_NUMBER: ${{ needs.prepare.outputs.build_number }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: presence_streamer/go.mod
+          # No dependencies (no go.sum) to cache.
+          cache: false
+
+      - name: Test
+        working-directory: presence_streamer
+        run: go test ./...
+
+      - name: make streamer
+        env:
+          GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}
+          GOOGLE_DEVICE_CLIENT_SECRET: ${{ secrets.GOOGLE_DEVICE_CLIENT_SECRET }}
+        run: make streamer
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          for arch in armhf arm64; do
+            tars=(presence_streamer/build/presence-streamer_*_"$arch".tar.gz)
+            debs=(presence_streamer/build/presence-streamer_*_"$arch".deb)
+            dpkg-deb --info "${debs[0]}"
+            cp "${tars[0]}" "dist/presence-streamer-$TAG-linux-$arch.tar.gz"
+            cp "${debs[0]}" "dist/presence-streamer-$TAG-raspberrypi-$arch.deb"
+          done
+          ls -l dist
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: presence-streamer
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
   release:
-    needs: [prepare, build]
+    needs: [prepare, build, streamer]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
