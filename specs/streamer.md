@@ -32,18 +32,21 @@ script](install-script.md#streamer).
 `presence-streamer` (or `presence-streamer run`) streams.
 `presence-streamer setup` does everything before the streaming and exits:
 
-1. **The profile ID.** On a terminal it **asks for it at every start**
-   (`Presence profile ID [<saved>]:`, Enter keeps the saved one). Without a
-   terminal (the service), it takes `--profile` / `PRESENCE_STREAMER_PROFILE`,
-   else the saved one. It must look like a profile ID (`a_b_c`, at most 64).
-   Another profile than the saved one forgets the saved sign-in.
+1. **The profile ID**, never asked:
+   - `PRESENCE_STREAMER_PROFILE` (the environment, set before it runs) or
+     `--profile`, else the one saved;
+   - **with none, the signed-in account's own:** after the sign-in (2) it
+     asks `GET /api/auth/profile` and keeps that one ("This account's
+     profile is …").
+   It must look like a profile ID (`a_b_c`, at most 64). Another profile
+   than the saved one forgets the saved sign-in.
 2. **A Google sign-in**, the first time: Google's **device flow**. It shows
    a URL (google.com/device) and a code that someone enters on a phone or
    computer, with an account of that profile. The scope is `openid email`.
    The refresh token is kept, so later starts (and the service) need no one.
 3. **Checks**, before the sign-in is kept and at every renewal:
    - `GET /api/auth/profile` with the ID token must answer the **profile
-     asked for**. Otherwise it stops: "this Google account's profile is X,
+     given** (when one was). Otherwise it stops: "this Google account's profile is X,
      not Y". **A profile ID alone grants nothing**, since only an account of
      the profile can sign in to it.
    - `POST /api/auth/credentials` (the device ID as the body, so the device

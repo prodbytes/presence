@@ -80,9 +80,10 @@ curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- automatic_paranoid_a
 curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_paranoid_axolotl sh
 ```
 
-- **The profile** is the first argument, else `PRESENCE_PROFILE`. Without
-  one, or with one that isn't a profile ID (`a_b_c`, at most 64), it says
-  how to run it and exits 2.
+- **The profile** is the first argument, else `PRESENCE_PROFILE` (or
+  `PRESENCE_STREAMER_PROFILE`), set before it runs. Without one, `setup`
+  runs without `--profile` and takes the profile of the account that signs
+  in. One that isn't a profile ID (`a_b_c`, at most 64) stops it (exit 2).
 - **The app shows the command**, with the profile filled in, to copy and
   paste on the Pi: the account sheet's **Stream from a Raspberry Pi** box
   (`StreamerCommand`, [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
@@ -110,12 +111,13 @@ curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_pa
   That shows the Google sign-in code, checks the profile is Premium, and
   starts the service. Without a terminal it says the command to run.
 - Verified in Docker (Debian 13 arm64, Debian 12 armhf emulated), with a
-  fake `curl` serving the release's `.deb` and the API's checksum: without
-  a profile, or with `x; rm -rf /`, it exits 2; a wrong checksum stops it
-  before apt; it installs the package and its dependencies, the boot link
-  is made, and `setup` gets the profile from the argument and from
-  `PRESENCE_PROFILE` (stopping there, at the sign-in, for want of the
-  Google client in a local build).
+  fake `curl` serving the release's `.deb` and the API's checksum: with
+  `x; rm -rf /` it exits 2; a wrong checksum stops it before apt; it
+  installs the package and its dependencies, the boot link is made, and
+  `setup` gets the profile from the argument, `PRESENCE_PROFILE` and
+  `PRESENCE_STREAMER_PROFILE`, or runs without one (the account's), each
+  time stopping at the sign-in for want of the Google client in a local
+  build.
 
 ## Known limitations
 

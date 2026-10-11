@@ -181,7 +181,7 @@ func asServiceUser(command string, args []string) (int, bool) {
 func parse(name string, args []string) (*options, *flag.FlagSet) {
 	o := &options{}
 	fs := flag.NewFlagSet("presence-streamer "+name, flag.ExitOnError)
-	fs.StringVar(&o.profile, "profile", env("PROFILE", ""), "the profile to stream to (asked on a terminal when not given)")
+	fs.StringVar(&o.profile, "profile", env("PROFILE", ""), "the profile to stream to (default: the saved one, else the signed-in account's)")
 	fs.StringVar(&o.stateDir, "state-dir", defaultStateDir(), "where the device ID, key, sign-in and spool are kept")
 	fs.StringVar(&o.api, "api", env("API", "https://presence.nu01.com"), "the Presence site (its auth API)")
 	fs.StringVar(&o.bucket, "bucket", env("BUCKET", ""), "the user-data bucket, when the auth API doesn't name it")
@@ -231,8 +231,8 @@ func usage() {
 	fmt.Fprint(os.Stderr, `presence-streamer: streams a Raspberry Pi camera to a Presence profile.
 
 Usage:
-  presence-streamer [run] [flags]  ask for the profile, sign in if needed, and stream
-  presence-streamer setup [flags]  ask for the profile and sign in, then exit
+  presence-streamer [run] [flags]  sign in if needed, and stream to the profile
+  presence-streamer setup [flags]  sign in (the Google code), then exit
   presence-streamer status         the profile, device and sign-in
   presence-streamer sign-out       forget the Google sign-in
   presence-streamer version
@@ -309,8 +309,8 @@ func orNone(s string) string {
 	return s
 }
 
-// terminal is the controlling terminal, for questions; nil when there's
-// none (a service), so nothing is asked.
+// terminal is the controlling terminal, for the sign-in's code; nil when
+// there's none (a service).
 func terminal() *os.File {
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
@@ -319,37 +319,15 @@ func terminal() *os.File {
 	return tty
 }
 
-func ask(tty *os.File, question string) (string, error) {
-	fmt.Fprint(tty, question)
-	line, err := bufio.NewReader(tty).ReadString('\n')
-	if err != nil && line == "" {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
-
-// chooseProfile asks for the profile on a terminal (the saved one by
-// default), or takes --profile, or the saved one.
-func chooseProfile(o *options, s *state.State, tty *os.File) (string, error) {
+// chooseProfile is the profile to stream to: --profile (or
+// PRESENCE_STREAMER_PROFILE), else the one saved. Empty when neither is
+// set: then it's the signed-in account's own, fetched after the sign-in.
+func chooseProfile(o *options, s *state.State) (string, error) {
 	profile := o.profile
-	if profile == "" && tty != nil {
-		question := "Presence profile ID (in the app's account sheet): "
-		if s.ProfileID != "" {
-			question = fmt.Sprintf("Presence profile ID [%s]: ", s.ProfileID)
-		}
-		answer, err := ask(tty, question)
-		if err != nil {
-			return "", err
-		}
-		profile = answer
-	}
 	if profile == "" {
 		profile = s.ProfileID
 	}
-	if profile == "" {
-		return "", errors.New("no profile: run presence-streamer setup on a terminal, or pass --profile")
-	}
-	if !ids.ProfilePattern.MatchString(profile) || len(profile) > 64 {
+	if profile != "" && (!ids.ProfilePattern.MatchString(profile) || len(profile) > 64) {
 		return "", fmt.Errorf("%q isn't a profile ID (they look like automatic_paranoid_axolotl)", profile)
 	}
 	return profile, nil
@@ -390,12 +368,12 @@ func run(o *options, setupOnly bool) int {
 	if tty != nil {
 		defer tty.Close()
 	}
-	profile, err := chooseProfile(o, s, tty)
+	profile, err := chooseProfile(o, s)
 	if err != nil {
 		log.Print(err)
 		return exitUsage
 	}
-	if profile != s.ProfileID {
+	if profile != "" && profile != s.ProfileID {
 		// Another profile: another account's sign-in.
 		s.ProfileID, s.RefreshToken, s.Email = profile, "", ""
 		if err := s.Save(); err != nil {
@@ -408,7 +386,7 @@ func run(o *options, setupOnly bool) int {
 	api := &presence.API{BaseURL: o.api}
 	if s.RefreshToken == "" {
 		if tty == nil {
-			log.Print("not signed in: run presence-streamer setup on a terminal")
+			log.Print("not signed in: run presence-streamer setup on a terminal (PRESENCE_STREAMER_PROFILE, or --profile, picks the profile; else it's the account's)")
 			return exitUsage
 		}
 		tokens, err := signIn(ctx, g, tty)
@@ -417,6 +395,14 @@ func run(o *options, setupOnly bool) int {
 			return exitError
 		}
 		claims, _ := google.ClaimsOf(tokens.IDToken)
+		if profile == "" {
+			// None given: the account's own.
+			if profile, err = api.Profile(ctx, tokens.IDToken); err != nil {
+				return exitFor(err, s, logf)
+			}
+			fmt.Fprintf(tty, "This account's profile is %s.\n", profile)
+			s.ProfileID = profile
+		}
 		// Checked before it's kept: the account must be the profile's, and
 		// the profile premium.
 		if _, err := session.Check(ctx, api, tokens.IDToken, profile, s.DeviceID); err != nil {

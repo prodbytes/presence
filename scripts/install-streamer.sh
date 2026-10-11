@@ -4,6 +4,7 @@
 #
 #   curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>
 #   curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=<profile ID> sh
+#   curl -fsSL https://sh.presence.nu01.com/streamer | sh     (the signed-in account's profile)
 #
 # (https://sh.presence.nu01.com/streamer serves this file: presence_sh/,
 # deployed on *GA tags. The raw GitHub URL of this file on main works too.)
@@ -19,6 +20,8 @@
 #
 # Environment:
 #   PRESENCE_PROFILE  the profile ID, when not given as the argument
+#                     (or PRESENCE_STREAMER_PROFILE); without one, the
+#                     profile of the account that signs in
 #   PRESENCE_TAG      release tag to install (default: the latest GA release)
 set -eu
 
@@ -53,15 +56,8 @@ sha256_of() {
 }
 
 main() {
-  profile=${1:-${PRESENCE_PROFILE:-}}
-  case "$profile" in
-    "")
-      say "give the profile ID: curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>"
-      say "(the Presence app shows it, and this command, in the account sheet)"
-      return 2
-      ;;
-  esac
-  if ! printf '%s' "$profile" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' || [ "${#profile}" -gt 64 ]; then
+  profile=${1:-${PRESENCE_PROFILE:-${PRESENCE_STREAMER_PROFILE:-}}}
+  if [ -n "$profile" ] && { ! printf '%s' "$profile" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' || [ "${#profile}" -gt 64 ]; }; then
     say "'$profile' isn't a profile ID (they look like automatic_paranoid_axolotl)"
     return 2
   fi
@@ -127,13 +123,19 @@ main() {
   # shellcheck disable=SC2086 # the package names, or none
   $sudo apt-get install -y "$tmp/$asset" $opencv
 
-  # The sign-in asks on the terminal: this script's own stdin is the pipe
-  # from curl.
-  say "setting up profile $profile"
-  if [ -r /dev/tty ]; then
-    $sudo presence-streamer setup --profile "$profile" </dev/tty
+  # The sign-in shows its code on the terminal: this script's own stdin is
+  # the pipe from curl.
+  if [ -n "$profile" ]; then
+    say "setting up profile $profile"
+    set -- --profile "$profile"
   else
-    say "no terminal for the sign-in: run  sudo presence-streamer setup --profile $profile"
+    say "setting up the profile of the account that signs in"
+    set --
+  fi
+  if [ -r /dev/tty ]; then
+    $sudo presence-streamer setup "$@" </dev/tty
+  else
+    say "no terminal for the sign-in: run  sudo presence-streamer setup $*"
     return 1
   fi
 }

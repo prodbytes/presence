@@ -5109,3 +5109,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Verified on the Pi Zero: a still scene's chunks scored 0.0 % and
        never reached S3, and its ffmpeg passes the motion test. Specs:
        [Streamer](streamer.md), [README](README.md).
+
+367. **The streamer's profile: an environment variable, or the account's.** (2026-10-11)
+     - Asked: let the profile ID be an environment variable set before
+       running; when it isn't set, fetch it after the sign-in.
+     - Changed: the streamer no longer asks for the profile. It takes
+       `PRESENCE_STREAMER_PROFILE` (or `--profile`), else the saved one,
+       else, after the Google sign-in, the signed-in account's own profile
+       (`GET /api/auth/profile`). The install script takes the profile
+       optionally (argument, `PRESENCE_PROFILE` or
+       `PRESENCE_STREAMER_PROFILE`), and without one sets up the account's.
+       Specs: [Streamer](streamer.md), [Install script](install-script.md),
+       [README](README.md).
