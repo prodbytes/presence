@@ -110,7 +110,8 @@ jobs:
           fi
           echo "${TAG:-HEAD} is $commit, on main"
 
-      # The auth API (presence_api_auth) is a Java 25 Lambda, built and deployed with SAM.
+      # The auth API (presence_api_auth) and its health check (presence_health) are
+      # Java 25 Lambdas, built and deployed with SAM.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin

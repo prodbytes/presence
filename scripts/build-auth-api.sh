@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../presence_api_auth"
 built=.aws-sam/build/template.yaml
 
-if [[ -f "$built" ]] && [[ -z "$(find template.yaml AuthFunction/pom.xml AuthFunction/src/main -newer "$built" -print -quit)" ]]; then
+if [[ -f "$built" ]] && [[ -z "$(find template.yaml Makefile AuthFunction/pom.xml AuthFunction/src/main RecognitionFunction/pom.xml RecognitionFunction/src/main -newer "$built" -print -quit)" ]]; then
     echo "build-auth-api: up to date"
     exit 0
 fi

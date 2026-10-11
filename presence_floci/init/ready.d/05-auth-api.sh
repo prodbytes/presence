@@ -13,9 +13,10 @@
 # floci:override-id tag): the same Google JWT authorizer and routes as
 # template.yaml's AuthHttpApi. Its host, $API_ID.execute-api.localhost.floci.io,
 # is written to /tmp/presence-api-host, which 10-cloudfront.sh routes /api/*
-# to. Keep the routes below in step with template.yaml, except GET /health:
-# it checks AWS resources (the identity pool and bucket in .env are AWS's,
-# not Floci's), so it's AWS only, like the Route 53 health check.
+# to. Keep the routes below in step with template.yaml. GET /health isn't
+# the auth API's (it's presence_health) and isn't deployed here: it checks
+# AWS resources (the identity pool and bucket in .env are AWS's, not
+# Floci's), so it's AWS only, like the Route 53 health check.
 #
 # Without GOOGLE_WEB_CLIENT_ID the API runs in DEV mode: only the public
 # GET /api/auth/anonymous route is created, and it gives the anonymous user
@@ -93,18 +94,10 @@ if [ -n "$CLIENT_ID" ]; then
     --jwt-configuration "Issuer=https://accounts.google.com,Audience=$CLIENT_ID" \
     --query AuthorizerId --output text)
   route "GET /api/auth" AuthFunction "$authorizer"
-  route "POST /api/auth/membership" MembershipFunction "$authorizer"
-  route "GET /api/auth/membership" AdminFunction "$authorizer"
-  route "POST /api/auth/membership/grant" AdminFunction "$authorizer"
-  route "POST /api/auth/membership/dismiss" AdminFunction "$authorizer"
   route "POST /api/auth/voucher" VoucherFunction "$authorizer"
   route "GET /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers" AdminFunction "$authorizer"
   route "POST /api/auth/vouchers/delete" AdminFunction "$authorizer"
-  route "GET /api/auth/feedback" FeedbackFunction "$authorizer"
-  route "POST /api/auth/feedback" FeedbackFunction "$authorizer"
-  route "GET /api/auth/feedback/threads" FeedbackFunction "$authorizer"
-  route "POST /api/auth/feedback/reply" FeedbackFunction "$authorizer"
   route "GET /api/auth/maintenance" AdminFunction "$authorizer"
   route "POST /api/auth/maintenance" AdminFunction "$authorizer"
   # Profiles. Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the
@@ -115,6 +108,12 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/link" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
+  # Cloud recognition (premium only). Locally the model comes from Hugging
+  # Face at each function's first use (no bucket here keeps it): 1.2 GB.
+  route "GET /api/recognition/status" RecognitionTrainFunction "$authorizer"
+  route "POST /api/recognition/labels" RecognitionTrainFunction "$authorizer"
+  route "POST /api/recognition/train" RecognitionTrainFunction "$authorizer"
+  route "POST /api/recognition/identify" RecognitionInferFunction "$authorizer"
 fi
 aws apigatewayv2 create-stage --api-id "$api" --stage-name '$default' --auto-deploy >/dev/null
 

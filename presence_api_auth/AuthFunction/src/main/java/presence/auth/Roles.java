@@ -51,7 +51,7 @@ public final class Roles {
             PREMIUM, Set.of("premium", "admin"),
             ADMIN, Set.of("admin"));
 
-    /** For each role presence grants (a membership, a voucher), the rbacr role it grants. */
+    /** For each role a voucher grants, the rbacr role it grants. */
     static final Map<String, String> GRANTED_AS = Map.of(USER, "free", ADMIN, "admin");
 
     /** What an rbacr root gets. */

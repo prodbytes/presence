@@ -351,8 +351,8 @@ deleted, and the contents live only in AWS.
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay
   unlinked.
-- Roles are still per email (in rbacr), and membership requests are per
-  email. Linked subjects share the owner's membership and premium only.
+- Roles are still per email (in rbacr), and so are subscriptions
+  (at nu01.com). Linked subjects share the owner's membership and premium only.
 - Google stays a login provider of the pool. An account can therefore
   still get credentials straight from Cognito for its own Google
   identity's folder, without the roles check, as before profiles. Remove

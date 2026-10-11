@@ -1,11 +1,17 @@
 # Auth API (`presence_api_auth`)
 
-[presence_api_auth/](../presence_api_auth) is a SAM application: seven Java 25
-Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` on the
+[presence_api_auth/](../presence_api_auth) is a SAM application: six Java 25
+Lambdas (arm64) behind one API Gateway HTTP API, under `/api/auth` (and
+`/api/recognition`) on the
 site (`/api/*` in the CloudFront distribution; see
-[Production deploy](deploy.md)), plus the public **`GET /health`**
-(`HealthHandler`), which checks the API's dependencies for Route 53 (see
-[Health check](health-check.md)):
+[Production deploy](deploy.md)). The public **`GET /health`**, which
+checks the API's dependencies for Route 53, is its own module,
+[presence_health](../presence_health) (see [Health check](health-check.md)):
+the auth API stack exports its table names (`<stack>-UserRolesTable`,
+`-ProfilesTable`, `-ProfileSubjectsTable`, `-VoucherTable`,
+`-LinkCodesTable`, `-SystemTable`) for it, and CloudFormation won't
+remove or change them while the health stack imports them. The API's
+routes:
 
 - **`GET /api/auth`** (`AuthHandler`): the signed-in user's **profile**
   and roles, `{"email": "...", "profile": "automatic_paranoid_axolotl",
@@ -34,17 +40,15 @@ site (`/api/*` in the CloudFront distribution; see
   reported, never a value. The app
   shows them in its Settings health line (see [Settings
   screen](settings.md));
-- **`POST /api/auth/membership`** (`MembershipHandler`): a request for
-  access, and **`GET /api/auth/membership`**, **`POST …/grant`** and
-  **`POST …/dismiss`** (`AdminHandler`, admins only: both roles): the
-  Admin tab's. See [Membership](membership.md);
-- **`GET /api/auth/feedback`** and **`POST /api/auth/feedback`**
-  (`FeedbackHandler`, members): the caller's conversation with the
-  administrators and a new message (plain text, up to 2000 characters, 20
-  a day; throttled to 1 request/s, burst 5); **`GET
-  /api/auth/feedback/threads`** and **`POST …/feedback/reply`** (admins:
-  both roles): every conversation, and a reply (form-encoded `email` and
-  `message`). See [Feedback and Help](feedback.md#the-api);
+- No request-for-access routes: people subscribe at nu01.com (the
+  membership request routes and `MembershipHandler` were removed on
+  2026-10-10). See [Membership](membership.md);
+- No feedback routes: the app reads and writes Feedback and Help
+  straight to its DynamoDB table with the profile's credentials
+  (`FeedbackHandler` was removed on 2026-10-10). For it, `POST
+  /api/auth/credentials` tags an administrator's credentials `admin`
+  (from their own email's roles). See [Feedback and
+  Help](feedback.md#storage-and-access-no-api);
 - **`POST /api/auth/voucher`** (`VoucherHandler`): redeems the voucher code
   in the plain-text body for its role, `{"role": "...", "granted":
   [...], "discount": 100}` when its discount is 100%; 402 `{"error",
@@ -78,6 +82,12 @@ site (`/api/*` in the CloudFront distribution; see
   how many show (2 free, 50 premium); `POST
   /api/auth/profile/devices/remove` takes a deleted device off the list.
   See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
+- **`/api/recognition/*`** (`TrainingHandler`, `InferenceHandler`, in
+  their own jar, `RecognitionFunction`, built by the Makefile): premium
+  profiles' [cloud recognition](cloud-recognition.md) with DINOv2-L, its
+  status, labels and training, and identifying a clip's people and pets;
+  the `RecognitionTable` keeps each profile's labels' embeddings and
+  model.
 
 - **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
   ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
@@ -96,8 +106,8 @@ site (`/api/*` in the CloudFront distribution; see
   (`RBACR_SYSTEM`):
   - **`presence_user`** uses the app; **`presence_premium`** also syncs
     with the cloud ([Premium and free](premium.md)); **`presence_admin`**
-    also approves membership requests and creates Member vouchers;
-    **`presence_root`** also creates Admin vouchers;
+    also uses the Admin tab (maintenance mode, feedback, vouchers);
+    **`presence_root`** also sees and deletes Admin vouchers;
     **`presence_anonymous`** is nobody signed in;
   - they're rbacr's roles, mapped: rbacr's `free`, `premium` or `admin`
     gives `presence_user`; `premium` or `admin` gives `presence_premium`;
@@ -140,27 +150,25 @@ site (`/api/*` in the CloudFront distribution; see
     `scripts/migrate-roles-to-rbacr.sh` copies the table's roles into
     rbacr (`presence_user` as `free`, `presence_admin` as `admin`); the
     API no longer reads them.
-- **The tables** (`UserRolesTable`, `MembershipTable`, `VoucherTable`,
-  `FeedbackTable`, and
+- **The tables** (`UserRolesTable`, `VoucherTable`, and
   [`ProfilesTable` and `ProfileSubjectsTable`](profiles.md#where-its-kept)):
   on-demand, encrypted, with point-in-time recovery, and kept if the stack
   is deleted. Their contents (people's emails) live only in AWS.
   `LinkCodesTable` holds short-lived link codes (hashed, with a TTL), and
   `SystemTable` the system's own state ([maintenance mode](maintenance.md)).
   `UserRolesTable` now holds only the voucher lockout's counts (and the
-  roles from before rbacr, unread).
+  roles from before rbacr, unread). `MembershipTable`, with the access
+  requests sent before 2026-10-10, and `FeedbackTable`, with the
+  conversations from before Feedback moved to the app, left the stack but
+  are kept in AWS (`DeletionPolicy: Retain`).
 - **Least privilege:**
   - the roles function may only get and put in `ProfileSubjectsTable`,
     and get, put and update in `ProfilesTable`;
-  - the membership function may only put items in `MembershipTable`;
   - the voucher function may get and update items in `VoucherTable` and
     in `UserRolesTable` (the lockout);
-  - the admin function may scan, update and delete in `MembershipTable`,
-    put, scan and delete in `VoucherTable`, and get items from both
+  - the admin function may put, scan and delete in `VoucherTable`, get
+    and put in `SystemTable` (maintenance mode), and get items from both
     profile tables;
-  - the feedback function may get items from `UserRolesTable` and both
-    profile tables, and query, scan and put in `FeedbackTable` (messages
-    are never changed or deleted);
   - the roles, voucher, admin and profile functions have `RBACR_TOKEN`, a
     root's rbacr token: whoever can read their configuration can manage
     rbacr as that root. It's a `NoEcho` parameter, never in the
@@ -199,22 +207,23 @@ address uses up a route's budget for everyone:
   the bill), so it stays;
 - the token routes need a valid Google ID token for the web client, which
   anyone can get with a free Google account, so their limits (1 request/s
-  for membership requests, vouchers, link codes and feedback) can be used up the
+  for vouchers and link codes) can be used up the
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
-CloudFront distribution, scoped to `/api/*` and `/health`), which blocks
+CloudFront distribution, scoped to `/api/*` and `/health`, the health
+check's own API), which blocks
 one address's flood without touching anyone else. It isn't deployed: WAF
 costs a monthly fee per web ACL and rule plus a per-request charge, which
 is an infrastructure and cost decision. Until then the per-route limits,
-the voucher lockout per email, the membership cooldown per email and the daily feedback limit per member are
-what slow abuse.
+the voucher lockout per email is
+what slows abuse.
 - **Deploy:** `scripts/deploy.sh` runs `sam build` and `sam deploy` (stacks
   `presence-auth-api` and `presence-rc-auth-api`, uploading to the stage's
   own artifact bucket, `<prefix>-sam-artifacts-<account>`, and with
   `PermissionsBoundary`, the stage's boundary, on every function role; see
-  [Production deploy](deploy.md#github-access)) before the site, and passes
-  the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
+  [Production deploy](deploy.md#github-access)) before the health stack
+  and the site, and passes the stack's `ApiDomain` output to `site.yaml`. The smoke test requires
   `/api/auth` to answer **401** without a token, which proves the route and
   its authorizer are live, and `/api/auth/anonymous` to report RBAC with
   both settings set (and a maintenance state, on or off, which it doesn't
@@ -250,12 +259,9 @@ what slow abuse.
     answer in RBAC and DEV, with its settings (AWS needs both the pool and
     the bucket);
   - the handler's JSON: profile, roles, no roles, no claims, escaping;
-  - membership requests: verified email, empty and long messages, base64
-    bodies, the hourly cooldown;
-  - the admin routes: 403 without both roles, listing, grant, dismiss
-    (which keeps the cooldown), bad emails, unknown routes;
-  - feedback (`FeedbackTest`): see [Feedback and Help](feedback.md#tests);
-  - profile names are cleaned to one short line;
+  - the admin routes: 403 without both roles, vouchers, maintenance,
+    unknown routes;
+  - only an administrator's own credentials are tagged `admin`;
   - vouchers: the code format and loose typing, chosen codes; admins
     only; creation's role, start, expiry, uses, code and discount checks
     (chosen codes of at least 10 letters and digits, never for

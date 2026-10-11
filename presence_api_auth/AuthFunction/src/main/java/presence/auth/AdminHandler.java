@@ -4,42 +4,24 @@ import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
-import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
-import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
-import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
-import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static presence.auth.Attrs.instant;
-import static presence.auth.Attrs.text;
 import static presence.auth.Http.response;
 
 /**
  * The Admin screen's API, for users with both {@code presence_user} and
  * {@code presence_admin} (403 otherwise, as the app shows the screen):
  * <ul>
- *   <li>{@code GET /api/auth/membership}: the pending membership requests,
- *       oldest first, as {@code {"requests": [{email, name, message, requestedAt}]}};</li>
- *   <li>{@code POST /api/auth/membership/grant}: gives the email in the
- *       (plain-text) body the {@code presence_user} role (an rbacr grant
- *       of {@code free}, {@link Roles#GRANTED_AS}) and drops its request;</li>
- *   <li>{@code POST /api/auth/membership/dismiss}: hides the email's request.
- *       It stays in the table, so the requester's cooldown still holds;</li>
  *   <li>{@code GET /api/auth/vouchers}: every voucher, newest first, as
  *       {@code {"vouchers": [{code, role, startsAt, expiresAt, maxUses, uses, redeemedBy,
  *       createdBy, createdAt, discount}]}}. A presence_admin voucher's code
@@ -67,32 +49,18 @@ import static presence.auth.Http.response;
  *       optionally {@code message} (up to {@link Maintenance#MAX_MESSAGE}
  *       characters), and answers the new state.</li>
  * </ul>
- * A linked account shares its profile owner's membership, never the
- * owner's administration: the caller's own email must make it an admin.
+ * Users get {@code presence_user} by subscribing at nu01.com (rbacr) or
+ * redeeming a voucher: there are no membership requests to grant. A linked
+ * account shares its profile owner's membership, never the owner's
+ * administration: the caller's own email must make it an admin.
  */
 public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
-
-    /** Where membership requests are kept, and roles granted. */
-    interface Backend {
-        /** The requests that weren't dismissed. */
-        List<MembershipHandler.Request> requests();
-
-        /** Grants the email {@code role} (one of {@link Roles#GRANTED_AS}'s) in rbacr. */
-        void grant(String email, String role);
-
-        /** Removes the email's request (after a grant). */
-        void remove(String email);
-
-        /** Hides the email's request from {@link #requests()}. */
-        void dismiss(String email);
-    }
 
     /** The furthest a voucher may expire. */
     static final Duration MAX_VALIDITY = Duration.ofDays(366);
 
     private final Roles roles;
     private final Function<String, Profiles.Profile> linked;
-    private final Backend backend;
     private final VoucherHandler.Store vouchers;
     private final Maintenance.Store maintenance;
     private final Clock clock;
@@ -100,30 +68,28 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public AdminHandler() {
         this(Roles.fromEnvironment(), Profiles.fromEnvironment()::existing,
-                dynamoBackend(System.getenv("MEMBERSHIP_TABLE"), Rbacr.fromEnvironment()),
                 VoucherHandler.dynamoStore(System.getenv("VOUCHER_TABLE")),
                 Maintenance.dynamoStore(System.getenv("SYSTEM_TABLE")),
                 Clock.systemUTC());
     }
 
-    AdminHandler(Roles roles, Backend backend, VoucherHandler.Store vouchers, Clock clock) {
-        this(roles, subject -> null, backend, vouchers, clock);
+    AdminHandler(Roles roles, VoucherHandler.Store vouchers, Clock clock) {
+        this(roles, subject -> null, vouchers, clock);
     }
 
     /**
      * @param linked for a subject, the profile it's linked to, without making one
      *               ({@link Profiles#existing}): a linked subject shares the owner's membership
      */
-    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
+    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked,
                  VoucherHandler.Store vouchers, Clock clock) {
-        this(roles, linked, backend, vouchers, Maintenance.memory(), clock);
+        this(roles, linked, vouchers, Maintenance.memory(), clock);
     }
 
-    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked, Backend backend,
+    AdminHandler(Roles roles, Function<String, Profiles.Profile> linked,
                  VoucherHandler.Store vouchers, Maintenance.Store maintenance, Clock clock) {
         this.roles = roles;
         this.linked = linked;
-        this.backend = backend;
         this.vouchers = vouchers;
         this.maintenance = maintenance;
         this.clock = clock;
@@ -147,26 +113,6 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         }
         var root = callerRoles.contains(Roles.ROOT);
         return switch (route) {
-            case "GET /api/auth/membership" -> response(200, "{\"requests\":["
-                    + backend.requests().stream()
-                    .sorted(Comparator.comparing(MembershipHandler.Request::requestedAt))
-                    .map(AdminHandler::json)
-                    .collect(Collectors.joining(","))
-                    + "]}");
-            case "POST /api/auth/membership/grant", "POST /api/auth/membership/dismiss" -> {
-                var body = Http.bodyText(event, 254);
-                var email = body == null ? "" : body.toLowerCase(Locale.ROOT);
-                if (!validEmail(email)) {
-                    yield response(400, "{\"error\":\"the body must be an email\"}");
-                }
-                if (route.endsWith("/grant")) {
-                    backend.grant(email, Roles.USER);
-                    backend.remove(email);
-                } else {
-                    backend.dismiss(email);
-                }
-                yield response(200, "{\"email\":" + Json.string(email) + "}");
-            }
             // Only roots see presence_admin codes: an admin can't hand the role on.
             case "GET /api/auth/vouchers" -> response(200, "{\"vouchers\":["
                     + vouchers.all().stream()
@@ -301,65 +247,5 @@ public class AdminHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGa
         var at = email.lastIndexOf('@');
         return email.length() <= 254 && at > 0 && at < email.length() - 1
                 && email.chars().noneMatch(c -> c <= ' ' || c == ',');
-    }
-
-    static String json(MembershipHandler.Request r) {
-        return "{\"email\":" + Json.string(r.email())
-                + ",\"name\":" + Json.string(r.name())
-                + ",\"message\":" + Json.string(r.message())
-                + ",\"requestedAt\":" + Json.string(r.requestedAt().toString()) + "}";
-    }
-
-    /** Requests in {@code membershipTable}, grants in {@code rbacr}. */
-    static Backend dynamoBackend(String membershipTable, Rbacr rbacr) {
-        var dynamo = Aws.dynamo();
-        return new Backend() {
-            @Override
-            public List<MembershipHandler.Request> requests() {
-                var result = new ArrayList<MembershipHandler.Request>();
-                // Few requests are ever pending; the paginator reads them all.
-                var scan = ScanRequest.builder()
-                        .tableName(membershipTable)
-                        .filterExpression("attribute_not_exists(dismissed)")
-                        .build();
-                for (var page : dynamo.scanPaginator(scan)) {
-                    for (var item : page.items()) {
-                        result.add(new MembershipHandler.Request(
-                                text(item, "email"), text(item, "name"), text(item, "message"),
-                                instant(item.getOrDefault("requestedAt", AttributeValue.fromN("0")))));
-                    }
-                }
-                return result;
-            }
-
-            @Override
-            public void grant(String email, String role) {
-                rbacr.grant(email, Roles.GRANTED_AS.get(role));
-            }
-
-            @Override
-            public void remove(String email) {
-                dynamo.deleteItem(DeleteItemRequest.builder()
-                        .tableName(membershipTable)
-                        .key(Map.of("email", AttributeValue.fromS(email)))
-                        .build());
-            }
-
-            @Override
-            public void dismiss(String email) {
-                try {
-                    dynamo.updateItem(UpdateItemRequest.builder()
-                            .tableName(membershipTable)
-                            .key(Map.of("email", AttributeValue.fromS(email)))
-                            .updateExpression("SET dismissed = :yes")
-                            // Don't create a row for an email that never asked.
-                            .conditionExpression("attribute_exists(email)")
-                            .expressionAttributeValues(Map.of(":yes", AttributeValue.fromBool(true)))
-                            .build());
-                } catch (ConditionalCheckFailedException e) {
-                    // Already gone: nothing to dismiss.
-                }
-            }
-        };
     }
 }

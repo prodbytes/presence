@@ -71,6 +71,17 @@ class ProfileBackendTest {
     }
 
     @Test
+    void administratorsTokensAlsoCarryTheAdminTag() {
+        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.FREE, true);
+        assertEquals(List.of(Map.of("tier", "free", "admin", "true"), Map.of("tier", "free", "admin", "true")),
+                cognito.tags);
+        cognito.tags.clear();
+        // Linked now: one try, without the admin tag for a member.
+        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.FREE, false);
+        assertEquals(List.of(Map.of("tier", "free")), cognito.tags);
+    }
+
+    @Test
     void tokensCarryTheTierAsAPrincipalTag() {
         backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.PREMIUM);
         // Both tries (unlinked, then with the Google login) are tagged.

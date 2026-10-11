@@ -517,37 +517,9 @@ class FakeRolesClient implements RolesClient {
   }
 }
 
-/// Membership requests kept in memory; [granted] records the grants.
+/// Vouchers and maintenance mode kept in memory.
 class FakeMembershipClient implements MembershipClient {
-  final requests = <MembershipRequest>[];
-  final sent = <String>[];
-  final granted = <String>[];
   Object? error;
-
-  @override
-  Future<void> request(String idToken, String message) async {
-    if (error case final e?) throw e;
-    sent.add(message);
-  }
-
-  @override
-  Future<List<MembershipRequest>> list(String idToken) async {
-    if (error case final e?) throw e;
-    return List.of(requests);
-  }
-
-  @override
-  Future<void> grant(String idToken, String email) async {
-    if (error case final e?) throw e;
-    granted.add(email);
-    requests.removeWhere((r) => r.email == email);
-  }
-
-  @override
-  Future<void> dismiss(String idToken, String email) async {
-    if (error case final e?) throw e;
-    requests.removeWhere((r) => r.email == email);
-  }
 
   /// The vouchers, newest first; [redeemed] records the codes redeemed, and
   /// [onRedeem] runs after a valid one (e.g. to grant the role).
@@ -585,35 +557,6 @@ class FakeMembershipClient implements MembershipClient {
 
   @override
   Future<List<Voucher>> vouchers(String idToken) async => List.of(codes);
-
-  @override
-  Future<Voucher> createVoucher(
-    String idToken, {
-    required String role,
-    DateTime? startsAt,
-    required DateTime expiresAt,
-    required int maxUses,
-    String? code,
-    int discount = 100,
-  }) async {
-    if (error case final e?) throw e;
-    final chosen = code?.trim().toUpperCase() ?? '';
-    if (codes.any((v) => v.code == chosen)) throw RolesException(409);
-    final voucher = Voucher(
-      code: chosen.isNotEmpty
-          ? chosen
-          : 'TEST-CODE-${(codes.length + 2).toString().padLeft(4, '2')}',
-      role: role,
-      startsAt: startsAt,
-      expiresAt: expiresAt,
-      maxUses: maxUses,
-      uses: 0,
-      createdAt: DateTime.now(),
-      discount: discount,
-    );
-    codes.insert(0, voucher);
-    return voucher;
-  }
 
   @override
   Future<void> deleteVoucher(String idToken, String code) async {
@@ -770,6 +713,8 @@ class FakeFeedbackClient implements FeedbackClient {
       for (final MapEntry(key: email, value: messages)
           in conversations.entries.toList().reversed)
         FeedbackThread(
+          // The fake's conversations are keyed by the member's email.
+          conversation: email,
           email: email,
           name: names[email] ?? '',
           messages: List.of(messages),

@@ -4623,7 +4623,150 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Android](android.md),
        [Configuration](configuration.md).
 
-341. **Sign up only for free members, in the profile view.** (2026-10-10)
+341. **No voucher creation form: codes are made in rbacr.** (2026-10-10)
+     - Asked: remove the voucher creation form; that will be done in rbacr.
+     - Changed: the Admin tab's Voucher codes section has no form any
+       more, only the list (with Copy code and Delete) and a line saying
+       codes are created in rbacr. Gone with it: `MembershipClient
+       .createVoucher`, the code suggestion and season helpers
+       (`voucher_code.dart` keeps only the redeem field's length), and
+       `AdminView.canCreateAdmins`. The auth API's `POST
+       /api/auth/vouchers` stays, for now the only way to make a code.
+       Tests: `roles_test.dart` (list and delete, no form);
+       `voucher_code_test.dart` removed. Specs:
+       [Membership](membership.md), [README](README.md).
+
+342. **No access requests: users subscribe.** (2026-10-10)
+     - Asked: remove the access request stuff; users must subscribe to
+       become premium.
+     - Changed: the Sign up sheet's request form (message, Send request)
+       is now "Subscribe": **Subscribe at nu01.com** (opens
+       https://nu01.com, or copies the link), with voucher redeem,
+       linking another account and Check again kept. The Admin tab has no
+       Membership requests section. The auth API loses
+       `POST /api/auth/membership` (`MembershipHandler`) and the
+       Admin's list, grant and dismiss routes, `MembershipFunction` and
+       `MembershipTable` (kept in AWS: `DeletionPolicy: Retain`); the
+       name cleaning feedback uses moved to `FeedbackHandler`. Floci's
+       routes, the health check's tables and the docs follow. Tests:
+       `roles_test.dart` (Subscribe; reload fetches vouchers), the API's
+       (requests' tests removed, the rest moved). Specs:
+       [Membership](membership.md), [Auth API](auth-api.md),
+       [Sign-in](sign-in.md), [Feedback](feedback.md),
+       [Local CDN](local-cdn.md), [Navigation](navigation.md),
+       [Profiles](profiles.md), [README](README.md).
+
+343. **Feedback and Help straight from the app.** (2026-10-10)
+     - Asked: move the feedback conversations to their own DynamoDB table,
+       with client-side lookups and no API (part of slimming the auth API:
+       health to its own module, vouchers and the start check through
+       rbacr, maintenance mode from rbacr, profiles and Cognito kept).
+     - Changed: `FeedbackTable` in the presence-user-data stack, one
+       conversation per profile (keyed by its Cognito identity ID). The app
+       queries, scans and puts there itself with the profile's credentials
+       (`DynamoFeedbackClient`, a SigV4 DynamoDB client), `FEEDBACK_TABLE`
+       at build time. IAM (`own-feedback` on the identity role): members
+       only their own conversation, never the replying admin's email, never
+       as an admin; credentials of administrators carry an `admin` tag
+       (`POST /api/auth/credentials`, from their own email's roles) that
+       lets them read every conversation and reply. The auth API loses
+       `FeedbackHandler`, its routes and its table (kept in AWS). Tests:
+       `feedback_test.dart` (the DynamoDB client), `ProfileTest`,
+       `ProfileBackendTest` (the admin tag). Specs: [Feedback and
+       Help](feedback.md), [Auth API](auth-api.md), [Health
+       check](health-check.md).
+
+344. **`/health` in its own module.** (2026-10-10)
+     - Asked: move `GET /health` out of the auth API into its own module,
+       as part of slimming the auth API, keeping its checks, answer and
+       status codes so the Route 53 health check keeps working.
+     - Changed: new `presence_health/` (Maven project `HealthFunction`,
+       Java 25, the auth API's AWS SDK versions; SAM template with its own
+       HTTP API), deployed per stage as `presence-health` and
+       `presence-rc-health` with the stage's permissions boundary.
+       `presence.health.HealthHandler` is the old handler, made
+       self-contained, with its tests. It reads the auth API's table names
+       from new exports of the auth API stack (`<stack>-UserRolesTable`
+       and the other five; `LinkCodesTableName` is a new output) and gets
+       the settings and rbacr's URL (never its token) from
+       `scripts/deploy.sh`, which deploys it right after the auth API and
+       passes its `ApiDomain` to the site. The auth API loses
+       `HealthFunction`, its `/health` route and throttle, its `Version`
+       parameter and the `HasRbacr` condition. `site.yaml` routes
+       `/health` (still uncached) to a new `health` origin
+       (`HealthApiDomainName`). Nothing changed in the GitHub deploy
+       policies (the stacks, functions and roles are `<prefix>-*`). Not
+       deployed into Floci, as before. Specs: [Health
+       check](health-check.md), [Production deploy](deploy.md), [Auth
+       API](auth-api.md), [Local CDN](local-cdn.md),
+       [Premium](premium.md), [Maintenance](maintenance.md),
+       [README](README.md).
+
+345. **Deploys may tag HTTP API stages again.** (2026-10-10)
+     - Found: the `0.6.202610101630-RC` deploy failed creating the new
+       `presence-rc-health` stack: its HTTP API stage needs
+       `apigateway:TagResource` (SAM tags it `httpapi:createdBy`), which
+       the deploy policies lost when the hardened ones (#245) were merged
+       over the older policy that had it.
+     - Changed: the stage deploy policy allows `apigateway:TagResource`
+       and `UntagResource` on the stage's APIs again;
+       `presence-github-deploy` redeployed. Spec: [Production
+       deploy](deploy.md) (unchanged rules; the list was incomplete).
+
+346. **Pick the recognition that best tells Suerte from other black cats,
+     then run it in the cloud for premium users.** (2026-10-11)
+     - Asked: compare popular libraries, frameworks and services on
+       `test.local/images/cats` (Suerte, and other black cats; more added
+       later, with video stills and HEIC photos converted to JPEG there),
+       Amazon Rekognition included; then build a Lambda API with the best
+       (DINOv2-L) for premium users, a training check at start and every
+       24 h (labels timed, the last training kept in the settings,
+       training on enough new labels or enough time), and a separate
+       inference API that places the labels on subjects.
+     - Measured: MobileNetV3 (the app's), DINOv2 S/B/L, CLIP, SigLIP2,
+       MegaDescriptor T/L, MiewID; in a place Suerte was never seen, only
+       a classifier per subject over DINOv2-L separated her well (AUC 0.91
+       against the black cats). Rekognition's labels only say "Black
+       Cat"; Custom Labels and Bedrock's embeddings weren't allowed in the
+       account.
+     - Changed: [Cloud recognition](cloud-recognition.md), new. The auth
+       API gets `RecognitionTrainFunction` (`/api/recognition/status`,
+       `/labels`, `/train`) and `RecognitionInferFunction`
+       (`/api/recognition/identify`), premium only, DINOv2-L through ONNX
+       Runtime (the model fetched into `/tmp` and kept in the bucket's
+       `models/`), the `RecognitionTable` and throttles; built by a
+       Makefile into their own jar (`RecognitionFunction`); Floci gets
+       the routes. The app: tags get `labeledAt`, settings
+       `recognition.cloudTrainedAt` and `cloudCheckedAt`; `CloudTrainer`
+       checks and trains, `SubjectRecognizer` asks the cloud about up to 8
+       crops a clip and keeps the surer verdict; Settings shows the last
+       training and **Train now**. Specs: [Subject
+       recognition](recognition.md), [Data formats](data-formats.md),
+       [Configuration](configuration.md), [Settings](settings.md),
+       [Premium](premium.md), [Auth API](auth-api.md),
+       [README](README.md).
+
+347. **Launch the app on the connected iPhone.** (2026-10-11)
+     - Built a signed release for the iPhone 12 mini (automatic signing
+       with the Mac's development identity), installed it with
+       `devicectl` and launched it; it runs. Spec: [iOS](ios.md), now
+       verified on a physical iPhone (launching, not its features).
+
+348. **Reusable test data, in the repo.** (2026-10-11)
+     - Asked: copy the useful test data from the local, ignored
+       `test.local/` into a new test data folder, structured and labelled
+       so tests can be re-run.
+     - Changed: `presence_app/test/data/` holds `cats/suerte` (16 photos,
+       6 clips, 31 stills) and `cats/other` (38 photos of other cats), as
+       `<species>/<subject>/{photos,stills,clips}/` with `labels.csv`
+       (`path,species,subject,kind`). The repo is public, so
+       `import.sh` cleans what it copies: metadata and GPS dropped,
+       rotation applied, at most 1280 px, clips as H.264 with a keyframe
+       a second and no audio, HEIC twins of JPEGs skipped (217 MB → 21
+       MB). Spec: [Test data](test-data.md) (new), [Subject
+       recognition](recognition.md), [README](README.md).
+
+349. **Sign up only for free members, in the profile view.** (2026-10-10)
      - Asked: in the profile view, only show the sign-up call to a free
        member; a premium or admin account doesn't need it.
      - Changed: the account sheet's plan box (`PlanNotice`) counts an
