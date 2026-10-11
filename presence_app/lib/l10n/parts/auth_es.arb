@@ -112,5 +112,9 @@
   "authPaymentsSaveFailed": "No se pudieron guardar los enlaces ({error})",
   "authPaymentsInvalid": "Vacío, o un enlace https de stripe.com",
   "authPaymentsDefaults": "Aún sin guardar: son los enlaces del despliegue.",
-  "authPaymentsUnavailable": "La API de pagos no respondió."
+  "authPaymentsUnavailable": "La API de pagos no respondió.",
+  "authStreamerTitle": "Transmitir desde una Raspberry Pi",
+  "authStreamerBody": "Pega esto en una terminal de una Raspberry Pi con cámara (Raspberry Pi OS, de 32 o 64 bits). Instala el streamer de Presence, que graba en este perfil desde cada arranque y guarda los clips con personas y animales. Te pide iniciar sesión con un código.",
+  "authStreamerCopy": "Copiar comando",
+  "authStreamerCopied": "Comando copiado: pégalo en la Raspberry Pi"
 }

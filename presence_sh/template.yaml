@@ -83,12 +83,17 @@ Resources:
       Name: !Sub ${AWS::StackName}-script-path
       AutoPublish: true
       FunctionConfig:
-        Comment: Every URI to /install.sh
+        Comment: /streamer to /streamer.sh, every other URI to /install.sh
         Runtime: cloudfront-js-2.0
       FunctionCode: |
         function handler(event) {
           var request = event.request;
-          request.uri = '/install.sh';
+          var uri = request.uri;
+          if (uri === '/streamer' || uri === '/streamer/' || uri === '/streamer.sh') {
+            request.uri = '/streamer.sh';
+          } else {
+            request.uri = '/install.sh';
+          }
           return request;
         }
 

@@ -345,5 +345,9 @@
   },
   "authPaymentsInvalid": "Empty, or an https link on stripe.com",
   "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
-  "authPaymentsUnavailable": "The payments API didn't answer."
+  "authPaymentsUnavailable": "The payments API didn't answer.",
+  "authStreamerTitle": "Stream from a Raspberry Pi",
+  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.",
+  "authStreamerCopy": "Copy command",
+  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi"
 }

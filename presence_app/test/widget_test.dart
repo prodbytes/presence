@@ -474,6 +474,9 @@ void main() {
       ),
       findsOneWidget,
     );
+    // Below the plan and the streamer command, out of view at first.
+    await tester.ensureVisible(find.byKey(const Key('sign-out')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('sign-out')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('account-sheet')), findsNothing);

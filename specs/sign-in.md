@@ -263,6 +263,11 @@ there's no separate sign-in screen:
     that gives, and for Free **Premium monthly** and **Premium yearly**
     buttons (the plans' Stripe checkouts) and **Check again**; see [Premium and free](premium.md#in-the-app)
     and [Upgrade to Premium](upgrade.md).
+  - Under it, for a premium profile (or an admin), a **Stream from a
+    Raspberry Pi** box: the command that installs the
+    [streamer](streamer.md) on a Pi for this profile, `curl -fsSL
+    https://sh.presence.nu01.com/streamer | sh -s -- <profile>`, with
+    **Copy command** (see [Install script](install-script.md#streamer)).
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
   - The account sheet ends with a short paragraph on what Presence is and
