@@ -32,7 +32,13 @@ The Swift counterpart of the Android layer
   portrait, and names the app "Presence".
 - **Verified:** it builds with Xcode 27, and on the iOS simulator the
   plugin answers the channel: the camera permission prompt appears, where
-  before there was a `MissingPluginException`. **Not yet verified on a
-  physical iPhone**: the simulator can't grant camera access from the
-  command line, and a device run needs the iPhone paired for development and
-  a signing identity (an Apple ID team in Xcode, plus a real bundle ID).
+  before there was a `MissingPluginException`.
+- **On a physical iPhone** (2026-10-11, an iPhone 12 mini on iOS 26.3.1,
+  paired by USB): `flutter build ios --release` with the repo's settings
+  (`scripts/dart-defines.sh`, `scripts/version.sh`) signs it automatically
+  with the Mac's Apple Development identity (team `LMX88986F3`, chosen by
+  Flutter; the Xcode project names no team), then `xcrun devicectl device
+  install app --device <UDID> build/ios/iphoneos/Runner.app` and `xcrun
+  devicectl device process launch --terminate-existing --device <UDID>
+  com.nu01.presence` install and start it; it runs. What it does once
+  open (the camera, sign-in) wasn't checked from the command line.
