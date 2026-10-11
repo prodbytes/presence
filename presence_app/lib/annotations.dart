@@ -36,7 +36,13 @@ class Annotation {
     this.frameMs,
     this.source = TagSource.manual,
     this.confidence,
+    this.labeledAt,
   });
+
+  /// The time it is now, in ms since the epoch: when someone places,
+  /// confirms or renames a label ([Annotation.labeledAt]).
+  @visibleForTesting
+  static int Function() clock = () => DateTime.now().millisecondsSinceEpoch;
 
   final String id;
   final String name;
@@ -46,6 +52,20 @@ class Annotation {
   /// How sure the tag is, from 0 to 1: recognition's confidence, or 1 for
   /// one someone made or confirmed. Null only for a malformed record.
   final double? confidence;
+
+  /// When someone placed it, confirmed it or renamed it (ms since the
+  /// epoch): what tells cloud recognition's training check a label is new.
+  /// Null for recognition's own tags, and for tags from before it was kept
+  /// (see [labeledTime]).
+  final int? labeledAt;
+
+  /// [labeledAt], or else when the tag was made, from its [id]
+  /// ([AppEvent.newId]: microseconds in base 36 first); 0 if neither.
+  int get labeledTime {
+    if (labeledAt case final at?) return at;
+    final micros = int.tryParse(id.split('-').first, radix: 36);
+    return micros == null ? 0 : micros ~/ 1000;
+  }
 
   /// Where on the frame, from 0 (left/top) to 1 (right/bottom), relative to
   /// the video frame itself.
@@ -57,17 +77,22 @@ class Annotation {
   final String? frameId;
   final int? frameMs;
 
-  Annotation copyWith({String? name, TagSource? source, double? confidence}) =>
-      Annotation(
-        id: id,
-        name: name ?? this.name,
-        x: x,
-        y: y,
-        frameId: frameId,
-        frameMs: frameMs,
-        source: source ?? this.source,
-        confidence: confidence ?? this.confidence,
-      );
+  Annotation copyWith({
+    String? name,
+    TagSource? source,
+    double? confidence,
+    int? labeledAt,
+  }) => Annotation(
+    id: id,
+    name: name ?? this.name,
+    x: x,
+    y: y,
+    frameId: frameId,
+    frameMs: frameMs,
+    source: source ?? this.source,
+    confidence: confidence ?? this.confidence,
+    labeledAt: labeledAt ?? this.labeledAt,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -78,6 +103,7 @@ class Annotation {
     'frameMs': ?frameMs,
     if (source != TagSource.manual) 'source': source.name,
     'confidence': ?confidence,
+    'labeledAt': ?labeledAt,
   };
 
   /// Null for a malformed entry (skipped rather than failing a restore).
@@ -93,6 +119,7 @@ class Annotation {
     final frameId = json['frameId'];
     final frameMs = json['frameMs'];
     final confidence = json['confidence'];
+    final labeledAt = json['labeledAt'];
     // Older records, and unknown sources, are someone's clicks.
     final source =
         TagSource.values.asNameMap()[json['source']] ?? TagSource.manual;
@@ -108,6 +135,7 @@ class Annotation {
       confidence: confidence is num
           ? confidence.toDouble().clamp(0, 1)
           : (source.vouched ? 1 : null),
+      labeledAt: labeledAt is num ? labeledAt.toInt() : null,
     );
   }
 }
@@ -295,6 +323,8 @@ class ClipAnnotations extends ChangeNotifier {
       frameMs: frame?.ms,
       source: source,
       confidence: confidence ?? (source.vouched ? 1 : null),
+      // Someone placed it: a label cloud recognition learns from.
+      labeledAt: source.vouched ? Annotation.clock() : null,
     );
     _items.add(annotation);
     notifyListeners();
@@ -305,7 +335,12 @@ class ClipAnnotations extends ChangeNotifier {
     final trimmed = name.trim();
     final i = _items.indexWhere((a) => a.id == id);
     if (i < 0 || trimmed.isEmpty || _items[i].name == trimmed) return;
-    _items[i] = _items[i].copyWith(name: trimmed);
+    // Renamed by someone: labeled again (a recognized tag named anew
+    // stays recognition's, unlabeled).
+    _items[i] = _items[i].copyWith(
+      name: trimmed,
+      labeledAt: _items[i].source.vouched ? Annotation.clock() : null,
+    );
     notifyListeners();
   }
 
@@ -313,7 +348,11 @@ class ClipAnnotations extends ChangeNotifier {
   void confirm(String id) {
     final i = _items.indexWhere((a) => a.id == id);
     if (i < 0 || _items[i].source != TagSource.suggested) return;
-    _items[i] = _items[i].copyWith(source: TagSource.confirmed, confidence: 1);
+    _items[i] = _items[i].copyWith(
+      source: TagSource.confirmed,
+      confidence: 1,
+      labeledAt: Annotation.clock(),
+    );
     notifyListeners();
   }
 

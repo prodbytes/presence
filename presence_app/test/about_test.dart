@@ -24,7 +24,7 @@ void main() {
         mediaIo: fakeMediaIo,
         auth: auth,
         rolesClient: roles ?? FakeRolesClient(),
-        membershipClient: FakeMembershipClient(),
+        rbacrClient: FakeRbacrClient(),
         mapTiles: const SizedBox(),
         locator: NoLocation(),
       ),

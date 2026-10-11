@@ -15,11 +15,16 @@ the identity pool, Google's token signing keys and rbacr. It answers
 the function's log.
 
 - **Its own stack per stage:** `presence-health` and `presence-rc-health`,
-  deployed by [scripts/deploy.sh](../scripts/deploy.sh) right after the
-  auth API stack, whose table exports (`<AuthStackName>-UserRolesTable`
-  and so on) it imports. The function's role carries the stage's
-  permissions boundary.
-- **Read-only:** `dynamodb:DescribeTable` on the auth API's six tables,
+  deployed by [scripts/deploy.sh](../scripts/deploy.sh) with the auth API
+  stack, whose table exports (`<AuthStackName>-ProfilesTable`,
+  `-ProfileSubjectsTable` and `-LinkCodesTable`) it imports. CloudFormation
+  won't remove an export another stack imports, so an existing health
+  stack is deployed **before** the auth API (it stops importing what the
+  auth API drops), and a new stage's **after** it (its imports must exist
+  first). An export it newly imports must ship in an earlier deploy than
+  the import. The function's role carries the stage's permissions
+  boundary.
+- **Read-only:** `dynamodb:DescribeTable` on the auth API's three tables,
   `s3:ListBucket` on the bucket (for `HeadBucket`) and
   `cognito-identity:DescribeIdentityPool` on the pool. It never gets
   rbacr's token, only its URL.

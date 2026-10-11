@@ -4713,7 +4713,139 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `presence-github-deploy` redeployed. Spec: [Production
        deploy](deploy.md) (unchanged rules; the list was incomplete).
 
-346. **Labels look: round subjects, square tags, edged by confidence.**
+346. **Pick the recognition that best tells Suerte from other black cats,
+     then run it in the cloud for premium users.** (2026-10-11)
+     - Asked: compare popular libraries, frameworks and services on
+       `test.local/images/cats` (Suerte, and other black cats; more added
+       later, with video stills and HEIC photos converted to JPEG there),
+       Amazon Rekognition included; then build a Lambda API with the best
+       (DINOv2-L) for premium users, a training check at start and every
+       24 h (labels timed, the last training kept in the settings,
+       training on enough new labels or enough time), and a separate
+       inference API that places the labels on subjects.
+     - Measured: MobileNetV3 (the app's), DINOv2 S/B/L, CLIP, SigLIP2,
+       MegaDescriptor T/L, MiewID; in a place Suerte was never seen, only
+       a classifier per subject over DINOv2-L separated her well (AUC 0.91
+       against the black cats). Rekognition's labels only say "Black
+       Cat"; Custom Labels and Bedrock's embeddings weren't allowed in the
+       account.
+     - Changed: [Cloud recognition](cloud-recognition.md), new. The auth
+       API gets `RecognitionTrainFunction` (`/api/recognition/status`,
+       `/labels`, `/train`) and `RecognitionInferFunction`
+       (`/api/recognition/identify`), premium only, DINOv2-L through ONNX
+       Runtime (the model fetched into `/tmp` and kept in the bucket's
+       `models/`), the `RecognitionTable` and throttles; built by a
+       Makefile into their own jar (`RecognitionFunction`); Floci gets
+       the routes. The app: tags get `labeledAt`, settings
+       `recognition.cloudTrainedAt` and `cloudCheckedAt`; `CloudTrainer`
+       checks and trains, `SubjectRecognizer` asks the cloud about up to 8
+       crops a clip and keeps the surer verdict; Settings shows the last
+       training and **Train now**. Specs: [Subject
+       recognition](recognition.md), [Data formats](data-formats.md),
+       [Configuration](configuration.md), [Settings](settings.md),
+       [Premium](premium.md), [Auth API](auth-api.md),
+       [README](README.md).
+
+347. **Launch the app on the connected iPhone.** (2026-10-11)
+     - Built a signed release for the iPhone 12 mini (automatic signing
+       with the Mac's development identity), installed it with
+       `devicectl` and launched it; it runs. Spec: [iOS](ios.md), now
+       verified on a physical iPhone (launching, not its features).
+
+348. **Reusable test data, in the repo.** (2026-10-11)
+     - Asked: copy the useful test data from the local, ignored
+       `test.local/` into a new test data folder, structured and labelled
+       so tests can be re-run.
+     - Changed: `presence_app/test/data/` holds `cats/suerte` (16 photos,
+       6 clips, 31 stills) and `cats/other` (38 photos of other cats), as
+       `<species>/<subject>/{photos,stills,clips}/` with `labels.csv`
+       (`path,species,subject,kind`). The repo is public, so
+       `import.sh` cleans what it copies: metadata and GPS dropped,
+       rotation applied, at most 1280 px, clips as H.264 with a keyframe
+       a second and no audio, HEIC twins of JPEGs skipped (217 MB → 21
+       MB). Spec: [Test data](test-data.md) (new), [Subject
+       recognition](recognition.md), [README](README.md).
+
+349. **Sign up only for free members, in the profile view.** (2026-10-10)
+     - Asked: in the profile view, only show the sign-up call to a free
+       member; a premium or admin account doesn't need it.
+     - Changed: the account sheet's plan box (`PlanNotice`) counts an
+       admin as Premium (`roles.isPremium || roles.isAdmin`), so its
+       "Sign up at nu01.com" button and the sign-up text show only for a
+       free member. The auth API already made every admin premium; this
+       keeps the profile view right when an admin's roles lack
+       `presence_premium`. Test: `device_slots_test.dart`. Specs:
+       [Premium and free](premium.md).
+
+350. **Free, Premium or Admin Access in the profile view.** (2026-10-10)
+     - Asked: in the profile view, show "Free Access", "Premium Access" or
+       "Admin Access" instead of "Member", using the role fetched from
+       rbacr.
+     - Changed: the roles under the email (`AccountRoles`) start with one
+       access chip in place of the Member, Premium and Admin chips. It
+       reads the rbacr `presence` role back from the app's roles, as the
+       auth API maps them: admin, else premium, else free. Its tooltip
+       names it ("rbacr: premium"). Root and unknown roles keep their own
+       chips. Tests: `account_sheet_test.dart`. Specs:
+       [Sign-in](sign-in.md).
+
+351. **Always merge.** (2026-10-11)
+     - Asked: always merge pull requests, and add that to CLAUDE.md.
+     - Changed: [CLAUDE.md](../CLAUDE.md) replaces "Merge only when the
+       user says so" with "Always merge": a ready PR (tests pass, code
+       reviewed) is merged into `main` without asking, and a conflicting
+       one is first brought up to date with `origin/main` and retested in
+       its own worktree. Specs: [README](README.md) (Workflow).
+
+352. **Slim the auth API: the app asks rbacr directly.** (2026-10-10)
+     - Asked: the app gets the signed-in user's roles, maintenance mode
+       and voucher redemption straight from rbacr with the user's Google
+       ID token; Presence's own maintenance mode and voucher API are
+       removed.
+     - Changed: `GET /api/auth` is gone. The roles check
+       (`HttpRolesClient`) asks, at once, rbacr's `GET /api/me` (own
+       roles in the build's `RBACR_SYSTEM`, mapped as `presence.auth.Roles`
+       does; a root gets all four) and the auth API's
+       `GET /api/auth/profile`, which now also makes the profile at the
+       first sign-in and answers `shared` (the membership a linked account
+       shares from its owner, computed with the root token); both must
+       answer, else denied with the same retries; errors say "Auth API
+       HTTP n" or "rbacr HTTP n". Maintenance mode is rbacr's flag (R11,
+       R12): asked with each roles check and every minute; the sorry
+       screen shows to every signed-in user, admins and roots too, with
+       no message or admin strip; signed-out users and DEV never see it.
+       Vouchers are redeemed with rbacr's `POST /api/vouchers/redeem`
+       (404/409, 402 with or without a percent, 429 messages; a second
+       roles check 2 s later; up to 64 characters). Removed:
+       `VoucherHandler`/`VoucherFunction`, `AdminHandler`/`AdminFunction`,
+       `/api/auth/voucher`, `/api/auth/vouchers` (and `/delete`),
+       `/api/auth/maintenance`, `Maintenance`, `SystemTable` (deleted),
+       `scripts/maintenance.sh`, `scripts/migrate-roles-to-rbacr.sh`, the
+       app's `MembershipClient`, and the Admin tab's maintenance and
+       voucher sections; `VoucherTable` and `UserRolesTable` leave the
+       stack but are retained in AWS. The Admin tab keeps Feedback (with
+       Reload) and adds "Vouchers and maintenance", a link to rbacr.
+       `GET /api/auth/anonymous` has no maintenance field (the smoke test
+       compares it exactly) and the smoke test checks 401 on
+       `/api/auth/profile`, now throttled (burst 50, rate 20). New
+       dart-defines `RBACR_URL` and `RBACR_SYSTEM` (`deploy.sh` exports
+       the stage's; `make.sh`, `flutter-run.sh` and `android-install.sh`
+       default to GA; local web builds use `.env`'s `RBACR_RC_*`; https only).
+       `presence_health` imports only the three remaining table exports,
+       and `deploy.sh` deploys an existing health stack before the auth
+       API (a new stage's after). The site's CSP `connect-src` allows
+       the stage's rbacr (`site.yaml` parameter `RbacrUrl`). Floci's
+       routes follow. Specs:
+       [Auth API](auth-api.md), [Maintenance mode](maintenance.md),
+       [Membership](membership.md), [Profiles](profiles.md),
+       [Sign-in](sign-in.md), [Execution mode](execution-mode.md),
+       [Health check](health-check.md), [Production deploy](deploy.md),
+       [Local CDN](local-cdn.md), [Configuration](configuration.md),
+       [Premium](premium.md), [Navigation](navigation.md),
+       [Feedback and Help](feedback.md), [Cloud sync](cloud-sync.md),
+       [Dev environment](dev-environment.md), [README](README.md).
+
+353. **Labels look: round subjects, square tags, edged by confidence.**
      (2026-10-11)
      - Asked: subject labels with a round border and tags with a square
        one; user-made labels (100 % confidence) edged in yellow (the

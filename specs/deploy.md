@@ -58,19 +58,24 @@ One CloudFront distribution serves the whole site, laid out like the local
   endpoint (`aws iot describe-endpoint --endpoint-type iot:Data-ATS`). It
   then builds the web app for `/app/` (`make web` with
   `WEB_BASE_HREF=/app/`), with the version from the tag, the identity pool
-  and bucket IDs and the IoT endpoint (`IOT_ENDPOINT`). After that it
+  and bucket IDs, the IoT endpoint (`IOT_ENDPOINT`) and the stage's
+  rbacr (`RBACR_URL`, `RBACR_SYSTEM`, which it exports for
+  `scripts/dart-defines.sh`; never the token: the app asks rbacr with the
+  user's own token, see [Configuration](configuration.md)). After that it
   deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
-  live-sync policy it attaches to each identity), then the
+  live-sync policy it attaches to each identity) and the
   [health check](health-check.md) (`presence_health`, stack
   `<prefix>-health`, with `AuthStackName`, the release as `Version`, the
   same OIDC client, pool and bucket, rbacr's URL but not its token, and
-  the stage's boundary; it imports the auth API's table exports, so it
-  comes after), then `site.yaml` (with both APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
+  the stage's boundary). The health check imports the auth API's table
+  exports, so an existing health stack is deployed **before** the auth
+  API (it stops importing what the auth API drops; CloudFormation refuses
+  to remove an imported export) and a new stage's **after** it; once per
+  run. Then `site.yaml` (with both APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
-  page, `/app/` must answer, and `/api/auth` must refuse a request without a
-  token (401), and `/api/auth/anonymous` must answer RBAC with only
-  `presence_anonymous`, and report the OIDC client and AWS settings set
-  (and a [maintenance](maintenance.md) state, whatever it is),
+  page, `/app/` must answer, and `/api/auth/profile` must refuse a request
+  without a token (401), and `/api/auth/anonymous` must answer exactly
+  `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
   and `/health` must answer `"status":"ok"` with this release's
   `"version"` (see [Health check](health-check.md)). It retries for up to 10 minutes.
 - **On failure** (any step, the smoke test included), `deploy.sh` prints
@@ -272,8 +277,13 @@ order):
   `GOOGLE_WEB_CLIENT_ID`, and rbacr's from the repository secret
   `RBACR_TOKEN` (a root's token) and the variables `RBACR_URL` and
   `RBACR_SYSTEM` (unset: `https://rbacr.nu01.com`, GA rbacr, and
-  `presence`). Prod accepts only GA rbacr; local development uses rbacr's
-  RC ([Local CDN](local-cdn.md)); see
+  `presence`). Both prod and RC Presence use GA rbacr unless `RBACR_URL`
+  says otherwise; prod accepts only GA rbacr; local development uses
+  rbacr's RC ([Local CDN](local-cdn.md)). The same URL and system go to
+  the auth API, the health check and the app's build. GA rbacr's CORS
+  allows https://presence.nu01.com and https://rc.presence.nu01.com, and
+  its `RBACR_GOOGLE_AUDIENCES` lists Presence's Google web, Android and
+  iOS client IDs, so the app can ask it as the user; see
   [Auth API](auth-api.md). Who is a root is rbacr's root list, not a
   deploy setting (the old `PRESENCE_ROOT_DOMAINS` and
   `PRESENCE_ROOT_EMAILS` variables are unused and can be deleted).
@@ -317,8 +327,10 @@ strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
   - `connect-src 'self' blob: data: https://www.gstatic.com
     https://fonts.gstatic.com https://accounts.google.com
     https://tile.openstreetmap.org https://*.amazonaws.com
-    wss://*.amazonaws.com`: the auth API, CanvasKit and Flutter's fallback
-    fonts, Google sign-in, map tiles, and AWS (Cognito
+    wss://*.amazonaws.com <RbacrUrl>`: the auth API, CanvasKit and
+    Flutter's fallback fonts, Google sign-in, map tiles, rbacr (the
+    stage's `RBACR_URL`, the site stack's `RbacrUrl` parameter: the app
+    asks it for the user's roles, maintenance mode and vouchers), and AWS (Cognito
     `cognito-identity.<region>.amazonaws.com`, the user-data bucket
     `<bucket>.s3.<region>.amazonaws.com`, and live sync's MQTT over
     `wss://<id>-ats.iot.<region>.amazonaws.com`). `blob:`: the app reads

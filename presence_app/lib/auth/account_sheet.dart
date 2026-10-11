@@ -12,7 +12,7 @@ import '../events.dart';
 import '../identity/device_os.dart';
 import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
-import 'membership_client.dart';
+import 'rbacr_client.dart';
 import 'plan_notice.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
@@ -263,13 +263,15 @@ class AccountSheet extends StatelessWidget {
                       ),
                     ],
                     // Free or Premium, and what each gives, under the devices
-                    // it limits; not in DEV, where nothing syncs.
+                    // it limits; not in DEV, where nothing syncs. An admin is
+                    // premium (as the auth API makes it), so only a free
+                    // member is asked to sign up.
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
                       const SizedBox(height: 12),
                       PlanNotice(
-                        premium: roles.isPremium,
+                        premium: roles.isPremium || roles.isAdmin,
                         slots: sync?.deviceSlots,
                         thisDevice: deviceId,
                         hidden: switch ((log, roles.profile)) {
@@ -642,50 +644,78 @@ class UserAvatar extends StatelessWidget {
 }
 
 /// The signed-in user's roles, always shown under their email: a small
-/// chip per role, named for people ([labelOf]: Member, Admin, Root,
-/// Premium), the role's ID in its tooltip; "No roles yet" without any, and
-/// "Checking roles…" while the auth API is asked. The anonymous role isn't
-/// shown (it's everyone's before signing in).
+/// chip for their access, as rbacr's `presence` system gives it ([accessOf]:
+/// Free Access, Premium Access or Admin Access, the rbacr role in its
+/// tooltip), then one per other role ([labelOf]: Root, or the role's ID);
+/// "No roles yet" without any, and "Checking roles…" while the auth API is
+/// asked. The anonymous role isn't shown (it's everyone's before signing
+/// in).
 class AccountRoles extends StatelessWidget {
   const AccountRoles({super.key, required this.roles});
 
   final RolesService roles;
 
-  /// What a role is called here; another role keeps its ID.
-  static String labelOf(String role) => switch (role) {
-    userRole => 'Member',
-    adminRole => 'Admin',
-    rootRole => 'Root',
-    premiumRole => 'Premium',
-    _ => role,
+  /// The rbacr role (`free`, `premium` or `admin`) that gave [held], the
+  /// app's roles: the auth API turns `admin` into member, premium and
+  /// admin, `premium` into member and premium, `free` into member. Null
+  /// without membership.
+  static String? accessOf(List<String> held) => held.contains(adminRole)
+      ? 'admin'
+      : held.contains(premiumRole)
+      ? 'premium'
+      : held.contains(userRole)
+      ? 'free'
+      : null;
+
+  /// What an rbacr [access] role is called here.
+  static String accessLabel(String access) => switch (access) {
+    'admin' => 'Admin Access',
+    'premium' => 'Premium Access',
+    _ => 'Free Access',
   };
 
-  /// The order they're shown in: as listed in [labelOf], then the others.
-  static int _rank(String role) => switch (role) {
-    userRole => 0,
-    premiumRole => 1,
-    adminRole => 2,
-    rootRole => 3,
-    _ => 4,
+  /// The roles [accessOf] stands for, which get no chip of their own.
+  static const _accessRoles = {userRole, premiumRole, adminRole};
+
+  /// What another role is called here; an unknown one keeps its ID.
+  static String labelOf(String role) => switch (role) {
+    rootRole => 'Root',
+    _ => role,
   };
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final style = Theme.of(context).textTheme.labelMedium;
-    final shown =
+    final access = accessOf(roles.roles);
+    final others =
         [
           for (final role in roles.roles)
-            if (role != anonymousRole) role,
+            if (role != anonymousRole && !_accessRoles.contains(role)) role,
         ]..sort((a, b) {
-          final byRank = _rank(a).compareTo(_rank(b));
-          return byRank != 0 ? byRank : a.compareTo(b);
+          // Root first, then the others by ID.
+          final byRoot = (a == rootRole ? 0 : 1).compareTo(
+            b == rootRole ? 0 : 1,
+          );
+          return byRoot != 0 ? byRoot : a.compareTo(b);
         });
+    final shown = [
+      if (access != null)
+        (
+          key: 'account-access',
+          label: accessLabel(access),
+          tip: 'rbacr: $access',
+        ),
+      for (final role in others)
+        (key: 'account-role-$role', label: labelOf(role), tip: role),
+    ];
     Widget note(String text) =>
         Text(text, style: style?.copyWith(color: scheme.onSurfaceVariant));
     return Semantics(
       container: true,
-      label: shown.isEmpty ? null : 'Roles: ${shown.map(labelOf).join(', ')}',
+      label: shown.isEmpty
+          ? null
+          : 'Roles: ${shown.map((chip) => chip.label).join(', ')}',
       child: KeyedSubtree(
         key: const Key('account-roles'),
         child: switch (roles.state) {
@@ -697,12 +727,12 @@ class AccountRoles extends StatelessWidget {
             spacing: 6,
             runSpacing: 6,
             children: [
-              for (final role in shown)
+              for (final chip in shown)
                 Tooltip(
-                  message: role,
+                  message: chip.tip,
                   excludeFromSemantics: true,
                   child: Container(
-                    key: Key('account-role-$role'),
+                    key: Key(chip.key),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
                       vertical: 2,
@@ -712,7 +742,7 @@ class AccountRoles extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: ExcludeSemantics(
-                      child: Text(labelOf(role), style: style),
+                      child: Text(chip.label, style: style),
                     ),
                   ),
                 ),
@@ -802,14 +832,14 @@ class SignUpButton extends StatelessWidget {
     super.key,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     this.profiles,
     this.openLink,
   });
 
   final AuthService auth;
   final RolesService roles;
-  final MembershipClient membership;
+  final RbacrClient rbacr;
   final ProfileClient? profiles;
 
   /// Opens the subscription page; [launchLink] by default.
@@ -828,7 +858,7 @@ class SignUpButton extends StatelessWidget {
       builder: (_) => SignUpSheet(
         auth: auth,
         roles: roles,
-        membership: membership,
+        rbacr: rbacr,
         profiles: profiles,
         openLink: openLink,
       ),
@@ -844,14 +874,14 @@ class SignUpSheet extends StatefulWidget {
     super.key,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     this.profiles,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
   final RolesService roles;
-  final MembershipClient membership;
+  final RbacrClient rbacr;
 
   /// When given, a member's other account can link to it instead.
   final ProfileClient? profiles;
@@ -862,6 +892,9 @@ class SignUpSheet extends StatefulWidget {
   @override
   State<SignUpSheet> createState() => _SignUpSheetState();
 }
+
+/// How long after a redeemed code the roles are checked once more.
+const _redeemSettle = Duration(seconds: 2);
 
 class _SignUpSheetState extends State<SignUpSheet> {
   final _code = TextEditingController();
@@ -880,8 +913,10 @@ class _SignUpSheetState extends State<SignUpSheet> {
     super.dispose();
   }
 
-  /// Redeems the voucher code, then re-asks the roles: a valid code lets the
-  /// user in at once.
+  /// Redeems the voucher code with rbacr (`POST /api/vouchers/redeem`, as
+  /// the user), then re-asks the roles: a valid code lets the user in at
+  /// once. rbacr's role lookups may take about a second to see a new
+  /// grant, so a check that comes back without access is made once more.
   Future<void> _redeem() async {
     final token = widget.auth.idToken;
     final code = _code.text.trim();
@@ -891,18 +926,27 @@ class _SignUpSheetState extends State<SignUpSheet> {
       _codeError = null;
     });
     try {
-      await widget.membership.redeem(token, code);
+      await widget.rbacr.redeem(token, code);
       if (mounted) _code.clear();
       await widget.roles.refresh();
+      if (!widget.roles.hasAccess) {
+        await Future<void>.delayed(_redeemSettle);
+        await widget.roles.refresh();
+      }
     } on RolesException catch (e) {
       if (mounted) {
         setState(
           () => _codeError = switch (e.statusCode) {
-            402 when e is PaymentRequiredException =>
+            402 when e is PaymentRequiredException && e.discount != null =>
               'That code gives ${e.discount}% off. Paying the rest isn\'t '
                   'available yet, so it can\'t let you in.',
-            404 => 'That code is invalid, expired or used up.',
-            // The route's throttle, or this email's wrong codes (an hour).
+            402 =>
+              'That code needs a payment, which isn\'t available yet, so '
+                  'it can\'t let you in.',
+            // rbacr: 404 an unknown code; 409 one that isn't active (not
+            // started, expired, used up or disabled) or that this account
+            // already redeemed.
+            404 || 409 => 'That code is invalid, expired or used up.',
             429 => 'Too many tries. Wait a while and try again.',
             _ => 'Couldn\'t redeem the code ($e).',
           },
@@ -973,7 +1017,7 @@ class _SignUpSheetState extends State<SignUpSheet> {
                       maxLength: maxVoucherCode,
                       decoration: const InputDecoration(
                         labelText: 'Voucher code',
-                        hintText: 'XXXX-XXXX-XXXX',
+                        hintText: '2026Q4-OTTER-FALCON-LEMUR',
                         border: OutlineInputBorder(),
                         counterText: '',
                       ),

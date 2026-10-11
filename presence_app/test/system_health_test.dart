@@ -18,6 +18,7 @@ void main() {
   test('the auth API reports which settings are set', () async {
     Future<AnonymousAccess> answer(String body) => HttpRolesClient(
       Uri.parse('https://presence.test/'),
+      rbacr: FakeRbacrClient(),
       client: MockClient((request) async {
         expect(request.url.path, '/api/auth/anonymous');
         return http.Response(body, 200);
@@ -38,6 +39,7 @@ void main() {
   test('the auth API reports whether RBACR is set', () async {
     final client = HttpRolesClient(
       Uri.parse('https://presence.test/'),
+      rbacr: FakeRbacrClient(),
       client: MockClient(
         (_) async => http.Response(
           '{"mode":"RBAC","roles":[],"settings":{"oidc":true,"aws":true,"rbacr":true}}',

@@ -11,7 +11,7 @@ import 'auth/api_config.dart';
 import 'barrel_roll.dart';
 import 'auth/auth_service.dart';
 import 'auth/google_auth_service.dart';
-import 'auth/membership_client.dart';
+import 'auth/rbacr_client.dart';
 import 'feedback/feedback_client.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
@@ -34,6 +34,7 @@ import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'maintenance.dart';
+import 'recognition/cloud_recognition.dart';
 import 'recognition/recognizer.dart';
 import 'screen_off.dart';
 import 'tab_memory.dart';
@@ -73,7 +74,7 @@ class PresenceApp extends StatefulWidget {
     this.cloud,
     this.live,
     this.rolesClient,
-    this.membershipClient,
+    this.rbacrClient,
     this.feedbackClient,
     this.profileClient,
     this.consentGiven = false,
@@ -82,8 +83,13 @@ class PresenceApp extends StatefulWidget {
     this.battery,
     this.links,
     this.recognizer,
+    this.cloudRecognition,
     this.screenOff,
   });
+
+  /// Overrides the recognition API (used by tests); defaults to the real
+  /// one when this build has cloud sync (premium profiles only).
+  final CloudRecognitionClient? cloudRecognition;
 
   /// Overrides the Screen off button's screen control (used by tests);
   /// defaults to the platform's ([ScreenOff]).
@@ -115,9 +121,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the maps' tiles (used by tests); defaults to OpenStreetMap.
   final Widget? mapTiles;
 
-  /// Overrides the membership routes (vouchers, maintenance; used by
-  /// tests); defaults to the auth API's.
-  final MembershipClient? membershipClient;
+  /// Overrides rbacr's self-service routes (the user's roles, maintenance
+  /// mode and redeeming vouchers; used by tests); defaults to
+  /// `RbacrConfig.baseUrl`'s, asked with the user's Google ID token.
+  final RbacrClient? rbacrClient;
 
   /// Overrides Feedback and Help (used by tests); defaults to its DynamoDB
   /// table, with the profile's credentials (`DynamoFeedbackClient`).
@@ -127,7 +134,8 @@ class PresenceApp extends StatefulWidget {
   /// `/api/auth/profile`.
   final ProfileClient? profileClient;
 
-  /// Overrides the auth API (used by tests); defaults to `GET /api/auth`.
+  /// Overrides where roles come from (used by tests); defaults to rbacr's
+  /// `GET /api/me` with the auth API's `GET /api/auth/profile`.
   final RolesClient? rolesClient;
 
   /// Overrides cloud uploads (used by tests); defaults to Cognito + S3
@@ -178,6 +186,9 @@ class _PresenceAppState extends State<PresenceApp> {
   late final LocationController _location;
   late final SubjectRecognizer _recognizer;
 
+  /// Cloud recognition (premium): keeps the profile's model trained.
+  CloudTrainer? _trainer;
+
   @override
   void initState() {
     super.initState();
@@ -188,8 +199,10 @@ class _PresenceAppState extends State<PresenceApp> {
     // The signed-in account's profile, as the auth API answers.
     _roles = RolesService(
       auth: _auth,
-      client: widget.rolesClient ?? HttpRolesClient(ApiConfig.baseUrl),
-      // Maintenance mode reaches a running app within a minute.
+      client:
+          widget.rolesClient ??
+          HttpRolesClient(ApiConfig.baseUrl, rbacr: _rbacr),
+      // rbacr's maintenance mode reaches a running app within a minute.
       maintenanceCheckInterval: const Duration(minutes: 1),
     );
     final mediaIo = widget.mediaIo;
@@ -219,10 +232,44 @@ class _PresenceAppState extends State<PresenceApp> {
     _location.init().ignore();
     // Settings restored from the cloud include the location set on the map.
     _persistence.onRemoteLocation = _location.applyRemote;
-    // Finds the subjects on each new clip once it's recorded.
+    // Cloud recognition, for premium profiles, in builds with cloud sync.
+    final cloudRecognition =
+        widget.cloudRecognition ??
+        (CloudConfig.enabled
+            ? HttpCloudRecognitionClient(ApiConfig.baseUrl)
+            : null);
+    // Finds the subjects on each new clip once it's recorded (and asks
+    // cloud recognition too, for a premium profile with a trained model).
     _recognizer =
         widget.recognizer?.call(_bus, _log, _config) ??
-        SubjectRecognizer(bus: _bus, log: _log, config: _config);
+        SubjectRecognizer(
+          bus: _bus,
+          log: _log,
+          config: _config,
+          cloud: cloudRecognition == null
+              ? null
+              : CloudIdentifier(
+                  auth: _auth,
+                  roles: _roles,
+                  config: _config,
+                  client: cloudRecognition,
+                ),
+        );
+    // Trains the profile's cloud model when there's enough new: checked
+    // when the app starts premium, and every 24 h.
+    if (cloudRecognition != null) {
+      _trainer = CloudTrainer(
+        auth: _auth,
+        roles: _roles,
+        log: _log,
+        config: _config,
+        client: cloudRecognition,
+        crop: _recognizer.cloudCrop,
+        now: widget.now == null
+            ? null
+            : () => widget.now!().millisecondsSinceEpoch,
+      )..start();
+    }
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -517,8 +564,8 @@ class _PresenceAppState extends State<PresenceApp> {
 
   late final AuthService _auth;
   late final RolesService _roles;
-  late final MembershipClient _membership =
-      widget.membershipClient ?? HttpMembershipClient(ApiConfig.baseUrl);
+  late final RbacrClient _rbacr =
+      widget.rbacrClient ?? HttpRbacrClient(RbacrConfig.baseUrl);
   late final FeedbackClient _feedback =
       widget.feedbackClient ??
       DynamoFeedbackClient(
@@ -559,6 +606,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _copies.dispose();
     _roles.dispose();
     _location.dispose();
+    _trainer?.dispose();
     _recognizer.dispose();
     _retention.dispose();
     _persistence.dispose();
@@ -572,6 +620,15 @@ class _PresenceAppState extends State<PresenceApp> {
 
   @override
   Widget build(BuildContext context) {
+    final app = _build(context);
+    // Settings' cloud recognition line (Train now).
+    return switch (_trainer) {
+      final trainer? => CloudTrainerScope(trainer: trainer, child: app),
+      null => app,
+    };
+  }
+
+  Widget _build(BuildContext context) {
     return AppEventBusScope(
       bus: _bus,
       child: SubjectRecognizerScope(
@@ -596,8 +653,8 @@ class _PresenceAppState extends State<PresenceApp> {
               title: AppVersion.title,
               debugShowCheckedModeBanner: false,
               theme: gruvboxSoftDarkTheme(),
-              // The "do a barrel roll" search spins everything. In
-              // maintenance mode, only admins get past the sorry message.
+              // The "do a barrel roll" search spins everything. In rbacr's
+              // maintenance mode, nobody gets past the sorry message.
               builder: (context, app) => BarrelRoll(
                 child: MaintenanceGate(roles: _roles, child: app!),
               ),
@@ -617,7 +674,7 @@ class _PresenceAppState extends State<PresenceApp> {
                   config: _config,
                   auth: _auth,
                   roles: _roles,
-                  membership: _membership,
+                  rbacr: _rbacr,
                   feedback: _feedback,
                   profiles: _profiles,
                   sync: _sync,

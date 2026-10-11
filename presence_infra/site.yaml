@@ -14,6 +14,14 @@ Description: >
   Deploy in us-east-1 (CloudFront certificates must live there).
 
 Parameters:
+  RbacrUrl:
+    Type: String
+    Default: https://rbacr.nu01.com
+    AllowedPattern: 'https://[A-Za-z0-9.-]+(:[0-9]+)?'
+    Description: >
+      rbacr's origin, the same the stage's auth API and app build use
+      (scripts/deploy.sh): the app calls it from the browser with the
+      user's Google ID token, so the CSP's connect-src allows it.
   DomainName:
     Type: String
     Default: presence.nu01.com
@@ -146,7 +154,8 @@ Resources:
   #   with new Function()), which subject recognition loads from tfjs/.
   # - style-src 'unsafe-inline': Flutter's engine injects <style> elements
   #   and style attributes; Google's button adds its stylesheet.
-  # - connect-src: the auth API ('self'), Google's fonts and CanvasKit
+  # - connect-src: the auth API ('self'), rbacr (RbacrUrl: the app asks it
+  #   for the user's roles, maintenance mode and vouchers), Google's fonts and CanvasKit
   #   downloads, map tiles, and AWS (Cognito, S3 *.amazonaws.com, and live
   #   sync's IoT MQTT over wss://*.amazonaws.com).
   # - blob: and data: (img, media, connect): clips and frames the app
@@ -161,14 +170,14 @@ Resources:
         SecurityHeadersConfig:
           ContentSecurityPolicy:
             Override: true
-            ContentSecurityPolicy: >-
+            ContentSecurityPolicy: !Sub >-
               default-src 'self';
               script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval' https://www.gstatic.com/flutter-canvaskit/ https://accounts.google.com/gsi/;
               style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/;
               img-src 'self' data: blob: https://tile.openstreetmap.org https://*.googleusercontent.com https://*.amazonaws.com;
               media-src 'self' data: blob: https://*.amazonaws.com;
               font-src 'self' data: https://fonts.gstatic.com;
-              connect-src 'self' blob: data: https://www.gstatic.com https://fonts.gstatic.com https://accounts.google.com https://tile.openstreetmap.org https://*.amazonaws.com wss://*.amazonaws.com;
+              connect-src 'self' blob: data: https://www.gstatic.com https://fonts.gstatic.com https://accounts.google.com https://tile.openstreetmap.org https://*.amazonaws.com wss://*.amazonaws.com ${RbacrUrl};
               frame-src https://accounts.google.com;
               worker-src 'self' blob:;
               manifest-src 'self';
