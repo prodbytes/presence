@@ -4869,3 +4869,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        ID from `bodyLarge` (16 sp) to `bodyMedium` (14 sp); the OS name
        from `bodySmall` (12 sp) to `labelSmall` (11 sp). Spec:
        [Clips](clips.md).
+
+355. **Fix: an iPhone clip that never finished; motion while it was off.**
+     (2026-10-11)
+     - Asked: a manual clip on iOS started but never finished, and motion
+       was detected though it was disabled.
+     - Found, in the profile's events in the bucket: of the iPhone's first
+       8 clips, 6 stayed `partial` (the "before" part only). The iOS
+       recorder's `SampleRing.write` fed `AVAssetWriter` one list in
+       arrival order and waited on an input that the writer held until
+       the other track got data: a deadlock, reproduced on the simulator
+       (the old writer hangs; the new one writes the same 15 s in 6 s).
+     - Changed: each track fed through `requestMediaDataWhenReady`, and a
+       30 s limit per stage (cancelled, the part answers nothing).
+       `SampleRingTests` added. Spec: [iOS](ios.md).
+     - Motion: no change. After motion was turned off on the iPhone
+       (13:10:32), the only motion clip (13:11:21) was the Android
+       phone's (`joyous_ultimate_disco`), whose motion is on; motion is a
+       per-device setting. The iPhone's own motion clip (12:59:14) came 7 s
+       after its first launch, on the defaults (motion on), before it was
+       turned off.

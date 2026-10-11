@@ -18,7 +18,24 @@ The Swift counterpart of the Android layer
 - **`SampleRing.swift`:** the same ring and pruning model as Android.
   Clips are written with `AVAssetWriter`: H.264 passed through, and audio
   encoded to AAC, starting at the keyframe at or before the window, with the
-  same window offsets.
+  same window offsets. Each input (video, audio) is fed its own track in
+  time order through `requestMediaDataWhenReady`. Feeding both from one
+  list, in the order the samples arrived, deadlocked: the writer
+  interleaves the tracks and can hold one input until the other gets
+  data, so a clip whose audio was ahead of its encoded video never
+  finished; on the iPhone 12 mini, 6 of its first 8 clips stayed at the
+  "before" part (`partial`). Each stage (feeding, finishing) is given up
+  after **30 s** (`SampleRing.writeTimeout`): the writing is cancelled and
+  the part answers nothing, so the clip shows as interrupted instead of
+  recording forever.
+- **Tests** (`RunnerTests/RunnerTests.swift`, `SampleRingTests`, run with
+  `xcodebuild test -workspace ios/Runner.xcworkspace -scheme Runner
+  -destination 'platform=iOS Simulator,name=…'
+  -only-testing:RunnerTests/SampleRingTests` after `flutter build ios
+  --simulator --debug`): real H.264 (VideoToolbox) and PCM samples written
+  to MP4: all the audio ahead of the video (15 s with both tracks; the old
+  writer hung past the test's 60 s), interleaved with the video 0.1 s late,
+  and video only.
 - **`PresenceCamerasPlugin.swift`:** the channel methods (permissions,
   list, open/close, pre-roll, brightness, clip parts, thumbnail) and motion
   events. The front preview is mirrored in Dart (`mirror` flag); recordings
