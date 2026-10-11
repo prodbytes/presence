@@ -106,7 +106,7 @@ with the app bar naming it "Admin", with no back button, and a browser refresh c
 `AdminView`
 ([lib/auth/admin_screen.dart](../presence_app/lib/auth/admin_screen.dart)),
 a tab page with no scaffold or app bar of its own: one scrolling page,
-up to 720 dp wide, with two sections. It loads the feedback each time
+up to 720 dp wide, with three sections. It loads the feedback each time
 it's opened.
 
 **Feedback**, first, with **Reload** (a refresh icon) by its heading:
@@ -114,6 +114,11 @@ every member's conversation, the latest active first, each saying
 whether it awaits a reply; opened, the whole conversation and **Reply**.
 See [Feedback and Help](feedback.md#on-the-admin-tab). Pull to refresh
 reloads it too.
+
+**Payments**, after it (`PaymentLinksEditor`,
+[lib/auth/payment_links_editor.dart](../presence_app/lib/auth/payment_links_editor.dart)):
+the Premium plans' Stripe Payment Links, **Monthly plan link** and
+**Yearly plan link**, and **Save links**. See [Payments API](payments-api.md#in-the-admin-tab).
 
 **Vouchers and maintenance**, after it: "Voucher codes and maintenance
 mode are managed in rbacr, which keeps every role. Members redeem codes

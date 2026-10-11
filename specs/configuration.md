@@ -114,16 +114,9 @@ Where they come from:
 - An environment variable wins over `.env` in every case. The token is
   never passed: it stays in the auth API.
 
-One more says where a free member [upgrades to Premium](upgrade.md):
-
-- **`STRIPE_PAYMENT_LINK`**: the Stripe Payment Link of the Premium
-  subscription (`PremiumCheckout`, in
-  [lib/auth/premium_checkout.dart](../presence_app/lib/auth/premium_checkout.dart)),
-  on `dart-defines.sh`'s allowlist. It's public (a checkout page). The
-  Deploy, Deploy RC and Release workflows write it into the build's
-  `.env` from the repository variable `STRIPE_PAYMENT_LINK`; locally,
-  `.env`'s. Unset, or not HTTPS on `stripe.com`, the button opens
-  https://nu01.com.
+Where a free member [upgrades to Premium](upgrade.md) isn't a build
+setting: the Stripe Payment Links come from the [payments
+API](payments-api.md) at sign-in, and admins change them in the Admin tab.
 
 Checks:
 

@@ -153,6 +153,23 @@
       }
     }
   },
+  "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
+  "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.",
+  "authPaymentsInvalid": "Empty, or an https link on stripe.com",
+  "authPaymentsMonthly": "Monthly plan link",
+  "authPaymentsSave": "Save links",
+  "authPaymentsSaveFailed": "Couldn't save the links ({error})",
+  "@authPaymentsSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authPaymentsSaved": "Payment links saved",
+  "authPaymentsTitle": "Payments",
+  "authPaymentsUnavailable": "The payments API didn't answer.",
+  "authPaymentsYearly": "Yearly plan link",
   "authPlanFree": "Free",
   "@authPlanFree": {
     "description": "The free plan's name"
@@ -180,6 +197,7 @@
       }
     }
   },
+  "authPremiumMonthly": "Premium monthly",
   "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
   "@authPremiumShowsUpTo": {
     "placeholders": {
@@ -191,6 +209,7 @@
       }
     }
   },
+  "authPremiumYearly": "Premium yearly",
   "authProfile": "Profile",
   "@authProfile": {
     "description": "Account sheet: label above the profile ID"

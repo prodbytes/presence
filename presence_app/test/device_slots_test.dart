@@ -8,6 +8,7 @@ import 'package:http/testing.dart';
 import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/auth/account_sheet.dart';
+import 'package:presence_app/auth/payments_client.dart';
 import 'package:presence_app/auth/plan_notice.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
@@ -277,6 +278,7 @@ void main() {
       String? thisDevice,
       int hidden = 0,
       Future<void> Function()? onCheckAgain,
+      PaymentLinks? links,
     }) async {
       final opened = <Uri>[];
       await tester.pumpWidget(
@@ -290,6 +292,7 @@ void main() {
               email: 'ana@example.com',
               profileId: 'automatic_paranoid_axolotl',
               onCheckAgain: onCheckAgain,
+              links: links,
               openLink: (url) async {
                 opened.add(url);
                 return true;
@@ -316,7 +319,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('plan-upgrade')));
       await tester.pump();
-      // This build has no STRIPE_PAYMENT_LINK: nu01.com.
+      // No links from the payments API: nu01.com.
       expect(opened, [Uri.parse('https://nu01.com')]);
       await tester.tap(find.byKey(const Key('plan-check-again')));
       expect(checked, 1);
@@ -328,6 +331,42 @@ void main() {
       expect(find.textContaining('up to 50 devices'), findsOneWidget);
       expect(find.byKey(const Key('plan-upgrade')), findsNothing);
       expect(find.byKey(const Key('plan-check-again')), findsNothing);
+    });
+
+    testWidgets('a button per plan the payments API offers', (tester) async {
+      const monthly = 'https://buy.stripe.com/monthly00';
+      const yearly = 'https://buy.stripe.com/yearly00';
+      var opened = await show(
+        tester,
+        premium: false,
+        links: const PaymentLinks(monthly: monthly, yearly: yearly),
+      );
+      expect(find.byKey(const Key('plan-upgrade')), findsNothing);
+      expect(find.text('Premium monthly'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('plan-upgrade-yearly')));
+      await tester.pump();
+      expect(opened.single.origin, 'https://buy.stripe.com');
+      expect(opened.single.path, '/yearly00');
+      expect(opened.single.queryParameters, {
+        'prefilled_email': 'ana@example.com',
+        'locked_prefilled_email': 'true',
+        'client_reference_id': 'automatic_paranoid_axolotl',
+      });
+
+      // Only the plans with a link.
+      opened = await show(
+        tester,
+        premium: false,
+        links: const PaymentLinks(monthly: monthly),
+      );
+      expect(find.byKey(const Key('plan-upgrade-yearly')), findsNothing);
+      await tester.tap(find.byKey(const Key('plan-upgrade-monthly')));
+      await tester.pump();
+      expect(opened.single.path, '/monthly00');
+
+      // None: nu01.com, as before.
+      await show(tester, premium: false, links: const PaymentLinks());
+      expect(find.byKey(const Key('plan-upgrade')), findsOneWidget);
     });
 
     testWidgets('says when this device is past the limit', (tester) async {
