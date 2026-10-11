@@ -39,8 +39,10 @@ latest_tag() {
 # The asset's sha256 from the release API, or nothing if the API is
 # unreachable or rate limited.
 asset_sha256() {
+  # GitHub pretty-prints its JSON for curl ("name": "…"): without the
+  # whitespace, each field is "key":"value" on a line of its own.
   curl -fsS "https://api.github.com/repos/$REPO/releases/tags/$1" 2>/dev/null |
-    tr ',' '\n' |
+    tr -d ' \t\r\n' | tr ',' '\n' |
     awk -v name="\"name\":\"$2\"" '
       index($0, name) { found = 1 }
       found && /"digest":"sha256:/ { sub(/.*sha256:/, ""); sub(/".*/, ""); print; exit }
