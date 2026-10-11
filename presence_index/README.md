@@ -1,9 +1,12 @@
 # presence_index
 
-The site root. Its only page, [site/index.html](site/index.html), sends
-visitors to the app at `/app/`: a script redirect (`location.replace`,
-keeping any query string), a `meta refresh` for browsers without
-JavaScript, and a plain link as a last resort.
+The site root. [site/index.html](site/index.html) sends visitors to the
+app at `/app/`: a script redirect (`location.replace`, keeping any query
+string), a `meta refresh` for browsers without JavaScript, and a plain
+link as a last resort. [site/privacy/](site/privacy/index.html) and
+[site/tos/](site/tos/index.html) are the Privacy Policy (`/privacy`) and
+Terms of Service (`/tos`), styled by [site/legal.css](site/legal.css),
+with no scripts (see [specs/legal.md](../specs/legal.md)).
 
 Only [site/](site) is served, so this README isn't.
 

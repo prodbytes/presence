@@ -146,6 +146,27 @@ Resources:
           return request;
         }
 
+  # The site's own pages (presence_index/site): /privacy and /tos, with or
+  # without the slash, serve their directory's index.html. Everything else
+  # (/, /legal.css, unknown paths) passes as it is; / is DefaultRootObject.
+  PagesFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub ${AWS::StackName}-pages
+      AutoPublish: true
+      FunctionConfig:
+        Comment: /privacy and /tos to their index.html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var page = request.uri.replace(/\/$/, '');
+          if (page === '/privacy' || page === '/tos') {
+            request.uri = page + '/index.html';
+          }
+          return request;
+        }
+
   # The Flutter web app's headers: AWS's managed security headers
   # (HSTS, nosniff, Referrer-Policy, X-XSS-Protection) plus a Content
   # Security Policy for what the app loads, and Permissions-Policy. See
@@ -210,21 +231,24 @@ Resources:
               Value: camera=(self), microphone=(self), geolocation=(self)
               Override: true
 
-  # The index page (/): its only script is the redirect to /app/, allowed
-  # by its hash (update it if presence_index/site/index.html's <script>
-  # changes; the meta refresh still redirects if it doesn't match).
+  # The index page (/) and the legal pages (/privacy, /tos): the index's
+  # only script is the redirect to /app/, allowed by its hash (update it if
+  # presence_index/site/index.html's <script> changes; the meta refresh
+  # still redirects if it doesn't match). The legal pages have no script,
+  # only their stylesheet (/legal.css, 'self').
   IndexHeadersPolicy:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
         Name: !Sub ${AWS::StackName}-index
-        Comment: Presence index page (/) security headers and CSP
+        Comment: Presence index (/) and legal pages security headers and CSP
         SecurityHeadersConfig:
           ContentSecurityPolicy:
             Override: true
             ContentSecurityPolicy: >-
               default-src 'none';
               script-src 'sha256-AKfnPi3vZ46xMn5ssxBaCzpOf77ER2OwJeWySFPo0cU=';
+              style-src 'self';
               img-src 'self';
               base-uri 'none';
               form-action 'none';
@@ -297,7 +321,7 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
-        # The index page at / (redirects to /app/)
+        # The index page at / (redirects to /app/), and the legal pages
         DefaultCacheBehavior:
           TargetOriginId: site
           ViewerProtocolPolicy: redirect-to-https
@@ -306,6 +330,9 @@ Resources:
           CachedMethods: [GET, HEAD]
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
           ResponseHeadersPolicyId: !Ref IndexHeadersPolicy
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt PagesFunction.FunctionMetadata.FunctionARN
         CacheBehaviors:
           # The Flutter web app, built with --base-href /app/
           - PathPattern: /app*
@@ -434,7 +461,7 @@ Outputs:
   SiteUrl:
     Value: !Sub https://${DomainName}/
   SiteBucketName:
-    Description: Upload index.html at the root and the web build under app/
+    Description: Upload the site pages (presence_index/site) at the root and the web build under app/
     Value: !Ref SiteBucket
   DistributionId:
     Value: !Ref Distribution

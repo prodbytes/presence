@@ -20,10 +20,10 @@
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
-#   5. uploads the index page (/) and the web build (/app/), and
+#   5. uploads the site pages (/, /privacy, /tos) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site: /app/version.json must report this
-#      version, / must be the index page, and /api/auth/profile must refuse
+#      version, / must be the index page, /privacy and /tos the legal pages, and /api/auth/profile must refuse
 #      a request without a token (401: the route and its authorizer are live),
 #      and so must /api/payments/links,
 #      and /api/auth/anonymous must report RBAC mode, and /health must say
@@ -393,8 +393,10 @@ echo "    bucket: $bucket, distribution: $distribution"
 # 5. The content. Flutter's web files aren't content-hashed, so browsers
 # revalidate everything (no-cache); CloudFront is invalidated below.
 echo "==> uploading"
-aws s3 cp presence_index/site/index.html "s3://$bucket/index.html" \
-  --cache-control no-cache --content-type "text/html; charset=utf-8" --only-show-errors
+# The site's own pages (presence_index/site: the index, /privacy, /tos and
+# their stylesheet) at the root; never under app/, which is the app's.
+aws s3 sync presence_index/site/ "s3://$bucket/" --exclude "app/*" \
+  --cache-control no-cache --only-show-errors
 aws s3 sync presence_app/build/web/ "s3://$bucket/app/" --delete --cache-control no-cache --only-show-errors
 invalidation="$(aws cloudfront create-invalidation --distribution-id "$distribution" \
   --paths '/*' --query Invalidation.Id --output text)"
@@ -410,6 +412,8 @@ check() {
   [[ "$live" == "$VERSION" ]] || { echo "    /app/version.json says $live, want $VERSION"; return 1; }
   curl -fsS --max-time 20 "https://$DOMAIN/" | grep -q "location.replace('/app/'" || { echo "    / isn't the index page"; return 1; }
   curl -fsS --max-time 20 -o /dev/null "https://$DOMAIN/app/" || { echo "    /app/ failed"; return 1; }
+  curl -fsS --max-time 20 "https://$DOMAIN/privacy" | grep -q "<title>Privacy Policy" || { echo "    /privacy isn't the privacy policy"; return 1; }
+  curl -fsS --max-time 20 "https://$DOMAIN/tos" | grep -q "<title>Terms of Service" || { echo "    /tos isn't the terms of service"; return 1; }
   local auth
   auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth/profile")"
   [[ "$auth" == 401 ]] || { echo "    /api/auth/profile without a token answered $auth, want 401"; return 1; }
