@@ -1,7 +1,10 @@
 # Subject recognition
 
 Every new clip is searched in two segments, fed by the same frames and the
-same detector pass ([lib/recognition/](../presence_app/lib/recognition)):
+same detector pass ([lib/recognition/](../presence_app/lib/recognition)).
+A premium profile's subjects are also asked of [cloud
+recognition](cloud-recognition.md) (DINOv2-L), and each subject's
+confidence is the higher of the two:
 
 - **Subjects**, who has an identity (the person Julio, the dog Fido): the
   [subjects](subjects.md) someone tagged on earlier clips. Whoever is

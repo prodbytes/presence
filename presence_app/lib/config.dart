@@ -617,6 +617,8 @@ class RecognitionConfig {
     this.enabled = true,
     this.objects = true,
     this.autoTag = defaultAutoTag,
+    this.cloudTrainedAt,
+    this.cloudCheckedAt,
   });
 
   static const double minConfidence = 0.5;
@@ -647,17 +649,35 @@ class RecognitionConfig {
   /// [askFloor] to here, a `SubjectSuggestion` asks whether it's them.
   final double autoTag;
 
-  RecognitionConfig copyWith({bool? enabled, bool? objects, double? autoTag}) =>
-      RecognitionConfig(
-        enabled: enabled ?? this.enabled,
-        objects: objects ?? this.objects,
-        autoTag: (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence),
-      );
+  /// When the profile's cloud recognition model was last trained (ms since
+  /// the epoch, the training API's time); null if never (premium only, see
+  /// `CloudTrainer`).
+  final int? cloudTrainedAt;
+
+  /// When this device last checked whether to train it (ms since the
+  /// epoch): it checks again 24 h later.
+  final int? cloudCheckedAt;
+
+  RecognitionConfig copyWith({
+    bool? enabled,
+    bool? objects,
+    double? autoTag,
+    int? cloudTrainedAt,
+    int? cloudCheckedAt,
+  }) => RecognitionConfig(
+    enabled: enabled ?? this.enabled,
+    objects: objects ?? this.objects,
+    autoTag: (autoTag ?? this.autoTag).clamp(minConfidence, maxConfidence),
+    cloudTrainedAt: cloudTrainedAt ?? this.cloudTrainedAt,
+    cloudCheckedAt: cloudCheckedAt ?? this.cloudCheckedAt,
+  );
 
   Map<String, Object?> toJson() => {
     'enabled': enabled,
     'objects': objects,
     'autoTag': autoTag,
+    'cloudTrainedAt': ?cloudTrainedAt,
+    'cloudCheckedAt': ?cloudCheckedAt,
   };
 
   /// Records from before always asking also have an `ask` level; it's
@@ -671,18 +691,26 @@ class RecognitionConfig {
       autoTag: autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
           ? defaultAutoTag
           : autoTag,
+      cloudTrainedAt: _int(json['cloudTrainedAt']),
+      cloudCheckedAt: _int(json['cloudCheckedAt']),
     );
   }
+
+  static int? _int(Object? value) =>
+      value is num && value > 0 ? value.toInt() : null;
 
   @override
   bool operator ==(Object other) =>
       other is RecognitionConfig &&
       other.enabled == enabled &&
       other.objects == objects &&
-      other.autoTag == autoTag;
+      other.autoTag == autoTag &&
+      other.cloudTrainedAt == cloudTrainedAt &&
+      other.cloudCheckedAt == cloudCheckedAt;
 
   @override
-  int get hashCode => Object.hash(enabled, objects, autoTag);
+  int get hashCode =>
+      Object.hash(enabled, objects, autoTag, cloudTrainedAt, cloudCheckedAt);
 }
 
 /// Holds the current [PresenceConfig] and notifies listeners when it
