@@ -1263,6 +1263,9 @@ void main() {
     // A change goes up, with when it was made.
     await tester.tap(find.byTooltip('Settings'));
     await tester.pumpAndSettle();
+    // Under the location map, which spans the width.
+    await tester.ensureVisible(find.byKey(const Key('motion-switch')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
     await settleStorage(tester);
