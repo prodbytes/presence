@@ -15,6 +15,7 @@ import 'auth_service.dart';
 import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
 import 'plan_notice.dart';
+import 'payments_client.dart';
 import 'streamer_command.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
@@ -123,6 +124,7 @@ class AccountSheet extends StatelessWidget {
     this.sync,
     this.roles,
     this.profiles,
+    this.payments,
     this.log,
     this.deviceId,
     this.deleteDevice,
@@ -151,6 +153,9 @@ class AccountSheet extends StatelessWidget {
   final RolesService? roles;
   final ProfileClient? profiles;
 
+  /// The Premium plans' Stripe links, for the plan box's upgrade buttons.
+  final PaymentsService? payments;
+
   /// The events whose device IDs list the profile's devices (see
   /// [profileDevices]), and this device's ID, listed first.
   final EventLog? log;
@@ -162,7 +167,14 @@ class AccountSheet extends StatelessWidget {
     final scheme = theme.colorScheme;
     return ListenableBuilder(
       // Cloud and live sync too: this device's dot shows its connectivity.
-      listenable: Listenable.merge([auth, ?roles, ?log, ?sync, ?sync?.live]),
+      listenable: Listenable.merge([
+        auth,
+        ?roles,
+        ?log,
+        ?sync,
+        ?sync?.live,
+        ?payments,
+      ]),
       builder: (context, _) {
         final user = auth.user;
         final error = auth.error;
@@ -288,6 +300,7 @@ class AccountSheet extends StatelessWidget {
                           _ => 0,
                         },
                         email: auth.user?.email,
+                        links: payments?.links,
                         profileId: roles.profile,
                         onCheckAgain: roles.refresh,
                         openLink: openLink,

@@ -260,8 +260,8 @@ there's no separate sign-in screen:
       an ellipsis.
   - Devices past the plan's limit are labelled **hidden**, and under the
     list a box says whether the account is **Free** or **Premium**, what
-    that gives, and for Free an **Upgrade to Premium** button (the Stripe
-    checkout) and **Check again**; see [Premium and free](premium.md#in-the-app)
+    that gives, and for Free **Premium monthly** and **Premium yearly**
+    buttons (the plans' Stripe checkouts) and **Check again**; see [Premium and free](premium.md#in-the-app)
     and [Upgrade to Premium](upgrade.md).
   - Under it, for a premium profile (or an admin), a **Stream from a
     Raspberry Pi** box: the command that installs the

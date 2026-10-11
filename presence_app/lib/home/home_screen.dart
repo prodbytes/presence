@@ -11,6 +11,7 @@ import '../auth/rbacr_client.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/help_view.dart';
 import '../auth/plan_notice.dart';
+import '../auth/payments_client.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
 import '../camera_feeds.dart';
@@ -60,6 +61,7 @@ class HomeScreen extends StatefulWidget {
     required this.rbacr,
     required this.feedback,
     required this.profiles,
+    this.payments,
     this.sync,
     this.deviceId,
     required this.location,
@@ -117,6 +119,10 @@ class HomeScreen extends StatefulWidget {
 
   /// The user's linked Google accounts (account and sign-up sheets).
   final ProfileClient profiles;
+
+  /// The Premium plans' Stripe links: the account sheet's and Monitoring's
+  /// upgrade buttons, and the Admin tab's Payments.
+  final PaymentsService? payments;
 
   final EventLog log;
   final CameraRig rig;
@@ -582,13 +588,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   filters: _filters,
                   notice: switch (widget.sync) {
                     final sync? => ListenableBuilder(
-                      listenable: Listenable.merge([sync, widget.log]),
+                      listenable: Listenable.merge([
+                        sync,
+                        widget.log,
+                        ?widget.payments,
+                      ]),
                       builder: (context, _) => DeviceLimitNotice(
                         log: widget.log,
                         slots: sync.deviceSlots,
                         profileId: widget.roles.profile,
                         thisDevice: widget.deviceId,
                         email: widget.auth.user?.email,
+                        links: widget.payments?.links,
                       ),
                     ),
                     null => null,
@@ -645,6 +656,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: AdminView(
                     auth: widget.auth,
                     feedback: widget.feedback,
+                    payments: widget.payments,
                   ),
                 ),
               // Who's signed in, the profile's devices, sign-out and about:
@@ -663,6 +675,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           sync: widget.sync,
                           roles: widget.roles,
                           profiles: widget.profiles,
+                          payments: widget.payments,
                           log: widget.log,
                           deviceId: widget.deviceId,
                           deleteDevice: widget.deleteDevice,

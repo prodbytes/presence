@@ -370,6 +370,66 @@ abstract class AppLocalizations {
   /// **'This device is past your first {limit}: it syncs, but its events are hidden on your other devices, and theirs here.'**
   String authPastLimit(int limit);
 
+  /// No description provided for @authPaymentsDefaults.
+  ///
+  /// In en, this message translates to:
+  /// **'Not saved yet: these are the deploy\'s links.'**
+  String get authPaymentsDefaults;
+
+  /// No description provided for @authPaymentsIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.'**
+  String get authPaymentsIntro;
+
+  /// No description provided for @authPaymentsInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty, or an https link on stripe.com'**
+  String get authPaymentsInvalid;
+
+  /// No description provided for @authPaymentsMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly plan link'**
+  String get authPaymentsMonthly;
+
+  /// No description provided for @authPaymentsSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save links'**
+  String get authPaymentsSave;
+
+  /// No description provided for @authPaymentsSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save the links ({error})'**
+  String authPaymentsSaveFailed(String error);
+
+  /// No description provided for @authPaymentsSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment links saved'**
+  String get authPaymentsSaved;
+
+  /// No description provided for @authPaymentsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Payments'**
+  String get authPaymentsTitle;
+
+  /// No description provided for @authPaymentsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'The payments API didn\'t answer.'**
+  String get authPaymentsUnavailable;
+
+  /// No description provided for @authPaymentsYearly.
+  ///
+  /// In en, this message translates to:
+  /// **'Yearly plan link'**
+  String get authPaymentsYearly;
+
   /// The free plan's name
   ///
   /// In en, this message translates to:
@@ -394,11 +454,23 @@ abstract class AppLocalizations {
   /// **'Premium: cloud backup, and up to {limit} devices sync.'**
   String authPlanPremiumText(int limit);
 
+  /// No description provided for @authPremiumMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium monthly'**
+  String get authPremiumMonthly;
+
   /// No description provided for @authPremiumShowsUpTo.
   ///
   /// In en, this message translates to:
   /// **'{text} Premium shows up to {limit}.'**
   String authPremiumShowsUpTo(String text, int limit);
+
+  /// No description provided for @authPremiumYearly.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium yearly'**
+  String get authPremiumYearly;
 
   /// Account sheet: label above the profile ID
   ///

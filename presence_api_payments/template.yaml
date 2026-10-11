@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  presence_api_payments (stacks presence-payments and presence-rc-payments):
+  the Stripe Payment Links a free member upgrades to Premium with, monthly
+  and yearly. GET /api/payments/links answers them to any signed-in user;
+  PUT /api/payments/links saves them, for admins only (admin in rbacr's
+  presence system, or an rbacr root). Until an admin saves them, the
+  deploy's MonthlyLink and YearlyLink. A JWT authorizer checks the Google ID
+  token first. Its own HTTP API, served under /api/payments/* by the site's
+  CloudFront distribution. Payments themselves are Stripe's: rbacr syncs the
+  Stripe account's subscriptions into the premium role.
+
+Parameters:
+  GoogleWebClientId:
+    Type: String
+    Description: >
+      The Google web OAuth client; ID tokens must be issued for it (their
+      aud), as for the auth API.
+    AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+  MonthlyLink:
+    Type: String
+    Default: ''
+    Description: >
+      The monthly plan's Stripe Payment Link until an admin saves one
+      (https://buy.stripe.com/...). Empty: not offered.
+    AllowedPattern: '(https://([a-z0-9-]+\.)*stripe\.com(/[A-Za-z0-9._~%-]*)*)?'
+  YearlyLink:
+    Type: String
+    Default: ''
+    Description: >
+      The yearly plan's Stripe Payment Link until an admin saves one.
+      Empty: not offered.
+    AllowedPattern: '(https://([a-z0-9-]+\.)*stripe\.com(/[A-Za-z0-9._~%-]*)*)?'
+  RbacrUrl:
+    Type: String
+    Default: https://rbacr.nu01.com
+    AllowedPattern: 'https://[A-Za-z0-9.-]+(:[0-9]+)?'
+    Description: >
+      rbacr's origin, asked whether the caller of PUT /api/payments/links is
+      an admin (the same rbacr as the auth API).
+  RbacrToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: >
+      An rbacr API token that may ask about anyone's roles (the auth API's).
+      Empty: nobody is an admin, so nobody can change the links. Set at
+      deploy (scripts/deploy.sh), never in the repository.
+  RbacrSystem:
+    Type: String
+    Default: presence
+    AllowedPattern: '[a-z0-9][a-z0-9_.:-]{0,62}'
+    Description: The rbacr system the app's roles are in.
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The permissions boundary of the function's role (the stage's
+      <prefix>-app-boundary from presence_infra/github-deploy.yaml; passed
+      by scripts/deploy.sh, which the deploy roles require).
+    AllowedPattern: '(arn:aws[a-z-]*:iam::[0-9]{12}:policy/[A-Za-z0-9+=,.@_/-]+)?'
+  Architecture:
+    Type: String
+    Default: arm64
+    AllowedValues: [arm64, x86_64]
+    Description: The Lambda's CPU (arm64 in AWS).
+
+Conditions:
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
+
+Resources:
+  # Payments' settings, by "id". Now one item, "links": {"monthly",
+  # "yearly" (Stripe Payment Links, or empty), "updatedAt" (epoch ms),
+  # "updatedBy" (the admin's email)}. Holds an email: AWS only.
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  PaymentsHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      RouteSettings:
+        # The app asks it when a free member's account sheet loads.
+        "GET /api/payments/links":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        # Admins only, by hand.
+        "PUT /api/payments/links":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+      Auth:
+        DefaultAuthorizer: GoogleIdToken
+        Authorizers:
+          # Rejects missing, expired, forged or foreign tokens with 401
+          # before the function runs.
+          GoogleIdToken:
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: https://accounts.google.com
+              audience:
+                - !Ref GoogleWebClientId
+
+  PaymentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: PaymentsFunction
+      Handler: presence.payments.PaymentsHandler::handleRequest
+      Runtime: java25
+      Architectures:
+        - !Ref Architecture
+      MemorySize: 512
+      Timeout: 10
+      PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          PAYMENTS_TABLE: !Ref PaymentsTable
+          MONTHLY_LINK: !Ref MonthlyLink
+          YEARLY_LINK: !Ref YearlyLink
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt PaymentsTable.Arn
+      Events:
+        GetLinks:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PaymentsHttpApi
+            Path: /api/payments/links
+            Method: get
+        PutLinks:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PaymentsHttpApi
+            Path: /api/payments/links
+            Method: put
+
+Outputs:
+  ApiDomain:
+    Description: The payments HTTP API's host name (the site distribution's /api/payments/* origin)
+    Value: !Sub "${PaymentsHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

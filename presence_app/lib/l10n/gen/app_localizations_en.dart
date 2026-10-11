@@ -201,6 +201,40 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authPaymentsDefaults =>
+      'Not saved yet: these are the deploy\'s links.';
+
+  @override
+  String get authPaymentsIntro =>
+      'The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.';
+
+  @override
+  String get authPaymentsInvalid => 'Empty, or an https link on stripe.com';
+
+  @override
+  String get authPaymentsMonthly => 'Monthly plan link';
+
+  @override
+  String get authPaymentsSave => 'Save links';
+
+  @override
+  String authPaymentsSaveFailed(String error) {
+    return 'Couldn\'t save the links ($error)';
+  }
+
+  @override
+  String get authPaymentsSaved => 'Payment links saved';
+
+  @override
+  String get authPaymentsTitle => 'Payments';
+
+  @override
+  String get authPaymentsUnavailable => 'The payments API didn\'t answer.';
+
+  @override
+  String get authPaymentsYearly => 'Yearly plan link';
+
+  @override
   String get authPlanFree => 'Free';
 
   @override
@@ -217,9 +251,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authPremiumMonthly => 'Premium monthly';
+
+  @override
   String authPremiumShowsUpTo(String text, int limit) {
     return '$text Premium shows up to $limit.';
   }
+
+  @override
+  String get authPremiumYearly => 'Premium yearly';
 
   @override
   String get authProfile => 'Profile';

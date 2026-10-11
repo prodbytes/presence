@@ -110,7 +110,8 @@ jobs:
           fi
           echo "${TAG:-HEAD} is $commit, on main"
 
-      # The auth API (presence_api_auth) and its health check (presence_health) are
+      # The auth API (presence_api_auth), its health check (presence_health) and
+      # the payments API (presence_api_payments) are
       # Java 25 Lambdas, built and deployed with SAM.
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
@@ -145,10 +146,7 @@ jobs:
       - name: Write .env
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
-          STRIPE_PAYMENT_LINK: ${{ vars.STRIPE_PAYMENT_LINK }}
-        run: |
-          printf 'GOOGLE_WEB_CLIENT_ID=%s\nSTRIPE_PAYMENT_LINK=%s\n' \
-            "$GOOGLE_WEB_CLIENT_ID" "$STRIPE_PAYMENT_LINK" > .env
+        run: printf 'GOOGLE_WEB_CLIENT_ID=%s\n' "$GOOGLE_WEB_CLIENT_ID" > .env
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

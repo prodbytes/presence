@@ -327,6 +327,25 @@
       }
     }
   },
+  "authPremiumMonthly": "Premium monthly",
+  "authPremiumYearly": "Premium yearly",
+  "authPaymentsTitle": "Payments",
+  "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.",
+  "authPaymentsMonthly": "Monthly plan link",
+  "authPaymentsYearly": "Yearly plan link",
+  "authPaymentsSave": "Save links",
+  "authPaymentsSaved": "Payment links saved",
+  "authPaymentsSaveFailed": "Couldn't save the links ({error})",
+  "@authPaymentsSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authPaymentsInvalid": "Empty, or an https link on stripe.com",
+  "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
+  "authPaymentsUnavailable": "The payments API didn't answer.",
   "authStreamerTitle": "Stream from a Raspberry Pi",
   "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.",
   "authStreamerCopy": "Copy command",
