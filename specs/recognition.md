@@ -369,7 +369,8 @@ How each choice was measured (datasets, numbers) is in the models'
 
 - **Accuracy is measured on public datasets, not on this app's footage.**
   COCO, LFW and Market-1501 (see the models' README) stand in for it.
-  OSNet was trained on Market-1501's cameras (on other people than those
+  Real footage of one cat (Suerte) and other cats is now in the
+  [test data](test-data.md), not yet used by a test. OSNet was trained on Market-1501's cameras (on other people than those
   it was measured on), so its numbers are likely better than on a home
   camera. Faces under 9 px between the eyes (far from a 720p camera) are
   matched by look, which changes with clothes and light: a subject in

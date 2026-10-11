@@ -177,6 +177,9 @@ their data.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Test data](test-data.md): real photos and clips (Suerte the cat, other
+  cats) in `presence_app/test/data/`, cleaned for a public repo and
+  labelled in `labels.csv`, with `import.sh` to add more.
 - [Install script](install-script.md): `curl … | sh` downloads, verifies
   and runs the latest release's native Linux bundle (x64 or arm64), or
   opens the web app when there isn't one or it can't run.
