@@ -14,6 +14,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 | Path | Origin |
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
+| `/privacy`, `/tos` | S3 `privacy/index.html` and `tos/index.html` (a CloudFront Function, `<stack>-pages`, maps them): the [legal pages](legal.md) |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/payments/*` | The [payments API](payments-api.md)'s own HTTP API (`presence_api_payments`, stack `presence-payments`; origin `payments`), matched before `/api/*`. Not cached, every viewer header but `Host` forwarded |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
@@ -349,8 +350,10 @@ strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
     `media-src 'self' data: blob: https://*.amazonaws.com`; `font-src
     'self' data: https://fonts.gstatic.com`; `frame-src
     https://accounts.google.com`.
-- **`<stack>-index`** (`/`): `default-src 'none'`, the redirect script
-  allowed by its SHA-256 hash, `img-src 'self'`, `base-uri`/`form-action
+- **`<stack>-index`** (`/`, and the [legal pages](legal.md) `/privacy`
+  and `/tos`): `default-src 'none'`, the redirect script
+  allowed by its SHA-256 hash, `style-src 'self'` (the legal pages'
+  stylesheet), `img-src 'self'`, `base-uri`/`form-action
   'none'`, `frame-ancestors 'none'`, and camera, microphone and location
   off. If `presence_index/site/index.html`'s `<script>` changes, update the
   hash in `site.yaml` (the page's meta refresh still redirects meanwhile).
