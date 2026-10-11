@@ -202,6 +202,40 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get authPaymentsDefaults =>
+      'Aún sin guardar: son los enlaces del despliegue.';
+
+  @override
+  String get authPaymentsIntro =>
+      'Los enlaces de pago de Stripe con los que los miembros gratuitos pasan a Premium. Deja uno vacío para no ofrecer ese plan.';
+
+  @override
+  String get authPaymentsInvalid => 'Vacío, o un enlace https de stripe.com';
+
+  @override
+  String get authPaymentsMonthly => 'Enlace del plan mensual';
+
+  @override
+  String get authPaymentsSave => 'Guardar enlaces';
+
+  @override
+  String authPaymentsSaveFailed(String error) {
+    return 'No se pudieron guardar los enlaces ($error)';
+  }
+
+  @override
+  String get authPaymentsSaved => 'Enlaces de pago guardados';
+
+  @override
+  String get authPaymentsTitle => 'Pagos';
+
+  @override
+  String get authPaymentsUnavailable => 'La API de pagos no respondió.';
+
+  @override
+  String get authPaymentsYearly => 'Enlace del plan anual';
+
+  @override
   String get authPlanFree => 'Gratis';
 
   @override
@@ -218,9 +252,15 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get authPremiumMonthly => 'Premium mensual';
+
+  @override
   String authPremiumShowsUpTo(String text, int limit) {
     return '$text Premium muestra hasta $limit.';
   }
+
+  @override
+  String get authPremiumYearly => 'Premium anual';
 
   @override
   String get authProfile => 'Perfil';

@@ -100,5 +100,17 @@
   "aboutParagraph": "Presence convierte un teléfono, tableta, portátil o Raspberry Pi en una cámara siempre activa para un lugar que cuidas: video en vivo, clips que incluyen los momentos previos y clips al detectar movimiento. Graba solo donde tengas permiso.",
   "aboutOpenSource": "Presence es de código abierto:",
   "devModeTooltip": "Modo de desarrollo: el inicio de sesión no está configurado, así que todo está abierto a todos.",
-  "devModeTooltipVersion": "Modo de desarrollo, versión {version}: el inicio de sesión no está configurado, así que todo está abierto a todos."
+  "devModeTooltipVersion": "Modo de desarrollo, versión {version}: el inicio de sesión no está configurado, así que todo está abierto a todos.",
+  "authPremiumMonthly": "Premium mensual",
+  "authPremiumYearly": "Premium anual",
+  "authPaymentsTitle": "Pagos",
+  "authPaymentsIntro": "Los enlaces de pago de Stripe con los que los miembros gratuitos pasan a Premium. Deja uno vacío para no ofrecer ese plan.",
+  "authPaymentsMonthly": "Enlace del plan mensual",
+  "authPaymentsYearly": "Enlace del plan anual",
+  "authPaymentsSave": "Guardar enlaces",
+  "authPaymentsSaved": "Enlaces de pago guardados",
+  "authPaymentsSaveFailed": "No se pudieron guardar los enlaces ({error})",
+  "authPaymentsInvalid": "Vacío, o un enlace https de stripe.com",
+  "authPaymentsDefaults": "Aún sin guardar: son los enlaces del despliegue.",
+  "authPaymentsUnavailable": "La API de pagos no respondió."
 }

@@ -4,12 +4,15 @@ import '../about.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/feedback_inbox.dart';
 import 'auth_service.dart';
+import 'payment_links_editor.dart';
+import 'payments_client.dart';
 import 'rbacr_client.dart';
 import '../l10n/l10n.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
 /// `presence_admin`): the members' Feedback and Help conversations, each
-/// with a Reply field. Voucher codes and maintenance mode are managed in
+/// with a Reply field; then Payments, the Premium plans' Stripe links
+/// ([PaymentLinksEditor]). Voucher codes and maintenance mode are managed in
 /// rbacr (a link at the end), which keeps every role. Nobody asks for
 /// access here: people subscribe at nu01.com. A page of the home screen's
 /// tabs, like Settings: no scaffold or app bar of its own; Reload sits by
@@ -19,12 +22,16 @@ class AdminView extends StatefulWidget {
     super.key,
     required this.auth,
     required this.feedback,
+    this.payments,
     this.rbacr,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
   final FeedbackClient feedback;
+
+  /// The Premium plans' Stripe links: the Payments section; none without.
+  final PaymentsService? payments;
 
   /// rbacr, where vouchers and maintenance mode are managed;
   /// `RbacrConfig.baseUrl` by default.
@@ -174,6 +181,10 @@ class _AdminViewState extends State<AdminView> {
                     ),
                 ],
               },
+              if (widget.payments case final payments?) ...[
+                const SizedBox(height: 24),
+                PaymentLinksEditor(payments: payments),
+              ],
               const SizedBox(height: 24),
               Text(
                 context.l10n.authVouchersTitle,

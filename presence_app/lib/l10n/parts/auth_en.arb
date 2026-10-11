@@ -326,5 +326,24 @@
         "type": "String"
       }
     }
-  }
+  },
+  "authPremiumMonthly": "Premium monthly",
+  "authPremiumYearly": "Premium yearly",
+  "authPaymentsTitle": "Payments",
+  "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.",
+  "authPaymentsMonthly": "Monthly plan link",
+  "authPaymentsYearly": "Yearly plan link",
+  "authPaymentsSave": "Save links",
+  "authPaymentsSaved": "Payment links saved",
+  "authPaymentsSaveFailed": "Couldn't save the links ({error})",
+  "@authPaymentsSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authPaymentsInvalid": "Empty, or an https link on stripe.com",
+  "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
+  "authPaymentsUnavailable": "The payments API didn't answer."
 }

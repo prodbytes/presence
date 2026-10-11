@@ -42,7 +42,7 @@ void main() {
 
     test('nu01.com without a Stripe HTTPS link', () {
       final nu01 = Uri.parse('https://nu01.com');
-      // This build has no STRIPE_PAYMENT_LINK.
+      // No link.
       expect(PremiumCheckout.checkout(email: 'ana@example.com'), nu01);
       for (final bad in [
         '',

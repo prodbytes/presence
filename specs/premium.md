@@ -176,9 +176,9 @@ they publish, receive and store events as before. Their events are
     and up to 50 devices sync."
   - **Free**: "Free: up to 2 devices sync with each other while online.
     Premium adds cloud backup and up to 50 devices: US$20 a month, the
-    first week free.", an **Upgrade to Premium** button that opens the
-    Stripe checkout, and **Check again** (see [Upgrade to
-    Premium](upgrade.md)).
+    first week free.", **Premium monthly** and **Premium yearly** buttons
+    that open the plan's Stripe checkout, and **Check again** (see
+    [Upgrade to Premium](upgrade.md)).
   - Past the limit, a line in the warning color: on this device, "This
     device is past your first 2: it syncs, but its events are hidden on
     your other devices, and theirs here."; otherwise how many devices are

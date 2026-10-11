@@ -15,6 +15,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
+| `/api/payments/*` | The [payments API](payments-api.md)'s own HTTP API (`presence_api_payments`, stack `presence-payments`; origin `payments`), matched before `/api/*`. Not cached, every viewer header but `Host` forwarded |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
 | `/health` | The [health check](health-check.md)'s own HTTP API (`presence_health`, stack `presence-health`; origin `health`), public, not cached |
 
@@ -40,6 +41,9 @@ One CloudFront distribution serves the whole site, laid out like the local
     (SAM), stacks `presence-auth-api` and `presence-health`: the
     [auth API](auth-api.md) and the [health check](health-check.md),
     which imports the auth API's table exports.
+  - [presence_api_payments/template.yaml](../presence_api_payments/template.yaml)
+    (SAM), stack `presence-payments`: the [payments API](payments-api.md)
+    (the Premium plans' Stripe Payment Links) and its table.
   - [presence_sh/template.yaml](../presence_sh/template.yaml), stack
     `presence-sh`: https://sh.presence.nu01.com, the
     [install URL](install-url.md), deployed after the site by
@@ -71,10 +75,15 @@ One CloudFront distribution serves the whole site, laid out like the local
   exports, so an existing health stack is deployed **before** the auth
   API (it stops importing what the auth API drops; CloudFormation refuses
   to remove an imported export) and a new stage's **after** it; once per
-  run. Then `site.yaml` (with both APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
+  run. Then the [payments API](payments-api.md) (`presence_api_payments`,
+  stack `<prefix>-payments`, with the OIDC client, the boundary, rbacr's
+  URL, token and system, and `STRIPE_MONTHLY_LINK` and
+  `STRIPE_YEARLY_LINK` as its default links: from the environment, else
+  `.env`, else the links in `deploy.sh`; each must be empty or an HTTPS
+  link on stripe.com). Then `site.yaml` (with the three APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
-  page, `/app/` must answer, and `/api/auth/profile` must refuse a request
-  without a token (401), and `/api/auth/anonymous` must answer exactly
+  page, `/app/` must answer, and `/api/auth/profile` and
+  `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
   and `/health` must answer `"status":"ok"` with this release's
   `"version"` (see [Health check](health-check.md)). It retries for up to 10 minutes.

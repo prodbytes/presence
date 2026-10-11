@@ -4940,7 +4940,32 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Monitoring](monitoring.md), [Sign-in](sign-in.md),
        [Membership](membership.md), [Configuration](configuration.md).
 
-359. **presence-streamer: a Raspberry Pi camera CLI for premium profiles.** (2026-10-11)
+359. **A payments API: the Premium plans' Stripe links, set by admins.**
+     (2026-10-11)
+     - Asked: the Stripe link for the monthly subscription
+       (https://buy.stripe.com/dRm9AT6F71VfbaN1tl2Ji03) as a setting in the
+       Admin tab; the yearly subscription's link (given as the same URL)
+       there too; a new API module for payments (Lambda and DynamoDB) with
+       configurable Stripe links, used in GA and RC.
+     - Changed: [Payments API](payments-api.md), new:
+       `presence_api_payments` (stacks `presence-payments`,
+       `presence-rc-payments`), a Java 25 Lambda, a DynamoDB table and its
+       own HTTP API with a Google JWT authorizer, served under
+       `/api/payments/*` (a new CloudFront origin before `/api/*`).
+       `GET /api/payments/links` answers the monthly and yearly links;
+       `PUT` saves them, for rbacr admins and roots only, each empty or an
+       HTTPS stripe.com link. `scripts/deploy.sh` deploys it in GA and RC
+       with `STRIPE_MONTHLY_LINK` and `STRIPE_YEARLY_LINK` as defaults (both
+       the given link), and smoke-tests its 401. The Admin tab has a
+       **Payments** section to edit and save them. The account sheet's
+       plan box shows **Premium monthly** and **Premium yearly** (one per
+       link) instead of one Upgrade button. The `STRIPE_PAYMENT_LINK` build
+       setting is gone. Specs: [Upgrade to Premium](upgrade.md),
+       [Membership](membership.md), [Premium and free](premium.md),
+       [Sign-in](sign-in.md), [Configuration](configuration.md),
+       [Production deploy](deploy.md), [README](README.md).
+
+360. **presence-streamer: a Raspberry Pi camera CLI for premium profiles.** (2026-10-11)
      - Asked: a new module, a CLI for the Raspberry Pi (32- and 64-bit)
        that streams continuously to a profile whose ID it asks for at
        start. It ends for a free profile. For a premium one it records the

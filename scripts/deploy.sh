@@ -14,7 +14,9 @@
 #      (presence_health, stack presence-health / presence-rc-health: GET
 #      /health, which imports the auth API's table exports): an existing
 #      health stack first, so it lets go of exports the auth API drops; a
-#      new stage's after, once the exports it imports exist
+#      new stage's after, once the exports it imports exist; and the
+#      payments API (presence_api_payments, stack presence-payments /
+#      presence-rc-payments: the Stripe Payment Links, /api/payments/*)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
@@ -23,6 +25,7 @@
 #   6. smoke-tests the live site: /app/version.json must report this
 #      version, / must be the index page, and /api/auth/profile must refuse
 #      a request without a token (401: the route and its authorizer are live),
+#      and so must /api/payments/links,
 #      and /api/auth/anonymous must report RBAC mode, and /health must say
 #      every dependency is ok
 #
@@ -63,6 +66,9 @@
 #   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
 #                the only one prod accepts; also .env)
 #   RBACR_SYSTEM the rbacr system of the app's roles (default presence; also .env)
+#   STRIPE_MONTHLY_LINK, STRIPE_YEARLY_LINK  the Premium plans' Stripe
+#                Payment Links until an admin saves others in the Admin tab
+#                (default: the links below; also .env; empty: not offered)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -88,6 +94,7 @@ esac
 SITE_STACK=$stack_prefix-web
 AUTH_STACK=$stack_prefix-auth-api
 HEALTH_STACK=$stack_prefix-health
+PAYMENTS_STACK=$stack_prefix-payments
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
 
@@ -216,6 +223,23 @@ if [[ "$STAGE" == prod && "$RBACR_URL" != https://rbacr.nu01.com ]]; then
   exit 1
 fi
 echo "    rbacr: $RBACR_URL, system $RBACR_SYSTEM, with a token"
+# The Premium plans' Stripe Payment Links (public checkout pages), the
+# payments API's defaults until an admin saves others: from the
+# environment, else .env, else these.
+for name in STRIPE_MONTHLY_LINK STRIPE_YEARLY_LINK; do
+  if [[ -z "${!name+set}" && -f .env ]] && grep -q "^$name=" .env; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+done
+STRIPE_MONTHLY_LINK="${STRIPE_MONTHLY_LINK-https://buy.stripe.com/dRm9AT6F71VfbaN1tl2Ji03}"
+STRIPE_YEARLY_LINK="${STRIPE_YEARLY_LINK-https://buy.stripe.com/dRm9AT6F71VfbaN1tl2Ji03}"
+for name in STRIPE_MONTHLY_LINK STRIPE_YEARLY_LINK; do
+  if [[ ! "${!name}" =~ ^(https://([a-z0-9-]+\.)*stripe\.com(/[A-Za-z0-9._~%-]*)*)?$ ]]; then
+    echo "error: $name must be empty or an https link on stripe.com" >&2
+    exit 1
+  fi
+done
+echo "    payment links: monthly ${STRIPE_MONTHLY_LINK:-none}, yearly ${STRIPE_YEARLY_LINK:-none}"
 
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
@@ -335,6 +359,20 @@ if [[ "$health_first" != 1 ]]; then
 fi
 health_domain="$(stack_output "$HEALTH_STACK" ApiDomain)"
 echo "    health origin: $health_domain"
+echo "==> deploying $PAYMENTS_STACK"
+(
+  cd presence_api_payments
+  sam build
+  sam deploy --stack-name "$PAYMENTS_STACK" --region "$AWS_REGION" \
+    --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$PAYMENTS_STACK" \
+    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+      "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
+      "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
+      "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
+    --no-confirm-changeset --no-fail-on-empty-changeset
+)
+payments_domain="$(stack_output "$PAYMENTS_STACK" ApiDomain)"
+echo "    payments origin: $payments_domain"
 
 # 4. The site
 echo "==> deploying $SITE_STACK"
@@ -344,6 +382,7 @@ aws cloudformation deploy --stack-name "$SITE_STACK" \
   --parameter-overrides "DomainName=$DOMAIN" "Stage=$STAGE" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
     "HealthApiDomainName=$health_domain" \
+    "PaymentsApiDomainName=$payments_domain" \
     "RbacrUrl=$RBACR_URL" \
     "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
   --no-fail-on-empty-changeset
@@ -374,6 +413,9 @@ check() {
   local auth
   auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth/profile")"
   [[ "$auth" == 401 ]] || { echo "    /api/auth/profile without a token answered $auth, want 401"; return 1; }
+  local payments
+  payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/payments/links")"
+  [[ "$payments" == 401 ]] || { echo "    /api/payments/links without a token answered $payments, want 401"; return 1; }
   # Never DEV in AWS: that would give anonymous users every role. And AWS
   # must have every expected setting.
   local anonymous
