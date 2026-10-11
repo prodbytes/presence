@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/annotations.dart';
 import 'package:presence_app/clips.dart';
-import 'package:presence_app/events.dart';
 import 'package:presence_app/subjects.dart';
 import 'package:presence_app/theme.dart';
 
