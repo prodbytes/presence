@@ -35,6 +35,9 @@ final class SampleRing {
   /// How much history to keep, in seconds.
   var retainSeconds: Double = 15
 
+  /// The longest writing a clip may take (each stage), before it's given up.
+  static let writeTimeout: TimeInterval = 30
+
   func append(_ sample: Sample) {
     condition.lock()
     samples.append(sample)
@@ -131,19 +134,49 @@ final class SampleRing {
 
     guard writer.startWriting() else { return nil }
     writer.startSession(atSourceTime: CMSampleBufferGetPresentationTimeStamp(keyframe.buffer))
-    for sample in inRange {
-      guard let input = sample.track == .video ? videoInput : audioInput else { continue }
-      while !input.isReadyForMoreMediaData && writer.status == .writing {
-        usleep(1_000)
-      }
-      if writer.status != .writing { break }
-      input.append(sample.buffer)
+    // Each input is fed its own track, in time order, whenever the writer
+    // asks for more. Feeding both from one list in arrival order hung:
+    // the writer interleaves the tracks, so it can hold one input "not
+    // ready" until the other gets data, while the list waited on the
+    // first; the clip then never finished (seen on an iPhone 12 mini).
+    let fed = DispatchGroup()
+    var feeds = [(videoInput, inRange.filter { $0.track == .video }.sorted { $0.pts < $1.pts })]
+    if let audioInput {
+      feeds.append((audioInput, inRange.filter { $0.track == .audio }.sorted { $0.pts < $1.pts }))
     }
-    videoInput.markAsFinished()
-    audioInput?.markAsFinished()
+    for (index, (input, samples)) in feeds.enumerated() {
+      fed.enter()
+      var next = 0
+      var finished = false
+      let queue = DispatchQueue(label: "presence.ring.write.\(index)")
+      input.requestMediaDataWhenReady(on: queue) {
+        // Once finished, never again (leaving the group twice would crash).
+        if finished { return }
+        while input.isReadyForMoreMediaData && next < samples.count {
+          if writer.status != .writing || !input.append(samples[next].buffer) {
+            next = samples.count
+            break
+          }
+          next += 1
+        }
+        if next >= samples.count {
+          finished = true
+          input.markAsFinished()
+          fed.leave()
+        }
+      }
+    }
+    // Never hold a clip forever: whatever happens, it's done or failed.
+    if fed.wait(timeout: .now() + Self.writeTimeout) == .timedOut {
+      writer.cancelWriting()
+      return nil
+    }
     let done = DispatchSemaphore(value: 0)
     writer.finishWriting { done.signal() }
-    done.wait()
+    if done.wait(timeout: .now() + Self.writeTimeout) == .timedOut {
+      writer.cancelWriting()
+      return nil
+    }
     guard writer.status == .completed else { return nil }
 
     let end = min(to, lastVideo)
