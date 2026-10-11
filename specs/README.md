@@ -203,8 +203,9 @@ their data.
 ## Workflow
 
 - Every new feature or bug fix starts on a new branch from `main`, with its
-  own pull request. Nothing is pushed directly to `main`, and PRs are merged
-  only when the user says so. See [CLAUDE.md](../CLAUDE.md).
+  own pull request. Nothing is pushed directly to `main`. PRs are always
+  merged once ready, without asking; conflicts are resolved on the branch
+  first. See [CLAUDE.md](../CLAUDE.md).
 - Every request updates the affected feature specs and the
   [request log](requests.md) in the same PR.
 - Each feature file ends with its own **Known limitations**, where it has
