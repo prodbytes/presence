@@ -8,8 +8,8 @@ Description: >
   503 "status":"fail". Its own HTTP API, served under /health by the site's
   CloudFront distribution and polled by its Route 53 health check. Read-only:
   it only describes the auth API's tables (imported from the auth API
-  stack's exports), heads the bucket and describes the pool. Deploy after
-  the auth API stack.
+  stack's exports), heads the bucket and describes the pool. A new stage
+  deploys it after the auth API stack; an existing one before it.
 
 Parameters:
   AuthStackName:
@@ -111,20 +111,16 @@ Resources:
           USER_DATA_BUCKET: !Ref UserDataBucket
           HEALTH_TABLES: !Join
             - ','
-            - - !ImportValue {'Fn::Sub': '${AuthStackName}-UserRolesTable'}
-              - !ImportValue {'Fn::Sub': '${AuthStackName}-ProfilesTable'}
+            # The auth API's tables. Importing a new export needs it shipped
+            # by an earlier auth API deploy (scripts/deploy.sh).
+            - - !ImportValue {'Fn::Sub': '${AuthStackName}-ProfilesTable'}
               - !ImportValue {'Fn::Sub': '${AuthStackName}-ProfileSubjectsTable'}
-              - !ImportValue {'Fn::Sub': '${AuthStackName}-VoucherTable'}
               - !ImportValue {'Fn::Sub': '${AuthStackName}-LinkCodesTable'}
-              - !ImportValue {'Fn::Sub': '${AuthStackName}-SystemTable'}
       Policies:
         - Statement:
             - Effect: Allow
               Action: dynamodb:DescribeTable
               Resource:
-                - !Sub
-                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
-                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-UserRolesTable'}
                 - !Sub
                   - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
                   - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-ProfilesTable'}
@@ -133,13 +129,7 @@ Resources:
                   - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-ProfileSubjectsTable'}
                 - !Sub
                   - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
-                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-VoucherTable'}
-                - !Sub
-                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
                   - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-LinkCodesTable'}
-                - !Sub
-                  - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
-                  - Table: !ImportValue {'Fn::Sub': '${AuthStackName}-SystemTable'}
             # HeadBucket needs ListBucket; the bucket only ("none" when unset).
             - Effect: Allow
               Action: s3:ListBucket

@@ -20,21 +20,18 @@ import java.util.function.Function;
  * (rbacr's implications, {@code admin → premium → free}, give the same, but
  * the mapping doesn't count on them.) A subject linked to a profile another
  * account owns also gets {@link #USER} and {@link #PREMIUM} when the owner
- * has them, never the owner's {@link #ADMIN} or {@link #ROOT}. Returned
- * sorted.
+ * has them, never the owner's {@link #ADMIN} or {@link #ROOT}
+ * ({@link #shared}). Returned sorted.
  */
 public final class Roles {
 
     /** Uses the app. */
     public static final String USER = "presence_user";
 
-    /** Also grants other users access, and creates vouchers for {@link #USER}. */
+    /** Administers the app (in rbacr, where admins also manage vouchers and maintenance). */
     public static final String ADMIN = "presence_admin";
 
-    /**
-     * An rbacr root: also creates vouchers for {@link #ADMIN}, so only roots
-     * make admins. Nothing in presence grants it.
-     */
+    /** An rbacr root (rbacr's root list). Nothing in presence grants it. */
     public static final String ROOT = "presence_root";
 
     /**
@@ -50,9 +47,6 @@ public final class Roles {
             USER, Set.of("free", "premium", "admin"),
             PREMIUM, Set.of("premium", "admin"),
             ADMIN, Set.of("admin"));
-
-    /** For each role a voucher grants, the rbacr role it grants. */
-    static final Map<String, String> GRANTED_AS = Map.of(USER, "free", ADMIN, "admin");
 
     /** What an rbacr root gets. */
     static final Set<String> ROOT_ROLES = Set.of(ROOT, ADMIN, USER, PREMIUM);
@@ -104,15 +98,26 @@ public final class Roles {
     }
 
     /**
-     * The caller's roles, plus {@link #USER} when its account is linked to
-     * {@code profile} (null when none), owned by another account that is a
-     * member: one person, whichever of their accounts signs in, uses the
-     * app; and {@link #PREMIUM} when the owner has it, as the profile's
-     * cloud folder is the owner's. Administration ({@link #ADMIN}, {@link
-     * #ROOT}) is never shared: each account gets it only from its own email.
+     * The caller's roles: its own ({@link #of(Caller)}) and those it
+     * {@link #shared shares} from {@code profile}'s owner.
      */
     public Set<String> of(Caller caller, Profiles.Profile profile) {
         var roles = new TreeSet<>(of(caller));
+        roles.addAll(shared(caller, profile));
+        return roles;
+    }
+
+    /**
+     * The roles the caller gets from {@code profile}'s owner (null when
+     * none): {@link #USER} when its account is linked to the profile, owned
+     * by another account that is a member: one person, whichever of their
+     * accounts signs in, uses the app; and {@link #PREMIUM} when the owner
+     * has it, as the profile's cloud folder is the owner's. Empty for the
+     * owner itself. Administration ({@link #ADMIN}, {@link #ROOT}) is never
+     * shared: each account gets it only from its own email.
+     */
+    public Set<String> shared(Caller caller, Profiles.Profile profile) {
+        var roles = new TreeSet<String>();
         if (profile == null || !caller.verified() || profile.ownerEmail() == null
                 || profile.ownerSubject() != null && profile.ownerSubject().equals(caller.subject())) {
             return roles;

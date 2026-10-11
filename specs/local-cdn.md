@@ -117,7 +117,9 @@ web client's local origin**.
 ## The local auth API
 
 At every start, Floci deploys the real auth API into itself, so sign-in,
-roles, vouchers and the Admin tab work locally without AWS:
+profiles and account linking work locally without AWS. Roles, vouchers
+and maintenance mode come from rbacr's RC, which the local web build
+asks directly (see Roles below):
 
 - **Build:** [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs
   `sam build` before Floci starts (in the `4-floci` command), only when
@@ -128,9 +130,9 @@ roles, vouchers and the Admin tab work locally without AWS:
   `arm64`.
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
-  `template.yaml` as the stack `presence-local-auth-api`: the four Java 25
-  Lambdas and their tables (`UserRolesTable`, `VoucherTable` and the
-  others). Floci
+  `template.yaml` as the stack `presence-local-auth-api`: the two Java 25
+  Lambdas and their tables (`ProfilesTable`, `ProfileSubjectsTable`,
+  `LinkCodesTable`). Floci
   runs the Lambdas as Docker containers (`presence-lambda-*`), which is
   why compose mounts the Docker socket. That gives Floci control of the
   Docker daemon, which is acceptable only for local development (its ports
@@ -140,26 +142,37 @@ roles, vouchers and the Admin tab work locally without AWS:
   API a random ID. The hook therefore also creates an HTTP API with the
   fixed ID `presence` (Floci's `floci:override-id` tag). It has the same
   Google JWT authorizer (issuer `https://accounts.google.com`, audience
-  `GOOGLE_WEB_CLIENT_ID` from `.env`) and the same five routes as the
-  template's. `10-cloudfront.sh` then routes `/api/*` to
+  `GOOGLE_WEB_CLIENT_ID` from `.env`) and the template's routes:
+  `GET /api/auth/anonymous` (`AuthFunction`) and the `ProfileFunction`
+  routes (`POST /api/auth/credentials`, `GET /api/auth/profile`,
+  `POST /api/auth/profile/link-code`, `/link`, `/unlink` and
+  `/devices/remove`). `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
-- **Roles** follow the template, from **rbacr's RC**
-  (https://rc.rbacr.nu01.com, its own database), never GA rbacr, which
-  prod uses: `.env`'s `RBACR_RC_URL` (default the RC), `RBACR_RC_TOKEN`
-  (a token of an RC root) and `RBACR_RC_SYSTEM` (default `presence`),
-  which `process-compose.yaml` passes to Floci as the stack's rbacr. The
-  hook warns when a client is set but no token, as nobody would then have
-  a role. An admin's grants and redeemed vouchers locally are grants in
-  the RC. The local monitor checks the RC's `/health`. Storage is
-  `memory`, so every start begins with empty tables: requests and vouchers
-  don't survive a restart (rbacr's grants do).
+- **Roles** come from **rbacr's RC** (https://rc.rbacr.nu01.com, its own
+  database), never GA rbacr, which prod uses. The local web build
+  (`scripts/flutter-web.sh`) asks it directly with the user's ID token:
+  `scripts/dart-defines.sh` passes `.env`'s `RBACR_RC_URL` and
+  `RBACR_RC_SYSTEM` (default https://rc.rbacr.nu01.com and `presence`) as
+  `RBACR_URL` and `RBACR_SYSTEM`, never `.env`'s `RBACR_URL` (which is
+  for deploys; see [Configuration](configuration.md)). RC rbacr's CORS
+  allows https://rc.presence.nu01.com, https://local.presence.nu01.com:8443
+  and http://localhost:8080. The local auth API uses the same RC for a
+  linked account's shared membership and the credentials' tier:
+  `RBACR_RC_URL`, `RBACR_RC_TOKEN` (a token of an RC root) and
+  `RBACR_RC_SYSTEM`, which `process-compose.yaml` passes to Floci as the
+  stack's rbacr. The hook warns when a client is set but no token.
+  Vouchers redeemed and maintenance switched locally are the RC's. The
+  local monitor checks the RC's `/health`. Storage is `memory`, so every
+  start begins with empty tables: profiles and links don't survive a
+  restart (rbacr's grants do).
 - **No `/health`:** the [health check](health-check.md)
   (`presence_health`) isn't deployed into Floci, and the distribution has
   no `/health` route: it checks AWS's identity pool and bucket, which the
-  local Lambdas can't reach. The local stack still exports its table names
-  (`presence-local-auth-api-UserRolesTable` and so on), which Floci
-  supports; nothing imports them.
+  local Lambdas can't reach. The local stack still exports its three
+  table names (`presence-local-auth-api-ProfilesTable`,
+  `-ProfileSubjectsTable`, `-LinkCodesTable`), which Floci supports;
+  nothing imports them.
 - The hook runs past Floci's default 30 s, so compose sets
   `FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` to 180, and the process's readiness
   allows 6 minutes (the first run builds and pulls the Lambda image).
@@ -172,13 +185,9 @@ roles, vouchers and the Admin tab work locally without AWS:
   stack too (`process-compose.yaml` reads them, compose passes them to
   Floci), so the route reports whether they're set. Without `.env` it
   answers
-  `{"mode":"DEV","roles":[…every role…],"settings":{"oidc":false,"aws":false}}`
-  (checked live).
-- Checked through `https://local.presence.nu01.com:8443`: `/api/auth`
-  refuses a missing or forged token (401), and invoking the functions in
-  Floci ran the whole flow. `boss@nu01.com` got both roles,
-  `ana@example.com` asked (202, then 409), was refused the admin routes
-  (403), was granted by the admin, and then had `presence_user` only.
+  `{"mode":"DEV","roles":[…every role…],"settings":{"oidc":false,"aws":false,"rbacr":false}}`.
+- Through `https://local.presence.nu01.com:8443`, `/api/auth/profile`
+  refuses a missing or forged token (401).
 
 ### Known limitations
 

@@ -41,8 +41,8 @@ navigation bar's label is the short "Help", so six tabs still fit a
 
 ## On the Admin tab
 
-The Admin tab's **Feedback** section, between maintenance mode and
-the voucher codes (see [Membership](membership.md#the-admin-tab)), lists
+The Admin tab's **Feedback** section, its first, before the link to
+rbacr (see [Membership](membership.md#the-admin-tab)), lists
 every conversation, **the latest active first** (by its newest message),
 as cards (`FeedbackThreadCard`,
 [lib/feedback/feedback_inbox.dart](../presence_app/lib/feedback/feedback_inbox.dart)):

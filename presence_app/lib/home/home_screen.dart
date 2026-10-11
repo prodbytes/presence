@@ -7,7 +7,7 @@ import '../battery.dart';
 import '../auth/account_sheet.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
-import '../auth/membership_client.dart';
+import '../auth/rbacr_client.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/help_view.dart';
 import '../auth/plan_notice.dart';
@@ -41,7 +41,7 @@ import 'home_navigation_bar.dart';
 /// map, the subjects and the event stream), the settings (with the device's
 /// location map), for signed-in members Feedback and Help, for admins who
 /// turned it on the log, and for signed-in admins the Admin page
-/// (maintenance mode, feedback and vouchers). Only a tap
+/// (feedback, and a link to rbacr). Only a tap
 /// flips: there's no swiping between them, as in most phone apps, so a
 /// sideways drag on a map or a list stays there.
 ///
@@ -56,7 +56,7 @@ class HomeScreen extends StatefulWidget {
     required this.config,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     required this.feedback,
     required this.profiles,
     this.sync,
@@ -106,9 +106,9 @@ class HomeScreen extends StatefulWidget {
   /// the Admin tab `presence_admin`.
   final RolesService roles;
 
-  /// Vouchers: redeemed from the sign-up sheet, listed on the Admin tab;
-  /// and maintenance mode.
-  final MembershipClient membership;
+  /// rbacr, as the user: vouchers are redeemed there from the sign-up
+  /// sheet.
+  final RbacrClient rbacr;
 
   /// Feedback and Help: members write on the Help tab, admins answer on
   /// the Admin tab.
@@ -545,7 +545,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         signedIn: _signedIn,
         auth: widget.auth,
         roles: widget.roles,
-        membership: widget.membership,
+        rbacr: widget.rbacr,
         profiles: widget.profiles,
         sync: widget.sync,
         log: widget.log,
@@ -639,16 +639,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
-              // Maintenance, feedback and vouchers: a page like the others,
-              // with no back button of its own.
+              // Feedback, and a link to rbacr (vouchers, maintenance): a
+              // page like the others, with no back button of its own.
               if (_tabs.shows(HomeTab.admin))
                 SafeArea(
                   child: AdminView(
                     auth: widget.auth,
-                    membership: widget.membership,
                     feedback: widget.feedback,
-                    // The app follows a switch at once, not at its next check.
-                    onMaintenanceSwitched: widget.roles.checkApi,
                   ),
                 ),
               // Who's signed in, the profile's devices, sign-out and about:

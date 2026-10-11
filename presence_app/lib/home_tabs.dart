@@ -18,8 +18,9 @@ enum HomeTab {
   /// keep their index.
   log('Log', Icons.receipt_long_outlined, Icons.receipt_long),
 
-  /// Signed-in admins only (not DEV: there are no accounts): membership
-  /// requests, members' feedback and voucher codes (`AdminView`). Before
+  /// Signed-in admins only (not DEV: there are no accounts): members'
+  /// feedback, and a link to rbacr for vouchers and maintenance mode
+  /// (`AdminView`). Before
   /// Profile; with the Help or Log tab hidden it moves up, so map a tab to
   /// its controller index through the shown tabs ([HomeTabs.indexOf]),
   /// never by [HomeTab.index] alone.

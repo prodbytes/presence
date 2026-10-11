@@ -1,53 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
+import '../about.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/feedback_inbox.dart';
 import 'auth_service.dart';
-import 'membership_client.dart';
-import 'roles_service.dart';
+import 'rbacr_client.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
-/// `presence_admin`): maintenance mode's switch, with the sorry screen's
-/// message; the members' Feedback and Help conversations, each with a
-/// Reply field; then the voucher codes, which grant a role to whoever
-/// redeems them (created in rbacr; here they're listed and deleted).
-/// Nobody asks for access here: people subscribe at nu01.com. A page of
-/// the home screen's tabs, like Settings: no scaffold or app bar of its
-/// own; Reload sits by the first heading, and pulling down reloads too.
+/// `presence_admin`): the members' Feedback and Help conversations, each
+/// with a Reply field. Voucher codes and maintenance mode are managed in
+/// rbacr (a link at the end), which keeps every role. Nobody asks for
+/// access here: people subscribe at nu01.com. A page of the home screen's
+/// tabs, like Settings: no scaffold or app bar of its own; Reload sits by
+/// the heading, and pulling down reloads too.
 class AdminView extends StatefulWidget {
   const AdminView({
     super.key,
     required this.auth,
-    required this.membership,
     required this.feedback,
-    this.onMaintenanceSwitched,
-  });
+    this.rbacr,
+    LinkOpener? openLink,
+  }) : openLink = openLink ?? launchLink;
 
   final AuthService auth;
-  final MembershipClient membership;
   final FeedbackClient feedback;
 
-  /// After maintenance mode is switched: the app asks the auth API again,
-  /// so it follows at once.
-  final Future<void> Function()? onMaintenanceSwitched;
+  /// rbacr, where vouchers and maintenance mode are managed;
+  /// `RbacrConfig.baseUrl` by default.
+  final Uri? rbacr;
+
+  /// Opens rbacr; a link that can't open is copied instead.
+  final LinkOpener openLink;
 
   @override
   State<AdminView> createState() => _AdminViewState();
 }
 
 class _AdminViewState extends State<AdminView> {
-  List<Voucher>? _vouchers;
-  String? _vouchersError;
   List<FeedbackThread>? _threads;
   String? _threadsError;
-  MaintenanceSwitch? _maintenance;
-  String? _maintenanceError;
-  bool _switching = false;
-
-  /// Emails with a grant or dismissal in flight, and voucher codes being
-  /// deleted.
-  final _busy = <String>{};
 
   @override
   void initState() {
@@ -58,48 +49,18 @@ class _AdminViewState extends State<AdminView> {
   Future<void> _load() async {
     final token = widget.auth.idToken;
     if (token == null) {
-      setState(() => _maintenanceError = 'Not signed in.');
+      setState(() => _threadsError = 'Not signed in.');
       return;
     }
-    setState(() {
-      _vouchersError = null;
-      _threadsError = null;
-      _maintenanceError = null;
-    });
-    await Future.wait([
-      () async {
-        try {
-          final state = await widget.membership.maintenance(token);
-          if (mounted) setState(() => _maintenance = state);
-        } catch (e) {
-          if (mounted) {
-            setState(
-              () => _maintenanceError = 'Couldn\'t load maintenance mode ($e).',
-            );
-          }
-        }
-      }(),
-      () async {
-        try {
-          final threads = await widget.feedback.threads(token);
-          if (mounted) setState(() => _threads = threads);
-        } catch (e) {
-          if (mounted) {
-            setState(() => _threadsError = 'Couldn\'t load feedback ($e).');
-          }
-        }
-      }(),
-      () async {
-        try {
-          final vouchers = await widget.membership.vouchers(token);
-          if (mounted) setState(() => _vouchers = vouchers);
-        } catch (e) {
-          if (mounted) {
-            setState(() => _vouchersError = 'Couldn\'t load vouchers ($e).');
-          }
-        }
-      }(),
-    ]);
+    setState(() => _threadsError = null);
+    try {
+      final threads = await widget.feedback.threads(token);
+      if (mounted) setState(() => _threads = threads);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _threadsError = 'Couldn\'t load feedback ($e).');
+      }
+    }
   }
 
   /// Answers [thread] with [text]; true if it was sent.
@@ -137,61 +98,6 @@ class _AdminViewState extends State<AdminView> {
     }
   }
 
-  /// Switches maintenance mode; true if it was.
-  Future<bool> _switchMaintenance(bool on, String message) async {
-    final token = widget.auth.idToken;
-    if (token == null) return false;
-    setState(() => _switching = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final state = await widget.membership.setMaintenance(
-        token,
-        on: on,
-        message: message,
-      );
-      if (mounted) setState(() => _maintenance = state);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            on
-                ? 'Maintenance mode is on: everyone else sees the sorry message'
-                : 'Maintenance mode is off',
-          ),
-        ),
-      );
-      await widget.onMaintenanceSwitched?.call();
-      return true;
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t switch maintenance mode ($e)')),
-      );
-      return false;
-    } finally {
-      if (mounted) setState(() => _switching = false);
-    }
-  }
-
-  Future<void> _delete(Voucher voucher) async {
-    final token = widget.auth.idToken;
-    if (token == null) return;
-    setState(() => _busy.add(voucher.code));
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      await widget.membership.deleteVoucher(token, voucher.code);
-      if (!mounted) return;
-      setState(() => _vouchers?.remove(voucher));
-      messenger.showSnackBar(
-        SnackBar(content: Text('Deleted voucher ${voucher.code}')),
-      );
-    } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t delete ${voucher.code} ($e)')),
-      );
-    } finally {
-      if (mounted) setState(() => _busy.remove(voucher.code));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -208,9 +114,8 @@ class _AdminViewState extends State<AdminView> {
       padding: EdgeInsets.all(16),
       child: Center(child: CircularProgressIndicator()),
     );
-    final vouchers = _vouchers;
     final threads = _threads;
-    final now = DateTime.now();
+    final rbacr = widget.rbacr ?? RbacrConfig.baseUrl;
     return Center(
       key: const Key('admin-view'),
       child: ConstrainedBox(
@@ -223,10 +128,7 @@ class _AdminViewState extends State<AdminView> {
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Maintenance mode',
-                      style: theme.textTheme.titleLarge,
-                    ),
+                    child: Text('Feedback', style: theme.textTheme.titleLarge),
                   ),
                   IconButton(
                     key: const Key('admin-reload'),
@@ -236,20 +138,6 @@ class _AdminViewState extends State<AdminView> {
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              switch ((_maintenance, _maintenanceError)) {
-                (_, final error?) => status(error, error: true),
-                (null, _) => loading,
-                (final state?, _) => _MaintenanceCard(
-                  // A fresh message field for each state loaded.
-                  key: ValueKey(state),
-                  state: state,
-                  busy: _switching,
-                  onSwitch: _switchMaintenance,
-                ),
-              },
-              const SizedBox(height: 24),
-              Text('Feedback', style: theme.textTheme.titleLarge),
               const SizedBox(height: 4),
               Text(
                 'Members\' messages from the Help tab, the latest active '
@@ -278,256 +166,30 @@ class _AdminViewState extends State<AdminView> {
                 ],
               },
               const SizedBox(height: 24),
-              Text('Voucher codes', style: theme.textTheme.titleLarge),
+              Text(
+                'Vouchers and maintenance',
+                style: theme.textTheme.titleLarge,
+              ),
               const SizedBox(height: 4),
               Text(
-                'Whoever redeems a code on the Sign up sheet gets '
-                'its role at once. Codes are created in rbacr.',
+                'Voucher codes and maintenance mode are managed in rbacr, '
+                'which keeps every role. Members redeem codes on the Sign '
+                'up sheet.',
+                key: const Key('admin-rbacr-text'),
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
-              const SizedBox(height: 8),
-              ...switch ((vouchers, _vouchersError)) {
-                (_, final error?) => [status(error, error: true)],
-                (null, _) => [loading],
-                (final list?, _) when list.isEmpty => [status('No vouchers.')],
-                (final list?, _) => [
-                  for (final voucher in list)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _VoucherCard(
-                        voucher: voucher,
-                        now: now,
-                        busy: _busy.contains(voucher.code),
-                        onDelete: () => _delete(voucher),
-                      ),
-                    ),
-                ],
-              },
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Maintenance mode's switch: while it's on, everyone but admins sees only
-/// a sorry message, with the [message] typed here.
-class _MaintenanceCard extends StatefulWidget {
-  const _MaintenanceCard({
-    super.key,
-    required this.state,
-    required this.busy,
-    required this.onSwitch,
-  });
-
-  final MaintenanceSwitch state;
-  final bool busy;
-  final Future<bool> Function(bool on, String message) onSwitch;
-
-  @override
-  State<_MaintenanceCard> createState() => _MaintenanceCardState();
-}
-
-class _MaintenanceCardState extends State<_MaintenanceCard> {
-  late final _message = TextEditingController(text: widget.state.state.message);
-
-  @override
-  void dispose() {
-    _message.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (:state, :by) = widget.state;
-    final since = state.since?.toLocal();
-    final when = since == null
-        ? null
-        : '${since.year}-${_two(since.month)}-${_two(since.day)} '
-              '${_two(since.hour)}:${_two(since.minute)}';
-    return Card(
-      key: const Key('maintenance-card'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SwitchListTile(
-              key: const Key('maintenance-switch'),
-              contentPadding: EdgeInsets.zero,
-              title: Text(state.on ? 'On' : 'Off'),
-              subtitle: Text(
-                [
-                  state.on
-                      ? 'Everyone but admins sees only the sorry message.'
-                      : 'Turn on to show everyone but admins only a sorry '
-                            'message.',
-                  if (when != null)
-                    '${state.on ? 'On' : 'Off'} since $when'
-                        '${by.isEmpty ? '' : ' ($by)'}.',
-                ].join(' '),
-                style: TextStyle(color: scheme.onSurfaceVariant),
-              ),
-              value: state.on,
-              onChanged: widget.busy
-                  ? null
-                  : (on) => widget.onSwitch(on, on ? _message.text : ''),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              key: const Key('maintenance-message-field'),
-              controller: _message,
-              enabled: !widget.busy,
-              maxLength: 500,
-              minLines: 1,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Message (optional)',
-                hintText: 'We expect to be back by noon.',
-                helperText: 'Shown under the sorry message.',
-              ),
-            ),
-            if (state.on)
               Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  key: const Key('maintenance-update-message'),
-                  onPressed: widget.busy
-                      ? null
-                      : () => widget.onSwitch(true, _message.text),
-                  child: const Text('Update message'),
+                alignment: AlignmentDirectional.centerStart,
+                child: TextButton.icon(
+                  key: const Key('admin-rbacr'),
+                  icon: const Icon(Icons.open_in_new),
+                  label: Text('Open ${rbacr.host}'),
+                  onPressed: () =>
+                      openOrCopyLink(context, rbacr, widget.openLink),
                 ),
               ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static String _two(int n) => n.toString().padLeft(2, '0');
-}
-
-/// The role a voucher grants, as the Admin screen names it.
-String _roleLabel(String role) => switch (role) {
-  userRole => 'Member',
-  adminRole => 'Admin',
-  _ => role,
-};
-
-class _VoucherCard extends StatelessWidget {
-  const _VoucherCard({
-    required this.voucher,
-    required this.now,
-    required this.busy,
-    required this.onDelete,
-  });
-
-  final Voucher voucher;
-  final DateTime now;
-  final bool busy;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final localizations = MaterialLocalizations.of(context);
-    final starts = voucher.startsAt.toLocal();
-    final expires = voucher.expiresAt.toLocal();
-    String at(DateTime t) =>
-        '${localizations.formatShortDate(t)} '
-        '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(t))}';
-    final state = voucher.isExpired(now)
-        ? 'Expired'
-        : voucher.isUsedUp
-        ? 'Used up'
-        : voucher.isNotYetValid(now)
-        ? 'Not yet valid'
-        : null;
-    // A hidden (Admin) code: only roots see it; keyed by its creation.
-    final id = voucher.hidden
-        ? 'hidden-${voucher.createdAt.millisecondsSinceEpoch}'
-        : voucher.code;
-    return Card(
-      key: Key('voucher-$id'),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-        child: Row(
-          spacing: 8,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 4,
-                children: [
-                  Row(
-                    spacing: 8,
-                    children: [
-                      if (voucher.hidden)
-                        Text(
-                          'Hidden code',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        )
-                      else
-                        SelectableText(
-                          voucher.code,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontFamily: 'monospace',
-                            decoration: state == null
-                                ? null
-                                : TextDecoration.lineThrough,
-                          ),
-                        ),
-                      if (state != null)
-                        Text(state, style: TextStyle(color: scheme.error)),
-                    ],
-                  ),
-                  Text(
-                    '${_roleLabel(voucher.role)} · '
-                    '${voucher.discount}% off · '
-                    '${voucher.uses} of ${voucher.maxUses} used · '
-                    'valid from ${at(starts)} · '
-                    'expires ${at(expires)}',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
-                  ),
-                  if (voucher.redeemedBy.isNotEmpty)
-                    Text(
-                      'Redeemed by ${voucher.redeemedBy.join(', ')}',
-                      style: TextStyle(color: scheme.onSurfaceVariant),
-                    ),
-                ],
-              ),
-            ),
-            // A hidden code can't be copied or deleted (only by a root).
-            if (!voucher.hidden) ...[
-              IconButton(
-                key: Key('copy-${voucher.code}'),
-                tooltip: 'Copy code',
-                icon: const Icon(Icons.copy),
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: voucher.code));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Copied ${voucher.code}')),
-                  );
-                },
-              ),
-              busy
-                  ? const SizedBox.square(
-                      dimension: 24,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton(
-                      key: Key('delete-${voucher.code}'),
-                      tooltip: 'Delete',
-                      icon: const Icon(Icons.delete_outline),
-                      onPressed: onDelete,
-                    ),
             ],
-          ],
+          ),
         ),
       ),
     );

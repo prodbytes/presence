@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'auth/roles_service.dart';
-import 'theme.dart';
 
-/// Maintenance mode (`RolesService.maintenance`) over the whole app: while
-/// it's on, everyone but admins sees [MaintenanceScreen] instead of the
-/// app, whose screens (and any dialog or sheet open on them) close; they
-/// come back fresh when it's switched off. Admins keep the app, under a
-/// strip saying the system is in maintenance, so they can switch it off on
-/// the Admin tab.
+/// Maintenance mode (`RolesService.inMaintenance`, rbacr's flag for
+/// Presence's system) over the whole app: while it's on, the signed-in user
+/// sees [MaintenanceScreen] instead of the app, whose screens (and any
+/// dialog or sheet open on them) close; they come back fresh when it's
+/// switched off. Nobody gets past it, admins included: rbacr gives nobody
+/// a role in the system meanwhile. Roots switch it in rbacr.
 class MaintenanceGate extends StatelessWidget {
   const MaintenanceGate({super.key, required this.roles, required this.child});
 
@@ -21,64 +20,17 @@ class MaintenanceGate extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: roles,
-      builder: (context, app) {
-        if (roles.inMaintenance) {
-          return MaintenanceScreen(message: roles.maintenance.message);
-        }
-        if (!roles.maintenance.on) return app!;
-        return Column(
-          children: [
-            Material(
-              key: const Key('maintenance-strip'),
-              color: Gruvbox.yellow,
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.construction,
-                        size: 18,
-                        color: Gruvbox.bg0Hard,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Maintenance mode is on: only admins see the app.',
-                          style: const TextStyle(color: Gruvbox.bg0Hard),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: MediaQuery.removePadding(
-                context: context,
-                removeTop: true,
-                child: app!,
-              ),
-            ),
-          ],
-        );
-      },
+      builder: (context, app) =>
+          roles.inMaintenance ? const MaintenanceScreen() : app!,
       child: child,
     );
   }
 }
 
-/// All the app shows in maintenance mode: a sorry message, and the
-/// admin's [message] when they left one. Nothing else: no tabs, camera or
-/// sign-in.
+/// All the app shows in maintenance mode: a sorry message. Nothing else:
+/// no tabs, camera or sign-in.
 class MaintenanceScreen extends StatelessWidget {
-  const MaintenanceScreen({super.key, this.message = ''});
-
-  final String message;
+  const MaintenanceScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -111,15 +63,6 @@ class MaintenanceScreen extends StatelessWidget {
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  if (message.trim().isNotEmpty) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      message.trim(),
-                      key: const Key('maintenance-message'),
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                  ],
                 ],
               ),
             ),

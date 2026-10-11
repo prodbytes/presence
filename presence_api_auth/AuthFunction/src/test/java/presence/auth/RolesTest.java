@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RolesTest {
@@ -63,23 +64,6 @@ class RolesTest {
     }
 
     @Test
-    void theHandlerReturnsTheRolesAsJson() {
-        var handler = new AuthHandler(roles, profiles());
-        var response = handler.handleRequest(event(verified("julio@nu01.com")), null);
-        assertEquals(200, response.getStatusCode());
-        assertEquals("application/json", response.getHeaders().get("Content-Type"));
-        assertEquals("no-store", response.getHeaders().get("Cache-Control"));
-        assertEquals("{\"email\":\"julio@nu01.com\",\"profile\":null,\"roles\":[\"presence_admin\","
-                + "\"presence_premium\",\"presence_root\",\"presence_user\"]}", response.getBody());
-
-        var none = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", none.getBody());
-
-        var noClaims = handler.handleRequest(new APIGatewayV2HTTPEvent(), null);
-        assertEquals("{\"email\":null,\"profile\":null,\"roles\":[]}", noClaims.getBody());
-    }
-
-    @Test
     void theModeIsDevOnlyWithoutAnOidcClient() {
         assertEquals(ExecutionMode.DEV, ExecutionMode.of(null));
         assertEquals(ExecutionMode.DEV, ExecutionMode.of(" "));
@@ -88,30 +72,49 @@ class RolesTest {
 
     @Test
     void theAnonymousUserMayOnlySignInUnderRbac() {
-        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC);
+        var handler = new AuthHandler(ExecutionMode.RBAC);
         var response = handler.handleRequest(anonymous(), null);
         assertEquals(200, response.getStatusCode());
+        assertEquals("application/json", response.getHeaders().get("Content-Type"));
         assertEquals("no-store", response.getHeaders().get("Cache-Control"));
         assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
-                + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false},"
-                + "\"maintenance\":{\"on\":false,\"message\":\"\"}}", response.getBody());
+                + "\"settings\":{\"oidc\":true,\"aws\":false,\"rbacr\":false}}", response.getBody());
+    }
+
+    @Test
+    void theAnonymousRouteAnswersExactlyWhatTheDeploySmokeCheckExpects() {
+        // Maintenance mode is rbacr's now: no "maintenance" here.
+        var handler = new AuthHandler(ExecutionMode.RBAC,
+                Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket", "rbacr_token"));
+        var body = handler.handleRequest(anonymous(), null).getBody();
+        assertEquals("{\"mode\":\"RBAC\",\"roles\":[\"presence_anonymous\"],"
+                + "\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":true}}", body);
+        assertFalse(body.contains("maintenance"));
+    }
+
+    @Test
+    void theHandlerAnswersOnlyTheAnonymousRoute() {
+        // GET /api/auth is gone: the app asks rbacr for its roles.
+        var event = event(verified("julio@nu01.com"));
+        event.setRouteKey("GET /api/auth");
+        var response = new AuthHandler(ExecutionMode.RBAC).handleRequest(event, null);
+        assertEquals(404, response.getStatusCode());
     }
 
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
-        var handler = new AuthHandler(roles, profiles(), ExecutionMode.DEV);
+        var handler = new AuthHandler(ExecutionMode.DEV);
         assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_premium\",\"presence_root\",\"presence_user\"],"
-                + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false},"
-                + "\"maintenance\":{\"on\":false,\"message\":\"\"}}",
+                + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false}}",
                 handler.handleRequest(anonymous(), null).getBody());
     }
 
     @Test
     void theAnonymousRouteSaysWhichSettingsAreSet() {
-        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC,
+        var handler = new AuthHandler(ExecutionMode.RBAC,
                 Settings.of("123-abc.apps.googleusercontent.com", "us-east-1:pool", "bucket"));
         assertTrue(handler.handleRequest(anonymous(), null).getBody()
-                .contains(",\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":false},"));
+                .endsWith(",\"settings\":{\"oidc\":true,\"aws\":true,\"rbacr\":false}}"));
         assertEquals(new Settings(false, false), Settings.of(null, " ", ""));
         // AWS sync needs both the identity pool and the bucket.
         assertEquals(new Settings(true, false), Settings.of("id", "us-east-1:pool", null));
@@ -120,29 +123,67 @@ class RolesTest {
         assertEquals(new Settings(true, true, false), Settings.of("id", "pool", "bucket", " "));
     }
 
+    private static final String GOOGLE = "https://accounts.google.com";
+
+    /** A verified Google account, subject {@code sub}. */
+    private static Caller caller(String sub, String email) {
+        return Caller.of(Map.of("iss", GOOGLE, "sub", sub, "email", email, "email_verified", "true"));
+    }
+
+    /** A profile {@code sub} (with {@code email}) owns. */
+    private static Profiles.Profile ownedBy(String sub, String email) {
+        return new Profiles.Profile("p", "", GOOGLE + "#" + sub, email, null);
+    }
+
     @Test
-    void signedInUsersStillGetTheirOwnRolesInRbac() {
-        var handler = new AuthHandler(roles, profiles(), ExecutionMode.RBAC);
-        var response = handler.handleRequest(event(Map.of("email", "x@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"x@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
+    void theOwnerSharesNothingWithItself() {
+        var owner = caller("pat", "pat@example.com");
+        assertEquals(Set.of(), roles.shared(owner, ownedBy("pat", "pat@example.com")));
+        // Its own roles are still its own.
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of(owner, ownedBy("pat", "pat@example.com")));
+    }
+
+    @Test
+    void aLinkedAccountSharesItsOwnersMembershipAndPremium() {
+        var linked = caller("home", "someone@example.com");
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("pat", "pat@example.com")));
+        assertEquals(Set.of(Roles.USER), roles.shared(linked, ownedBy("ana", "ana@example.com")));
+        // An owner who isn't a member (or has a role the app doesn't use) shares nothing.
+        assertEquals(Set.of(), roles.shared(linked, ownedBy("nobody", "nobody@example.com")));
+        assertEquals(Set.of(), roles.shared(linked, ownedBy("vic", "vic@example.com")));
+        // No profile, or an owner without a verified email: nothing.
+        assertEquals(Set.of(), roles.shared(linked, null));
+        assertEquals(Set.of(), roles.shared(linked, ownedBy("pat", null)));
+        // An unverified caller shares nothing.
+        var unverified = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "someone@example.com",
+                "email_verified", "false"));
+        assertEquals(Set.of(), roles.shared(unverified, ownedBy("pat", "pat@example.com")));
+    }
+
+    @Test
+    void administrationIsNeverShared() {
+        var linked = caller("home", "someone@example.com");
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("boss", "boss@example.com")));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("julio", "julio@nu01.com")));
+    }
+
+    @Test
+    void theRolesForAProfileAreTheCallersOwnAndWhatItShares() {
+        // ana is free on her own; linked to pat's profile, premium too.
+        var ana = caller("ana", "ana@example.com");
+        var pats = ownedBy("pat", "pat@example.com");
+        assertEquals(Set.of(Roles.USER), roles.of(ana));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(ana, pats));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of(ana, pats));
+        // An admin linked to a free owner keeps its own administration.
+        var boss = caller("boss", "boss@example.com");
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.USER), roles.of(boss, ownedBy("ana", "ana@example.com")));
     }
 
     static APIGatewayV2HTTPEvent anonymous() {
         var event = new APIGatewayV2HTTPEvent();
         event.setRouteKey(AuthHandler.ANONYMOUS_ROUTE);
         return event;
-    }
-
-    @Test
-    void emailsAreEscapedInTheResponse() {
-        var handler = new AuthHandler(new Roles(e -> Set.of()), profiles());
-        var response = handler.handleRequest(event(Map.of("email", "a\"b@example.com", "email_verified", "true")), null);
-        assertEquals("{\"email\":\"a\\\"b@example.com\",\"profile\":null,\"roles\":[]}", response.getBody());
-    }
-
-    /** Profiles for tokens without a subject: none. */
-    static Profiles profiles() {
-        return new Profiles(new MemoryProfiles());
     }
 
     /**
@@ -162,16 +203,5 @@ class RolesTest {
         var authorizer = APIGatewayV2HTTPEvent.RequestContext.Authorizer.builder().withJwt(jwt).build();
         var context = APIGatewayV2HTTPEvent.RequestContext.builder().withAuthorizer(authorizer).build();
         return APIGatewayV2HTTPEvent.builder().withRequestContext(context).build();
-    }
-
-    @Test
-    void aFailureAnswersASanitized502() {
-        var failing = new Roles(e -> {
-            throw new IllegalStateException("arn:aws:dynamodb:us-east-1:123456789012:table/x");
-        });
-        var response = new AuthHandler(failing, profiles()).handleRequest(event(verified("ana@example.com")), null);
-        assertEquals(502, response.getStatusCode());
-        assertEquals("{\"error\":\"the auth service failed\",\"cause\":\"IllegalStateException\"}",
-                response.getBody());
     }
 }

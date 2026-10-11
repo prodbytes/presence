@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/account_sheet.dart';
 import '../auth/auth_service.dart';
-import '../auth/membership_client.dart';
+import '../auth/rbacr_client.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
 import '../cloud/cloud_sync.dart';
@@ -27,7 +27,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.signedIn,
     required this.auth,
     required this.roles,
-    required this.membership,
+    required this.rbacr,
     required this.profiles,
     required this.log,
     this.sync,
@@ -42,7 +42,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool signedIn;
   final AuthService auth;
   final RolesService roles;
-  final MembershipClient membership;
+  final RbacrClient rbacr;
   final ProfileClient profiles;
   final EventLog log;
   final CloudSync? sync;
@@ -102,7 +102,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
             SignUpButton(
               auth: auth,
               roles: roles,
-              membership: membership,
+              rbacr: rbacr,
               profiles: profiles,
             ),
           AccountButton(
