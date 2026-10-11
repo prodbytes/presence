@@ -48,6 +48,8 @@
 #   GOOGLE_WEB_CLIENT_ID  the web OAuth client the identity pool trusts
 #   HOSTED_ZONE_ID        the Route 53 zone of presence.nu01.com
 #                (both default to the repo's .env, from the private repo)
+#   INGEST_CONCURRENCY  the cloud detector's reserved concurrency (default 0:
+#                none; the account's Lambda quota must leave 10 unreserved)
 #   GOOGLE_DEVICE_CLIENT_ID  presence-streamer's device sign-in client, whose
 #                ID tokens the auth API accepts too (optional; also .env)
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
@@ -94,6 +96,7 @@ esac
 SITE_STACK=$stack_prefix-web
 AUTH_STACK=$stack_prefix-auth-api
 HEALTH_STACK=$stack_prefix-health
+INGEST_STACK=$stack_prefix-ingest
 PAYMENTS_STACK=$stack_prefix-payments
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
@@ -243,10 +246,21 @@ echo "    payment links: monthly ${STRIPE_MONTHLY_LINK:-none}, yearly ${STRIPE_Y
 
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
-aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
-  --template-file presence_infra/user-data.yaml \
-  --parameter-overrides "AllowedOrigins=$ORIGINS" \
-  --no-fail-on-empty-changeset
+# The bucket notifies the ingest stack's function (presence_ingest), which
+# needs the bucket first: deployed with the function it has (none on a new
+# stage), then again below once the ingest stack is up.
+ingest_function_arn() {
+  stack_output "$INGEST_STACK" IngestFunctionArn 2>/dev/null || true
+}
+deploy_user_data() {
+  aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
+    --template-file presence_infra/user-data.yaml \
+    --parameter-overrides "AllowedOrigins=$ORIGINS" "IngestFunctionArn=$1" \
+    --no-fail-on-empty-changeset
+}
+INGEST_ARN="$(ingest_function_arn)"
+[[ "$INGEST_ARN" == None ]] && INGEST_ARN=
+deploy_user_data "$INGEST_ARN"
 aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
   --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
   --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
@@ -270,6 +284,30 @@ if [[ ! "$IOT_ENDPOINT" =~ ^[a-z0-9]+-ats\.iot\.[a-z0-9-]+\.amazonaws\.com$ ]]; 
 fi
 echo "    bucket: $USER_DATA_BUCKET, identity pool: $COGNITO_IDENTITY_POOL_ID, feedback: $FEEDBACK_TABLE"
 echo "    live sync: policy $LIVE_POLICY_NAME, endpoint $IOT_ENDPOINT"
+
+# presence-streamer's cloud detector (presence_ingest): its model first
+# (checked by SHA-256), then the stack, then the bucket's notification of it.
+echo "==> deploying $INGEST_STACK"
+bash scripts/models.sh presence_ingest/IngestFunction/models
+(
+  cd presence_ingest
+  sam build
+  sam deploy --stack-name "$INGEST_STACK" --region "$AWS_REGION" \
+    --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$INGEST_STACK" \
+    --parameter-overrides "UserDataBucket=$USER_DATA_BUCKET" \
+      "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
+      "IngestConcurrency=${INGEST_CONCURRENCY:-0}" \
+    --no-confirm-changeset --no-fail-on-empty-changeset
+)
+NEW_INGEST_ARN="$(ingest_function_arn)"
+if [[ ! "$NEW_INGEST_ARN" =~ ^arn:aws:lambda:[a-z0-9-]+:[0-9]{12}:function:$stack_prefix-[A-Za-z0-9_-]+$ ]]; then
+  echo "error: unexpected ingest function '$NEW_INGEST_ARN'" >&2
+  exit 1
+fi
+if [[ "$NEW_INGEST_ARN" != "$INGEST_ARN" ]]; then
+  echo "==> notifying $NEW_INGEST_ARN of streamer jobs"
+  deploy_user_data "$NEW_INGEST_ARN"
+fi
 
 # 2. The web app
 # The app asks rbacr itself: it reads these at build time (scripts/dart-defines.sh); never the token.

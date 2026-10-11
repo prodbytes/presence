@@ -32,18 +32,21 @@ script](install-script.md#streamer).
 `presence-streamer` (or `presence-streamer run`) streams.
 `presence-streamer setup` does everything before the streaming and exits:
 
-1. **The profile ID.** On a terminal it **asks for it at every start**
-   (`Presence profile ID [<saved>]:`, Enter keeps the saved one). Without a
-   terminal (the service), it takes `--profile` / `PRESENCE_STREAMER_PROFILE`,
-   else the saved one. It must look like a profile ID (`a_b_c`, at most 64).
-   Another profile than the saved one forgets the saved sign-in.
+1. **The profile ID**, never asked:
+   - `PRESENCE_STREAMER_PROFILE` (the environment, set before it runs) or
+     `--profile`, else the one saved;
+   - **with none, the signed-in account's own:** after the sign-in (2) it
+     asks `GET /api/auth/profile` and keeps that one ("This account's
+     profile is …").
+   It must look like a profile ID (`a_b_c`, at most 64). Another profile
+   than the saved one forgets the saved sign-in.
 2. **A Google sign-in**, the first time: Google's **device flow**. It shows
    a URL (google.com/device) and a code that someone enters on a phone or
    computer, with an account of that profile. The scope is `openid email`.
    The refresh token is kept, so later starts (and the service) need no one.
 3. **Checks**, before the sign-in is kept and at every renewal:
    - `GET /api/auth/profile` with the ID token must answer the **profile
-     asked for**. Otherwise it stops: "this Google account's profile is X,
+     given** (when one was). Otherwise it stops: "this Google account's profile is X,
      not Y". **A profile ID alone grants nothing**, since only an account of
      the profile can sign in to it.
    - `POST /api/auth/credentials` (the device ID as the body, so the device
@@ -101,22 +104,30 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
 
 | Source, encoder | Commands |
 |---|---|
-| camera module, hw | `rpicam-vid --codec h264 --inline --intra <fps> --bitrate … -o -` piped into `ffmpeg -f h264 -c:v copy` |
-| camera module, sw (Pi 5) | `rpicam-vid --codec yuv420 -o -` into `ffmpeg -f rawvideo … -c:v libx264` |
+| camera module, hw | `rpicam-vid --codec libav --libav-format mpegts --libav-video-codec h264_v4l2m2m --intra <fps> --bitrate … -o -` piped into `ffmpeg -f mpegts -c:v copy` |
+| camera module, sw (Pi 5) | the same with `--libav-video-codec libx264` |
 | USB, hw | `ffmpeg -f v4l2 … -c:v h264_v4l2m2m -g <fps>` |
 | USB, sw | `ffmpeg -f v4l2 … -c:v libx264 -preset veryfast -tune zerolatency -g <fps>` |
 
 - **1280×720 at 30 fps, 2.5 Mbit/s**, a keyframe every second, no audio
   (camera modules have no microphone), all settable. `--rotation 180` for
   an upside-down camera module.
+- **MPEG-TS from the camera module**, not raw H.264. It carries each
+  frame's real time. A Pi that can't keep up the frame rate still makes
+  chunks as long as the time they cover: a Zero makes about 23 fps at 720p.
+  With raw H.264, ffmpeg assumed 30 fps, so an 8 s recording became a 5.8 s
+  video. That was found on the Pi Zero.
 - **Chunks:** ffmpeg's segment muxer cuts the stream at keyframes into MP4
   files (`+faststart`) of `--chunk` (30 s, 10 s to 5 min) in the spool,
   named by their run and **UTC start**: `rec-<run>-20261011T143345.mp4`
   (ffmpeg runs with `TZ=UTC`; the run is new each time ffmpeg starts, so a
   clock gone back can't reuse a name). The time is the event's.
 - **Finished chunks** (`recorder.Segments`) are the ones ffmpeg lists as
-  done in its segment list (`segments-<run>.csv`) and those there before it
-  started; every one while it isn't running. They're taken oldest first by
+  done in its segment list (`segments-<run>.csv`, read a whole line at a
+  time as it grows; what's been processed is forgotten) and those there
+  before it started; every one while it isn't running. The list's start and end
+  times give each chunk's length, so ffprobe (about 4 s a chunk on a Pi Zero)
+  runs only for a chunk from an earlier run. They're taken oldest first by
   when they were written, so a clock gone back doesn't reorder them or make
   the one being written look finished.
 - **Restarts:** when the recorder stops it's started again after 2 s,
@@ -134,18 +145,33 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
 `stream` package. Finished chunks are taken oldest first, one at a time
 (every 2 s while there are none):
 
-1. **Broken** (ffprobe ran and couldn't read it, e.g. cut by a power cut):
+1. **No motion: deleted here, before anything is uploaded**, which spares
+   S3's storage and requests:
+   - The motion is the app's motion score ([Motion clips](motion-clips.md)):
+     the percentage of a 64×48 grayscale frame's pixels whose brightness
+     changed by more than 24/255, after the median change (exposure, a light
+     switched on) is taken off.
+   - It's scored between consecutive **keyframes** (one a second), which
+     ffmpeg decodes alone (`-skip_frame nokey`, scaled to 64×48 gray), in
+     one pass, cheap even on a Pi Zero.
+   - The chunk's motion is its highest score. At **5 % or less**
+     (`--motion-min`, `PRESENCE_STREAMER_MOTION_MIN`; 0 keeps every chunk)
+     it's deleted: "no motion (0.0%), deleted".
+   - A chunk with one keyframe has nothing to compare, so it's kept.
+   - A chunk ffmpeg can't read is broken (next).
+   - Done once per chunk: the score is kept with its progress.
+2. **Broken** (ffprobe or ffmpeg ran and couldn't read it, e.g. cut by a power cut):
    deleted, if it isn't ingested yet. ffprobe cancelled, killed or missing
    isn't the chunk's fault: it's tried again. Its length is kept with its
    progress, so it's probed once.
-2. **Sealed** with the device's key, in the app's format ([Media
+3. **Sealed** with the device's key, in the app's format ([Media
    encryption](encryption.md#sealed-format); the app's test
    `streamer_seal_test.dart` opens the streamer's fixture), and **uploaded
    to ingest**: `<identityId>/ingest/<deviceId>/<clipId>.mp4`. The clip ID
    (and the event ID) are made like the app's (`AppEvent.newId`), from the
    chunk's start. The sealed copy is kept until the chunk is stored or
    deleted.
-3. **Searched:** ffmpeg decodes only its **keyframes** (`-skip_frame
+4. **Searched** (here, with 2 GB of memory or more; else see [Cloud detection](#cloud-detection)): ffmpeg decodes only its **keyframes** (`-skip_frame
    nokey`, one a second, as on Android), at most 1280 px wide, to JPEGs. The
    detector looks at each:
    - `presence-detect.py`, kept running (started again if it dies), with
@@ -159,8 +185,8 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
      horse, sheep, cow, elephant, bear, zebra, giraffe) scoring **0.5** or
      more, as the app's subjects. Its frame, at most 640 px wide, is the
      thumbnail.
-4. **No subject:** deleted, from ingest and the spool.
-5. **A subject:** stored as a phone stores a motion clip:
+5. **No subject:** deleted, from ingest and the spool.
+6. **A subject:** stored as a phone stores a motion clip:
    - the thumbnail, sealed, to `media/<clipId>.jpg`;
    - the recording **moved** (a server-side copy and delete) from ingest to
      `media/<clipId>.mp4`. If the move fails (it was moved already, before
@@ -180,7 +206,7 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
    - All JSON is compact and one line; media is `application/octet-stream`
      and JSON `application/json`, in Intelligent-Tiering, as single PUTs
      ([Recording and data formats](data-formats.md)).
-6. **Its progress** is kept beside it (`<chunk>.json`: the IDs, whether
+7. **Its progress** is kept beside it (`<chunk>.json`: the IDs, whether
    it's ingested, the detector's answer, each upload done). A chunk
    interrupted by a restart or the network carries on where it was, with
    the same IDs, and nothing is uploaded twice.
@@ -212,10 +238,87 @@ on-the-fly S3 remote, `:s3:<bucket>/<identityId>/<key>`.
   it; see [Auth API](auth-api.md)), or `--bucket`. `--s3-endpoint` points at
   another S3 (tests).
 
+## Cloud detection
+
+**On a Pi with less than 2 GB of memory**, searching on the device would
+take too much of it. There the chunks are searched in the cloud instead:
+
+- **Which:** `--detection` (`PRESENCE_STREAMER_DETECTION`). `auto` (the
+  default) reads `MemTotal` in `/proc/meminfo`: under 1.5 GiB means the
+  cloud. A 2 GB board reports a little under 2 GiB, a 1 GB one under 1
+  GiB. `local` and `cloud` force it. The log says which, and why
+  ("detection: in the cloud (427 MB of memory, less than 2 GB)").
+- **On the Pi**, each chunk with motion is sealed and uploaded to ingest,
+  then its **job**, `ingest/<deviceId>/<clipId>.ingest.json`:
+  `{"v": 1, "event", "clip"}`, the clip record and event a phone would
+  store, without object tags. The chunk is then **deleted from the
+  device**. Nothing waits for the cloud's answer, and Python, OpenCV and
+  the model aren't needed or started.
+- **The device's key must be in the bucket first** (its settings,
+  uploaded at start): the detector needs it to open the chunk. Until it
+  is, chunks wait in the spool.
+- **In the cloud:** the user-data bucket notifies **presence_ingest** (a
+  Python 3.13 Lambda on arm64,
+  [presence_ingest/](../presence_ingest/README.md)) of each job. That's
+  S3's `ObjectCreated` with the suffix `.ingest.json`, so nothing it writes
+  calls it again. It:
+  1. reads the device's key from its settings;
+  2. opens the chunk, checking it was sealed by that device;
+  3. searches a frame a second with the same model, labels and thresholds
+     as the Pi's detector (OpenCV 4.14);
+  4. with **no one**, deletes the chunk and the job from S3;
+  5. with **someone**, writes the sealed thumbnail (at most 640 px wide)
+     to `media/<clipId>.jpg` and copies the recording to
+     `media/<clipId>.mp4`. Then the clip record and, last, the event with
+     its object tags (0.6 or more, plus the subject). Then it deletes
+     ingest's copies and the job, last.
+- **It trusts only the job's key.** The identity, device and clip come
+  from the key (`<identity>/ingest/<device>/<clip>.ingest.json`, each
+  checked by pattern). The job must agree with it: same clip and device, a
+  `clip_requested` event, safe IDs, times between 2020 and 2100, and records
+  that can be written. A job that doesn't is deleted with its chunk. It
+  writes only in that identity's folder. Jobs are at most 64 KB, chunks
+  256 MB.
+- **A chunk is untrusted input:** any premium user can write their own
+  ingest prefix, and their own devices' keys. So:
+  - only an MP4 is opened (its `ftyp` box). OpenCV's FFmpeg may read only
+    local files and only the MP4 demuxer
+    (`OPENCV_FFMPEG_CAPTURE_OPTIONS`);
+  - videos are at most 1920×1080, with at most 5 minutes at 60 fps
+    decoded;
+  - the search gives up 30 s before the function's 120 s timeout, and the
+    chunk is deleted, not retried;
+  - its files are in one work folder, emptied before each job, because a
+    run killed mid-way leaves them and Lambda doesn't clear `/tmp`.
+- **Retries:** each step can be done again. A job whose device's key isn't
+  up yet fails and is retried (Lambda's default for S3's notifications:
+  twice, within 6 hours; changing it needs
+  `lambda:PutFunctionEventInvokeConfig`, which the deploy roles lack). One whose
+  chunk is gone has its job deleted, and so does a broken one. What still
+  fails stays in ingest until the bucket's lifecycle expires it (90 days).
+- **The function** runs with 2048 MB, 120 s and 2 GB of `/tmp`. It has no
+  reserved concurrency by default (`IngestConcurrency`, from
+  `INGEST_CONCURRENCY` in `deploy.sh`, 0). The account's Lambda quota is
+  10, and AWS keeps 10 unreserved, so none can be reserved until it's
+  raised. Its role
+  may get jobs, chunks and devices' settings, list the bucket (so a
+  missing object answers 404), put `media/`, `clips/` and `events/`, and
+  delete in `ingest/`, under the stage's permissions boundary. The package
+  is 179 MB of Linux arm64 wheels (OpenCV, NumPy, cryptography) and the
+  model, built by its Makefile whatever the machine.
+- **Deploy:** `scripts/deploy.sh` downloads the model (`scripts/models.sh`,
+  shared with the Pi's build, from
+  `presence_streamer/detector/models.txt`) and deploys the user-data stack
+  with the function it has. Then the `<prefix>-ingest` stack. Then the
+  user-data stack again with `IngestFunctionArn`, its bucket notification:
+  S3 needs the function's permission before it can notify it. The Deploy
+  workflows set up Python 3.13 for its build.
+
 ## The `ingest/` prefix
 
-`<identityId>/ingest/<deviceId>/` holds sealed chunks only while they're
-searched: each is moved to `media/` or deleted within moments. The app
+`<identityId>/ingest/<deviceId>/` holds sealed chunks (and, in the cloud
+mode, their jobs) only while they're searched: each is moved to `media/`
+or deleted within moments. The app
 never lists it ([Cloud sync](cloud-sync.md) reads `events/`, `clips/`,
 `media/` and `devices/`). What a crash or a failed delete leaves expires
 with the bucket's 90-day lifecycle. The profile's role already allows its
@@ -260,9 +363,12 @@ Details:
 | `/etc/default/presence-streamer` | settings, `PRESENCE_STREAMER_*` (conffile) |
 | `/var/lib/presence-streamer/` | the state and spool (the user's home, 700) |
 
-- **Depends:** `adduser`, `ffmpeg (>= 7:5.1)`, `rclone`, `python3`,
-  `python3-opencv`, `python3-numpy`, all from Debian / Raspberry Pi OS for
-  both architectures. **Recommends:** `rpicam-apps | libcamera-apps`.
+- **Depends:** `adduser`, `ffmpeg (>= 7:5.1)`, `rclone`, from Debian /
+  Raspberry Pi OS for both architectures. **Recommends:** `rpicam-apps |
+  libcamera-apps`. **Suggests:** `python3`, `python3-opencv`,
+  `python3-numpy`, needed only to search on the device. The install script
+  adds them on a Pi with 2 GB or more; one under 2 GB searches in the
+  cloud.
 - **postinst** makes the `presence-streamer` system user (groups `video`
   and `render`, for the camera and the encoder) and its folder, and
   **enables the service for every boot**. On an upgrade, it restarts it if
@@ -297,7 +403,8 @@ Every flag is also `PRESENCE_STREAMER_<NAME>` (the service reads them from
 `/etc/default/presence-streamer`): `profile`, `api`
 (https://presence.nu01.com; https://rc.presence.nu01.com for the RC),
 `bucket`, `s3-endpoint`, `source`, `device`, `encoder`, `width`, `height`,
-`fps`, `bitrate`, `rotation`, `chunk`, `spool-max-mb`, `bwlimit`,
+`fps`, `bitrate`, `rotation`, `chunk`, `motion-min` (5), `detection`
+(`auto`), `spool-max-mb`, `bwlimit`,
 `camera-label`, `location`, `detector-threads`, `state-dir`, the tools'
 paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 `models`) and the Google client.
@@ -377,10 +484,54 @@ paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
   went back, chunks deleted on a cancelled probe, a stuck chunk holding up
   the rest, root's `run` locking out the service, slow stops, and the auth
   API's answers going unchecked into URLs. All fixed, with tests.
-- **Not yet on a real Raspberry Pi:** the camera module through
-  `rpicam-vid`, the hardware encoder, USB cameras, systemd at boot, a
-  real Google device sign-in and the real bucket (which need the OAuth
-  client above).
+- **On a real Raspberry Pi Zero W** (2026-10-11): ARMv6, one core, 512 MB,
+  Raspbian 13 armhf, Camera Module v2 (imx219), reached over SSH. The
+  end-to-end test was cross-compiled with GOARM=6, ran on its camera, and
+  uploaded to a local S3 there:
+  - **Detection:** `auto` chose the cloud, as the Zero has 427 MB.
+  - **Recording:** the camera module through `rpicam-vid` with the
+    hardware encoder (`bcm2835-codec-encode`). The recorder takes about
+    46 % of the CPU.
+  - **Motion filter:** with the camera on a dark, still scene, every chunk
+    scored 0.0 % and was deleted without an upload. The motion test passes
+    on the Zero's own ffmpeg: a still picture has none, a moving pattern
+    does.
+  - **Upload, worst case** (filter off): with 30 s chunks the Zero kept up
+    for 4 minutes, sealing and uploading each chunk and its job within its
+    30 s. With 10 s chunks it can't. Its costs per chunk: sealing in Go at
+    2.55 MB/s (1.2 s for 10 s of video), about 2.4 s per rclone call, and
+    about 4 s for an ffprobe, which is why lengths now come from ffmpeg's
+    segment list.
+  - **Cloud detector, on those real chunks:** the function ran in AWS's
+    Lambda Python 3.13 arm64 image (the runtime emulator) against a local
+    S3 holding them. It opened each with the key the Zero published in its
+    settings and searched it in about 0.4 s. It found no one in the dark
+    and deleted them, leaving only the chunk stopped mid-upload.
+  - **Timestamps:** the Zero's frame rate at 720p (about 23 fps) is why the
+    camera now sends MPEG-TS (above). Its keyframes come every 1.1 s
+    (`--intra` through libav works).
+  - **The service's sandbox:** a unit with exactly its hardening, as its
+    user, recorded with the camera module and the hardware encoder.
+  - **The package:** the armhf `.deb` installed without OpenCV and was
+    enabled for every boot.
+- **The cloud detector:** `pytest` (34 tests).
+  - **Seal:** the Python seal reproduces the Go fixture byte for byte and
+    opens it.
+  - **Handler, with a fake S3:** every outcome; a job twice done once; a
+    missing key retried; jobs that don't match their key refused; writes
+    only in the job's folder; the Go streamer's job fixture accepted.
+  - **Labels:** the same as the Pi's.
+  - **Untrusted input:** not an MP4, too big a picture, past the deadline,
+    a job too big, times out of range, unwritable text, and settings that
+    don't read are each refused or retried, and the work folder is
+    emptied.
+  - **Real detection:** a person found 1.5 s into a video.
+  - **Built package:** in the Lambda arm64 image, with sealed jobs in a
+    local S3, the person's chunk was stored (`human` 0.994) and its
+    recording opened identical, and the empty one was deleted.
+- **Not yet:** a Pi 4 or 5 (searching on the device), USB cameras,
+  systemd at boot, a real Google sign-in, and the real bucket and deployed
+  function (the next release and deploy).
 
 ## Known limitations
 
@@ -394,8 +545,29 @@ paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
 - **A chunk is the clip:** a subject at the very end of one chunk and the
   start of the next makes two events.
 - **No audio.**
-- **The detector is slow on a Pi Zero** (seconds a frame). Chunks queue
-  in the spool while it catches up, up to its cap.
+- **A Pi Zero needs chunks of 30 s or more** (the default): it can't seal
+  and upload 10 s chunks as fast as it records them. Under 2 GB of memory
+  it doesn't search on the device at all (cloud detection).
+- **Motion is scored a second apart**, between keyframes. Something that
+  moves in and out between two keyframes isn't seen.
+- **Cloud detection costs a Lambda run per chunk with motion** (about
+  half a second at 2 GB), and its events reach the app a little later than
+  a device-searched one's.
+- **A flood of jobs can take the account's Lambdas.** The account's quota
+  is 10 concurrent executions, all shared: a premium user uploading many
+  jobs could throttle the auth API for everyone while they run. Each job
+  is bounded (above), but no cap can be reserved until the quota is
+  raised (Service Quotas, "Concurrent executions"). Then set
+  `INGEST_CONCURRENCY` to a few.
+- **The cloud detector can read every profile's keys.** Its role reads
+  every device's settings, and it decodes a user's bytes. MP4 only and
+  local files only narrow that. Credentials scoped to the job's folder (an
+  assumed role with a session policy) would close it, but need a new role,
+  which the deploy roles can't make yet.
+- **Ingest's deleted chunks stay 30 days as old versions** (the bucket is
+  versioned), paying their storage. Deleting the version too needs
+  `s3:DeleteObjectVersion`, which the permissions boundary (applied by
+  hand) doesn't allow yet.
 - **The SD card is written continuously** (the spool). `--state-dir` (or
   `PRESENCE_STREAMER_STATE_DIR`) on another disk or a tmpfs spares it.
 - **No subject recognition** (who it is): only object detection. The app's

@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  presence-streamer's cloud detector (presence-ingest): S3 calls it for each
+  job a streamer uploads to <identity>/ingest/<device>/<clip>.ingest.json; it
+  opens the sealed chunk with the device's key, looks for people and animals
+  (YOLOv4-tiny, OpenCV) and stores it as the profile's clip and event, or
+  deletes it. The user-data stack's bucket notification points here
+  (IngestFunctionArn). See specs/streamer.md.
+
+Parameters:
+  UserDataBucket:
+    Type: String
+    Description: The user-data bucket (presence-user-data's UserDataBucketName).
+    AllowedPattern: '[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]'
+  PermissionsBoundary:
+    Type: String
+    Default: ''
+    Description: >
+      The stage's permissions boundary (<prefix>-app-boundary), on the
+      function's role; empty for none.
+
+  IngestConcurrency:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    Description: >
+      The most chunks searched at once (reserved concurrency), so a flood of
+      jobs can't take every Lambda in the account; 0 for no cap. AWS keeps
+      10 unreserved: on an account limited to 10 (a new account's quota),
+      it must stay 0 until the quota is raised.
+
+Conditions:
+  HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
+  HasConcurrency: !Not [!Equals [!Ref IngestConcurrency, 0]]
+
+Resources:
+  IngestFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      # The Makefile installs Linux arm64 wheels (OpenCV, NumPy,
+      # cryptography) and the model, whatever machine builds it.
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: ingest.app.handler
+      Runtime: python3.13
+      Architectures: [arm64]
+      # A 720p chunk decoded and searched a frame a second: OpenCV wants
+      # memory, and memory is CPU on Lambda.
+      MemorySize: 2048
+      # A 5-minute 720p chunk takes well under a minute; the search gives up
+      # (deletes) 30 s before this, so a crafted chunk costs at most this.
+      Timeout: 120
+      ReservedConcurrentExecutions: !If [HasConcurrency, !Ref IngestConcurrency, !Ref AWS::NoValue]
+      EphemeralStorage:
+        Size: 2048
+      PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
+      Environment:
+        Variables:
+          BUCKET: !Ref UserDataBucket
+          MODELS_DIR: /var/task/models
+          OPENCV_LOG_LEVEL: ERROR
+      # Lambda's own retries for S3's notifications (twice, within 6 hours;
+      # setting them needs lambda:PutFunctionEventInvokeConfig, which the
+      # deploy roles don't have): a job whose device's key isn't up yet is
+      # tried again, and one that still fails stays in ingest/ until the
+      # bucket's lifecycle expires it.
+      Policies:
+        - Statement:
+            # Its jobs, their chunks and the devices' keys.
+            - Effect: Allow
+              Action: s3:GetObject
+              Resource:
+                - !Sub arn:aws:s3:::${UserDataBucket}/*/ingest/*
+                - !Sub arn:aws:s3:::${UserDataBucket}/*/devices/*/settings.json
+            # A missing object answers 404, not 403.
+            - Effect: Allow
+              Action: s3:ListBucket
+              Resource: !Sub arn:aws:s3:::${UserDataBucket}
+            # What a phone would upload for a clip.
+            - Effect: Allow
+              Action: s3:PutObject
+              Resource:
+                - !Sub arn:aws:s3:::${UserDataBucket}/*/media/*
+                - !Sub arn:aws:s3:::${UserDataBucket}/*/clips/*
+                - !Sub arn:aws:s3:::${UserDataBucket}/*/events/*
+            - Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub arn:aws:s3:::${UserDataBucket}/*/ingest/*
+
+  # S3 may call it, from this bucket and account only.
+  IngestInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt IngestFunction.Arn
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${UserDataBucket}
+      SourceAccount: !Ref AWS::AccountId
+
+Outputs:
+  IngestFunctionArn:
+    Description: The function the user-data bucket notifies (IngestFunctionArn there).
+    Value: !GetAtt IngestFunction.Arn

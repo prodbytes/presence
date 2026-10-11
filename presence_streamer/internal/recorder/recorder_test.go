@@ -28,16 +28,15 @@ func TestCommands(t *testing.T) {
 	segment := "-f segment -segment_time 30 -segment_format mp4 -segment_format_options movflags=+faststart -reset_timestamps 1 -strftime 1 -segment_list /spool/segments-0.csv -segment_list_type csv /spool/rec-0-%Y%m%dT%H%M%S.mp4"
 
 	camera, ffmpeg := joined(t, config("libcamera", "hw"))
-	if camera != "rpicam-vid -n -t 0 --framerate 30 --width 1280 --height 720 --codec h264 --inline --intra 30 --bitrate 2500000 --flush -o -" {
+	if camera != "rpicam-vid -n -t 0 --framerate 30 --width 1280 --height 720 --codec libav --libav-format mpegts --libav-video-codec h264_v4l2m2m --intra 30 --bitrate 2500000 -o -" {
 		t.Errorf("libcamera hw camera: %s", camera)
 	}
-	if ffmpeg != "ffmpeg -hide_banner -loglevel warning -nostdin -f h264 -framerate 30 -i pipe:0 -c:v copy "+segment {
+	if ffmpeg != "ffmpeg -hide_banner -loglevel warning -nostdin -f mpegts -i pipe:0 -c:v copy "+segment {
 		t.Errorf("libcamera hw ffmpeg: %s", ffmpeg)
 	}
 
 	camera, ffmpeg = joined(t, config("libcamera", "sw"))
-	if !strings.Contains(camera, "--codec yuv420") || !strings.Contains(ffmpeg, "-f rawvideo -pix_fmt yuv420p -video_size 1280x720") ||
-		!strings.Contains(ffmpeg, "-c:v libx264") {
+	if !strings.Contains(camera, "--libav-video-codec libx264") || !strings.Contains(ffmpeg, "-f mpegts -i pipe:0 -c:v copy") {
 		t.Errorf("libcamera sw: %s | %s", camera, ffmpeg)
 	}
 
@@ -98,8 +97,31 @@ func TestSegments(t *testing.T) {
 	if len(got) != 2 || got[0] != old || got[1] != first {
 		t.Fatalf("while recording: %v", got)
 	}
-	s.stopped()
+	if d, ok := s.Length(first); !ok || d != 30*time.Second {
+		t.Fatalf("length %v, %v", d, ok)
+	}
+	if _, ok := s.Length(old); ok {
+		t.Fatal("a length for a chunk ffmpeg didn't list")
+	}
+	// Lines are read as they come, a half-written one not yet.
+	f, _ := os.OpenFile(list, os.O_APPEND|os.O_WRONLY, 0)
+	f.WriteString("rec-b-20261011T080030.mp4,30.000000,6")
+	if got := s.Finished(); len(got) != 2 {
+		t.Fatalf("a half-written line: %v", got)
+	}
+	f.WriteString("0.000000\n")
+	f.Close()
 	if got := s.Finished(); len(got) != 3 {
+		t.Fatalf("the line finished: %v", got)
+	}
+	// A processed (deleted) chunk is forgotten.
+	os.Remove(first)
+	s.Finished()
+	if _, ok := s.Length(first); ok || len(s.lengths) != 1 {
+		t.Fatalf("lengths kept %v", s.lengths)
+	}
+	s.stopped()
+	if got := s.Finished(); len(got) != 2 {
 		t.Fatalf("stopped: %v", got)
 	}
 	if _, err := os.Stat(list); !os.IsNotExist(err) {

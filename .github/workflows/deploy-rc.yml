@@ -118,6 +118,13 @@ jobs:
           distribution: temurin
           java-version: "25"
 
+      # presence-streamer's cloud detector (presence_ingest) is a Python
+      # Lambda: its build pip-installs Linux arm64 wheels (not into the
+      # runner's system Python, which refuses it).
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
       - uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
         with:
           use-installer: true

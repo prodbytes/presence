@@ -2,6 +2,7 @@ package records
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -61,5 +62,21 @@ func TestKeys(t *testing.T) {
 	if RecordingKey("c1") != "media/c1.mp4" || ThumbnailKey("c1") != "media/c1.jpg" ||
 		SettingsKey("d") != "devices/d/settings.json" || IngestKey("d", "x") != "ingest/d/x.mp4" {
 		t.Error("media, settings or ingest key")
+	}
+}
+
+// The job fixture presence_ingest's tests check with the cloud detector
+// (test_app.py); UPDATE_FIXTURE=1 writes it again.
+func TestJobFixture(t *testing.T) {
+	event, clip := ClipOf(Chunk{Start: time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC), Duration: 30 * time.Second},
+		"hmnhfi8000-0aaaaaa", "hmnhfi8000-12ifwo6", Camera{ID: "libcamera", Label: "Raspberry Pi camera"},
+		"able_adept_gadget", "42", "automatic_paranoid_axolotl", nil)
+	got := JSON(Job{V: 1, Event: event, Clip: clip})
+	const fixture = "../../testdata/job-fixture.json"
+	if os.Getenv("UPDATE_FIXTURE") == "1" {
+		os.WriteFile(fixture, got, 0o644)
+	}
+	if want, err := os.ReadFile(fixture); err != nil || string(want) != string(got) {
+		t.Fatalf("the job isn't the committed fixture (%v)", err)
 	}
 }

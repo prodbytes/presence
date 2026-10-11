@@ -47,6 +47,8 @@ on:
       - packaging/**
       - presence_streamer/**
       - scripts/streamer.sh
+      - scripts/models.sh
+      - presence_ingest/**
       - scripts/dart-defines.sh
       - scripts/version.sh
       - version.X.txt
@@ -311,6 +313,20 @@ jobs:
       - name: Test
         working-directory: presence_streamer
         run: go test ./...
+
+      # The cloud detector (presence_ingest, deployed by the Deploy
+      # workflows) decides what the small Pis' chunks become.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      - name: Test the cloud detector
+        working-directory: presence_ingest
+        run: |
+          python -m venv "$RUNNER_TEMP/ingest"
+          # boto3 is the Lambda runtime's own, so it's not in requirements.txt.
+          "$RUNNER_TEMP/ingest/bin/pip" install --quiet -r IngestFunction/requirements.txt pytest boto3
+          "$RUNNER_TEMP/ingest/bin/python" -m pytest -q
 
       - name: make streamer
         env:

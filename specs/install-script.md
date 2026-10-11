@@ -16,6 +16,11 @@ https://sh.presence.nu01.com serves the script at every path (see
 - **Release:** the latest GA, read from the `releases/latest` redirect
   rather than the API, which rate-limits anonymous calls. `PRESENCE_TAG`
   picks another tag.
+- **Checksums** come from the release API's `digest` of each asset. GitHub
+  pretty-prints that JSON for curl (`"name": "…"`), so the scripts strip
+  its whitespace before reading it. Until 2026-10-11 they didn't, found no
+  checksum, and the kiosk and streamer installs, which require one,
+  stopped.
 - **Native app** (Linux `x86_64` → `x64`, `aarch64` → `arm64`): downloads
   `presence-<tag>-linux-<arch>.tar.gz` from the release, checks its sha256
   against the digest the release API lists for the asset, and extracts it to
@@ -80,9 +85,10 @@ curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- automatic_paranoid_a
 curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_paranoid_axolotl sh
 ```
 
-- **The profile** is the first argument, else `PRESENCE_PROFILE`. Without
-  one, or with one that isn't a profile ID (`a_b_c`, at most 64), it says
-  how to run it and exits 2.
+- **The profile** is the first argument, else `PRESENCE_PROFILE` (or
+  `PRESENCE_STREAMER_PROFILE`), set before it runs. Without one, `setup`
+  runs without `--profile` and takes the profile of the account that signs
+  in. One that isn't a profile ID (`a_b_c`, at most 64) stops it (exit 2).
 - **The app shows the command**, with the profile filled in, to copy and
   paste on the Pi: the account sheet's **Stream from a Raspberry Pi** box
   (`StreamerCommand`, [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
@@ -100,19 +106,23 @@ curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_pa
   and **requires** its sha256 from the release API, since it installs as
   root. A mismatch, or no checksum, stops it.
 - **Installs** with `sudo apt-get update` and `sudo apt-get install -y`
-  (no sudo as root), which brings ffmpeg, rclone and OpenCV. The package
-  enables `presence-streamer.service` for every boot.
+  (no sudo as root), which brings ffmpeg and rclone. On a Pi with 1.5 GiB
+  of memory (`MemTotal`) or more, it adds OpenCV (`python3-opencv`,
+  `python3-numpy`; the package only suggests them). A smaller Pi searches
+  its chunks in the cloud and doesn't need OpenCV, about 200 MB. The
+  package enables `presence-streamer.service` for every boot.
 - **Sets up** with `sudo presence-streamer setup --profile <ID>`, its stdin
   the terminal (`/dev/tty`, since the script's own stdin is curl's pipe).
   That shows the Google sign-in code, checks the profile is Premium, and
   starts the service. Without a terminal it says the command to run.
 - Verified in Docker (Debian 13 arm64, Debian 12 armhf emulated), with a
-  fake `curl` serving the release's `.deb` and the API's checksum: without
-  a profile, or with `x; rm -rf /`, it exits 2; a wrong checksum stops it
-  before apt; it installs the package and its dependencies, the boot link
-  is made, and `setup` gets the profile from the argument and from
-  `PRESENCE_PROFILE` (stopping there, at the sign-in, for want of the
-  Google client in a local build).
+  fake `curl` serving the release's `.deb` and the API's checksum: with
+  `x; rm -rf /` it exits 2; a wrong checksum stops it before apt; it
+  installs the package and its dependencies, the boot link is made, and
+  `setup` gets the profile from the argument, `PRESENCE_PROFILE` and
+  `PRESENCE_STREAMER_PROFILE`, or runs without one (the account's), each
+  time stopping at the sign-in for want of the Google client in a local
+  build.
 
 ## Known limitations
 

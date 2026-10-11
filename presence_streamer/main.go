@@ -54,11 +54,12 @@ const (
 )
 
 type options struct {
-	profile, stateDir, api, bucket, endpoint, clientID, clientSecret string
-	source, device, encoder, cameraLabel, location, bwlimit          string
-	width, height, fps, bitrate, rotation, spoolMaxMB, threads       int
-	chunk                                                            time.Duration
-	detector, models, python, rclone, ffmpeg, ffprobe, rpicam        string
+	profile, stateDir, api, bucket, endpoint, clientID, clientSecret   string
+	source, device, encoder, cameraLabel, location, bwlimit, detection string
+	width, height, fps, bitrate, rotation, spoolMaxMB, threads         int
+	motionMin                                                          float64
+	chunk                                                              time.Duration
+	detector, models, python, rclone, ffmpeg, ffprobe, rpicam          string
 }
 
 // env is the PRESENCE_STREAMER_<name> setting, or def.
@@ -180,7 +181,7 @@ func asServiceUser(command string, args []string) (int, bool) {
 func parse(name string, args []string) (*options, *flag.FlagSet) {
 	o := &options{}
 	fs := flag.NewFlagSet("presence-streamer "+name, flag.ExitOnError)
-	fs.StringVar(&o.profile, "profile", env("PROFILE", ""), "the profile to stream to (asked on a terminal when not given)")
+	fs.StringVar(&o.profile, "profile", env("PROFILE", ""), "the profile to stream to (default: the saved one, else the signed-in account's)")
 	fs.StringVar(&o.stateDir, "state-dir", defaultStateDir(), "where the device ID, key, sign-in and spool are kept")
 	fs.StringVar(&o.api, "api", env("API", "https://presence.nu01.com"), "the Presence site (its auth API)")
 	fs.StringVar(&o.bucket, "bucket", env("BUCKET", ""), "the user-data bucket, when the auth API doesn't name it")
@@ -190,6 +191,12 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 	fs.StringVar(&o.source, "source", env("SOURCE", "auto"), "auto, libcamera (camera module), v4l2 (USB) or test")
 	fs.StringVar(&o.device, "device", env("DEVICE", ""), "the v4l2 device (default /dev/video0), or test's video file")
 	fs.StringVar(&o.encoder, "encoder", env("ENCODER", "auto"), "auto, hw (the Pi's H.264 encoder) or sw")
+	motionMin, err := strconv.ParseFloat(env("MOTION_MIN", "5"), 64)
+	if err != nil {
+		motionMin = 5
+	}
+	fs.Float64Var(&o.motionMin, "motion-min", motionMin, "the least motion (percent of the picture changed, as the app measures it) a chunk needs to be uploaded; 0 uploads every chunk")
+	fs.StringVar(&o.detection, "detection", env("DETECTION", "auto"), "where chunks are searched for people and animals: auto (here with 2 GB of memory or more, else in the cloud), local or cloud")
 	fs.IntVar(&o.width, "width", envInt("WIDTH", 1280), "video width")
 	fs.IntVar(&o.height, "height", envInt("HEIGHT", 720), "video height")
 	fs.IntVar(&o.fps, "fps", envInt("FPS", 30), "frames per second")
@@ -224,8 +231,8 @@ func usage() {
 	fmt.Fprint(os.Stderr, `presence-streamer: streams a Raspberry Pi camera to a Presence profile.
 
 Usage:
-  presence-streamer [run] [flags]  ask for the profile, sign in if needed, and stream
-  presence-streamer setup [flags]  ask for the profile and sign in, then exit
+  presence-streamer [run] [flags]  sign in if needed, and stream to the profile
+  presence-streamer setup [flags]  sign in (the Google code), then exit
   presence-streamer status         the profile, device and sign-in
   presence-streamer sign-out       forget the Google sign-in
   presence-streamer version
@@ -302,8 +309,8 @@ func orNone(s string) string {
 	return s
 }
 
-// terminal is the controlling terminal, for questions; nil when there's
-// none (a service), so nothing is asked.
+// terminal is the controlling terminal, for the sign-in's code; nil when
+// there's none (a service).
 func terminal() *os.File {
 	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
 	if err != nil {
@@ -312,37 +319,15 @@ func terminal() *os.File {
 	return tty
 }
 
-func ask(tty *os.File, question string) (string, error) {
-	fmt.Fprint(tty, question)
-	line, err := bufio.NewReader(tty).ReadString('\n')
-	if err != nil && line == "" {
-		return "", err
-	}
-	return strings.TrimSpace(line), nil
-}
-
-// chooseProfile asks for the profile on a terminal (the saved one by
-// default), or takes --profile, or the saved one.
-func chooseProfile(o *options, s *state.State, tty *os.File) (string, error) {
+// chooseProfile is the profile to stream to: --profile (or
+// PRESENCE_STREAMER_PROFILE), else the one saved. Empty when neither is
+// set: then it's the signed-in account's own, fetched after the sign-in.
+func chooseProfile(o *options, s *state.State) (string, error) {
 	profile := o.profile
-	if profile == "" && tty != nil {
-		question := "Presence profile ID (in the app's account sheet): "
-		if s.ProfileID != "" {
-			question = fmt.Sprintf("Presence profile ID [%s]: ", s.ProfileID)
-		}
-		answer, err := ask(tty, question)
-		if err != nil {
-			return "", err
-		}
-		profile = answer
-	}
 	if profile == "" {
 		profile = s.ProfileID
 	}
-	if profile == "" {
-		return "", errors.New("no profile: run presence-streamer setup on a terminal, or pass --profile")
-	}
-	if !ids.ProfilePattern.MatchString(profile) || len(profile) > 64 {
+	if profile != "" && (!ids.ProfilePattern.MatchString(profile) || len(profile) > 64) {
 		return "", fmt.Errorf("%q isn't a profile ID (they look like automatic_paranoid_axolotl)", profile)
 	}
 	return profile, nil
@@ -383,12 +368,12 @@ func run(o *options, setupOnly bool) int {
 	if tty != nil {
 		defer tty.Close()
 	}
-	profile, err := chooseProfile(o, s, tty)
+	profile, err := chooseProfile(o, s)
 	if err != nil {
 		log.Print(err)
 		return exitUsage
 	}
-	if profile != s.ProfileID {
+	if profile != "" && profile != s.ProfileID {
 		// Another profile: another account's sign-in.
 		s.ProfileID, s.RefreshToken, s.Email = profile, "", ""
 		if err := s.Save(); err != nil {
@@ -401,7 +386,7 @@ func run(o *options, setupOnly bool) int {
 	api := &presence.API{BaseURL: o.api}
 	if s.RefreshToken == "" {
 		if tty == nil {
-			log.Print("not signed in: run presence-streamer setup on a terminal")
+			log.Print("not signed in: run presence-streamer setup on a terminal (PRESENCE_STREAMER_PROFILE, or --profile, picks the profile; else it's the account's)")
 			return exitUsage
 		}
 		tokens, err := signIn(ctx, g, tty)
@@ -410,6 +395,14 @@ func run(o *options, setupOnly bool) int {
 			return exitError
 		}
 		claims, _ := google.ClaimsOf(tokens.IDToken)
+		if profile == "" {
+			// None given: the account's own.
+			if profile, err = api.Profile(ctx, tokens.IDToken); err != nil {
+				return exitFor(err, s, logf)
+			}
+			fmt.Fprintf(tty, "This account's profile is %s.\n", profile)
+			s.ProfileID = profile
+		}
 		// Checked before it's kept: the account must be the profile's, and
 		// the profile premium.
 		if _, err := session.Check(ctx, api, tokens.IDToken, profile, s.DeviceID); err != nil {
@@ -434,6 +427,51 @@ func run(o *options, setupOnly bool) int {
 		return 0
 	}
 	return streamCamera(ctx, o, s, sess, creds, logf)
+}
+
+// localDetectionMemory is the least memory (MemTotal) a Pi detects with
+// itself: its 2 GB boards report a little less than 2 GiB (some goes to the
+// GPU and the kernel), the 1 GB ones under 1 GiB.
+const localDetectionMemory = 1536 << 20
+
+// memTotal is the system's memory (MemTotal in /proc/meminfo), or 0 when it
+// can't be read.
+func memTotal() int64 {
+	data, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if rest, ok := strings.CutPrefix(line, "MemTotal:"); ok {
+			kb, err := strconv.ParseInt(strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(rest), "kB")), 10, 64)
+			if err == nil {
+				return kb << 10
+			}
+		}
+	}
+	return 0
+}
+
+// detectInCloud says whether chunks are searched in the cloud, and why:
+// mode local or cloud says so; auto decides by the memory (total bytes, 0
+// unknown), the cloud below 2 GB (detecting here takes too much of a smaller Pi's memory and CPU).
+func detectInCloud(mode string, total int64) (bool, string, error) {
+	switch mode {
+	case "local":
+		return false, "here (--detection local)", nil
+	case "cloud":
+		return true, "in the cloud (--detection cloud)", nil
+	case "auto", "":
+		switch {
+		case total == 0:
+			return false, "here (the memory is unknown)", nil
+		case total < localDetectionMemory:
+			return true, fmt.Sprintf("in the cloud (%d MB of memory, less than 2 GB)", total>>20), nil
+		default:
+			return false, fmt.Sprintf("here (%d MB of memory)", total>>20), nil
+		}
+	}
+	return false, "", fmt.Errorf("--detection %q: use auto, local or cloud", mode)
 }
 
 // clockSynced says whether the network has set the clock: systemd's
@@ -505,7 +543,16 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		log.Printf("--chunk %s: use 10s to 5m", o.chunk)
 		return exitUsage
 	}
-	for _, tool := range []string{o.ffmpeg, o.ffprobe, o.rclone, o.python} {
+	cloud, why, err := detectInCloud(o.detection, memTotal())
+	if err != nil {
+		log.Print(err)
+		return exitUsage
+	}
+	tools := []string{o.ffmpeg, o.ffprobe, o.rclone}
+	if !cloud {
+		tools = append(tools, o.python)
+	}
+	for _, tool := range tools {
 		if _, err := exec.LookPath(tool); err != nil {
 			log.Printf("%s isn't installed (sudo apt install ffmpeg rclone python3-opencv)", tool)
 			return exitUsage
@@ -550,24 +597,35 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}
 	logf("camera: %s (%s, %s encoder), %dx%d at %d fps, %s chunks", label, rec.Source, rec.Encoder, rec.Width, rec.Height, rec.FPS, rec.Chunk)
 
+	logf("detection: %s", why)
+
 	detectorCmd := []string{o.python, "-I", o.detector,
 		"--cfg", filepath.Join(o.models, "yolov4-tiny.cfg"),
 		"--weights", filepath.Join(o.models, "yolov4-tiny.weights")}
 	if o.threads > 0 {
 		detectorCmd = append(detectorCmd, "--threads", strconv.Itoa(o.threads))
 	}
+	// Started only when a chunk is searched here, so never in the cloud's
+	// mode.
 	detector := &detect.Detector{Command: detectorCmd, Log: prefixed("detector: ")}
 	defer detector.Close()
 
+	segments := &recorder.Segments{Spool: spool}
 	st := &stream.Streamer{
-		Spool: spool, Store: folder, Searcher: detector,
+		Spool: spool, Store: folder, Searcher: detector, Cloud: cloud,
 		Keyframes: func(ctx context.Context, chunk, dir string) ([]detect.Frame, error) {
 			return detect.Keyframes(ctx, o.ffmpeg, chunk, dir, time.Second)
 		},
 		Duration: func(ctx context.Context, chunk string) (time.Duration, error) {
 			return detect.Duration(ctx, o.ffprobe, chunk)
 		},
-		Key: key, DeviceID: s.DeviceID, ProfileID: s.ProfileID, UserID: sess.UserID,
+		Length: segments.Length,
+		Motion: func(ctx context.Context, chunk string) (float64, error) {
+			motion, _, err := detect.Motion(ctx, o.ffmpeg, chunk)
+			return motion, err
+		},
+		MotionMin: o.motionMin,
+		Key:       key, DeviceID: s.DeviceID, ProfileID: s.ProfileID, UserID: sess.UserID,
 		Camera:      records.Camera{ID: rec.Source, Label: label},
 		Location:    location,
 		ObjectScore: 0.6,
@@ -599,7 +657,6 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 		}
 	}()
 
-	segments := &recorder.Segments{Spool: spool}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {

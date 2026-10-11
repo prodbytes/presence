@@ -4,6 +4,7 @@
 #
 #   curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>
 #   curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=<profile ID> sh
+#   curl -fsSL https://sh.presence.nu01.com/streamer | sh     (the signed-in account's profile)
 #
 # (https://sh.presence.nu01.com/streamer serves this file: presence_sh/,
 # deployed on *GA tags. The raw GitHub URL of this file on main works too.)
@@ -19,6 +20,8 @@
 #
 # Environment:
 #   PRESENCE_PROFILE  the profile ID, when not given as the argument
+#                     (or PRESENCE_STREAMER_PROFILE); without one, the
+#                     profile of the account that signs in
 #   PRESENCE_TAG      release tag to install (default: the latest GA release)
 set -eu
 
@@ -36,8 +39,10 @@ latest_tag() {
 # The asset's sha256 from the release API, or nothing if the API is
 # unreachable or rate limited.
 asset_sha256() {
+  # GitHub pretty-prints its JSON for curl ("name": "…"): without the
+  # whitespace, each field is "key":"value" on a line of its own.
   curl -fsS "https://api.github.com/repos/$REPO/releases/tags/$1" 2>/dev/null |
-    tr ',' '\n' |
+    tr -d ' \t\r\n' | tr ',' '\n' |
     awk -v name="\"name\":\"$2\"" '
       index($0, name) { found = 1 }
       found && /"digest":"sha256:/ { sub(/.*sha256:/, ""); sub(/".*/, ""); print; exit }
@@ -53,15 +58,8 @@ sha256_of() {
 }
 
 main() {
-  profile=${1:-${PRESENCE_PROFILE:-}}
-  case "$profile" in
-    "")
-      say "give the profile ID: curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>"
-      say "(the Presence app shows it, and this command, in the account sheet)"
-      return 2
-      ;;
-  esac
-  if ! printf '%s' "$profile" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' || [ "${#profile}" -gt 64 ]; then
+  profile=${1:-${PRESENCE_PROFILE:-${PRESENCE_STREAMER_PROFILE:-}}}
+  if [ -n "$profile" ] && { ! printf '%s' "$profile" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' || [ "${#profile}" -gt 64 ]; }; then
     say "'$profile' isn't a profile ID (they look like automatic_paranoid_axolotl)"
     return 2
   fi
@@ -113,17 +111,33 @@ main() {
   fi
   chmod 644 "$tmp/$asset"
 
-  say "installing $asset (apt-get install, with ffmpeg, rclone and OpenCV)"
-  $sudo apt-get update -qq || say "apt-get update failed; installing with the package lists there are"
-  $sudo apt-get install -y "$tmp/$asset"
-
-  # The sign-in asks on the terminal: this script's own stdin is the pipe
-  # from curl.
-  say "setting up profile $profile"
-  if [ -r /dev/tty ]; then
-    $sudo presence-streamer setup --profile "$profile" </dev/tty
+  # With 2 GB of memory or more the streamer searches its chunks itself,
+  # with OpenCV (the package suggests it); with less, the cloud does.
+  opencv=
+  mem_kb=$(awk '/^MemTotal:/ { print $2 }' /proc/meminfo 2>/dev/null || true)
+  if [ -n "$mem_kb" ] && [ "$mem_kb" -lt 1572864 ]; then
+    say "$((mem_kb / 1024)) MB of memory: chunks are searched in the cloud"
   else
-    say "no terminal for the sign-in: run  sudo presence-streamer setup --profile $profile"
+    opencv="python3 python3-opencv python3-numpy"
+  fi
+  say "installing $asset (apt-get install, with ffmpeg and rclone${opencv:+ and OpenCV})"
+  $sudo apt-get update -qq || say "apt-get update failed; installing with the package lists there are"
+  # shellcheck disable=SC2086 # the package names, or none
+  $sudo apt-get install -y "$tmp/$asset" $opencv
+
+  # The sign-in shows its code on the terminal: this script's own stdin is
+  # the pipe from curl.
+  if [ -n "$profile" ]; then
+    say "setting up profile $profile"
+    set -- --profile "$profile"
+  else
+    say "setting up the profile of the account that signs in"
+    set --
+  fi
+  if [ -r /dev/tty ]; then
+    $sudo presence-streamer setup "$@" </dev/tty
+  else
+    say "no terminal for the sign-in: run  sudo presence-streamer setup $*"
     return 1
   fi
 }
