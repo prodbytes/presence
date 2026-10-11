@@ -5135,3 +5135,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and the kiosk's digests of 0.6.202610111933-GA, as GitHub lists them.
        Earlier tests had missed it: their fake curl answered compact JSON.
        Specs: [Install script](install-script.md).
+
+369. **The streamer's command, with the profile, in the profile panel.** (2026-10-11)
+     - Asked: the profile should be the signed-in user's; the profile
+       panel should give the user the curl | sh command to stream,
+       including the profile ID.
+     - Already so: the account sheet's **Stream from a Raspberry Pi** box,
+       under the plan, shows `curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>`
+       with the signed-in account's profile and **Copy command**, for a
+       premium profile (request 361). Without a profile the streamer takes
+       the signed-in account's own (request 367), and with one it checks
+       the account is that profile's.
+     - Changed: released 0.6.202610112020 (RC and GA), so the install URL
+       serves the installer with the checksum fix (request 368). Until then
+       the command stopped at "couldn't get the checksum from GitHub".
+       Specs unchanged.
