@@ -4712,3 +4712,36 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and `UntagResource` on the stage's APIs again;
        `presence-github-deploy` redeployed. Spec: [Production
        deploy](deploy.md) (unchanged rules; the list was incomplete).
+
+346. **Pick the recognition that best tells Suerte from other black cats,
+     then run it in the cloud for premium users.** (2026-10-11)
+     - Asked: compare popular libraries, frameworks and services on
+       `test.local/images/cats` (Suerte, and other black cats; more added
+       later, with video stills and HEIC photos converted to JPEG there),
+       Amazon Rekognition included; then build a Lambda API with the best
+       (DINOv2-L) for premium users, a training check at start and every
+       24 h (labels timed, the last training kept in the settings,
+       training on enough new labels or enough time), and a separate
+       inference API that places the labels on subjects.
+     - Measured: MobileNetV3 (the app's), DINOv2 S/B/L, CLIP, SigLIP2,
+       MegaDescriptor T/L, MiewID; in a place Suerte was never seen, only
+       a classifier per subject over DINOv2-L separated her well (AUC 0.91
+       against the black cats). Rekognition's labels only say "Black
+       Cat"; Custom Labels and Bedrock's embeddings weren't allowed in the
+       account.
+     - Changed: [Cloud recognition](cloud-recognition.md), new. The auth
+       API gets `RecognitionTrainFunction` (`/api/recognition/status`,
+       `/labels`, `/train`) and `RecognitionInferFunction`
+       (`/api/recognition/identify`), premium only, DINOv2-L through ONNX
+       Runtime (the model fetched into `/tmp` and kept in the bucket's
+       `models/`), the `RecognitionTable` and throttles; built by a
+       Makefile into their own jar (`RecognitionFunction`); Floci gets
+       the routes. The app: tags get `labeledAt`, settings
+       `recognition.cloudTrainedAt` and `cloudCheckedAt`; `CloudTrainer`
+       checks and trains, `SubjectRecognizer` asks the cloud about up to 8
+       crops a clip and keeps the surer verdict; Settings shows the last
+       training and **Train now**. Specs: [Subject
+       recognition](recognition.md), [Data formats](data-formats.md),
+       [Configuration](configuration.md), [Settings](settings.md),
+       [Premium](premium.md), [Auth API](auth-api.md),
+       [README](README.md).

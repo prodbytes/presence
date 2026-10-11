@@ -34,6 +34,7 @@ import 'identity/join_link.dart';
 import 'identity/launch_url.dart';
 import 'location/device_location.dart';
 import 'maintenance.dart';
+import 'recognition/cloud_recognition.dart';
 import 'recognition/recognizer.dart';
 import 'screen_off.dart';
 import 'tab_memory.dart';
@@ -82,8 +83,13 @@ class PresenceApp extends StatefulWidget {
     this.battery,
     this.links,
     this.recognizer,
+    this.cloudRecognition,
     this.screenOff,
   });
+
+  /// Overrides the recognition API (used by tests); defaults to the real
+  /// one when this build has cloud sync (premium profiles only).
+  final CloudRecognitionClient? cloudRecognition;
 
   /// Overrides the Screen off button's screen control (used by tests);
   /// defaults to the platform's ([ScreenOff]).
@@ -178,6 +184,9 @@ class _PresenceAppState extends State<PresenceApp> {
   late final LocationController _location;
   late final SubjectRecognizer _recognizer;
 
+  /// Cloud recognition (premium): keeps the profile's model trained.
+  CloudTrainer? _trainer;
+
   @override
   void initState() {
     super.initState();
@@ -219,10 +228,44 @@ class _PresenceAppState extends State<PresenceApp> {
     _location.init().ignore();
     // Settings restored from the cloud include the location set on the map.
     _persistence.onRemoteLocation = _location.applyRemote;
-    // Finds the subjects on each new clip once it's recorded.
+    // Cloud recognition, for premium profiles, in builds with cloud sync.
+    final cloudRecognition =
+        widget.cloudRecognition ??
+        (CloudConfig.enabled
+            ? HttpCloudRecognitionClient(ApiConfig.baseUrl)
+            : null);
+    // Finds the subjects on each new clip once it's recorded (and asks
+    // cloud recognition too, for a premium profile with a trained model).
     _recognizer =
         widget.recognizer?.call(_bus, _log, _config) ??
-        SubjectRecognizer(bus: _bus, log: _log, config: _config);
+        SubjectRecognizer(
+          bus: _bus,
+          log: _log,
+          config: _config,
+          cloud: cloudRecognition == null
+              ? null
+              : CloudIdentifier(
+                  auth: _auth,
+                  roles: _roles,
+                  config: _config,
+                  client: cloudRecognition,
+                ),
+        );
+    // Trains the profile's cloud model when there's enough new: checked
+    // when the app starts premium, and every 24 h.
+    if (cloudRecognition != null) {
+      _trainer = CloudTrainer(
+        auth: _auth,
+        roles: _roles,
+        log: _log,
+        config: _config,
+        client: cloudRecognition,
+        crop: _recognizer.cloudCrop,
+        now: widget.now == null
+            ? null
+            : () => widget.now!().millisecondsSinceEpoch,
+      )..start();
+    }
     _bus.publish(AppEvent.appStarted());
     _auth.addListener(_onAuthChanged);
     _rig = CameraRig(
@@ -559,6 +602,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _copies.dispose();
     _roles.dispose();
     _location.dispose();
+    _trainer?.dispose();
     _recognizer.dispose();
     _retention.dispose();
     _persistence.dispose();
@@ -572,6 +616,15 @@ class _PresenceAppState extends State<PresenceApp> {
 
   @override
   Widget build(BuildContext context) {
+    final app = _build(context);
+    // Settings' cloud recognition line (Train now).
+    return switch (_trainer) {
+      final trainer? => CloudTrainerScope(trainer: trainer, child: app),
+      null => app,
+    };
+  }
+
+  Widget _build(BuildContext context) {
     return AppEventBusScope(
       bus: _bus,
       child: SubjectRecognizerScope(

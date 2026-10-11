@@ -8,6 +8,7 @@ import 'camera_feeds.dart';
 import 'config.dart';
 import 'location/device_location.dart';
 import 'location/location_settings.dart';
+import 'recognition/cloud_recognition.dart';
 import 'recognition/runtime.dart';
 
 /// The Settings screen (the Settings tab), full width.
@@ -364,6 +365,7 @@ class _SettingsViewState extends State<SettingsView> {
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
+                const CloudRecognitionTile(),
               ],
             ),
             SettingsSection(

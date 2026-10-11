@@ -11,6 +11,8 @@ import 'package:presence_app/cameras/clip_player_controller.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
+import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/recognition/cloud_recognition.dart';
 import 'package:presence_app/recognition/frames.dart';
 import 'package:presence_app/recognition/image.dart';
 import 'package:presence_app/recognition/matching.dart';
@@ -1572,6 +1574,173 @@ void main() {
       expect(read.tight, isFalse);
       expect(MemoryStatus.fromMap(null), isNull);
     });
+
+    group('with cloud recognition', () {
+      const body = Box(0.3, 0.2, 0.7, 1);
+
+      SubjectRecognizer withCloud(
+        FakeVision vision,
+        FakeSampler sampler,
+        _FakeCloud cloud,
+      ) => SubjectRecognizer(
+        bus: bus,
+        log: log,
+        config: config,
+        runtime: FakeRuntime(),
+        sampler: sampler,
+        loadVision: () async => vision,
+        cloud: cloud,
+        decode: (jpeg) async {
+          final width = 1000 + jpeg.first;
+          return RgbaImage(width, 1, Uint8List(width * 4));
+        },
+      );
+
+      test(
+        'the cloud, surer than the device, tags where it saw them',
+        () async {
+          log.addHistory([
+            tagged(1, ['Rex']),
+          ]);
+          final vision = FakeVision(
+            {
+              // Rex's look, far from his reference: unsure on the device.
+              1: [seenAt(body, look: 80)],
+            },
+            {
+              1: [seenAt(body, look: 0)],
+            },
+          );
+          final cloud = _FakeCloud({
+            '0': const [CloudMatch('Rex', 0.97)],
+          });
+          final event = ClipRequested(clip(), id: 'new');
+          final result = await withCloud(
+            vision,
+            FakeSampler(3),
+            cloud,
+          ).recognize(event);
+
+          expect(cloud.asked.single.keys, ['0']);
+          final (kind, pixels) = cloud.asked.single['0']!;
+          expect(kind, 'person');
+          expect(pixels, hasLength(CloudCrop.side * CloudCrop.side * 3));
+          final rex = event.annotations.tags.single;
+          expect(rex.name, 'Rex');
+          expect(rex.source, TagSource.detected);
+          expect(rex.confidence, closeTo(0.97, 1e-9));
+          expect(rex.x, closeTo(body.cx, 1e-9));
+          expect(event.annotations.frames[rex.frameId]!.ms, 2000);
+          expect(
+            rex.labeledAt,
+            isNull,
+            reason: 'recognition\'s tag, not a label',
+          );
+          expect(result.tagged, ['Rex']);
+        },
+      );
+
+      test('asks about someone only the cloud knows, when unsure', () async {
+        log.addHistory([
+          tagged(1, ['Rex']),
+        ]);
+        final vision = FakeVision(
+          {
+            0: [seenAt(body, look: 90)],
+          },
+          {
+            1: [seenAt(body, look: 0)],
+          },
+        );
+        final cloud = _FakeCloud({
+          '0': const [CloudMatch('Ana', 0.7), CloudMatch('Rex', 0.1)],
+        });
+        final event = ClipRequested(clip(), id: 'new');
+        final result = await withCloud(
+          vision,
+          FakeSampler(2),
+          cloud,
+        ).recognize(event);
+        expect(result.asked, ['Ana']);
+        final ana = event.annotations.items.single;
+        expect(ana.source, TagSource.suggested);
+        expect(ana.confidence, closeTo(0.7, 1e-9));
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          published.whereType<SubjectSuggestion>().single.subjectName,
+          'Ana',
+        );
+      });
+
+      test('sends at most 8 crops, 2 a frame, best first', () async {
+        log.addHistory([
+          tagged(1, ['Rex']),
+        ]);
+        Seen at(double x, double score) => Seen(
+          Detection(Box(x, 0.2, x + 0.1, 1), score, SeenKind.person),
+          lookVector: direction(90),
+        );
+        final vision = FakeVision(
+          {
+            for (var i = 0; i < 6; i++)
+              i: [at(0, 0.5), at(0.2, 0.9), at(0.4, 0.7)],
+          },
+          {
+            1: [seenAt(body, look: 0)],
+          },
+        );
+        final cloud = _FakeCloud({});
+        await withCloud(
+          vision,
+          FakeSampler(6),
+          cloud,
+        ).recognize(ClipRequested(clip(), id: 'new'));
+        expect(cloud.asked.single, hasLength(8));
+      });
+
+      test('not asked when the cloud isn\'t available', () async {
+        log.addHistory([
+          tagged(1, ['Rex']),
+        ]);
+        final vision = FakeVision(
+          {
+            0: [seenAt(body, look: 80)],
+          },
+          {
+            1: [seenAt(body, look: 0)],
+          },
+        );
+        final cloud = _FakeCloud({}, available: false);
+        final sampler = FakeSampler(2);
+        await withCloud(
+          vision,
+          sampler,
+          cloud,
+        ).recognize(ClipRequested(clip(), id: 'new'));
+        expect(cloud.asked, isEmpty);
+      });
+
+      test(
+        'a label\'s crop for training: whom it points at, and its sort',
+        () async {
+          final old = tagged(1, ['Kitty']);
+          final vision = FakeVision(const {}, {
+            1: [seenAt(body, kind: SeenKind.cat)],
+            2: [seenAt(const Box(0, 0, 0.1, 0.1))],
+          });
+          final r = withCloud(vision, FakeSampler(1), _FakeCloud({}));
+          final crop = await r.cloudCrop(old, old.annotations.tags.single);
+          expect(crop!.$1, 'pet');
+          expect(crop.$2, hasLength(CloudCrop.side * CloudCrop.side * 3));
+          // Nobody where the label points.
+          final empty = tagged(2, ['Kitty']);
+          expect(
+            await r.cloudCrop(empty, empty.annotations.tags.single),
+            isNull,
+          );
+        },
+      );
+    });
   });
 
   testWidgets("the player's Auto tags who it recognizes", (tester) async {
@@ -1839,3 +2008,35 @@ VideoClip clip() => VideoClip.restored(
     end: const Duration(seconds: 30),
   ),
 );
+
+/// Cloud recognition without HTTP: answers [answer] (crop ID to matches)
+/// and records what it was asked.
+class _FakeCloud extends CloudIdentifier {
+  _FakeCloud(this.answer, {this.available = true})
+    : super(
+        auth: FakeAuthService.signedIn(),
+        roles: RolesService(auth: FakeAuthService(), client: FakeRolesClient()),
+        config: ConfigController(),
+        client: _UnusedClient(),
+      );
+
+  final Map<String, List<CloudMatch>> answer;
+
+  @override
+  final bool available;
+
+  final asked = <Map<String, (String, Uint8List)>>[];
+
+  @override
+  Future<Map<String, List<CloudMatch>>?> identify(
+    Map<String, (String, Uint8List)> crops,
+  ) async {
+    asked.add(crops);
+    return answer;
+  }
+}
+
+class _UnusedClient implements CloudRecognitionClient {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}

@@ -88,7 +88,7 @@ Clip events (`clip_requested`) add:
 | `clipId` | string | the clip record's ID |
 | `clipState` | string | `partial` (only the before part) or `complete` |
 | `trigger` | string | `manual`, `motion`, `scheduled`, `startup` or `all` ([Capture all](camera.md#capture-all)) |
-| `annotations` | array of objects | the people and pets tagged: `{id, name, x, y, frameId, frameMs, source, confidence}`; `source` is `detected`, `suggested` or `confirmed` (left out: tagged by someone); see [Clips](clips.md) |
+| `annotations` | array of objects | the people and pets tagged: `{id, name, x, y, frameId, frameMs, source, confidence, labeledAt}`; `source` is `detected`, `suggested` or `confirmed` (left out: tagged by someone); `labeledAt` (ms) when someone placed, confirmed or renamed it, left out for recognition's tags and older ones ([Cloud recognition](cloud-recognition.md)); see [Clips](clips.md) |
 | `objectTags` | array of objects | what recognition saw: `{label, ms, score}`, once per label; left out until searched (see [Subject recognition](recognition.md)) |
 
 [Event flags](event-flags.md) (such as *unidentified*) aren't stored:
