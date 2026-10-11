@@ -124,6 +124,10 @@ their data.
 - [Event retention](event-retention.md): events older than the History
   setting (two weeks; 1 day to 3 months) deleted from the device, with
   their clips, at load and every 3 hours.
+- [Local cloud](local-cloud.md): on the local stack, cloud and live sync
+  run against Floci (its bucket, its MQTT broker), the local auth API
+  standing in for Cognito Identity with made-up identities and
+  credentials; nothing reaches AWS.
 - [Cloud sync](cloud-sync.md): signed-in users' clips and events upload to
   S3, and each device's settings per profile (restored at sign-in), with
   credentials for their profile (the auth API, then a Cognito identity

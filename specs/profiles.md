@@ -338,14 +338,10 @@ deleted, and the contents live only in AWS.
 
 ## Known limitations
 
-- **Not locally with Floci:** Floci (the local AWS) has no Cognito
-  Identity: with an identity pool set in `.env`, `/api/auth/credentials`
-  fails with `CognitoIdentity GetId: UnknownOperationException (HTTP 400);
-  the endpoint doesn't implement it: a local AWS emulator (Floci, in the
-  local stack) has no CognitoIdentity, so this works only against AWS
-  (the RC or production)`, so cloud sync doesn't work on the local stack.
-  The health monitor says so too (🪣 aws ❌, see
-  [Dev environment](dev-environment.md)). Production and RC call AWS.
+- **Locally, no Cognito:** Floci (the local AWS) has no Cognito
+  Identity, so the local auth API runs `LocalCloudBackend`: made-up
+  identities and credentials for Floci's bucket (see [Local
+  cloud](local-cloud.md)). Production and RC call AWS.
 
 - **No merge:** a subject whose own profile has cloud data can't be
   linked. Its data expires with the bucket's 90 days, or it can stay

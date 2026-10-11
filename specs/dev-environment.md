@@ -71,13 +71,11 @@
     (`GOOGLE_WEB_CLIENT_ID` set, or ⚪ authentication off), ☁️ AWS
     (`COGNITO_IDENTITY_POOL_ID` and `USER_DATA_BUCKET` set, or ⚪ nothing
     shipped to S3) and 👮 RBACR (`.env`'s `RBACR_RC_TOKEN` set, or ⚪ the local auth API can't tell a linked account's shared membership or a profile's tier),
-    all three ❌ when the API doesn't answer. With AWS set, it also asks
-    Floci whether it implements Cognito Identity (an unsigned `GetId` for
-    a made-up pool): Floci answers `UnknownOperationException`, so ☁️ AWS
-    is ❌, since the local auth API can't issue credentials and the app's
-    cloud sync fails here (test it on the RC, or remove the settings from
-    `.env` to turn it off); if Floci ever implements it, it goes back to
-    ✅ by itself; last 💎 RBACR svc, the /health of
+    all three ❌ when the API doesn't answer. With AWS set, ☁️ AWS is ✅
+    when Floci has the [local cloud](local-cloud.md)'s bucket (the local
+    auth API then gives credentials itself), or implements Cognito
+    Identity (an unsigned `GetId` for a made-up pool); ❌ with neither,
+    since the local auth API couldn't issue credentials; last 💎 RBACR svc, the /health of
     rbacr's RC (`RBACR_RC_URL`, default https://rc.rbacr.nu01.com), which
     the local web build asks for the user's roles and the local auth API
     for shared membership. For example: `🏠 Index ✅ · … · 🔑 OIDC ⚪ · …`.

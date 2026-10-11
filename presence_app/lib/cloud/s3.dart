@@ -35,11 +35,13 @@ class S3Exception implements Exception {
   String toString() => 'S3 HTTP $statusCode: $body';
 }
 
-/// Signed uploads to one bucket (virtual-hosted-style URLs).
+/// Signed uploads to one bucket: virtual-hosted-style URLs in AWS, or
+/// path-style ones on [endpoint] (the local stack's Floci).
 class S3Bucket {
   S3Bucket({
     required this.bucket,
     required this.region,
+    this.endpoint,
     http.Client? client,
     DateTime Function()? now,
     AwsClock? clock,
@@ -49,20 +51,37 @@ class S3Bucket {
 
   final String bucket;
   final String region;
+
+  /// Another S3 than AWS's (`AWS_ENDPOINT`: the local stack's Floci,
+  /// `https://localhost:8443`): requests go to `<endpoint>/<bucket>/<key>`.
+  /// Null: AWS.
+  final Uri? endpoint;
   final http.Client _client;
 
   /// The time requests are signed with; corrected when AWS says it's off.
   final AwsClock clock;
   final SigV4Signer _signer;
 
-  String get host => '$bucket.s3.$region.amazonaws.com';
+  String get host => switch (endpoint) {
+    final endpoint? => endpoint.authority,
+    null => '$bucket.s3.$region.amazonaws.com',
+  };
+
+  /// The URL of [path] (`/<key>`, or `/` for the bucket) with [query].
+  Uri _uri(String path, [Map<String, String>? query]) => switch (endpoint) {
+    final endpoint? => endpoint.replace(
+      path: path == '/' ? '/$bucket' : '/$bucket$path',
+      queryParameters: query,
+    ),
+    null => Uri.https(host, path, query),
+  };
 
   /// Downloads [key].
   Future<Uint8List> get(
     String key, {
     required AwsCredentials credentials,
   }) async {
-    final response = await _send('GET', Uri.https(host, '/$key'), credentials);
+    final response = await _send('GET', _uri('/$key'), credentials);
     return response.bodyBytes;
   }
 
@@ -95,7 +114,7 @@ class S3Bucket {
     do {
       final response = await _send(
         'GET',
-        Uri.https(host, '/', {
+        _uri('/', {
           'list-type': '2',
           'prefix': prefix,
           'continuation-token': ?token,
@@ -176,7 +195,7 @@ class S3Bucket {
   /// bucket is versioned: it's kept as an old version until the lifecycle
   /// rule removes it.
   Future<void> delete(String key, {required AwsCredentials credentials}) async {
-    final uri = Uri.https(host, '/$key');
+    final uri = _uri('/$key');
     final headers = _signer.sign(
       method: 'DELETE',
       uri: uri,
@@ -288,7 +307,7 @@ class S3Bucket {
     required AwsCredentials credentials,
     bool onlyNew = false,
   }) async {
-    final uri = Uri.https(host, '/$key');
+    final uri = _uri('/$key');
     final headers = _signer.sign(
       method: 'PUT',
       uri: uri,
@@ -322,7 +341,7 @@ class S3Bucket {
     required String contentType,
     required AwsCredentials credentials,
   }) async {
-    final uri = Uri.https(host, '/$key');
+    final uri = _uri('/$key');
     final headers = _signer.sign(
       method: 'PUT',
       uri: uri,

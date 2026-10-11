@@ -63,8 +63,15 @@ setting() {
     fi
 }
 
-# Whether Floci implements Cognito Identity, which the local auth API calls
-# for cloud-sync credentials (POST /api/auth/credentials: GetId). It asks
+# Whether the local cloud is up: Floci's user-data bucket
+# (presence_floci/init/ready.d/03-local-cloud.sh), which the local auth API
+# gives credentials for itself (LocalCloudBackend) instead of Cognito.
+floci_has_local_cloud() {
+    [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -I "$FLOCI/presence-local-user-data")" == 200 ]]
+}
+
+# Whether Floci implements Cognito Identity, which an auth API without the
+# local cloud calls for cloud-sync credentials (GetId). It asks
 # Floci itself (an unsigned GetId for a made-up pool): an emulator without
 # the service answers UnknownOperationException; anything else (a real
 # error about the pool) means it's there.
@@ -96,9 +103,9 @@ check_api() {
     fi
     report "🔌 API" ✅
     setting "$body" "🔑 OIDC" oidc
-    # Set, but Floci has no Cognito Identity (GetId): the local auth API
-    # can't issue credentials, so the app's cloud sync fails here.
-    if [[ "$body" == *'"aws":true'* ]] && ! floci_has_cognito_identity; then
+    # Set, but Floci has no Cognito Identity (GetId) and there's no local
+    # cloud: the local auth API can't issue credentials, so cloud sync fails.
+    if [[ "$body" == *'"aws":true'* ]] && ! floci_has_local_cloud && ! floci_has_cognito_identity; then
         report "☁️ AWS" ❌
     else
         setting "$body" "☁️ AWS" aws

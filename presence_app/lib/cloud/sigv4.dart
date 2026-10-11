@@ -138,7 +138,8 @@ class SigV4Signer {
 
   /// A presigned WebSocket URL for AWS IoT Core's MQTT endpoint ([host],
   /// its `iot:Data-ATS` endpoint): `wss://<host><path>?X-Amz-...`, signed
-  /// with [credentials] for this signer's [service] (`iotdevicegateway`),
+  /// with [credentials] for this signer's [service] (`iotdevicegateway`);
+  /// [scheme] `ws` for the local stack's broker (Floci, plain on localhost),
   /// valid for [expires] from [now]. Only `host` is signed and the payload
   /// is empty; the session token is appended after signing, as AWS IoT
   /// requires. See
@@ -146,6 +147,7 @@ class SigV4Signer {
   String presignWebSocket({
     required String host,
     String path = '/mqtt',
+    String scheme = 'wss',
     required AwsCredentials credentials,
     required DateTime now,
     Duration expires = const Duration(hours: 1),
@@ -186,7 +188,7 @@ class SigV4Signer {
       key,
     ).convert(utf8.encode(stringToSign)).toString();
     final token = credentials.sessionToken;
-    return 'wss://$host$path?$canonicalQueryString'
+    return '$scheme://$host$path?$canonicalQueryString'
         '&X-Amz-Signature=$signature'
         '${token == null ? '' : '&X-Amz-Security-Token=${_uriEncode(token)}'}';
   }

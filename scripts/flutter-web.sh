@@ -17,6 +17,9 @@ PORT="${FLUTTER_WEB_PORT:-8080}"
 HOST="${PRESENCE_BIND_HOST:-127.0.0.1}"
 
 cd "$(dirname "$0")/../presence_app"
+# Cloud sync with the local stack's Floci, not AWS (scripts/dart-defines.sh);
+# PRESENCE_LOCAL_CLOUD=0 builds against the .env's AWS settings instead.
+export PRESENCE_LOCAL_CLOUD="${PRESENCE_LOCAL_CLOUD:-1}"
 source ../scripts/dart-defines.sh
 source ../scripts/version.sh
 flutter pub get

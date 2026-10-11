@@ -9,6 +9,46 @@ import 'package:presence_app/cloud/sigv4.dart';
 void main() {
   group('clock skew', clockSkewTests);
 
+  test('another endpoint (the local Floci) is reached path-style', () async {
+    final sent = <http.BaseRequest>[];
+    final bucket = S3Bucket(
+      bucket: 'presence-local-user-data',
+      region: 'us-east-1',
+      endpoint: Uri.parse('https://localhost:8443'),
+      now: () => DateTime.utc(2026, 10, 11),
+      client: MockClient((request) async {
+        sent.add(request);
+        return http.Response(
+          request.method == 'GET' && request.url.queryParameters.isNotEmpty
+              ? '<ListBucketResult><Contents><Key>us-east-1:id/a.json</Key>'
+                    '<ETag>&quot;e&quot;</ETag></Contents></ListBucketResult>'
+              : '',
+          200,
+        );
+      }),
+    );
+    const credentials = AwsCredentials(
+      accessKeyId: 'ASIALOCAL',
+      secretAccessKey: 'secret',
+    );
+    expect(bucket.host, 'localhost:8443');
+    await bucket.put(
+      'us-east-1:id/a.json',
+      Uint8List.fromList([1]),
+      contentType: 'application/json',
+      credentials: credentials,
+    );
+    expect(await bucket.list('us-east-1:id/', credentials: credentials), [
+      'us-east-1:id/a.json',
+    ]);
+    expect(
+      sent.first.url.toString(),
+      'https://localhost:8443/presence-local-user-data/us-east-1:id/a.json',
+    );
+    expect(sent[1].url.path, '/presence-local-user-data');
+    expect(sent[1].url.queryParameters['prefix'], 'us-east-1:id/');
+  });
+
   test('uploads use Intelligent-Tiering, and sign the storage class', () async {
     late http.Request sent;
     final bucket = S3Bucket(

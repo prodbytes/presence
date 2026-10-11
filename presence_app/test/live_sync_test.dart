@@ -292,6 +292,21 @@ void main() {
       expect(await off.publishEvent({'id': 'e', 'time': 1}, key: 'k'), isFalse);
     });
 
+    test("the local stack's broker: a signed ws:// URL on its port", () async {
+      final local = LiveSync(
+        endpoint: 'ws://localhost:4566',
+        region: 'us-east-1',
+        connect: broker.connect,
+        minRetry: const Duration(milliseconds: 5),
+        maxRetry: const Duration(milliseconds: 40),
+      );
+      addTearDown(local.dispose);
+      local.start(link());
+      await until(() => local.state == LiveSyncState.connected);
+      expect(broker.urls.single, startsWith('ws://localhost:4566/mqtt?'));
+      expect(broker.urls.single, contains('iotdevicegateway'));
+    });
+
     test('connects with a signed URL, as the identity, to its topic', () async {
       live.start(link());
       await until(() => live.state == LiveSyncState.connected);

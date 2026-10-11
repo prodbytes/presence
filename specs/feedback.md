@@ -107,8 +107,9 @@ calls DynamoDB's JSON API, signed with SigV4
   latest own message (email, name).
 - **Errors:** AWS's AccessDenied is 403, throttling 429, no table or no
   credentials 503.
-- **Locally**, Floci has no Cognito Identity, so local builds reach the
-  real table only with real credentials; in DEV there's no Help tab.
+- **Locally**, the [local cloud](local-cloud.md)'s web build has no
+  Feedback table (Floci's DynamoDB answers no CORS preflight), so Help is
+  off there; in DEV there's no Help tab.
 
 ### Known limitations
 

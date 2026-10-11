@@ -122,10 +122,14 @@ class CognitoCredentials {
   Future<CognitoSession> _fetch(String idToken) async {
     final profile = await _profileToken(idToken);
     final identityId = profile.identityId;
-    final result = await _call('GetCredentialsForIdentity', {
-      'IdentityId': identityId,
-      'Logins': {cognitoProvider: profile.token},
-    });
+    // The local stack's auth API answers the credentials itself (Floci has
+    // no Cognito Identity); in AWS, Cognito trades the token for them.
+    final result =
+        profile.credentials ??
+        await _call('GetCredentialsForIdentity', {
+          'IdentityId': identityId,
+          'Logins': {cognitoProvider: profile.token},
+        });
     final c = (result['Credentials'] as Map).cast<String, Object?>();
     final expiration = c['Expiration'];
     final session = CognitoSession(
@@ -147,9 +151,17 @@ class CognitoCredentials {
   }
 
   /// The profile's identity and a token for it, from the auth API, with
-  /// its devices. A rejected Google token (401) needs a new sign-in, as
+  /// its devices, and the credentials themselves when the auth API gives
+  /// them (the local stack: `{"Credentials": {...}}`, as Cognito answers). A rejected Google token (401) needs a new sign-in, as
   /// Cognito's own `NotAuthorizedException` would.
-  Future<({String identityId, String token, DeviceSlots? deviceSlots})>
+  Future<
+    ({
+      String identityId,
+      String token,
+      DeviceSlots? deviceSlots,
+      Map<String, Object?>? credentials,
+    })
+  >
   _profileToken(String idToken) async {
     String? device;
     try {
@@ -185,6 +197,10 @@ class CognitoCredentials {
       identityId: body['identityId']! as String,
       token: body['token']! as String,
       deviceSlots: DeviceSlots.fromJson(body),
+      credentials: switch (body['credentials']) {
+        final Map<String, Object?> c => {'Credentials': c},
+        _ => null,
+      },
     );
   }
 

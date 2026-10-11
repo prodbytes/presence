@@ -5058,3 +5058,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the prompt file moved to its own PR, as nothing is pushed
        to `main` directly. No spec change: it's a shorter list than
        CLAUDE.md's "Do a barrel roll", without releases.
+
+365. **Local cloud sync on Floci.** (2026-10-11)
+     - Asked: fix the local health line's ☁️ AWS ❌ (check the live AWS
+       setup and fetch any IDs: `.env` already matched it; the cause was
+       Floci's missing Cognito Identity); then, rather than giving the
+       local stack real AWS credentials, run it all on Floci.
+     - Found: Floci emulates S3 (over HTTPS, with CORS per bucket), STS
+       and an MQTT broker (`ws://localhost:4566/mqtt`, verified with the
+       app's own client), but not Cognito Identity's `GetId`,
+       `GetOpenIdTokenForDeveloperIdentity` or `GetCredentialsForIdentity`.
+     - Changed: [Local cloud](local-cloud.md), new. The auth API's
+       `LocalCloud` parameter (`LocalCloudBackend`: identities from the
+       Google subject, credentials in the answer; `deploy.sh` passes
+       `false`); the app uses the answer's credentials, S3 path-style on
+       `AWS_ENDPOINT`, and `ws://` IoT endpoints (the MQTT clients take
+       the URL's port); `dart-defines.sh`'s `PRESENCE_LOCAL_CLOUD=1`
+       (`flutter-web.sh`'s default); Floci's `03-local-cloud.sh` makes the
+       bucket; the health monitor's ☁️ AWS is ✅ with it. Specs: [Dev
+       environment](dev-environment.md), [Profiles](profiles.md), [Live
+       sync](live-sync.md), [Feedback](feedback.md), [README](README.md).

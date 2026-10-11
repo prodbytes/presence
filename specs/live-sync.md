@@ -292,7 +292,9 @@ already keeps other profiles off the topic.
 ## Off
 
 Live sync is off, and everything syncs through the bucket as before, when
-the build has no `IOT_ENDPOINT` (local Floci, tests, a `.env` without it),
+the build has no `IOT_ENDPOINT` (tests, a `.env` without it; the local
+stack's web build uses Floci's broker, `ws://localhost:4566`, see [Local
+cloud](local-cloud.md)),
 when cloud sync is off, and while signed out. For a free profile, live
 sync is the only sync ([Premium and free](premium.md)): without it, a free
 profile's devices don't sync at all.

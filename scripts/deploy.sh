@@ -350,6 +350,7 @@ echo "==> deploying $AUTH_STACK"
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
+      "LocalCloud=false" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"

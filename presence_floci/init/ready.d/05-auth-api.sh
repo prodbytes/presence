@@ -19,6 +19,10 @@
 # AWS resources (the identity pool and bucket in .env are AWS's, not
 # Floci's), so it's AWS only, like the Route 53 health check.
 #
+# LocalCloud=true: Floci has no Cognito Identity, so the auth API makes up
+# each Google account's identity and answers credentials itself
+# (presence.auth.LocalCloudBackend), for the local bucket (03-local-cloud.sh).
+#
 # Without GOOGLE_WEB_CLIENT_ID the API runs in DEV mode: only the public
 # GET /api/auth/anonymous route is created, and it gives the anonymous user
 # every role (presence.auth.ExecutionMode).
@@ -59,7 +63,7 @@ aws cloudformation deploy --stack-name "$STACK" \
   --parameter-overrides "GoogleWebClientId=$CLIENT_ID" "Architecture=$ARCH" \
     "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" \
     "RbacrUrl=${RBACR_URL:-https://rc.rbacr.nu01.com}" "RbacrToken=${RBACR_TOKEN:-}" \
-    "RbacrSystem=${RBACR_SYSTEM:-presence}" >/dev/null
+    "RbacrSystem=${RBACR_SYSTEM:-presence}" "LocalCloud=true" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
