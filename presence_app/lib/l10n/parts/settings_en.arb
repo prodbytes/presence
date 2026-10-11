@@ -1,0 +1,246 @@
+{
+  "@@locale": "en",
+  "settingsLocationSection": "Location",
+  "settingsCameraSection": "Camera",
+  "settingsBrightness": "Brightness",
+  "settingsMotionSection": "Motion",
+  "settingsMotionSwitch": "Clip automatically on motion",
+  "settingsSameAsClip": "Same as pressing Clip",
+  "settingsMotionThreshold": "Motion threshold",
+  "settingsMotionThresholdValue": "{percent} % of the picture",
+  "@settingsMotionThresholdValue": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMotionCooldown": "At most one automatic clip every",
+  "settingsMotionNowWaiting": "Motion now: waiting for the camera…",
+  "settingsMotionNow": "Motion now: {percent} %",
+  "@settingsMotionNow": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsClipsSection": "Clips",
+  "settingsClipBefore": "Before press",
+  "settingsClipAfter": "After press",
+  "settingsClipsNote": "Clips play {seconds} s in total. Changing \"Before\" takes up to that long to apply, while the cameras build up enough history.",
+  "@settingsClipsNote": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsScheduleSection": "Scheduled clips",
+  "settingsScheduleSwitch": "Clip at start and on a timer",
+  "settingsScheduleEvery": "One clip every",
+  "settingsStartupClip": "Startup clip: once the camera is ready",
+  "settingsNextClipDue": "Next clip: due, once a camera is open",
+  "settingsNextClipIn": "Next clip in {time}",
+  "@settingsNextClipIn": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRecognitionSection": "Recognition",
+  "settingsRecognitionSwitch": "Recognize subjects in new clips",
+  "settingsRecognitionSubtitle": "People and pets tagged before, found on this device",
+  "settingsRecognitionUnavailable": "Not available on this device yet",
+  "settingsObjectsSwitch": "Tag objects in new clips",
+  "settingsObjectsSubtitle": "Human, cat, dog, bicycle, bottle… for search",
+  "settingsAutoTag": "Tag automatically when at least",
+  "settingsAutoTagValue": "{percent} % sure",
+  "@settingsAutoTagValue": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAskNote": "Less sure than that, it asks you whether it's them.",
+  "settingsHistorySection": "History",
+  "settingsKeep": "Keep events for",
+  "settingsKeepDays": "{count, plural, =1{1 day} other{{count} days}}",
+  "@settingsKeepDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsKeepWeeks": "{count, plural, =1{1 week} other{{count} weeks}}",
+  "@settingsKeepWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",
+  "settingsLiveSection": "Live sync",
+  "settingsLiveConnect": "Connect to live sync",
+  "settingsLiveNever": "Never",
+  "settingsLiveAlways": "Always",
+  "settingsLiveEvery": "Every {interval}",
+  "@settingsLiveEvery": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLiveAdminNote": "Always connected for admins, so this device is always reachable: other devices' events arrive within a second.",
+  "settingsLiveNeverNote": "Other devices' events arrive with each sync (15 s), and this device's reach them the same way.",
+  "settingsLiveAlwaysNote": "Stays connected: other devices' events arrive within a second.",
+  "settingsLiveScheduledNote": "Connects about every {interval} for what other devices sent meanwhile, and at once to send this device's events.",
+  "@settingsLiveScheduledNote": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAdvancedSection": "Advanced",
+  "settingsShowLog": "Show the Log tab",
+  "settingsShowLogSubtitle": "The app's latest messages and health",
+  "settingsSubjectsSection": "Subjects",
+  "settingsSubjectEvents": "How many events to load at once",
+  "settingsDevice": "Device",
+  "settingsDeviceLoading": "loading…",
+  "settingsProfile": "Profile",
+  "settingsProfileNone": "none until signed in",
+  "settingsLocationMyLocation": "My location",
+  "settingsLocationUnpinToLocate": "Unpin to use my location",
+  "settingsLocationPaste": "Paste position",
+  "settingsLocationPinThis": "Pin this position",
+  "settingsLocationSetThis": "Set this position",
+  "settingsLocationUnpin": "Unpin",
+  "settingsLocationPin": "Pin position",
+  "settingsLocationFinding": "Finding this device…",
+  "settingsLocationUnknown": "Location unknown",
+  "settingsLocationMoveMap": "{reason}. Move the map to set it.",
+  "@settingsLocationMoveMap": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLocationPinnedStatus": "Pinned · used for every event",
+  "settingsLocationThisDevice": "This device's location",
+  "settingsLocationSetOnMap": "Set on the map",
+  "settingsLocationPinnedLabel": "Pinned:",
+  "settingsLocationPositionLabel": "Position (latitude, longitude)",
+  "settingsLocationOff": "Location is turned off",
+  "settingsLocationDenied": "Location permission was denied",
+  "settingsLocationUnavailable": "Location unavailable",
+  "settingsCoordinatesEmpty": "Paste a latitude and longitude",
+  "settingsCoordinatesInvalid": "Not a position: use latitude, longitude, e.g. 38.7223, -9.1393",
+  "settingsCoordinatesAxes": "Give one latitude (N or S) and one longitude (E or W)",
+  "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
+  "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
+  "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
+  "settingsMapAttribution": "© OpenStreetMap contributors",
+  "settingsMapZoomIn": "Zoom in",
+  "settingsMapZoomOut": "Zoom out",
+  "settingsAddDeviceTitle": "Add a device",
+  "settingsAddDeviceLinkCopied": "Link copied",
+  "settingsAddDeviceShareTitle": "Open Presence",
+  "settingsAddDeviceQr": "QR code for {link}",
+  "@settingsAddDeviceQr": {
+    "placeholders": {
+      "link": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAddDeviceScan": "Scan with another device to open Presence there. It becomes a new device, with its own ID.",
+  "settingsAddDeviceScanAs": "Scan with another device to open Presence there as {email}. It becomes a new device, with its own ID.",
+  "@settingsAddDeviceScanAs": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAddDeviceCopy": "Copy link",
+  "settingsAddDeviceShare": "Share",
+  "settingsJoinSignIn": "To add this device, sign in with the Google account that shared the link.",
+  "settingsJoinOtherUser": "The link was shared by another Google account than {email}. Sign out, and sign in with that one, to add this device.",
+  "@settingsJoinOtherUser": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsJoinOtherUserUnknown": "The link was shared by another Google account than yours. Sign out, and sign in with that one, to add this device.",
+  "settingsJoinSameDevice": "This is the device that shared the link. Open it on another device to add that one.",
+  "settingsJoinSignOut": "Sign out",
+  "settingsJoinDismiss": "Dismiss",
+  "settingsDeleteDeviceTitle": "Delete device?",
+  "settingsDeleteDeviceMessage": "Delete device {deviceId}? {count, plural, =1{Its 1 event will be hidden} other{Its {count} events will be hidden}} on every device.",
+  "@settingsDeleteDeviceMessage": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceNote": "Its clips stay in the cloud. If it records again, it shows again with its new events.",
+  "settingsDeleteDeviceCancel": "Cancel",
+  "settingsDeleteDeviceConfirm": "Delete",
+  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
+  "@settingsDeleteDeviceDone": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
+  "@settingsDeleteDeviceFailed": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCloudTitle": "Cloud recognition (Premium)",
+  "settingsCloudNotTrained": "Not trained yet",
+  "settingsCloudLastTrained": "Last trained {time}",
+  "@settingsCloudLastTrained": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCloudStatus": "{when}. Learns from the people and pets you tag; checked daily.",
+  "@settingsCloudStatus": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsCloudTrain": "Train now",
+  "settingsCloudTrained": "Trained.",
+  "settingsCloudNoLabels": "Nothing to learn yet: tag people and pets.",
+  "settingsCloudFailed": "Couldn't train now; it tries again later.",
+  "settingsCloudNotPremium": "Cloud recognition is Premium only.",
+  "settingsCloudUpToDate": "Up to date."
+}

@@ -88,6 +88,10 @@
     in older records is ignored. A stored 85 % (the old default, never
     changed) reads as the new 90 %; a stored level under 50 % reads as
     50 %.
+- **Language** section, after History (see [Languages](i18n.md)): an
+  **App language** picker: Same as the device (default), English,
+  Español, Português; the app switches at once. Stored as `language:
+  {code}`.
 - **History** section (see [Event retention](event-retention.md)): **Keep
   events for**, 1–90 days in 1-day steps, default **2 weeks**, shown as
   "1 day", "10 days", "2 weeks" or "90 days", with a note that older

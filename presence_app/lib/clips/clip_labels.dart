@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../annotations.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import 'clip_model.dart';
 
 /// The border of a label on a clip (a subject or a tag), from how sure it
@@ -150,7 +151,9 @@ class OpenAtLabel extends StatelessWidget {
       return Tooltip(
         // Shown on hover; a long press opens the player.
         triggerMode: TooltipTriggerMode.manual,
-        message: active ? 'Show every event' : 'Show only events with $label',
+        message: active
+            ? context.l10n.clipShowEveryEvent
+            : context.l10n.clipShowOnlyWith(label),
         child: InkWell(
           borderRadius: borderRadius,
           onTap: () {
@@ -165,8 +168,8 @@ class OpenAtLabel extends StatelessWidget {
     if (open == null) return child;
     return Tooltip(
       message: at == null
-          ? 'Play the clip'
-          : 'Show at ${formatClipTime(at.inMilliseconds)}',
+          ? context.l10n.clipPlay
+          : context.l10n.clipShowAt(formatClipTime(at.inMilliseconds)),
       child: InkWell(
         borderRadius: borderRadius,
         onTap: () => open(at),
@@ -177,7 +180,8 @@ class OpenAtLabel extends StatelessWidget {
 }
 
 /// The small x beside a label on a clip's card: removes the [kind]
-/// (`subject` or `tag`) [label] from the clip ([onRemove]).
+/// (`subject` or `tag`) [label] from the clip ([onRemove]). Its tooltip
+/// names the kind in the app's language.
 class RemoveLabelButton extends StatelessWidget {
   const RemoveLabelButton({
     super.key,
@@ -190,14 +194,16 @@ class RemoveLabelButton extends StatelessWidget {
   final String kind;
   final VoidCallback onRemove;
 
-  String get _message => 'Remove $kind $label from this event';
+  String _message(AppLocalizations l) => kind == 'subject'
+      ? l.clipRemoveSubjectFromEvent(label)
+      : l.clipRemoveTagFromEvent(label);
 
   @override
   Widget build(BuildContext context) => Tooltip(
-    message: _message,
+    message: _message(context.l10n),
     child: Semantics(
       button: true,
-      label: _message,
+      label: _message(context.l10n),
       excludeSemantics: true,
       child: InkWell(
         customBorder: const CircleBorder(),

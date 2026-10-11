@@ -23,6 +23,7 @@ import '../events.dart';
 import '../home_tabs.dart';
 import '../identity/add_device.dart';
 import '../identity/join_link.dart';
+import '../l10n/l10n.dart';
 import '../location/device_location.dart';
 import '../log_view.dart';
 import '../monitoring.dart';
@@ -200,9 +201,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     setState(() => _awake = true);
     widget.screenOff?.set(false);
     _showMessage(
-      const CameraMessage(
+      CameraMessage(
         icon: Icons.brightness_2_outlined,
-        label: 'Unattended: dark again 15 s after the last touch',
+        label: context.l10n.homeUnattendedWoken,
       ),
     );
     _touched();
@@ -275,11 +276,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _showMessage(
       CameraMessage(
         icon: Icons.grid_view,
-        label: switch (devices) {
-          0 => 'Asked every device for a fresh grab',
-          1 => 'Asked 1 device for a fresh grab…',
-          _ => 'Asked $devices devices for a fresh grab…',
-        },
+        label: context.l10n.homeAskedGrabs(devices),
       ),
     );
     _refreshingTimer?.cancel();
@@ -374,7 +371,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _showMessage(
         CameraMessage(
           icon: Icons.error_outline,
-          label: 'Sign-in failed: $error',
+          label: context.l10n.homeSignInFailed(error),
           error: true,
         ),
         elsewhere: true,
@@ -408,8 +405,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           CameraMessage(
             icon: Icons.devices,
             label: email == null
-                ? 'Presence is open on this device: ${widget.deviceId}'
-                : 'This device is now one of $email\'s: ${widget.deviceId}',
+                ? context.l10n.homeJoinedOpen('${widget.deviceId}')
+                : context.l10n.homeJoinedAccount(email, '${widget.deviceId}'),
           ),
           elsewhere: true,
         );
@@ -471,18 +468,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       return;
     }
     final after = event.clip.after.inSeconds;
+    final l = context.l10n;
     final started = switch (event.trigger) {
-      ClipTrigger.motion => 'Motion detected',
-      ClipTrigger.scheduled => 'Scheduled clip',
-      ClipTrigger.startup => 'Startup clip',
-      ClipTrigger.manual => 'Clip started',
-      ClipTrigger.all => 'Capture all',
+      ClipTrigger.motion => l.homeClipMotion,
+      ClipTrigger.scheduled => l.homeClipScheduled,
+      ClipTrigger.startup => l.homeClipStartup,
+      ClipTrigger.manual => l.homeClipManual,
+      ClipTrigger.all => l.homeClipAll,
     };
     // After any clip, the Clip button carries the cooldown.
     _showMessage(
       CameraMessage(
         icon: event.icon,
-        label: '$started · saving the next $after s',
+        label: l.homeClipSaving(started, after),
         opensEvents: true,
       ),
     );
@@ -752,13 +750,13 @@ class _ScreenOffCover extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onWake,
       // Material, so the hint has a text style outside the Scaffold.
-      child: const Material(
+      child: Material(
         color: Colors.black,
         child: Center(
           child: Text(
-            'Unattended: capturing with the screen off. Tap to wake.',
+            context.l10n.homeScreenOffHint,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF3C3836), fontSize: 14),
+            style: const TextStyle(color: Color(0xFF3C3836), fontSize: 14),
           ),
         ),
       ),

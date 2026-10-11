@@ -11,6 +11,7 @@ import '../auth/roles_service.dart';
 import '../clips.dart';
 import '../config.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import '../subjects.dart';
 import 'image.dart';
 import 'vision.dart';
@@ -519,15 +520,17 @@ class CloudRecognitionTile extends StatefulWidget {
 
 class _CloudRecognitionTileState extends State<CloudRecognitionTile> {
   bool _training = false;
-  String? _result;
+  TrainingOutcome? _result;
 
-  static String _say(TrainingOutcome outcome) => switch (outcome) {
-    TrainingOutcome.trained => 'Trained.',
-    TrainingOutcome.noLabels => 'Nothing to learn yet: tag people and pets.',
-    TrainingOutcome.failed => 'Couldn\'t train now; it tries again later.',
-    TrainingOutcome.notPremium => 'Cloud recognition is Premium only.',
-    TrainingOutcome.upToDate || TrainingOutcome.notDue => 'Up to date.',
-  };
+  static String _say(TrainingOutcome outcome, AppLocalizations l) =>
+      switch (outcome) {
+        TrainingOutcome.trained => l.settingsCloudTrained,
+        TrainingOutcome.noLabels => l.settingsCloudNoLabels,
+        TrainingOutcome.failed => l.settingsCloudFailed,
+        TrainingOutcome.notPremium => l.settingsCloudNotPremium,
+        TrainingOutcome.upToDate ||
+        TrainingOutcome.notDue => l.settingsCloudUpToDate,
+      };
 
   Future<void> _train(CloudTrainer trainer) async {
     setState(() {
@@ -538,7 +541,7 @@ class _CloudRecognitionTileState extends State<CloudRecognitionTile> {
     if (!mounted) return;
     setState(() {
       _training = false;
-      _result = _say(outcome);
+      _result = outcome;
     });
   }
 
@@ -551,18 +554,22 @@ class _CloudRecognitionTileState extends State<CloudRecognitionTile> {
       listenable: Listenable.merge([trainer.roles, trainer.config]),
       builder: (context, _) {
         if (!trainer.roles.isPremium) return const SizedBox.shrink();
+        final l = context.l10n;
         final at = trainer.config.recognition.cloudTrainedAt;
         final when = at == null
-            ? 'Not trained yet'
-            : 'Last trained ${formatEventTime(DateTime.fromMillisecondsSinceEpoch(at))}';
+            ? l.settingsCloudNotTrained
+            : l.settingsCloudLastTrained(
+                formatEventTime(DateTime.fromMillisecondsSinceEpoch(at)),
+              );
+        final result = _result;
         return ListTile(
           key: const Key('cloud-recognition-tile'),
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.cloud_outlined),
-          title: const Text('Cloud recognition (Premium)'),
+          title: Text(l.settingsCloudTitle),
           subtitle: Text(
-            '$when. Learns from the people and pets you tag; checked daily.'
-            '${_result == null ? '' : '\n$_result'}',
+            '${l.settingsCloudStatus(when)}'
+            '${result == null ? '' : '\n${_say(result, l)}'}',
             key: const Key('cloud-recognition-status'),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -576,7 +583,7 @@ class _CloudRecognitionTileState extends State<CloudRecognitionTile> {
               : TextButton(
                   key: const Key('cloud-recognition-train'),
                   onPressed: () => _train(trainer),
-                  child: const Text('Train now'),
+                  child: Text(l.settingsCloudTrain),
                 ),
         );
       },

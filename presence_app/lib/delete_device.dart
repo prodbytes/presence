@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'events.dart';
+import 'l10n/l10n.dart';
 
 /// Deletes every event of a device of the signed-in profile
 /// (`Persistence.deleteDevice`), returning how many went.
@@ -41,23 +42,19 @@ Future<void> deleteDeviceAfterConfirming(
 }) async {
   // Found now: the list or cell asking may be gone once it's deleted.
   final messenger = ScaffoldMessenger.maybeOf(context);
+  final l = context.l10n;
   if (!await confirmDeleteDevice(context, deviceId: deviceId, events: events)) {
     return;
   }
   try {
     final deleted = await delete(deviceId);
     messenger?.showSnackBar(
-      SnackBar(
-        content: Text(
-          'Deleted $deviceId: '
-          '${deleted == 1 ? '1 event' : '$deleted events'} hidden',
-        ),
-      ),
+      SnackBar(content: Text(l.settingsDeleteDeviceDone(deviceId, deleted))),
     );
   } catch (e) {
     debugPrint('Presence: could not delete device $deviceId: $e');
     messenger?.showSnackBar(
-      SnackBar(content: Text('Could not delete $deviceId')),
+      SnackBar(content: Text(l.settingsDeleteDeviceFailed(deviceId))),
     );
   }
 }
@@ -78,10 +75,11 @@ class DeleteDeviceDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l = context.l10n;
     return AlertDialog(
       key: const Key('delete-device-dialog'),
       icon: const Icon(Icons.delete_outline),
-      title: const Text('Delete device?'),
+      title: Text(l.settingsDeleteDeviceTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -89,16 +87,11 @@ class DeleteDeviceDialog extends StatelessWidget {
           spacing: 12,
           children: [
             Text(
-              'Delete device $deviceId? '
-              '${switch (events) {
-                1 => 'Its 1 event will be hidden',
-                _ => 'Its $events events will be hidden',
-              }} on every device.',
+              l.settingsDeleteDeviceMessage(deviceId, events),
               key: const Key('delete-device-message'),
             ),
             Text(
-              'Its clips stay in the cloud. If it records again, it shows '
-              'again with its new events.',
+              l.settingsDeleteDeviceNote,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -110,7 +103,7 @@ class DeleteDeviceDialog extends StatelessWidget {
         TextButton(
           key: const Key('delete-device-cancel'),
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l.settingsDeleteDeviceCancel),
         ),
         FilledButton(
           key: const Key('delete-device-confirm'),
@@ -119,7 +112,7 @@ class DeleteDeviceDialog extends StatelessWidget {
             foregroundColor: scheme.onError,
           ),
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Delete'),
+          child: Text(l.settingsDeleteDeviceConfirm),
         ),
       ],
     );

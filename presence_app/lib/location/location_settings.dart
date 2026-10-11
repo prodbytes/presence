@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../l10n/l10n.dart';
 import '../theme.dart';
 import 'coordinates.dart';
 import 'device_location.dart';
@@ -71,7 +72,8 @@ class _LocationSettingsState extends State<LocationSettings> {
   final _map = MapController();
   final _pasted = TextEditingController();
 
-  /// Why the pasted position wasn't taken, until the text changes.
+  /// Why the pasted position wasn't taken ([parseCoordinates]' message,
+  /// in English), until the text changes.
   String? _pasteError;
   Timer? _commit;
   bool _ready = false;
@@ -231,6 +233,7 @@ class _LocationSettingsState extends State<LocationSettings> {
 
   @override
   Widget build(BuildContext context) {
+    final l = context.l10n;
     final location = _location.location;
     final pinned = location != null && location.pinned;
     final map = Listener(
@@ -327,8 +330,8 @@ class _LocationSettingsState extends State<LocationSettings> {
                     FloatingActionButton.small(
                       heroTag: 'my-location',
                       tooltip: pinned
-                          ? 'Unpin to use my location'
-                          : 'My location',
+                          ? l.settingsLocationUnpinToLocate
+                          : l.settingsLocationMyLocation,
                       onPressed: _location.locating || pinned ? null : _locate,
                       child: _location.locating
                           ? const SizedBox.square(
@@ -358,9 +361,12 @@ class _LocationSettingsState extends State<LocationSettings> {
       decoration: InputDecoration(
         isDense: true,
         border: const OutlineInputBorder(),
-        labelText: 'Paste position',
+        labelText: l.settingsLocationPaste,
         hintText: '38.72, -9.13',
-        errorText: _pasteError,
+        errorText: switch (_pasteError) {
+          final e? => _coordinatesError(e, l),
+          null => null,
+        },
         errorMaxLines: 3,
         suffixIconConstraints: const BoxConstraints(
           minWidth: 36,
@@ -368,7 +374,9 @@ class _LocationSettingsState extends State<LocationSettings> {
         ),
         suffixIcon: IconButton(
           key: const Key('location-paste-set'),
-          tooltip: pinned ? 'Pin this position' : 'Set this position',
+          tooltip: pinned
+              ? l.settingsLocationPinThis
+              : l.settingsLocationSetThis,
           iconSize: 18,
           visualDensity: VisualDensity.compact,
           icon: const Icon(Icons.check),
@@ -385,14 +393,14 @@ class _LocationSettingsState extends State<LocationSettings> {
             key: const Key('location-unpin'),
             onPressed: _unpin,
             icon: const Icon(Icons.push_pin_outlined, size: 18),
-            label: const Text('Unpin'),
+            label: Text(l.settingsLocationUnpin),
           )
         : FilledButton.tonalIcon(
             key: const Key('location-pin'),
             // Events then always use this position.
             onPressed: location != null || _moved ? _pin : null,
             icon: const Icon(Icons.push_pin, size: 18),
-            label: const Text('Pin position'),
+            label: Text(l.settingsLocationPin),
           );
     // The map the full width; under it the position, the paste box and
     // Pin in a row (where narrow, the position on a row of its own, and
@@ -451,22 +459,26 @@ class _Position extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l = context.l10n;
     final at = location.location;
-    final error = location.error;
+    final error = switch (location.error) {
+      final e? => _locationError(e, l),
+      null => null,
+    };
     final String status;
     if (at == null) {
       status = location.locating
-          ? 'Finding this device…'
-          : '${error ?? 'Location unknown'}. Move the map to set it.';
+          ? l.settingsLocationFinding
+          : l.settingsLocationMoveMap(error ?? l.settingsLocationUnknown);
     } else if (at.pinned) {
-      status = 'Pinned · used for every event';
+      status = l.settingsLocationPinnedStatus;
     } else {
       status = switch (at.source) {
         LocationSource.device => [
-          "This device's location",
+          l.settingsLocationThisDevice,
           if (at.accuracy case final accuracy?) '±${accuracy.round()} m',
         ].join(' · '),
-        LocationSource.map => 'Set on the map',
+        LocationSource.map => l.settingsLocationSetOnMap,
       };
     }
     final small = theme.textTheme.bodySmall?.copyWith(
@@ -489,9 +501,9 @@ class _Position extends StatelessWidget {
                       color: scheme.primary,
                     ),
                   ),
-                  const TextSpan(text: ' Pinned: '),
+                  TextSpan(text: ' ${l.settingsLocationPinnedLabel} '),
                 ],
-                const TextSpan(text: 'Position (latitude, longitude)'),
+                TextSpan(text: l.settingsLocationPositionLabel),
               ],
             ),
             style: theme.textTheme.labelSmall?.copyWith(
@@ -515,3 +527,29 @@ class _Position extends StatelessWidget {
     );
   }
 }
+
+/// [parseCoordinates]' error [message] in [l]'s language; as it is when
+/// it isn't one of them.
+String _coordinatesError(String message, AppLocalizations l) =>
+    switch (message) {
+      'Paste a latitude and longitude' => l.settingsCoordinatesEmpty,
+      'Not a position: use latitude, longitude, e.g. 38.7223, -9.1393' =>
+        l.settingsCoordinatesInvalid,
+      'Give one latitude (N or S) and one longitude (E or W)' =>
+        l.settingsCoordinatesAxes,
+      'Latitude must be between -90 and 90' =>
+        l.settingsCoordinatesLatitudeRange,
+      'Longitude must be between -180 and 180' =>
+        l.settingsCoordinatesLongitudeRange,
+      'Minutes and seconds go up to 59' => l.settingsCoordinatesMinutes,
+      _ => message,
+    };
+
+/// [LocationController.error]'s [message] in [l]'s language; as it is
+/// when it isn't one of [DeviceLocator]'s or [LocationController]'s own.
+String _locationError(String message, AppLocalizations l) => switch (message) {
+  'Location is turned off' => l.settingsLocationOff,
+  'Location permission was denied' => l.settingsLocationDenied,
+  'Location unavailable' => l.settingsLocationUnavailable,
+  _ => message,
+};

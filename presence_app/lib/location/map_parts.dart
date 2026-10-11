@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 
+import '../l10n/l10n.dart';
+
 /// OpenStreetMap's tiles (no API key), for the app's maps.
 Widget openStreetMapTiles() => TileLayer(
   urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -25,7 +27,7 @@ class MapAttribution extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          '© OpenStreetMap contributors',
+          context.l10n.settingsMapAttribution,
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
@@ -65,14 +67,14 @@ class MapZoomButtons extends StatelessWidget {
         children: [
           IconButton(
             key: Key('${keyPrefix}zoom-in'),
-            tooltip: 'Zoom in',
+            tooltip: context.l10n.settingsMapZoomIn,
             icon: const Icon(Icons.add),
             onPressed: onZoomIn,
           ),
           const SizedBox(width: 32, child: Divider(height: 1)),
           IconButton(
             key: Key('${keyPrefix}zoom-out'),
-            tooltip: 'Zoom out',
+            tooltip: context.l10n.settingsMapZoomOut,
             icon: const Icon(Icons.remove),
             onPressed: onZoomOut,
           ),

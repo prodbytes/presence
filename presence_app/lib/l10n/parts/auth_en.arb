@@ -1,0 +1,329 @@
+{
+  "@@locale": "en",
+  "authSignIn": "Sign in",
+  "@authSignIn": {
+    "description": "Account button tooltip, signed out"
+  },
+  "authSignedInAs": "Signed in as {identity}",
+  "@authSignedInAs": {
+    "placeholders": {
+      "identity": {
+        "type": "String"
+      }
+    }
+  },
+  "authSignInWithGoogle": "Sign in with Google",
+  "authUnavailable": "Sign-in is unavailable.",
+  "authSignInToPresence": "Sign in to Presence",
+  "authSignOut": "Sign out",
+  "authProfile": "Profile",
+  "@authProfile": {
+    "description": "Account sheet: label above the profile ID"
+  },
+  "authDeviceCount": "{count, plural, =1{1 device} other{{count} devices}}",
+  "@authDeviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authOsUnknown": "Operating system unknown",
+  "authThisDevice": "this device",
+  "authHiddenTooltip": "Past the plan's device limit: it syncs, but its events are hidden here",
+  "authHidden": "hidden",
+  "@authHidden": {
+    "description": "A device whose events are hidden"
+  },
+  "authNoEvents": "No events",
+  "authDeleteDevice": "Delete {device}",
+  "@authDeleteDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "authLinkedAccounts": "Linked accounts",
+  "authAccessAdmin": "Admin Access",
+  "authAccessPremium": "Premium Access",
+  "authAccessFree": "Free Access",
+  "authRoleRoot": "Root",
+  "@authRoleRoot": {
+    "description": "The root role's name"
+  },
+  "authRolesSemantics": "Roles: {roles}",
+  "@authRolesSemantics": {
+    "placeholders": {
+      "roles": {
+        "type": "String"
+      }
+    }
+  },
+  "authCheckingRoles": "Checking roles…",
+  "authNoRoles": "No roles yet",
+  "authSyncFree": "Your devices sync with each other while online",
+  "authBackupOff": "Cloud backup is off",
+  "authUploading": "Uploading…",
+  "authBackedUp": "Clips and events are backed up",
+  "authBackedUpUploaded": "Backed up ({up} uploaded)",
+  "@authBackedUpUploaded": {
+    "placeholders": {
+      "up": {
+        "type": "int"
+      }
+    }
+  },
+  "authBackedUpRestored": "Backed up ({down} restored)",
+  "@authBackedUpRestored": {
+    "placeholders": {
+      "down": {
+        "type": "int"
+      }
+    }
+  },
+  "authBackedUpBoth": "Backed up ({up} uploaded, {down} restored)",
+  "@authBackedUpBoth": {
+    "placeholders": {
+      "up": {
+        "type": "int"
+      },
+      "down": {
+        "type": "int"
+      }
+    }
+  },
+  "authUploadFailed": "Upload failed",
+  "authRetry": "Retry",
+  "authSignUp": "Sign up",
+  "authVoucherDiscount": "That code gives {discount}% off. Paying the rest isn't available yet, so it can't let you in.",
+  "@authVoucherDiscount": {
+    "placeholders": {
+      "discount": {
+        "type": "int"
+      }
+    }
+  },
+  "authVoucherPayment": "That code needs a payment, which isn't available yet, so it can't let you in.",
+  "authVoucherInvalid": "That code is invalid, expired or used up.",
+  "authVoucherTooMany": "Too many tries. Wait a while and try again.",
+  "authVoucherFailedDetail": "Couldn't redeem the code ({error}).",
+  "@authVoucherFailedDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authVoucherFailed": "Couldn't redeem the code.",
+  "authYourAccount": "Your account",
+  "authSubscribe": "Subscribe",
+  "authSubscribeText": "{email} doesn't have access to Presence yet. Subscribe at nu01.com: Free, or Premium for cloud backup and more devices. Then check again here.",
+  "@authSubscribeText": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authSubscribeButton": "Subscribe at nu01.com",
+  "authVoucherPrompt": "Have a voucher code? Redeem it to get in right away.",
+  "authVoucherLabel": "Voucher code",
+  "authRedeem": "Redeem",
+  "authLinkOtherAccount": "Have access with another Google account? Link it",
+  "authCheckAgain": "Check again",
+  "authLinkCodeWrong": "That code is wrong, already used or expired.",
+  "authLinkConflict": "This account can't be linked: it has cloud data of its own, or other accounts are linked to it.",
+  "authLinkTooMany": "Too many tries. Wait a minute and try again.",
+  "authLinkNoBackup": "Cloud backup isn't set up, so accounts can't be linked.",
+  "authRequestFailed": "The request failed (HTTP {status}).",
+  "@authRequestFailed": {
+    "placeholders": {
+      "status": {
+        "type": "int"
+      }
+    }
+  },
+  "authSomethingWrong": "Something went wrong ({error}).",
+  "@authSomethingWrong": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authLinkedTo": "Linked to {owner}.",
+  "@authLinkedTo": {
+    "placeholders": {
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "authLinkedToProfile": "Linked to the profile.",
+  "authUnlinked": "{email} was unlinked.",
+  "@authUnlinked": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authLinkedIntro": "Any of these Google accounts reaches the same clips and events.",
+  "authOwner": "Owner",
+  "@authOwner": {
+    "description": "The profile's owner account"
+  },
+  "authThisAccount": "This account",
+  "authUnlink": "Unlink",
+  "authLinkAnother": "Link another account",
+  "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",
+  "authHaveCode": "Have a code from your other account? Enter it to link this one to it.",
+  "authLinkCode": "Link code",
+  "authLinkThis": "Link this account",
+  "authPlanPremium": "Premium",
+  "@authPlanPremium": {
+    "description": "The paid plan's name"
+  },
+  "authPlanFree": "Free",
+  "@authPlanFree": {
+    "description": "The free plan's name"
+  },
+  "authPlanPremiumText": "Premium: cloud backup, and up to {limit} devices sync.",
+  "@authPlanPremiumText": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Sign up for Premium at nu01.com for cloud backup and up to {premium} devices.",
+  "@authPlanFreeText": {
+    "placeholders": {
+      "free": {
+        "type": "int"
+      },
+      "premium": {
+        "type": "int"
+      }
+    }
+  },
+  "authPastLimit": "This device is past your first {limit}: it syncs, but its events are hidden on your other devices, and theirs here.",
+  "@authPastLimit": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authMoreHidden": "{count, plural, =1{1 more device syncs, but its events are hidden: {plan} shows your first {limit}.} other{{count} more devices sync, but their events are hidden: {plan} shows your first {limit}.}}",
+  "@authMoreHidden": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authSignUpNu01": "Sign up at nu01.com",
+  "authOthersHidden": "Your other devices' events are hidden on this one: {plan} shows your first {limit} devices.",
+  "@authOthersHidden": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authDevicesHidden": "{count, plural, =1{1 device's events are hidden: {plan} shows your first {limit} devices.} other{{count} devices' events are hidden: {plan} shows your first {limit} devices.}}",
+  "@authDevicesHidden": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "plan": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authSignUpForPremium": "{text} Sign up at nu01.com for Premium and up to {limit}.",
+  "@authSignUpForPremium": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authNotSignedIn": "Not signed in.",
+  "authFeedbackLoadFailed": "Couldn't load feedback ({error}).",
+  "@authFeedbackLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authReplyFailed": "Couldn't reply to {email} ({error})",
+  "@authReplyFailed": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authFeedback": "Feedback",
+  "authReload": "Reload",
+  "authFeedbackIntro": "Members' messages from the Help tab, the latest active first. Your replies show there.",
+  "authNoFeedback": "No feedback yet.",
+  "authVouchersTitle": "Vouchers and maintenance",
+  "authRbacrText": "Voucher codes and maintenance mode are managed in rbacr, which keeps every role. Members redeem codes on the Sign up sheet.",
+  "authOpenHost": "Open {host}",
+  "@authOpenHost": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "consentTitle": "Before Presence starts recording",
+  "consentIntro": "By continuing, you confirm:",
+  "consentRightTitle": "I have the right to record here.",
+  "consentRightDetail": "I own or manage this place, or have permission, and people who may be filmed know about it.",
+  "consentBiometricsTitle": "Faces are biometric data, and I am responsible.",
+  "consentBiometricsDetail": "Under the GDPR, faces used to identify people, as when naming them in clips, need care: clear consent, safe keeping, and deleting on request.",
+  "@consentBiometricsDetail": {
+    "description": "GDPR: the EU General Data Protection Regulation (RGPD in Spanish)"
+  },
+  "consentAgree": "I agree",
+  "consentFootnote": "Asked once on this device. Not legal advice.",
+  "maintenanceTitle": "Sorry, Presence is down for maintenance.",
+  "maintenanceBody": "We'll be back soon. This page comes back on its own.",
+  "aboutLinkCopied": "Link copied",
+  "aboutParagraph": "Presence turns a phone, tablet, laptop or Raspberry Pi into an always-on camera for a place you look after: live feeds, clips that include the moments before, and clips on motion. Only record where you're allowed to.",
+  "aboutOpenSource": "Presence is open source:",
+  "devModeTooltip": "Development mode: sign-in isn't configured, so everything is open to everyone.",
+  "devModeTooltipVersion": "Development mode, version {version}: sign-in isn't configured, so everything is open to everyone.",
+  "@devModeTooltipVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  }
+}

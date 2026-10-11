@@ -13,6 +13,7 @@ import 'copies_badge.dart';
 import 'event_filters.dart';
 import 'event_flags.dart';
 import 'identity/device_os.dart';
+import 'l10n/l10n.dart';
 import 'location/device_location.dart';
 import 'recognition/suggestion.dart';
 import 'time_format.dart';
@@ -234,6 +235,42 @@ class AppEvent {
   }
 
   static final _random = Random();
+
+  /// [title] in the language of [l], for showing: what's stored stays in
+  /// English (it syncs between devices), and is put in the shown language
+  /// here, by the event's type. In English it's [title] itself. Titles the
+  /// app doesn't know (free text, newer versions') show as stored.
+  String displayTitle(AppLocalizations l) => switch (type) {
+    appStartedType => l.eventTitleAppStarted,
+    captureAllType => l.eventTitleCaptureAll,
+    _ => localizedText(title, l) ?? title,
+  };
+
+  /// [detail] in the language of [l], for showing ([displayTitle]); null
+  /// without one.
+  String? displayDetail(AppLocalizations l) => switch (detail) {
+    null => null,
+    final detail => localizedText(detail, l) ?? detail,
+  };
+
+  /// A title or detail the app stores ([title], [detail]), in the language
+  /// of [l]; null for any other text (names, emails, camera labels).
+  static String? localizedText(String stored, AppLocalizations l) =>
+      switch (stored) {
+        'Application started' => l.eventTitleAppStarted,
+        'Capture all' => l.eventTitleCaptureAll,
+        'Every device takes a clip' => l.eventDetailCaptureAll,
+        'Recording consent given' => l.eventTitleConsentGiven,
+        'Signed in' => l.eventTitleSignedIn,
+        'Signed out' => l.eventTitleSignedOut,
+        'Event' => l.eventTitleGeneric,
+        'Clip recording missing' => l.eventDetailClipMissing,
+        'Motion detected' => l.eventTitleMotion,
+        'Scheduled clip' => l.eventTitleScheduled,
+        'Startup clip' => l.eventTitleStartup,
+        'Clip requested' => l.eventTitleClipRequested,
+        _ => null,
+      };
 
   /// What about this event wants attention (see [EventFlag]), worked out
   /// from its data; none for most events.
@@ -506,16 +543,18 @@ class EventTimeline extends StatefulWidget {
   }) => showSystemEvents ? events : events.where(isGrab).toList();
 
   /// [events], only those matching [query] ([eventMatches]); blank, all.
-  /// Events without a device ID (not saved yet) are [deviceId]'s.
+  /// Events without a device ID (not saved yet) are [deviceId]'s. With
+  /// [l], the titles as shown in its language match too.
   static List<AppEvent> matching(
     List<AppEvent> events,
     String query, {
     String? deviceId,
+    AppLocalizations? l,
   }) {
     if (query.trim().isEmpty) return events;
     return [
       for (final e in events)
-        if (eventMatches(e, query, deviceId: deviceId)) e,
+        if (eventMatches(e, query, deviceId: deviceId, l: l)) e,
     ];
   }
 
@@ -543,7 +582,19 @@ class _EventTimelineState extends State<EventTimeline> {
     widget.log,
     deviceId: widget.deviceId,
     profileId: widget.profileId,
+    l: _l,
   );
+
+  /// The app's language, for the search to match titles as shown; set
+  /// once the dependencies are ([didChangeDependencies]), as [_view] is
+  /// read in [initState] and in listeners too.
+  AppLocalizations? _l;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _l = context.l10n;
+  }
 
   /// Each shown card's key, to find it once it's built.
   final _cards = <String, GlobalKey>{};
@@ -714,13 +765,14 @@ class _EventTimelineState extends State<EventTimeline> {
     final shownIds = {for (final e in events) e.id};
     _cards.removeWhere((id, _) => !shownIds.contains(id));
     if (events.isEmpty) {
+      final l = context.l10n;
       return FeedMessage(
         icon: Icons.notifications_none,
         message: view.mine.isEmpty
-            ? 'No events'
+            ? l.eventsNone
             : view.ofKinds.isEmpty
-            ? 'No grabs yet: system events are hidden'
-            : 'No events match "${_filters.search.value.trim()}"',
+            ? l.eventsNoGrabs
+            : l.eventsNoMatch(_filters.search.value.trim()),
       );
     }
     // The cards' tags and subjects filter the search when tapped
@@ -827,10 +879,19 @@ class EventSearchScope extends InheritedNotifier<ValueNotifier<String>> {
 /// ID, [deviceId], this device's), and for a clip its camera's label, the
 /// names tagged on it (not suggestions waiting for an answer) and its
 /// object tags (`cat`, `bicycle`…). Add a field here to make it
-/// searchable.
-Iterable<String> eventSearchFields(AppEvent event, {String? deviceId}) sync* {
+/// searchable. With [l], the title and detail as shown in its language
+/// ([AppEvent.displayTitle]) too, besides the stored English.
+Iterable<String> eventSearchFields(
+  AppEvent event, {
+  String? deviceId,
+  AppLocalizations? l,
+}) sync* {
   yield event.title;
   if (event.detail case final detail?) yield detail;
+  if (l != null) {
+    yield event.displayTitle(l);
+    if (event.displayDetail(l) case final detail?) yield detail;
+  }
   if (EventTimeline.deviceOf(event, deviceId) case final device?) {
     yield device;
   }
@@ -854,18 +915,25 @@ Iterable<String> eventSearchFields(AppEvent event, {String? deviceId}) sync* {
   // "unidentified" finds the events with someone to name.
   for (final flag in event.flags) {
     yield flag.name;
+    if (l != null) yield flag.labelIn(l);
   }
 }
 
 /// Whether [event] matches the Events search [query]: one of its
 /// [eventSearchFields] contains it, ignoring case and the spaces around
 /// it. A blank query matches every event.
-bool eventMatches(AppEvent event, String query, {String? deviceId}) {
+bool eventMatches(
+  AppEvent event,
+  String query, {
+  String? deviceId,
+  AppLocalizations? l,
+}) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
   return eventSearchFields(
     event,
     deviceId: deviceId,
+    l: l,
   ).any((f) => f.toLowerCase().contains(q));
 }
 
@@ -949,7 +1017,7 @@ class _EventSearchState extends State<EventSearch> {
     if (!_open) {
       return IconButton(
         key: const Key('event-search-open'),
-        tooltip: 'Search events',
+        tooltip: context.l10n.eventsSearch,
         icon: const Icon(Icons.search),
         onPressed: () {
           setState(() => _open = true);
@@ -982,7 +1050,7 @@ class _EventSearchState extends State<EventSearch> {
         // fields are.
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'Search events',
+          hintText: context.l10n.eventsSearch,
           prefixIcon: const Icon(Icons.search, size: 20),
           filled: true,
           fillColor: Theme.of(context).colorScheme.surfaceContainerHigh,
@@ -992,7 +1060,7 @@ class _EventSearchState extends State<EventSearch> {
           ),
           suffixIcon: IconButton(
             key: const Key('event-search-clear'),
-            tooltip: 'Clear search',
+            tooltip: context.l10n.eventsSearchClear,
             icon: const Icon(Icons.close, size: 18),
             visualDensity: VisualDensity.compact,
             onPressed: _close,
@@ -1035,12 +1103,13 @@ class EventCount extends StatelessWidget {
         log,
         deviceId: deviceId,
         profileId: profileId,
+        l: context.l10n,
       );
       final all = view.mine.length;
       final shown = view.shown.length;
       final theme = Theme.of(context);
       return Tooltip(
-        message: '$shown of $all events shown',
+        message: context.l10n.eventsCountTooltip(shown, all),
         child: Text(
           '$shown / $all',
           key: const Key('event-count'),
@@ -1081,10 +1150,6 @@ class EventDeviceTag extends StatelessWidget {
   /// The events search ([EventFilters.search]).
   final ValueNotifier<String> value;
 
-  /// The tooltip of a device name that shows its events (here, and
-  /// `ShowDeviceEvents` elsewhere).
-  static const String showTooltip = "Show this device's events";
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1092,7 +1157,9 @@ class EventDeviceTag extends StatelessWidget {
     final only = EventSearchScope.isActive(value.value, device);
     final color = only ? scheme.primary : scheme.onSurfaceVariant;
     return Tooltip(
-      message: only ? "Show every device's events" : showTooltip,
+      message: only
+          ? context.l10n.eventsShowEveryDevice
+          : context.l10n.eventsShowDevice,
       child: Semantics(
         button: true,
         child: InkWell(
@@ -1157,7 +1224,9 @@ class ShowSystemEvents extends StatelessWidget {
       return IconButton(
         key: const Key('show-system-events'),
         isSelected: on,
-        tooltip: on ? 'Hide system events' : 'Show system events',
+        tooltip: on
+            ? context.l10n.eventsHideSystem
+            : context.l10n.eventsShowSystem,
         visualDensity: VisualDensity.compact,
         iconSize: 18,
         color: scheme.onSurfaceVariant.withValues(alpha: 0.6),
@@ -1217,7 +1286,8 @@ class EventCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final detail = event.detail;
+    final l = context.l10n;
+    final detail = event.displayDetail(l);
     return Card.filled(
       margin: EdgeInsets.zero,
       color: scheme.surfaceContainerHighest,
@@ -1232,7 +1302,10 @@ class EventCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(event.title, style: theme.textTheme.titleSmall),
+                  Text(
+                    event.displayTitle(l),
+                    style: theme.textTheme.titleSmall,
+                  ),
                   if (detail != null)
                     Text(
                       detail,

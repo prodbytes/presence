@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show Locale;
 
 /// The app's whole user configuration, as one immutable value.
 ///
@@ -22,6 +23,7 @@ class PresenceConfig {
     this.history = const HistoryConfig(),
     this.log = const LogConfig(),
     this.live = const LiveConfig(),
+    this.language = const LanguageConfig(),
   });
 
   static const int version = 1;
@@ -35,6 +37,7 @@ class PresenceConfig {
   final HistoryConfig history;
   final LogConfig log;
   final LiveConfig live;
+  final LanguageConfig language;
 
   PresenceConfig copyWith({
     ClipConfig? clip,
@@ -46,6 +49,7 @@ class PresenceConfig {
     HistoryConfig? history,
     LogConfig? log,
     LiveConfig? live,
+    LanguageConfig? language,
   }) => PresenceConfig(
     clip: clip ?? this.clip,
     camera: camera ?? this.camera,
@@ -56,6 +60,7 @@ class PresenceConfig {
     history: history ?? this.history,
     log: log ?? this.log,
     live: live ?? this.live,
+    language: language ?? this.language,
   );
 
   Map<String, Object?> toJson() => {
@@ -69,6 +74,7 @@ class PresenceConfig {
     'history': history.toJson(),
     'log': log.toJson(),
     'live': live.toJson(),
+    'language': language.toJson(),
   };
 
   /// Reads a stored config. Missing or invalid values fall back to their
@@ -84,6 +90,7 @@ class PresenceConfig {
     history: HistoryConfig.fromJson(_map(json['history'])),
     log: LogConfig.fromJson(_map(json['log'])),
     live: LiveConfig.fromJson(_map(json['live'])),
+    language: LanguageConfig.fromJson(_map(json['language'])),
   );
 
   /// Reads the settings record from before the config object: one flat map
@@ -110,7 +117,8 @@ class PresenceConfig {
       other.recognition == recognition &&
       other.history == history &&
       other.log == log &&
-      other.live == live;
+      other.live == live &&
+      other.language == language;
 
   @override
   int get hashCode => Object.hash(
@@ -123,6 +131,7 @@ class PresenceConfig {
     history,
     log,
     live,
+    language,
   );
 }
 
@@ -417,6 +426,36 @@ class HistoryConfig {
 /// The Log tab (admins only): shown or not. Unset, it follows the
 /// execution mode: shown in DEV, hidden otherwise ([showIn]).
 @immutable
+/// The app's language: [code] is `en`, `es` or `pt`, or null to follow the
+/// device's (English when it's none of them). Kept per device.
+class LanguageConfig {
+  const LanguageConfig({this.code});
+
+  /// The languages the app speaks, by code.
+  static const List<String> supported = ['en', 'es', 'pt'];
+
+  final String? code;
+
+  /// The locale to show, or null for the device's.
+  Locale? get locale => code == null ? null : Locale(code!);
+
+  /// A [code] of null follows the device.
+  LanguageConfig withCode(String? code) =>
+      LanguageConfig(code: supported.contains(code) ? code : null);
+
+  Map<String, Object?> toJson() => {'code': ?code};
+
+  factory LanguageConfig.fromJson(Map<String, Object?> json) =>
+      const LanguageConfig().withCode(json['code'] as String?);
+
+  @override
+  bool operator ==(Object other) =>
+      other is LanguageConfig && other.code == code;
+
+  @override
+  int get hashCode => code.hashCode;
+}
+
 class LogConfig {
   const LogConfig({this.show});
 
@@ -745,6 +784,7 @@ class ConfigController extends ChangeNotifier {
   HistoryConfig get history => _config.history;
   LogConfig get log => _config.log;
   LiveConfig get live => _config.live;
+  LanguageConfig get language => _config.language;
 }
 
 Duration _clampDuration(Duration d, Duration min, Duration max) =>

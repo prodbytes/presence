@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../clips.dart';
+import '../l10n/l10n.dart';
 import 'camera_source.dart';
 import 'clip_player_controller.dart';
 
@@ -487,21 +488,21 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
               child: CircularProgressIndicator(color: Color(0xFFFABD2F)),
             ),
           if (_loadFailed)
-            const Center(
+            Center(
               child: Text(
-                "Couldn't load this clip",
-                style: TextStyle(color: Color(0xFFFB4934)),
+                context.l10n.cameraClipLoadFailed,
+                style: const TextStyle(color: Color(0xFFFB4934)),
               ),
             ),
           if (_current != null && !_onFull && !_waiting)
-            const Align(
+            Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Preview',
-                  key: Key('clip-preview'),
-                  style: TextStyle(color: Color(0xFFEBDBB2)),
+                  context.l10n.cameraClipPreview,
+                  key: const Key('clip-preview'),
+                  style: const TextStyle(color: Color(0xFFEBDBB2)),
                 ),
               ),
             ),
@@ -511,7 +512,7 @@ class _ClipPlayerViewState extends State<ClipPlayerView> {
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Text(
-                  'Recording the next ${_clip.after.inSeconds} s…',
+                  context.l10n.cameraClipRecordingNext(_clip.after.inSeconds),
                   style: const TextStyle(color: Color(0xFFEBDBB2)),
                 ),
               ),

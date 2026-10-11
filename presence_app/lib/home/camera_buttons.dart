@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../camera_feeds.dart';
+import '../l10n/l10n.dart';
 import 'clip_button.dart';
 
 /// The Camera tab's floating buttons, bottom right: the mode button
@@ -29,6 +30,7 @@ class CameraButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l = context.l10n;
     final padding = MediaQuery.paddingOf(context);
     // The screen less the 16 dp margins on both sides.
     final room = MediaQuery.sizeOf(context).width - padding.horizontal - 2 * 16;
@@ -65,16 +67,16 @@ class CameraButtons extends StatelessWidget {
             FloatingActionButton(
               key: const Key('camera-mode'),
               heroTag: 'camera-mode',
-              tooltip: mode.next.action,
+              tooltip: mode.next.actionIn(l),
               backgroundColor: background,
               foregroundColor: foreground,
               onPressed: onNextMode,
-              child: Icon(mode.icon, semanticLabel: mode.label),
+              child: Icon(mode.icon, semanticLabel: mode.labelIn(l)),
             ),
             if (flips)
               FloatingActionButton(
                 heroTag: 'flip-camera',
-                tooltip: 'Flip camera',
+                tooltip: l.cameraFlip,
                 // Secondary action: quieter than Clip.
                 backgroundColor: scheme.surfaceContainerHigh,
                 foregroundColor: scheme.onSurface,
@@ -125,6 +127,22 @@ enum CameraMode {
 
   /// What switching to this mode does, for the button's tooltip.
   final String action;
+
+  /// [label] in the language shown.
+  String labelIn(AppLocalizations l) => switch (this) {
+    normal => l.cameraModeNormal,
+    all => l.cameraModeAll,
+    unattended => l.cameraModeUnattended,
+    stopped => l.cameraModeStopped,
+  };
+
+  /// [action] in the language shown.
+  String actionIn(AppLocalizations l) => switch (this) {
+    normal => l.cameraActionNormal,
+    all => l.cameraActionAll,
+    unattended => l.cameraActionUnattended,
+    stopped => l.cameraActionStopped,
+  };
 
   CameraMode get next => values[(index + 1) % values.length];
 

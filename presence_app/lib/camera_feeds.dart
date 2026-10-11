@@ -15,6 +15,7 @@ import 'clips.dart';
 import 'events.dart';
 import 'cloud/live_sync.dart';
 import 'device_presence.dart';
+import 'l10n/l10n.dart';
 import 'theme.dart';
 
 export 'camera/auto_clip_policy.dart';
@@ -183,13 +184,17 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                       rect: all ? rectOf(0).deflate(1) : Offset.zero & size,
                       child: DeviceGridCell(
                         label: all
-                            ? '${widget.deviceId ?? 'This device'} · live'
+                            ? context.l10n.cameraLiveLabel(
+                                widget.deviceId ??
+                                    context.l10n.cameraThisDevice,
+                              )
                             : null,
                         device: all ? widget.deviceId : null,
                         presence: all
                             ? PresenceDot(
                                 key: const Key('presence-this-device'),
                                 presence: DevicePresence.of(
+                                  l: context.l10n,
                                   now: now,
                                   liveAvailable: available,
                                   thisDevice: true,
@@ -212,7 +217,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                         child: DeviceGridCell(
                           label:
                               '${latest.deviceId} · '
-                              '${describeAge(now.difference(latest.time))}',
+                              '${describeAge(now.difference(latest.time), context.l10n)}',
                           device: latest.deviceId,
                           onTap: switch (latest.clip) {
                             final clip? when clip.clip.playable =>
@@ -227,6 +232,7 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
                           presence: PresenceDot(
                             key: Key('presence-${latest.deviceId}'),
                             presence: DevicePresence.of(
+                              l: context.l10n,
                               answeredAt: live?.seenOf(latest.deviceId),
                               lastEvent: lastEvents[latest.deviceId],
                               now: now,
@@ -249,14 +255,15 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
   /// The open camera's preview, or why there isn't one.
   Widget _camera(BuildContext context) {
     final rig = widget.rig;
+    final l = context.l10n;
     if (rig.paused) {
       return FeedMessage(
         key: const Key('camera-paused'),
         icon: Icons.videocam_off_outlined,
-        message: 'Camera off\nNothing is recorded until you turn it on.',
+        message: l.cameraOffMessage,
         action: TextButton(
           onPressed: () => rig.setPaused(false),
-          child: const Text('Turn on'),
+          child: Text(l.cameraTurnOn),
         ),
       );
     }
@@ -271,8 +278,8 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
     if (error != null) {
       return FeedMessage(
         icon: Icons.error_outline,
-        message: 'Could not open the camera\n${describeCameraError(error)}',
-        action: TextButton(onPressed: rig.retry, child: const Text('Retry')),
+        message: l.cameraCouldNotOpen(describeCameraError(error, l)),
+        action: TextButton(onPressed: rig.retry, child: Text(l.cameraRetry)),
       );
     }
     if (rig.busy) {
@@ -280,8 +287,8 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
     }
     return FeedMessage(
       icon: Icons.videocam_off_outlined,
-      message: 'No camera found',
-      action: TextButton(onPressed: rig.load, child: const Text('Retry')),
+      message: l.cameraNotFound,
+      action: TextButton(onPressed: rig.load, child: Text(l.cameraRetry)),
     );
   }
 }
@@ -326,13 +333,35 @@ class FeedMessage extends StatelessWidget {
 /// throw [CameraUnavailable] with one; native plugin errors carry their own
 /// message. Anything else (a bug, an unexpected browser error) gets a
 /// generic sentence, and the details go to the log instead of the screen.
-String describeCameraError(Object error) {
+/// The backends' own sentences are worded in [l] (English by default);
+/// native plugin messages stay as the platform wrote them.
+String describeCameraError(Object error, [AppLocalizations? l]) {
+  l ??= lookupAppLocalizations(const Locale('en'));
   switch (error) {
     case CameraUnavailable(:final message):
-      return message;
+      return _cameraSentence(message, l);
     case PlatformException(:final message?) when message.trim().isNotEmpty:
       return message;
   }
   debugPrint('Presence: could not open the camera: $error');
-  return 'Something went wrong while starting the camera.';
+  return l.cameraErrorGeneric;
+}
+
+/// A backend's sentence ([CameraUnavailable.message], in English) in [l];
+/// one it doesn't know stays as it is.
+String _cameraSentence(String message, AppLocalizations l) {
+  final en = lookupAppLocalizations(const Locale('en'));
+  final known = <String Function(AppLocalizations)>[
+    (l) => l.cameraErrorGeneric,
+    (l) => l.cameraErrorDenied,
+    (l) => l.cameraErrorInsecure,
+    (l) => l.cameraErrorBlocked,
+    (l) => l.cameraErrorNoneFound,
+    (l) => l.cameraErrorInUse,
+    (l) => l.cameraErrorStopped,
+  ];
+  for (final sentence in known) {
+    if (sentence(en) == message) return sentence(l);
+  }
+  return message;
 }

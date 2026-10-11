@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n.dart';
+
 /// Asked once per device, before anything shows or records (see
 /// `DeviceConsent`): two highlighted conditions, in plain terms, that the
 /// user has the right to record where the device records, and that faces
@@ -39,44 +41,39 @@ class _ConsentScreenState extends State<ConsentScreen> {
               padding: const EdgeInsets.all(24),
               children: [
                 Text(
-                  'Before Presence starts recording',
+                  context.l10n.consentTitle,
                   style: theme.textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'By continuing, you confirm:',
+                  context.l10n.consentIntro,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
                 ),
                 const SizedBox(height: 16),
-                const _Condition(
-                  key: Key('consent-right-to-record'),
+                _Condition(
+                  key: const Key('consent-right-to-record'),
                   icon: Icons.videocam,
-                  title: 'I have the right to record here.',
-                  detail:
-                      'I own or manage this place, or have permission, and '
-                      'people who may be filmed know about it.',
+                  title: context.l10n.consentRightTitle,
+                  detail: context.l10n.consentRightDetail,
                 ),
                 const SizedBox(height: 12),
-                const _Condition(
-                  key: Key('consent-biometrics'),
+                _Condition(
+                  key: const Key('consent-biometrics'),
                   icon: Icons.face,
-                  title: 'Faces are biometric data, and I am responsible.',
-                  detail:
-                      'Under the GDPR, faces used to identify people, as '
-                      'when naming them in clips, need care: clear consent, '
-                      'safe keeping, and deleting on request.',
+                  title: context.l10n.consentBiometricsTitle,
+                  detail: context.l10n.consentBiometricsDetail,
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
                   key: const Key('consent-agree'),
                   onPressed: _saving ? null : _agree,
-                  child: const Text('I agree'),
+                  child: Text(context.l10n.consentAgree),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Asked once on this device. Not legal advice.',
+                  context.l10n.consentFootnote,
                   textAlign: TextAlign.center,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,

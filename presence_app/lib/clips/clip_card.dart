@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../event_flags.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import '../subjects.dart';
 import 'clip_labels.dart';
 import 'clip_model.dart';
@@ -30,6 +31,7 @@ class ClipEventCard extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final clip = event.clip;
+    final l = context.l10n;
     return ListenableBuilder(
       listenable: clip,
       builder: (context, _) {
@@ -66,7 +68,10 @@ class ClipEventCard extends StatelessWidget {
                   Icon(event.icon, size: 20, color: scheme.primary),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(event.title, style: theme.textTheme.titleSmall),
+                    child: Text(
+                      event.displayTitle(l),
+                      style: theme.textTheme.titleSmall,
+                    ),
                   ),
                   Text(
                     formatEventTime(event.time),
@@ -84,7 +89,7 @@ class ClipEventCard extends StatelessWidget {
                 ),
               ),
               Text(
-                clip.status,
+                clip.statusIn(l),
                 key: const Key('clip-status'),
                 style: theme.textTheme.bodySmall,
               ),

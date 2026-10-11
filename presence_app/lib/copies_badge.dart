@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'cloud/event_copies.dart';
 import 'events.dart';
+import 'l10n/l10n.dart';
 
 /// Gives the event cards and the event details who holds each event
 /// ([EventCopies]); they rebuild as it changes.
@@ -26,6 +27,26 @@ class EventCopiesBadge extends StatelessWidget {
 
   final AppEvent event;
 
+  /// [CopiesSummary.label] in the language of [l].
+  static String labelOf(CopiesSummary summary, AppLocalizations l) =>
+      summary.synced ? l.eventCopies(summary.count) : l.eventCopiesNotSynced;
+
+  /// [CopiesSummary.tooltip] in the language of [l]: this device and the
+  /// cloud by their names in it, other devices by their IDs.
+  static String tooltipOf(CopiesSummary summary, AppLocalizations l) {
+    final who = summary.holders.isEmpty
+        ? l.eventCopiesNone
+        : [
+            for (final h in summary.holders)
+              switch (h) {
+                EventCopies.thisDevice => l.eventCopiesThisDevice,
+                EventCopies.cloudHolder => l.eventCopiesCloud,
+                _ => h,
+              },
+          ].join(', ');
+    return summary.liveOn ? who : '$who\n${l.eventCopiesLiveOff}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final copies = EventCopiesScope.maybeOf(context);
@@ -34,13 +55,16 @@ class EventCopiesBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final summary = copies.summaryOf(event.id, origin: event.deviceId);
+    final l = context.l10n;
+    final label = labelOf(summary, l);
+    final tooltip = tooltipOf(summary, l);
     final theme = Theme.of(context);
     final color = theme.colorScheme.onSurfaceVariant;
     final style = theme.textTheme.labelSmall?.copyWith(color: color);
     return Tooltip(
-      message: summary.tooltip,
+      message: tooltip,
       child: Semantics(
-        label: '${summary.label}. ${summary.tooltip}',
+        label: '$label. $tooltip',
         excludeSemantics: true,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 32),
@@ -61,7 +85,7 @@ class EventCopiesBadge extends StatelessWidget {
                 const SizedBox(width: 4),
                 Flexible(
                   child: Text(
-                    summary.label,
+                    label,
                     key: Key('event-copies-text-${event.id}'),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,

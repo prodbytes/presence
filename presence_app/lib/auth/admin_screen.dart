@@ -5,6 +5,7 @@ import '../feedback/feedback_client.dart';
 import '../feedback/feedback_inbox.dart';
 import 'auth_service.dart';
 import 'rbacr_client.dart';
+import '../l10n/l10n.dart';
 
 /// The Admin tab's page, for admins only (`presence_user` +
 /// `presence_admin`): the members' Feedback and Help conversations, each
@@ -38,7 +39,10 @@ class AdminView extends StatefulWidget {
 
 class _AdminViewState extends State<AdminView> {
   List<FeedbackThread>? _threads;
-  String? _threadsError;
+
+  /// Why the threads didn't load, in the language shown (set in
+  /// [initState] too, before the localizations can be read).
+  String Function(AppLocalizations l10n)? _threadsError;
 
   @override
   void initState() {
@@ -49,7 +53,7 @@ class _AdminViewState extends State<AdminView> {
   Future<void> _load() async {
     final token = widget.auth.idToken;
     if (token == null) {
-      setState(() => _threadsError = 'Not signed in.');
+      setState(() => _threadsError = (l10n) => l10n.authNotSignedIn);
       return;
     }
     setState(() => _threadsError = null);
@@ -58,7 +62,9 @@ class _AdminViewState extends State<AdminView> {
       if (mounted) setState(() => _threads = threads);
     } catch (e) {
       if (mounted) {
-        setState(() => _threadsError = 'Couldn\'t load feedback ($e).');
+        setState(
+          () => _threadsError = (l10n) => l10n.authFeedbackLoadFailed('$e'),
+        );
       }
     }
   }
@@ -68,6 +74,7 @@ class _AdminViewState extends State<AdminView> {
     final token = widget.auth.idToken;
     if (token == null) return false;
     final messenger = ScaffoldMessenger.of(context);
+    final l10n = context.l10n;
     try {
       final reply = await widget.feedback.reply(
         token,
@@ -92,7 +99,7 @@ class _AdminViewState extends State<AdminView> {
       return true;
     } catch (e) {
       messenger.showSnackBar(
-        SnackBar(content: Text('Couldn\'t reply to ${thread.email} ($e)')),
+        SnackBar(content: Text(l10n.authReplyFailed(thread.email, '$e'))),
       );
       return false;
     }
@@ -128,11 +135,14 @@ class _AdminViewState extends State<AdminView> {
               Row(
                 children: [
                   Expanded(
-                    child: Text('Feedback', style: theme.textTheme.titleLarge),
+                    child: Text(
+                      context.l10n.authFeedback,
+                      style: theme.textTheme.titleLarge,
+                    ),
                   ),
                   IconButton(
                     key: const Key('admin-reload'),
-                    tooltip: 'Reload',
+                    tooltip: context.l10n.authReload,
                     icon: const Icon(Icons.refresh),
                     onPressed: _load,
                   ),
@@ -140,16 +150,15 @@ class _AdminViewState extends State<AdminView> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Members\' messages from the Help tab, the latest active '
-                'first. Your replies show there.',
+                context.l10n.authFeedbackIntro,
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 8),
               ...switch ((threads, _threadsError)) {
-                (_, final error?) => [status(error, error: true)],
+                (_, final error?) => [status(error(context.l10n), error: true)],
                 (null, _) => [loading],
                 (final list?, _) when list.isEmpty => [
-                  status('No feedback yet.'),
+                  status(context.l10n.authNoFeedback),
                 ],
                 (final list?, _) => [
                   for (final thread in list)
@@ -167,14 +176,12 @@ class _AdminViewState extends State<AdminView> {
               },
               const SizedBox(height: 24),
               Text(
-                'Vouchers and maintenance',
+                context.l10n.authVouchersTitle,
                 style: theme.textTheme.titleLarge,
               ),
               const SizedBox(height: 4),
               Text(
-                'Voucher codes and maintenance mode are managed in rbacr, '
-                'which keeps every role. Members redeem codes on the Sign '
-                'up sheet.',
+                context.l10n.authRbacrText,
                 key: const Key('admin-rbacr-text'),
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
@@ -183,7 +190,7 @@ class _AdminViewState extends State<AdminView> {
                 child: TextButton.icon(
                   key: const Key('admin-rbacr'),
                   icon: const Icon(Icons.open_in_new),
-                  label: Text('Open ${rbacr.host}'),
+                  label: Text(context.l10n.authOpenHost(rbacr.host)),
                   onPressed: () =>
                       openOrCopyLink(context, rbacr, widget.openLink),
                 ),

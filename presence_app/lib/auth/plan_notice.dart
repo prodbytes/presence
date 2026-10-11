@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../about.dart';
 import '../cloud/device_slots.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 import 'account_sheet.dart' show profileDevices;
 import 'roles_service.dart';
 
@@ -53,18 +54,20 @@ class PlanNotice extends StatelessWidget {
   /// Opens the sign-up link; one that can't open is copied.
   final LinkOpener openLink;
 
-  /// The text for a [premium] profile, or a free one.
-  static String planText({required bool premium}) => premium
-      ? 'Premium: cloud backup, and up to ${DeviceSlots.premiumLimit} '
-            'devices sync.'
-      : 'Free: up to ${DeviceSlots.freeLimit} devices sync with each other '
-            'while online. Sign up for Premium at nu01.com for cloud backup '
-            'and up to ${DeviceSlots.premiumLimit} devices.';
+  /// The text for a [premium] profile, or a free one, in [l10n]'s
+  /// language (English without).
+  static String planText({required bool premium, AppLocalizations? l10n}) {
+    final l = l10n ?? lookupAppLocalizations(const Locale('en'));
+    return premium
+        ? l.authPlanPremiumText(DeviceSlots.premiumLimit)
+        : l.authPlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit);
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final l10n = context.l10n;
     final limit =
         slots?.limit ??
         (premium ? DeviceSlots.premiumLimit : DeviceSlots.freeLimit);
@@ -73,12 +76,13 @@ class PlanNotice extends StatelessWidget {
       _ => false,
     };
     final warning = pastLimit
-        ? 'This device is past your first $limit: it syncs, but its events '
-              'are hidden on your other devices, and theirs here.'
+        ? l10n.authPastLimit(limit)
         : hidden > 0
-        ? '${hidden == 1 ? '1 more device syncs' : '$hidden more devices sync'}'
-              ', but ${hidden == 1 ? 'its' : 'their'} events are hidden: '
-              '${premium ? 'Premium' : 'Free'} shows your first $limit.'
+        ? l10n.authMoreHidden(
+            hidden,
+            premium ? l10n.authPlanPremium : l10n.authPlanFree,
+            limit,
+          )
         : null;
     return Container(
       key: const Key('plan-notice'),
@@ -103,14 +107,14 @@ class PlanNotice extends StatelessWidget {
                 color: premium ? scheme.primary : scheme.onSurfaceVariant,
               ),
               Text(
-                premium ? 'Premium' : 'Free',
+                premium ? l10n.authPlanPremium : l10n.authPlanFree,
                 key: const Key('plan-name'),
                 style: theme.textTheme.titleSmall,
               ),
             ],
           ),
           Text(
-            planText(premium: premium),
+            planText(premium: premium, l10n: l10n),
             key: const Key('plan-text'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
@@ -126,7 +130,7 @@ class PlanNotice extends StatelessWidget {
               child: FilledButton.tonalIcon(
                 key: const Key('plan-sign-up'),
                 icon: const Icon(Icons.open_in_new, size: 18),
-                label: const Text('Sign up at nu01.com'),
+                label: Text(l10n.authSignUpNu01),
                 onPressed: () =>
                     openOrCopyLink(context, DeviceSlots.signUp, openLink),
               ),
@@ -172,12 +176,11 @@ class DeviceLimitNotice extends StatelessWidget {
       thisDevice: thisDevice,
     ).length;
     if (!pastLimit && hidden == 0) return const SizedBox.shrink();
-    final plan = slots.premium ? 'Premium' : 'Free';
+    final l10n = context.l10n;
+    final plan = slots.premium ? l10n.authPlanPremium : l10n.authPlanFree;
     final text = pastLimit
-        ? 'Your other devices\' events are hidden on this one: $plan shows '
-              'your first ${slots.limit} devices.'
-        : '${hidden == 1 ? '1 device\'s' : '$hidden devices\''} events are '
-              'hidden: $plan shows your first ${slots.limit} devices.';
+        ? l10n.authOthersHidden(plan, slots.limit)
+        : l10n.authDevicesHidden(hidden, plan, slots.limit);
     final scheme = Theme.of(context).colorScheme;
     return Card.outlined(
       key: const Key('device-limit-notice'),
@@ -192,8 +195,7 @@ class DeviceLimitNotice extends StatelessWidget {
               child: Text(
                 slots.premium
                     ? text
-                    : '$text Sign up at nu01.com for Premium and up to '
-                          '${DeviceSlots.premiumLimit}.',
+                    : l10n.authSignUpForPremium(text, DeviceSlots.premiumLimit),
               ),
             ),
             if (!slots.premium)
@@ -201,7 +203,7 @@ class DeviceLimitNotice extends StatelessWidget {
                 key: const Key('device-limit-sign-up'),
                 onPressed: () =>
                     openOrCopyLink(context, DeviceSlots.signUp, openLink),
-                child: const Text('Sign up'),
+                child: Text(l10n.authSignUp),
               ),
           ],
         ),

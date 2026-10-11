@@ -14,6 +14,7 @@ import '../clips.dart' show ClipRequested;
 import '../device_events.dart';
 import '../device_presence.dart';
 import '../events.dart';
+import '../l10n/l10n.dart';
 
 /// Another device's latest event, and its latest image, for the grid.
 class DeviceLatest {
@@ -118,12 +119,14 @@ int gridColumns(int count, Size size) {
   return best;
 }
 
-/// "just now", "5 min ago", "3 h ago", "2 d ago".
-String describeAge(Duration age) {
-  if (age.inMinutes < 1) return 'just now';
-  if (age.inHours < 1) return '${age.inMinutes} min ago';
-  if (age.inDays < 1) return '${age.inHours} h ago';
-  return '${age.inDays} d ago';
+/// "just now", "5 min ago", "3 h ago", "2 d ago"; in [l], English by
+/// default.
+String describeAge(Duration age, [AppLocalizations? l]) {
+  l ??= lookupAppLocalizations(const Locale('en'));
+  if (age.inMinutes < 1) return l.cameraAgeJustNow;
+  if (age.inHours < 1) return l.cameraAgeMinutes(age.inMinutes);
+  if (age.inDays < 1) return l.cameraAgeHours(age.inHours);
+  return l.cameraAgeDays(age.inDays);
 }
 
 /// A grid cell: its picture, with a label at the bottom left.
@@ -201,7 +204,7 @@ class DeviceGridCell extends StatelessWidget {
               right: 6,
               child: Tooltip(
                 key: refreshingKey,
-                message: 'Asked for a fresh grab',
+                message: context.l10n.cameraAskedFreshGrab,
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
