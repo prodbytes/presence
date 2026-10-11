@@ -263,13 +263,15 @@ class AccountSheet extends StatelessWidget {
                       ),
                     ],
                     // Free or Premium, and what each gives, under the devices
-                    // it limits; not in DEV, where nothing syncs.
+                    // it limits; not in DEV, where nothing syncs. An admin is
+                    // premium (as the auth API makes it), so only a free
+                    // member is asked to sign up.
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
                       const SizedBox(height: 12),
                       PlanNotice(
-                        premium: roles.isPremium,
+                        premium: roles.isPremium || roles.isAdmin,
                         slots: sync?.deviceSlots,
                         thisDevice: deviceId,
                         hidden: switch ((log, roles.profile)) {
