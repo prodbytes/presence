@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/prodbytes/presence/presence_streamer/internal/state"
+)
 
 func TestDetectInCloud(t *testing.T) {
 	const mb = 1 << 20
@@ -31,5 +35,24 @@ func TestMemTotal(t *testing.T) {
 	// Linux only; elsewhere it's unknown (0).
 	if total := memTotal(); total < 0 {
 		t.Fatalf("memory %d", total)
+	}
+}
+
+func TestChooseProfile(t *testing.T) {
+	saved := &state.State{ProfileID: "saved_profile_id"}
+	for _, c := range []struct {
+		flag, saved, want string
+		bad               bool
+	}{
+		{"given_profile_id", "", "given_profile_id", false},
+		{"", "saved_profile_id", "saved_profile_id", false},
+		{"", "", "", false}, // the account's, after the sign-in
+		{"not a profile", "", "", true},
+	} {
+		saved.ProfileID = c.saved
+		got, err := chooseProfile(&options{profile: c.flag}, saved)
+		if got != c.want || (err != nil) != c.bad {
+			t.Errorf("--profile %q, saved %q: %q, %v", c.flag, c.saved, got, err)
+		}
 	}
 }
