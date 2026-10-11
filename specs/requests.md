@@ -4746,7 +4746,58 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Premium](premium.md), [Auth API](auth-api.md),
        [README](README.md).
 
-348. **Smaller text in the event's details.** (2026-10-11)
+347. **Launch the app on the connected iPhone.** (2026-10-11)
+     - Built a signed release for the iPhone 12 mini (automatic signing
+       with the Mac's development identity), installed it with
+       `devicectl` and launched it; it runs. Spec: [iOS](ios.md), now
+       verified on a physical iPhone (launching, not its features).
+
+348. **Reusable test data, in the repo.** (2026-10-11)
+     - Asked: copy the useful test data from the local, ignored
+       `test.local/` into a new test data folder, structured and labelled
+       so tests can be re-run.
+     - Changed: `presence_app/test/data/` holds `cats/suerte` (16 photos,
+       6 clips, 31 stills) and `cats/other` (38 photos of other cats), as
+       `<species>/<subject>/{photos,stills,clips}/` with `labels.csv`
+       (`path,species,subject,kind`). The repo is public, so
+       `import.sh` cleans what it copies: metadata and GPS dropped,
+       rotation applied, at most 1280 px, clips as H.264 with a keyframe
+       a second and no audio, HEIC twins of JPEGs skipped (217 MB → 21
+       MB). Spec: [Test data](test-data.md) (new), [Subject
+       recognition](recognition.md), [README](README.md).
+
+349. **Sign up only for free members, in the profile view.** (2026-10-10)
+     - Asked: in the profile view, only show the sign-up call to a free
+       member; a premium or admin account doesn't need it.
+     - Changed: the account sheet's plan box (`PlanNotice`) counts an
+       admin as Premium (`roles.isPremium || roles.isAdmin`), so its
+       "Sign up at nu01.com" button and the sign-up text show only for a
+       free member. The auth API already made every admin premium; this
+       keeps the profile view right when an admin's roles lack
+       `presence_premium`. Test: `device_slots_test.dart`. Specs:
+       [Premium and free](premium.md).
+
+350. **Free, Premium or Admin Access in the profile view.** (2026-10-10)
+     - Asked: in the profile view, show "Free Access", "Premium Access" or
+       "Admin Access" instead of "Member", using the role fetched from
+       rbacr.
+     - Changed: the roles under the email (`AccountRoles`) start with one
+       access chip in place of the Member, Premium and Admin chips. It
+       reads the rbacr `presence` role back from the app's roles, as the
+       auth API maps them: admin, else premium, else free. Its tooltip
+       names it ("rbacr: premium"). Root and unknown roles keep their own
+       chips. Tests: `account_sheet_test.dart`. Specs:
+       [Sign-in](sign-in.md).
+
+351. **Always merge.** (2026-10-11)
+     - Asked: always merge pull requests, and add that to CLAUDE.md.
+     - Changed: [CLAUDE.md](../CLAUDE.md) replaces "Merge only when the
+       user says so" with "Always merge": a ready PR (tests pass, code
+       reviewed) is merged into `main` without asking, and a conflicting
+       one is first brought up to date with `origin/main` and retested in
+       its own worktree. Specs: [README](README.md) (Workflow).
+
+352. **Smaller text in the event's details.** (2026-10-11)
      - Asked: a smaller title, device ID and device OS label in the event
        detail view (the clip player).
      - Changed: the player's title (camera · time) from the list tile's
