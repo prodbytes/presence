@@ -54,8 +54,11 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
   subject's name in a dark pill edged in their color (up to 160 dp, cut
   short with an ellipsis). Tapping it opens the subject's screen.
 - **On each clip's card** (`EventSubjects`): every subject tagged on it,
-  once, as written there, each after a **square in the subject's color**,
-  to match them with their dots on the map. Clicking a name opens the
+  once, as written there, each in a **round** (pill) border and after a
+  **square in the subject's color**, to match them with their dots on the
+  map. The border is yellow for a subject someone tagged or confirmed
+  (100 %), grey for one recognition found, lighter the surer (see
+  [Clips](clips.md), "How labels look"). Clicking a name opens the
   player paused at the earliest frame that subject is tagged on (see
   [Clips](clips.md)); in the Monitoring tab's timeline that's a long
   press, and a click filters the events by the subject, highlighting

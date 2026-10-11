@@ -281,12 +281,16 @@ class EventSubjects extends StatelessWidget {
       final theme = Theme.of(context);
       final seen = <String>{};
       final search = EventSearchScope.maybeOf(context);
-      // Each subject's earliest tagged frame.
+      // Each subject's earliest tagged frame, and how sure its surest tag
+      // on the clip is.
       final firstMs = <String, int>{};
+      final sure = <String, double>{};
       for (final tag in event.annotations.tags) {
         final id = Subject.idOf(tag.name);
         final ms = tag.frameMs;
         if (ms != null && ms < (firstMs[id] ?? ms + 1)) firstMs[id] = ms;
+        final confidence = tag.confidence ?? 0;
+        if (confidence > (sure[id] ?? -1)) sure[id] = confidence;
       }
       final tags = [
         for (final tag in event.annotations.tags)
@@ -296,6 +300,7 @@ class EventSubjects extends StatelessWidget {
               id: id,
               name: tag.name.trim(),
               detected: tag.source == TagSource.detected,
+              confidence: sure[id]!,
               ms: firstMs[id],
               // Whether it's the search: highlighted.
               active:
@@ -309,7 +314,7 @@ class EventSubjects extends StatelessWidget {
         padding: const EdgeInsets.only(top: 6),
         child: Wrap(
           key: const Key('event-subjects'),
-          spacing: 12,
+          spacing: 6,
           runSpacing: 4,
           children: [
             for (final t in tags)
@@ -317,10 +322,13 @@ class EventSubjects extends StatelessWidget {
                 key: Key('event-subject-chip-${t.id}'),
                 selected: search == null ? null : t.active,
                 child: DecoratedBox(
+                  key: Key('event-subject-border-${t.id}'),
                   decoration: BoxDecoration(
                     color: t.active ? scheme.primaryContainer : null,
-                    border: t.active ? Border.all(color: scheme.primary) : null,
-                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: labelBorderColor(scheme, t.confidence),
+                    ),
+                    borderRadius: _subjectRadius,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -330,37 +338,40 @@ class EventSubjects extends StatelessWidget {
                         ms: t.ms,
                         onOpenAt: onOpenAt,
                         filter: t.name,
-                        borderRadius: BorderRadius.circular(4),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          spacing: 6,
-                          children: [
-                            SubjectSwatch(
-                              key: Key('event-subject-color-${t.id}'),
-                              color: Subject.colorOf(t.id),
-                              size: 12,
-                            ),
-                            Text(
-                              t.name,
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: t.active
-                                    ? scheme.onPrimaryContainer
-                                    : null,
-                                fontWeight: t.active ? FontWeight.bold : null,
+                        borderRadius: _subjectRadius,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 2, 2, 2),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: 6,
+                            children: [
+                              SubjectSwatch(
+                                key: Key('event-subject-color-${t.id}'),
+                                color: Subject.colorOf(t.id),
+                                size: 12,
                               ),
-                            ),
-                            // Found by recognition, not tagged by someone.
-                            if (t.detected)
-                              Tooltip(
-                                message: 'Recognized automatically',
-                                child: Icon(
-                                  Icons.auto_awesome,
-                                  key: Key('event-subject-detected-${t.id}'),
-                                  size: 14,
-                                  color: theme.colorScheme.onSurfaceVariant,
+                              Text(
+                                t.name,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: t.active
+                                      ? scheme.onPrimaryContainer
+                                      : null,
+                                  fontWeight: t.active ? FontWeight.bold : null,
                                 ),
                               ),
-                          ],
+                              // Found by recognition, not tagged by someone.
+                              if (t.detected)
+                                Tooltip(
+                                  message: 'Recognized automatically',
+                                  child: Icon(
+                                    Icons.auto_awesome,
+                                    key: Key('event-subject-detected-${t.id}'),
+                                    size: 14,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                       RemoveLabelButton(
@@ -379,6 +390,9 @@ class EventSubjects extends StatelessWidget {
     },
   );
 }
+
+/// A subject's label on a clip's card is round (a tag's is square).
+const _subjectRadius = BorderRadius.all(Radius.circular(999));
 
 /// A subject's name on a map, beside its newest dot.
 typedef _MapLabel = ({Sighting sighting, Subject subject, VoidCallback onTap});

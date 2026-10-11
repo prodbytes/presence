@@ -156,7 +156,9 @@ How each choice was measured (datasets, numbers) is in the models'
 - They're the clip's **Tags**, the user-facing name, as opposed to its
   **Subjects** (named people and pets). The player lists them under a
   "Tags" heading (see [Clips](clips.md), "Subjects and Tags").
-- The clip's card shows them as small outlined chips under its subjects
+- The clip's card shows them as small square chips under its subjects,
+  edged in grey by their score, lighter the surer (see [Clips](clips.md),
+  "How labels look")
   ("human", "bicycle"), in order of first sighting. Each keeps where it was
   first seen (`ms`, in the recording's time, like a tag's `frameMs`), and
   clicking it opens the player paused on that frame (see
@@ -225,8 +227,10 @@ How each choice was measured (datasets, numbers) is in the models'
 
 - Shown like any tag, with ✨ (`auto_awesome`) beside the name on the clip's
   card ("Recognized automatically") and on the player's chip, which also
-  shows the confidence ("Rex · 86 %"). They can be renamed or removed like
-  any tag.
+  shows the confidence ("Rex · 86 %"). On the card the subject's border
+  is grey, lighter the surer, where one someone tagged or confirmed is
+  edged in yellow (see [Clips](clips.md), "How labels look"). They can be
+  renamed or removed like any tag.
 
 ## Platforms
 
