@@ -4,8 +4,20 @@ import '../annotations.dart';
 import '../events.dart';
 import 'clip_model.dart';
 
+/// The border of a label on a clip (a subject or a tag), from how sure it
+/// is ([confidence], 0 to 1): the theme's main color for one someone made
+/// or confirmed (1), a shade of grey for recognition's, the lighter the
+/// surer.
+Color labelBorderColor(ColorScheme scheme, double confidence) => confidence >= 1
+    ? scheme.primary
+    : Color.lerp(_unsureGrey, _sureGrey, confidence.clamp(0, 1))!;
+
+const _unsureGrey = Color(0xFF5C5C5C);
+const _sureGrey = Color(0xFFE0E0E0);
+
 /// A clip's **Tags**: the things recognition saw on it (`human`, `cat`,
-/// `bicycle`, `bottle`…), as small outlined chips, by first sighting;
+/// `bicycle`, `bottle`…), as small square chips edged by their score
+/// ([labelBorderColor]), by first sighting;
 /// nothing until it's been searched, or if nothing was seen. In a timeline
 /// ([EventSearchScope]) a click on one filters the events by it (again,
 /// clears the filter) and it shows highlighted while it's the search, a
@@ -57,9 +69,8 @@ class ClipObjectTags extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: active ? scheme.primaryContainer : null,
                       border: Border.all(
-                        color: active ? scheme.primary : scheme.outlineVariant,
+                        color: labelBorderColor(scheme, o.score),
                       ),
-                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -70,9 +81,6 @@ class ClipObjectTags extends StatelessWidget {
                           onOpenAt: onOpenAt,
                           filter: o.label,
                           onFiltered: onFiltered,
-                          borderRadius: const BorderRadius.horizontal(
-                            left: Radius.circular(12),
-                          ),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(8, 2, 2, 2),
                             child: Text(

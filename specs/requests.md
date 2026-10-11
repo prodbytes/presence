@@ -4844,3 +4844,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Premium](premium.md), [Navigation](navigation.md),
        [Feedback and Help](feedback.md), [Cloud sync](cloud-sync.md),
        [Dev environment](dev-environment.md), [README](README.md).
+
+353. **Labels look: round subjects, square tags, edged by confidence.**
+     (2026-10-11)
+     - Asked: subject labels with a round border and tags with a square
+       one; user-made labels (100 % confidence) edged in yellow (the
+       theme's main color), detected ones in greys, lighter the higher
+       the confidence; every label (subjects and tags) to store its
+       confidence with the event.
+     - Changed: `EventSubjects` chips are pill-shaped and always
+       bordered; `ClipObjectTags` chips are square; both borders come
+       from `labelBorderColor` (yellow at 100 %, `#5C5C5C`→`#E0E0E0`
+       grey below). Annotations now store `confidence` for every tag: 1
+       for manual and confirmed ones (older records read as 1); object
+       tags already stored their `score`. Specs: [Clips](clips.md),
+       [Subjects](subjects.md), [Subject recognition](recognition.md),
+       [Data formats](data-formats.md).

@@ -117,7 +117,7 @@ x after a subject's name says "Remove subject Rex from this event", the x
 on a tag's chip "Remove tag bicycle from this event".
 
 - **Tags** lists the clip's [object tags](recognition.md) as the card's
-  outlined chips (keys `player-object-<label>`), each with its x to remove
+  square chips (keys `player-object-<label>`), each with its x to remove
   it. Opened from the timeline, clicking one filters the events by it and
   closes the player (see [Events](events.md)). With none it says "No tags yet. Things seen on the clip, like bottle
   or bicycle, show here once it has been searched (try Auto)." ("(try
@@ -218,14 +218,19 @@ needed. Each name is on a frame of the clip, at the spot clicked
   frame is dropped once its last tag is removed. With none: "No subjects
   yet. Click a person or pet on the video to name them."
 - **Where a tag came from** (`source`): someone's click (`manual`, the
-  default, not stored), [recognition](recognition.md) (`detected`, with its
-  `confidence`), a recognition **suggestion** waiting for an answer
-  (`suggested`: not a tag, left out of this list, the card and the maps),
-  or a suggestion someone confirmed (`confirmed`). Recognized tags show ✨
-  and their confidence on their chip ("Rex · 86 %").
+  default, not stored), [recognition](recognition.md) (`detected`), a
+  recognition **suggestion** waiting for an answer (`suggested`: not a
+  tag, left out of this list, the card and the maps), or a suggestion
+  someone confirmed (`confirmed`). Recognized tags show ✨ and their
+  confidence on their chip ("Rex · 86 %").
+- **Every tag stores its `confidence`** (0 to 1): recognition's for
+  detected tags and suggestions, **1 (100 %)** for one someone clicked
+  or confirmed (confirming replaces the suggestion's confidence with 1).
+  Records from before this, which kept none for tags someone made, read
+  as 1. Object tags store theirs as `score`.
 - **Stored with the event:** the clip event (`ClipRequested`) keeps a
   `ClipAnnotations`, saved in its record as
-  `annotations: [{id, name, x, y, frameId, frameMs, source?, confidence?}]`
+  `annotations: [{id, name, x, y, frameId, frameMs, source?, confidence}]`
   plus `frames: {frameId: JPEG bytes}` (only frames some entry uses,
   suggestions included), and the clip's object tags as
   `objectTags: [{label, ms, score}]` once it's searched for them (see
@@ -235,14 +240,32 @@ needed. Each name is on a frame of the clip, at the spot clicked
   clip and the event JSON with the tags. Restores, including from the
   cloud, bring the frames and names back; malformed entries are skipped.
 - A clip's card lists everyone tagged on it, each after a square in their
-  color, then its object tags as small chips; clicking either opens the
+  color, then its object tags as small chips (see [how labels
+  look](#how-labels-look)); clicking either opens the
   player paused where it was seen (item 3 above). Each has a small **x**
   after it that removes it from that event (see [Subjects](subjects.md)
   and [Subject recognition](recognition.md), "Object tags"). The **Monitoring** tab's
   map shows the events they're on, with their names (see
   [Subjects](subjects.md)).
+- <a id="how-labels-look"></a>**How labels look** on a clip's card and
+  under the player (`labelBorderColor`,
+  [lib/clips/clip_labels.dart](../presence_app/lib/clips/clip_labels.dart)):
+  - **Subjects are round** (pill-shaped, `event-subject-border-<id>`),
+    **tags are square** (no rounded corners), so the two read apart.
+  - **The border shows how sure the label is:** one someone made or
+    confirmed (100 %) is edged in the theme's main color (Gruvbox
+    yellow); one recognition found is edged in a **neutral grey, the
+    lighter the surer** (from `#5C5C5C` at 0 % to `#E0E0E0` just under
+    100 %). A subject tagged more than once on the clip takes its surest
+    tag's confidence. Object tags all come from recognition, so they're
+    always grey, by their `score`.
+  - While a label is the timeline's search it's also filled
+    (`primaryContainer`) and bold; the border keeps its confidence color.
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
-  JSON round-trip that skips bad entries), and at app level a frame grabbed
+  JSON round-trip that skips bad entries); `label_look_test.dart`: manual and
+  confirmed tags store confidence 1 (older records read as 1), the
+  border colors (yellow at 100 %, greys lighter the surer), subjects
+  round and tags square on a card, and at app level a frame grabbed
   and clicked twice, restored after a refresh with its image, positions and
   names, and stored in the event record; a click on the video tagging that
   frame (and a cancelled one tagging nothing); the letterbox mapping; a
