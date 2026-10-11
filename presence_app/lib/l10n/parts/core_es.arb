@@ -1,0 +1,10 @@
+{
+  "@@locale": "es",
+  "languageSection": "Idioma",
+  "languageLabel": "Idioma de la aplicación",
+  "languageSystem": "El mismo que el dispositivo",
+  "languageEnglish": "English",
+  "languageSpanish": "Español",
+  "languagePortuguese": "Português",
+  "languageNote": "Los títulos de eventos guardados antes conservan el idioma en que se crearon."
+}

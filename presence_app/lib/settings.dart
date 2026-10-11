@@ -7,6 +7,7 @@ import 'app_version.dart';
 import 'camera_feeds.dart';
 import 'config.dart';
 import 'location/device_location.dart';
+import 'l10n/l10n.dart';
 import 'location/location_settings.dart';
 import 'recognition/cloud_recognition.dart';
 import 'recognition/runtime.dart';
@@ -388,6 +389,47 @@ class _SettingsViewState extends State<SettingsView> {
                 Text(
                   'Older events and their clips are deleted from this device '
                   'when the app starts and every 3 hours.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            // The app's language: the device's, or one picked here.
+            SettingsSection(
+              title: context.l10n.languageSection,
+              children: [
+                DropdownButtonFormField<String?>(
+                  key: const Key('language-picker'),
+                  initialValue: config.language.code,
+                  isExpanded: true,
+                  decoration: InputDecoration(
+                    labelText: context.l10n.languageLabel,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text(context.l10n.languageSystem),
+                    ),
+                    for (final (code, name) in [
+                      ('en', context.l10n.languageEnglish),
+                      ('es', context.l10n.languageSpanish),
+                      ('pt', context.l10n.languagePortuguese),
+                    ])
+                      DropdownMenuItem(
+                        value: code,
+                        key: Key('language-$code'),
+                        child: Text(name),
+                      ),
+                  ],
+                  onChanged: (code) => widget.config.update(
+                    (x) => x.copyWith(language: x.language.withCode(code)),
+                  ),
+                ),
+                Text(
+                  context.l10n.languageNote,
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

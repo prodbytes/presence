@@ -1,0 +1,9 @@
+# The app's translations: lib/l10n/app_<lang>.arb, made from the fragments
+# in lib/l10n/parts/ by scripts/l10n-merge.py, generated into lib/l10n/gen/
+# (flutter gen-l10n, also run by flutter pub get / build).
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-dir: lib/l10n/gen
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: true
