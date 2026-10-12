@@ -49,6 +49,8 @@ class _LiveBridge {
         },
         onEvent: (event) => _onLive(event, owner),
         onCopied: _sync._copyTracker.onCopied,
+        // Another device's Sync button: a full pass here too.
+        onSync: _sync.syncFull,
         mediaKey: switch (_sync.seal.keys.keyOf(deviceId)) {
           final key? => MediaKeys.encode(key),
           null => null,

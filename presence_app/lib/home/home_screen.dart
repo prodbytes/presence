@@ -586,6 +586,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   deviceId: widget.deviceId,
                   profileId: widget.roles.profile,
                   filters: _filters,
+                  onSync: switch (widget.sync) {
+                    final sync? => sync.syncAll,
+                    null => null,
+                  },
                   notice: switch (widget.sync) {
                     final sync? => ListenableBuilder(
                       listenable: Listenable.merge([

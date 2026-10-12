@@ -28,11 +28,22 @@ class _Fetcher {
   final Map<String, int> _wantedFailures = {};
   static const int _maxWantedTries = 5;
 
+  /// Passes that found a wanted clip not in the bucket yet, by clip ID: it
+  /// stays wanted for [_maxWantedMisses] of them, since its device uploads
+  /// the record only once the clip completes (after the event). Found in
+  /// time, it shows; else it's wanted again when its event changes, and at
+  /// each full fetch.
+  final Map<String, int> _wantedMisses = {};
+
+  /// About ten minutes of passes (every 15 s).
+  static const int _maxWantedMisses = 40;
+
   /// Forgets what was damaged and wanted, as for a new user.
   void reset() {
     _damaged.clear();
     _wantedClips.clear();
     _wantedFailures.clear();
+    _wantedMisses.clear();
   }
 
   /// What a pass lists under the user's folder: all of `events/` on the
@@ -330,6 +341,14 @@ class _Fetcher {
           id: time,
     };
     final clips = await _fetchClips(pass, clipTimes, localClips: localClips);
+    // A clip whose record isn't up yet (its device uploads it once the clip
+    // completes, after the event): wanted, so a later pass brings it and
+    // the event shows ([Persistence.showArrivedClips]) without waiting for
+    // the hourly full fetch.
+    final found = {for (final c in clips) c['id']};
+    for (final MapEntry(key: id, value: time) in clipTimes.entries) {
+      if (!found.contains(id) && !localClips.contains(id)) want(id, time);
+    }
     return (events, clips);
   }
 
@@ -394,6 +413,7 @@ class _Fetcher {
   void want(String clipId, int time) {
     _wantedClips[clipId] = (time: time, serial: ++_wantSerial);
     _wantedFailures.remove(clipId);
+    _wantedMisses.remove(clipId);
   }
 
   /// At a full fetch (the first pass for a user, after a restart, and
@@ -447,6 +467,7 @@ class _Fetcher {
       if (_wantedClips[id]?.serial == wanted[id]?.serial) {
         _wantedClips.remove(id);
         _wantedFailures.remove(id);
+        _wantedMisses.remove(id);
       }
     }
 
@@ -462,10 +483,20 @@ class _Fetcher {
     for (final MapEntry(key: id, value: (:time, serial: _)) in wanted.entries) {
       pass.check();
       try {
-        clips.addAll(
-          await _fetchClips(pass, {id: time}, localClips: localClips),
-        );
-        // Here now, or not in the bucket (yet), or damaged there.
+        final found = await _fetchClips(pass, {
+          id: time,
+        }, localClips: localClips);
+        clips.addAll(found);
+        // Not in the bucket yet (its device is still recording or
+        // uploading it): looked for again at the next passes, a while.
+        if (found.isEmpty &&
+            !_damaged.containsKey(
+              pass.objectKey(CloudSync.clipRecordKey(id, time)),
+            )) {
+          final misses = _wantedMisses[id] = (_wantedMisses[id] ?? 0) + 1;
+          if (misses < _maxWantedMisses) continue;
+        }
+        // Here now, or damaged there, or not come in time.
         fetched.add(id);
       } on _Abandoned {
         rethrow;

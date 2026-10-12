@@ -23,7 +23,15 @@ the separate Events and Subjects tabs.
   search**, a search icon that opens into a field when tapped (see
   [Events](events.md)), and its small **matching / all** event count
   beside it; at the far right, **Delete all**, which deletes the events
-  shown after asking ([Device deletion](device-deletion.md#delete-all)).
+  shown after asking ([Device deletion](device-deletion.md#delete-all)),
+  then **Sync** (`SyncAllButton`, a sync icon, tooltip "Sync all
+  devices"; with cloud sync): this device runs a full pass now (every day
+  of the window listed again, the clips other devices' events lack wanted
+  again: `CloudSync.syncAll`), and the profile's other devices are asked
+  to do the same over [live sync](live-sync.md) (a `sync` request). It
+  spins while asking, then says "Syncing: this device now, and the others
+  were asked to", or, with live sync off or offline, that only this
+  device syncs.
 - **Above each event's card,** the **device it was taken on**, small and
   quiet; tapping it sets the search to the device's ID, which shows only
   that device's events in the events list (every device by default; the
