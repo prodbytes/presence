@@ -364,15 +364,21 @@ class EventRecognitionBadge extends StatelessWidget {
       final l = context.l10n;
       final subjects = a.subjectSearch != null;
       final objects = a.objects != null;
+      // A brain, not a magnifying glass (the events search's icon):
+      // filled once recognition ran, outlined until it has.
       final (icon, color, state) = subjects && objects
-          ? (Icons.manage_search, _on(context), l.eventRecognitionComplete)
+          ? (Icons.psychology, _on(context), l.eventRecognitionComplete)
           : subjects || objects
           ? (
-              Icons.manage_search,
+              Icons.psychology,
               Theme.of(context).colorScheme.onSurfaceVariant,
               l.eventRecognitionPartial,
             )
-          : (Icons.search_off, _off(context), l.eventRecognitionNotRun);
+          : (
+              Icons.psychology_outlined,
+              _off(context),
+              l.eventRecognitionNotRun,
+            );
       final recognizer = SubjectRecognizerScope.maybeOf(context);
       final canRun = recognizer != null && recognizer.supported;
       return _Indicator(

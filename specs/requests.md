@@ -5410,3 +5410,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `ClipTrigger.startup`, so a start's clip shows only with "Show
        system events" on; Clip button, motion, scheduled and Capture all
        clips are still grabs. Spec: [Events](events.md).
+
+387. **A brain for recognition on the event card.** (2026-10-12)
+     - Asked: change the recognition icon on the event card, since the
+       magnifying glass is already the search's; a brain, an eye or
+       anything else.
+     - Changed: the recognition indicator is a brain (`Icons.psychology`,
+       filled once it ran, outlined until it has), not
+       `manage_search`/`search_off`; an eye already means hidden. Spec:
+       [Recognition](recognition.md).

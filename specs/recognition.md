@@ -215,9 +215,12 @@ the event's details, shows how far recognition ran on a clip:
 
 | State | Icon | When |
 |---|---|---|
-| **Ran in full** | a magnifier, the theme's primary color | both people and pets (`subjectSearch`) and object tags (`objectTags`) searched, even with nothing found |
-| **Ran in part** | the magnifier, plain | one of them only, e.g. object tags from the [streamer's cloud detector](streamer.md#cloud-detection), which doesn't look for subjects |
-| **Hasn't run** | a crossed-out magnifier, disabled | neither |
+| **Ran in full** | a brain (`psychology`), the theme's primary color | both people and pets (`subjectSearch`) and object tags (`objectTags`) searched, even with nothing found |
+| **Ran in part** | the brain, plain | one of them only, e.g. object tags from the [streamer's cloud detector](streamer.md#cloud-detection), which doesn't look for subjects |
+| **Hasn't run** | an outlined brain (`psychology_outlined`), disabled | neither |
+
+A brain, not a magnifier: the magnifier is the events search's icon, and
+an eye (`visibility_off`) already means hidden (the device limit notice).
 
 Its tooltip (and screen-reader label) says the state, then each part:
 
