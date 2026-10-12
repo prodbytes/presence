@@ -5350,3 +5350,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device deletion](device-deletion.md), [Monitoring](monitoring.md),
        [Events](events.md).
 
+
+382. **Grey borders for recognition's labels.** (2026-10-12)
+     - Asked: auto-recognized tags and subjects should have greyscale
+       borders; only tags and subjects the user authored should be
+       colored. The first automated recognition was colored.
+     - Changed: a label's border color now follows who made it, not its
+       confidence. `labelBorderColor` takes `authored`: yellow (the
+       theme's main color) only for manual or confirmed tags; recognition's
+       subjects and object tags are grey, lighter the surer, even at
+       100 % (before, a recognition at 100 %, such as an object tag
+       scoring 1, was edged yellow). Specs: [Clips](clips.md).

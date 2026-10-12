@@ -265,16 +265,18 @@ class EventSubjects extends StatelessWidget {
       final theme = Theme.of(context);
       final seen = <String>{};
       final search = EventSearchScope.maybeOf(context);
-      // Each subject's earliest tagged frame, and how sure its surest tag
-      // on the clip is.
+      // Each subject's earliest tagged frame, how sure its surest tag on
+      // the clip is, and whether someone tagged or confirmed them on it.
       final firstMs = <String, int>{};
       final sure = <String, double>{};
+      final authored = <String>{};
       for (final tag in event.annotations.tags) {
         final id = Subject.idOf(tag.name);
         final ms = tag.frameMs;
         if (ms != null && ms < (firstMs[id] ?? ms + 1)) firstMs[id] = ms;
         final confidence = tag.confidence ?? 0;
         if (confidence > (sure[id] ?? -1)) sure[id] = confidence;
+        if (tag.source.vouched) authored.add(id);
       }
       final tags = [
         for (final tag in event.annotations.tags)
@@ -285,6 +287,7 @@ class EventSubjects extends StatelessWidget {
               name: tag.name.trim(),
               detected: tag.source == TagSource.detected,
               confidence: sure[id]!,
+              authored: authored.contains(id),
               ms: firstMs[id],
               // Whether it's the search: highlighted.
               active:
@@ -310,7 +313,11 @@ class EventSubjects extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: t.active ? scheme.primaryContainer : null,
                     border: Border.all(
-                      color: labelBorderColor(scheme, t.confidence),
+                      color: labelBorderColor(
+                        scheme,
+                        t.confidence,
+                        authored: t.authored,
+                      ),
                     ),
                     borderRadius: _subjectRadius,
                   ),
