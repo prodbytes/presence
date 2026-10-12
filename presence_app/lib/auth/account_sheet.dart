@@ -242,6 +242,7 @@ class AccountSheet extends StatelessWidget {
                             log?.events ?? const [],
                             profileId: profile,
                             thisDevice: deviceId,
+                            listed: sync?.deviceSlots?.devices ?? const [],
                           ),
                           thisDevice: deviceId,
                           hidden: switch (log) {
@@ -375,10 +376,12 @@ List<String> profileDevices(
   Iterable<AppEvent> events, {
   required String profileId,
   String? thisDevice,
+  Iterable<String> listed = const [],
 }) {
   final others = {
     for (final event in events)
       if (event.profileId == profileId) ?event.deviceId,
+    ...listed,
   }..remove(thisDevice);
   return [?thisDevice, ...others.toList()..sort()];
 }
@@ -391,11 +394,14 @@ typedef ProfileDevice = ({String id, String? os, DateTime? lastEvent});
 
 /// [profileDevices], each with its operating system and latest event (see
 /// [ProfileDevice]). Events not saved yet, without a device ID, are
-/// [thisDevice]'s.
+/// [thisDevice]'s. [listed] are the profile's devices as the auth API
+/// lists them (`DeviceSlots.devices`): they show even before their first
+/// event, such as a Raspberry Pi streamer that hasn't seen anyone yet.
 List<ProfileDevice> profileDeviceDetails(
   Iterable<AppEvent> events, {
   required String profileId,
   String? thisDevice,
+  Iterable<String> listed = const [],
 }) {
   final latest = <String, DateTime>{};
   final os = <String, (DateTime, String)>{};
@@ -417,6 +423,7 @@ List<ProfileDevice> profileDeviceDetails(
       events,
       profileId: profileId,
       thisDevice: thisDevice,
+      listed: listed,
     ))
       (
         id: id,
