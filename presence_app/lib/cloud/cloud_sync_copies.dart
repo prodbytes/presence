@@ -149,7 +149,10 @@ class _CopyTracker {
     final framesUp =
         clipId is! String ||
         frameIds.every((f) => inCloud(CloudSync.frameKeyOf(clipId, f)));
-    final eventUp = inCloud(CloudSync.eventKey(record));
+    // Deleted from the cloud here: not there, whatever was sent before.
+    final eventUp =
+        !_EventActions.isOffCloud(synced, record['id']) &&
+        inCloud(CloudSync.eventKey(record));
     if (clipId is! String) {
       return (self: mine || framesHere, cloud: eventUp && framesUp);
     }

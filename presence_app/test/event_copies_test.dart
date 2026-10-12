@@ -132,6 +132,31 @@ Map<String, Object?> ack(
   'eventIds': eventIds,
 };
 
+/// Records the indicators' taps ([EventCopyActions]), each answering
+/// [result].
+class FakeCopyActions implements EventCopyActions {
+  final calls = <String>[];
+  bool result = true;
+
+  @override
+  Future<bool> putInCloud(String id) async {
+    calls.add('put $id');
+    return result;
+  }
+
+  @override
+  Future<bool> deleteFromCloud(String id) async {
+    calls.add('delete $id');
+    return result;
+  }
+
+  @override
+  Future<bool> shareCopies(String id) async {
+    calls.add('share $id');
+    return result;
+  }
+}
+
 /// One device of the profile: its storage, cloud sync and live sync.
 class Device {
   Device(this.id, this.backend, this.auth, this.broker);
@@ -679,6 +704,109 @@ void main() {
     });
   });
 
+  group('the indicators\' actions', () {
+    late FakeCloudBackend backend;
+    late FakeAuthService auth;
+    late RoutingBroker broker;
+    late Device a;
+    late Device b;
+    final eventsTopic = 'presence/prod/$identity/events';
+
+    setUp(() async {
+      backend = FakeCloudBackend();
+      auth = FakeAuthService();
+      broker = RoutingBroker();
+      a = Device('phone_a', backend, auth, broker);
+      b = Device('phone_b', backend, auth, broker);
+      await a.start();
+      await b.start();
+      await auth.signIn();
+      await a.sync.idle();
+      await b.sync.idle();
+      await until(
+        () =>
+            a.live.state == LiveSyncState.connected &&
+            b.live.state == LiveSyncState.connected,
+      );
+    });
+
+    tearDown(() async {
+      await a.stop();
+      await b.stop();
+    });
+
+    List<Map<String, Object?>> published() =>
+        broker.connections.expand((c) => c.sentOn(eventsTopic)).toList();
+
+    test('deleted from the cloud, it stays out; put back, it goes up; '
+        'shared, it is published again', () async {
+      final event = <String, Object?>{
+        'id': 'tap-1',
+        'type': 'generic',
+        'title': 'Hello',
+        'time': DateTime.now().millisecondsSinceEpoch,
+        'deviceId': 'phone_a',
+        'profileId': '1',
+      };
+      final key = '$identity/${CloudSync.eventKey(event)}';
+      await a.store.putEvent(event);
+      a.changes.add({'tap-1'});
+      await a.sync.idle();
+      expect(backend.uploads.keys, contains(key));
+      expect(a.sync.copies.of('tap-1')?.cloud, isTrue);
+      await until(() => b.live.received == 1);
+
+      // Deleted from the cloud: gone from the bucket, and not uploaded
+      // again, even by a reconciliation.
+      expect(await a.sync.deleteFromCloud('tap-1'), isTrue);
+      expect(backend.deletes, contains(CloudSync.eventKey(event)));
+      expect(backend.uploads.keys, isNot(contains(key)));
+      expect(a.sync.copies.of('tap-1')?.cloud, isFalse);
+      a.changes.add(null);
+      await a.sync.idle();
+      expect(backend.uploads.keys, isNot(contains(key)));
+      expect(a.sync.copies.of('tap-1')?.cloud, isFalse);
+
+      // Put back: up at once, and the cloud holds it again.
+      expect(await a.sync.putInCloud('tap-1'), isTrue);
+      await a.sync.idle();
+      expect(backend.uploads.keys, contains(key));
+      expect(a.sync.copies.of('tap-1')?.cloud, isTrue);
+      final before = published().length;
+
+      // Shared: published again, with the ETag it has in the bucket.
+      expect(await a.sync.shareCopies('tap-1'), isTrue);
+      expect(published(), hasLength(before + 1));
+      expect(published().last['etag'], isNotNull);
+      await until(() => b.live.received == before + 1);
+
+      // Shared while not in the cloud: up first, then published.
+      expect(await a.sync.deleteFromCloud('tap-1'), isTrue);
+      expect(await a.sync.shareCopies('tap-1'), isTrue);
+      await a.sync.idle();
+      expect(backend.uploads.keys, contains(key));
+      expect(published(), hasLength(before + 2));
+    });
+
+    test("another device's event not held here can't be put; nor anything "
+        'shared with live sync off', () async {
+      final event = <String, Object?>{
+        'id': 'far-1',
+        'type': 'clip_requested',
+        'title': 'Clip',
+        'time': DateTime.now().millisecondsSinceEpoch,
+        'deviceId': 'phone_c',
+        'profileId': '1',
+        'clipId': 'far-clip',
+      };
+      await a.store.putEvent(event);
+      expect(await a.sync.putInCloud('far-1'), isFalse);
+      expect(await a.sync.putInCloud('no-such-event'), isFalse);
+      a.live.config = LiveConfig.never;
+      expect(await a.sync.shareCopies('far-1'), isFalse);
+    });
+  });
+
   test('with live sync off: this device and the cloud, and the tooltip says '
       "other devices' copies are unknown", () async {
     final backend = FakeCloudBackend();
@@ -757,8 +885,9 @@ void main() {
     Future<void> pumpTimeline(
       WidgetTester tester,
       EventCopies copies,
-      List<AppEvent> events,
-    ) async {
+      List<AppEvent> events, {
+      EventCopyActions? actions,
+    }) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -767,6 +896,7 @@ void main() {
       await tester.pumpWidget(
         EventCopiesScope(
           copies: copies,
+          actions: actions,
           child: MaterialApp(
             home: Scaffold(
               body: EventTimeline(
@@ -861,6 +991,95 @@ void main() {
       await tester.pump();
       expect(count('e2'), '2');
       expect(cloudOf('e2').color, scheme.primary);
+    });
+
+    testWidgets('tapped: the cloud puts or deletes (once confirmed), the '
+        'copies share', (tester) async {
+      final copies = EventCopies()
+        ..deviceId = 'automatic_paranoid_gadget'
+        ..liveOn = true
+        ..setLocal('e1', self: true, cloud: true)
+        ..setLocal('e3', self: false, cloud: true);
+      final actions = FakeCopyActions();
+      // The timeline keeps ticking: no pumpAndSettle.
+      Future<void> settle() async {
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+      }
+
+      await pumpTimeline(tester, copies, [
+        eventOf('e1', 'automatic_paranoid_gadget'),
+        eventOf('e2', 'automatic_paranoid_gadget'),
+        eventOf('e3', 'loud_shy_kettle'),
+      ], actions: actions);
+      String tooltipOf(String key) => tester
+          .widget<Tooltip>(
+            find.descendant(
+              of: find.byKey(Key(key)),
+              matching: find.byType(Tooltip),
+            ),
+          )
+          .message!;
+      expect(
+        tooltipOf('event-cloud-e1'),
+        'In the cloud\nTap to delete it from the cloud',
+      );
+      expect(
+        tooltipOf('event-cloud-e2'),
+        'Not in the cloud\nTap to put it in the cloud',
+      );
+      expect(
+        tooltipOf('event-copies-e2'),
+        endsWith('Tap to sync a copy to every device'),
+      );
+
+      // Not in the cloud: put at once.
+      await tester.tap(find.byKey(const Key('event-cloud-e2')));
+      await settle();
+      expect(actions.calls, ['put e2']);
+      expect(find.text('Putting it in the cloud…'), findsOneWidget);
+
+      // In the cloud: asked first; cancelled, nothing.
+      await tester.tap(find.byKey(const Key('event-cloud-e1')));
+      await settle();
+      expect(find.text('Delete from the cloud?'), findsOneWidget);
+      expect(find.textContaining("doesn't hold a full copy"), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await settle();
+      expect(actions.calls, ['put e2']);
+
+      // Archived: warned that this device has no full copy; confirmed.
+      await tester.tap(find.byKey(const Key('event-cloud-e3')));
+      await settle();
+      expect(find.textContaining("doesn't hold a full copy"), findsOneWidget);
+      await tester.tap(find.byKey(const Key('event-cloud-delete-confirm')));
+      await settle();
+      expect(actions.calls, ['put e2', 'delete e3']);
+      expect(find.text('Deleted from the cloud'), findsOneWidget);
+
+      // The copies: shared; a failure says so.
+      actions.result = false;
+      await tester.tap(find.byKey(const Key('event-copies-e1')));
+      await settle();
+      expect(actions.calls.last, 'share e1');
+      expect(
+        find.textContaining("Couldn't reach the other devices"),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('without actions, not tappable, and no hint', (tester) async {
+      final copies = EventCopies()..deviceId = 'automatic_paranoid_gadget';
+      await pumpTimeline(tester, copies, [
+        eventOf('e2', 'automatic_paranoid_gadget'),
+      ]);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('event-cloud-e2')),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
     });
 
     testWidgets('a deleted event shows no copies', (tester) async {

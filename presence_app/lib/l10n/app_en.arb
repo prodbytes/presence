@@ -762,8 +762,18 @@
   "eventAlreadyDeleted": "Event already deleted",
   "eventCancel": "Cancel",
   "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventCloudDelete": "Delete",
+  "eventCloudDeleteBody": "Its recording, thumbnail and tags are deleted from the cloud. This device won't upload it again unless you put it back.",
+  "eventCloudDeleteFailed": "Couldn't delete it from the cloud",
+  "eventCloudDeleteOnlyCopy": "This device doesn't hold a full copy: unless another device does, it's gone for good.",
+  "eventCloudDeleteTitle": "Delete from the cloud?",
+  "eventCloudDeleted": "Deleted from the cloud",
   "eventCloudNotSynced": "Not in the cloud",
+  "eventCloudPutFailed": "Couldn't put it in the cloud: that takes a premium profile and a full copy on this device.",
+  "eventCloudPutting": "Putting it in the cloud…",
   "eventCloudSynced": "In the cloud",
+  "eventCloudTapToDelete": "Tap to delete it from the cloud",
+  "eventCloudTapToPut": "Tap to put it in the cloud",
   "eventCopies": "{count, plural, =1{1 copy} other{{count} copies}}",
   "@eventCopies": {
     "placeholders": {
@@ -784,6 +794,9 @@
       }
     }
   },
+  "eventCopiesShareFailed": "Couldn't reach the other devices: live sync is off or not connected",
+  "eventCopiesSharing": "Asked the other devices to take a copy",
+  "eventCopiesTapToShare": "Tap to sync a copy to every device",
   "eventCopiesThisDevice": "This device",
   "eventDelete": "Delete event",
   "eventDeleteClipNote": "Its clip stays in the cloud until it expires.",
@@ -822,6 +835,8 @@
   "eventRecognitionComplete": "Recognition ran in full",
   "eventRecognitionNotRun": "Recognition hasn't run",
   "eventRecognitionPartial": "Recognition ran in part",
+  "eventRecognitionRerunning": "Running recognition again…",
+  "eventRecognitionTapToRerun": "Tap to run recognition again",
   "eventSubjectsAllTagged": "People and pets: everyone known is already named",
   "eventSubjectsFound": "People and pets: {names}",
   "@eventSubjectsFound": {

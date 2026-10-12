@@ -947,10 +947,43 @@ class AppLocalizationsPt extends AppLocalizations {
   String get eventCloudArchived => 'Arquivado na nuvem (não neste dispositivo)';
 
   @override
+  String get eventCloudDelete => 'Excluir';
+
+  @override
+  String get eventCloudDeleteBody =>
+      'A gravação, a miniatura e as marcações são excluídas da nuvem. Este dispositivo não vai enviá-lo de novo, a menos que você o envie.';
+
+  @override
+  String get eventCloudDeleteFailed => 'Não foi possível excluí-lo da nuvem';
+
+  @override
+  String get eventCloudDeleteOnlyCopy =>
+      'Este dispositivo não tem uma cópia completa: a menos que outro tenha, ele se perde para sempre.';
+
+  @override
+  String get eventCloudDeleteTitle => 'Excluir da nuvem?';
+
+  @override
+  String get eventCloudDeleted => 'Excluído da nuvem';
+
+  @override
   String get eventCloudNotSynced => 'Não está na nuvem';
 
   @override
+  String get eventCloudPutFailed =>
+      'Não foi possível enviá-lo à nuvem: é preciso um perfil premium e uma cópia completa neste dispositivo.';
+
+  @override
+  String get eventCloudPutting => 'Enviando-o à nuvem…';
+
+  @override
   String get eventCloudSynced => 'Na nuvem';
+
+  @override
+  String get eventCloudTapToDelete => 'Toque para excluí-lo da nuvem';
+
+  @override
+  String get eventCloudTapToPut => 'Toque para enviá-lo à nuvem';
 
   @override
   String eventCopies(int count) {
@@ -987,6 +1020,18 @@ class AppLocalizationsPt extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventCopiesShareFailed =>
+      'Não foi possível alcançar os outros dispositivos: a sincronização ao vivo está desligada ou sem conexão';
+
+  @override
+  String get eventCopiesSharing =>
+      'Os outros dispositivos foram chamados a pegar uma cópia';
+
+  @override
+  String get eventCopiesTapToShare =>
+      'Toque para sincronizar uma cópia em todos os dispositivos';
 
   @override
   String get eventCopiesThisDevice => 'Este dispositivo';
@@ -1067,6 +1112,14 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get eventRecognitionPartial => 'O reconhecimento foi feito em parte';
+
+  @override
+  String get eventRecognitionRerunning =>
+      'Executando o reconhecimento de novo…';
+
+  @override
+  String get eventRecognitionTapToRerun =>
+      'Toque para executar o reconhecimento de novo';
 
   @override
   String get eventSubjectsAllTagged =>

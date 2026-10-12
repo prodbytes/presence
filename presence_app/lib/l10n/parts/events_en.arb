@@ -394,5 +394,20 @@
       }
     }
   },
-  "eventCloudArchived": "Archived in the cloud (not on this device)"
+  "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventRecognitionTapToRerun": "Tap to run recognition again",
+  "eventRecognitionRerunning": "Running recognition again…",
+  "eventCloudTapToPut": "Tap to put it in the cloud",
+  "eventCloudTapToDelete": "Tap to delete it from the cloud",
+  "eventCloudPutting": "Putting it in the cloud…",
+  "eventCloudPutFailed": "Couldn't put it in the cloud: that takes a premium profile and a full copy on this device.",
+  "eventCloudDeleteTitle": "Delete from the cloud?",
+  "eventCloudDeleteBody": "Its recording, thumbnail and tags are deleted from the cloud. This device won't upload it again unless you put it back.",
+  "eventCloudDeleteOnlyCopy": "This device doesn't hold a full copy: unless another device does, it's gone for good.",
+  "eventCloudDelete": "Delete",
+  "eventCloudDeleted": "Deleted from the cloud",
+  "eventCloudDeleteFailed": "Couldn't delete it from the cloud",
+  "eventCopiesTapToShare": "Tap to sync a copy to every device",
+  "eventCopiesSharing": "Asked the other devices to take a copy",
+  "eventCopiesShareFailed": "Couldn't reach the other devices: live sync is off or not connected"
 }

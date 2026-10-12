@@ -118,6 +118,8 @@ class _Uploader {
       // stored.
       final parsed = Records.tryParseClip(clip, safeIds: true);
       if (parsed == null) continue;
+      // Deleted from the cloud here: kept out of it.
+      if (_EventActions.isOffCloud(synced, parsed['eventId'])) continue;
       final id = parsed['id']! as String;
       if (parsed['state'] != 'complete') continue;
       final ref = parsed['full'] ?? parsed['past'];
@@ -193,6 +195,7 @@ class _Uploader {
         // the listed one would put the older version back.
         final record = await store.getEvent(id);
         if (record == null || AppEvent.profileOf(record) != owner) continue;
+        if (_EventActions.isOffCloud(synced, id)) continue;
         // Tagged frames go up as images next to the clip; the event's
         // JSON keeps the tags (name, position, frame id and time) without
         // them.
@@ -226,12 +229,14 @@ class _Uploader {
         );
         if (etag != null) uploadedEvents.add(id);
         // Then the profile's other devices hear of it at once (live
-        // sync): recent events only, not a reconciliation's old ones.
+        // sync): recent events only, not a reconciliation's old ones;
+        // or one the other devices were asked to take a copy of.
         final time = record['time'];
         if (etag != null &&
-            time is int &&
-            _sync._now().millisecondsSinceEpoch - time <
-                _sync._window.inMilliseconds) {
+            (_sync._actions._publishOnUpload.remove(id) ||
+                time is int &&
+                    _sync._now().millisecondsSinceEpoch - time <
+                        _sync._window.inMilliseconds)) {
           published = (jsonDecode(utf8.decode(json)) as Map)
               .cast<String, Object?>();
           publishedKey = key;

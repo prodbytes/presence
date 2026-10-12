@@ -132,5 +132,20 @@
   "eventTagsNotSearched": "Etiquetas de objetos: sin buscar",
   "eventTagsNone": "Etiquetas de objetos: buscadas, no se vio nada",
   "eventTagsFound": "Etiquetas de objetos: {labels}",
-  "eventCloudArchived": "Archivado en la nube (no en este dispositivo)"
+  "eventCloudArchived": "Archivado en la nube (no en este dispositivo)",
+  "eventRecognitionTapToRerun": "Toca para volver a ejecutar el reconocimiento",
+  "eventRecognitionRerunning": "Ejecutando el reconocimiento de nuevo…",
+  "eventCloudTapToPut": "Toca para subirlo a la nube",
+  "eventCloudTapToDelete": "Toca para borrarlo de la nube",
+  "eventCloudPutting": "Subiéndolo a la nube…",
+  "eventCloudPutFailed": "No se pudo subir a la nube: hace falta un perfil premium y una copia completa en este dispositivo.",
+  "eventCloudDeleteTitle": "¿Borrar de la nube?",
+  "eventCloudDeleteBody": "Su grabación, miniatura y etiquetas se borran de la nube. Este dispositivo no lo volverá a subir a menos que lo subas tú.",
+  "eventCloudDeleteOnlyCopy": "Este dispositivo no tiene una copia completa: salvo que otro la tenga, se pierde para siempre.",
+  "eventCloudDelete": "Borrar",
+  "eventCloudDeleted": "Borrado de la nube",
+  "eventCloudDeleteFailed": "No se pudo borrar de la nube",
+  "eventCopiesTapToShare": "Toca para sincronizar una copia en todos los dispositivos",
+  "eventCopiesSharing": "Se pidió a los otros dispositivos que tomen una copia",
+  "eventCopiesShareFailed": "No se pudo llegar a los otros dispositivos: la sincronización en vivo está apagada o sin conexión"
 }

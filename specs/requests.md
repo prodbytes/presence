@@ -5302,7 +5302,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        app now give it in-memory storage, so its restore ends. Specs:
        [Events](events.md), [Cloud sync](cloud-sync.md).
 
-379. **Every subject on the map, at their latest event.** (2026-10-12)
+379. **Tappable event indicators.** (2026-10-12)
+     - Asked: make the event card's indicators a little larger; tapping
+       the recognition indicator re-runs recognition on the event, the
+       cloud indicator puts it in or deletes it from S3, and the copies
+       indicator tries to sync a copy of the event to every device.
+     - Changed: the indicators are 20 dp icons (from 16), at least
+       40 × 32 dp, each a button with a spinner while it works and a
+       snack bar saying how it went; their tooltips end with what a tap
+       does. Recognition runs again, object tags included
+       (`recognizeNow(again: true)`). The cloud uploads an event not in it
+       at once, or, once confirmed, deletes it from the bucket and keeps
+       it out (`offcloud:<id>`) until put back. The copies put it in the
+       cloud if needed and publish it again over live sync, so the other
+       devices fetch and ack it; one that has it gives failed recording
+       downloads another try. In English, Spanish and Portuguese. Specs:
+       [Event copies](event-copies.md), [Subject
+       recognition](recognition.md), [Cloud sync](cloud-sync.md).
+
+380. **Every subject on the map, at their latest event.** (2026-10-12)
      - Asked: in the map, show the latest event for each subject, all
        subjects on the map.
      - Changed: the Monitoring map (`SubjectsMap`) now has one solid dot
