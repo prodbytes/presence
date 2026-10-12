@@ -107,6 +107,9 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/link" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
+  route "POST /api/auth/profile/stream-key" ProfileFunction "$authorizer"
+  # The streamer's: no Google token, its stream key is checked by the function.
+  route "POST /api/auth/stream/credentials" ProfileFunction
   # Cloud recognition (premium only). Locally the models come from Hugging
   # Face at each function's first use (no bucket here keeps them): DINOv2
   # 1.2 GB, SigLIP2 95 MB.

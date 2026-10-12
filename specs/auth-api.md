@@ -57,8 +57,13 @@ them while the health stack imports them. The API's routes:
   how many show (2 free, 50 premium), and name the user-data bucket
   (`bucket`, when the stack has one: the [streamer](streamer.md), which has
   no build-time settings, reads it there); `POST
-  /api/auth/profile/devices/remove` takes a deleted device off the list.
+  /api/auth/profile/devices/remove` takes a deleted device off the list
+  (and deletes its stream key).
   See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
+- **`POST /api/auth/profile/stream-key`** (a member) and **`POST
+  /api/auth/stream/credentials`** (no authorizer: the stream key is the
+  proof): a Raspberry Pi's [stream key](streamer.md#the-stream-key), and
+  the profile's credentials for it, with no Google sign-in on the Pi.
 - No roles, maintenance or voucher routes (removed on 2026-10-10 with
   `GET /api/auth`, `POST /api/auth/voucher`, `/api/auth/vouchers`,
   `/api/auth/maintenance`, `VoucherHandler` and `AdminHandler`): the app
@@ -146,6 +151,9 @@ them while the health stack imports them. The API's routes:
   encrypted, with point-in-time recovery, and kept if the stack is
   deleted. Their contents (people's emails) live only in AWS.
   `LinkCodesTable` holds short-lived link codes (hashed, with a TTL).
+  `StreamKeysTable` holds the streamers' keys (hashed), by
+  `<profile>/<device>`, kept on stack deletion, with point-in-time
+  recovery.
   Tables that left the stack but are kept in AWS (`DeletionPolicy:
   Retain`) until deleted by hand: `UserRolesTable` (the old voucher
   lockout's counts, and the roles from before rbacr) and `VoucherTable`

@@ -5247,3 +5247,23 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Specs: [Deploy](deploy.md), [Health check](health-check.md),
        [README](README.md).
 
+375. **The streamer with a stream key: no Google sign-in.** (2026-10-12)
+     - Asked: stream straight to the profile without Google or roles: copy
+       one command from the profile view, with the device ID and an
+       authorization key checked when it runs, and paste it on the Pi,
+       headless too, uploading to S3.
+     - Changed: [Streamer](streamer.md#the-stream-key). The auth API's
+       `POST /api/auth/profile/stream-key` (a member: a device's key, its
+       hash kept in the new `StreamKeysTable`, the profile linked to its
+       identity) and `POST /api/auth/stream/credentials` (no authorizer:
+       the key, profile and device give the profile's credentials, tiered
+       by the owner's roles, with the key maker's `userId`); deleting the
+       device revokes its key. The streamer's `--profile`, `--device-id`
+       and `--key` (setup checks the key, keeps it, needs no terminal;
+       renewals use it; a refused key stops it, exit 2), and credentials
+       the auth API gives itself (the local stack). The installer's
+       `--profile … --device-id … --key …` form. The app's **Create
+       command** in the Raspberry Pi box (a new device ID and its key,
+       shown once). The tier still comes from rbacr: S3 accepts only
+       premium credentials. Specs: [Install script](install-script.md),
+       [Auth API](auth-api.md), [README](README.md).

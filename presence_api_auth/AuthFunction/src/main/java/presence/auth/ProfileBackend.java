@@ -41,6 +41,9 @@ final class ProfileBackend implements ProfileHandler.Backend {
     private final CognitoIdentityClient cognito;
     private final S3Client s3;
     private final String codesTable;
+
+    /** The stream keys table ({@code STREAM_KEYS_TABLE}): {@code {"device": "<profile>/<device>", "hash", "createdBy", "subject", "createdAt"}}. */
+    private String streamKeysTable;
     private final String identityPoolId;
     private final String developerProvider;
     private final String bucket;
@@ -81,7 +84,7 @@ final class ProfileBackend implements ProfileHandler.Backend {
     static ProfileBackend fromEnvironment() {
         var http = Aws.http();
         var iotPolicy = System.getenv("IOT_POLICY_NAME");
-        return new ProfileBackend(
+        var backend = new ProfileBackend(
                 Aws.dynamo(),
                 CognitoIdentityClient.builder().httpClient(http).build(),
                 // Floci's S3 (the local stack) is reached path-style.
@@ -92,6 +95,45 @@ final class ProfileBackend implements ProfileHandler.Backend {
                 System.getenv("USER_DATA_BUCKET"),
                 iotPolicy == null || iotPolicy.isBlank() ? null : IotClient.builder().httpClient(http).build(),
                 iotPolicy);
+        backend.streamKeysTable = System.getenv("STREAM_KEYS_TABLE");
+        return backend;
+    }
+
+    private static Map<String, AttributeValue> streamKeyOf(String profileId, String deviceId) {
+        return Map.of("device", AttributeValue.fromS(profileId + "/" + deviceId));
+    }
+
+    @Override
+    public void saveStreamKey(String profileId, String deviceId, ProfileHandler.StreamKey key) {
+        var item = new java.util.HashMap<>(streamKeyOf(profileId, deviceId));
+        item.put("hash", AttributeValue.fromS(key.hash()));
+        item.put("createdBy", AttributeValue.fromS(key.createdBy()));
+        item.put("subject", AttributeValue.fromS(key.subject()));
+        item.put("createdAt", AttributeValue.fromS(key.createdAt().toString()));
+        dynamo.putItem(PutItemRequest.builder().tableName(streamKeysTable).item(item).build());
+    }
+
+    @Override
+    public Optional<ProfileHandler.StreamKey> streamKey(String profileId, String deviceId) {
+        var item = dynamo.getItem(GetItemRequest.builder()
+                .tableName(streamKeysTable)
+                .key(streamKeyOf(profileId, deviceId))
+                .consistentRead(true)
+                .build()).item();
+        if (item == null || item.isEmpty() || text(item, "hash") == null) {
+            return Optional.empty();
+        }
+        var createdAt = text(item, "createdAt");
+        return Optional.of(new ProfileHandler.StreamKey(text(item, "hash"), text(item, "createdBy"),
+                text(item, "subject"), createdAt == null ? Instant.EPOCH : Instant.parse(createdAt)));
+    }
+
+    @Override
+    public void deleteStreamKey(String profileId, String deviceId) {
+        dynamo.deleteItem(DeleteItemRequest.builder()
+                .tableName(streamKeysTable)
+                .key(streamKeyOf(profileId, deviceId))
+                .build());
     }
 
     @Override

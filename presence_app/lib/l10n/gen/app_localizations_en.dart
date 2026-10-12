@@ -322,7 +322,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authStreamerBody =>
-      'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.';
+      'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.';
 
   @override
   String get authStreamerCopied =>
@@ -330,6 +330,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authStreamerCopy => 'Copy command';
+
+  @override
+  String get authStreamerCreate => 'Create command';
+
+  @override
+  String authStreamerFailed(String error) {
+    return 'Couldn\'t create the command ($error)';
+  }
+
+  @override
+  String get authStreamerKeyOnce =>
+      'It holds this device\'s key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.';
 
   @override
   String get authStreamerTitle => 'Stream from a Raspberry Pi';

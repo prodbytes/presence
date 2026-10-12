@@ -602,6 +602,21 @@ class FakeProfileClient implements ProfileClient {
     return members;
   }
 
+  /// The stream keys made, by device.
+  final streamKeys = <String, String>{};
+
+  @override
+  Future<StreamKey> streamKey(String idToken, String device) async {
+    if (error case final e?) throw e;
+    final key = 'psk_${'k' * 42}${streamKeys.length}';
+    streamKeys[device] = key;
+    return StreamKey(
+      profile: 'automatic_paranoid_axolotl',
+      device: device,
+      key: key,
+    );
+  }
+
   @override
   Future<LinkCode> linkCode(String idToken) async {
     if (error case final e?) throw e;

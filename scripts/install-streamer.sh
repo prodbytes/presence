@@ -1,6 +1,13 @@
 #!/bin/sh
 # Installs the Presence streamer on a Raspberry Pi (Raspberry Pi OS 32- or
-# 64-bit) and sets it up for a profile, so it streams from every boot:
+# 64-bit) and sets it up for a profile, so it streams from every boot. The
+# app's profile view gives the command, with a new device and its stream
+# key: nobody signs in, so it works headless:
+#
+#   curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- \
+#     --profile <profile ID> --device-id <device ID> --key <stream key>
+#
+# Or with a Google sign-in (a code to enter on a phone):
 #
 #   curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>
 #   curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=<profile ID> sh
@@ -58,7 +65,34 @@ sha256_of() {
 }
 
 main() {
-  profile=${1:-${PRESENCE_PROFILE:-${PRESENCE_STREAMER_PROFILE:-}}}
+  # The app's command: --profile, --device-id and --key, checked here and
+  # again by presence-streamer setup (which asks the auth API).
+  keyed=
+  case "${1:-}" in
+    --*)
+      keyed=1
+      profile= device= key=
+      while [ $# -gt 0 ]; do
+        [ $# -ge 2 ] || { say "$1 needs a value"; return 2; }
+        case "$1" in
+          --profile) profile=$2 ;;
+          --device-id) device=$2 ;;
+          --key) key=$2 ;;
+          *)
+            say "unknown option $1 (copy the command from the app's profile view)"
+            return 2
+            ;;
+        esac
+        shift 2
+      done
+      if [ -z "$profile" ] || ! printf '%s' "$device" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' ||
+        ! printf '%s' "$key" | grep -Eq '^psk_[A-Za-z0-9_-]{43}$'; then
+        say "that isn't the app's command: it needs --profile, --device-id and --key"
+        return 2
+      fi
+      ;;
+    *) profile=${1:-${PRESENCE_PROFILE:-${PRESENCE_STREAMER_PROFILE:-}}} ;;
+  esac
   if [ -n "$profile" ] && { ! printf '%s' "$profile" | grep -Eq '^[a-z]+_[a-z]+_[a-z]+$' || [ "${#profile}" -gt 64 ]; }; then
     say "'$profile' isn't a profile ID (they look like automatic_paranoid_axolotl)"
     return 2
@@ -127,6 +161,13 @@ main() {
 
   # The sign-in shows its code on the terminal: this script's own stdin is
   # the pipe from curl.
+  if [ -n "$keyed" ]; then
+    # No sign-in: setup checks the key with the auth API and starts the
+    # service. No terminal needed (headless, or piped in).
+    say "setting up device $device of profile $profile"
+    $sudo presence-streamer setup --profile "$profile" --device-id "$device" --key "$key"
+    return
+  fi
   if [ -n "$profile" ]; then
     say "setting up profile $profile"
     set -- --profile "$profile"

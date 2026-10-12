@@ -116,7 +116,113 @@ class ProfileTest {
         public void allowLiveSync(String identityId) {
             liveSyncAllowed.add(identityId);
         }
+
+        @Override
+        public void saveStreamKey(String profileId, String deviceId, ProfileHandler.StreamKey key) {
+            streamKeys.put(profileId + "/" + deviceId, key);
+        }
+
+        @Override
+        public Optional<ProfileHandler.StreamKey> streamKey(String profileId, String deviceId) {
+            return Optional.ofNullable(streamKeys.get(profileId + "/" + deviceId));
+        }
+
+        @Override
+        public void deleteStreamKey(String profileId, String deviceId) {
+            streamKeys.remove(profileId + "/" + deviceId);
+        }
     };
+
+    /** The stream keys table: "<profile>/<device>" -> the key's record. */
+    private final Map<String, ProfileHandler.StreamKey> streamKeys = new HashMap<>();
+
+    /** The streamer's call: no Google token, the stream key as the bearer. */
+    private static APIGatewayV2HTTPEvent streamerCall(String key, String body) {
+        var event = new APIGatewayV2HTTPEvent();
+        event.setRequestContext(new APIGatewayV2HTTPEvent.RequestContext());
+        event.setRouteKey(ProfileHandler.STREAM_CREDENTIALS);
+        event.setHeaders(key == null ? Map.of() : Map.of("authorization", "Bearer " + key));
+        event.setBody(body);
+        return event;
+    }
+
+    /** A member makes a stream key for {@code device} of their profile; the key. */
+    private String streamKeyFor(String sub, String email, String device) {
+        var response = profiles.handleRequest(call("POST /api/auth/profile/stream-key", sub, email, device), null);
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        var m = java.util.regex.Pattern.compile("\\\"key\\\":\\\"(psk_[A-Za-z0-9_-]{43})\\\"").matcher(response.getBody());
+        assertTrue(m.find(), response.getBody());
+        return m.group(1);
+    }
+
+    @Test
+    void aStreamKeyGetsItsDeviceThePremiumProfilesCredentialsWithoutGoogle() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        // Only its hash is kept, with who made it.
+        var stored = streamKeys.get("profile_1/calm_quiet_otter");
+        assertEquals(ProfileHandler.hash(key), stored.hash());
+        assertEquals("julio@nu01.com", stored.createdBy());
+        assertEquals("work", stored.subject());
+
+        var response = profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null);
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
+                + "\"deviceLimit\":50,\"devices\":[\"calm_quiet_otter\"],\"tier\":\"premium\","
+                + "\"userId\":\"work\"}", response.getBody());
+        assertEquals("premium", tiers.getLast());
+        assertEquals(false, admins.getLast());
+    }
+
+    @Test
+    void aFreeOwnersProfileStreamsFree() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var response = profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null);
+        assertEquals(200, response.getStatusCode());
+        assertTrue(response.getBody().contains("\"tier\":\"free\""), response.getBody());
+    }
+
+    @Test
+    void aStreamKeyIsOnlyItsDevicesAndGoesWithIt() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var other = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
+        for (var refused : List.of(
+                streamerCall(other, "profile_1 calm_quiet_otter"),
+                streamerCall(key, "profile_1 brave_little_lamp"),
+                streamerCall(key, "profile_2 calm_quiet_otter"),
+                streamerCall("psk_" + "A".repeat(43), "profile_1 calm_quiet_otter"),
+                streamerCall("not-a-key", "profile_1 calm_quiet_otter"),
+                streamerCall(null, "profile_1 calm_quiet_otter"))) {
+            assertEquals(401, profiles.handleRequest(refused, null).getStatusCode());
+        }
+        assertEquals(400, profiles.handleRequest(streamerCall(key, "profile_1"), null).getStatusCode());
+        assertEquals(400, profiles.handleRequest(streamerCall(key, "profile_1 Not/A/Device"), null).getStatusCode());
+
+        // A new key replaces the old one.
+        var newer = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        assertEquals(401, profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null).getStatusCode());
+        assertEquals(200, profiles.handleRequest(streamerCall(newer, "profile_1 calm_quiet_otter"), null).getStatusCode());
+
+        // Deleting the device revokes it.
+        profiles.handleRequest(call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com",
+                "calm_quiet_otter"), null);
+        assertEquals(401, profiles.handleRequest(streamerCall(newer, "profile_1 calm_quiet_otter"), null).getStatusCode());
+    }
+
+    @Test
+    void onlyMembersMakeStreamKeysForADevice() {
+        var stranger = profiles.handleRequest(call("POST /api/auth/profile/stream-key", "x", "x@example.com",
+                "calm_quiet_otter"), null);
+        assertEquals(403, stranger.getStatusCode());
+        var noDevice = profiles.handleRequest(call("POST /api/auth/profile/stream-key", "work", "julio@nu01.com",
+                ""), null);
+        assertEquals(400, noDevice.getStatusCode());
+        assertTrue(streamKeys.isEmpty());
+    }
 
     /** rbacr's roles in the presence system, by email: julio@ and ana@nu01.com are (free) members, others nothing. */
     private final Map<String, Set<String>> rbacr = new HashMap<>(Map.of(

@@ -100,6 +100,21 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
     }
 
     @Override
+    public void saveStreamKey(String profileId, String deviceId, ProfileHandler.StreamKey key) {
+        aws.saveStreamKey(profileId, deviceId, key);
+    }
+
+    @Override
+    public Optional<ProfileHandler.StreamKey> streamKey(String profileId, String deviceId) {
+        return aws.streamKey(profileId, deviceId);
+    }
+
+    @Override
+    public void deleteStreamKey(String profileId, String deviceId) {
+        aws.deleteStreamKey(profileId, deviceId);
+    }
+
+    @Override
     public boolean folderEmpty(String identityId) {
         return aws.folderEmpty(identityId);
     }

@@ -36,6 +36,21 @@ class LinkCode {
   final DateTime expiresAt;
 }
 
+/// A device's stream key, as the auth API made it: shown once.
+class StreamKey {
+  const StreamKey({
+    required this.profile,
+    required this.device,
+    required this.key,
+  });
+
+  final String profile;
+  final String device;
+
+  /// `psk_…`: only its hash is kept.
+  final String key;
+}
+
 /// The auth API's profile routes: a profile is one person's cloud folder,
 /// whichever of their Google accounts signs in. Failures throw
 /// [RolesException] with the HTTP status (404: a wrong, used or expired
@@ -52,6 +67,11 @@ abstract class ProfileClient {
 
   /// Removes [email] from the profile; the accounts left.
   Future<List<ProfileAccount>> unlink(String idToken, String email);
+
+  /// A new stream key for [device], a device of the profile to be (a
+  /// Raspberry Pi running the streamer), replacing any key it had
+  /// (`POST /api/auth/profile/stream-key`).
+  Future<StreamKey> streamKey(String idToken, String device);
 }
 
 /// The real client, next to `GET /api/auth` (see [HttpRolesClient]).
@@ -111,6 +131,21 @@ class HttpProfileClient implements ProfileClient {
   @override
   Future<List<ProfileAccount>> link(String idToken, String code) async =>
       _accounts(await _send('POST', '/api/auth/profile/link', idToken, code));
+
+  @override
+  Future<StreamKey> streamKey(String idToken, String device) async {
+    final body = await _send(
+      'POST',
+      '/api/auth/profile/stream-key',
+      idToken,
+      device,
+    );
+    return StreamKey(
+      profile: '${body['profile']}',
+      device: '${body['device']}',
+      key: '${body['key']}',
+    );
+  }
 
   @override
   Future<List<ProfileAccount>> unlink(String idToken, String email) async =>

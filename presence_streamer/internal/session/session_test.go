@@ -17,6 +17,7 @@ import (
 type fake struct {
 	tier, profile string
 	refreshes     int
+	streams       int
 	expires       time.Time
 }
 
@@ -32,6 +33,14 @@ func (f *fake) server(t *testing.T) (*google.Client, *presence.API) {
 	})
 	mux.HandleFunc("/api/auth/credentials", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","tier":%q,"bucket":"user-data-test"}`, f.tier)
+	})
+	mux.HandleFunc("/api/auth/stream/credentials", func(w http.ResponseWriter, r *http.Request) {
+		f.streams++
+		if r.Header.Get("Authorization") != "Bearer psk_good" {
+			w.WriteHeader(401)
+			return
+		}
+		fmt.Fprintf(w, `{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","tier":%q,"bucket":"user-data-test","userId":"7"}`, f.tier)
 	})
 	mux.HandleFunc("/cognito", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"Credentials":{"AccessKeyId":"AK","SecretKey":"SK","SessionToken":"ST","Expiration":%d}}`, f.expires.Unix())
@@ -80,5 +89,34 @@ func TestFreeAndWrongProfile(t *testing.T) {
 	}
 	if Fatal(errors.New("network down")) {
 		t.Fatal("a network error is fatal")
+	}
+}
+
+func TestStreamKeyWithoutGoogle(t *testing.T) {
+	now := time.Date(2026, 10, 12, 12, 0, 0, 0, time.UTC)
+	f := &fake{tier: "premium", expires: now.Add(time.Hour)}
+	_, api := f.server(t)
+	s := &Session{API: api, StreamKey: "psk_good", ProfileID: "p_q_r", DeviceID: "a_b_c", Now: func() time.Time { return now }}
+	ctx := context.Background()
+	aws, err := s.AWS(ctx)
+	if err != nil || aws.AccessKeyID != "AK" {
+		t.Fatalf("aws %+v, %v", aws, err)
+	}
+	if s.UserID() != "7" || f.refreshes != 0 || f.streams != 1 {
+		t.Fatalf("user %q, %d Google refreshes, %d stream calls", s.UserID(), f.refreshes, f.streams)
+	}
+	// Renewed with the key too.
+	now = now.Add(56 * time.Minute)
+	f.expires = now.Add(time.Hour)
+	if _, err := s.AWS(ctx); err != nil || f.streams != 2 {
+		t.Fatalf("renewal: %v, %d stream calls", err, f.streams)
+	}
+
+	f.tier = "free"
+	if _, err := CheckKey(ctx, api, "psk_good", "p_q_r", "a_b_c"); !errors.Is(err, ErrFree) || !Fatal(err) {
+		t.Fatalf("free: %v", err)
+	}
+	if _, err := CheckKey(ctx, api, "psk_bad", "p_q_r", "a_b_c"); !errors.Is(err, presence.ErrKeyRefused) || !Fatal(err) {
+		t.Fatalf("a refused key: %v", err)
 	}
 }

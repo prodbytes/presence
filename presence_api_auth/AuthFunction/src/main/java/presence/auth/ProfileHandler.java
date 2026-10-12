@@ -79,6 +79,14 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     static final String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     static final int CODE_LENGTH = 8;
 
+    /**
+     * A device's stream key, as stored (its SHA-256 only): who made it (the
+     * email, and the Google {@code sub}, which the streamer's events carry as
+     * {@code userId}) and when.
+     */
+    record StreamKey(String hash, String createdBy, String subject, Instant createdAt) {
+    }
+
     /** A link code, as stored (by its hash): which profile it joins, who made it, and until when. */
     record LinkCode(String profileId, String createdBy, Instant expiresAt) {
     }
@@ -153,6 +161,20 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         default Optional<String> credentials(String identityId) {
             return Optional.empty();
         }
+
+        /** Keeps {@code key} as the stream key of the profile's device, replacing any it had. */
+        default void saveStreamKey(String profileId, String deviceId, StreamKey key) {
+            throw new UnsupportedOperationException("stream keys");
+        }
+
+        /** The stream key of the profile's device, if it has one. */
+        default Optional<StreamKey> streamKey(String profileId, String deviceId) {
+            return Optional.empty();
+        }
+
+        /** Forgets the stream key of the profile's device (none: nothing happens). */
+        default void deleteStreamKey(String profileId, String deviceId) {
+        }
     }
 
     /** The principal tag the credentials carry: whether they may use the bucket. */
@@ -172,6 +194,15 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     /** How many of a premium profile's devices show theirs, and the most a profile lists. */
     static final int PREMIUM_DEVICES = 50;
+
+    /** A stream key: {@code psk_} and 32 random bytes, base64url. */
+    private static final Pattern STREAM_KEY = Pattern.compile("psk_[A-Za-z0-9_-]{43}");
+
+    /** A profile ID in the streamer's request (generated ones are {@code adjective_adjective_animal}). */
+    private static final Pattern PROFILE_ID = Pattern.compile("[a-z0-9_]{1,100}");
+
+    /** The streamer's route, which has no Google token: the stream key is its proof. */
+    static final String STREAM_CREDENTIALS = "POST /api/auth/stream/credentials";
 
     /** The longest device ID taken. */
     static final int MAX_DEVICE_ID = 64;
@@ -219,6 +250,13 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!OriginCheck.fromEnvironment().allows(event)) {
             return OriginCheck.refused();
         }
+        if (STREAM_CREDENTIALS.equals(Http.route(event))) {
+            try {
+                return streamCredentials(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1));
+            } catch (RuntimeException e) {
+                return Aws.failed("profile", STREAM_CREDENTIALS, e, context);
+            }
+        }
         var caller = Caller.from(event);
         if (!caller.hasSubject() || caller.verifiedEmail() == null) {
             return response(403, "{\"error\":\"a verified email is required\"}");
@@ -230,6 +268,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 case "POST /api/auth/credentials" -> credentials(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/devices/remove" ->
                         removeDevice(caller, Http.bodyText(event, MAX_DEVICE_ID));
+                case "POST /api/auth/profile/stream-key" -> streamKey(caller, Http.bodyText(event, MAX_DEVICE_ID));
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
                 case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
                 case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
@@ -269,13 +308,95 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var devices = device.isEmpty()
                 ? profiles.store().devices(profile.id())
                 : profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
-        return response(200, "{\"identityId\":" + Json.string(profile.identityId())
+        return response(200, credentialsAnswer(profile, token, premium, devices, ""));
+    }
+
+    /** {@code POST /api/auth/credentials}'s answer, with {@code extra} fields at the end. */
+    private String credentialsAnswer(Profiles.Profile profile, String token, boolean premium, List<String> devices,
+                                     String extra) {
+        return "{\"identityId\":" + Json.string(profile.identityId())
                 + ",\"token\":" + Json.string(token)
                 + ",\"deviceLimit\":" + (premium ? PREMIUM_DEVICES : FREE_DEVICES)
                 + ",\"devices\":" + devicesJson(devices)
-                + ",\"tier\":" + Json.string(tier)
+                + ",\"tier\":" + Json.string(premium ? PREMIUM : FREE)
                 + (bucket == null ? "" : ",\"bucket\":" + Json.string(bucket))
-                + backend.credentials(profile.identityId()).map(c -> ",\"credentials\":" + c).orElse("") + "}");
+                + extra
+                + backend.credentials(profile.identityId()).map(c -> ",\"credentials\":" + c).orElse("") + "}";
+    }
+
+    /**
+     * {@code POST /api/auth/profile/stream-key}: a new stream key for the
+     * device in the body, a device of the caller's profile to be (a
+     * Raspberry Pi running the streamer), replacing any key it had. The key
+     * is answered once, {@code {"profile", "device", "key"}}; only its
+     * SHA-256 is kept.
+     */
+    private APIGatewayV2HTTPResponse streamKey(Caller caller, String device) {
+        if (!configured) {
+            return notConfigured();
+        }
+        if (!validDevice(device)) {
+            return response(400, "{\"error\":\"the body must be a device ID\"}");
+        }
+        var profile = profile(caller);
+        if (!roles.of(caller, profile).contains(Roles.USER)) {
+            return response(403, "{\"error\":\"presence_user is required\"}");
+        }
+        profile = withIdentity(caller, profile);
+        // Links the profile to its identity now, with the caller's Google
+        // token: the streamer has none, and Cognito links only beside one.
+        backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
+        var raw = new byte[32];
+        random.nextBytes(raw);
+        var key = "psk_" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+        backend.saveStreamKey(profile.id(), device, new StreamKey(hash(key), caller.verifiedEmail(), caller.sub(),
+                profiles.clock().instant()));
+        return response(200, "{\"profile\":" + Json.string(profile.id()) + ",\"device\":" + Json.string(device)
+                + ",\"key\":" + Json.string(key) + "}");
+    }
+
+    /**
+     * {@code POST /api/auth/stream/credentials}, the streamer's, with no
+     * Google token: {@code Authorization: Bearer <stream key>} and the body
+     * {@code <profile ID> <device ID>}. When the key is the device's, the
+     * profile's credentials, as {@code POST /api/auth/credentials} answers
+     * them for that device, tiered by the profile owner's roles, with
+     * {@code "userId"}, the Google {@code sub} of who made the key. Any
+     * mismatch is the same 401.
+     */
+    private APIGatewayV2HTTPResponse streamCredentials(String key, String body) {
+        if (!configured) {
+            return notConfigured();
+        }
+        var parts = body == null ? new String[0] : body.split(" ");
+        // The key is the check; this only keeps junk out of the table's key.
+        if (parts.length != 2 || !PROFILE_ID.matcher(parts[0]).matches() || !validDevice(parts[1])) {
+            return response(400, "{\"error\":\"the body must be <profile ID> <device ID>\"}");
+        }
+        var profileId = parts[0];
+        var device = parts[1];
+        var refused = response(401, "{\"error\":\"that stream key isn't this device's\"}");
+        if (key == null || !STREAM_KEY.matcher(key).matches()) {
+            return refused;
+        }
+        var stored = backend.streamKey(profileId, device);
+        if (stored.isEmpty() || !MessageDigest.isEqual(hash(key).getBytes(StandardCharsets.UTF_8),
+                stored.get().hash().getBytes(StandardCharsets.UTF_8))) {
+            return refused;
+        }
+        var profile = profiles.store().profile(profileId);
+        if (profile == null || !profile.hasIdentity()) {
+            return refused;
+        }
+        // The profile's folder is its owner's, and so is its tier.
+        var premium = profile.ownerEmail() != null
+                && roles.of(profile.ownerEmail(), true).contains(Roles.PREMIUM);
+        var token = backend.openIdToken(profile.identityId(), profile.id(), null, premium ? PREMIUM : FREE, false);
+        backend.allowLiveSync(profile.identityId());
+        var devices = profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
+        var subject = stored.get().subject();
+        return response(200, credentialsAnswer(profile, token, premium, devices,
+                subject == null ? "" : ",\"userId\":" + Json.string(subject)));
     }
 
     /**
@@ -296,6 +417,8 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         var devices = profiles.store().removeDevice(profile.id(), device);
+        // A deleted device's stream key no longer streams.
+        backend.deleteStreamKey(profile.id(), device);
         return response(200, "{\"deviceLimit\":" + (granted.contains(Roles.PREMIUM) ? PREMIUM_DEVICES : FREE_DEVICES)
                 + ",\"devices\":" + devicesJson(devices) + "}");
     }
