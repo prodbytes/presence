@@ -1,7 +1,8 @@
 // Package state keeps what the streamer must remember across restarts:
 // the profile it streams to, its device ID and media key (made once, like a
-// phone's), and its Google sign-in. It's one JSON file, readable only by
-// its owner: the refresh token and the key are secrets.
+// phone's, or given by the app's command), and its stream key or Google
+// sign-in. It's one JSON file, readable only by its owner: the stream key,
+// the refresh token and the media key are secrets.
 package state
 
 import (
@@ -22,6 +23,9 @@ type State struct {
 	DeviceID  string `json:"deviceId"`
 	// MediaKey is the device's AES-256 key, base64.
 	MediaKey string `json:"mediaKey"`
+	// StreamKey is the device's key from the app's command (psk_…): with
+	// it, there's no Google sign-in.
+	StreamKey string `json:"streamKey,omitempty"`
 	// RefreshToken is the Google sign-in's; Email whose it is.
 	RefreshToken string `json:"refreshToken,omitempty"`
 	Email        string `json:"email,omitempty"`
@@ -99,8 +103,8 @@ func (s *State) Save() error {
 	return os.Rename(tmp, s.path)
 }
 
-// SignOut forgets the Google sign-in.
+// SignOut forgets the Google sign-in and the stream key.
 func (s *State) SignOut() error {
-	s.RefreshToken, s.Email = "", ""
+	s.RefreshToken, s.Email, s.StreamKey = "", "", ""
 	return s.Save()
 }

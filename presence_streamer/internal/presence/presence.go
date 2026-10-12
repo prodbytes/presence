@@ -29,6 +29,10 @@ type API struct {
 // for its client).
 var ErrUnauthorized = errors.New("the auth API refused the Google sign-in")
 
+// ErrKeyRefused is the auth API refusing the stream key: not this device's
+// (a newer one replaced it, or the device was deleted in the app).
+var ErrKeyRefused = errors.New("the auth API refused the stream key: copy a new command from the app's profile view")
+
 var (
 	identityPattern = regexp.MustCompile(`^[a-z]{2}(-[a-z]+)+-[0-9]:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 	bucketPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
@@ -49,6 +53,20 @@ type Credentials struct {
 	Devices     []string `json:"devices"`
 	// Bucket is the user-data bucket (newer auth APIs only).
 	Bucket string `json:"bucket"`
+	// UserID is the Google ID of who made the stream key (stream
+	// credentials only): the events' userId.
+	UserID string `json:"userId"`
+	// Local are AWS credentials the auth API gives itself, in Cognito's
+	// shape: the local stack's (Floci has no Cognito Identity).
+	Local *cognitoCredentials `json:"credentials"`
+}
+
+// cognitoCredentials are AWS credentials as Cognito answers them.
+type cognitoCredentials struct {
+	AccessKeyID  string  `json:"AccessKeyId"`
+	SecretKey    string  `json:"SecretKey"`
+	SessionToken string  `json:"SessionToken"`
+	Expiration   float64 `json:"Expiration"`
 }
 
 // Premium is whether the profile is premium (it may use the bucket).
@@ -68,11 +86,17 @@ func (a *API) http() *http.Client {
 }
 
 func (a *API) call(ctx context.Context, method, path, idToken string, body io.Reader, out any) error {
+	return a.callAs(ctx, method, path, idToken, ErrUnauthorized, body, out)
+}
+
+// callAs calls the auth API with bearer as the Authorization; a 401 is
+// refused.
+func (a *API) callAs(ctx context.Context, method, path, bearer string, refused error, body io.Reader, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(a.BaseURL, "/")+path, body)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+idToken)
+	req.Header.Set("Authorization", "Bearer "+bearer)
 	if body != nil {
 		req.Header.Set("Content-Type", "text/plain")
 	}
@@ -87,7 +111,7 @@ func (a *API) call(ctx context.Context, method, path, idToken string, body io.Re
 	}
 	switch {
 	case res.StatusCode == http.StatusUnauthorized:
-		return ErrUnauthorized
+		return refused
 	case res.StatusCode != http.StatusOK:
 		var e struct {
 			Error string `json:"error"`
@@ -117,6 +141,21 @@ func (a *API) Profile(ctx context.Context, idToken string) (string, error) {
 func (a *API) Credentials(ctx context.Context, idToken, deviceID string) (Credentials, error) {
 	var c Credentials
 	err := a.call(ctx, http.MethodPost, "/api/auth/credentials", idToken, strings.NewReader(deviceID), &c)
+	return c, checked(c, err)
+}
+
+// StreamCredentials are the profile's credentials for its device deviceID,
+// with the device's stream key (from the app's profile view) instead of a
+// Google sign-in (POST /api/auth/stream/credentials).
+func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID string) (Credentials, error) {
+	var c Credentials
+	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/credentials", key, ErrKeyRefused,
+		strings.NewReader(profileID+" "+deviceID), &c)
+	return c, checked(c, err)
+}
+
+// checked is err, or what's wrong with the answer c.
+func checked(c Credentials, err error) error {
 	switch {
 	case err != nil:
 	case c.IdentityID == "" || c.Token == "":
@@ -127,12 +166,15 @@ func (a *API) Credentials(ctx context.Context, idToken, deviceID string) (Creden
 	case c.Bucket != "" && !ValidBucket(c.Bucket):
 		err = fmt.Errorf("the auth API answered a bucket name that isn't one: %q", c.Bucket)
 	}
-	return c, err
+	return err
 }
 
 // AWSCredentials trades the auth API's token with Cognito
 // (GetCredentialsForIdentity, unsigned: the token is the proof).
 func (a *API) AWSCredentials(ctx context.Context, c Credentials) (AWS, error) {
+	if c.Local != nil {
+		return awsOf(*c.Local, "the auth API")
+	}
 	region, _, ok := strings.Cut(c.IdentityID, ":")
 	if !ok || region == "" {
 		return AWS{}, fmt.Errorf("unexpected identity ID %q", c.IdentityID)
@@ -168,19 +210,18 @@ func (a *API) AWSCredentials(ctx context.Context, c Credentials) (AWS, error) {
 		return AWS{}, fmt.Errorf("Cognito refused the profile's token: HTTP %d %s", res.StatusCode, e.Type)
 	}
 	var answer struct {
-		Credentials struct {
-			AccessKeyID  string  `json:"AccessKeyId"`
-			SecretKey    string  `json:"SecretKey"`
-			SessionToken string  `json:"SessionToken"`
-			Expiration   float64 `json:"Expiration"`
-		}
+		Credentials cognitoCredentials
 	}
 	if err := json.Unmarshal(data, &answer); err != nil {
 		return AWS{}, err
 	}
-	cr := answer.Credentials
+	return awsOf(answer.Credentials, "Cognito")
+}
+
+// awsOf are the credentials cr, which who answered.
+func awsOf(cr cognitoCredentials, who string) (AWS, error) {
 	if cr.AccessKeyID == "" || cr.SecretKey == "" || cr.SessionToken == "" {
-		return AWS{}, errors.New("Cognito answered no credentials")
+		return AWS{}, errors.New(who + " answered no credentials")
 	}
 	return AWS{
 		AccessKeyID:  cr.AccessKeyID,

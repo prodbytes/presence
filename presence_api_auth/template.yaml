@@ -193,6 +193,26 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # Streamers' keys, one per device: {"device": "<profile ID>/<device ID>",
+  # "hash" (the key's SHA-256, never the key), "createdBy" (email),
+  # "subject" (Google sub), "createdAt"}. Holds emails: AWS only.
+  StreamKeysTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: device
+          AttributeType: S
+      KeySchema:
+        - AttributeName: device
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
   # Cloud recognition, per profile ("profile", the profile ID): its labels
   # ("item" label#<id>: name, kind, labeledAt (epoch ms), vector: the crop's
   # DINOv2 embedding, 1024 float32s; never the crop) and its model ("item"
@@ -236,6 +256,14 @@ Resources:
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
         "POST /api/auth/profile/link":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        # The streamer's credentials, hourly per Pi, with no Google token
+        # (a 256-bit key is the proof, so slowing guesses is a bonus).
+        "POST /api/auth/stream/credentials":
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 2
+        "POST /api/auth/profile/stream-key":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
         # Cloud recognition: each request runs DINOv2 on up to 8 crops
@@ -308,6 +336,7 @@ Resources:
           PROFILES_TABLE: !Ref ProfilesTable
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable
+          STREAM_KEYS_TABLE: !Ref StreamKeysTable
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
           # The identity pool's DeveloperProviderName (presence_infra/identity.yaml).
@@ -343,6 +372,13 @@ Resources:
                 - dynamodb:PutItem
                 - dynamodb:DeleteItem
               Resource: !GetAtt LinkCodesTable.Arn
+            # Streamers' keys: saved, checked, revoked with their device.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt StreamKeysTable.Arn
             # Finds an account's existing identity (GetId) and issues the
             # profile's tokens. Only this pool ("none" when it isn't set).
             - Effect: Allow
@@ -407,6 +443,22 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/devices/remove
             Method: post
+        StreamKey:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/profile/stream-key
+            Method: post
+        # The streamer's: no Google token (no authorizer); its stream key,
+        # checked by the function, is the proof.
+        StreamCredentials:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/stream/credentials
+            Method: post
+            Auth:
+              Authorizer: NONE
 
   # Cloud recognition (premium only; specs/cloud-recognition.md): DINOv2-L
   # through ONNX Runtime, in its own jar (RecognitionFunction, built by the

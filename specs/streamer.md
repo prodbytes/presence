@@ -16,21 +16,63 @@ sync pass (15 s). That comes next, once streaming is tested on a Pi.
 
 ## Installing it
 
-On the Pi, one command installs the right `.deb` and sets it up for the
-profile; the service then starts at every boot:
+On the Pi, one command installs the right `.deb` and sets it up as a new
+device of the profile, with no sign-in (so a Pi without a screen or
+keyboard works, over SSH or not); the service then starts at every boot:
 
 ```sh
-curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- <profile ID>
+curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- \
+  --profile <profile ID> --device-id <device ID> --key <stream key>
 ```
 
-The app's account sheet shows it, with the profile filled in and a **Copy
-command** button, for a premium profile. See [Install
-script](install-script.md#streamer).
+The app's account sheet makes it: **Create command** in the **Stream from
+a Raspberry Pi** box, for a premium profile, then **Copy command**. See
+[Install script](install-script.md#streamer). The older form, with only
+the profile ID and a Google sign-in, still works (below).
+
+## The stream key
+
+A device's **stream key** (`psk_` and 32 random bytes, base64url) lets the
+streamer get its profile's credentials with no Google account:
+
+- **Made by the app** (`POST /api/auth/profile/stream-key`, the device ID
+  as the body, with a member's Google ID token): a new device ID
+  (`DeviceId.generate`) and its key, replacing any key that device had.
+  The auth API keeps only the key's SHA-256, with who made it (email and
+  Google `sub`) and when, in `StreamKeysTable`. It also links the
+  profile to its Cognito identity then, with the member's token, since the
+  streamer has none. The key is shown once, in the command.
+- **Used by the streamer** (`POST /api/auth/stream/credentials`, no
+  authorizer: `Authorization: Bearer <key>`, the body `<profile ID>
+  <device ID>`): when the key's hash is that device's (compared in
+  constant time), the auth API answers as `POST /api/auth/credentials`
+  does for that device (which joins the profile's devices), tiered by the
+  profile owner's roles in rbacr, plus `userId`, the `sub` of who made the
+  key (the events' `userId`). Anything else is the same 401. Throttled to
+  2 requests/s (burst 10).
+- **Revoked** when the device is deleted in the app
+  ([Device deletion](device-deletion.md); `POST
+  /api/auth/profile/devices/remove` deletes its key), or replaced by a new
+  command for the same device. The streamer then stops (exit 2): "the
+  auth API refused the stream key: copy a new command from the app's
+  profile view".
+- **On the Pi** it's in the state file (mode 600, the service user's),
+  never logged. It's on the command line while setup runs.
 
 ## Starting it
 
 `presence-streamer` (or `presence-streamer run`) streams.
-`presence-streamer setup` does everything before the streaming and exits:
+`presence-streamer setup` does everything before the streaming and exits.
+
+**With a stream key** (`--profile`, `--device-id` and `--key`, or
+`PRESENCE_STREAMER_PROFILE`, `_DEVICE_ID`, `_KEY`), as the app's command
+runs it: it checks the key with the auth API (the device's key, a premium
+profile), then keeps the profile, the device ID (instead of the one it
+made) and the key, and needs no terminal. Every start, and every renewal
+of the credentials (hourly), asks `POST /api/auth/stream/credentials`
+again. A refused key or a free profile stops it (exit 2 or 3).
+
+**With a Google sign-in** (no key):
 
 1. **The profile ID**, never asked:
    - `PRESENCE_STREAMER_PROFILE` (the environment, set before it runs) or

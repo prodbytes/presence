@@ -1,8 +1,9 @@
-// Package session keeps the streamer's credentials for its profile: the
-// Google sign-in's ID token, the auth API's credentials (which say whether
+// Package session keeps the streamer's credentials for its profile: from
+// the device's stream key (the command copied from the app), or a Google
+// sign-in's ID token; then the auth API's credentials (which say whether
 // the profile is premium) and Cognito's AWS credentials, renewed before
-// they expire. Each renewal checks again that the account is the
-// profile's and that it's premium.
+// they expire. Each renewal checks again that the profile is premium (and,
+// signed in with Google, that the account is the profile's).
 package session
 
 import (
@@ -28,8 +29,10 @@ func (e WrongProfileError) Error() string {
 
 // Session is the streamer's credentials.
 type Session struct {
-	Google       *google.Client
-	API          *presence.API
+	Google *google.Client
+	API    *presence.API
+	// StreamKey is the device's key; with it, no Google sign-in is used.
+	StreamKey    string
 	RefreshToken string
 	ProfileID    string
 	DeviceID     string
@@ -68,8 +71,33 @@ func Check(ctx context.Context, api *presence.API, idToken, profileID, deviceID 
 	return creds, nil
 }
 
+// CheckKey gets the profile's credentials with the device's stream key; the
+// profile must be premium.
+func CheckKey(ctx context.Context, api *presence.API, key, profileID, deviceID string) (presence.Credentials, error) {
+	creds, err := api.StreamCredentials(ctx, key, profileID, deviceID)
+	if err != nil {
+		return creds, err
+	}
+	if !creds.Premium() {
+		return creds, ErrFree
+	}
+	return creds, nil
+}
+
 // renew gets everything anew. Callers hold mu.
 func (s *Session) renew(ctx context.Context) error {
+	if s.StreamKey != "" {
+		creds, err := CheckKey(ctx, s.API, s.StreamKey, s.ProfileID, s.DeviceID)
+		if err != nil {
+			return err
+		}
+		aws, err := s.API.AWSCredentials(ctx, creds)
+		if err != nil {
+			return err
+		}
+		s.creds, s.aws, s.claims = creds, aws, google.Claims{Subject: creds.UserID}
+		return nil
+	}
 	idToken, err := s.Google.Refresh(ctx, s.RefreshToken)
 	if err != nil {
 		return err
@@ -113,7 +141,8 @@ func (s *Session) Credentials(ctx context.Context) (presence.Credentials, error)
 	return s.creds, nil
 }
 
-// UserID is the signed-in account's Google ID (an event's `userId`).
+// UserID is the signed-in account's Google ID (an event's `userId`), or
+// with a stream key, the ID of who made the key.
 func (s *Session) UserID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -126,5 +155,6 @@ func (s *Session) UserID() string {
 func Fatal(err error) bool {
 	var wrong WrongProfileError
 	return errors.Is(err, ErrFree) || errors.As(err, &wrong) ||
-		errors.Is(err, google.ErrRevoked) || errors.Is(err, presence.ErrUnauthorized)
+		errors.Is(err, google.ErrRevoked) || errors.Is(err, presence.ErrUnauthorized) ||
+		errors.Is(err, presence.ErrKeyRefused)
 }

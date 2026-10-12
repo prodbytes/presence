@@ -307,14 +307,18 @@ class AccountSheet extends StatelessWidget {
                       ),
                     ],
                     // A premium profile can stream from a Raspberry Pi: the
-                    // command to paste on it, with this profile.
-                    if (roles case final roles?
+                    // command to paste on it, with a new device and its key.
+                    if ((roles, profiles) case (final roles?, final profiles?)
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev &&
                             (roles.isPremium || roles.isAdmin))
                       if (roles.profile case final profile?) ...[
                         const SizedBox(height: 12),
-                        StreamerCommand(profileId: profile),
+                        StreamerCommand(
+                          profileId: profile,
+                          auth: auth,
+                          profiles: profiles,
+                        ),
                       ],
                     if ((roles, profiles) case (
                       final roles?,

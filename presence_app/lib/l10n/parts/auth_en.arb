@@ -347,7 +347,17 @@
   "authPaymentsDefaults": "Not saved yet: these are the deploy's links.",
   "authPaymentsUnavailable": "The payments API didn't answer.",
   "authStreamerTitle": "Stream from a Raspberry Pi",
-  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.",
+  "authStreamerBody": "Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.",
   "authStreamerCopy": "Copy command",
-  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi"
+  "authStreamerCopied": "Command copied: paste it on the Raspberry Pi",
+  "authStreamerCreate": "Create command",
+  "authStreamerKeyOnce": "It holds this device's key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.",
+  "authStreamerFailed": "Couldn't create the command ({error})",
+  "@authStreamerFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

@@ -76,3 +76,44 @@ func TestFree(t *testing.T) {
 		t.Fatal("free counts as premium")
 	}
 }
+
+func TestStreamCredentials(t *testing.T) {
+	const key = "psk_0123456789abcdefghijABCDEFGHIJ_-0123456789"
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		asked = append(asked, r.Method+" "+r.URL.Path+" "+string(body))
+		if r.Header.Get("Authorization") != "Bearer "+key {
+			w.WriteHeader(401)
+			w.Write([]byte(`{"error":"that stream key isn't this device's"}`))
+			return
+		}
+		w.Write([]byte(`{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","deviceLimit":50,"devices":["calm_quiet_otter"],"tier":"premium","bucket":"user-data-test","userId":"1234"}`))
+	}))
+	defer srv.Close()
+	api := &API{BaseURL: srv.URL}
+	ctx := context.Background()
+
+	c, err := api.StreamCredentials(ctx, key, "automatic_paranoid_axolotl", "calm_quiet_otter")
+	if err != nil || !c.Premium() || c.UserID != "1234" || c.Bucket != "user-data-test" {
+		t.Fatalf("stream credentials %+v, %v", c, err)
+	}
+	if asked[0] != "POST /api/auth/stream/credentials automatic_paranoid_axolotl calm_quiet_otter" {
+		t.Fatalf("asked %q", asked[0])
+	}
+	if _, err := api.StreamCredentials(ctx, "psk_wrong", "automatic_paranoid_axolotl", "calm_quiet_otter"); err != ErrKeyRefused {
+		t.Fatalf("a wrong key: %v", err)
+	}
+}
+
+func TestCredentialsTheAuthAPIGivesItself(t *testing.T) {
+	// The local stack: no Cognito, the answer has them.
+	api := &API{CognitoURL: "http://127.0.0.1:1/never"}
+	aws, err := api.AWSCredentials(context.Background(), Credentials{
+		IdentityID: "us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b",
+		Local:      &cognitoCredentials{AccessKeyID: "ASIALOCAL", SecretKey: "s", SessionToken: "t", Expiration: 1790437200},
+	})
+	if err != nil || aws.AccessKeyID != "ASIALOCAL" || aws.Expiration.Unix() != 1790437200 {
+		t.Fatalf("aws %+v, %v", aws, err)
+	}
+}

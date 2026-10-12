@@ -78,25 +78,45 @@ The README's "Raspberry Pi" section has the same steps, and the camera
 [scripts/install-streamer.sh](../scripts/install-streamer.sh), served at
 https://sh.presence.nu01.com/streamer ([Install URL](install-url.md)),
 installs the [streamer](streamer.md) on a Raspberry Pi and sets it up for a
-profile, so it streams from every boot:
+profile, so it streams from every boot. The app's command makes the Pi a
+new device of the profile, with its [stream key](streamer.md#the-stream-key),
+and needs no sign-in or terminal:
 
 ```sh
-curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- automatic_paranoid_axolotl
-curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_paranoid_axolotl sh
+curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- \
+  --profile automatic_paranoid_axolotl --device-id calm_quiet_otter --key psk_…
 ```
+
+- **The app's form**: `--profile`, `--device-id` and `--key`, each with
+  its value, nothing else. A device ID that isn't `a_b_c`, a key that
+  isn't `psk_` and 43 base64url characters, a missing value or an unknown
+  option stops it (exit 2) before anything is downloaded. It then runs
+  `sudo presence-streamer setup --profile … --device-id … --key …`
+  (stdin as is: no terminal needed), which checks the key with the auth
+  API and starts the service.
+- **The older form**, with a Google sign-in:
+
+  ```sh
+  curl -fsSL https://sh.presence.nu01.com/streamer | sh -s -- automatic_paranoid_axolotl
+  curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_paranoid_axolotl sh
+  ```
 
 - **The profile** is the first argument, else `PRESENCE_PROFILE` (or
   `PRESENCE_STREAMER_PROFILE`), set before it runs. Without one, `setup`
   runs without `--profile` and takes the profile of the account that signs
   in. One that isn't a profile ID (`a_b_c`, at most 64) stops it (exit 2).
-- **The app shows the command**, with the profile filled in, to copy and
-  paste on the Pi: the account sheet's **Stream from a Raspberry Pi** box
-  (`StreamerCommand`, [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
+- **The app makes the command**, to copy and paste on the Pi: the account
+  sheet's **Stream from a Raspberry Pi** box (`StreamerCommand`,
+  [streamer_command.dart](../presence_app/lib/auth/streamer_command.dart)),
   under the plan, for a premium profile (or an admin) with access, not in
-  DEV. It has the command (selectable, monospace) and **Copy command**,
-  which copies it and says so. Only an ID of lowercase letters and
-  underscores makes a command (no shell quoting needed), else the box
-  doesn't show.
+  DEV. **Create command** makes a new device ID and asks the auth API for
+  its stream key (`ProfileClient.streamKey`), then shows the command
+  (selectable, monospace), a line that it holds the device's key, shown
+  only now (deleting the device stops it; another command is another
+  device), and **Copy command**, which copies it and says so. A failure
+  says "Couldn't create the command (…)". Only a profile, device and key
+  of letters, digits, `_` and `-` make a command (no shell quoting
+  needed); a profile ID that isn't one hides the box.
 - **POSIX `sh`**, one `main` call at the end, as the main script. Needs
   Linux with `apt-get` and `dpkg`. The architecture is `dpkg
   --print-architecture`: `armhf` (32-bit) or `arm64` (64-bit), anything
@@ -115,6 +135,11 @@ curl -fsSL https://sh.presence.nu01.com/streamer | PRESENCE_PROFILE=automatic_pa
   the terminal (`/dev/tty`, since the script's own stdin is curl's pipe).
   That shows the Google sign-in code, checks the profile is Premium, and
   starts the service. Without a terminal it says the command to run.
+- Verified (2026-10-12) on macOS with stub `uname`, `dpkg`, `apt-get`,
+  `curl` (GitHub's pretty-printed JSON), `sha256sum` and
+  `presence-streamer`: the app's form downloads, checks and installs the
+  `.deb`, then runs `setup --profile … --device-id … --key …`; a bad key,
+  a missing value and `--profile 'a;rm'` stop it (exit 2).
 - Verified in Docker (Debian 13 arm64, Debian 12 armhf emulated), with a
   fake `curl` serving the release's `.deb` and the API's checksum: with
   `x; rm -rf /` it exits 2; a wrong checksum stops it before apt; it

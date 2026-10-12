@@ -571,7 +571,7 @@ abstract class AppLocalizations {
   /// No description provided for @authStreamerBody.
   ///
   /// In en, this message translates to:
-  /// **'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit). It installs the Presence streamer, which records into this profile from every boot and keeps the clips with people and animals. It asks you to sign in with a code.'**
+  /// **'Paste this in a terminal on a Raspberry Pi with a camera (Raspberry Pi OS, 32- or 64-bit), even one without a screen. It installs the Presence streamer as a new device of this profile, which records from every boot and keeps the clips with people and animals. Nobody signs in on the Pi.'**
   String get authStreamerBody;
 
   /// No description provided for @authStreamerCopied.
@@ -585,6 +585,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copy command'**
   String get authStreamerCopy;
+
+  /// No description provided for @authStreamerCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create command'**
+  String get authStreamerCreate;
+
+  /// No description provided for @authStreamerFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t create the command ({error})'**
+  String authStreamerFailed(String error);
+
+  /// No description provided for @authStreamerKeyOnce.
+  ///
+  /// In en, this message translates to:
+  /// **'It holds this device\'s key, shown only now: keep it private. Deleting the device stops it; creating another command makes another device.'**
+  String get authStreamerKeyOnce;
 
   /// No description provided for @authStreamerTitle.
   ///

@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -55,6 +56,7 @@ const (
 
 type options struct {
 	profile, stateDir, api, bucket, endpoint, clientID, clientSecret   string
+	key, deviceID                                                      string
 	source, device, encoder, cameraLabel, location, bwlimit, detection string
 	width, height, fps, bitrate, rotation, spoolMaxMB, threads         int
 	motionMin                                                          float64
@@ -182,6 +184,8 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 	o := &options{}
 	fs := flag.NewFlagSet("presence-streamer "+name, flag.ExitOnError)
 	fs.StringVar(&o.profile, "profile", env("PROFILE", ""), "the profile to stream to (default: the saved one, else the signed-in account's)")
+	fs.StringVar(&o.key, "key", env("KEY", ""), "the device's stream key (psk_…), from the command in the app's profile view: no Google sign-in")
+	fs.StringVar(&o.deviceID, "device-id", env("DEVICE_ID", ""), "this device's ID in the profile (default: the saved one, else a new one)")
 	fs.StringVar(&o.stateDir, "state-dir", defaultStateDir(), "where the device ID, key, sign-in and spool are kept")
 	fs.StringVar(&o.api, "api", env("API", "https://presence.nu01.com"), "the Presence site (its auth API)")
 	fs.StringVar(&o.bucket, "bucket", env("BUCKET", ""), "the user-data bucket, when the auth API doesn't name it")
@@ -232,7 +236,10 @@ func usage() {
 
 Usage:
   presence-streamer [run] [flags]  sign in if needed, and stream to the profile
-  presence-streamer setup [flags]  sign in (the Google code), then exit
+  presence-streamer setup --profile P --device-id D --key K
+                                   set up with the command from the app's
+                                   profile view (no sign-in), then exit
+  presence-streamer setup [flags]  or sign in with Google (a code), then exit
   presence-streamer status         the profile, device and sign-in
   presence-streamer sign-out       forget the Google sign-in
   presence-streamer version
@@ -295,7 +302,10 @@ func status(o *options) int {
 		return exitError
 	}
 	signedIn := "not signed in"
-	if s.RefreshToken != "" {
+	switch {
+	case s.StreamKey != "":
+		signedIn = "none: the device's stream key"
+	case s.RefreshToken != "":
 		signedIn = "signed in as " + s.Email
 	}
 	fmt.Printf("profile: %s\ndevice:  %s\nGoogle:  %s\nstate:   %s\n", orNone(s.ProfileID), s.DeviceID, signedIn, o.stateDir)
@@ -348,10 +358,6 @@ func run(o *options, setupOnly bool) int {
 	defer stop()
 	logf := log.Printf
 
-	if o.clientID == "" || o.clientSecret == "" {
-		log.Print("no Google OAuth client: this build has none; set PRESENCE_STREAMER_GOOGLE_CLIENT_ID and _SECRET")
-		return exitUsage
-	}
 	s, err := state.Load(o.stateDir)
 	if err != nil {
 		log.Print(err)
@@ -374,16 +380,39 @@ func run(o *options, setupOnly bool) int {
 		return exitUsage
 	}
 	if profile != "" && profile != s.ProfileID {
-		// Another profile: another account's sign-in.
-		s.ProfileID, s.RefreshToken, s.Email = profile, "", ""
+		// Another profile: another account's sign-in, and another key.
+		s.ProfileID, s.RefreshToken, s.Email, s.StreamKey = profile, "", "", ""
 		if err := s.Save(); err != nil {
 			log.Print(err)
 			return exitError
 		}
 	}
-
-	g := &google.Client{ID: o.clientID, Secret: o.clientSecret, Endpoints: google.Google}
 	api := &presence.API{BaseURL: o.api}
+	if o.key != "" || o.deviceID != "" {
+		// The app's command: the device and its key, no Google sign-in.
+		if code := takeKey(ctx, o, s, profile, api); code != 0 {
+			return code
+		}
+	}
+	if s.StreamKey != "" {
+		sess := &session.Session{API: api, StreamKey: s.StreamKey, ProfileID: s.ProfileID, DeviceID: s.DeviceID}
+		creds, err := sess.Credentials(ctx)
+		if err != nil {
+			return exitFor(err, s, logf)
+		}
+		logf("profile %s (premium), device %s, with its stream key", s.ProfileID, s.DeviceID)
+		if setupOnly {
+			fmt.Printf("Ready: device %s streams to profile %s.\n", s.DeviceID, s.ProfileID)
+			return 0
+		}
+		return streamCamera(ctx, o, s, sess, creds, logf)
+	}
+
+	if o.clientID == "" || o.clientSecret == "" {
+		log.Print("no Google OAuth client, and no stream key: copy the command from the app's profile view")
+		return exitUsage
+	}
+	g := &google.Client{ID: o.clientID, Secret: o.clientSecret, Endpoints: google.Google}
 	if s.RefreshToken == "" {
 		if tty == nil {
 			log.Print("not signed in: run presence-streamer setup on a terminal (PRESENCE_STREAMER_PROFILE, or --profile, picks the profile; else it's the account's)")
@@ -427,6 +456,43 @@ func run(o *options, setupOnly bool) int {
 		return 0
 	}
 	return streamCamera(ctx, o, s, sess, creds, logf)
+}
+
+// streamKeyPattern is a stream key as the auth API makes them.
+var streamKeyPattern = regexp.MustCompile(`^psk_[A-Za-z0-9_-]{43}$`)
+
+// takeKey keeps the app command's device ID and stream key (--device-id,
+// --key) for profile, after checking them with the auth API: the key must
+// be the device's, and the profile premium. It answers 0, or the exit code.
+func takeKey(ctx context.Context, o *options, s *state.State, profile string, api *presence.API) int {
+	key, device := o.key, o.deviceID
+	if key == "" {
+		key = s.StreamKey
+	}
+	if device == "" {
+		device = s.DeviceID
+	}
+	switch {
+	case profile == "":
+		log.Print("a stream key needs its profile: --profile, as in the app's command")
+		return exitUsage
+	case !streamKeyPattern.MatchString(key):
+		log.Print("that isn't a stream key (psk_…): copy the command from the app's profile view")
+		return exitUsage
+	case !ids.DevicePattern.MatchString(device):
+		log.Printf("%q isn't a device ID (they look like calm_quiet_otter)", device)
+		return exitUsage
+	}
+	if _, err := session.CheckKey(ctx, api, key, profile, device); err != nil {
+		return exitFor(err, s, log.Printf)
+	}
+	s.ProfileID, s.DeviceID, s.StreamKey, s.RefreshToken, s.Email = profile, device, key, "", ""
+	if err := s.Save(); err != nil {
+		log.Print(err)
+		return exitError
+	}
+	fmt.Printf("Device %s of profile %s: its stream key works.\n", device, profile)
+	return 0
 }
 
 // localDetectionMemory is the least memory (MemTotal) a Pi detects with
@@ -693,7 +759,8 @@ func exitFor(failure error, s *state.State, logf func(string, ...any)) int {
 		log.Print(failure)
 		s.SignOut()
 		return exitUsage
-	case errors.As(failure, &wrong) || errors.Is(failure, presence.ErrUnauthorized):
+	case errors.As(failure, &wrong) || errors.Is(failure, presence.ErrUnauthorized) ||
+		errors.Is(failure, presence.ErrKeyRefused):
 		// Not better by trying again: someone must run setup.
 		log.Print(failure)
 		return exitUsage
