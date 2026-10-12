@@ -5384,3 +5384,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        both detectors brighten dark frames (gamma, then CLAHE) before the
        search, which on 54 darkened cat photos found 22 subjects instead of
        14 (23 in full light; gamma alone 10).
+
+385. **A brain for recognition on the event card.** (2026-10-12)
+     - Asked: change the recognition icon on the event card, since the
+       magnifying glass is already the search's; a brain, an eye or
+       anything else.
+     - Changed: the recognition indicator is a brain (`Icons.psychology`,
+       filled once it ran, outlined until it has), not
+       `manage_search`/`search_off`; an eye already means hidden. Spec:
+       [Recognition](recognition.md).
