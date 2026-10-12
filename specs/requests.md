@@ -5362,7 +5362,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        100 % (before, a recognition at 100 %, such as an object tag
        scoring 1, was edged yellow). Specs: [Clips](clips.md).
 
-383. **The streamer in low light.** (2026-10-12)
+383. **The Raspberry Pi in the device list before its first event.** (2026-10-12)
+     - Asked: the streamer's device wasn't in the account sheet's device
+       list.
+     - Found: the list came from the profile's events only, and the Pi
+       (`swift_gentle_otter`) had none yet, though the auth API listed it.
+     - Changed: the list also takes the auth API's devices
+       (`DeviceSlots.devices`), with no OS or latest event until one comes.
+       Spec: [Sign-in](sign-in.md).
+
+384. **The streamer in low light.** (2026-10-12)
      - Asked: the Pi's events didn't show after walking past it at night;
        make it better in low light, if there's a way.
      - Found on the Pi Zero (a dim room, mean luma 10/255): every chunk of
