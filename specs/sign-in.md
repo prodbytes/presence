@@ -216,7 +216,10 @@ there's no separate sign-in screen:
   - **Devices** ("3 devices"): every [device ID](devices-users-places.md#devices)
     found on the profile's events (`profileDevices`), the events synced
     from the profile's cloud folder included, so the same account's other
-    devices and linked accounts' devices show. This device comes
+    devices and linked accounts' devices show, and every device the auth
+    API lists for the profile (`DeviceSlots.devices`, with the
+    credentials), so a device shows before its first event (a Raspberry Pi
+    streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
     long. Each ID is selectable, in `bodyLarge` (16 sp); with access it's

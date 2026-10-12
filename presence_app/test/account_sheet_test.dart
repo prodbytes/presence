@@ -95,6 +95,27 @@ void main() {
       );
     });
 
+    test("the auth API's devices show before their first event", () {
+      expect(
+        profileDeviceDetails(
+          [eventOf('brave_quiet_lamp', minutesAgo: 5)],
+          profileId: 'automatic_paranoid_axolotl',
+          thisDevice: 'happy_tidy_gadget',
+          listed: const [
+            'happy_tidy_gadget',
+            'brave_quiet_lamp',
+            'swift_gentle_otter',
+          ],
+        ).map((d) => (d.id, d.lastEvent == null)),
+        [
+          ('happy_tidy_gadget', true),
+          ('brave_quiet_lamp', false),
+          // A streamer that hasn't seen anyone yet: listed, no event.
+          ('swift_gentle_otter', true),
+        ],
+      );
+    });
+
     test('an older device without an OS on its events has none', () {
       expect(
         profileDeviceDetails([

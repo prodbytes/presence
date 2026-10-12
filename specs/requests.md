@@ -5361,3 +5361,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        subjects and object tags are grey, lighter the surer, even at
        100 % (before, a recognition at 100 %, such as an object tag
        scoring 1, was edged yellow). Specs: [Clips](clips.md).
+
+383. **The Raspberry Pi in the device list before its first event.** (2026-10-12)
+     - Asked: the streamer's device wasn't in the account sheet's device
+       list.
+     - Found: the list came from the profile's events only, and the Pi
+       (`swift_gentle_otter`) had none yet, though the auth API listed it.
+     - Changed: the list also takes the auth API's devices
+       (`DeviceSlots.devices`), with no OS or latest event until one comes.
+       Spec: [Sign-in](sign-in.md).

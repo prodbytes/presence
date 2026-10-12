@@ -68,7 +68,8 @@ their data.
 - [Sign-in](sign-in.md): Google sign-in, the role-gated UI (roles from
   rbacr's `GET /api/me` and the auth API's `GET /api/auth/profile`, asked
   at once with the user's ID token), the account sheet (the profile ID
-  and its devices, from events) and the OAuth clients.
+  and its devices, from events and the auth API's list) and the OAuth
+  clients.
 - [Premium and free](premium.md): rbacr says who is premium (its
   `premium` or `admin` role): premium profiles sync with the cloud (S3,
   enforced by a `tier` tag on their credentials); free ones' devices sync
