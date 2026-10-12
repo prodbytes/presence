@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'config.dart';
 import 'events.dart';
+import 'l10n/l10n.dart';
 import 'subjects.dart';
 
 /// The Monitoring tab: where subjects were seen and what happened.
@@ -30,7 +31,13 @@ class MonitoringView extends StatefulWidget {
     this.profileId,
     this.filters,
     this.notice,
+    this.onSync,
   });
+
+  /// The Sync button's action ([SyncAllButton]): a full pass here and a
+  /// request to the profile's other devices; whether the request went out.
+  /// No button without it.
+  final Future<bool> Function()? onSync;
 
   /// Above the filters: what's hidden, such as the events of devices past
   /// a free profile's first two (`DeviceLimitNotice`); takes no room when
@@ -174,6 +181,8 @@ class _MonitoringViewState extends State<MonitoringView> {
                           profileId: widget.profileId,
                           deviceId: widget.deviceId,
                         ),
+                        if (widget.onSync case final onSync?)
+                          SyncAllButton(onSync: onSync),
                       ],
                     ),
                   ),
@@ -223,4 +232,53 @@ class _MonitoringViewState extends State<MonitoringView> {
       ),
     );
   }
+}
+
+/// Monitoring's Sync button: syncs this device with the cloud now (a full
+/// pass) and asks the profile's other devices to do the same over live
+/// sync, then says which it could do. Spins while asking.
+class SyncAllButton extends StatefulWidget {
+  const SyncAllButton({super.key, required this.onSync});
+
+  /// Starts the sync; whether the other devices were asked.
+  final Future<bool> Function() onSync;
+
+  @override
+  State<SyncAllButton> createState() => _SyncAllButtonState();
+}
+
+class _SyncAllButtonState extends State<SyncAllButton> {
+  bool _busy = false;
+
+  Future<void> _sync() async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final l = context.l10n;
+    setState(() => _busy = true);
+    bool asked;
+    try {
+      asked = await widget.onSync();
+    } catch (_) {
+      asked = false;
+    }
+    if (!mounted) return;
+    setState(() => _busy = false);
+    messenger?.showSnackBar(
+      SnackBar(
+        content: Text(asked ? l.monitoringSyncAsked : l.monitoringSyncHere),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: const Key('monitoring-sync'),
+    tooltip: context.l10n.monitoringSyncTooltip,
+    onPressed: _busy ? null : _sync,
+    icon: _busy
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : const Icon(Icons.sync),
+  );
 }

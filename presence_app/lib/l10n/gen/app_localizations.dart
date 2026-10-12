@@ -2752,6 +2752,24 @@ abstract class AppLocalizations {
   /// **'Sorry, Presence is down for maintenance.'**
   String get maintenanceTitle;
 
+  /// No description provided for @monitoringSyncAsked.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing: this device now, and the others were asked to'**
+  String get monitoringSyncAsked;
+
+  /// No description provided for @monitoringSyncHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Syncing this device now; the others couldn\'t be asked (live sync is off or offline)'**
+  String get monitoringSyncHere;
+
+  /// No description provided for @monitoringSyncTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync all devices'**
+  String get monitoringSyncTooltip;
+
   /// Navigation bar: the Admin tab
   ///
   /// In en, this message translates to:

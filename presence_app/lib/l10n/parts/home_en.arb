@@ -586,5 +586,8 @@
   "helpIntro": "Questions, ideas or something not working? Send a message; an administrator will answer here.",
   "helpNoMessages": "No messages yet.",
   "helpMessage": "Message",
-  "helpSend": "Send"
+  "helpSend": "Send",
+  "monitoringSyncTooltip": "Sync all devices",
+  "monitoringSyncAsked": "Syncing: this device now, and the others were asked to",
+  "monitoringSyncHere": "Syncing this device now; the others couldn't be asked (live sync is off or offline)"
 }

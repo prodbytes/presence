@@ -193,7 +193,13 @@ live sync are off, as before.
   other build is `prod`, as local builds use production's pool) and
   `<identityId>` the profile's Cognito identity (its folder in the
   bucket). Events go on `events`; `requests` and `acks` carry [device
-  presence](device-presence.md)'s pings and pongs (small messages of
+  presence](device-presence.md)'s pings and pongs, and `requests` the
+  Sync button's **`sync`** request (`LiveSync.requestSync`: `v`, `kind`
+  `sync`, `deviceId`, `identityId`, `sentAt`; at most one every 10 s).
+  A device that gets one from another device, at most 2 minutes old (a
+  persistent session may have kept it), runs a full pass
+  (`LiveLink.onSync`, `CloudSync.syncFull`), at most once every 10 s;
+  older apps drop it as a malformed ping (small messages of
   their own, validated by `LiveSync.parsePresence`), and `acks` also the
   `copied` acks of [event copies](event-copies.md) (`parseCopied`, at
   most 1 KB and 32 event IDs each). The policies allow

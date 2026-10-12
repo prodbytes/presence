@@ -1685,6 +1685,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get maintenanceTitle => 'Sorry, Presence is down for maintenance.';
 
   @override
+  String get monitoringSyncAsked =>
+      'Syncing: this device now, and the others were asked to';
+
+  @override
+  String get monitoringSyncHere =>
+      'Syncing this device now; the others couldn\'t be asked (live sync is off or offline)';
+
+  @override
+  String get monitoringSyncTooltip => 'Sync all devices';
+
+  @override
   String get navAdmin => 'Admin';
 
   @override
