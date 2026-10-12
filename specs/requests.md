@@ -5267,3 +5267,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        shown once). The tier still comes from rbacr: S3 accepts only
        premium credentials. Specs: [Install script](install-script.md),
        [Auth API](auth-api.md), [README](README.md).
+
+376. **Fix: the deploy stopped at an empty origin secret.** (2026-10-12)
+     - Found shipping the stream key (0.6.202610121632): both deploys
+       failed at the health stack, `sam deploy` refusing
+       `OriginSecret=` ("not a valid format"). On the first deploy with
+       the origin secret the APIs don't enforce it yet, so its override
+       was empty.
+     - Changed: `scripts/deploy.sh` leaves the `OriginSecret` override out
+       while it's empty (the templates' default, empty, applies) and
+       passes it once the site sends the secret. Spec: [Production
+       deploy](deploy.md) unchanged (it already says the APIs enforce it
+       from the next deploy).
