@@ -742,35 +742,43 @@ class Persistence implements DeviceSettings {
   /// Runs after the history is restored and pending saves are done.
   /// Returns whether it deleted it (false: no such event in the profile,
   /// or deleted already).
-  Future<bool> deleteEvent(String id, {required String profileId}) {
+  Future<bool> deleteEvent(String id, {required String profileId}) async =>
+      await deleteEvents({id}, profileId: profileId) == 1;
+
+  /// Deletes the events [ids] of [profileId] on every device at once, as
+  /// [deleteEvent] does one (the events list's Delete all). Returns how
+  /// many of [ids] it deleted: those not in the profile, or deleted
+  /// already, are left out.
+  Future<int> deleteEvents(Set<String> ids, {required String profileId}) {
     final pending = List.of(_pending);
     final restoring = _restoring;
     final delete = () async {
       await restoring?.then((_) {}, onError: (Object _) {});
       await Future.wait(pending);
-      if (_disposed) return false;
+      if (_disposed || ids.isEmpty) return 0;
       final store = await _store;
-      final event = await store.getEvent(id);
-      if (event == null ||
-          AppEvent.isDeletedRecord(event) ||
-          AppEvent.profileOf(event) != profileId) {
-        return false;
-      }
+      final all = await store.allEvents();
+      bool live(Map<String, Object?> r) =>
+          !AppEvent.isDeletedRecord(r) && AppEvent.profileOf(r) == profileId;
+      final found = {
+        for (final r in all)
+          if (r['id'] case final String id when ids.contains(id) && live(r)) id,
+      };
+      if (found.isEmpty) return 0;
       // A suggestion goes with the clip it asks about.
       final records = [
-        event,
-        for (final r in await store.allEvents())
-          if (r['type'] == SubjectSuggestion.suggestionType &&
-              r['clipEventId'] == id &&
-              !AppEvent.isDeletedRecord(r) &&
-              AppEvent.profileOf(r) == profileId)
+        for (final r in all)
+          if (found.contains(r['id']) ||
+              (r['type'] == SubjectSuggestion.suggestionType &&
+                  found.contains(r['clipEventId']) &&
+                  live(r)))
             r,
       ];
       await _softDelete(store, records, {
         for (final r in records)
           if (r['id'] case final String rid) rid,
       });
-      return true;
+      return found.length;
     }();
     _track(delete);
     return delete;

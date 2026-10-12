@@ -22,7 +22,8 @@ the separate Events and Subjects tabs.
 - **At the top,** one compact row (40 dp): on the left the **events
   search**, a search icon that opens into a field when tapped (see
   [Events](events.md)), and its small **matching / all** event count
-  beside it.
+  beside it; at the far right, **Delete all**, which deletes the events
+  shown after asking ([Device deletion](device-deletion.md#delete-all)).
 - **Above each event's card,** the **device it was taken on**, small and
   quiet; tapping it sets the search to the device's ID, which shows only
   that device's events in the events list (every device by default; the

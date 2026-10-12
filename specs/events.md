@@ -238,8 +238,9 @@
   is saved with the event and syncs in its [JSON](data-formats.md), so
   other devices show it too; events saved before it have none, and keep
   none.
-- **Deleted events show nowhere.** Deleting a device, or one event from
-  its details ([Device deletion](device-deletion.md)), gives each of
+- **Deleted events show nowhere.** Deleting a device, one event (from
+  its details or the delete icon on its card), or the events shown (Delete
+  all) ([Device deletion](device-deletion.md)) gives each of
   those events `deletedAt` (`AppEvent.deletedAt`): a soft delete. The records stay in
   storage and the cloud, so the deletion syncs, but deleted events are kept
   out of `EventLog` (not restored at launch, not added when fetched, taken

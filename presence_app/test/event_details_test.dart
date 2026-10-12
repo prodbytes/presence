@@ -244,6 +244,137 @@ void main() {
     }
   });
 
+  group('the events list\'s delete buttons', () {
+    late List<String> deleted;
+    late EventLog log;
+    late AppEventBus bus;
+    late EventFilters filters;
+
+    AppEvent event(String id, String title, {String? profileId = profile}) =>
+        AppEvent(
+          icon: Icons.circle,
+          title: title,
+          time: DateTime(2026, 10, 7, 12, int.parse(id)),
+          id: id,
+          deviceId: 'brave_phone',
+          profileId: profileId,
+        );
+
+    setUp(() {
+      deleted = [];
+      bus = AppEventBus();
+      log = EventLog(bus.stream)
+        ..addHistory([
+          event('1', 'Front door'),
+          event('2', 'Back door'),
+          event('3', 'Theirs', profileId: null),
+        ]);
+      filters = EventFilters()..showSystemEvents.value = true;
+    });
+
+    tearDown(() {
+      filters.dispose();
+      log.dispose();
+      bus.close();
+    });
+
+    Future<void> show(WidgetTester tester, {String? profileId = profile}) =>
+        tester.pumpWidget(
+          EventDetailsScope(
+            profileId: profileId,
+            deleteEvent: (e) async {
+              deleted.add(e.id);
+              return true;
+            },
+            deleteEvents: (events) async {
+              deleted.addAll(events.map((e) => e.id));
+              return events.length;
+            },
+            child: MaterialApp(
+              home: Scaffold(
+                body: Column(
+                  children: [
+                    DeleteShownEvents(
+                      log: log,
+                      filters: filters,
+                      profileId: profileId,
+                      deviceId: null,
+                    ),
+                    Expanded(
+                      child: EventTimeline(
+                        log: log,
+                        filters: filters,
+                        profileId: profileId,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('each of the profile\'s cards has a delete icon beside its '
+        'indicators, which asks first', (tester) async {
+      await show(tester);
+      expect(find.byKey(const Key('event-delete-1')), findsOneWidget);
+      expect(find.byKey(const Key('event-delete-2')), findsOneWidget);
+      // Not the profile's (signed out when recorded): nothing to delete.
+      expect(find.byKey(const Key('event-delete-3')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('event-delete-2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete event?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('delete-event-cancel')));
+      await tester.pumpAndSettle();
+      expect(deleted, isEmpty);
+
+      await tester.tap(find.byKey(const Key('event-delete-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('delete-event-confirm')));
+      await tester.pumpAndSettle();
+      expect(deleted, ['2']);
+      expect(find.text('Event deleted on every device'), findsOneWidget);
+    });
+
+    testWidgets('Delete all asks with the count and deletes the profile\'s '
+        'events shown, only those the search matches', (tester) async {
+      await show(tester);
+      await tester.tap(find.byKey(const Key('events-delete-all')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 2 events?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('delete-event-cancel')));
+      await tester.pumpAndSettle();
+      expect(deleted, isEmpty);
+
+      filters.search.value = 'front';
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('events-delete-all')));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete 1 event?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('delete-event-confirm')));
+      await tester.pumpAndSettle();
+      expect(deleted, ['1']);
+      expect(find.text('1 event deleted on every device'), findsOneWidget);
+
+      // Nothing of the profile's shown: disabled.
+      filters.search.value = 'theirs';
+      await tester.pump();
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('events-delete-all')))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('signed out: no delete buttons', (tester) async {
+      await show(tester, profileId: null);
+      expect(find.byKey(const Key('events-delete-all')), findsNothing);
+      expect(find.byKey(const Key('event-delete-3')), findsNothing);
+    });
+  });
+
   testWidgets('in the app: deleting an event hides it from the timeline '
       'and its count', (tester) async {
     tester.view.physicalSize = const Size(320, 640);
@@ -287,6 +418,11 @@ void main() {
     await showEvents(tester);
     await revealSystemEvents(tester);
     expect(find.text('Phone motion'), findsOneWidget);
+    // Delete all at the far right of the search's row.
+    expect(
+      tester.getTopRight(find.byKey(const Key('events-delete-all'))).dx,
+      tester.getTopRight(find.byKey(const Key('monitoring-filters'))).dx,
+    );
     String count() =>
         tester.widget<Text>(find.byKey(const Key('event-count'))).data!;
     final before = count();
@@ -485,6 +621,60 @@ void main() {
       final id = log.events.single.id;
       expect(await persistence.deleteEvent(id, profileId: '1'), isTrue);
       expect(log.events, isEmpty);
+    });
+
+    test('several events are deleted at once, with the suggestions about '
+        'their clips; unknown ones and another profile\'s are left', () async {
+      final clip = {
+        ...phoneEvent('phone-b', ago: 30000),
+        'type': 'clip_requested',
+        'clipId': 'phone-clip',
+      };
+      final suggestion = {
+        ...phoneEvent('suggest-b', ago: 20000),
+        'type': SubjectSuggestion.suggestionType,
+        'clipEventId': 'phone-b',
+        'annotationId': 'a1',
+        'subjectName': 'Rex',
+        'confidence': 0.9,
+      };
+      for (final e in [
+        clip,
+        suggestion,
+        phoneEvent('phone-a'),
+        phoneEvent('phone-c'),
+      ]) {
+        inCloud(e);
+      }
+      await auth.signIn();
+      await pass();
+      expect(shown(), containsAll(['phone-a', 'phone-b', 'phone-c']));
+
+      // Another profile's: none.
+      expect(
+        await persistence.deleteEvents({'phone-a', 'phone-c'}, profileId: 'x'),
+        0,
+      );
+      expect(
+        await persistence.deleteEvents({
+          'phone-a',
+          'phone-b',
+          'nope',
+        }, profileId: '1'),
+        2,
+      );
+      expect(shown(), isNot(contains('phone-a')));
+      expect(shown(), isNot(contains('phone-b')));
+      expect(shown(), isNot(contains('suggest-b')));
+      expect(shown(), contains('phone-c'));
+      // Again: nothing more to delete.
+      expect(
+        await persistence.deleteEvents({'phone-a', 'phone-b'}, profileId: '1'),
+        0,
+      );
+      await sync.idle();
+      expect(AppEvent.isDeletedRecord(cloudCopy(clip)), isTrue);
+      expect(AppEvent.isDeletedRecord(cloudCopy(suggestion)), isTrue);
     });
 
     test(

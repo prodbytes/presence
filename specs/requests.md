@@ -5334,3 +5334,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        every subject. Tapping a dot still opens its event, a name the
        subject. Specs: [Monitoring](monitoring.md), [Subjects](subjects.md),
        [Settings](settings.md).
+
+381. **Delete from the card, and Delete all.** (2026-10-12)
+     - Asked: in the event card, beside the indicators, a delete icon to
+       delete it from there; in the top row, the search's, a Delete all
+       aligned to the far right.
+     - Changed: each card the signed-in profile can delete has a small
+       delete icon at the right end of its header, after its indicators,
+       which asks as the details' Delete event does. The Monitoring top
+       row ends, at the far right, with a Delete all icon button that
+       deletes the events shown (all of them, or only those a search or
+       filter shows) after asking "Delete N events?";
+       `Persistence.deleteEvents` deletes them in one pass. New strings in
+       English, Spanish and Portuguese. Specs:
+       [Device deletion](device-deletion.md), [Monitoring](monitoring.md),
+       [Events](events.md).
+

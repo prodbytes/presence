@@ -16,10 +16,15 @@ import 'theme.dart';
 /// (`Persistence.deleteEvent`); true when it was deleted.
 typedef DeleteEvent = Future<bool> Function(AppEvent event);
 
+/// Deletes [events] on every device of the signed-in profile at once
+/// (`Persistence.deleteEvents`); how many it deleted.
+typedef DeleteEvents = Future<int> Function(List<AppEvent> events);
+
 /// What the end of an event's details (the clip player) needs from the
 /// app: who is signed in ([profileId]), this device, live sync (for the
 /// recording device's presence dot), the event log (its latest event), the
-/// map's tiles, and how to delete an event ([deleteEvent]).
+/// map's tiles, and how to delete an event ([deleteEvent]) or the events
+/// shown ([deleteEvents]). The events list's delete buttons use it too.
 class EventDetailsScope extends InheritedWidget {
   const EventDetailsScope({
     super.key,
@@ -30,6 +35,7 @@ class EventDetailsScope extends InheritedWidget {
     this.log,
     this.tiles,
     this.deleteEvent,
+    this.deleteEvents,
     this.now,
   });
 
@@ -43,7 +49,12 @@ class EventDetailsScope extends InheritedWidget {
   /// Replaces the map's tiles (tests); OpenStreetMap's otherwise.
   final Widget? tiles;
   final DeleteEvent? deleteEvent;
+  final DeleteEvents? deleteEvents;
   final DateTime Function()? now;
+
+  /// Whether [event] can be deleted here: signed in with its profile.
+  bool canDelete(AppEvent event) =>
+      deleteEvent != null && profileId != null && event.profileId == profileId;
 
   static EventDetailsScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<EventDetailsScope>();
@@ -56,6 +67,7 @@ class EventDetailsScope extends InheritedWidget {
       log != old.log ||
       tiles != old.tiles ||
       deleteEvent != old.deleteEvent ||
+      deleteEvents != old.deleteEvents ||
       now != old.now;
 }
 
@@ -77,9 +89,7 @@ class EventDetailsFooter extends StatelessWidget {
   Widget build(BuildContext context) {
     final scope = EventDetailsScope.maybeOf(context);
     final delete = scope?.deleteEvent;
-    final profile = scope?.profileId;
-    final canDelete =
-        delete != null && profile != null && event.profileId == profile;
+    final canDelete = scope?.canDelete(event) ?? false;
     final l = context.l10n;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -112,7 +122,7 @@ class EventDetailsFooter extends StatelessWidget {
               onPressed: () => deleteEventAfterConfirming(
                 context,
                 event: event,
-                delete: delete,
+                delete: delete!,
                 onDeleted: onDeleted,
               ),
             ),
@@ -381,10 +391,40 @@ Future<void> deleteEventAfterConfirming(
   }
 }
 
+/// Asks whether to delete [events] (the events list's Delete all: those
+/// shown, [DeleteEventDialog] with their count), and if so, deletes them
+/// with [delete] and says how many in a snack bar.
+Future<void> deleteEventsAfterConfirming(
+  BuildContext context, {
+  required List<AppEvent> events,
+  required DeleteEvents delete,
+}) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final l = context.l10n;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => DeleteEventDialog(count: events.length),
+  );
+  if (confirmed != true) return;
+  try {
+    final deleted = await delete(events);
+    messenger?.showSnackBar(
+      SnackBar(content: Text(l.eventsDeletedEverywhere(deleted))),
+    );
+  } catch (e) {
+    debugPrint('Presence: could not delete ${events.length} events: $e');
+    messenger?.showSnackBar(SnackBar(content: Text(l.eventsDeleteFailed)));
+  }
+}
+
 /// "Delete this event? It will be hidden on every device.", with Cancel
-/// and Delete. Pops true for Delete.
+/// and Delete; with [count], the same about that many events (Delete
+/// all). Pops true for Delete.
 class DeleteEventDialog extends StatelessWidget {
-  const DeleteEventDialog({super.key});
+  const DeleteEventDialog({super.key, this.count});
+
+  /// How many events Delete all deletes; null, one event.
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
@@ -394,16 +434,21 @@ class DeleteEventDialog extends StatelessWidget {
     return AlertDialog(
       key: const Key('delete-event-dialog'),
       icon: const Icon(Icons.delete_outline),
-      title: Text(l.eventDeleteTitle),
+      title: Text(
+        count == null ? l.eventDeleteTitle : l.eventsDeleteAllTitle(count!),
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           spacing: 12,
           children: [
-            Text(l.eventDeleteMessage, key: const Key('delete-event-message')),
             Text(
-              l.eventDeleteClipNote,
+              count == null ? l.eventDeleteMessage : l.eventsDeleteAllMessage,
+              key: const Key('delete-event-message'),
+            ),
+            Text(
+              count == null ? l.eventDeleteClipNote : l.eventsDeleteAllClipNote,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),

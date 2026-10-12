@@ -10,6 +10,7 @@ import 'barrel_roll.dart';
 import 'camera_feeds.dart';
 import 'clips.dart';
 import 'copies_badge.dart';
+import 'event_details.dart';
 import 'event_filters.dart';
 import 'event_flags.dart';
 import 'identity/device_os.dart';
@@ -863,6 +864,9 @@ class _EventTimelineState extends State<EventTimeline> {
                     ),
                   const SizedBox(width: 8),
                   Flexible(child: EventIndicators(event: event)),
+                  if (EventDetailsScope.maybeOf(context) case final scope?
+                      when scope.canDelete(event))
+                    EventDeleteButton(event: event, delete: scope.deleteEvent!),
                 ],
               ),
               child: event.buildCard(context),
@@ -1169,6 +1173,97 @@ class EventCount extends StatelessWidget {
       );
     },
   );
+}
+
+/// Deletes one event from its card's header, beside its indicators, after
+/// asking ([deleteEventAfterConfirming]), as its details' Delete button
+/// does.
+class EventDeleteButton extends StatelessWidget {
+  const EventDeleteButton({
+    super.key,
+    required this.event,
+    required this.delete,
+  });
+
+  final AppEvent event;
+  final DeleteEvent delete;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    key: Key('event-delete-${event.id}'),
+    tooltip: context.l10n.eventDelete,
+    visualDensity: VisualDensity.compact,
+    padding: EdgeInsets.zero,
+    constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+    iconSize: 18,
+    color: Theme.of(context).colorScheme.onSurfaceVariant,
+    icon: const Icon(Icons.delete_outline),
+    onPressed: () => deleteEventAfterConfirming(
+      context,
+      event: event,
+      delete: delete,
+      onDeleted: () {},
+    ),
+  );
+}
+
+/// Deletes every event the list shows (the filters' [EventView.shown]) of
+/// the signed-in profile, after asking with their count
+/// ([deleteEventsAfterConfirming]): at the far right of the events' top
+/// row. Signed out (nothing can be deleted), it isn't there; with nothing
+/// shown, it's disabled.
+class DeleteShownEvents extends StatelessWidget {
+  const DeleteShownEvents({
+    super.key,
+    required this.log,
+    required this.filters,
+    required this.profileId,
+    required this.deviceId,
+  });
+
+  final EventLog log;
+  final EventFilters filters;
+  final String? profileId;
+  final String? deviceId;
+
+  @override
+  Widget build(BuildContext context) {
+    final scope = EventDetailsScope.maybeOf(context);
+    final delete = scope?.deleteEvents;
+    if (delete == null || scope?.profileId == null) {
+      return const SizedBox.shrink();
+    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([log, filters, log.annotations]),
+      builder: (context, _) {
+        final shown = [
+          for (final e
+              in filters
+                  .viewOf(
+                    log,
+                    deviceId: deviceId,
+                    profileId: profileId,
+                    l: context.l10n,
+                  )
+                  .shown)
+            if (scope!.canDelete(e)) e,
+        ];
+        return IconButton(
+          key: const Key('events-delete-all'),
+          tooltip: context.l10n.eventsDeleteAll,
+          visualDensity: VisualDensity.compact,
+          icon: const Icon(Icons.delete_sweep_outlined),
+          onPressed: shown.isEmpty
+              ? null
+              : () => deleteEventsAfterConfirming(
+                  context,
+                  events: shown,
+                  delete: delete,
+                ),
+        );
+      },
+    );
+  }
 }
 
 /// The device an event was taken on, small and quiet above its card in the

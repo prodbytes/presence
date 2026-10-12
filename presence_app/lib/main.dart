@@ -486,6 +486,19 @@ class _PresenceAppState extends State<PresenceApp> {
     return deleted;
   }
 
+  /// Deletes [events] of the signed-in profile on every device at once
+  /// (`Persistence.deleteEvents`: the events list's Delete all); nothing
+  /// without a profile. How many it deleted.
+  Future<int> _deleteEvents(List<AppEvent> events) async {
+    final profile = _roles.profile;
+    if (profile == null) return 0;
+    final ids = {for (final e in events) e.id};
+    final deleted = await _persistence.deleteEvents(ids, profileId: profile);
+    // Nor are they counted among the copies any more.
+    _copies.forgetAll(ids);
+    return deleted;
+  }
+
   void _joinHandled() {
     clearLaunchQuery();
     setState(() => _join = null);
@@ -692,6 +705,7 @@ class _PresenceAppState extends State<PresenceApp> {
               log: _log,
               tiles: widget.mapTiles,
               deleteEvent: _deleteEvent,
+              deleteEvents: _deleteEvents,
               now: widget.now,
               child: app!,
             ),

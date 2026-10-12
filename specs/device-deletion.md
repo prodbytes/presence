@@ -4,7 +4,9 @@ A signed-in user can **delete another device of their profile**: every
 event it recorded moves to a **deleted** state and is hidden on every
 device of the profile. It's a soft delete: nothing in the cloud or on the
 devices is destroyed by it. **One event** is deleted the same way, from
-the end of its details ([One event](#one-event)).
+the end of its details or its card in the events list
+([One event](#one-event)), and **the events shown** all at once
+([Delete all](#delete-all)).
 
 ## Where
 
@@ -67,12 +69,21 @@ delete it from another device.
 
 ## One event
 
-The clip player (the event's details, [Clips](clips.md)) ends with a
-**Delete event** button, signed in with the event's profile only (not in
-DEV, where there's no profile, as for devices). It asks "Delete this
-event? It will be hidden on every device." with **Cancel** / **Delete**;
-Delete closes the player and a snack bar says "Event deleted on every
-device" ([event_details.dart](../presence_app/lib/event_details.dart)).
+Two places delete one event, signed in with the event's profile only
+(not in DEV, where there's no profile, as for devices;
+`EventDetailsScope.canDelete`):
+
+- the clip player (the event's details, [Clips](clips.md)) ends with a
+  **Delete event** button;
+- each card in the [events list](events.md) has a small **delete icon**
+  (`delete_outline`, 18 dp, tooltip "Delete event", key
+  `event-delete-<id>`, `EventDeleteButton`) in its header, beside its
+  indicators, at the right end.
+
+Both ask "Delete this event? It will be hidden on every device." with
+**Cancel** / **Delete**; Delete deletes it (closing the player, from
+there) and a snack bar says "Event deleted on every device"
+([event_details.dart](../presence_app/lib/event_details.dart)).
 
 `Persistence.deleteEvent(id, profileId:)` does for one event what
 `deleteDevice` does for a device's (the same code, `_softDelete`): the
@@ -87,6 +98,27 @@ events show). It returns whether it deleted it ("Event already deleted"
 otherwise, and the player stays). Everything under
 [Deleted stays deleted](#deleted-stays-deleted) and [Media](#media)
 holds for it too.
+
+## Delete all
+
+At the far right of the Monitoring tab's top row, the search's row
+([Monitoring](monitoring.md)), a **Delete all** icon button
+(`delete_sweep_outlined`, tooltip "Delete the events shown", key
+`events-delete-all`, `DeleteShownEvents`) deletes **the events the list
+shows** that can be deleted (the signed-in profile's): every one without
+a filter, only the matching ones with a search, a device or system
+events hidden. It asks "Delete N events?" ("Delete all the events shown?
+They will be hidden on every device.", their clips staying in the cloud
+until they expire) with **Cancel** / **Delete**, and a snack bar then
+says "N events deleted on every device". Signed out (or in DEV) it isn't
+there; with nothing of the profile's shown, it's disabled.
+
+`Persistence.deleteEvents(ids, profileId:)` deletes them at once, as
+`deleteEvent` does one (`deleteEvent` uses it): one pass over the stored
+events, those not in the profile or deleted already left out, the
+suggestions about their clips with them. It returns how many of the IDs
+it deleted. The app forgets their copies, notifying once
+(`EventCopies.forgetAll`).
 
 ## Deleted stays deleted
 
