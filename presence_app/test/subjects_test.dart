@@ -352,76 +352,101 @@ void main() {
       tester.element(find.byType(MarkerLayer, skipOffstage: false)),
     );
 
-    testWidgets('the map opens on the newest event close up, with the ones '
-        'nearby, and has zoom buttons', (tester) async {
+    /// The keys of the subjects map's dots.
+    List<String> dotKeys(WidgetTester tester) => [
+      for (final m
+          in tester.widget<MarkerLayer>(find.byType(MarkerLayer)).markers)
+        if (m.key case ValueKey<String>(:final value)
+            when value.startsWith('subjects-dot-'))
+          value,
+    ];
+
+    testWidgets('the map is fitted to every subject, each at its latest '
+        'event, and has zoom buttons', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
-        // About 90 m north: nearby.
+        // About 90 m north.
         clipWith(['Ana'], minutesAgo: 2, lat: 48.1008),
-        // About 30 km north: left out of the fit.
+        // Rex's older one: no dot.
         clipWith(['Rex'], minutesAgo: 3, lat: 48.4),
+        // About 30 km south: Bo, seen only long ago, is in view too.
+        clipWith(['Bo'], minutesAgo: 60, lat: 47.8),
       ]);
       await show(tester);
       await tester.pumpAndSettle();
 
+      expect(
+        dotKeys(tester),
+        unorderedEquals([
+          'subjects-dot-rex-event-1',
+          'subjects-dot-ana-event-2',
+          'subjects-dot-bo-event-60',
+        ]),
+      );
       final map = tester.getRect(find.byKey(const Key('subjects-map')));
       Offset dot(String id) => tester.getCenter(find.byKey(Key(id)));
-      final newest = dot('subjects-dot-rex-event-1');
-      // The newest in the middle, at street level.
-      expect(newest.dx, closeTo(map.center.dx, 1));
-      expect(newest.dy, closeTo(map.center.dy, 1));
-      final zoom = cameraOf(tester).zoom;
-      expect(zoom, inInclusiveRange(16, 17));
-      // The nearby one in view, the far one not.
-      final near = dot('subjects-dot-ana-event-2');
-      expect(map.deflate(40).contains(near), isTrue, reason: '$near in $map');
-      expect(
-        cameraOf(tester).visibleBounds.contains(const LatLng(48.4, 2.29)),
-        isFalse,
-      );
+      for (final id in [
+        'subjects-dot-rex-event-1',
+        'subjects-dot-ana-event-2',
+        'subjects-dot-bo-event-60',
+      ]) {
+        expect(map.deflate(40).contains(dot(id)), isTrue, reason: id);
+      }
+      final bounds = cameraOf(tester).visibleBounds;
+      expect(bounds.contains(const LatLng(48.1, 2.29)), isTrue);
+      expect(bounds.contains(const LatLng(47.8, 2.29)), isTrue);
 
-      // Zoom in spreads the dots (around the center), zoom out brings
-      // them back.
+      // Zoom in steps one in around the center, zoom out back.
       final zoomIn = find.byKey(const Key('sightings-zoom-in'));
       final zoomOut = find.byKey(const Key('sightings-zoom-out'));
       expect(zoomIn, findsOneWidget);
-      final apart = (near - newest).distance;
+      final fitted = cameraOf(tester);
       await tester.tap(zoomIn);
       await tester.pumpAndSettle();
-      expect(
-        (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
-            .distance,
-        closeTo(apart * 2, 2),
-      );
+      expect(cameraOf(tester).zoom, closeTo(fitted.zoom + 1, 1e-9));
+      expect(cameraOf(tester).center, fitted.center);
       await tester.tap(zoomOut);
       await tester.pumpAndSettle();
-      expect(
-        (dot('subjects-dot-ana-event-2') - dot('subjects-dot-rex-event-1'))
-            .distance,
-        closeTo(apart, 2),
-      );
+      expect(cameraOf(tester).zoom, closeTo(fitted.zoom, 1e-9));
     });
 
-    testWidgets('a lone newest event is shown at zoom 17', (tester) async {
+    testWidgets('a lone subject is shown at zoom 17', (tester) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
         clipWith(['Rex'], minutesAgo: 2, lat: 49.2),
       ]);
       await show(tester);
       await tester.pumpAndSettle();
+      expect(dotKeys(tester), ['subjects-dot-rex-event-1']);
       final camera = cameraOf(tester);
       expect(camera.zoom, 17);
       expect(camera.center.latitude, closeTo(48.1, 1e-6));
     });
 
-    testWidgets('the map follows the newest event as events load and arrive, '
+    testWidgets("a subject's latest located event shows, however many newer "
+        'ones have no location', (tester) async {
+      config.update(
+        (c) => c.copyWith(subjects: const SubjectsConfig(mapEvents: 10)),
+      );
+      log.addHistory([
+        for (var i = 1; i <= 15; i++) clipWith(['Rex'], minutesAgo: i),
+        clipWith(['Rex'], minutesAgo: 16, lat: 48.1),
+        clipWith(['Rex'], minutesAgo: 17, lat: 48.2),
+      ]);
+      await show(tester);
+      await tester.pumpAndSettle();
+      expect(dotKeys(tester), ['subjects-dot-rex-event-16']);
+      expect(find.byKey(const Key('subjects-label-rex')), findsOneWidget);
+    });
+
+    testWidgets('the map fits every subject as events load and arrive, '
         'until it is moved', (tester) async {
       await show(tester);
       await tester.pumpAndSettle();
       // Nothing yet: the whole world.
       expect(cameraOf(tester).zoom, 2);
 
-      // The events load: the newest close up.
+      // The events load: Rex's latest, close up.
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 5, lat: 48.1),
         clipWith(['Rex'], minutesAgo: 6, lat: 48.3),
@@ -430,28 +455,39 @@ void main() {
       expect(cameraOf(tester).center.latitude, closeTo(48.1, 1e-6));
       expect(cameraOf(tester).zoom, 17);
 
-      // A newer one arrives: the map moves to it.
+      // Ana is seen: the map fits both.
       bus.add(clipWith(['Ana'], minutesAgo: 4, lat: 48.2));
       await tester.pumpAndSettle();
-      expect(cameraOf(tester).center.latitude, closeTo(48.2, 1e-6));
+      var bounds = cameraOf(tester).visibleBounds;
+      expect(bounds.contains(const LatLng(48.1, 2.29)), isTrue);
+      expect(bounds.contains(const LatLng(48.2, 2.29)), isTrue);
+      expect(cameraOf(tester).zoom, lessThan(17));
+
+      // Rex seen somewhere new, farther: fitted again.
+      bus.add(clipWith(['Rex'], minutesAgo: 3, lat: 47.5));
+      await tester.pumpAndSettle();
+      bounds = cameraOf(tester).visibleBounds;
+      expect(bounds.contains(const LatLng(47.5, 2.29)), isTrue);
+      expect(bounds.contains(const LatLng(48.2, 2.29)), isTrue);
+      expect(dotKeys(tester), hasLength(2));
 
       // Moved by hand, it stays put when the next one arrives.
       final map = tester.getRect(find.byKey(const Key('subjects-map')));
       await tester.dragFrom(map.center, const Offset(-120, 80));
       await tester.pumpAndSettle();
       final moved = cameraOf(tester).center;
-      expect(moved.latitude, isNot(closeTo(48.2, 1e-6)));
-      bus.add(clipWith(['Rex'], minutesAgo: 3, lat: 48.25));
+      final zoom = cameraOf(tester).zoom;
+      bus.add(clipWith(['Bo'], minutesAgo: 2, lat: 40));
       await tester.pumpAndSettle();
-      expect(log.events.first.id, 'event-3');
+      expect(log.events.first.id, 'event-2');
       expect(cameraOf(tester).center, moved);
-      expect(cameraOf(tester).zoom, 17);
+      expect(cameraOf(tester).zoom, zoom);
 
       // A resize (rotation, keyboard, window) doesn't snap it back either.
       tester.view.physicalSize = const Size(1280, 600);
       await tester.pumpAndSettle();
       expect(cameraOf(tester).center, moved);
-      expect(cameraOf(tester).zoom, 17);
+      expect(cameraOf(tester).zoom, zoom);
     });
 
     testWidgets('a dot on the far side of the world is no trouble', (
@@ -459,14 +495,14 @@ void main() {
     ) async {
       log.addHistory([
         clipWith(['Rex'], minutesAgo: 1, lat: 0),
-        // Nearly antipodal: Vincenty's formula doesn't converge there.
+        // Nearly antipodal.
         clipWith(['Ana'], minutesAgo: 2, lat: 0, lng: -177.6),
       ]);
       await show(tester);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(cameraOf(tester).center.longitude, closeTo(2.29, 1e-6));
-      expect(cameraOf(tester).zoom, 17);
+      expect(dotKeys(tester), hasLength(2));
+      expect(cameraOf(tester).zoom, lessThan(17));
     });
 
     testWidgets('without located events, the whole world, zoomed out', (
@@ -483,10 +519,9 @@ void main() {
       expect(out.onPressed, isNull, reason: 'already as far out as it goes');
     });
 
-    testWidgets("the map shows every device until an event's device is "
-        'tapped (searched for), with the events', (tester) async {
+    testWidgets("the map keeps every subject while an event's device is "
+        'tapped (searched for); the events follow the search', (tester) async {
       log.addHistory([
-        // Close together: both in view at street level.
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1)..deviceId = 'here',
         clipWith(['Ana'], minutesAgo: 2, lat: 48.1005)..deviceId = 'there',
       ]);
@@ -514,7 +549,6 @@ void main() {
       Finder card(String name) =>
           find.descendant(of: events, matching: find.text(name));
 
-      expect(search, findsNothing);
       expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);
       expect(card('Ana'), findsOneWidget);
@@ -522,27 +556,24 @@ void main() {
       await tester.tap(here);
       await tester.pumpAndSettle();
       expect(tester.widget<TextField>(search).controller!.text, 'here');
-      expect(rex, findsOneWidget);
-      expect(ana, findsNothing);
-      expect(find.byKey(const Key('subjects-label-ana')), findsNothing);
       expect(card('Rex'), findsOneWidget);
       expect(card('Ana'), findsNothing);
-
-      await tester.tap(find.byTooltip('Clear search'));
-      await tester.pumpAndSettle();
-      expect(search, findsNothing);
+      // Still every subject on the map.
+      expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);
-      expect(card('Ana'), findsOneWidget);
+      expect(find.byKey(const Key('subjects-label-ana')), findsOneWidget);
     });
 
-    testWidgets('on top, a map of every subject, each in its color, and a '
-        'matching square on each row', (tester) async {
+    testWidgets('on top, a map of every subject at its latest located '
+        'event, each in its color, and a matching square on each row', (
+      tester,
+    ) async {
       log.addHistory([
-        // Close together: all in view at street level.
         clipWith(['Rex'], minutesAgo: 1, lat: 48.1),
         clipWith(['Rex', 'Ana'], minutesAgo: 2, lat: 48.1005),
         clipWith(['Ana'], minutesAgo: 3, lat: 48.101),
-        clipWith(['Ana'], minutesAgo: 4),
+        // Ana's newest has no location: her dot is at event-2.
+        clipWith(['Ana'], minutesAgo: 0),
       ]);
       AppEvent? opened;
       tester.view.physicalSize = const Size(1280, 800);
@@ -571,14 +602,13 @@ void main() {
       expect(map.top, closeTo(events.top, 2));
       expect(find.byKey(const Key('subjects-page')), findsNothing);
 
-      // Every located event of every subject; the clip with both gets a
-      // dot for each.
-      final markers = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
+      // One dot per subject, at its latest located event.
       expect(
-        markers.markers.where(
-          (m) => (m.key! as ValueKey<String>).value.startsWith('subjects-dot-'),
-        ),
-        hasLength(4),
+        dotKeys(tester),
+        unorderedEquals([
+          'subjects-dot-rex-event-1',
+          'subjects-dot-ana-event-2',
+        ]),
       );
       Color colorOf(Finder f) =>
           (tester
@@ -593,10 +623,7 @@ void main() {
               .color!;
       final rex = Subject.colorOf('rex'), ana = Subject.colorOf('ana');
       expect(colorOf(find.byKey(const Key('subjects-dot-rex-event-1'))), rex);
-      expect(colorOf(find.byKey(const Key('subjects-dot-rex-event-2'))), rex);
       expect(colorOf(find.byKey(const Key('subjects-dot-ana-event-2'))), ana);
-      expect(colorOf(find.byKey(const Key('subjects-dot-ana-event-3'))), ana);
-      // Faded per subject, by age: Rex's newest solid, his older one faint.
       double opacity(String key) => tester
           .widget<Opacity>(
             find.descendant(
@@ -606,7 +633,7 @@ void main() {
           )
           .opacity;
       expect(opacity('subjects-dot-rex-event-1'), 1);
-      expect(opacity('subjects-dot-rex-event-2'), closeTo(0.15, 1e-9));
+      expect(opacity('subjects-dot-ana-event-2'), 1);
 
       // The events' squares are the same colors.
       expect(
@@ -618,7 +645,7 @@ void main() {
         ana,
       );
 
-      // A name beside each subject's newest dot only, edged in its color.
+      // A name beside each subject's dot, edged in its color.
       final labels = tester.widget<MarkerLayer>(find.byType(MarkerLayer));
       expect(
         [
@@ -641,10 +668,9 @@ void main() {
       );
 
       // A tapped dot opens its event.
-      await tester.tap(find.byKey(const Key('subjects-dot-ana-event-3')));
-      expect(opened?.id, 'event-3');
+      await tester.tap(find.byKey(const Key('subjects-dot-ana-event-2')));
+      expect(opened?.id, 'event-2');
     });
-
     testWidgets('the setting is last on the Settings screen', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

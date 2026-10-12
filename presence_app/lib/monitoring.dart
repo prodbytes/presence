@@ -8,14 +8,15 @@ import 'subjects.dart';
 
 /// The Monitoring tab: where subjects were seen and what happened.
 ///
-/// Two columns on a wide screen: the map of every subject's events on the
-/// left, all events on the right, each clip's card showing its subjects in
-/// their colors. On a phone the map sits above the events. One compact row
+/// Two columns on a wide screen: the map of every subject, each at its
+/// latest located event ([SubjectsMap]), on the left, all events on the
+/// right, each clip's card showing its subjects in their colors. On a phone the map sits above the events. One compact row
 /// at the top: the events search ([EventSearch], an icon until tapped), its
 /// matching / all events count ([EventCount]), with the small "Show
 /// system events" toggle ([ShowSystemEvents]) in the same row. Tapping a
 /// device's name (an event's, [EventDeviceTag], or elsewhere,
-/// `ShowDeviceEvents`) searches for its ID: only its events show. Tapping a dot on the map
+/// `ShowDeviceEvents`) searches for its ID: only its events show (the map
+/// keeps every subject). Tapping a dot on the map
 /// scrolls the events to its event; tapping a subject's name opens the
 /// subject.
 class MonitoringView extends StatefulWidget {
@@ -104,9 +105,7 @@ class _MonitoringViewState extends State<MonitoringView> {
       config: widget.config,
       tiles: widget.tiles,
       onOpenEvent: widget.onOpenEvent,
-      deviceId: widget.deviceId,
       profileId: widget.profileId,
-      filters: _filters,
     );
     Widget events(EdgeInsets padding) => KeyedSubtree(
       key: const Key('events-page'),

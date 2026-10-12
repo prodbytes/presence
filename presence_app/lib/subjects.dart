@@ -156,11 +156,12 @@ class _SubjectsBuilderState extends State<_SubjectsBuilder> {
   );
 }
 
-/// A map merging every subject's latest events, each subject in its own
-/// color (on the Monitoring tab), with the subject's name beside its newest
-/// dot. Tapping a dot opens its event; tapping a name opens the subject.
-/// Only [profileId]'s events show, and with a device searched for
-/// ([EventFilters.searchedDevice]) only that device's.
+/// A map of every subject at once (on the Monitoring tab): one dot per
+/// subject, in its color, at its latest event that has a location
+/// ([latestLocated]), with the subject's name beside it. The map is fitted
+/// to show them all. Tapping a dot opens its event; tapping a name opens
+/// the subject. Only [profileId]'s events count; searches don't change the
+/// map.
 class SubjectsMap extends StatelessWidget {
   const SubjectsMap({
     super.key,
@@ -168,24 +169,15 @@ class SubjectsMap extends StatelessWidget {
     required this.config,
     this.tiles,
     this.onOpenEvent,
-    this.deviceId,
     this.profileId,
-    this.filters,
   });
 
   final EventLog log;
   final ConfigController config;
 
-  /// This device's ID: events without a device ID (not saved yet) are its.
-  final String? deviceId;
-
   /// The signed-in account's profile (null signed out): only its events
-  /// show, as in the timeline ([EventTimeline.ofProfile]).
+  /// count, as in the timeline ([EventTimeline.ofProfile]).
   final String? profileId;
-
-  /// The timeline's filters: the map follows a search for a device
-  /// ([EventView.device]). Every device shows without them.
-  final EventFilters? filters;
 
   /// Opens an event (a dot tapped on the map).
   final ValueChanged<AppEvent>? onOpenEvent;
@@ -194,79 +186,60 @@ class SubjectsMap extends StatelessWidget {
   final Widget? tiles;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    // Not the system events: they don't change the map. The search does
-    // only when it's a device's ID ([EventView.device]); the subjects are
-    // worked out again only then (their events' list is kept otherwise).
-    listenable: Listenable.merge([config, filters?.search]),
-    builder: (context, _) => _SubjectsBuilder(
-      log: log,
-      events: () => switch (filters) {
-        final filters? =>
-          filters
-              .viewOf(
-                log,
-                deviceId: deviceId,
-                profileId: profileId,
-                l: context.l10n,
-              )
-              .ofDevices,
-        null => log.eventsOf(profileId),
-      },
-      builder: (context, subjects) {
-        final limit = config.subjects.mapEvents;
-        final dots = <_MapPoint>[];
-        final labels = <_MapLabel>[];
-        for (final subject in subjects) {
-          final mine = _dotsOf(
-            subject,
-            limit,
-            key: (s) => 'subjects-dot-${subject.id}-${s.event.id}',
-          );
-          dots.addAll(mine);
-          if (mine.isNotEmpty) {
-            labels.add((
-              sighting: mine.first.sighting,
-              subject: subject,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ShowDeviceEvents.capture(
-                    context,
-                    SubjectScreen(
-                      subjectId: subject.id,
-                      log: log,
-                      profileId: profileId,
-                      config: config,
-                      tiles: tiles,
-                      onOpenEvent: onOpenEvent,
-                    ),
-                  ),
+  Widget build(BuildContext context) => _SubjectsBuilder(
+    log: log,
+    events: () => log.eventsOf(profileId),
+    builder: (context, subjects) {
+      final dots = <_MapPoint>[];
+      final labels = <_MapLabel>[];
+      for (final subject in subjects) {
+        final latest = latestLocated(subject);
+        if (latest == null) continue;
+        dots.add((
+          sighting: latest,
+          color: subject.color,
+          opacity: 1,
+          key: 'subjects-dot-${subject.id}-${latest.event.id}',
+        ));
+        labels.add((
+          sighting: latest,
+          subject: subject,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ShowDeviceEvents.capture(
+                context,
+                SubjectScreen(
+                  subjectId: subject.id,
+                  log: log,
+                  profileId: profileId,
+                  config: config,
+                  tiles: tiles,
+                  onOpenEvent: onOpenEvent,
                 ),
               ),
-            ));
-          }
-        }
-        return _SightingsMap(
-          key: const Key('subjects-map'),
-          // Fitted again to the dots shown when the device searched for
-          // changes.
-          fitKey: filters
-              ?.viewOf(
-                log,
-                deviceId: deviceId,
-                profileId: profileId,
-                l: context.l10n,
-              )
-              .device,
-          closeUp: true,
-          dots: dots,
-          labels: labels,
-          tiles: tiles,
-          onOpen: onOpenEvent,
-        );
-      },
-    ),
+            ),
+          ),
+        ));
+      }
+      return _SightingsMap(
+        key: const Key('subjects-map'),
+        overview: true,
+        dots: dots,
+        labels: labels,
+        tiles: tiles,
+        onOpen: onOpenEvent,
+      );
+    },
   );
+}
+
+/// [subject]'s latest event that has a location, however old; null if
+/// none has one.
+Sighting? latestLocated(Subject subject) {
+  for (final s in subject.sightings) {
+    if (s.event.location != null) return s;
+  }
+  return null;
 }
 
 /// The **Subjects** (named people and pets) tagged on [event], once each,
@@ -658,8 +631,8 @@ List<LatLng> framedAround(LatLng center, List<LatLng> points) {
 
 /// A map of [dots], opening centered on the newest one and zoomed out to
 /// show them all (on the whole world without any), with zoom buttons.
-/// With [closeUp], it opens on the newest one at street level instead, and
-/// follows the newest as events arrive until the map is moved.
+/// With [overview], it opens fitted to every dot instead, and fits them
+/// again as dots come and go until the map is moved.
 /// Tapping a dot opens its event.
 class _SightingsMap extends StatefulWidget {
   const _SightingsMap({
@@ -668,23 +641,19 @@ class _SightingsMap extends StatefulWidget {
     this.labels = const [],
     this.tiles,
     this.onOpen,
-    this.fitKey,
-    this.closeUp = false,
+    this.overview = false,
   });
 
-  /// When it changes, the map fits the dots again, as when it opened.
-  final Object? fitKey;
-
-  /// Centered on the newest dot at street level ([closeUpZoom]), showing
-  /// only the dots within [nearbyMeters] of it; fitted again when a newer
-  /// dot arrives (or the first, once the events load) until the map is
-  /// moved by hand.
-  final bool closeUp;
+  /// Fitted to show every dot (not centered on the newest), at most
+  /// [maxFitZoom]; fitted again whenever the dots change (once the events
+  /// load, a subject seen somewhere new, a subject added or gone) until
+  /// the map is moved by hand.
+  final bool overview;
 
   /// Called with a tapped dot's event.
   final ValueChanged<AppEvent>? onOpen;
 
-  /// Each subject's newest first, all with a location.
+  /// All with a location.
   final List<_MapPoint> dots;
 
   /// Names beside dots, drawn over every dot.
@@ -697,12 +666,8 @@ class _SightingsMap extends StatefulWidget {
   static const double minZoom = 2;
   static const double maxZoom = 19;
 
-  /// The close-up zoom range: street level ([closeUp]).
-  static const double closeUpMinZoom = 16;
-  static const double closeUpZoom = 17;
-
-  /// The dots this close to the newest are fitted with it ([closeUp]).
-  static const double nearbyMeters = 300;
+  /// The closest a fit goes: street level, for a lone dot.
+  static const double maxFitZoom = 17;
 
   static LatLng _at(Sighting s) =>
       LatLng(s.event.location!.latitude, s.event.location!.longitude);
@@ -715,28 +680,26 @@ class _SightingsMapState extends State<_SightingsMap> {
   final _map = MapController();
   bool _ready = false;
 
-  /// Moved by hand (a drag, pinch, wheel or the zoom buttons): a newer dot
-  /// no longer refits a [_SightingsMap.closeUp] map.
+  /// Moved by hand (a drag, pinch, wheel or the zoom buttons): changed
+  /// dots no longer refit an [_SightingsMap.overview] map.
   bool _moved = false;
 
   /// The fit the map opens on, worked out once from the first dots:
   /// flutter_map applies it at the first real size it gets, which may come
-  /// later (a resize), and a fit of the current dots then would snap back to
-  /// the newest after the map was moved. Newer dots are followed through
+  /// later (a resize), and a fit of the current dots then would snap back
+  /// after the map was moved. Changed dots are followed through
   /// [didUpdateWidget] (or [_onReady]) instead.
   late final CameraFit? _initialFit;
 
-  /// What [_initialFit] was worked out from, to tell at [_onReady] whether
-  /// the dots changed before the map was ready.
-  late final Object? _initialFitKey;
-  late final String? _initialNewest;
+  /// The dots [_initialFit] was worked out from ([_signature]), to tell at
+  /// [_onReady] whether they changed before the map was ready.
+  late final String _initialDots;
 
   @override
   void initState() {
     super.initState();
-    _initialFit = _fit(widget.dots, closeUp: widget.closeUp);
-    _initialFitKey = widget.fitKey;
-    _initialNewest = _newest(widget.dots)?.sighting.event.id;
+    _initialFit = _fit(widget.dots, overview: widget.overview);
+    _initialDots = _signature(widget.dots);
   }
 
   @override
@@ -744,6 +707,10 @@ class _SightingsMapState extends State<_SightingsMap> {
     _map.dispose();
     super.dispose();
   }
+
+  /// Which dots there are: their keys (subject and event), in order.
+  static String _signature(List<_MapPoint> dots) =>
+      [for (final d in dots) d.key].join('\n');
 
   /// One step in ([by] 1) or out (-1), around the map's center.
   void _zoom(double by) {
@@ -763,14 +730,9 @@ class _SightingsMapState extends State<_SightingsMap> {
   void didUpdateWidget(_SightingsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_ready) return;
-    final refilter = oldWidget.fitKey != widget.fitKey;
-    final newer =
-        widget.closeUp &&
+    if (widget.overview &&
         !_moved &&
-        _newest(widget.dots)?.sighting.event.id !=
-            _newest(oldWidget.dots)?.sighting.event.id;
-    if (refilter || newer) {
-      if (refilter) _moved = false;
+        _signature(widget.dots) != _signature(oldWidget.dots)) {
       _refitAfterBuild();
     }
   }
@@ -779,7 +741,7 @@ class _SightingsMapState extends State<_SightingsMap> {
   void _refitAfterBuild() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final fit = _fit(widget.dots, closeUp: widget.closeUp);
+      final fit = _fit(widget.dots, overview: widget.overview);
       if (fit == null) {
         _map.move(const LatLng(20, 0), _SightingsMap.minZoom);
       } else {
@@ -794,12 +756,9 @@ class _SightingsMapState extends State<_SightingsMap> {
   /// would have.
   void _onReady() {
     setState(() => _ready = true);
-    final refilter = widget.fitKey != _initialFitKey;
-    final newer =
-        widget.closeUp &&
-        !_moved &&
-        _newest(widget.dots)?.sighting.event.id != _initialNewest;
-    if (refilter || newer) _refitAfterBuild();
+    if (widget.overview && !_moved && _signature(widget.dots) != _initialDots) {
+      _refitAfterBuild();
+    }
   }
 
   /// The newest of [dots]; null without any.
@@ -815,26 +774,18 @@ class _SightingsMapState extends State<_SightingsMap> {
   }
 
   /// Centered on the newest dot, out far enough for all of them; null
-  /// without any (the whole world). With [closeUp], at street level, out
-  /// only as far as the dots within [_SightingsMap.nearbyMeters].
-  static CameraFit? _fit(List<_MapPoint> dots, {bool closeUp = false}) {
+  /// without any (the whole world). With [overview], the smallest view
+  /// with every dot instead, not centered on any.
+  static CameraFit? _fit(List<_MapPoint> dots, {bool overview = false}) {
     final newest = _newest(dots);
     if (newest == null) return null;
-    final center = _SightingsMap._at(newest.sighting);
-    var points = [for (final d in dots) _SightingsMap._at(d.sighting)];
-    if (closeUp) {
-      // Haversine: Vincenty fails to converge for nearly antipodal points.
-      const distance = DistanceHaversine();
-      points = [
-        for (final p in points)
-          if (distance(center, p) <= _SightingsMap.nearbyMeters) p,
-      ];
-    }
+    final points = [for (final d in dots) _SightingsMap._at(d.sighting)];
     return CameraFit.coordinates(
-      coordinates: framedAround(center, points),
+      coordinates: overview
+          ? points
+          : framedAround(_SightingsMap._at(newest.sighting), points),
       padding: const EdgeInsets.all(48),
-      minZoom: closeUp ? _SightingsMap.closeUpMinZoom : 0,
-      maxZoom: _SightingsMap.closeUpZoom,
+      maxZoom: _SightingsMap.maxFitZoom,
     );
   }
 

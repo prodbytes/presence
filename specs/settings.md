@@ -118,8 +118,9 @@
   unset until flipped (see [Log](log.md)).
 - **Subjects** section, the last setting: **How many events to load at
   once**, 10–500 in steps of 10, default **100**: how many of a subject's
-  latest events its screen lists and maps, and each subject's on the
-  Subjects map (see [Subjects](subjects.md)). Stored values are kept
+  latest events its screen lists and maps (the Monitoring map's one dot
+  per subject doesn't depend on it; see [Subjects](subjects.md)). Stored
+  values are kept
   (raised to 10 if below).
 - **The build's version** is after the sections, centred, quiet
   (`onSurfaceVariant`) at `bodyMedium` (14 sp, as the IDs at the bottom): only

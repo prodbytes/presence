@@ -5319,3 +5319,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        downloads another try. In English, Spanish and Portuguese. Specs:
        [Event copies](event-copies.md), [Subject
        recognition](recognition.md), [Cloud sync](cloud-sync.md).
+
+380. **Every subject on the map, at their latest event.** (2026-10-12)
+     - Asked: in the map, show the latest event for each subject, all
+       subjects on the map.
+     - Changed: the Monitoring map (`SubjectsMap`) now has one solid dot
+       per subject, in their color, at their latest event that has a
+       location, however old (it used to draw up to `mapEvents` fading
+       dots per subject, so a subject whose latest events had no location
+       was left off). It is fitted to show every subject (it used to open
+       close up on the newest event, leaving subjects farther than 300 m
+       out of view) and fitted again as dots change until moved by hand.
+       A device searched for narrows the events list only; the map keeps
+       every subject. Tapping a dot still opens its event, a name the
+       subject. Specs: [Monitoring](monitoring.md), [Subjects](subjects.md),
+       [Settings](settings.md).
