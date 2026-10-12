@@ -5351,7 +5351,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Events](events.md).
 
 
-382. **The Raspberry Pi in the device list before its first event.** (2026-10-12)
+382. **Grey borders for recognition's labels.** (2026-10-12)
+     - Asked: auto-recognized tags and subjects should have greyscale
+       borders; only tags and subjects the user authored should be
+       colored. The first automated recognition was colored.
+     - Changed: a label's border color now follows who made it, not its
+       confidence. `labelBorderColor` takes `authored`: yellow (the
+       theme's main color) only for manual or confirmed tags; recognition's
+       subjects and object tags are grey, lighter the surer, even at
+       100 % (before, a recognition at 100 %, such as an object tag
+       scoring 1, was edged yellow). Specs: [Clips](clips.md).
+
+383. **The Raspberry Pi in the device list before its first event.** (2026-10-12)
      - Asked: the streamer's device wasn't in the account sheet's device
        list.
      - Found: the list came from the profile's events only, and the Pi

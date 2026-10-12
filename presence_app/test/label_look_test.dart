@@ -57,8 +57,15 @@ void main() {
   group('labelBorderColor', () {
     final scheme = gruvboxSoftDarkTheme().colorScheme;
 
-    test("the theme's main color at 100 %", () {
-      expect(labelBorderColor(scheme, 1), scheme.primary);
+    test("the theme's main color for one someone made or confirmed", () {
+      expect(labelBorderColor(scheme, 1, authored: true), scheme.primary);
+    });
+
+    test("grey for recognition's, even at 100 %", () {
+      final c = labelBorderColor(scheme, 1);
+      expect(c, isNot(scheme.primary));
+      expect(c.r, c.g);
+      expect(c.g, c.b);
     });
 
     test('greys under 100 %, lighter the surer', () {
@@ -73,12 +80,13 @@ void main() {
     });
   });
 
-  testWidgets('subjects are round, tags square, edged by confidence', (
+  testWidgets('subjects are round, tags square, colored only when authored', (
     tester,
   ) async {
     final annotations = ClipAnnotations(const [], const {}, const [
       ObjectTag(label: 'cat', ms: 1000, score: 0.9),
       ObjectTag(label: 'bottle', ms: 1000, score: 0.4),
+      ObjectTag(label: 'dog', ms: 1000, score: 1),
     ]);
     final frame = testFrame(onePixelPng, 1200);
     annotations
@@ -90,6 +98,15 @@ void main() {
         frame: frame,
         source: TagSource.detected,
         confidence: 0.8,
+      )
+      // Recognition's first, 100 % sure: still grey.
+      ..add(
+        'Bo',
+        0.3,
+        0.3,
+        frame: frame,
+        source: TagSource.detected,
+        confidence: 1,
       );
     final event = ClipRequested(
       VideoClip.restored(
@@ -147,6 +164,10 @@ void main() {
       (subject('rex').border! as Border).top.color,
       labelBorderColor(scheme, 0.8),
     );
+    expect(
+      (subject('bo').border! as Border).top.color,
+      allOf(labelBorderColor(scheme, 1), isNot(scheme.primary)),
+    );
 
     final cat = tag('cat');
     expect(cat.borderRadius, isNull);
@@ -154,6 +175,10 @@ void main() {
     expect(
       (tag('bottle').border! as Border).top.color,
       labelBorderColor(scheme, 0.4),
+    );
+    expect(
+      (tag('dog').border! as Border).top.color,
+      allOf(labelBorderColor(scheme, 1), isNot(scheme.primary)),
     );
   });
 }
