@@ -103,6 +103,10 @@ public class HealthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIG
 
     @Override
     public synchronized APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        // Only through the site (CloudFront), never the API's own host.
+        if (!OriginCheck.fromEnvironment().allows(event)) {
+            return OriginCheck.refused();
+        }
         var now = clock.instant();
         if (last != null && now.isBefore(lastAt.plus(CACHE_FOR))) {
             return last;

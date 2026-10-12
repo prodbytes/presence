@@ -246,6 +246,10 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        // Only through the site (CloudFront), never the API's own host.
+        if (!OriginCheck.fromEnvironment().allows(event)) {
+            return OriginCheck.refused();
+        }
         if (STREAM_CREDENTIALS.equals(Http.route(event))) {
             try {
                 return streamCredentials(Http.bearer(event), Http.bodyText(event, 2 * MAX_DEVICE_ID + 1));

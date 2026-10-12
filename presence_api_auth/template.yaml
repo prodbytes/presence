@@ -54,6 +54,16 @@ Parameters:
       (AWS IoT requires one for authenticated identities). Empty: live sync
       is off, and nothing is attached.
     AllowedPattern: '[A-Za-z0-9_+=,.@-]*'
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: '[A-Za-z0-9_-]*'
+    Description: >
+      The secret the site's CloudFront adds to every request it sends this
+      API (the x-presence-origin-verify header; specs/origin-check.md):
+      requests without it get 403. Passed by scripts/deploy.sh once the
+      site sends it; empty (locally, or before): every request passes.
   PermissionsBoundary:
     Type: String
     Default: ''
@@ -122,6 +132,11 @@ Globals:
     MemorySize: 512
     Timeout: 10
     PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
+    # Every function refuses requests that didn't come through the site
+    # (OriginCheck); merged with each function's own variables.
+    Environment:
+      Variables:
+        ORIGIN_SECRET: !Ref OriginSecret
 
 Resources:
   # Profiles: whose data it is, outliving the ways its owner signs in.
