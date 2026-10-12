@@ -226,10 +226,10 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                   key: const Key('clip-player-title'),
                   style: Theme.of(context).textTheme.titleSmall,
                 ),
-                // Who holds a copy of it.
+                // Its indicators: recognition, the cloud, who holds a copy.
                 subtitle: Align(
                   alignment: AlignmentDirectional.centerStart,
-                  child: EventCopiesBadge(
+                  child: EventIndicators(
                     key: const Key('clip-copies'),
                     event: _event,
                   ),

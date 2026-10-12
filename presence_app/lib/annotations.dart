@@ -194,6 +194,53 @@ class TagFrame {
   final int ms;
 }
 
+/// How a clip's search for known people and pets ended, once it ran to the
+/// end ([ClipAnnotations.subjectSearch], `subjectSearch` in the event
+/// record): together with [ClipAnnotations.objects] it tells a clip never
+/// searched from one searched where nothing was found.
+enum SubjectSearchOutcome {
+  /// Searched for every subject someone has named before.
+  searched,
+
+  /// Everyone recognition knows was already named on the clip.
+  allTagged,
+
+  /// Nobody to look for: no subject had a vouched tag yet.
+  noReferences,
+}
+
+/// A clip's finished search for subjects: how it ended, and when (ms since
+/// the epoch, UTC).
+@immutable
+class SubjectSearch {
+  const SubjectSearch(this.outcome, this.at);
+
+  final SubjectSearchOutcome outcome;
+  final int at;
+
+  Map<String, Object?> toJson() => {'outcome': outcome.name, 'at': at};
+
+  /// From an event record's `subjectSearch`; null when it's missing or
+  /// isn't one (the clip counts as not searched for subjects).
+  static SubjectSearch? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final outcome = SubjectSearchOutcome.values.asNameMap()[json['outcome']];
+    final at = json['at'];
+    final ms = at is int
+        ? at
+        : (at is double && at == at.truncateToDouble() ? at.toInt() : null);
+    if (outcome == null || ms == null) return null;
+    return SubjectSearch(outcome, ms);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is SubjectSearch && other.outcome == outcome && other.at == at;
+
+  @override
+  int get hashCode => Object.hash(outcome, at);
+}
+
 /// The people and pets named in one clip, as many as needed, each on a
 /// frame grabbed from the clip. Stored with the clip's event: the tags as
 /// `annotations`, the frame images as `frames` (id -> sealed JPEG). Its [objects]
@@ -203,16 +250,18 @@ class ClipAnnotations extends ChangeNotifier {
     Iterable<Annotation> items = const [],
     Map<String, TagFrame> frames = const {},
     Iterable<ObjectTag>? objects,
+    this._subjectSearch,
   ]) : _items = List.of(items),
        _frames = Map.of(frames),
        _objects = objects == null ? null : List.of(objects);
 
-  /// Rebuilds the list from an event record's `annotations`, `frames` and
-  /// `objectTags`.
+  /// Rebuilds the list from an event record's `annotations`, `frames`,
+  /// `objectTags` and `subjectSearch`.
   factory ClipAnnotations.fromJson(
     Object? annotations, [
     Object? frames,
     Object? objectTags,
+    Object? subjectSearch,
   ]) {
     final items = [
       if (annotations is List)
@@ -242,6 +291,7 @@ class ClipAnnotations extends ChangeNotifier {
       objectTags is List
           ? [for (final entry in objectTags) ?ObjectTag.fromJson(entry)]
           : null,
+      SubjectSearch.fromJson(subjectSearch),
     );
   }
 
@@ -257,6 +307,18 @@ class ClipAnnotations extends ChangeNotifier {
   /// Sets what recognition saw, once the clip has been searched.
   void setObjects(Iterable<ObjectTag> objects) {
     _objects = List.of(objects);
+    notifyListeners();
+  }
+
+  SubjectSearch? _subjectSearch;
+
+  /// How the clip's search for subjects ended, once it ran to the end; null
+  /// until then (not searched for subjects).
+  SubjectSearch? get subjectSearch => _subjectSearch;
+
+  /// Notes that the clip's search for subjects ran to the end.
+  void setSubjectSearch(SubjectSearch search) {
+    _subjectSearch = search;
     notifyListeners();
   }
 
@@ -367,8 +429,8 @@ class ClipAnnotations extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Takes on [other]'s entries, the frames they use and its object tags:
-  /// the same clip, as changed on another device.
+  /// Takes on [other]'s entries, the frames they use, its object tags and
+  /// its subject search: the same clip, as changed on another device.
   void replaceWith(ClipAnnotations other) {
     _items
       ..clear()
@@ -380,6 +442,8 @@ class ClipAnnotations extends ChangeNotifier {
           id: ?other._frames[id],
       });
     _objects = other._objects == null ? null : List.of(other._objects!);
+    // A search noted on either copy stays noted.
+    _subjectSearch = other._subjectSearch ?? _subjectSearch;
     notifyListeners();
   }
 

@@ -932,6 +932,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String get eventCancel => 'Cancelar';
 
   @override
+  String get eventCloudNotSynced => 'Não está na nuvem';
+
+  @override
+  String get eventCloudSynced => 'Na nuvem';
+
+  @override
   String eventCopies(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -954,6 +960,18 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get eventCopiesNotSynced => 'Não sincronizado';
+
+  @override
+  String eventCopiesOnDevices(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Em $count dispositivos',
+      one: 'Em 1 dispositivo',
+      zero: 'Em nenhum dispositivo',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get eventCopiesThisDevice => 'Este dispositivo';
@@ -1026,6 +1044,36 @@ class AppLocalizationsPt extends AppLocalizations {
   String get eventOsUnknown => 'Sistema operacional desconhecido';
 
   @override
+  String get eventRecognitionComplete =>
+      'O reconhecimento foi feito por completo';
+
+  @override
+  String get eventRecognitionNotRun => 'O reconhecimento não foi feito';
+
+  @override
+  String get eventRecognitionPartial => 'O reconhecimento foi feito em parte';
+
+  @override
+  String get eventSubjectsAllTagged =>
+      'Pessoas e animais: todos os conhecidos já estão nomeados';
+
+  @override
+  String eventSubjectsFound(String names) {
+    return 'Pessoas e animais: $names';
+  }
+
+  @override
+  String get eventSubjectsNoReferences =>
+      'Pessoas e animais: ainda não há ninguém nomeado para buscar';
+
+  @override
+  String get eventSubjectsNone =>
+      'Pessoas e animais: buscados, ninguém reconhecido';
+
+  @override
+  String get eventSubjectsNotSearched => 'Pessoas e animais: não buscados';
+
+  @override
   String get eventSuggestionClipMissing => 'O clipe está ausente';
 
   @override
@@ -1045,6 +1093,17 @@ class AppLocalizationsPt extends AppLocalizations {
   String eventSuggestionYes(String name) {
     return 'Sim, é $name';
   }
+
+  @override
+  String eventTagsFound(String labels) {
+    return 'Etiquetas de objetos: $labels';
+  }
+
+  @override
+  String get eventTagsNone => 'Etiquetas de objetos: buscadas, nada visto';
+
+  @override
+  String get eventTagsNotSearched => 'Etiquetas de objetos: não buscadas';
 
   @override
   String get eventThisDevice => 'este dispositivo';

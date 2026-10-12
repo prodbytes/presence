@@ -117,5 +117,19 @@
   "clipAutoFound": "Encontrado: {names}.",
   "clipAutoNotSureOne": "Sem certeza sobre {names}: responda \"É {name}?\" nos eventos.",
   "clipAutoNotSureMany": "Sem certeza sobre {names}: responda as perguntas nos eventos.",
-  "clipAutoTags": "{subjects} Tags: {tags}."
+  "clipAutoTags": "{subjects} Tags: {tags}.",
+  "eventCopiesOnDevices": "{count, plural, =0{Em nenhum dispositivo} =1{Em 1 dispositivo} other{Em {count} dispositivos}}",
+  "eventCloudSynced": "Na nuvem",
+  "eventCloudNotSynced": "Não está na nuvem",
+  "eventRecognitionComplete": "O reconhecimento foi feito por completo",
+  "eventRecognitionPartial": "O reconhecimento foi feito em parte",
+  "eventRecognitionNotRun": "O reconhecimento não foi feito",
+  "eventSubjectsNotSearched": "Pessoas e animais: não buscados",
+  "eventSubjectsNone": "Pessoas e animais: buscados, ninguém reconhecido",
+  "eventSubjectsFound": "Pessoas e animais: {names}",
+  "eventSubjectsNoReferences": "Pessoas e animais: ainda não há ninguém nomeado para buscar",
+  "eventSubjectsAllTagged": "Pessoas e animais: todos os conhecidos já estão nomeados",
+  "eventTagsNotSearched": "Etiquetas de objetos: não buscadas",
+  "eventTagsNone": "Etiquetas de objetos: buscadas, nada visto",
+  "eventTagsFound": "Etiquetas de objetos: {labels}"
 }
