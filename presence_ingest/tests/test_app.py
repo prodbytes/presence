@@ -285,3 +285,29 @@ def test_untrusted_videos_are_refused(tmp_path):
     import time
     with pytest.raises(detect.Unreadable, match="too long"):
         detect.search(ok, str(tmp_path / "t.jpg"), deadline=time.monotonic() - 1)
+
+
+def test_dark_frames_are_brightened_and_lit_ones_kept():
+    import cv2
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    dark = rng.integers(0, 25, (72, 128, 3), dtype=np.uint8)  # a dim room: mean about 12
+    bright = detect.brighten(dark)
+    assert cv2.cvtColor(bright, cv2.COLOR_BGR2GRAY).mean() > 80
+    lit = rng.integers(60, 200, (72, 128, 3), dtype=np.uint8)
+    assert detect.brighten(lit) is lit
+
+
+def test_the_pi_detector_brightens_the_same():
+    import importlib.util
+
+    import numpy as np
+
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "presence_streamer", "detector", "presence-detect.py")
+    spec = importlib.util.spec_from_file_location("presence_detect", path)
+    pi = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pi)
+    frame = np.random.default_rng(1).integers(0, 30, (48, 64, 3), dtype=np.uint8)
+    assert pi.DARK == detect.DARK
+    assert (pi.brighten(frame) == detect.brighten(frame)).all()

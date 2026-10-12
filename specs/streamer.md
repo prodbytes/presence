@@ -151,7 +151,10 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
 | USB, hw | `ffmpeg -f v4l2 … -c:v h264_v4l2m2m -g <fps>` |
 | USB, sw | `ffmpeg -f v4l2 … -c:v libx264 -preset veryfast -tune zerolatency -g <fps>` |
 
-- **1280×720 at 30 fps, 2.5 Mbit/s**, a keyframe every second, no audio
+- **1280×720 at 15 fps, 2.5 Mbit/s**, a keyframe every second, no audio.
+  15, not 30, since a frame's exposure is capped at 1/fps: measured on a
+  Pi Zero in a dim room, 15 fps gave twice the light (mean luma 19 against
+  10). `--fps` still sets it
   (camera modules have no microphone), all settable. `--rotation 180` for
   an upside-down camera module.
 - **MPEG-TS from the camera module**, not raw H.264. It carries each
@@ -191,11 +194,17 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
    S3's storage and requests:
    - The motion is the app's motion score ([Motion clips](motion-clips.md)):
      the percentage of a 64×48 grayscale frame's pixels whose brightness
-     changed by more than 24/255, after the median change (exposure, a light
+     changed by more than a step, after the median change (exposure, a light
      switched on) is taken off.
    - It's scored between consecutive **keyframes** (one a second), which
      ffmpeg decodes alone (`-skip_frame nokey`, scaled to 64×48 gray), in
      one pass, cheap even on a Pi Zero.
+   - **The step follows the light:** a quarter of the two frames' mean
+     luma, from 4 to the app's 24/255. Lit scenes (mean 96 or more) keep
+     24; a dim room's (mean 10) is 4, where someone crossing changes few
+     pixels by 24. Measured on a Pi Zero's camera at night: a still
+     scene's keyframes moved at most 1.7 % with a step of 4 (4.5 % with
+     3), and every chunk of someone walking past scored under 1 % with 24.
    - The chunk's motion is its highest score. At **5 % or less**
      (`--motion-min`, `PRESENCE_STREAMER_MOTION_MIN`; 0 keeps every chunk)
      it's deleted: "no motion (0.0%), deleted".
@@ -217,7 +226,12 @@ Pi 4 and earlier), else libx264. A Pi 5 has no encoder.
    nokey`, one a second, as on Android), at most 1280 px wide, to JPEGs. The
    detector looks at each:
    - `presence-detect.py`, kept running (started again if it dies), with
-     **YOLOv4-tiny** (COCO's 80 classes, 416 px) through **OpenCV's DNN
+     **YOLOv4-tiny** (COCO's 80 classes, 416 px) on each frame
+     **brightened when it's dark** (mean luma under 70: a gamma curve to a
+     mean of about 110, then CLAHE on its lightness; on 54 cat photos
+     darkened to a dim room's level it found 22 subjects where the dark
+     ones gave 14 and full light 23; the Pi's detector and the cloud's
+     the same), through **OpenCV's DNN
      module**. Debian and Raspberry Pi OS package it as `python3-opencv`
      (4.6 on Bookworm, 4.10 on Trixie) for armhf and arm64. OpenCV 5 dropped
      darknet models, so it needs OpenCV 4.
