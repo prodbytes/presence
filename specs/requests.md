@@ -5384,3 +5384,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        both detectors brighten dark frames (gamma, then CLAHE) before the
        search, which on 54 darkened cat photos found 22 subjects instead of
        14 (23 in full light; gamma alone 10).
+
+385. **Device sync: a phone's clip missing on the web, and a Sync button.** (2026-10-12)
+     - Asked: a photo taken on the phone didn't show on the web; make sure
+       device sync is right; a Sync button at the top of Monitoring that
+       asks every device to sync; an event grabbed or changed is updated
+       on every device.
+     - Found: the iPhone's clip events and clips were in the bucket (S3).
+       A clip event's record goes up before its clip record (that one only
+       once the clip completes); a web pass in between kept the event as
+       "Clip recording missing" (hidden) and never looked for its clip
+       again until the event changed or the hourly full fetch.
+     - Changed: [Cloud sync](cloud-sync.md): such a clip is wanted, and
+       looked for at each pass for about ten minutes, so the event shows
+       with it as soon as it's up. [Monitoring](monitoring.md): the Sync
+       button (a full pass here, and a `sync` request to the other
+       devices over [live sync](live-sync.md), which run one too). Changes
+       to events (tags, grabbed frames, deletions, a clip completing) were
+       already published and fetched by ETag; a changed event now brings
+       its clip too through the same retry.

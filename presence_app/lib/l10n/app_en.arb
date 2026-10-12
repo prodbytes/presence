@@ -1311,6 +1311,9 @@
   },
   "maintenanceBody": "We'll be back soon. This page comes back on its own.",
   "maintenanceTitle": "Sorry, Presence is down for maintenance.",
+  "monitoringSyncAsked": "Syncing: this device now, and the others were asked to",
+  "monitoringSyncHere": "Syncing this device now; the others couldn't be asked (live sync is off or offline)",
+  "monitoringSyncTooltip": "Sync all devices",
   "navAdmin": "Admin",
   "@navAdmin": {
     "description": "Navigation bar: the Admin tab"

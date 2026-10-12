@@ -292,6 +292,63 @@ void main() {
       expect(await off.publishEvent({'id': 'e', 'time': 1}, key: 'k'), isFalse);
     });
 
+    test('the Sync button asks the other devices; their requests run a '
+        'full pass here', () async {
+      var syncs = 0;
+      var clock = DateTime.utc(2026, 10, 12, 20);
+      final asked = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        now: () => clock,
+        minRetry: const Duration(milliseconds: 5),
+        maxRetry: const Duration(milliseconds: 40),
+      );
+      addTearDown(asked.dispose);
+      asked.start(
+        LiveLink(
+          identityId: identity,
+          deviceId: 'this_device_one',
+          credentials: () async => credentials,
+          onEvent: (e) async {},
+          onSync: () => syncs++,
+        ),
+      );
+      await until(() => asked.state == LiveSyncState.connected);
+      final c = broker.last;
+
+      // This device's button: a sync request on the requests topic.
+      expect(await asked.requestSync(), isTrue);
+      expect(c.published.last.$1, requestsTopic);
+      expect(c.sent.last, containsPair('kind', 'sync'));
+      // Not again at once.
+      expect(await asked.requestSync(), isFalse);
+
+      Map<String, Object?> request(String from, DateTime at) => {
+        'v': 1,
+        'kind': 'sync',
+        'deviceId': from,
+        'identityId': identity,
+        'sentAt': at.millisecondsSinceEpoch,
+      };
+      // Another device's: a full pass here.
+      c.deliver(requestsTopic, request('other_device_two', clock));
+      await until(() => syncs == 1, reason: 'synced for it');
+      // Its own echo, and a stale one (a persistent session's), don't.
+      c.deliver(requestsTopic, request('this_device_one', clock));
+      clock = clock.add(const Duration(minutes: 1));
+      c.deliver(
+        requestsTopic,
+        request('other_device_two', clock.subtract(const Duration(minutes: 5))),
+      );
+      // Another right after the first: once is enough.
+      c.deliver(requestsTopic, request('other_device_three', clock));
+      await until(() => syncs == 2, reason: 'a fresh one after a while');
+      c.deliver(requestsTopic, request('other_device_two', clock));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(syncs, 2);
+    });
+
     test("the local stack's broker: a signed ws:// URL on its port", () async {
       final local = LiveSync(
         endpoint: 'ws://localhost:4566',
