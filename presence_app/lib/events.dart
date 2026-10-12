@@ -532,9 +532,13 @@ class EventTimeline extends StatefulWidget {
   /// Whether [event] is a grab, shown even with system events hidden: a
   /// clip (Capture all's too) or a suggestion about a clip ("Is this
   /// Rex?"), which waits for an answer. A Capture all request has no
-  /// video of its own: it's a system event.
-  static bool isGrab(AppEvent event) =>
-      event is ClipRequested || event is SubjectSuggestion;
+  /// video of its own, and the clip each start takes
+  /// ([ClipTrigger.startup]) is routine: both are system events.
+  static bool isGrab(AppEvent event) => switch (event) {
+    ClipRequested(:final trigger) => trigger != ClipTrigger.startup,
+    SubjectSuggestion() => true,
+    _ => false,
+  };
 
   /// [events] of [profileId], the signed-in account's profile (null
   /// signed out): its own, and those without a profile (recorded signed

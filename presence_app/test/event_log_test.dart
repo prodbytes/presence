@@ -7,7 +7,12 @@ import 'package:presence_app/annotations.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/events.dart';
 
-ClipRequested clip(String id, int minute, {String? profileId}) => ClipRequested(
+ClipRequested clip(
+  String id,
+  int minute, {
+  String? profileId,
+  ClipTrigger trigger = ClipTrigger.manual,
+}) => ClipRequested(
   VideoClip.restored(
     id: 'clip-$id',
     cameraId: 'cam',
@@ -17,6 +22,7 @@ ClipRequested clip(String id, int minute, {String? profileId}) => ClipRequested(
     past: null,
     full: null,
   ),
+  trigger: trigger,
   annotations: ClipAnnotations(),
   time: DateTime(2026, 10, 6, 12, minute),
   id: id,
@@ -111,6 +117,22 @@ void main() {
     filters.showSystemEvents.value = true;
     filters.search.value = '';
     expect(view().shown.map((e) => e.id), ['rex', 'door']);
+  });
+
+  test("a start's clip is a system event, hidden by default", () {
+    final startup = clip(
+      'start',
+      1,
+      profileId: 'me',
+      trigger: ClipTrigger.startup,
+    );
+    log.addHistory([startup, clip('rex', 2, profileId: 'me')]);
+    final filters = EventFilters(showSystemEvents: false);
+    addTearDown(filters.dispose);
+    EventView view() => filters.viewOf(log, deviceId: 'here', profileId: 'me');
+    expect(view().shown.map((e) => e.id), ['rex']);
+    filters.showSystemEvents.value = true;
+    expect(view().shown.map((e) => e.id), ['rex', 'start']);
   });
 
   test('focus is a one-shot request', () {
