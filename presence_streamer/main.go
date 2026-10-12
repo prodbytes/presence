@@ -203,7 +203,9 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 	fs.StringVar(&o.detection, "detection", env("DETECTION", "auto"), "where chunks are searched for people and animals: auto (here with 2 GB of memory or more, else in the cloud), local or cloud")
 	fs.IntVar(&o.width, "width", envInt("WIDTH", 1280), "video width")
 	fs.IntVar(&o.height, "height", envInt("HEIGHT", 720), "video height")
-	fs.IntVar(&o.fps, "fps", envInt("FPS", 30), "frames per second")
+	// 15: twice the light of 30 (a frame's exposure is capped at 1/fps),
+	// measured in a dim room; keyframes stay one a second.
+	fs.IntVar(&o.fps, "fps", envInt("FPS", 15), "frames per second (15 lets the camera expose twice as long as 30, for low light)")
 	fs.IntVar(&o.bitrate, "bitrate", envInt("BITRATE", 2500000), "video bit rate, bits/s")
 	fs.IntVar(&o.rotation, "rotation", envInt("ROTATION", 0), "0 or 180 (camera module)")
 	chunk, err := time.ParseDuration(env("CHUNK", "30s"))

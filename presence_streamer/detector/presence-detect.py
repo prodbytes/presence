@@ -49,6 +49,28 @@ SUBJECTS = {
 }
 
 
+# Low light: a frame darker than DARK (its mean luma) is brightened before
+# the search, with a gamma curve that lifts its mean to about 110, then
+# CLAHE on its lightness. On 54 cat photos darkened to a dim room's level
+# (mean 12/255) that found 22 subjects where the dark frames gave 14 (23 in
+# full light); gamma alone found 10. Lit frames are searched as they are.
+DARK = 70
+
+
+def brighten(frame):
+    """frame, brightened for the search when it's dark (see DARK)."""
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    mean = float(gray.mean())
+    if mean >= DARK:
+        return frame
+    g = np.log(110 / 255) / np.log(max(mean, 1.0) / 255)
+    lut = np.clip(255 * (np.arange(256) / 255) ** g, 0, 255).astype(np.uint8)
+    lab = cv2.cvtColor(cv2.LUT(frame, lut), cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    l = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(l)
+    return cv2.cvtColor(cv2.merge((l, a, b)), cv2.COLOR_LAB2BGR)
+
+
 def search(model, request, min_score, subject_score):
     best = {}  # label -> (score, ms)
     subject = None  # (score, label, ms, frame)
@@ -56,6 +78,7 @@ def search(model, request, min_score, subject_score):
         frame = cv2.imread(f["path"])
         if frame is None:
             continue
+        frame = brighten(frame)
         classes, scores, _ = model.detect(frame, confThreshold=min_score, nmsThreshold=0.4)
         for c, s in zip(np.array(classes).flatten(), np.array(scores).flatten()):
             c, s = int(c), float(s)

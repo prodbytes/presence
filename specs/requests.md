@@ -5350,3 +5350,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device deletion](device-deletion.md), [Monitoring](monitoring.md),
        [Events](events.md).
 
+
+382. **The streamer in low light.** (2026-10-12)
+     - Asked: the Pi's events didn't show after walking past it at night;
+       make it better in low light, if there's a way.
+     - Found on the Pi Zero (a dim room, mean luma 10/255): every chunk of
+       someone walking past scored under 1 % motion (5 % needed), since
+       the app's step, 24/255, is more than a dark scene changes; so none
+       reached the detector.
+     - Changed: [Streamer](streamer.md). The motion step follows the light
+       (a quarter of the mean luma, 4 to 24; a still dark scene measured at
+       most 1.7 % with 4); 15 fps by default (twice the exposure, measured);
+       both detectors brighten dark frames (gamma, then CLAHE) before the
+       search, which on 54 darkened cat photos found 22 subjects instead of
+       14 (23 in full light; gamma alone 10).

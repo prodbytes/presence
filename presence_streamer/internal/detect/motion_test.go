@@ -46,6 +46,34 @@ func TestMotionScore(t *testing.T) {
 	}
 }
 
+func TestMotionScoreInTheDark(t *testing.T) {
+	// A dim room (mean luma 10/255, as a Pi Zero's camera saw one at
+	// night): someone crossing a fifth of it, 8 levels lighter than the
+	// wall behind, moves nothing by the app's 24/255, but counts here.
+	room := frame(func(int) byte { return 10 })
+	fifth := len(room) / 5
+	crossed := frame(func(i int) byte {
+		if i < fifth {
+			return 18
+		}
+		return 10
+	})
+	if s := MotionScore(room, crossed); s < 19.9 || s > 20.1 {
+		t.Errorf("someone in the dark: %v", s)
+	}
+	// The dark's noise (up to 3 levels) still doesn't count.
+	if s := MotionScore(room, frame(func(i int) byte { return byte(9 + i%4) })); s != 0 {
+		t.Errorf("noise in the dark: %v", s)
+	}
+	if got := motionStepFor(room, room); got != minMotionStep {
+		t.Errorf("the darkest step: %d", got)
+	}
+	lit := frame(func(int) byte { return 140 })
+	if got := motionStepFor(lit, lit); got != motionStep {
+		t.Errorf("a lit scene's step: %d", got)
+	}
+}
+
 func TestMotion(t *testing.T) {
 	ffmpeg, err := exec.LookPath("ffmpeg")
 	if err != nil {

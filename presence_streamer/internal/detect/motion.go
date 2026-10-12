@@ -14,14 +14,31 @@ const (
 	motionWidth  = 64
 	motionHeight = 48
 	// motionStep is how much a pixel's brightness must change to count as
-	// moved, after the median change is taken off (the app's 24/255).
+	// moved, after the median change is taken off (the app's 24/255), in
+	// a lit scene. A dark one gets a smaller step (motionStepFor).
 	motionStep = 24
+	// minMotionStep is the least step, in the darkest scenes: measured on
+	// a Pi Zero's camera in a dim room (mean luma 10/255), a still scene's
+	// keyframes moved at most 1.7 % with a step of 4, 4.5 % with 3.
+	minMotionStep = 4
 )
+
+// motionStepFor is the step for frames a and b: a quarter of their mean
+// luma, from minMotionStep to motionStep. A person crossing a dim room
+// (mean 10/255) changes few pixels by the app's 24/255, so the fixed step
+// never saw them there; lit scenes (mean 96/255 or more) keep the app's.
+func motionStepFor(a, b []byte) int {
+	sum := 0
+	for i := range a {
+		sum += int(a[i]) + int(b[i])
+	}
+	return min(max(sum/(2*len(a))/4, minMotionStep), motionStep)
+}
 
 // MotionScore is the app's motion score of frame b after frame a (64×48
 // luma each): the percentage of pixels whose brightness changed by more
-// than 24/255, once the median change (an exposure shift, a light switched
-// on) is taken off every pixel.
+// than 24/255 (less in a dark scene, motionStepFor), once the median
+// change (an exposure shift, a light switched on) is taken off every pixel.
 func MotionScore(a, b []byte) float64 {
 	n := len(a)
 	if n == 0 || len(b) != n {
@@ -40,10 +57,11 @@ func MotionScore(a, b []byte) float64 {
 			break
 		}
 	}
+	step := motionStepFor(a, b)
 	moved := 0
 	for i := range n {
 		d := int(b[i]) - int(a[i]) - median
-		if d > motionStep || d < -motionStep {
+		if d > step || d < -step {
 			moved++
 		}
 	}
