@@ -391,7 +391,7 @@ deploy_health() {
       --parameter-overrides "AuthStackName=$AUTH_STACK" "Version=$VERSION" \
         "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
         "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
-        "RbacrUrl=$RBACR_URL" "OriginSecret=$api_origin_secret" \
+        "RbacrUrl=$RBACR_URL" ${origin_override[@]+"${origin_override[@]}"} \
       --no-confirm-changeset --no-fail-on-empty-changeset
   )
 }
@@ -408,6 +408,11 @@ if [[ "$(aws cloudformation describe-stacks --stack-name "$SITE_STACK" \
 else
   echo "==> the site starts sending the origin secret; the APIs enforce it from the next deploy"
 fi
+# sam deploy refuses an empty override ("OriginSecret=" isn't a valid
+# format), so without the secret it's left out and the templates' default
+# (empty: not enforced) applies.
+origin_override=()
+[[ -n "$api_origin_secret" ]] && origin_override=("OriginSecret=$api_origin_secret")
 health_first=0
 if aws cloudformation describe-stacks --stack-name "$HEALTH_STACK" >/dev/null 2>&1; then
   health_first=1
@@ -425,7 +430,7 @@ echo "==> deploying $AUTH_STACK"
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
-      "LocalCloud=false" "OriginSecret=$api_origin_secret" \
+      "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -445,7 +450,7 @@ echo "==> deploying $PAYMENTS_STACK"
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
-      "OriginSecret=$api_origin_secret" \
+      ${origin_override[@]+"${origin_override[@]}"} \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 payments_domain="$(stack_output "$PAYMENTS_STACK" ApiDomain)"
