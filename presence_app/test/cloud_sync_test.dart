@@ -696,6 +696,78 @@ void main() {
       expect(backend.downloads, contains('events/flat.json'));
     });
 
+    test("another device's clip whose record comes after its event is "
+        'fetched at a later pass, not an hour later', () async {
+      sync.dispose();
+      const prefix = 'us-east-1:identity';
+      final now = DateTime.utc(2026, 10, 12, 19, 40);
+      final ms = now.millisecondsSinceEpoch;
+      // The phone uploads the event first; its clip record only once the
+      // clip completes.
+      final record = {
+        'id': 'phone-e',
+        'type': 'clipRequested',
+        'title': 'Clip requested',
+        'time': ms,
+        'clipId': 'phone-c',
+        'deviceId': 'tricky_joyous_tundra',
+      };
+      backend.uploads['$prefix/${CloudSync.eventKey(record)}'] = (
+        bytes: json(record),
+        contentType: 'application/json',
+      );
+
+      final remote = <RemoteRecords>[];
+      sync = CloudSync(
+        auth: auth,
+        backend: backend,
+        store: Future.value(store),
+        media: Future.value(IdbMediaStore(store)),
+        changes: changes.stream,
+        debounce: Duration.zero,
+        onRemote: (r) async => remote.add(r),
+        now: () => now,
+      );
+      await auth.signIn();
+      await sync.idle();
+      expect(remote.expand((r) => r.events).map((e) => e['id']), ['phone-e']);
+      expect(remote.expand((r) => r.clips), isEmpty, reason: 'not up yet');
+
+      // The clip completes on the phone: its record and recording go up.
+      backend.uploads['$prefix/${CloudSync.clipRecordKey('phone-c', ms)}'] = (
+        bytes: json({
+          'id': 'phone-c',
+          'eventId': 'phone-e',
+          'state': 'complete',
+          'full': {'mediaId': 'phone-c-full', 'startMs': 0, 'endMs': 10000},
+        }),
+        contentType: 'application/json',
+      );
+      backend.uploads['$prefix/media/phone-c.webm'] = (
+        bytes: sealed([7]),
+        contentType: CloudSync.sealedType,
+      );
+      // An ordinary pass (not the hourly full one) brings the clip.
+      changes.add(null);
+      await sync.idle();
+      // (Fetched again by the wanted-clips step only because this test's
+      // onRemote doesn't store it; the app's does, before that step.)
+      expect(
+        remote.expand((r) => r.clips).map((c) => c['id']),
+        contains('phone-c'),
+      );
+    });
+
+    test('Sync all runs a full pass now', () async {
+      await auth.signIn();
+      await sync.idle();
+      backend.listings.clear();
+      expect(await sync.syncAll(), isFalse, reason: 'no live sync here');
+      await sync.idle();
+      // Every day of the window listed, as the hourly full pass does.
+      expect(backend.listings.length, greaterThan(2));
+    });
+
     test('a shorter History setting shrinks the window to it', () async {
       sync.dispose();
       const prefix = 'us-east-1:identity';

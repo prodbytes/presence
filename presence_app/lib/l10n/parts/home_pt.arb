@@ -176,5 +176,8 @@
   "helpIntro": "Dúvidas, ideias ou algo não funciona? Envie uma mensagem; um administrador responderá aqui.",
   "helpNoMessages": "Nenhuma mensagem ainda.",
   "helpMessage": "Mensagem",
-  "helpSend": "Enviar"
+  "helpSend": "Enviar",
+  "monitoringSyncTooltip": "Sincronizar todos os dispositivos",
+  "monitoringSyncAsked": "Sincronizando: este dispositivo agora, e os outros foram chamados",
+  "monitoringSyncHere": "Sincronizando este dispositivo; não deu para chamar os outros (sincronização ao vivo desligada ou offline)"
 }

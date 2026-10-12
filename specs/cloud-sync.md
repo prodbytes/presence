@@ -188,6 +188,16 @@ an Athena table are in [Recording and data formats](data-formats.md).
     event came down, or over [live sync](live-sync.md)), the same pass
     looks for the clip's record and thumbnail, and the app shows the event
     with them (`Persistence.showArrivedClips`).
+  - **A new event fetched before its clip's record is up** (its device
+    uploads the record only once the clip completes, after the event)
+    wants its clip too. A wanted clip not in the bucket yet is looked for
+    at each pass for about ten minutes (40 passes), then again when its
+    event changes or at the next full fetch. Until it comes the event is
+    kept as "Clip recording missing" (a system event, hidden by default),
+    and it shows with its clip as soon as the clip arrives. Before
+    2026-10-12 a new event's missing clip wasn't wanted and a wanted one
+    was dropped at its first miss, so a phone's clip could stay missing
+    on the web for up to an hour.
   - **How soon:** within 15 s for events of today and yesterday (UTC),
     the partitions every pass lists; within an hour for older ones in
     the window, at the hourly full listing (see below).

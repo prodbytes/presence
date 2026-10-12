@@ -55,6 +55,7 @@ class LiveLink {
     required this.credentials,
     required this.onEvent,
     this.onCopied,
+    this.onSync,
     this.mediaKey,
   });
 
@@ -71,6 +72,10 @@ class LiveLink {
   /// Another device of the profile said it holds copies of events (a
   /// `copied` ack, [LiveSync.parseCopied]).
   final void Function(CopiedMessage message)? onCopied;
+
+  /// Another device of the profile asked every device to sync now (a
+  /// `sync` request, [LiveSync.requestSync]): its Sync button.
+  final void Function()? onSync;
 }
 
 /// An event another device of the profile published ([LiveSync.parse]):
@@ -950,8 +955,73 @@ class LiveSync extends ChangeNotifier {
     ),
   );
 
+  /// Asks the profile's connected devices to sync now (a `sync` on the
+  /// requests topic: each runs a full pass, [LiveLink.onSync]), at most one
+  /// every [syncEvery]. Returns whether it was sent (not with live sync off
+  /// or failing; on a schedule it connects to send it). Devices not
+  /// connected now take it at their next connection while it's fresh
+  /// ([syncFresh]).
+  Future<bool> requestSync() async {
+    final link = _link;
+    if (link == null || !_canSend) return false;
+    final now = _now();
+    final last = _lastSyncRequest;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < syncEvery) {
+      return false;
+    }
+    _lastSyncRequest = now;
+    return _publish(
+      link,
+      requestsKind,
+      _presencePayload(link, 'sync', now: now),
+    );
+  }
+
+  /// The least time between two of this device's sync requests.
+  static const Duration syncEvery = Duration(seconds: 10);
+
+  /// A sync request older than this (kept by a persistent session) is
+  /// ignored: the asker's moment has passed.
+  static const Duration syncFresh = Duration(minutes: 2);
+
+  /// The least time between two syncs this device runs for others.
+  static const Duration syncAnswerEvery = Duration(seconds: 10);
+
+  DateTime? _lastSyncRequest;
+  DateTime? _lastSyncAnswered;
+
+  /// A `sync` request from another device ([requestSync]): runs
+  /// [LiveLink.onSync], when it's fresh and this device hasn't just synced
+  /// for one. True when [payload] was one (taken or not).
+  bool _onSyncRequest(LiveLink link, Uint8List payload) {
+    final message = parsePresence(
+      payload,
+      identityId: link.identityId,
+      kind: 'sync',
+    );
+    if (message == null) return false;
+    if (message.deviceId == link.deviceId) return true;
+    final now = _now();
+    final sentAt = DateTime.fromMillisecondsSinceEpoch(message.sentAt);
+    _see(message.deviceId, sentAt.isAfter(now) ? now : sentAt);
+    if (now.difference(sentAt) > syncFresh) return true;
+    final last = _lastSyncAnswered;
+    if (last != null &&
+        !now.isBefore(last) &&
+        now.difference(last) < syncAnswerEvery) {
+      return true;
+    }
+    _lastSyncAnswered = now;
+    debugPrint('Presence: live sync: ${message.deviceId} asked to sync');
+    link.onSync?.call();
+    return true;
+  }
+
   void _onPresence(LiveLink link, String topic, Uint8List payload) {
     final isPing = topic == topicOf(stage, link.identityId, requestsKind);
+    if (isPing && _onSyncRequest(link, payload)) return;
     final message = parsePresence(
       payload,
       identityId: link.identityId,

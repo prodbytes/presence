@@ -633,6 +633,28 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     retry();
   }
 
+  /// The Sync button: a full pass here now (every day of the window
+  /// listed again, the clips other devices' events lack wanted again), and
+  /// a request to the profile's other devices, over live sync, to do the
+  /// same ([LiveSync.requestSync]). Returns whether the request went out
+  /// (live sync on and connected, or able to connect); the pass here runs
+  /// either way, unless syncing is off.
+  Future<bool> syncAll() async {
+    syncFull();
+    return await live?.requestSync() ?? false;
+  }
+
+  /// A full pass now: what the hourly one does ([fullFetchEvery]), when
+  /// this device's Sync button or another device's asks.
+  void syncFull() {
+    // Not as a first pass (which reads the settings back from the cloud).
+    _forceFull = true;
+    retry();
+  }
+
+  /// A full pass is asked for ([syncFull]): the next one is.
+  bool _forceFull = false;
+
   /// Syncs again after credentials failed and syncing [stopped].
   void retry() {
     if (_owner == null || _disposed || _halted) return;
@@ -706,7 +728,9 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       _identity = session.prefix;
       final now = _now().toUtc();
       final last = _lastFullFetch;
-      final full = last == null || now.difference(last) >= fullFetchEvery;
+      final full =
+          _forceFull || last == null || now.difference(last) >= fullFetchEvery;
+      _forceFull = false;
       if (full) {
         reconcile = true;
         // Recordings that failed get another try.

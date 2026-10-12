@@ -186,10 +186,12 @@
     [Capture all](camera.md#capture-all) requests (`capture_all`, which
     have no video of their own) and other plain events;
   - **off:** only **grabs**, the clip events (`ClipRequested`: Clip
-    requested, Motion detected, Scheduled clip, Startup clip, and the
-    clips taken for a Capture all, titled "Capture all" with the grid
-    icon), and the [recognition](recognition.md) suggestions about them
-    ("Is this Rex?", `SubjectSuggestion`), which wait for an answer.
+    requested, Motion detected, Scheduled clip, and the clips taken for a
+    Capture all, titled "Capture all" with the grid icon), and the
+    [recognition](recognition.md) suggestions about them ("Is this
+    Rex?", `SubjectSuggestion`), which wait for an answer. A **Startup
+    clip** (`ClipTrigger.startup`, one per start) is routine: a system
+    event, hidden with the others.
   - It starts on in [DEV](execution-mode.md) and off in RBAC, decided once
     the execution mode is known. The choice stays while switching tabs, but
     not across restarts. It always shows, even before the device ID is

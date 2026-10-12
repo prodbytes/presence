@@ -1709,6 +1709,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String get maintenanceTitle => 'Lo sentimos, Presence está en mantenimiento.';
 
   @override
+  String get monitoringSyncAsked =>
+      'Sincronizando: este dispositivo ahora, y se pidió a los demás';
+
+  @override
+  String get monitoringSyncHere =>
+      'Sincronizando este dispositivo; no se pudo pedir a los demás (la sincronización en vivo está apagada o sin conexión)';
+
+  @override
+  String get monitoringSyncTooltip => 'Sincronizar todos los dispositivos';
+
+  @override
   String get navAdmin => 'Admin';
 
   @override
