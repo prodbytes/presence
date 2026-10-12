@@ -5218,3 +5218,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        (fetching the model), 1.1 s warm for 8 crops. Specs: [Cloud
        recognition](cloud-recognition.md), [Subject
        recognition](recognition.md), [README](README.md).
+
+373. **Copies: the cloud isn't one.** (2026-10-12)
+     - Asked: make sure S3 doesn't count as a copy, only devices, with S3
+       shown separately.
+     - Already so on `main` (request 371): the copies number counts the
+       devices holding a copy, this device included (the user chose that
+       over other devices only), and the cloud has its own icon (primary
+       when synced, disabled when not). Production still ran the release
+       before it. Changed: released 0.6.202610121614 (RC and GA). Specs
+       unchanged.
