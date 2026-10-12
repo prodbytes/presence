@@ -5403,3 +5403,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        to events (tags, grabbed frames, deletions, a clip completing) were
        already published and fetched by ETag; a changed event now brings
        its clip too through the same retry.
+
+386. **Startup clips are system events.** (2026-10-12)
+     - Asked: make startup grabs a system event (hidden by default).
+     - Changed: `EventTimeline.isGrab` leaves out `ClipRequested` with
+       `ClipTrigger.startup`, so a start's clip shows only with "Show
+       system events" on; Clip button, motion, scheduled and Capture all
+       clips are still grabs. Spec: [Events](events.md).
