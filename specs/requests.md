@@ -5170,3 +5170,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        bucket; the health monitor's ☁️ AWS is ✅ with it. Specs: [Dev
        environment](dev-environment.md), [Profiles](profiles.md), [Live
        sync](live-sync.md), [Feedback](feedback.md), [README](README.md).
+
+371. **The event card's indicators: copies, the cloud, recognition.** (2026-10-12)
+     - Asked: the recognition pipeline doesn't seem to work well, so change
+       the indicators at the top right of the event card in the Monitoring
+       view. The copies indicator shows just the number, with no "copies"
+       label, and doesn't count the cloud (S3). The cloud gets a separate
+       indicator icon, gray (disabled) when not synced and the theme's
+       primary color when synced. A new indicator says whether recognition
+       ran thoroughly and completed, even with no tags, telling "none" from
+       "empty" for subjects and tags.
+     - Changed: `EventIndicators` (cards and the clip player): the
+       recognition indicator, the cloud (`cloud_done` in primary, or a
+       crossed-out cloud disabled), and the copies (an icon and the number
+       of devices; holders in the tooltip). Each clip event now records
+       when its search for people and pets ran to the end, as
+       `subjectSearch: {outcome, at}` (`searched`, `allTagged`,
+       `noReferences`), synced. With `objectTags` (absent: not searched;
+       empty: nothing seen), the recognition indicator is primary when both
+       ran, plain when one did, and disabled when neither. Its tooltip says
+       each part: not searched, searched with nothing found, or what was
+       found. In English, Spanish and Portuguese. Specs: [Event
+       copies](event-copies.md), [Subject recognition](recognition.md),
+       [Recording and data formats](data-formats.md).

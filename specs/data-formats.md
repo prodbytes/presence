@@ -89,7 +89,8 @@ Clip events (`clip_requested`) add:
 | `clipState` | string | `partial` (only the before part) or `complete` |
 | `trigger` | string | `manual`, `motion`, `scheduled`, `startup` or `all` ([Capture all](camera.md#capture-all)) |
 | `annotations` | array of objects | the people and pets tagged: `{id, name, x, y, frameId, frameMs, source, confidence, labeledAt}`; `source` is `detected`, `suggested` or `confirmed` (left out: tagged by someone); `confidence` is 0 to 1, 1 for a tag someone made or confirmed (missing in older records: read as 1 for those); `labeledAt` (ms) when someone placed, confirmed or renamed it, left out for recognition's tags and older ones ([Cloud recognition](cloud-recognition.md)); see [Clips](clips.md) |
-| `objectTags` | array of objects | what recognition saw: `{label, ms, score}`, once per label; left out until searched (see [Subject recognition](recognition.md)) |
+| `objectTags` | array of objects | what recognition saw: `{label, ms, score}`, once per label; left out until searched, empty when searched and nothing was seen (see [Subject recognition](recognition.md)) |
+| `subjectSearch` | object | that the search for people and pets ran to its end: `{outcome, at}`, `outcome` `searched`, `allTagged` or `noReferences`, `at` (ms); left out until then (see [Subject recognition](recognition.md#what-a-clip-records-of-it)) |
 
 [Event flags](event-flags.md) (such as *unidentified*) aren't stored:
 they're worked out from `annotations` and `objectTags` wherever the event
@@ -181,6 +182,7 @@ user-data bucket. **JSON and media are in separate trees**, so a query over
     annotations array<struct<id:string, name:string, x:double, y:double,
       frameId:string, frameMs:bigint, source:string, confidence:double>>,
     objectTags array<struct<label:string, ms:bigint, score:double>>,
+    subjectSearch struct<outcome:string, at:bigint>,
     clipEventId string, annotationId string, subjectName string, confidence double
   )
   PARTITIONED BY (identity string, year int, day int)

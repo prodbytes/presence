@@ -358,5 +358,40 @@
         "type": "String"
       }
     }
+  },
+  "eventCopiesOnDevices": "{count, plural, =0{On no device} =1{On 1 device} other{On {count} devices}}",
+  "@eventCopiesOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventCloudSynced": "In the cloud",
+  "eventCloudNotSynced": "Not in the cloud",
+  "eventRecognitionComplete": "Recognition ran in full",
+  "eventRecognitionPartial": "Recognition ran in part",
+  "eventRecognitionNotRun": "Recognition hasn't run",
+  "eventSubjectsNotSearched": "People and pets: not searched",
+  "eventSubjectsNone": "People and pets: searched, no one recognized",
+  "eventSubjectsFound": "People and pets: {names}",
+  "@eventSubjectsFound": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSubjectsNoReferences": "People and pets: no one named yet to look for",
+  "eventSubjectsAllTagged": "People and pets: everyone known is already named",
+  "eventTagsNotSearched": "Object tags: not searched",
+  "eventTagsNone": "Object tags: searched, nothing seen",
+  "eventTagsFound": "Object tags: {labels}",
+  "@eventTagsFound": {
+    "placeholders": {
+      "labels": {
+        "type": "String"
+      }
+    }
   }
 }

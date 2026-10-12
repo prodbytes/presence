@@ -923,6 +923,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventCancel => 'Cancel';
 
   @override
+  String get eventCloudNotSynced => 'Not in the cloud';
+
+  @override
+  String get eventCloudSynced => 'In the cloud';
+
+  @override
   String eventCopies(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -945,6 +951,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventCopiesNotSynced => 'Not synced';
+
+  @override
+  String eventCopiesOnDevices(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'On $count devices',
+      one: 'On 1 device',
+      zero: 'On no device',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get eventCopiesThisDevice => 'This device';
@@ -1016,6 +1034,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventOsUnknown => 'Operating system unknown';
 
   @override
+  String get eventRecognitionComplete => 'Recognition ran in full';
+
+  @override
+  String get eventRecognitionNotRun => 'Recognition hasn\'t run';
+
+  @override
+  String get eventRecognitionPartial => 'Recognition ran in part';
+
+  @override
+  String get eventSubjectsAllTagged =>
+      'People and pets: everyone known is already named';
+
+  @override
+  String eventSubjectsFound(String names) {
+    return 'People and pets: $names';
+  }
+
+  @override
+  String get eventSubjectsNoReferences =>
+      'People and pets: no one named yet to look for';
+
+  @override
+  String get eventSubjectsNone =>
+      'People and pets: searched, no one recognized';
+
+  @override
+  String get eventSubjectsNotSearched => 'People and pets: not searched';
+
+  @override
   String get eventSuggestionClipMissing => 'The clip is missing';
 
   @override
@@ -1035,6 +1082,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String eventSuggestionYes(String name) {
     return 'Yes, it\'s $name';
   }
+
+  @override
+  String eventTagsFound(String labels) {
+    return 'Object tags: $labels';
+  }
+
+  @override
+  String get eventTagsNone => 'Object tags: searched, nothing seen';
+
+  @override
+  String get eventTagsNotSearched => 'Object tags: not searched';
 
   @override
   String get eventThisDevice => 'this device';

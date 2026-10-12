@@ -751,6 +751,8 @@
   },
   "eventAlreadyDeleted": "Event already deleted",
   "eventCancel": "Cancel",
+  "eventCloudNotSynced": "Not in the cloud",
+  "eventCloudSynced": "In the cloud",
   "eventCopies": "{count, plural, =1{1 copy} other{{count} copies}}",
   "@eventCopies": {
     "placeholders": {
@@ -763,6 +765,14 @@
   "eventCopiesLiveOff": "Live sync is off: other devices' copies are unknown",
   "eventCopiesNone": "No copy known",
   "eventCopiesNotSynced": "Not synced",
+  "eventCopiesOnDevices": "{count, plural, =0{On no device} =1{On 1 device} other{On {count} devices}}",
+  "@eventCopiesOnDevices": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "eventCopiesThisDevice": "This device",
   "eventDelete": "Delete event",
   "eventDeleteClipNote": "Its clip stays in the cloud until it expires.",
@@ -798,6 +808,21 @@
   "eventLocationPinned": "Pinned",
   "eventNoLocation": "No location for this event",
   "eventOsUnknown": "Operating system unknown",
+  "eventRecognitionComplete": "Recognition ran in full",
+  "eventRecognitionNotRun": "Recognition hasn't run",
+  "eventRecognitionPartial": "Recognition ran in part",
+  "eventSubjectsAllTagged": "People and pets: everyone known is already named",
+  "eventSubjectsFound": "People and pets: {names}",
+  "@eventSubjectsFound": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "eventSubjectsNoReferences": "People and pets: no one named yet to look for",
+  "eventSubjectsNone": "People and pets: searched, no one recognized",
+  "eventSubjectsNotSearched": "People and pets: not searched",
   "eventSuggestionClipMissing": "The clip is missing",
   "eventSuggestionNo": "No",
   "eventSuggestionNot": "Not {name}",
@@ -824,6 +849,16 @@
       }
     }
   },
+  "eventTagsFound": "Object tags: {labels}",
+  "@eventTagsFound": {
+    "placeholders": {
+      "labels": {
+        "type": "String"
+      }
+    }
+  },
+  "eventTagsNone": "Object tags: searched, nothing seen",
+  "eventTagsNotSearched": "Object tags: not searched",
   "eventThisDevice": "this device",
   "eventTitleAppStarted": "Application started",
   "eventTitleCaptureAll": "Capture all",

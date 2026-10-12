@@ -788,8 +788,8 @@ void main() {
       time: DateTime(2026, 10, 6, 9),
     )..os = 'Web (Chrome, macOS)';
 
-    testWidgets('shows the count on every card, with the holders in its '
-        'tooltip, at 320 dp', (tester) async {
+    testWidgets('shows the devices holding a copy as a number, and the '
+        'cloud as its own icon, on every card, at 320 dp', (tester) async {
       final copies = EventCopies()
         ..deviceId = 'automatic_paranoid_gadget'
         ..liveOn = true
@@ -800,33 +800,55 @@ void main() {
         eventOf('e2', 'automatic_paranoid_gadget'),
       ]);
       expect(tester.takeException(), isNull);
-      expect(find.text('2 copies'), findsNothing);
-      expect(find.text('3 copies'), findsOneWidget);
-      expect(find.text('Not synced'), findsOneWidget);
-      final notSynced = tester.widget<Tooltip>(
-        find
-            .ancestor(
-              of: find.text('Not synced'),
+      String count(String id) =>
+          tester.widget<Text>(find.byKey(Key('event-copies-text-$id'))).data!;
+      // This device and loud_shy_kettle: the cloud isn't counted.
+      expect(count('e1'), '2');
+      expect(count('e2'), '1');
+      expect(find.textContaining('copies'), findsNothing);
+      String tooltipOf(String key) => tester
+          .widget<Tooltip>(
+            find.descendant(
+              of: find.byKey(Key(key)),
               matching: find.byType(Tooltip),
-            )
-            .first,
+            ),
+          )
+          .message!;
+      expect(
+        tooltipOf('event-copies-e1'),
+        'On 2 devices\nThis device, Cloud, loud_shy_kettle',
       );
-      expect(notSynced.message, 'This device');
-      final tooltip = tester.widget<Tooltip>(
-        find
-            .ancestor(of: find.text('3 copies'), matching: find.byType(Tooltip))
-            .first,
+      expect(tooltipOf('event-copies-e2'), 'On 1 device\nThis device');
+
+      // The cloud: the theme's primary color if it holds a copy, else
+      // disabled.
+      final scheme = Theme.of(
+        tester.element(find.byKey(const Key('event-cloud-e1'))),
+      ).colorScheme;
+      Icon cloudOf(String id) => tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(Key('event-cloud-$id')),
+          matching: find.byType(Icon),
+        ),
       );
-      expect(tooltip.message, 'This device, Cloud, loud_shy_kettle');
-      // Fits: the badge stays inside the screen.
+      expect(cloudOf('e1').icon, Icons.cloud_done);
+      expect(cloudOf('e1').color, scheme.primary);
+      expect(tooltipOf('event-cloud-e1'), 'In the cloud');
+      expect(cloudOf('e2').icon, Icons.cloud_off_outlined);
+      expect(cloudOf('e2').color, scheme.onSurface.withValues(alpha: 0.38));
+      expect(tooltipOf('event-cloud-e2'), 'Not in the cloud');
+
+      // Fits: the indicators stay inside the screen.
       final badge = tester.getRect(find.byKey(const Key('event-copies-e1')));
       expect(badge.right, lessThanOrEqualTo(320));
 
-      // An ack comes in: the count goes up.
+      // An ack comes in, and the cloud takes it: the count goes up, and
+      // the cloud lights up.
       copies.addDevice('e2', 'loud_shy_kettle', 2);
       copies.setLocal('e2', self: true, cloud: true);
       await tester.pump();
-      expect(find.text('3 copies'), findsNWidgets(2));
+      expect(count('e2'), '2');
+      expect(cloudOf('e2').color, scheme.primary);
     });
 
     testWidgets('a deleted event shows no copies', (tester) async {
@@ -849,7 +871,7 @@ void main() {
       expect(find.byType(Tooltip), findsNothing);
     });
 
-    testWidgets('in the details, the same label, the holders in its '
+    testWidgets('in the details, the same number, the holders in its '
         'tooltip', (tester) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
@@ -867,12 +889,16 @@ void main() {
           ),
         ),
       );
-      expect(find.text('2 copies'), findsOneWidget);
+      // loud_shy_kettle (its origin) holds it; the cloud isn't counted.
+      expect(find.text('1'), findsOneWidget);
       final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-      expect(tooltip.message, startsWith('Cloud, loud_shy_kettle'));
+      expect(
+        tooltip.message,
+        startsWith('On 1 device\nCloud, loud_shy_kettle'),
+      );
       expect(tooltip.message, contains("other devices' copies are unknown"));
       expect(
-        find.bySemanticsLabel(RegExp(r'^2 copies\. Cloud, loud_shy_kettle')),
+        find.bySemanticsLabel(RegExp(r'^On 1 device\nCloud, loud_shy_kettle')),
         findsOneWidget,
       );
     });
