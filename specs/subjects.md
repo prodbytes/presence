@@ -32,25 +32,21 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
 
 - Subjects show on the [Monitoring](monitoring.md) tab, on the map and on
   the events' cards; there is no subjects list.
-- **The subjects map** merges every subject's
-  events: for each subject, a dot per event among their latest
-  `mapEvents` that has a location, in **the subject's color**, the newest
-  solid and older ones fading, as on a subject's own map. A clip tagged
-  with several subjects gets a dot for each. It **opens on the newest
-  event** (of any subject) **close up, at street level** (zoom 16–17,
-  with the dots within 300 m of it), and follows the newest as events
-  load and arrive until it's moved by hand (the whole world without any;
-  see [the map's view](#the-maps-view)), has the tiles' credit and
-  **zoom buttons**, and
-  tapping a dot opens its event in the Monitoring tab's events list.
-- **Devices:** the map shows every device's events, or, while the
-  Monitoring tab's search is a device's ID (set by tapping a device's
-  name), only that device's (as the events list, `EventView.device`,
-  `EventTimeline.ofDevices`); other searches don't change the map.
-  Searching for a device or clearing it redraws the dots and fits the
-  view to them again. A
-  subject's own screen always shows every device.
-- **Names on the map:** beside each subject's newest located dot, the
+- **The subjects map** (`SubjectsMap`) shows **every subject at once,
+  each at their latest event that has a location**: one solid dot per
+  subject, in **the subject's color**, at the newest of their events with
+  a location (`latestLocated`), however old, and however many newer ones
+  have none (the `mapEvents` setting doesn't limit it). A subject with no
+  located event has no dot. It is **fitted to show every dot** and fitted
+  again as dots change until it's moved by hand (the whole world without
+  any; see [the map's view](#the-maps-view)), has the tiles' credit and
+  **zoom buttons**, and tapping a dot opens its event in the Monitoring
+  tab's events list.
+- **Devices and searches:** the map counts every device's events (the
+  signed-in profile's only); the Monitoring tab's search, a device's ID
+  included, narrows the events list, not the map. A subject's own screen
+  also shows every device.
+- **Names on the map:** beside each subject's dot, the
   subject's name in a dark pill edged in their color (up to 160 dp, cut
   short with an ellipsis). Tapping it opens the subject's screen.
 - **On each clip's card** (`EventSubjects`): every subject tagged on it,
@@ -82,19 +78,19 @@ app, as opposed to a clip's **Tags** (things seen, like "bottle"; see
 
 Both maps, the subjects map and a subject's own, are the same map
 (`_SightingsMap`, [lib/subjects.dart](../presence_app/lib/subjects.dart));
-a subject's own map catches all its dots, and the subjects map (on
-Monitoring) is a close-up (`closeUp`):
+a subject's own map is centered on its newest dot, and the subjects map
+(on Monitoring) is an overview of every subject (`overview`):
 
-- **Centered on the newest event:** the newest dot shown, by event time,
-  is in the middle of the map, not the middle of all the dots.
-- **A subject's map, zoomed out to catch them all:** as close as it can
-  be with every dot in view, 48 px from the edges, at most zoom 17. Each dot's mirror image
-  through the newest one, in the map's Web Mercator projection, is fitted
-  along with the dots (`framedAround`), so the fit is centered exactly on
-  the newest. The farthest dot from it sets the zoom.
-- **The subjects map, close up:** only the dots within 300 m of the newest
-  are fitted (the same way), between zoom 16 and 17: a lone newest dot
-  shows at zoom 17. Farther dots are off the view until zoomed out.
+- **A subject's map, centered on the newest event, zoomed out to catch
+  them all:** the newest dot, by event time, is in the middle of the map;
+  as close as it can be with every dot in view, 48 px from the edges, at
+  most zoom 17. Each dot's mirror image through the newest one, in the
+  map's Web Mercator projection, is fitted along with the dots
+  (`framedAround`), so the fit is centered exactly on the newest. The
+  farthest dot from it sets the zoom.
+- **The subjects map, every subject in view:** the smallest view holding
+  every subject's dot, 48 px from the edges, at most zoom 17 (a lone
+  subject at street level), not centered on any one of them.
 - **Without a located event:** the whole world, at zoom 2.
 - **Zoom in (+) over zoom out (−)** in the bottom-right corner
   (`MapZoomButtons`, shared with the Settings [location
@@ -102,15 +98,12 @@ Monitoring) is a close-up (`closeUp`):
   Each steps the zoom by one around the map's center, between zoom 2 and
   19; a button turns off at its limit. Pinch, wheel and drag still work.
 - A subject's map is set when it opens; new events don't move it. The
-  subjects map is fitted again whenever its newest dot changes (the
-  first one once the events load, or a newer one arriving) **until the
+  subjects map is fitted again whenever its dots change (once the events
+  load, a subject seen somewhere new, a subject added or gone) **until the
   map is moved by hand** (a drag, pinch, wheel or the zoom buttons);
   from then on it stays where it was put, through resizes too (a
   rotation, the keyboard, a window resized): the fit it opens on is worked
-  out once, from the dots it opened with. Picking or clearing a device
-  fits it again (`fitKey`) and lets it follow the newest once more.
-- "Within 300 m" is measured with the haversine formula, so a dot on the
-  far side of the world is no trouble.
+  out once, from the dots it opened with.
 
 ## A subject's screen
 
@@ -142,7 +135,6 @@ Monitoring) is a close-up (`closeUp`):
 - **It shows the latest 100 events by default**, set at the bottom of the
   Settings screen (**How many events to load at once**, 10–500 in steps
   of 10; `SubjectsConfig.mapEvents`, see [Configuration](configuration.md)).
-  The same number caps each subject's dots on the subjects map.
   Changing it updates an open screen.
 - Events without a location (published before the location was known, or
   with location unavailable) are listed but have no dot.
@@ -162,10 +154,12 @@ Monitoring) is a close-up (`closeUp`):
   the Monitoring tab between Camera and Settings; tapping a dot far down the
   timeline closes the subject's screen, shows the Monitoring tab with that
   event on screen and outlined, and the outline goes after 4 s; the
-  subjects map (left of the events) has every subject's located dots (one
-  per subject on a shared clip) in each subject's color, faded per
-  subject, a name beside each subject's newest dot, the cards' squares
-  match those colors, and a tapped dot opens its event;
+  subjects map (left of the events) has one solid dot per subject, in
+  their color, at their latest located event (a newer unlocated one
+  skipped, also past the `mapEvents` setting), a name beside each, the
+  cards' squares match those colors, and a tapped dot opens its event;
+  it is fitted with every subject in view (a lone one at zoom 17) and
+  keeps every subject while a device is searched for;
   `label_remove_test.dart`: `removeName` drops every tag of the name (not
   suggestions) and frames left unused, `removeObject` drops one object
   tag; a card's x removes the subject from that event only, its map dot,
@@ -175,7 +169,7 @@ Monitoring) is a close-up (`closeUp`):
   in view, the farthest near the edge, and the zoom buttons double and
   halve the spacing of the dots; without located events, zoom out is off;
   `framedAround` centers the fit on the newest, and stops mirrors at the
-  date line; the subjects map follows the newest as events load and
+  date line; the subjects map fits every subject as events load and
   arrive, stays put once dragged, also through a resize, and a nearly
   antipodal dot doesn't break it.
   `widget_test.dart`: the tabs in order in the bottom navigation bar, and

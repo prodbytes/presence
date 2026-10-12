@@ -25,8 +25,8 @@ the separate Events and Subjects tabs.
   beside it.
 - **Above each event's card,** the **device it was taken on**, small and
   quiet; tapping it sets the search to the device's ID, which shows only
-  that device's events, on both the map and the events list (every
-  device by default); tapped again, the search clears. A device's name
+  that device's events in the events list (every device by default; the
+  map keeps every subject); tapped again, the search clears. A device's name
   tapped anywhere else in the app (an event's details, the account
   sheet, the All grid) comes here the same way (see
   [Navigation](navigation.md)). See [Events](events.md).
@@ -36,17 +36,17 @@ the separate Events and Subjects tabs.
 - It fits a 320 dp phone without overflowing: the open search field gets
   narrower.
 - **Wide screens (720 dp and up), two columns:**
-  - **left:** the **map of every subject's events** (the signed-in
-    profile's only, and only the device searched for, if the search is a
-    device's ID), in a rounded,
-    outlined frame: each subject in its own color, the newest dot solid
-    and older ones fading, and **the subject's name beside their newest
-    dot**, in a pill edged in their color. It opens **on the newest
-    event, close up at street level** (zoom 16–17, fitting only the dots
-    within 300 m of it), once the events load too, and moves to each
-    newer event until the map is moved by hand; then it stays put. It
-    has **zoom buttons** (see [Subjects](subjects.md#the-maps-view)).
-    Picking or clearing a device fits it again. Tapping a name opens the
+  - **left:** the **map of every subject**, all at once (the signed-in
+    profile's events only; searches, a device's ID included, don't change
+    it), in a rounded, outlined frame: **one dot per subject, at their
+    latest event that has a location** (however old, and however many
+    newer ones have none), in their own color, with **the subject's name
+    beside it** in a pill edged in their color. It is **fitted to show
+    every subject's dot** (at most zoom 17, so a lone one is at street
+    level), once the events load too, and fitted again whenever a dot
+    changes (a subject seen somewhere new, added or gone) until the map
+    is moved by hand; then it stays put. It has **zoom buttons** (see
+    [Subjects](subjects.md#the-maps-view)). Tapping a name opens the
     subject's screen (their map and history of events; see
     [Subjects](subjects.md));
   - **right:** **all events**, newest first, as cards; a clip's card lists
@@ -88,12 +88,13 @@ the separate Events and Subjects tabs.
   events; a clip card shows its subject.
 - `subjects_test.dart`: each clip card lists its subjects once, as
   written, in their colors, updating when a tag is added; the map has
-  every subject's located dots in their colors, faded per subject, and a
-  name only beside each subject's newest dot; it opens centered on the
-  newest at zoom 16–17 with a dot 90 m away in view and one 30 km away
-  out of it (a lone newest at zoom 17); it moves to the events once they
-  load and to a newer one arriving, but not after being dragged, not even
-  on a resize; a nearly antipodal dot is no trouble; tapping a name opens the
+  one solid dot per subject in their color, at their latest located event
+  (a newer one without a location skipped, also past the `mapEvents`
+  setting), with their name beside it; it is fitted with every subject's
+  dot in view, one 30 km away too (a lone subject at zoom 17), and the
+  zoom buttons step one in and out; it fits the events once they load and
+  again as subjects are seen elsewhere, but not after being dragged, not
+  even on a resize; a nearly antipodal dot is no trouble; tapping a name opens the
   subject's screen; on a 360 dp phone the map sits above the events; a dot
   tapped on a subject's screen closes it and outlines the event in this
   tab's list; opened once, a search typed since, Settings and back:
@@ -108,8 +109,8 @@ the separate Events and Subjects tabs.
   filtered; a whole device ID (any case) narrows to that device, part of
   one matches as text. `device_events_test.dart`: see
   [Navigation](navigation.md). `subjects_test.dart` also checks that
-  tapping an event's device takes the other device's dots off the map and
-  its events off the list, and the search's x brings them back. `system_events_test.dart`: signed in
+  tapping an event's device takes the other device's events off the list
+  while the map keeps every subject. `system_events_test.dart`: signed in
   (RBAC), only the clip shows until the system events toggle is turned on,
   and the choice stays across tabs; with no grabs, the hidden-events
   message; in DEV, system events show by default and hide when turned off.
@@ -150,6 +151,7 @@ the separate Events and Subjects tabs.
 ## Known limitations
 
 - Names on the map can overlap when subjects were last seen close
-  together.
+  together (a fixed camera puts everyone it saw on one spot).
+- Subjects seen far apart make the fitted map zoom far out.
 - A subject with no located event has no name on the map, so their screen
   can't be opened from this tab.
