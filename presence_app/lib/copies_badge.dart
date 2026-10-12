@@ -145,8 +145,10 @@ class EventCopiesBadge extends StatelessWidget {
   }
 }
 
-/// Whether the cloud holds a copy of [event]: a cloud in the theme's
-/// primary color if it does, disabled if not. Nothing without an
+/// Whether the cloud holds a copy of [event], in three states: disabled
+/// when it doesn't (not synced yet); the theme's primary color when it does
+/// and this device holds one too (synced); its secondary color when only the
+/// cloud does, this device not (archived, the goal). Nothing without an
 /// [EventCopiesScope], or for a deleted event.
 class EventCloudBadge extends StatelessWidget {
   const EventCloudBadge({super.key, required this.event});
@@ -159,13 +161,18 @@ class EventCloudBadge extends StatelessWidget {
     if (copies == null || event.deletedAt != null) {
       return const SizedBox.shrink();
     }
-    final cloud = copies.summaryOf(event.id, origin: event.deviceId).cloud;
+    final summary = copies.summaryOf(event.id, origin: event.deviceId);
     final l = context.l10n;
-    return _Indicator(
-      icon: cloud ? Icons.cloud_done : Icons.cloud_off_outlined,
-      color: cloud ? _on(context) : _off(context),
-      tooltip: cloud ? l.eventCloudSynced : l.eventCloudNotSynced,
-    );
+    final scheme = Theme.of(context).colorScheme;
+    // Archived (the goal): kept in the cloud, and no longer (or never, in
+    // full) on this device.
+    final here = summary.holders.contains(EventCopies.thisDevice);
+    final (icon, color, tooltip) = !summary.cloud
+        ? (Icons.cloud_off_outlined, _off(context), l.eventCloudNotSynced)
+        : here
+        ? (Icons.cloud_done, _on(context), l.eventCloudSynced)
+        : (Icons.cloud_done, scheme.secondary, l.eventCloudArchived);
+    return _Indicator(icon: icon, color: color, tooltip: tooltip);
   }
 }
 

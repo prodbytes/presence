@@ -393,5 +393,6 @@
         "type": "String"
       }
     }
-  }
+  },
+  "eventCloudArchived": "Archived in the cloud (not on this device)"
 }

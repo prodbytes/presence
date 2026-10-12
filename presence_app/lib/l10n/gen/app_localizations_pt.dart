@@ -944,6 +944,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get eventCancel => 'Cancelar';
 
   @override
+  String get eventCloudArchived => 'Arquivado na nuvem (não neste dispositivo)';
+
+  @override
   String get eventCloudNotSynced => 'Não está na nuvem';
 
   @override

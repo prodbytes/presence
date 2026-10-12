@@ -131,5 +131,6 @@
   "eventSubjectsAllTagged": "Pessoas e animais: todos os conhecidos já estão nomeados",
   "eventTagsNotSearched": "Etiquetas de objetos: não buscadas",
   "eventTagsNone": "Etiquetas de objetos: buscadas, nada visto",
-  "eventTagsFound": "Etiquetas de objetos: {labels}"
+  "eventTagsFound": "Etiquetas de objetos: {labels}",
+  "eventCloudArchived": "Arquivado na nuvem (não neste dispositivo)"
 }

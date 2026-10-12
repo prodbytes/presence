@@ -125,10 +125,15 @@ Each event has **indicators**, small icons with a tooltip each
 
 - **Recognition** (clips only): how far recognition ran. See [Subject
   recognition](recognition.md#on-the-event-card).
-- **The cloud:** a cloud in the theme's **primary** color when the cloud
-  holds a copy ("In the cloud"); a crossed-out cloud, **disabled** (the
-  surface's color at 38 %), when it doesn't ("Not in the cloud")
-  (`EventCloudBadge`).
+- **The cloud** (`EventCloudBadge`), in three states:
+  - **Not synced yet:** a crossed-out cloud, **disabled** (the surface's
+    color at 38 %), when the cloud holds no copy ("Not in the cloud").
+  - **Synced:** a cloud in the theme's **primary** color (Gruvbox yellow)
+    when the cloud and this device both hold one ("In the cloud").
+  - **Archived**, the goal: the same cloud in the theme's **secondary**
+    color (Gruvbox aqua) when the cloud holds a copy and this device
+    doesn't, or not in full, e.g. another device's clip whose recording
+    isn't downloaded here ("Archived in the cloud (not on this device)").
 - **Copies:** an icon and **just the number of devices** holding a copy,
   this device and others; the cloud isn't counted, since it has its own
   indicator (`EventCopiesBadge`, `CopiesSummary.devices`). The tooltip and
@@ -192,8 +197,8 @@ They show:
   longer counts as a holder;
 - the indicators on every card at 320 dp: the number of devices (the
   cloud not counted) with the holders in its tooltip, and the cloud in the
-  primary color or disabled, both updating when an ack comes in and the
-  cloud takes it; none on a deleted event; the details list the holders.
+  primary color, disabled, or in the secondary color for one only in the
+  cloud, both updating when an ack comes in and the cloud takes it; none on a deleted event; the details list the holders.
 
 ## Known limitations
 

@@ -935,6 +935,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventCancel => 'Cancel';
 
   @override
+  String get eventCloudArchived => 'Archived in the cloud (not on this device)';
+
+  @override
   String get eventCloudNotSynced => 'Not in the cloud';
 
   @override
