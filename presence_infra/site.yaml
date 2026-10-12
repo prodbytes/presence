@@ -51,6 +51,19 @@ Parameters:
     Description: >
       Who is emailed when the health check fails and recovers, comma-separated.
       Each address must confirm AWS's subscription email first.
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: '[A-Za-z0-9_-]*'
+    Description: >
+      Sent to the APIs (auth, payments, health) as the
+      x-presence-origin-verify header, replacing any a viewer sent: the
+      APIs refuse requests without it, so they answer only through this
+      distribution (specs/origin-check.md). Empty: no header.
+
+Conditions:
+  HasOriginSecret: !Not [!Equals [!Ref OriginSecret, '']]
 
 Resources:
   Certificate:
@@ -306,6 +319,12 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+            # Proves to the API it came through here (OriginCheck).
+            OriginCustomHeaders: !If
+              - HasOriginSecret
+              - - HeaderName: x-presence-origin-verify
+                  HeaderValue: !Ref OriginSecret
+              - !Ref AWS::NoValue
           # The payments API (presence_api_payments), default stage:
           # /api/payments/* -> /api/payments/*
           - Id: payments
@@ -314,6 +333,12 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+            # Proves to the API it came through here (OriginCheck).
+            OriginCustomHeaders: !If
+              - HasOriginSecret
+              - - HeaderName: x-presence-origin-verify
+                  HeaderValue: !Ref OriginSecret
+              - !Ref AWS::NoValue
           # The health check's HTTP API (presence_health), default stage: /health -> /health
           - Id: health
             DomainName: !Ref HealthApiDomainName
@@ -321,6 +346,12 @@ Resources:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
                 - TLSv1.2
+            # Proves to the API it came through here (OriginCheck).
+            OriginCustomHeaders: !If
+              - HasOriginSecret
+              - - HeaderName: x-presence-origin-verify
+                  HeaderValue: !Ref OriginSecret
+              - !Ref AWS::NoValue
         # The index page at / (redirects to /app/), and the legal pages
         DefaultCacheBehavior:
           TargetOriginId: site
@@ -470,6 +501,12 @@ Outputs:
   HealthCheckId:
     Description: The Route 53 health check of https://DomainName/health
     Value: !GetAtt HealthCheck.HealthCheckId
+  OriginVerified:
+    Description: >
+      Whether the API origins get the origin secret header: scripts/deploy.sh
+      has the APIs enforce it only once this is true, so they never refuse
+      the site's own requests while it's being rolled out.
+    Value: !If [HasOriginSecret, 'true', 'false']
   HealthTopicArn:
     Description: Where health alarms go (HealthNotificationEmails subscribe to it)
     Value: !Ref HealthTopic

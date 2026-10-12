@@ -10,7 +10,8 @@ and emails when it fails or recovers.
   to its own module, [presence_health/](../presence_health): a SAM stack
   per stage (**`presence-health`**, **`presence-rc-health`**) with its own
   HTTP API (the distribution's `health` origin, like the auth API's `api`
-  origin: a public `execute-api` host, no origin secret), where
+  origin: an `execute-api` host that answers only requests carrying the
+  site's origin secret; see [Origin check](origin-check.md)), where
   `HealthFunction` (`presence.health.HealthHandler`) answers it without a
   token. Throttled to 20 requests/s (burst 50). The
   [auth API](auth-api.md) no longer has a `/health` route.

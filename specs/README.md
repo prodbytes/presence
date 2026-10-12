@@ -202,6 +202,10 @@ their data.
   DynamoDB, its own HTTP API under `/api/payments/*`): the plans' Stripe
   Payment Links, the deploy's (GA and RC) until an admin saves others in
   the Admin tab's Payments (`PUT`, rbacr admins only).
+- [Origin check](origin-check.md): the APIs (auth, payments, health)
+  answer only through the site's CloudFront, which adds a secret header
+  (`x-presence-origin-verify`); direct calls to their `execute-api` hosts
+  get 403. Enforced from the deploy after the site starts sending it.
 - [Local CDN](local-cdn.md): Floci as the local CloudFront in front of the
   index, the app and the API.
 - [Site index](site-index.md): the `presence_index` root page, which
