@@ -5384,3 +5384,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        both detectors brighten dark frames (gamma, then CLAHE) before the
        search, which on 54 darkened cat photos found 22 subjects instead of
        14 (23 in full light; gamma alone 10).
+
+385. **Startup clips are system events.** (2026-10-12)
+     - Asked: make startup grabs a system event (hidden by default).
+     - Changed: `EventTimeline.isGrab` leaves out `ClipRequested` with
+       `ClipTrigger.startup`, so a start's clip shows only with "Show
+       system events" on; Clip button, motion, scheduled and Capture all
+       clips are still grabs. Spec: [Events](events.md).
