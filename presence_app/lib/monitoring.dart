@@ -141,22 +141,39 @@ class _MonitoringViewState extends State<MonitoringView> {
                       child: notice,
                     ),
                   // One compact row: the search (an icon until tapped),
-                  // the count and the system events toggle. The open
-                  // field gives up room on a narrow phone.
+                  // the count and the system events toggle, and at the far
+                  // right Delete all. The open field gives up room on a
+                  // narrow phone.
                   SizedBox(
                     height: 40,
                     child: Row(
                       key: const Key('monitoring-filters'),
                       children: [
-                        Flexible(child: EventSearch(value: _filters.search)),
-                        const SizedBox(width: 8),
-                        EventCount(
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: EventSearch(value: _filters.search),
+                              ),
+                              const SizedBox(width: 8),
+                              EventCount(
+                                log: widget.log,
+                                filters: _filters,
+                                profileId: widget.profileId,
+                                deviceId: widget.deviceId,
+                              ),
+                              ShowSystemEvents(
+                                value: _filters.showSystemEvents,
+                              ),
+                            ],
+                          ),
+                        ),
+                        DeleteShownEvents(
                           log: widget.log,
                           filters: _filters,
                           profileId: widget.profileId,
                           deviceId: widget.deviceId,
                         ),
-                        ShowSystemEvents(value: _filters.showSystemEvents),
                       ],
                     ),
                   ),

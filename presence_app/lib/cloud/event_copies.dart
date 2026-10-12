@@ -279,6 +279,15 @@ class EventCopies extends ChangeNotifier {
     _changed();
   }
 
+  /// [forget]s each of [ids], notifying once.
+  void forgetAll(Iterable<String> ids) {
+    var changed = false;
+    for (final id in ids) {
+      if (_holders.remove(id) != null) changed = true;
+    }
+    if (changed) _changed();
+  }
+
   void _put(String id, EventHolders holders) {
     // Most recently changed last.
     _holders.remove(id);

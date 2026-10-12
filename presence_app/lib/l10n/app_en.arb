@@ -916,6 +916,26 @@
       }
     }
   },
+  "eventsDeleteAll": "Delete the events shown",
+  "eventsDeleteAllClipNote": "Their clips stay in the cloud until they expire.",
+  "eventsDeleteAllMessage": "Delete all the events shown? They will be hidden on every device.",
+  "eventsDeleteAllTitle": "{count, plural, =1{Delete 1 event?} other{Delete {count} events?}}",
+  "@eventsDeleteAllTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eventsDeleteFailed": "Could not delete the events",
+  "eventsDeletedEverywhere": "{count, plural, =0{No events deleted} =1{1 event deleted on every device} other{{count} events deleted on every device}}",
+  "@eventsDeletedEverywhere": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "eventsHideSystem": "Hide system events",
   "eventsNoGrabs": "No grabs yet: system events are hidden",
   "eventsNoMatch": "No events match \"{query}\"",

@@ -2014,6 +2014,42 @@ abstract class AppLocalizations {
   /// **'{shown} of {all} events shown'**
   String eventsCountTooltip(int shown, int all);
 
+  /// No description provided for @eventsDeleteAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the events shown'**
+  String get eventsDeleteAll;
+
+  /// No description provided for @eventsDeleteAllClipNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Their clips stay in the cloud until they expire.'**
+  String get eventsDeleteAllClipNote;
+
+  /// No description provided for @eventsDeleteAllMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all the events shown? They will be hidden on every device.'**
+  String get eventsDeleteAllMessage;
+
+  /// No description provided for @eventsDeleteAllTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 event?} other{Delete {count} events?}}'**
+  String eventsDeleteAllTitle(int count);
+
+  /// No description provided for @eventsDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete the events'**
+  String get eventsDeleteFailed;
+
+  /// No description provided for @eventsDeletedEverywhere.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No events deleted} =1{1 event deleted on every device} other{{count} events deleted on every device}}'**
+  String eventsDeletedEverywhere(int count);
+
   /// No description provided for @eventsHideSystem.
   ///
   /// In en, this message translates to:

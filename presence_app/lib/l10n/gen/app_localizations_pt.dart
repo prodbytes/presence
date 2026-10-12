@@ -1220,6 +1220,43 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get eventsDeleteAll => 'Excluir os eventos exibidos';
+
+  @override
+  String get eventsDeleteAllClipNote =>
+      'Os clipes ficam na nuvem até expirarem.';
+
+  @override
+  String get eventsDeleteAllMessage =>
+      'Excluir todos os eventos exibidos? Eles ficarão ocultos em todos os dispositivos.';
+
+  @override
+  String eventsDeleteAllTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Excluir $count eventos?',
+      one: 'Excluir 1 evento?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get eventsDeleteFailed => 'Não foi possível excluir os eventos';
+
+  @override
+  String eventsDeletedEverywhere(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count eventos excluídos em todos os dispositivos',
+      one: '1 evento excluído em todos os dispositivos',
+      zero: 'Nenhum evento excluído',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get eventsHideSystem => 'Ocultar eventos do sistema';
 
   @override
