@@ -1086,6 +1086,11 @@ void main() {
       final again = await r.recognizeNow(event);
       expect(again.objects, isEmpty);
       expect(vision.frameCalls, 4);
+      // Unless asked to run it all again (the recognition indicator).
+      final rerun = await r.recognizeNow(event, again: true);
+      expect(rerun.objects, ['human', 'cat', 'bicycle']);
+      expect(vision.frameCalls, 8);
+      expect(event.annotations.objects, hasLength(3));
     });
 
     test('object tags keep going once every subject is found', () async {

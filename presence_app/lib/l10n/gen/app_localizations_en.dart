@@ -938,10 +938,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventCloudArchived => 'Archived in the cloud (not on this device)';
 
   @override
+  String get eventCloudDelete => 'Delete';
+
+  @override
+  String get eventCloudDeleteBody =>
+      'Its recording, thumbnail and tags are deleted from the cloud. This device won\'t upload it again unless you put it back.';
+
+  @override
+  String get eventCloudDeleteFailed => 'Couldn\'t delete it from the cloud';
+
+  @override
+  String get eventCloudDeleteOnlyCopy =>
+      'This device doesn\'t hold a full copy: unless another device does, it\'s gone for good.';
+
+  @override
+  String get eventCloudDeleteTitle => 'Delete from the cloud?';
+
+  @override
+  String get eventCloudDeleted => 'Deleted from the cloud';
+
+  @override
   String get eventCloudNotSynced => 'Not in the cloud';
 
   @override
+  String get eventCloudPutFailed =>
+      'Couldn\'t put it in the cloud: that takes a premium profile and a full copy on this device.';
+
+  @override
+  String get eventCloudPutting => 'Putting it in the cloud…';
+
+  @override
   String get eventCloudSynced => 'In the cloud';
+
+  @override
+  String get eventCloudTapToDelete => 'Tap to delete it from the cloud';
+
+  @override
+  String get eventCloudTapToPut => 'Tap to put it in the cloud';
 
   @override
   String eventCopies(int count) {
@@ -978,6 +1011,16 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventCopiesShareFailed =>
+      'Couldn\'t reach the other devices: live sync is off or not connected';
+
+  @override
+  String get eventCopiesSharing => 'Asked the other devices to take a copy';
+
+  @override
+  String get eventCopiesTapToShare => 'Tap to sync a copy to every device';
 
   @override
   String get eventCopiesThisDevice => 'This device';
@@ -1056,6 +1099,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get eventRecognitionPartial => 'Recognition ran in part';
+
+  @override
+  String get eventRecognitionRerunning => 'Running recognition again…';
+
+  @override
+  String get eventRecognitionTapToRerun => 'Tap to run recognition again';
 
   @override
   String get eventSubjectsAllTagged =>

@@ -121,7 +121,9 @@ the cloud and the recording device.
 ## On screen
 
 Each event has **indicators**, small icons with a tooltip each
-(`EventIndicators`), in this order:
+(`EventIndicators`), in this order. They're **20 dp** icons (the copies
+number in `labelMedium`), each at least 40 × 32 dp, so they're easy to
+tap; each is a button that does something (see [Tapped](#tapped)):
 
 - **Recognition** (clips only): how far recognition ran. See [Subject
   recognition](recognition.md#on-the-event-card).
@@ -140,6 +142,48 @@ Each event has **indicators**, small icons with a tooltip each
   the screen-reader label say it ("On 2 devices") and list every holder,
   this device first, then the cloud, then devices ("This device, Cloud,
   loud_shy_kettle"). One icon for one device, another for more.
+
+### Tapped
+
+Each indicator is a button (screen readers say so), and its tooltip ends
+with what a tap does. While what it started runs, a spinner stands in for
+its icon; it then says how it went at the bottom of the screen. Taps on
+the cloud and the copies go to cloud sync (`EventCopyActions`, which
+`CloudSync` implements, given to the cards by `EventCopiesScope`); without
+it they aren't buttons.
+
+- **Recognition:** runs it again. See [Subject
+  recognition](recognition.md#on-the-event-card).
+- **The cloud, not in it** ("Tap to put it in the cloud"): puts it there
+  (`CloudSync.putInCloud`). What was sent of it before is forgotten (its
+  JSON, ETag, clip record, recording, thumbnail and tagged frames, in
+  either layout), and a pass starts at once to send it all. "Putting it
+  in the cloud…"; or "Couldn't put it in the cloud: that takes a premium
+  profile and a full copy on this device." (signed out, a free profile,
+  syncing stopped, or this device doesn't hold it in full: what isn't here
+  can't go up).
+- **The cloud, in it** ("Tap to delete it from the cloud"): asks first
+  ("Delete from the cloud?"), warning, when this device doesn't hold a
+  full copy (archived), that it's gone for good unless another device
+  does. Confirmed, it deletes the event from the bucket
+  (`CloudSync.deleteFromCloud`): its JSON, clip record, recording,
+  thumbnail and every tagged frame listed under its clip, in either
+  layout, and forgets them as sent. It marks the event as **kept out of
+  the cloud** first (`offcloud:<eventId>` in the synced-keys store), so no
+  pass of this device uploads it again, a reconciliation included, and it
+  shows as not in the cloud, until it's put back. "Deleted from the
+  cloud", or "Couldn't delete it from the cloud".
+- **The copies** ("Tap to sync a copy to every device"): asks the
+  profile's other devices to take a copy (`CloudSync.shareCopies`). Not in
+  the cloud and held here, it's put there first, and the upload publishes
+  it (even if it isn't recent). Otherwise it's published again on the
+  `events` topic at once, with the ETag it has in the bucket (and its clip
+  record, for devices without the bucket). Each device that hears it
+  stores what it lacks, fetches its clip, and acks it once it holds it in
+  full; one that has it unchanged gives the recordings that failed to come
+  down another try. "Asked the other devices to take a copy", or
+  "Couldn't reach the other devices: live sync is off or not connected".
+  Devices whose restore window it's older than ignore it.
 
 They show:
 
@@ -162,6 +206,10 @@ They show:
   `EventCloudBadge`, `EventRecognitionBadge`.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `ackCopied`, `parseCopied`, `CopiedMessage`, `LiveLink.onCopied`.
+- [lib/cloud/cloud_sync_actions.dart](../presence_app/lib/cloud/cloud_sync_actions.dart):
+  the taps' `putInCloud`, `deleteFromCloud`, `shareCopies`
+  (`_EventActions`, `offCloudKey`); `EventCopyActions` is in
+  [event_copies.dart](../presence_app/lib/cloud/event_copies.dart).
 - [lib/cloud/cloud_sync.dart](../presence_app/lib/cloud/cloud_sync.dart):
   `copies`, `copyOf`; the checks and acks in `_CopyTracker`
   ([cloud_sync_copies.dart](../presence_app/lib/cloud/cloud_sync_copies.dart):
@@ -198,7 +246,18 @@ They show:
 - the indicators on every card at 320 dp: the number of devices (the
   cloud not counted) with the holders in its tooltip, and the cloud in the
   primary color, disabled, or in the secondary color for one only in the
-  cloud, both updating when an ack comes in and the cloud takes it; none on a deleted event; the details list the holders.
+  cloud, both updating when an ack comes in and the cloud takes it; none on a deleted event; the details list the holders;
+- tapped: the cloud puts one not in it, asks before deleting one in it
+  (warning for an archived one), the copies share, each saying how it
+  went; without cloud sync, no buttons and no hints;
+- over two devices: deleted from the cloud, an event is gone from the
+  bucket and stays out (a reconciliation doesn't upload it again); put
+  back, it goes up; shared, it's published again with its ETag, and
+  shared while not in the cloud, it goes up first; another device's event
+  not held here can't be put, and nothing is shared with live sync off.
+
+`recognition_test.dart`: asked to run again, a clip searched for objects
+is searched again.
 
 ## Known limitations
 
@@ -208,5 +267,9 @@ They show:
   connection's persistent session keeps, 1 h).
 - On the web, other devices' clips count as held here only once played
   (their recordings aren't downloaded before).
+- Deleting from the cloud is this device's: the other devices still
+  count the cloud as a holder (they don't hear of it), and one that
+  changes the event (its tags) uploads it again; then this device still
+  shows it as not in the cloud until it's put back here.
 - Acks are best effort (QoS 1, not waited for): one lost is sent again
   only if this device's record of it says it wasn't sent.

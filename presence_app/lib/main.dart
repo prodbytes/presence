@@ -659,6 +659,7 @@ class _PresenceAppState extends State<PresenceApp> {
         recognizer: _recognizer,
         child: EventCopiesScope(
           copies: _copies,
+          actions: _sync,
           // The end of an event's details (the clip player): its map, its
           // device and deleting it, signed in with a profile.
           child: ListenableBuilder(

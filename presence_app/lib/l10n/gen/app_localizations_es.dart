@@ -952,10 +952,43 @@ class AppLocalizationsEs extends AppLocalizations {
       'Archivado en la nube (no en este dispositivo)';
 
   @override
+  String get eventCloudDelete => 'Borrar';
+
+  @override
+  String get eventCloudDeleteBody =>
+      'Su grabación, miniatura y etiquetas se borran de la nube. Este dispositivo no lo volverá a subir a menos que lo subas tú.';
+
+  @override
+  String get eventCloudDeleteFailed => 'No se pudo borrar de la nube';
+
+  @override
+  String get eventCloudDeleteOnlyCopy =>
+      'Este dispositivo no tiene una copia completa: salvo que otro la tenga, se pierde para siempre.';
+
+  @override
+  String get eventCloudDeleteTitle => '¿Borrar de la nube?';
+
+  @override
+  String get eventCloudDeleted => 'Borrado de la nube';
+
+  @override
   String get eventCloudNotSynced => 'No está en la nube';
 
   @override
+  String get eventCloudPutFailed =>
+      'No se pudo subir a la nube: hace falta un perfil premium y una copia completa en este dispositivo.';
+
+  @override
+  String get eventCloudPutting => 'Subiéndolo a la nube…';
+
+  @override
   String get eventCloudSynced => 'En la nube';
+
+  @override
+  String get eventCloudTapToDelete => 'Toca para borrarlo de la nube';
+
+  @override
+  String get eventCloudTapToPut => 'Toca para subirlo a la nube';
 
   @override
   String eventCopies(int count) {
@@ -992,6 +1025,18 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get eventCopiesShareFailed =>
+      'No se pudo llegar a los otros dispositivos: la sincronización en vivo está apagada o sin conexión';
+
+  @override
+  String get eventCopiesSharing =>
+      'Se pidió a los otros dispositivos que tomen una copia';
+
+  @override
+  String get eventCopiesTapToShare =>
+      'Toca para sincronizar una copia en todos los dispositivos';
 
   @override
   String get eventCopiesThisDevice => 'Este dispositivo';
@@ -1072,6 +1117,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eventRecognitionPartial => 'El reconocimiento se hizo en parte';
+
+  @override
+  String get eventRecognitionRerunning =>
+      'Ejecutando el reconocimiento de nuevo…';
+
+  @override
+  String get eventRecognitionTapToRerun =>
+      'Toca para volver a ejecutar el reconocimiento';
 
   @override
   String get eventSubjectsAllTagged =>

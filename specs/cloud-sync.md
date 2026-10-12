@@ -166,6 +166,10 @@ an Athena table are in [Recording and data formats](data-formats.md).
     other version is **deleted** (`deletedAt`,
     [Device deletion](device-deletion.md)): a deletion wins, and is taken
     on instead.
+  - **Kept out of the cloud:** an event deleted from the cloud from its
+    cloud indicator (`offcloud:<eventId>` in the synced-keys store, see
+    [Event copies](event-copies.md#tapped)) isn't uploaded, nor its clip,
+    until it's put back there.
   - **Deleted stays deleted:** a changed copy that isn't deleted, of an
     event deleted here, has its tags taken on but the event stays deleted,
     and its synced fingerprint is forgotten so the next pass uploads it

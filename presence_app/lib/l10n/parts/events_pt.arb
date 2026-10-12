@@ -132,5 +132,20 @@
   "eventTagsNotSearched": "Etiquetas de objetos: não buscadas",
   "eventTagsNone": "Etiquetas de objetos: buscadas, nada visto",
   "eventTagsFound": "Etiquetas de objetos: {labels}",
-  "eventCloudArchived": "Arquivado na nuvem (não neste dispositivo)"
+  "eventCloudArchived": "Arquivado na nuvem (não neste dispositivo)",
+  "eventRecognitionTapToRerun": "Toque para executar o reconhecimento de novo",
+  "eventRecognitionRerunning": "Executando o reconhecimento de novo…",
+  "eventCloudTapToPut": "Toque para enviá-lo à nuvem",
+  "eventCloudTapToDelete": "Toque para excluí-lo da nuvem",
+  "eventCloudPutting": "Enviando-o à nuvem…",
+  "eventCloudPutFailed": "Não foi possível enviá-lo à nuvem: é preciso um perfil premium e uma cópia completa neste dispositivo.",
+  "eventCloudDeleteTitle": "Excluir da nuvem?",
+  "eventCloudDeleteBody": "A gravação, a miniatura e as marcações são excluídas da nuvem. Este dispositivo não vai enviá-lo de novo, a menos que você o envie.",
+  "eventCloudDeleteOnlyCopy": "Este dispositivo não tem uma cópia completa: a menos que outro tenha, ele se perde para sempre.",
+  "eventCloudDelete": "Excluir",
+  "eventCloudDeleted": "Excluído da nuvem",
+  "eventCloudDeleteFailed": "Não foi possível excluí-lo da nuvem",
+  "eventCopiesTapToShare": "Toque para sincronizar uma cópia em todos os dispositivos",
+  "eventCopiesSharing": "Os outros dispositivos foram chamados a pegar uma cópia",
+  "eventCopiesShareFailed": "Não foi possível alcançar os outros dispositivos: a sincronização ao vivo está desligada ou sem conexão"
 }

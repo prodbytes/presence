@@ -1570,17 +1570,77 @@ abstract class AppLocalizations {
   /// **'Archived in the cloud (not on this device)'**
   String get eventCloudArchived;
 
+  /// No description provided for @eventCloudDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get eventCloudDelete;
+
+  /// No description provided for @eventCloudDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Its recording, thumbnail and tags are deleted from the cloud. This device won\'t upload it again unless you put it back.'**
+  String get eventCloudDeleteBody;
+
+  /// No description provided for @eventCloudDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete it from the cloud'**
+  String get eventCloudDeleteFailed;
+
+  /// No description provided for @eventCloudDeleteOnlyCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t hold a full copy: unless another device does, it\'s gone for good.'**
+  String get eventCloudDeleteOnlyCopy;
+
+  /// No description provided for @eventCloudDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete from the cloud?'**
+  String get eventCloudDeleteTitle;
+
+  /// No description provided for @eventCloudDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted from the cloud'**
+  String get eventCloudDeleted;
+
   /// No description provided for @eventCloudNotSynced.
   ///
   /// In en, this message translates to:
   /// **'Not in the cloud'**
   String get eventCloudNotSynced;
 
+  /// No description provided for @eventCloudPutFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t put it in the cloud: that takes a premium profile and a full copy on this device.'**
+  String get eventCloudPutFailed;
+
+  /// No description provided for @eventCloudPutting.
+  ///
+  /// In en, this message translates to:
+  /// **'Putting it in the cloud…'**
+  String get eventCloudPutting;
+
   /// No description provided for @eventCloudSynced.
   ///
   /// In en, this message translates to:
   /// **'In the cloud'**
   String get eventCloudSynced;
+
+  /// No description provided for @eventCloudTapToDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to delete it from the cloud'**
+  String get eventCloudTapToDelete;
+
+  /// No description provided for @eventCloudTapToPut.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to put it in the cloud'**
+  String get eventCloudTapToPut;
 
   /// No description provided for @eventCopies.
   ///
@@ -1617,6 +1677,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =0{On no device} =1{On 1 device} other{On {count} devices}}'**
   String eventCopiesOnDevices(int count);
+
+  /// No description provided for @eventCopiesShareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reach the other devices: live sync is off or not connected'**
+  String get eventCopiesShareFailed;
+
+  /// No description provided for @eventCopiesSharing.
+  ///
+  /// In en, this message translates to:
+  /// **'Asked the other devices to take a copy'**
+  String get eventCopiesSharing;
+
+  /// No description provided for @eventCopiesTapToShare.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to sync a copy to every device'**
+  String get eventCopiesTapToShare;
 
   /// No description provided for @eventCopiesThisDevice.
   ///
@@ -1761,6 +1839,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Recognition ran in part'**
   String get eventRecognitionPartial;
+
+  /// No description provided for @eventRecognitionRerunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running recognition again…'**
+  String get eventRecognitionRerunning;
+
+  /// No description provided for @eventRecognitionTapToRerun.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to run recognition again'**
+  String get eventRecognitionTapToRerun;
 
   /// No description provided for @eventSubjectsAllTagged.
   ///
