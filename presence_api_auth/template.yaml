@@ -249,6 +249,10 @@ Resources:
         "POST /api/recognition/identify":
           ThrottlingBurstLimit: 20
           ThrottlingRateLimit: 5
+        # Breeds and coats: SigLIP2 on up to 8 crops (well under a second).
+        "POST /api/recognition/describe":
+          ThrottlingBurstLimit: 20
+          ThrottlingRateLimit: 5
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -531,6 +535,55 @@ Resources:
           Properties:
             ApiId: !Ref AuthHttpApi
             Path: /api/recognition/identify
+            Method: post
+
+  # Cloud recognition's breeds and coats (premium only): SigLIP2's image
+  # tower (int8, 95 MB, fetched as DINOv2 is) against the labels' text
+  # embeddings (pet-labels.bin). Its own function, so neither it nor
+  # identify waits for the other's model; it keeps nothing.
+  RecognitionDescribeFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: presence.auth.DescribeHandler::handleRequest
+      MemorySize: 2048
+      Timeout: 60
+      Environment:
+        Variables:
+          RBACR_URL: !Ref RbacrUrl
+          RBACR_TOKEN: !Ref RbacrToken
+          RBACR_SYSTEM: !Ref RbacrSystem
+          PROFILES_TABLE: !Ref ProfilesTable
+          PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
+          MODEL_BUCKET: !Ref UserDataBucket
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource: !GetAtt ProfileSubjectsTable.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt ProfilesTable.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+      Events:
+        Describe:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/recognition/describe
             Method: post
 
 Outputs:

@@ -36,6 +36,13 @@ abstract final class CloudCrop {
 
   /// "person", or "pet" for a cat or a dog.
   static String kindOf(SeenKind kind) => kind.isPet ? 'pet' : 'person';
+
+  /// "cat" or "dog" (breeds and coats); null for a person.
+  static String? speciesOf(SeenKind kind) => switch (kind) {
+    SeenKind.cat => 'cat',
+    SeenKind.dog => 'dog',
+    SeenKind.person => null,
+  };
 }
 
 /// A label someone placed, as the training API learns it.
@@ -95,6 +102,17 @@ class CloudMatch {
   final double confidence;
 }
 
+/// A cat's or dog's breed ("Persian") or coat ("black cat"), as cloud
+/// recognition named it, and how sure (0 to 1). [type]: `breed` or `coat`.
+@immutable
+class CloudPetLabel {
+  const CloudPetLabel(this.label, this.type, this.confidence);
+
+  final String label;
+  final String type;
+  final double confidence;
+}
+
 /// The recognition API (premium only; specs/cloud-recognition.md), next to
 /// the auth API. Failures throw [RolesException] with the HTTP status (403:
 /// not premium; 413: too many labels; 429: throttled; 503/504: a model
@@ -121,6 +139,14 @@ abstract class CloudRecognitionClient {
   Future<(int?, Map<String, List<CloudMatch>>)> identify(
     String idToken,
     Map<String, (String kind, Uint8List pixels)> crops,
+  );
+
+  /// Each cat's and dog's breed and coat, those the API is sure enough of,
+  /// by its crop's ID: [crops] are (`cat` or `dog`, its [CloudCrop]). Needs
+  /// no training; its own function, so it never waits for [identify].
+  Future<Map<String, List<CloudPetLabel>>> describe(
+    String idToken,
+    Map<String, (String species, Uint8List pixels)> crops,
   );
 
   /// The most crops or labels in one request.
@@ -226,6 +252,39 @@ class HttpCloudRecognitionClient implements CloudRecognitionClient {
       },
     );
   }
+
+  @override
+  Future<Map<String, List<CloudPetLabel>>> describe(
+    String idToken,
+    Map<String, (String species, Uint8List pixels)> crops,
+  ) async {
+    final body = await _send('POST', '/api/recognition/describe', idToken, {
+      'crops': [
+        for (final MapEntry(key: id, value: (species, pixels)) in crops.entries)
+          {'id': id, 'kind': species, 'pixels': base64Encode(pixels)},
+      ],
+    });
+    final results = body['results'];
+    return {
+      if (results is List)
+        for (final r in results)
+          if (r is Map && r['id'] is String)
+            r['id'] as String: [
+              if (r['labels'] case final List labels)
+                for (final l in labels)
+                  if (l is Map &&
+                      l['label'] is String &&
+                      (l['label'] as String).trim().isNotEmpty &&
+                      l['type'] is String &&
+                      l['confidence'] is num)
+                    CloudPetLabel(
+                      (l['label'] as String).trim(),
+                      l['type'] as String,
+                      (l['confidence'] as num).toDouble().clamp(0, 1),
+                    ),
+            ],
+    };
+  }
 }
 
 /// Asks the recognition API who the people and pets on a new clip are, for
@@ -261,6 +320,38 @@ class CloudIdentifier {
       return matches;
     } catch (e) {
       debugPrint('Presence: cloud recognition failed: $e');
+      return null;
+    }
+  }
+}
+
+/// Asks the recognition API for the breeds and coats of the cats and dogs
+/// on a new clip, for [SubjectRecognizer]: for a premium profile, trained
+/// or not. The answers become the clip's object tags.
+class CloudDescriber {
+  CloudDescriber({
+    required this.auth,
+    required this.roles,
+    required this.client,
+  });
+
+  final AuthService auth;
+  final RolesService roles;
+  final CloudRecognitionClient client;
+
+  /// Whether a clip's pets are worth sending.
+  bool get available => roles.isPremium && auth.idToken != null;
+
+  /// Each crop's labels, by its ID; null if it couldn't ask (logged).
+  Future<Map<String, List<CloudPetLabel>>?> describe(
+    Map<String, (String species, Uint8List pixels)> crops,
+  ) async {
+    final token = auth.idToken;
+    if (!available || token == null || crops.isEmpty) return null;
+    try {
+      return await client.describe(token, crops);
+    } catch (e) {
+      debugPrint('Presence: cloud breeds and coats failed: $e');
       return null;
     }
   }

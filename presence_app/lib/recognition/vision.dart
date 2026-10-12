@@ -72,14 +72,23 @@ class Seen {
 }
 
 /// What one frame shows: the people and pets on it, as [seen] by the
-/// subjects' segment (with embeddings), and the [objects] on it, by label,
-/// with their best score, for the object tags' segment.
+/// subjects' segment (with embeddings), the [objects] on it, by label,
+/// with their best score, for the object tags' segment, and the [pets] on
+/// it (boxes only, whether or not anyone was embedded), for cloud
+/// recognition's breeds and coats.
 @immutable
 class FrameAnalysis {
-  const FrameAnalysis({this.seen = const [], this.objects = const {}});
+  const FrameAnalysis({
+    this.seen = const [],
+    this.objects = const {},
+    this.pets = const [],
+  });
 
   final List<Seen> seen;
   final Map<String, double> objects;
+
+  /// The cats and dogs detected, surest first.
+  final List<Detection> pets;
 }
 
 /// What recognition needs from the models: everyone on a picture, with
@@ -436,7 +445,11 @@ class VisionModels extends Vision {
     int? maxSeen,
   }) async {
     final (detections, objects) = await detect(image);
-    if (!subjects) return FrameAnalysis(objects: objects);
+    final pets = keepDetections(
+      detections,
+      kinds: const {SeenKind.cat, SeenKind.dog},
+    );
+    if (!subjects) return FrameAnalysis(objects: objects, pets: pets);
     final seen = <Seen>[];
     for (final d in keepDetections(detections, kinds: kinds, max: maxSeen)) {
       final found = faces && d.kind == SeenKind.person
@@ -453,7 +466,7 @@ class VisionModels extends Vision {
         ),
       );
     }
-    return FrameAnalysis(seen: seen, objects: objects);
+    return FrameAnalysis(seen: seen, objects: objects, pets: pets);
   }
 
   /// How far apart [face]'s eyes are on [image], in pixels.

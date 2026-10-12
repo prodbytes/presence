@@ -55,6 +55,12 @@ class FakeCloudClient implements CloudRecognitionClient {
     String idToken,
     Map<String, (String, Uint8List)> crops,
   ) => throw UnimplementedError();
+
+  @override
+  Future<Map<String, List<CloudPetLabel>>> describe(
+    String idToken,
+    Map<String, (String, Uint8List)> crops,
+  ) => throw UnimplementedError();
 }
 
 VideoClip clip() => VideoClip.restored(
@@ -309,6 +315,30 @@ void main() {
     });
   });
 
+  test('cloud labels join the object tags: the surer kept', () {
+    final a = ClipAnnotations();
+    var heard = 0;
+    a.addListener(() => heard++);
+    a.addObjects(const [ObjectTag(label: 'black cat', ms: 0, score: 0.6)]);
+    expect(a.objects!.single.label, 'black cat', reason: 'none before');
+    a.setObjects(const [
+      ObjectTag(label: 'cat', ms: 0, score: 0.9),
+      ObjectTag(label: 'black cat', ms: 0, score: 0.6),
+    ]);
+    a.addObjects(const [
+      ObjectTag(label: 'black cat', ms: 2000, score: 0.9),
+      ObjectTag(label: 'Persian', ms: 1000, score: 0.8),
+    ]);
+    expect(a.objects!.map((o) => (o.label, o.ms, o.score)), [
+      ('cat', 0, 0.9),
+      ('black cat', 2000, 0.9),
+      ('Persian', 1000, 0.8),
+    ]);
+    heard = 0;
+    a.addObjects(const [ObjectTag(label: 'Persian', ms: 0, score: 0.7)]);
+    expect(heard, 0, reason: 'nothing surer: unchanged');
+  });
+
   group('HTTP client', () {
     test('status, labels, train and identify', () async {
       final requests = <http.Request>[];
@@ -368,6 +398,34 @@ void main() {
       expect(trainedAt, 43);
       expect(matches['0']!.single.name, 'Suerte');
       expect(matches['0']!.single.confidence, 0.93);
+    });
+
+    test('describe: breeds and coats', () async {
+      late http.Request request;
+      final client = HttpCloudRecognitionClient(
+        Uri.parse('https://presence.example/'),
+        client: MockClient((r) async {
+          request = r;
+          return http.Response(
+            '{"model":"siglip2-base-patch16-224","results":['
+            '{"id":"0","labels":[{"label":"Persian","type":"breed",'
+            '"confidence":0.81},{"label":"black cat","type":"coat",'
+            '"confidence":1.2},{"label":" ","type":"coat","confidence":0.9}]},'
+            '{"id":"1","labels":[]}]}',
+            200,
+          );
+        }),
+      );
+      final pixels = Uint8List(CloudCrop.side * CloudCrop.side * 3);
+      final labels = await client.describe('tok', {'0': ('cat', pixels)});
+      expect(request.url.path, '/api/recognition/describe');
+      final crop = ((jsonDecode(request.body) as Map)['crops'] as List).single;
+      expect((crop as Map)['kind'], 'cat');
+      expect(labels['0']!.map((l) => (l.label, l.type, l.confidence)), [
+        ('Persian', 'breed', 0.81),
+        ('black cat', 'coat', 1.0),
+      ]);
+      expect(labels['1'], isEmpty);
     });
 
     test('a refusal throws its status', () async {

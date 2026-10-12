@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Cloud recognition (TrainingHandler, InferenceHandler): DINOv2-L through ONNX
-  Runtime. Its own jar, so the auth functions don't carry ONNX Runtime; it
+  Runtime; and breeds and coats (DescribeHandler): SigLIP2. Its own jar, so the auth functions don't carry ONNX Runtime; it
   compiles the auth API's sources with its own (the same package), for the
   caller, profiles and roles. Built by ../Makefile (SAM's makefile build,
   CodeUri: the presence_api_auth folder).

@@ -17,4 +17,8 @@ build-RecognitionInferFunction: $(RECOGNITION_JAR)
 	mkdir -p "$(ARTIFACTS_DIR)/lib"
 	cp $(RECOGNITION_JAR) "$(ARTIFACTS_DIR)/lib/"
 
-.PHONY: build-RecognitionTrainFunction build-RecognitionInferFunction
+build-RecognitionDescribeFunction: $(RECOGNITION_JAR)
+	mkdir -p "$(ARTIFACTS_DIR)/lib"
+	cp $(RECOGNITION_JAR) "$(ARTIFACTS_DIR)/lib/"
+
+.PHONY: build-RecognitionTrainFunction build-RecognitionInferFunction build-RecognitionDescribeFunction

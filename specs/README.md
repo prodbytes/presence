@@ -108,7 +108,9 @@ their data.
   also recognized by DINOv2-L in two Lambda APIs (training and
   inference): labels timed (`labeledAt`), a training check at start and
   every 24 h (5 new labels, or 7 days), and each subject's confidence the
-  higher of the device's and the cloud's.
+  higher of the device's and the cloud's; and their cats' and dogs'
+  breeds and coats ("Persian", "black cat") named by SigLIP2 in a third,
+  beside the subjects' request, added to the clip's object tags.
 - [Device location and battery](device-location.md): the Settings location map, the battery over the camera, setting
   the location by moving it, pinning it, and the location on every event.
 - [Languages](i18n.md): English, Spanish and Portuguese, picked in

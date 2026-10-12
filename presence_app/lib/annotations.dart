@@ -310,6 +310,26 @@ class ClipAnnotations extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds [objects] to what recognition saw (cloud recognition's breeds and
+  /// coats, which come later): a label already there keeps the surer
+  /// sighting.
+  void addObjects(Iterable<ObjectTag> objects) {
+    final list = _objects ??= [];
+    var changed = false;
+    for (final o in objects) {
+      final at = list.indexWhere((x) => x.label == o.label);
+      if (at < 0) {
+        list.add(o);
+      } else if (o.score > list[at].score) {
+        list[at] = o;
+      } else {
+        continue;
+      }
+      changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
   SubjectSearch? _subjectSearch;
 
   /// How the clip's search for subjects ended, once it ran to the end; null

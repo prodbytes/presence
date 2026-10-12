@@ -1,0 +1,132 @@
+cat	breed	Abyssinian	a photo of a Abyssinian, a type of cat.
+cat	breed	Balinese	a photo of a Balinese, a type of cat.
+cat	breed	Bengal	a photo of a Bengal, a type of cat.
+cat	breed	Birman	a photo of a Birman, a type of cat.
+cat	breed	British Shorthair	a photo of a British Shorthair, a type of cat.
+cat	breed	Burmese	a photo of a Burmese, a type of cat.
+cat	breed	Cornish Rex	a photo of a Cornish Rex, a type of cat.
+cat	breed	Devon Rex	a photo of a Devon Rex, a type of cat.
+cat	breed	Egyptian Mau	a photo of a Egyptian Mau, a type of cat.
+cat	breed	Exotic Shorthair	a photo of a Exotic Shorthair, a type of cat.
+cat	breed	Himalayan	a photo of a Himalayan, a type of cat.
+cat	breed	Maine Coon	a photo of a Maine Coon, a type of cat.
+cat	breed	Norwegian Forest Cat	a photo of a Norwegian Forest Cat, a type of cat.
+cat	breed	Ocicat	a photo of a Ocicat, a type of cat.
+cat	breed	Oriental Shorthair	a photo of a Oriental Shorthair, a type of cat.
+cat	breed	Persian	a photo of a Persian, a type of cat.
+cat	breed	Ragdoll	a photo of a Ragdoll, a type of cat.
+cat	breed	Savannah	a photo of a Savannah, a type of cat.
+cat	breed	Scottish Fold	a photo of a Scottish Fold, a type of cat.
+cat	breed	Selkirk Rex	a photo of a Selkirk Rex, a type of cat.
+cat	breed	Siamese	a photo of a Siamese, a type of cat.
+cat	breed	Siberian	a photo of a Siberian, a type of cat.
+cat	breed	Sphynx	a photo of a Sphynx, a type of cat.
+cat	breed	Tonkinese	a photo of a Tonkinese, a type of cat.
+cat	breed	Turkish Angora	a photo of a Turkish Angora, a type of cat.
+cat	breed	Turkish Van	a photo of a Turkish Van, a type of cat.
+cat	none	Domestic Shorthair	a photo of a Domestic Shorthair, a type of cat.
+cat	none	Domestic Longhair	a photo of a Domestic Longhair, a type of cat.
+cat	none	Bombay	a photo of a Bombay, a type of cat.
+cat	none	Russian Blue	a photo of a Russian Blue, a type of cat.
+cat	none	Chartreux	a photo of a Chartreux, a type of cat.
+cat	none	Korat	a photo of a Korat, a type of cat.
+cat	none	Manx	a photo of a Manx, a type of cat.
+cat	coat	black cat	a photo of a black cat.
+cat	coat	white cat	a photo of a white cat.
+cat	coat	gray cat	a photo of a gray cat.
+cat	coat	orange cat	a photo of a orange (ginger) cat.
+cat	coat	cream cat	a photo of a cream cat.
+cat	coat	tabby cat	a photo of a tabby cat.
+cat	coat	black and white cat	a photo of a black and white (tuxedo) cat.
+cat	coat	calico cat	a photo of a calico cat.
+cat	coat	tortoiseshell cat	a photo of a tortoiseshell cat.
+cat	coat	colorpoint cat	a photo of a colorpoint (pale body, dark face and paws) cat.
+dog	breed	Afghan Hound	a photo of a Afghan Hound, a type of dog.
+dog	breed	Airedale Terrier	a photo of a Airedale Terrier, a type of dog.
+dog	breed	Akita	a photo of a Akita, a type of dog.
+dog	breed	Alaskan Malamute	a photo of a Alaskan Malamute, a type of dog.
+dog	breed	American Bulldog	a photo of a American Bulldog, a type of dog.
+dog	breed	American Pit Bull Terrier	a photo of a American Pit Bull Terrier, a type of dog.
+dog	breed	Australian Cattle Dog	a photo of a Australian Cattle Dog, a type of dog.
+dog	breed	Australian Shepherd	a photo of a Australian Shepherd, a type of dog.
+dog	breed	Basenji	a photo of a Basenji, a type of dog.
+dog	breed	Basset Hound	a photo of a Basset Hound, a type of dog.
+dog	breed	Beagle	a photo of a Beagle, a type of dog.
+dog	breed	Belgian Malinois	a photo of a Belgian Malinois, a type of dog.
+dog	breed	Bernese Mountain Dog	a photo of a Bernese Mountain Dog, a type of dog.
+dog	breed	Bichon Frise	a photo of a Bichon Frise, a type of dog.
+dog	breed	Bloodhound	a photo of a Bloodhound, a type of dog.
+dog	breed	Border Collie	a photo of a Border Collie, a type of dog.
+dog	breed	Border Terrier	a photo of a Border Terrier, a type of dog.
+dog	breed	Boston Terrier	a photo of a Boston Terrier, a type of dog.
+dog	breed	Boxer	a photo of a Boxer, a type of dog.
+dog	breed	Brittany	a photo of a Brittany, a type of dog.
+dog	breed	Bull Terrier	a photo of a Bull Terrier, a type of dog.
+dog	breed	Bulldog	a photo of a Bulldog, a type of dog.
+dog	breed	Cairn Terrier	a photo of a Cairn Terrier, a type of dog.
+dog	breed	Cane Corso	a photo of a Cane Corso, a type of dog.
+dog	breed	Cavalier King Charles Spaniel	a photo of a Cavalier King Charles Spaniel, a type of dog.
+dog	breed	Chihuahua	a photo of a Chihuahua, a type of dog.
+dog	breed	Chow Chow	a photo of a Chow Chow, a type of dog.
+dog	breed	Cocker Spaniel	a photo of a Cocker Spaniel, a type of dog.
+dog	breed	Collie	a photo of a Collie, a type of dog.
+dog	breed	Dachshund	a photo of a Dachshund, a type of dog.
+dog	breed	Dalmatian	a photo of a Dalmatian, a type of dog.
+dog	breed	Dobermann	a photo of a Dobermann, a type of dog.
+dog	breed	English Setter	a photo of a English Setter, a type of dog.
+dog	breed	French Bulldog	a photo of a French Bulldog, a type of dog.
+dog	breed	German Shepherd	a photo of a German Shepherd, a type of dog.
+dog	breed	German Shorthaired Pointer	a photo of a German Shorthaired Pointer, a type of dog.
+dog	breed	Golden Retriever	a photo of a Golden Retriever, a type of dog.
+dog	breed	Great Dane	a photo of a Great Dane, a type of dog.
+dog	breed	Great Pyrenees	a photo of a Great Pyrenees, a type of dog.
+dog	breed	Greyhound	a photo of a Greyhound, a type of dog.
+dog	breed	Havanese	a photo of a Havanese, a type of dog.
+dog	breed	Irish Setter	a photo of a Irish Setter, a type of dog.
+dog	breed	Italian Greyhound	a photo of a Italian Greyhound, a type of dog.
+dog	breed	Jack Russell Terrier	a photo of a Jack Russell Terrier, a type of dog.
+dog	breed	Japanese Chin	a photo of a Japanese Chin, a type of dog.
+dog	breed	Keeshond	a photo of a Keeshond, a type of dog.
+dog	breed	Labrador Retriever	a photo of a Labrador Retriever, a type of dog.
+dog	breed	Leonberger	a photo of a Leonberger, a type of dog.
+dog	breed	Lhasa Apso	a photo of a Lhasa Apso, a type of dog.
+dog	breed	Maltese	a photo of a Maltese, a type of dog.
+dog	breed	Miniature Pinscher	a photo of a Miniature Pinscher, a type of dog.
+dog	breed	Miniature Schnauzer	a photo of a Miniature Schnauzer, a type of dog.
+dog	breed	Newfoundland	a photo of a Newfoundland, a type of dog.
+dog	breed	Papillon	a photo of a Papillon, a type of dog.
+dog	breed	Pekingese	a photo of a Pekingese, a type of dog.
+dog	breed	Pembroke Welsh Corgi	a photo of a Pembroke Welsh Corgi, a type of dog.
+dog	breed	Pomeranian	a photo of a Pomeranian, a type of dog.
+dog	breed	Poodle	a photo of a Poodle, a type of dog.
+dog	breed	Pug	a photo of a Pug, a type of dog.
+dog	breed	Rhodesian Ridgeback	a photo of a Rhodesian Ridgeback, a type of dog.
+dog	breed	Rottweiler	a photo of a Rottweiler, a type of dog.
+dog	breed	Saint Bernard	a photo of a Saint Bernard, a type of dog.
+dog	breed	Samoyed	a photo of a Samoyed, a type of dog.
+dog	breed	Schnauzer	a photo of a Schnauzer, a type of dog.
+dog	breed	Scottish Terrier	a photo of a Scottish Terrier, a type of dog.
+dog	breed	Shar Pei	a photo of a Shar Pei, a type of dog.
+dog	breed	Shetland Sheepdog	a photo of a Shetland Sheepdog, a type of dog.
+dog	breed	Shiba Inu	a photo of a Shiba Inu, a type of dog.
+dog	breed	Shih Tzu	a photo of a Shih Tzu, a type of dog.
+dog	breed	Siberian Husky	a photo of a Siberian Husky, a type of dog.
+dog	breed	Staffordshire Bull Terrier	a photo of a Staffordshire Bull Terrier, a type of dog.
+dog	breed	Vizsla	a photo of a Vizsla, a type of dog.
+dog	breed	Weimaraner	a photo of a Weimaraner, a type of dog.
+dog	breed	West Highland White Terrier	a photo of a West Highland White Terrier, a type of dog.
+dog	breed	Wheaten Terrier	a photo of a Wheaten Terrier, a type of dog.
+dog	breed	Whippet	a photo of a Whippet, a type of dog.
+dog	breed	Yorkshire Terrier	a photo of a Yorkshire Terrier, a type of dog.
+dog	none	Mixed-breed	a photo of a Mixed-breed, a type of dog.
+dog	coat	black dog	a photo of a black dog.
+dog	coat	white dog	a photo of a white dog.
+dog	coat	brown dog	a photo of a brown dog.
+dog	coat	golden dog	a photo of a golden dog.
+dog	coat	cream dog	a photo of a cream dog.
+dog	coat	gray dog	a photo of a gray dog.
+dog	coat	black and tan dog	a photo of a black and tan dog.
+dog	coat	black and white dog	a photo of a black and white dog.
+dog	coat	brindle dog	a photo of a brindle dog.
+dog	coat	spotted dog	a photo of a spotted dog.
+dog	coat	merle dog	a photo of a merle dog.
