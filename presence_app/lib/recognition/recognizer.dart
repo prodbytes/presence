@@ -381,6 +381,8 @@ class SubjectRecognizer {
     }
     final references = subjectsOn && _hasReferences(event);
     if (!references && !objectsOn) {
+      // Searched for subjects, as far as there's anyone to look for.
+      _noteSubjects(event, RecognitionOutcome.noReferences);
       return const RecognitionResult(RecognitionOutcome.noReferences);
     }
     final media = await _full(event.clip);
@@ -426,7 +428,10 @@ class SubjectRecognizer {
         : RecognitionOutcome.searched;
     if (outcome == RecognitionOutcome.allTagged) _searched.add(event.id);
     var lookForSubjects = outcome == RecognitionOutcome.searched;
-    if (!lookForSubjects && !objectsOn) return RecognitionResult(outcome);
+    if (!lookForSubjects && !objectsOn) {
+      _noteSubjects(event, outcome);
+      return RecognitionResult(outcome);
+    }
 
     final tagged = <String>[];
     // Each subject's per-frame confidences, and their best frame so far.
@@ -588,6 +593,8 @@ class SubjectRecognizer {
         ),
       );
     }
+    // The frames all searched: the subjects' search ran to the end.
+    if (subjectsOn) _noteSubjects(event, outcome);
     debugPrint(
       'Presence: recognized ${tagged.length} subject(s), asked about '
       '${asks.length}, saw ${kept.length} kind(s) of object, on $frames '
@@ -633,6 +640,23 @@ class SubjectRecognizer {
     debugPrint(
       'Presence: cloud recognition saw ${best.keys.join(', ')} on '
       '${crops.length} pet(s) of ${event.id}',
+    );
+  }
+
+  /// Notes on [event] that its search for subjects ran to the end, as
+  /// [outcome] (`subjectSearch` in its record): a clip searched with no one
+  /// found then tells from one never searched. Other outcomes (off,
+  /// deferred, unsupported) note nothing.
+  void _noteSubjects(ClipRequested event, RecognitionOutcome outcome) {
+    final ended = switch (outcome) {
+      RecognitionOutcome.searched => SubjectSearchOutcome.searched,
+      RecognitionOutcome.allTagged => SubjectSearchOutcome.allTagged,
+      RecognitionOutcome.noReferences => SubjectSearchOutcome.noReferences,
+      _ => null,
+    };
+    if (ended == null) return;
+    event.annotations.setSubjectSearch(
+      SubjectSearch(ended, DateTime.now().millisecondsSinceEpoch),
     );
   }
 

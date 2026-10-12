@@ -188,6 +188,46 @@ How each choice was measured (datasets, numbers) is in the models'
 - They're labels, not subjects: no names, colors, maps, references or
   questions, and they never make anyone a subject.
 
+## What a clip records of it
+
+So a clip **searched where nothing was found** reads differently from one
+**never searched**, each part of a run that went to its end is kept in the
+event record and synced like its tags:
+
+- **Object tags:** `objectTags` is absent until the clip is searched for
+  objects, and an **empty list** when it was searched and nothing was seen.
+- **People and pets:** `subjectSearch`, `{outcome, at}`
+  (`SubjectSearch`, [lib/annotations.dart](../presence_app/lib/annotations.dart)),
+  noted when the search for subjects ends. The outcome is `searched` (every
+  frame looked at for the subjects named before), `allTagged` (everyone
+  recognition knows was already on the clip) or `noReferences` (nobody had
+  been named yet, so nobody to look for). It's absent until then: off in
+  Settings, deferred (memory, newer clips), stopped part-way, or a platform
+  without recognition note nothing. Who was found are the clip's tags.
+- A copy of the event from another device keeps a search either copy
+  noted (`ClipAnnotations.replaceWith`).
+
+## On the event card
+
+The **recognition indicator** (`EventRecognitionBadge`), first of the
+card's indicators (see [Event copies](event-copies.md#on-screen)) and in
+the event's details, shows how far recognition ran on a clip:
+
+| State | Icon | When |
+|---|---|---|
+| **Ran in full** | a magnifier, the theme's primary color | both people and pets (`subjectSearch`) and object tags (`objectTags`) searched, even with nothing found |
+| **Ran in part** | the magnifier, plain | one of them only, e.g. object tags from the [streamer's cloud detector](streamer.md#cloud-detection), which doesn't look for subjects |
+| **Hasn't run** | a crossed-out magnifier, disabled | neither |
+
+Its tooltip (and screen-reader label) says the state, then each part:
+
+- **People and pets:** "not searched"; "searched, no one recognized";
+  the names found (made or confirmed tags, and recognition's, not
+  suggestions); "no one named yet to look for"; or "everyone known is
+  already named".
+- **Object tags:** "not searched"; "searched, nothing seen"; or the
+  labels found.
+
 ## Auto, in the player
 
 - **Auto** (✨) sits beside **Name subject** under the player's
@@ -277,6 +317,16 @@ How each choice was measured (datasets, numbers) is in the models'
   for sources, checksums and licenses.
 
 ## Verified
+
+- The record and the indicator (`recognition_test.dart`,
+  `event_indicators_test.dart`): a finished search notes `searched`,
+  `allTagged` or `noReferences` on the clip (a search with no one found
+  included); off and deferred runs note nothing. The note round-trips
+  through the record (missing or damaged: not searched) and survives a copy
+  from another device. The indicator shows not run (disabled, "not
+  searched" twice), in part (plain, which part), and in full (primary,
+  "searched, no one recognized" and "searched, nothing seen" when nothing
+  was found; names, not suggestions, and labels when something was).
 
 - `recognition_test.dart`: EfficientDet and BlazeFace decoding (with the
   nose and mouth); EfficientDet's anchors equal to those its model file

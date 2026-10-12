@@ -791,7 +791,8 @@ class _EventTimelineState extends State<EventTimeline> {
             key: _cards.putIfAbsent(event.id, GlobalKey.new),
             // One card per event, as in a feed: a header with the device
             // it was taken on (tapping it searches for it: only that
-            // device's events show) and how many copies of it there are,
+            // device's events show) and its indicators (recognition, the
+            // cloud, the devices holding a copy),
             // then the event's own card, square, so its thumbnail runs
             // edge to edge under the header.
             child: FeedCard(
@@ -809,12 +810,7 @@ class _EventTimelineState extends State<EventTimeline> {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Flexible(
-                    child: EventCopiesBadge(
-                      key: Key('event-copies-${event.id}'),
-                      event: event,
-                    ),
-                  ),
+                  Flexible(child: EventIndicators(event: event)),
                 ],
               ),
               child: event.buildCard(context),

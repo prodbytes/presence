@@ -241,6 +241,9 @@ class ClipRequested extends AppEvent {
     // What recognition saw (for search); absent until the clip is searched.
     if (annotations.objects case final objects?)
       'objectTags': [for (final o in objects) o.toJson()],
+    // How the search for subjects ended; absent until it ran to the end.
+    if (annotations.subjectSearch case final search?)
+      'subjectSearch': search.toJson(),
   };
 
   @override

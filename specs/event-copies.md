@@ -120,29 +120,32 @@ the cloud and the recording device.
 
 ## On screen
 
-- **The label** says just how many copies there are, or that there are
-  none beyond this device (`CopiesSummary.label`):
-  - **"Not synced"** (with a cloud-off icon) when no copy is held anywhere
-    but this device: not in the cloud, and no other device (neither the
-    recording device nor an acked one) holds it. Also when nothing is
-    known of it.
-  - Otherwise **"N copies"**, counting every holder, this device
-    included: "3 copies" (this device, the cloud, another device), "2
-    copies", or **"1 copy"** (held only in the cloud, or only on another
-    device).
-- **The holders** are in the tooltip and the screen-reader label, this
-  device first, then the cloud, then devices: "This device, Cloud,
-  loud_shy_kettle" ("This device" for one not synced).
-- **Event cards** (the Monitoring timeline): in each card's header row,
-  at the right of the device tag, a small icon and the label. It fits a
-  320 dp phone (the device tag and the label share the row, each cut short
-  with an ellipsis if needed).
-- **Event details** (the clip player): under the title, the same label,
-  with the holders in its tooltip.
+Each event has **indicators**, small icons with a tooltip each
+(`EventIndicators`), in this order:
+
+- **Recognition** (clips only): how far recognition ran. See [Subject
+  recognition](recognition.md#on-the-event-card).
+- **The cloud:** a cloud in the theme's **primary** color when the cloud
+  holds a copy ("In the cloud"); a crossed-out cloud, **disabled** (the
+  surface's color at 38 %), when it doesn't ("Not in the cloud")
+  (`EventCloudBadge`).
+- **Copies:** an icon and **just the number of devices** holding a copy,
+  this device and others; the cloud isn't counted, since it has its own
+  indicator (`EventCopiesBadge`, `CopiesSummary.devices`). The tooltip and
+  the screen-reader label say it ("On 2 devices") and list every holder,
+  this device first, then the cloud, then devices ("This device, Cloud,
+  loud_shy_kettle"). One icon for one device, another for more.
+
+They show:
+
+- **On event cards** (the Monitoring timeline): in each card's header row,
+  at the right of the device tag. They fit a 320 dp phone.
+- **In the event's details** (the clip player): under the title.
 - **With live sync off** (no endpoint, Never, signed out): the count is
   what's known (this device, the cloud, the recording device, and acks
   heard before), and the tooltip adds "Live sync is off: other devices'
   copies are unknown".
+- Not on a deleted event (but recognition, for a clip).
 
 ## Code
 
@@ -150,7 +153,8 @@ the cloud and the recording device.
   `EventCopies`, `EventHolders`, `CopiesSummary` (count, synced, label,
   tooltip).
 - [lib/copies_badge.dart](../presence_app/lib/copies_badge.dart):
-  `EventCopiesScope`, `EventCopiesBadge`.
+  `EventCopiesScope`, `EventIndicators`, `EventCopiesBadge`,
+  `EventCloudBadge`, `EventRecognitionBadge`.
 - [lib/cloud/live_sync.dart](../presence_app/lib/cloud/live_sync.dart):
   `ackCopied`, `parseCopied`, `CopiedMessage`, `LiveLink.onCopied`.
 - [lib/cloud/cloud_sync.dart](../presence_app/lib/cloud/cloud_sync.dart):
@@ -186,8 +190,10 @@ the cloud and the recording device.
   other devices' copies are unknown;
 - deleted events are forgotten and never acked, and a deleted device no
   longer counts as a holder;
-- the badge on every card at 320 dp, with its tooltip, updating when an
-  ack comes in; none on a deleted event; the details list the holders.
+- the indicators on every card at 320 dp: the number of devices (the
+  cloud not counted) with the holders in its tooltip, and the cloud in the
+  primary color or disabled, both updating when an ack comes in and the
+  cloud takes it; none on a deleted event; the details list the holders.
 
 ## Known limitations
 

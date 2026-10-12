@@ -85,6 +85,13 @@ class CopiesSummary {
 
   int get count => holders.length;
 
+  /// The devices holding a copy (this one, other devices): the holders but
+  /// the cloud, which has its own indicator.
+  List<String> get devices => [
+    for (final h in holders)
+      if (h != EventCopies.cloudHolder) h,
+  ];
+
   /// Whether a copy is held anywhere but this device: in the cloud, or on
   /// another device.
   bool get synced => holders.any((h) => h != EventCopies.thisDevice);

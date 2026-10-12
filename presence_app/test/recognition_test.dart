@@ -1049,6 +1049,7 @@ void main() {
       await recognizer(vision, FakeSampler(1)).recognize(event);
       expect(vision.calls + vision.frameCalls, 0);
       expect(event.annotations.objects, isNull);
+      expect(event.annotations.subjectSearch, isNull);
     });
 
     test('object tags: each label once, from its first frame', () async {
@@ -1248,6 +1249,10 @@ void main() {
       final event = ClipRequested(clip(), id: 'new');
       final result = await r.recognizeNow(event);
       expect(result.outcome, RecognitionOutcome.searched);
+      expect(
+        event.annotations.subjectSearch?.outcome,
+        SubjectSearchOutcome.searched,
+      );
       expect(result.tagged, ['Rex']);
       expect(result.asked, ['Ana']);
       expect(event.annotations.tags.single.source, TagSource.detected);
@@ -1257,14 +1262,25 @@ void main() {
       // Again: everyone known is on the clip now (Ana as a suggestion).
       final again = await r.recognizeNow(event);
       expect(again.outcome, RecognitionOutcome.allTagged);
+      expect(
+        event.annotations.subjectSearch?.outcome,
+        SubjectSearchOutcome.allTagged,
+      );
       expect(event.annotations.items, hasLength(2));
     });
 
     test('on request: nobody to look for, or nobody found', () async {
       final vision = FakeVision({}, {});
       final r = recognizer(vision, FakeSampler(2));
-      final noOne = await r.recognizeNow(ClipRequested(clip(), id: 'a'));
+      final a = ClipRequested(clip(), id: 'a');
+      final noOne = await r.recognizeNow(a);
       expect(noOne.outcome, RecognitionOutcome.noReferences);
+      // Searched, as far as there's anyone to look for: noted, so it reads
+      // as searched, not as never searched.
+      expect(
+        a.annotations.subjectSearch?.outcome,
+        SubjectSearchOutcome.noReferences,
+      );
       expect(autoTagMessage(noOne), contains('name someone'));
 
       log.addHistory([
@@ -1280,8 +1296,15 @@ void main() {
       log.addHistory([
         tagged(2, ['Rex']),
       ]);
-      final none = await r.recognizeNow(ClipRequested(clip(), id: 'c'));
+      final c = ClipRequested(clip(), id: 'c');
+      final none = await r.recognizeNow(c);
       expect(none.outcome, RecognitionOutcome.searched);
+      // Searched, no one found: noted, and no tags.
+      expect(
+        c.annotations.subjectSearch?.outcome,
+        SubjectSearchOutcome.searched,
+      );
+      expect(c.annotations.tags, isEmpty);
       expect(autoTagMessage(none), 'No subjects recognized.');
     });
 
@@ -1421,8 +1444,11 @@ void main() {
       expect(vision.releases, 0);
 
       memory.tight = 1 << 30;
-      final put = await r.recognizeNow(ClipRequested(clip(), id: 'b'));
+      final b = ClipRequested(clip(), id: 'b');
+      final put = await r.recognizeNow(b);
       expect(put.outcome, RecognitionOutcome.deferred);
+      // Not run: nothing noted.
+      expect(b.annotations.subjectSearch, isNull);
       expect(autoTagMessage(put), contains('low on memory'));
       await pumpEventQueue();
       expect(vision.releases, greaterThan(0));

@@ -649,6 +649,7 @@ class Persistence implements DeviceSettings {
         record['annotations'],
         frames,
         record['objectTags'],
+        record['subjectSearch'],
       );
       if (byId[record['id']] case final ClipRequested event) {
         // Not saved again by its listener: it's saved here, as it is now.
@@ -662,12 +663,20 @@ class Persistence implements DeviceSettings {
       } else {
         await store.putEvent({
           for (final MapEntry(:key, :value) in local.entries)
-            if (!const {'annotations', 'frames', 'objectTags'}.contains(key))
+            if (!const {
+              'annotations',
+              'frames',
+              'objectTags',
+              'subjectSearch',
+            }.contains(key))
               key: value,
           if (!remote.isEmpty) 'annotations': remote.toJson(),
           if (!remote.isEmpty) 'frames': remote.framesToRecord(),
           if (remote.objects case final objects?)
             'objectTags': [for (final o in objects) o.toJson()],
+          // A search noted on either copy stays noted (as replaceWith).
+          'subjectSearch':
+              ?(remote.subjectSearch?.toJson() ?? local['subjectSearch']),
           AppEvent.deletedAtField: ?deletedAt?.millisecondsSinceEpoch,
         });
       }
@@ -1105,6 +1114,7 @@ class Persistence implements DeviceSettings {
               record['annotations'],
               record['frames'],
               record['objectTags'],
+              record['subjectSearch'],
             ),
             id: record['id']! as String,
             time: DateTime.fromMillisecondsSinceEpoch(record['time']! as int),

@@ -936,6 +936,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get eventCancel => 'Cancelar';
 
   @override
+  String get eventCloudNotSynced => 'No está en la nube';
+
+  @override
+  String get eventCloudSynced => 'En la nube';
+
+  @override
   String eventCopies(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -958,6 +964,18 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get eventCopiesNotSynced => 'Sin sincronizar';
+
+  @override
+  String eventCopiesOnDevices(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'En $count dispositivos',
+      one: 'En 1 dispositivo',
+      zero: 'En ningún dispositivo',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get eventCopiesThisDevice => 'Este dispositivo';
@@ -1031,6 +1049,35 @@ class AppLocalizationsEs extends AppLocalizations {
   String get eventOsUnknown => 'Sistema operativo desconocido';
 
   @override
+  String get eventRecognitionComplete => 'El reconocimiento se completó';
+
+  @override
+  String get eventRecognitionNotRun => 'El reconocimiento no se ha hecho';
+
+  @override
+  String get eventRecognitionPartial => 'El reconocimiento se hizo en parte';
+
+  @override
+  String get eventSubjectsAllTagged =>
+      'Personas y mascotas: todos los conocidos ya están nombrados';
+
+  @override
+  String eventSubjectsFound(String names) {
+    return 'Personas y mascotas: $names';
+  }
+
+  @override
+  String get eventSubjectsNoReferences =>
+      'Personas y mascotas: aún no hay nadie nombrado que buscar';
+
+  @override
+  String get eventSubjectsNone =>
+      'Personas y mascotas: buscadas, nadie reconocido';
+
+  @override
+  String get eventSubjectsNotSearched => 'Personas y mascotas: sin buscar';
+
+  @override
   String get eventSuggestionClipMissing => 'Falta el clip';
 
   @override
@@ -1050,6 +1097,17 @@ class AppLocalizationsEs extends AppLocalizations {
   String eventSuggestionYes(String name) {
     return 'Sí, es $name';
   }
+
+  @override
+  String eventTagsFound(String labels) {
+    return 'Etiquetas de objetos: $labels';
+  }
+
+  @override
+  String get eventTagsNone => 'Etiquetas de objetos: buscadas, no se vio nada';
+
+  @override
+  String get eventTagsNotSearched => 'Etiquetas de objetos: sin buscar';
 
   @override
   String get eventThisDevice => 'este dispositivo';

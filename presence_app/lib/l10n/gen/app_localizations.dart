@@ -1546,6 +1546,18 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get eventCancel;
 
+  /// No description provided for @eventCloudNotSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'Not in the cloud'**
+  String get eventCloudNotSynced;
+
+  /// No description provided for @eventCloudSynced.
+  ///
+  /// In en, this message translates to:
+  /// **'In the cloud'**
+  String get eventCloudSynced;
+
   /// No description provided for @eventCopies.
   ///
   /// In en, this message translates to:
@@ -1575,6 +1587,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Not synced'**
   String get eventCopiesNotSynced;
+
+  /// No description provided for @eventCopiesOnDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{On no device} =1{On 1 device} other{On {count} devices}}'**
+  String eventCopiesOnDevices(int count);
 
   /// No description provided for @eventCopiesThisDevice.
   ///
@@ -1702,6 +1720,54 @@ abstract class AppLocalizations {
   /// **'Operating system unknown'**
   String get eventOsUnknown;
 
+  /// No description provided for @eventRecognitionComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognition ran in full'**
+  String get eventRecognitionComplete;
+
+  /// No description provided for @eventRecognitionNotRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognition hasn\'t run'**
+  String get eventRecognitionNotRun;
+
+  /// No description provided for @eventRecognitionPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognition ran in part'**
+  String get eventRecognitionPartial;
+
+  /// No description provided for @eventSubjectsAllTagged.
+  ///
+  /// In en, this message translates to:
+  /// **'People and pets: everyone known is already named'**
+  String get eventSubjectsAllTagged;
+
+  /// No description provided for @eventSubjectsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'People and pets: {names}'**
+  String eventSubjectsFound(String names);
+
+  /// No description provided for @eventSubjectsNoReferences.
+  ///
+  /// In en, this message translates to:
+  /// **'People and pets: no one named yet to look for'**
+  String get eventSubjectsNoReferences;
+
+  /// No description provided for @eventSubjectsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'People and pets: searched, no one recognized'**
+  String get eventSubjectsNone;
+
+  /// No description provided for @eventSubjectsNotSearched.
+  ///
+  /// In en, this message translates to:
+  /// **'People and pets: not searched'**
+  String get eventSubjectsNotSearched;
+
   /// No description provided for @eventSuggestionClipMissing.
   ///
   /// In en, this message translates to:
@@ -1731,6 +1797,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Yes, it\'s {name}'**
   String eventSuggestionYes(String name);
+
+  /// No description provided for @eventTagsFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Object tags: {labels}'**
+  String eventTagsFound(String labels);
+
+  /// No description provided for @eventTagsNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Object tags: searched, nothing seen'**
+  String get eventTagsNone;
+
+  /// No description provided for @eventTagsNotSearched.
+  ///
+  /// In en, this message translates to:
+  /// **'Object tags: not searched'**
+  String get eventTagsNotSearched;
 
   /// No description provided for @eventThisDevice.
   ///
