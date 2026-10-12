@@ -9,6 +9,16 @@
   square inside it (the theme's card shape, overridden) so the two read
   as one and a clip's thumbnail runs edge to edge under the header. Cards
   are 12 dp apart. Test: `widget_test.dart`.
+- **A spinner shows while more events load** (`EventLog.loading`): below
+  the last card (key `events-loading-more`, 24 dp), or, with no events to
+  show yet, centered in place of the "no events" message (key
+  `events-loading`). Events load while the history restores from storage
+  at launch, and while a cloud sync pass fetches the history
+  (`CloudSync.fetchingHistory`: the first pass, then the hourly full
+  fetch, see [Cloud sync](cloud-sync.md)); the quick passes every 15 s
+  don't show it. Loads may overlap (`EventLog.startLoading`,
+  `loadingWhile`): the spinner shows until the last ends. Test:
+  `widget_test.dart`.
 - **Only the signed-in profile's events show** (`EventTimeline.ofProfile`):
   its own and those without a profile (recorded signed out, or not saved
   yet). Another profile's events left on the device don't show in the

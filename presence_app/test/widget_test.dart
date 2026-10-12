@@ -234,6 +234,8 @@ void main() {
           // A new key is a fresh app, like a reload.
           key: UniqueKey(),
           consentGiven: true,
+          // Restores at once: the events aren't left loading.
+          storage: newIdbFactoryMemory(),
           cameras: noCameras,
           auth: auth ?? FakeAuthService.signedIn(),
           rolesClient: roles ?? FakeRolesClient(),
@@ -681,6 +683,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(list.position.pixels, 0);
     expect(find.text('Newest'), findsOneWidget);
+  });
+
+  testWidgets('a spinner shows below the events while more load', (
+    tester,
+  ) async {
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    addTearDown(() {
+      log.dispose();
+      bus.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: EventTimeline(log: log)),
+      ),
+    );
+    final more = find.byKey(const Key('events-loading-more'));
+    final empty = find.byKey(const Key('events-loading'));
+    expect(more, findsNothing);
+    expect(empty, findsNothing);
+
+    // No events yet: a spinner in place of "no events".
+    final restore = Completer<void>();
+    log.loadingWhile(restore.future).ignore();
+    await tester.pump();
+    expect(empty, findsOneWidget);
+
+    // Events, still loading: the spinner below the last card.
+    log.addHistory([
+      AppEvent(icon: Icons.circle, title: 'Older', time: DateTime(2026, 10)),
+    ]);
+    await tester.pump();
+    expect(empty, findsNothing);
+    expect(more, findsOneWidget);
+    expect(
+      tester.getTopLeft(more).dy,
+      greaterThan(tester.getTopLeft(find.text('Older')).dy),
+    );
+
+    // Loads overlap: it shows until the last ends.
+    final done = log.startLoading();
+    restore.complete();
+    await tester.pump();
+    expect(more, findsOneWidget);
+    done();
+    done();
+    await tester.pump();
+    expect(more, findsNothing);
+    expect(log.loading.value, isFalse);
   });
 
   testWidgets('the timeline stays where it was scrolled when the log '
