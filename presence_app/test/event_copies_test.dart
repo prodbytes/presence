@@ -794,10 +794,13 @@ void main() {
         ..deviceId = 'automatic_paranoid_gadget'
         ..liveOn = true
         ..setLocal('e1', self: true, cloud: true)
-        ..addDevice('e1', 'loud_shy_kettle', 1);
+        ..addDevice('e1', 'loud_shy_kettle', 1)
+        // Archived: the cloud has it, this device doesn't (in full).
+        ..setLocal('e3', self: false, cloud: true);
       await pumpTimeline(tester, copies, [
         eventOf('e1', 'automatic_paranoid_gadget'),
         eventOf('e2', 'automatic_paranoid_gadget'),
+        eventOf('e3', 'loud_shy_kettle'),
       ]);
       expect(tester.takeException(), isNull);
       String count(String id) =>
@@ -837,6 +840,15 @@ void main() {
       expect(cloudOf('e2').icon, Icons.cloud_off_outlined);
       expect(cloudOf('e2').color, scheme.onSurface.withValues(alpha: 0.38));
       expect(tooltipOf('event-cloud-e2'), 'Not in the cloud');
+      // The third state, the goal: kept in the cloud only, the secondary
+      // color.
+      expect(cloudOf('e3').icon, Icons.cloud_done);
+      expect(cloudOf('e3').color, scheme.secondary);
+      expect(
+        tooltipOf('event-cloud-e3'),
+        'Archived in the cloud (not on this device)',
+      );
+      expect(scheme.secondary, isNot(scheme.primary));
 
       // Fits: the indicators stay inside the screen.
       final badge = tester.getRect(find.byKey(const Key('event-copies-e1')));

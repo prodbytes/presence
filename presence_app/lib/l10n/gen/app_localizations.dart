@@ -1564,6 +1564,12 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get eventCancel;
 
+  /// No description provided for @eventCloudArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived in the cloud (not on this device)'**
+  String get eventCloudArchived;
+
   /// No description provided for @eventCloudNotSynced.
   ///
   /// In en, this message translates to:

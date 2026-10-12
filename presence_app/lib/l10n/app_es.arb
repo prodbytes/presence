@@ -244,6 +244,7 @@
   "devModeTooltipVersion": "Modo de desarrollo, versión {version}: el inicio de sesión no está configurado, así que todo está abierto a todos.",
   "eventAlreadyDeleted": "El evento ya estaba eliminado",
   "eventCancel": "Cancelar",
+  "eventCloudArchived": "Archivado en la nube (no en este dispositivo)",
   "eventCloudNotSynced": "No está en la nube",
   "eventCloudSynced": "En la nube",
   "eventCopies": "{count, plural, one{{count} copia} other{{count} copias}}",

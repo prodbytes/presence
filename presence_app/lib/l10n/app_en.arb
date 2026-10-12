@@ -761,6 +761,7 @@
   },
   "eventAlreadyDeleted": "Event already deleted",
   "eventCancel": "Cancel",
+  "eventCloudArchived": "Archived in the cloud (not on this device)",
   "eventCloudNotSynced": "Not in the cloud",
   "eventCloudSynced": "In the cloud",
   "eventCopies": "{count, plural, =1{1 copy} other{{count} copies}}",

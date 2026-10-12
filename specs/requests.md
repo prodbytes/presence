@@ -5279,3 +5279,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        passes it once the site sends the secret. Spec: [Production
        deploy](deploy.md) unchanged (it already says the APIs enforce it
        from the next deploy).
+
+377. **The cloud indicator's third state: archived.** (2026-10-12)
+     - Asked: the cloud sync indicator has three states: grayed out
+       (disabled) when not synced yet, the primary color when synced, and
+       the secondary color when deleted (from the device) and archived in
+       the cloud, which is the goal.
+     - Changed: `EventCloudBadge` is disabled with no copy in the cloud,
+       primary (Gruvbox yellow) when the cloud and this device both hold
+       one, and secondary (Gruvbox aqua) when only the cloud does: "Archived
+       in the cloud (not on this device)", in English, Spanish and
+       Portuguese. Specs: [Event copies](event-copies.md).

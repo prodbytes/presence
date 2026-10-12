@@ -244,6 +244,7 @@
   "devModeTooltipVersion": "Modo de desenvolvimento, versão {version}: o login não está configurado, então tudo fica aberto a todos.",
   "eventAlreadyDeleted": "O evento já foi excluído",
   "eventCancel": "Cancelar",
+  "eventCloudArchived": "Arquivado na nuvem (não neste dispositivo)",
   "eventCloudNotSynced": "Não está na nuvem",
   "eventCloudSynced": "Na nuvem",
   "eventCopies": "{count, plural, one{{count} cópia} other{{count} cópias}}",
