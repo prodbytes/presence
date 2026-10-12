@@ -96,7 +96,15 @@ One CloudFront distribution serves the whole site, laid out like the local
   `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
   and `/health` must answer `"status":"ok"` with this release's
-  `"version"` (see [Health check](health-check.md)). It retries for up to 10 minutes.
+  `"version"` (see [Health check](health-check.md)); and, once the APIs
+  enforce the origin secret, the auth API's and the health check's own
+  `execute-api` hosts must answer 403 ([Origin check](origin-check.md)).
+  It retries for up to 10 minutes.
+- **The origin secret** (`ORIGIN_SECRET`, or derived from `RBACR_TOKEN`
+  and the stage) goes to `site.yaml` every deploy, and to the three API
+  stacks only once the site already sends it (its `OriginVerified`
+  output), so the APIs enforce it from the deploy after it's first sent
+  ([Origin check](origin-check.md)).
 - **On failure** (any step, the smoke test included), `deploy.sh` prints
   the version that was live before it started (read from
   `/app/version.json` at the start), the version live now, and how to put

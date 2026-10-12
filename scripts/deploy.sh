@@ -22,7 +22,9 @@
 #      health check of /health with its alarm emails)
 #   5. uploads the site pages (/, /privacy, /tos) and the web build (/app/), and
 #      invalidates the CloudFront cache
-#   6. smoke-tests the live site: /app/version.json must report this
+#   6. smoke-tests the live site (and, once the APIs enforce the origin
+#      secret, that their own execute-api hosts refuse direct calls with
+#      403): /app/version.json must report this
 #      version, / must be the index page, /privacy and /tos the legal pages, and /api/auth/profile must refuse
 #      a request without a token (401: the route and its authorizer are live),
 #      and so must /api/payments/links,
@@ -65,6 +67,12 @@
 #                nu01.com) and vouchers grant there. Never given to the app,
 #                which asks rbacr with the user's own token. Required, from the environment (the
 #                RBACR_TOKEN secret in CI) or .env: without it nobody has a role.
+#   ORIGIN_SECRET what the site's CloudFront sends the APIs so they answer
+#                only through it (specs/origin-check.md): letters, digits, _
+#                and -, 32 or more (also .env). Default: derived from
+#                RBACR_TOKEN and the stage (an HMAC), so CI needs no other
+#                secret. Changing it (or RBACR_TOKEN) makes the APIs refuse
+#                the site for the minutes until the site is deployed too.
 #   RBACR_URL    rbacr's origin (default https://rbacr.nu01.com, GA rbacr,
 #                the only one prod accepts; also .env)
 #   RBACR_SYSTEM the rbacr system of the app's roles (default presence; also .env)
@@ -226,6 +234,22 @@ if [[ "$STAGE" == prod && "$RBACR_URL" != https://rbacr.nu01.com ]]; then
   exit 1
 fi
 echo "    rbacr: $RBACR_URL, system $RBACR_SYSTEM, with a token"
+# The origin secret: from the environment, else .env, else derived from the
+# rbacr token (read from the environment, so it's never on a command line).
+# Never logged.
+if [[ -z "${ORIGIN_SECRET:-}" && -f .env ]]; then
+  ORIGIN_SECRET="$(sed -n 's/^ORIGIN_SECRET=//p' .env | tail -1)"
+fi
+if [[ -z "${ORIGIN_SECRET:-}" ]]; then
+  ORIGIN_SECRET="$(RBACR_TOKEN="$RBACR_TOKEN" python3 -c '
+import hashlib, hmac, os, sys
+print(hmac.new(os.environ["RBACR_TOKEN"].encode(), ("presence-origin-" + sys.argv[1]).encode(),
+               hashlib.sha256).hexdigest())' "$STAGE")"
+fi
+if [[ ! "$ORIGIN_SECRET" =~ ^[A-Za-z0-9_-]{32,}$ ]]; then
+  echo "error: ORIGIN_SECRET must be 32 or more letters, digits, _ or -" >&2
+  exit 1
+fi
 # The Premium plans' Stripe Payment Links (public checkout pages), the
 # payments API's defaults until an admin saves others: from the
 # environment, else .env, else these.
@@ -367,10 +391,23 @@ deploy_health() {
       --parameter-overrides "AuthStackName=$AUTH_STACK" "Version=$VERSION" \
         "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
         "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
-        "RbacrUrl=$RBACR_URL" \
+        "RbacrUrl=$RBACR_URL" "OriginSecret=$api_origin_secret" \
       --no-confirm-changeset --no-fail-on-empty-changeset
   )
 }
+# The APIs refuse requests without the origin secret only once the site
+# already sends it (its OriginVerified output): on the first deploy with it
+# the site starts sending it, and the APIs enforce it from the next. So the
+# site's own requests are never refused while it rolls out.
+api_origin_secret=""
+if [[ "$(aws cloudformation describe-stacks --stack-name "$SITE_STACK" \
+      --query "Stacks[0].Outputs[?OutputKey=='OriginVerified'].OutputValue" \
+      --output text 2>/dev/null)" == true ]]; then
+  api_origin_secret="$ORIGIN_SECRET"
+  echo "==> the APIs answer only through the site (origin secret enforced)"
+else
+  echo "==> the site starts sending the origin secret; the APIs enforce it from the next deploy"
+fi
 health_first=0
 if aws cloudformation describe-stacks --stack-name "$HEALTH_STACK" >/dev/null 2>&1; then
   health_first=1
@@ -388,7 +425,7 @@ echo "==> deploying $AUTH_STACK"
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
-      "LocalCloud=false" \
+      "LocalCloud=false" "OriginSecret=$api_origin_secret" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
@@ -408,6 +445,7 @@ echo "==> deploying $PAYMENTS_STACK"
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
+      "OriginSecret=$api_origin_secret" \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
 payments_domain="$(stack_output "$PAYMENTS_STACK" ApiDomain)"
@@ -424,6 +462,7 @@ aws cloudformation deploy --stack-name "$SITE_STACK" \
     "PaymentsApiDomainName=$payments_domain" \
     "RbacrUrl=$RBACR_URL" \
     "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
+    "OriginSecret=$ORIGIN_SECRET" \
   --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
@@ -471,6 +510,15 @@ check() {
   health="$(curl -s --max-time 20 "https://$DOMAIN/health")"
   [[ "$health" == '{"status":"ok",'* ]] || { echo "    /health answered $health, want status ok"; return 1; }
   [[ "$health" == *"\"version\":\"$VERSION\""* ]] || { echo "    /health answered $health, want version $VERSION"; return 1; }
+  # Enforced: the APIs' own hosts refuse what didn't come through the site
+  # (the site's answers above show it sends the right secret).
+  if [[ -n "$api_origin_secret" ]]; then
+    local direct
+    direct="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$api_domain/api/auth/anonymous")"
+    [[ "$direct" == 403 ]] || { echo "    https://$api_domain/api/auth/anonymous answered $direct, want 403"; return 1; }
+    direct="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$health_domain/health")"
+    [[ "$direct" == 403 ]] || { echo "    https://$health_domain/health answered $direct, want 403"; return 1; }
+  fi
 }
 for attempt in $(seq 1 30); do
   if check; then

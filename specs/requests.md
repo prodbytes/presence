@@ -5228,3 +5228,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        when synced, disabled when not). Production still ran the release
        before it. Changed: released 0.6.202610121614 (RC and GA). Specs
        unchanged.
+
+374. **The APIs answer only through the site.** (2026-10-12)
+     - Asked: the best way to make sure API calls come from the app's own
+       interface, with no external API calls for now; then, rather than a
+       key the app fetches at start (which a script could fetch the same
+       way), the CloudFront origin secret, in effect an origin access
+       identity for the APIs.
+     - Changed: [Origin check](origin-check.md), new. CloudFront adds
+       `x-presence-origin-verify` (the `OriginSecret` parameter of
+       `site.yaml`) to the auth, payments and health origins; every API
+       handler checks it first (`OriginCheck`, 403 without it).
+       `deploy.sh` derives the secret from `RBACR_TOKEN` and the stage
+       (or takes `ORIGIN_SECRET`), has the APIs enforce it only once the
+       site sends it (`OriginVerified`), and then smoke-tests that their
+       own hosts answer 403. The app and presence-streamer are unchanged
+       (they call through the site). Takes effect from the second deploy.
+       Specs: [Deploy](deploy.md), [Health check](health-check.md),
+       [README](README.md).
+

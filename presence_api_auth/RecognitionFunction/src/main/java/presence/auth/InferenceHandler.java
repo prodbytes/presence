@@ -51,6 +51,10 @@ public class InferenceHandler implements RequestHandler<APIGatewayV2HTTPEvent, A
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        // Only through the site (CloudFront), never the API's own host.
+        if (!OriginCheck.fromEnvironment().allows(event)) {
+            return OriginCheck.refused();
+        }
         var caller = Caller.from(event);
         var route = Http.route(event);
         try {

@@ -44,6 +44,10 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        // Only through the site (CloudFront), never the API's own host.
+        if (!OriginCheck.fromEnvironment().allows(event)) {
+            return OriginCheck.refused();
+        }
         if (!ANONYMOUS_ROUTE.equals(Http.route(event))) {
             return response(404, "{\"error\":\"no such route\"}");
         }

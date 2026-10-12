@@ -56,6 +56,16 @@ Parameters:
       API has an rbacr token (scripts/deploy.sh requires one): empty, the
       "rbacr" check fails, since nobody would have a role. The token itself
       never comes here.
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    AllowedPattern: '[A-Za-z0-9_-]*'
+    Description: >
+      The secret the site's CloudFront adds to every request it sends this
+      API (the x-presence-origin-verify header; specs/origin-check.md):
+      requests without it get 403. Passed by scripts/deploy.sh once the
+      site sends it; empty (locally, or before): every request passes.
   PermissionsBoundary:
     Type: String
     Default: ''
@@ -104,6 +114,7 @@ Resources:
       PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
       Environment:
         Variables:
+          ORIGIN_SECRET: !Ref OriginSecret
           PRESENCE_VERSION: !Ref Version
           RBACR_URL: !Ref RbacrUrl
           GOOGLE_WEB_CLIENT_ID: !Ref GoogleWebClientId
