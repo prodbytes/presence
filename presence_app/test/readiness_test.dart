@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
@@ -382,6 +383,7 @@ void main() {
       await tester.pumpWidget(
         PresenceApp(
           consentGiven: true,
+          storage: newIdbFactoryMemory(),
           cameras: openFakes(cameras ?? [camera]),
           mediaIo: fakeMediaIo,
           now: () => now,
@@ -603,6 +605,7 @@ void main() {
       await tester.pumpWidget(
         PresenceApp(
           consentGiven: true,
+          storage: newIdbFactoryMemory(),
           cameras: openFakes([FakeCameraSource('Main', immediatePast: media)]),
           mediaIo: fakeMediaIo,
           auth: auth,

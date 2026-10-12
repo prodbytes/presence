@@ -5291,7 +5291,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        in the cloud (not on this device)", in English, Spanish and
        Portuguese. Specs: [Event copies](event-copies.md).
 
-378. **Tappable event indicators.** (2026-10-12)
+378. **A spinner while more events load.** (2026-10-12)
+     - Asked: in the monitoring screen's list of events, show a loading
+       spinner while more events are being loaded.
+     - Changed: `EventLog.loading` is up while the history restores from
+       storage and while a cloud sync pass fetches the history (the first
+       pass, then hourly: `CloudSync.fetchingHistory`). The timeline then
+       shows a small spinner below its last card, or a centered one in
+       place of "no events" while it has none yet. Tests that launch the
+       app now give it in-memory storage, so its restore ends. Specs:
+       [Events](events.md), [Cloud sync](cloud-sync.md).
+
+379. **Tappable event indicators.** (2026-10-12)
      - Asked: make the event card's indicators a little larger; tapping
        the recognition indicator re-runs recognition on the event, the
        cloud indicator puts it in or deletes it from S3, and the copies

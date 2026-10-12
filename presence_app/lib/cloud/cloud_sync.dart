@@ -460,6 +460,17 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
 
   CloudSyncState get state => _state;
 
+  /// Whether a pass is fetching the history ([fullFetchEvery]: the first
+  /// pass, then hourly), the events list showing it's loading more.
+  bool get fetchingHistory => _fetchingHistory;
+  bool _fetchingHistory = false;
+
+  void _setFetchingHistory(bool fetching) {
+    if (_disposed || fetching == _fetchingHistory) return;
+    _fetchingHistory = fetching;
+    notifyListeners();
+  }
+
   /// Why the last sync failed, when [state] is [CloudSyncState.error].
   String? get error => _error;
 
@@ -711,10 +722,17 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       if (last == null) await _fetcher.fetchSettings(pass);
       // The other devices' keys, to open their media.
       await _sealing.fetchKeys(pass, all: full);
-      await _fetcher.fetch(
-        pass,
-        _fetcher.prefixes(now, first: last == null, full: full),
-      );
+      // A full fetch (the first, then every [fullFetchEvery]) brings in
+      // the history: [fetchingHistory] while it runs.
+      if (full) _setFetchingHistory(true);
+      try {
+        await _fetcher.fetch(
+          pass,
+          _fetcher.prefixes(now, first: last == null, full: full),
+        );
+      } finally {
+        if (full) _setFetchingHistory(false);
+      }
       pass.check();
       if (full) {
         _lastFullFetch = now;

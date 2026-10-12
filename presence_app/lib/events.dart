@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show setEquals;
+import 'package:flutter/foundation.dart' show ValueListenable, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -372,6 +372,30 @@ class EventLog extends ChangeNotifier {
 
   (int, String?, List<AppEvent>)? _ofProfile;
 
+  /// Whether more events are being loaded (restored from storage, fetched
+  /// from the cloud): the timeline shows a spinner below its cards.
+  ValueListenable<bool> get loading => _loading;
+  final _loading = ValueNotifier(false);
+  int _loads = 0;
+  bool _disposed = false;
+
+  /// Raises [loading] until the returned callback is called (once; more
+  /// calls do nothing). Loads may overlap: [loading] is up while any is.
+  VoidCallback startLoading() {
+    _loads++;
+    _loading.value = true;
+    var done = false;
+    return () {
+      if (done) return;
+      done = true;
+      if (--_loads == 0 && !_disposed) _loading.value = false;
+    };
+  }
+
+  /// Raises [loading] until [work] ends.
+  Future<T> loadingWhile<T>(Future<T> work) =>
+      work.whenComplete(startLoading());
+
   /// Notifies when any clip's tags or object tags change (recognition, a
   /// tag added or removed), so what depends on them (the search, the
   /// subjects) is worked out again; [annotationsVersion] goes up first.
@@ -458,6 +482,8 @@ class EventLog extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _loading.dispose();
     _subscription.cancel();
     for (final a in _watched) {
       a.removeListener(_onAnnotations);
@@ -618,6 +644,7 @@ class _EventTimelineState extends State<EventTimeline> {
   void _listen(EventLog log, EventFilters filters) {
     log.addListener(_onEvent);
     log.annotations.addListener(_onAnnotations);
+    log.loading.addListener(_onLoading);
     filters.addListener(_onFilter);
     filters.focusRequests.addListener(_onFocusRequest);
   }
@@ -625,6 +652,7 @@ class _EventTimelineState extends State<EventTimeline> {
   void _unlisten(EventLog log, EventFilters filters) {
     log.removeListener(_onEvent);
     log.annotations.removeListener(_onAnnotations);
+    log.loading.removeListener(_onLoading);
     filters.removeListener(_onFilter);
     filters.focusRequests.removeListener(_onFocusRequest);
   }
@@ -653,6 +681,9 @@ class _EventTimelineState extends State<EventTimeline> {
     _newest = _view.shown.firstOrNull?.id;
     setState(() {});
   }
+
+  /// More events started or stopped loading: the spinner below the cards.
+  void _onLoading() => setState(() {});
 
   /// A clip's tags changed: the search matches again ([EventLog.annotations]).
   /// The cards follow their own tags; without a search, nothing else does.
@@ -764,6 +795,12 @@ class _EventTimelineState extends State<EventTimeline> {
     // Keys only for the cards that can show.
     final shownIds = {for (final e in events) e.id};
     _cards.removeWhere((id, _) => !shownIds.contains(id));
+    final loading = widget.log.loading.value;
+    if (events.isEmpty && loading) {
+      return const Center(
+        child: CircularProgressIndicator(key: Key('events-loading')),
+      );
+    }
     if (events.isEmpty) {
       final l = context.l10n;
       return FeedMessage(
@@ -782,9 +819,24 @@ class _EventTimelineState extends State<EventTimeline> {
       child: ListView.separated(
         controller: _scroll,
         padding: widget.padding,
-        itemCount: events.length,
+        // Below the cards, a spinner while more are loading.
+        itemCount: events.length + (loading ? 1 : 0),
         separatorBuilder: (context, i) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
+          if (i == events.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
+                child: SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    key: Key('events-loading-more'),
+                    strokeWidth: 2.5,
+                  ),
+                ),
+              ),
+            );
+          }
           final event = events[i];
           final device = EventTimeline.deviceOf(event, widget.deviceId);
           final card = KeyedSubtree(

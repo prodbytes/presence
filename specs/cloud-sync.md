@@ -202,6 +202,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - once an hour (`CloudSync.fullFetchEvery`), each day of the window (15
     listings), to catch events a device uploaded late, after being
     offline;
+  - while the first pass's or an hourly fetch runs,
+    `CloudSync.fetchingHistory` is set, and the events list shows a
+    spinner below its cards (see [Events](events.md));
   - every other pass, only **today's and yesterday's** partitions, where
     other devices' new events land: about 11,500 listings a day per
     device, roughly $0.06 a day at S3's $0.005 per 1000, against $0.43 for

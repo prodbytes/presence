@@ -393,11 +393,15 @@ class _PresenceAppState extends State<PresenceApp> {
     // A clip fetched from the cloud plays before its recording has come
     // down: it's downloaded then.
     _persistence.fetchMissingMedia = _sync?.fetchRecording;
-    _persistence
-      ..attachRig(_rig)
-      ..restore(_log).catchError((Object e) {
-        debugPrint('Presence: could not restore saved data: $e');
-      });
+    _persistence.attachRig(_rig);
+    // The events list shows it's loading more while the history restores,
+    // and while syncing fetches it from the cloud.
+    _log.loadingWhile(_persistence.restore(_log)).catchError((Object e) {
+      debugPrint('Presence: could not restore saved data: $e');
+    });
+    if (_sync case final sync?) {
+      sync.addListener(_applyFetching);
+    }
     // Deletes events older than the History setting: now, once the history
     // is restored, and every 3 h.
     _retention = EventRetention(
@@ -603,6 +607,21 @@ class _PresenceAppState extends State<PresenceApp> {
   /// The Premium plans' Stripe links, loaded at each sign-in.
   late final PaymentsService _payments;
   CloudSync? _sync;
+
+  /// Ends the events list's loading raised for a cloud fetch of the
+  /// history ([CloudSync.fetchingHistory]); null while none runs.
+  VoidCallback? _fetched;
+
+  void _applyFetching() {
+    final fetching = _sync?.fetchingHistory ?? false;
+    if (fetching && _fetched == null) {
+      _fetched = _log.startLoading();
+    } else if (!fetching && _fetched != null) {
+      _fetched!();
+      _fetched = null;
+    }
+  }
+
   String? _signedInAs;
 
   /// Sign-ins and sign-outs go on the event stream too.
@@ -624,6 +643,8 @@ class _PresenceAppState extends State<PresenceApp> {
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();
     _sync?.removeListener(_applyDeviceSlots);
+    _sync?.removeListener(_applyFetching);
+    _fetched?.call();
     _log.removeListener(_noticeDevices);
     _sync?.dispose();
     _copies.dispose();

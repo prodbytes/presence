@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:idb_shim/idb_shim.dart';
 
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cameras/cameras.dart';
@@ -19,6 +20,7 @@ void main() {
     await tester.pumpWidget(
       PresenceApp(
         consentGiven: true,
+        storage: newIdbFactoryMemory(),
         cameras: cameras ?? noCameras,
         mediaIo: fakeMediaIo,
         auth: dev ? FakeAuthService() : FakeAuthService.signedIn(),
