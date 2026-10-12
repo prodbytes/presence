@@ -25,6 +25,7 @@ import 'cloud_backend.dart';
 export 'cloud_backend.dart';
 export 'device_slots.dart';
 
+part 'cloud_sync_actions.dart';
 part 'cloud_sync_copies.dart';
 part 'cloud_sync_fetch.dart';
 part 'cloud_sync_free.dart';
@@ -156,7 +157,7 @@ enum CloudSyncState { off, syncing, synced, error }
 /// What's been uploaded is remembered per object key with a fingerprint of
 /// its content, so nothing is sent twice and a changed event (a clip's
 /// event is updated when the clip completes) is sent again.
-class CloudSync extends ChangeNotifier {
+class CloudSync extends ChangeNotifier implements EventCopyActions {
   CloudSync({
     required this.auth,
     this.roles,
@@ -343,6 +344,7 @@ class CloudSync extends ChangeNotifier {
   late final _Recordings _recordings = _Recordings(this);
   late final _LiveBridge _liveBridge = _LiveBridge(this);
   late final _CopyTracker _copyTracker = _CopyTracker(this);
+  late final _EventActions _actions = _EventActions(this);
 
   /// The IDs of the latest new events handed to [onRemote], so one that
   /// arrives both over live sync and from the bucket is handed over once.
@@ -865,6 +867,15 @@ class CloudSync extends ChangeNotifier {
   /// recordings are only on the device that made them.
   Future<bool> fetchRecording(String clipId, String mediaId) async =>
       premium && await _recordings.fetchRecording(clipId, mediaId);
+
+  @override
+  Future<bool> putInCloud(String id) => _actions.put(id);
+
+  @override
+  Future<bool> deleteFromCloud(String id) => _actions.delete(id);
+
+  @override
+  Future<bool> shareCopies(String id) => _actions.share(id);
 
   /// The most clips a full fetch wants again ([_Fetcher.rewantClips]).
   static const int maxRewanted = 100;

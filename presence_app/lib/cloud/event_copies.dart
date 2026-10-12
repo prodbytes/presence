@@ -3,6 +3,26 @@ import 'package:flutter/foundation.dart';
 import '../storage/event_store.dart';
 import 'live_sync.dart';
 
+/// What tapping an event's indicators asks of cloud sync ([CloudSync]
+/// does it): each returns whether it could be done, or at least started.
+abstract interface class EventCopyActions {
+  /// Puts event [id] in the cloud (again): everything of it is sent at
+  /// once, even what was uploaded or deleted before. Only for a premium
+  /// profile, and an event this device holds a full copy of.
+  Future<bool> putInCloud(String id);
+
+  /// Deletes event [id] from the cloud: its JSON, clip record, recording,
+  /// thumbnail and tagged frames. This device doesn't upload it again
+  /// until it's put back ([putInCloud]).
+  Future<bool> deleteFromCloud(String id);
+
+  /// Asks the profile's other devices to take a copy of event [id]: it's
+  /// put in the cloud first if it isn't (and can be), then published
+  /// again over live sync, so each device stores it, fetches its clip and
+  /// recording, and acks it. Not with live sync off.
+  Future<bool> shareCopies(String id);
+}
+
 /// Who holds a copy of one event, as this device knows it: this device
 /// ([self]: the event and all its media are stored here), the [cloud] (the
 /// event and its media are in the bucket), and the profile's other

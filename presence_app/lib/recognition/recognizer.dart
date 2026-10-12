@@ -240,15 +240,21 @@ class SubjectRecognizer {
 
   /// Runs recognition on [event]'s clip now, after any clip already being
   /// searched (ahead of new clips waiting), even with recognition off in
-  /// Settings: someone asked. Throws if the models can't load.
-  Future<RecognitionResult> recognizeNow(ClipRequested event) =>
-      _enqueue(event, onRequest: true);
+  /// Settings: someone asked. With [again], its object tags are looked
+  /// for again too, even if it was searched for them before (a tap on the
+  /// recognition indicator re-runs it all). Throws if the models can't
+  /// load.
+  Future<RecognitionResult> recognizeNow(
+    ClipRequested event, {
+    bool again = false,
+  }) => _enqueue(event, onRequest: true, again: again);
 
   Future<RecognitionResult> _enqueue(
     ClipRequested event, {
     required bool onRequest,
+    bool again = false,
   }) {
-    final job = _Job(event, onRequest: onRequest);
+    final job = _Job(event, onRequest: onRequest, again: again);
     _queue(job);
     _pump();
     return job.done.future;
@@ -285,6 +291,7 @@ class SubjectRecognizer {
         final result = await _recognize(
           job.event,
           onRequest: job.onRequest,
+          again: job.again,
           waitForMemory: false,
         );
         if (identical(result, _tight)) {
@@ -360,11 +367,12 @@ class SubjectRecognizer {
 
   /// [recognize]; with memory low, a new clip waits for it here if
   /// [waitForMemory], or else gets [_tight] back (the queue then parks
-  /// it).
+  /// it). With [again], object tags found before are looked for again.
   Future<RecognitionResult> _recognize(
     ClipRequested event, {
     required bool onRequest,
     required bool waitForMemory,
+    bool again = false,
   }) async {
     if (!supported) {
       return const RecognitionResult(RecognitionOutcome.unsupported);
@@ -375,7 +383,8 @@ class SubjectRecognizer {
     final subjectsOn =
         onRequest || (settings.enabled && !_searched.contains(event.id));
     final objectsOn =
-        (onRequest || settings.objects) && event.annotations.objects == null;
+        (onRequest || settings.objects) &&
+        (again || event.annotations.objects == null);
     if (!subjectsOn && !objectsOn) {
       return const RecognitionResult(RecognitionOutcome.off);
     }
@@ -910,10 +919,13 @@ class SubjectRecognizer {
 
 /// A clip waiting its turn.
 class _Job {
-  _Job(this.event, {required this.onRequest});
+  _Job(this.event, {required this.onRequest, this.again = false});
 
   final ClipRequested event;
   final bool onRequest;
+
+  /// Its object tags are looked for again ([SubjectRecognizer.recognizeNow]).
+  final bool again;
   final done = Completer<RecognitionResult>();
 
   /// How many times it stepped out of the queue for memory.
