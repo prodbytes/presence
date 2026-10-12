@@ -250,7 +250,8 @@ class _PresenceAppState extends State<PresenceApp> {
             ? HttpCloudRecognitionClient(ApiConfig.baseUrl)
             : null);
     // Finds the subjects on each new clip once it's recorded (and asks
-    // cloud recognition too, for a premium profile with a trained model).
+    // cloud recognition too, for a premium profile with a trained model),
+    // and, for a premium profile, the breeds and coats of its pets.
     _recognizer =
         widget.recognizer?.call(_bus, _log, _config) ??
         SubjectRecognizer(
@@ -263,6 +264,13 @@ class _PresenceAppState extends State<PresenceApp> {
                   auth: _auth,
                   roles: _roles,
                   config: _config,
+                  client: cloudRecognition,
+                ),
+          describer: cloudRecognition == null
+              ? null
+              : CloudDescriber(
+                  auth: _auth,
+                  roles: _roles,
                   client: cloudRecognition,
                 ),
         );

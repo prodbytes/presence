@@ -107,12 +107,14 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/link" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
-  # Cloud recognition (premium only). Locally the model comes from Hugging
-  # Face at each function's first use (no bucket here keeps it): 1.2 GB.
+  # Cloud recognition (premium only). Locally the models come from Hugging
+  # Face at each function's first use (no bucket here keeps them): DINOv2
+  # 1.2 GB, SigLIP2 95 MB.
   route "GET /api/recognition/status" RecognitionTrainFunction "$authorizer"
   route "POST /api/recognition/labels" RecognitionTrainFunction "$authorizer"
   route "POST /api/recognition/train" RecognitionTrainFunction "$authorizer"
   route "POST /api/recognition/identify" RecognitionInferFunction "$authorizer"
+  route "POST /api/recognition/describe" RecognitionDescribeFunction "$authorizer"
 fi
 aws apigatewayv2 create-stage --api-id "$api" --stage-name '$default' --auto-deploy >/dev/null
 

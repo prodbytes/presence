@@ -5170,3 +5170,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        bucket; the health monitor's ☁️ AWS is ✅ with it. Specs: [Dev
        environment](dev-environment.md), [Profiles](profiles.md), [Live
        sync](live-sync.md), [Feedback](feedback.md), [README](README.md).
+
+371. **Breeds and coats in cloud recognition.** (2026-10-12)
+     - Asked: add labels to the server-side recognition: the best framework
+       to name breeds and looks (a black cat, a Persian, this or that kind
+       of dog), run in parallel with subject recognition so neither stops
+       or waits for the other, each updating the event when it answers.
+     - Measured: on the Oxford-IIIT Pet test set (1110 photos, 37 breeds),
+       SigLIP2 base zero-shot named 94.5 % of breeds, SigLIP2 SO400M
+       95.7 % (5× slower), a DINOv2-L classifier learned on Pet 95.6 %
+       (and no coats). SigLIP2 base chosen: open labels (coats need no
+       pictures to learn from), fast. As run in Lambda (int8, with house
+       cats and coat-defined breeds never named as breeds), a breed on 64 %
+       of Pet's photos, right 98 %; 1 breed on 72 house cats; Suerte "black
+       cat" on 89 of 90 crops.
+     - Changed: `POST /api/recognition/describe` (`RecognitionDescribeFunction`,
+       `DescribeHandler`, `Siglip2`, `PetLabels` with 132 labels made by
+       `tools/pet_labels.py`), premium only, no training, keeps nothing;
+       `ModelFile` takes a model's source (DINOv2, SigLIP2). The app sends
+       up to 8 cats and dogs a clip (`FrameAnalysis.pets`,
+       `CloudDescriber`) beside identify, sets the device's object tags
+       first, and adds the answer's labels (`ClipAnnotations.addObjects`).
+       Floci routes it. Verified in the Lambda Java 25 image: 6.7 s cold
+       (fetching the model), 1.1 s warm for 8 crops. Specs: [Cloud
+       recognition](cloud-recognition.md), [Subject
+       recognition](recognition.md), [README](README.md).

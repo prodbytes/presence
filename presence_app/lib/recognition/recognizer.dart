@@ -100,6 +100,12 @@ class RecognitionResult {
 /// [maxCloudCrops] of the people and pets seen are also sent to cloud
 /// recognition (DINOv2-L), and each subject's confidence is the higher of
 /// the two, the tag placed where the surer one saw them.
+///
+/// For a premium profile ([describer]), trained or not, up to
+/// [maxCloudCrops] of the cats and dogs seen are also sent for their breeds
+/// and coats (SigLIP2): "Persian", "black cat". That request runs on its
+/// own, beside the subjects' (neither waits for the other), and its labels
+/// join the clip's object tags whenever it answers.
 class SubjectRecognizer {
   SubjectRecognizer({
     required AppEventBus bus,
@@ -111,6 +117,7 @@ class SubjectRecognizer {
     Future<RgbaImage?> Function(Uint8List jpeg)? decode,
     MemoryMonitor? memory,
     this.cloud,
+    this.describer,
     this.every = defaultEvery,
     this.maxPending = defaultMaxPending,
     this.memoryRetryAfter = defaultMemoryRetryAfter,
@@ -162,6 +169,12 @@ class SubjectRecognizer {
 
   /// Cloud recognition, for premium profiles; null: on the device only.
   final CloudIdentifier? cloud;
+
+  /// Cloud recognition's breeds and coats, for premium profiles; null: none.
+  final CloudDescriber? describer;
+
+  /// Breeds and coats asked for and not answered yet.
+  final _describing = <Future<void>>{};
 
   final AppEventBus _bus;
   final EventLog log;
@@ -423,6 +436,9 @@ class SubjectRecognizer {
     final cloudCrops = <_CloudCrop>[];
     // Objects, by label: the first frame each was seen on.
     final objects = <String, _ObjectSightings>{};
+    // The cats and dogs to ask breeds and coats of.
+    final describe = objectsOn && (describer?.available ?? false);
+    final petCrops = <_PetCrop>[];
     final started = DateTime.now();
     var frames = 0;
     await for (final frame in _sampler.sample(
@@ -445,6 +461,19 @@ class SubjectRecognizer {
           (objects[label] ??= _ObjectSightings(
             frame.position.inMilliseconds,
           )).add(score);
+        }
+      }
+      if (describe && petCrops.length < maxCloudCrops) {
+        for (final d in analysis.pets.take(cloudCropsPerFrame)) {
+          if (petCrops.length >= maxCloudCrops) break;
+          petCrops.add(
+            _PetCrop(
+              id: '${petCrops.length}',
+              species: CloudCrop.speciesOf(d.kind) ?? 'cat',
+              pixels: CloudCrop.of(frame.image, d.box),
+              ms: frame.position.inMilliseconds,
+            ),
+          );
         }
       }
       TagFrame? tagFrame;
@@ -492,6 +521,19 @@ class SubjectRecognizer {
       await Future<void>.delayed(Duration.zero);
     }
     if (outcome == RecognitionOutcome.searched) _searched.add(event.id);
+    final kept = [
+      for (final MapEntry(key: label, value: o) in objects.entries)
+        if (o.kept(frames: frames))
+          ObjectTag(label: label, ms: o.ms, score: o.score),
+    ];
+    if (objectsOn) event.annotations.setObjects(kept);
+    // Breeds and coats come on their own, whenever the API answers: the
+    // subjects don't wait for them, nor they for the subjects.
+    if (petCrops.isNotEmpty && !_disposed) {
+      final asking = _describe(event, petCrops);
+      _describing.add(asking);
+      unawaited(asking.whenComplete(() => _describing.remove(asking)));
+    }
     // Each subject's verdict: on the device, or the cloud's when surer.
     final verdicts = <String, _Verdict>{
       for (final MapEntry(key: id, value: s) in sightings.entries)
@@ -546,12 +588,6 @@ class SubjectRecognizer {
         ),
       );
     }
-    final kept = [
-      for (final MapEntry(key: label, value: o) in objects.entries)
-        if (o.kept(frames: frames))
-          ObjectTag(label: label, ms: o.ms, score: o.score),
-    ];
-    if (objectsOn) event.annotations.setObjects(kept);
     debugPrint(
       'Presence: recognized ${tagged.length} subject(s), asked about '
       '${asks.length}, saw ${kept.length} kind(s) of object, on $frames '
@@ -563,6 +599,40 @@ class SubjectRecognizer {
       tagged: tagged,
       asked: [for (final v in asks) v.name],
       objects: [for (final o in kept) o.label],
+    );
+  }
+
+  /// Completes once the breeds and coats asked for so far are answered (for
+  /// tests).
+  @visibleForTesting
+  Future<void> get described => Future.wait([..._describing]);
+
+  /// Cloud recognition's breeds and coats of [crops] (a clip's cats and
+  /// dogs), added to [event]'s object tags when they come: each label once,
+  /// from the crop it was surest on.
+  Future<void> _describe(ClipRequested event, List<_PetCrop> crops) async {
+    final answer = await describer?.describe({
+      for (final c in crops) c.id: (c.species, c.pixels),
+    });
+    if (answer == null || _disposed) return;
+    final byId = {for (final c in crops) c.id: c};
+    final best = <String, ObjectTag>{};
+    for (final MapEntry(key: cropId, value: labels) in answer.entries) {
+      final crop = byId[cropId];
+      if (crop == null) continue;
+      for (final l in labels) {
+        if (l.confidence <= (best[l.label]?.score ?? -1)) continue;
+        best[l.label] = ObjectTag(
+          label: l.label,
+          ms: crop.ms,
+          score: l.confidence,
+        );
+      }
+    }
+    if (best.isNotEmpty) event.annotations.addObjects(best.values);
+    debugPrint(
+      'Presence: cloud recognition saw ${best.keys.join(', ')} on '
+      '${crops.length} pet(s) of ${event.id}',
     );
   }
 
@@ -863,6 +933,22 @@ class _CloudCrop {
   final Uint8List pixels;
   final (double, double) spot;
   final TagFrame frame;
+}
+
+/// A cat or dog seen on a clip, to ask its breed and coat of: its crop,
+/// "cat" or "dog", and when (ms into the recording).
+class _PetCrop {
+  _PetCrop({
+    required this.id,
+    required this.species,
+    required this.pixels,
+    required this.ms,
+  });
+
+  final String id;
+  final String species;
+  final Uint8List pixels;
+  final int ms;
 }
 
 /// Who a subject is taken to be on a clip: their [name] (as on their

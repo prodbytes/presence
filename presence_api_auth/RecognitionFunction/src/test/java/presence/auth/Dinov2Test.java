@@ -45,12 +45,12 @@ class Dinov2Test {
 
     @Test
     void aWrongFileIsRefused(@org.junit.jupiter.api.io.TempDir Path dir) throws Exception {
-        var file = new ModelFile("http://unused", "00".repeat(32), null, dir);
+        var file = new ModelFile(new ModelFile.Source("dinov2-large", "http://unused", "00".repeat(32)), null, dir);
         var to = dir.resolve("x.part");
         assertFalse(file.save(new ByteArrayInputStream(new byte[]{1, 2, 3}), to));
         assertFalse(Files.exists(to), "deleted");
-        var right = new ModelFile("http://unused",
-                "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81", null, dir);
+        var right = new ModelFile(new ModelFile.Source("dinov2-large", "http://unused",
+                "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"), null, dir);
         assertTrue(right.save(new ByteArrayInputStream(new byte[]{1, 2, 3}), to));
         assertTrue(right.key().startsWith("models/dinov2-large-039058c6f2c0cb49"));
     }

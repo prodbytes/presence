@@ -128,13 +128,21 @@ class FakeSampler implements ClipFrameSampler {
 /// Answers from a script: per frame (by image width), who's there, and
 /// which [objects].
 class FakeVision extends Vision {
-  FakeVision(this.frames, this.references, {this.objects = const {}});
+  FakeVision(
+    this.frames,
+    this.references, {
+    this.objects = const {},
+    this.pets = const {},
+  });
 
   final Map<int, List<Seen>> frames;
 
   /// For reference frames (decoded as 1000 + n wide).
   final Map<int, List<Seen>> references;
   final Map<int, Map<String, double>> objects;
+
+  /// The cats and dogs detected on each frame (with subjects or not).
+  final Map<int, List<Detection>> pets;
 
   /// Pictures analysed for subjects (embeddings), and frames at all.
   int calls = 0;
@@ -164,6 +172,7 @@ class FakeVision extends Vision {
     return FrameAnalysis(
       seen: subjects ? frames[i] ?? [] : const [],
       objects: objects[i] ?? const {},
+      pets: pets[i] ?? const [],
     );
   }
 
@@ -1581,8 +1590,9 @@ void main() {
       SubjectRecognizer withCloud(
         FakeVision vision,
         FakeSampler sampler,
-        _FakeCloud cloud,
-      ) => SubjectRecognizer(
+        _FakeCloud? cloud, {
+        _FakeDescriber? describer,
+      }) => SubjectRecognizer(
         bus: bus,
         log: log,
         config: config,
@@ -1590,6 +1600,7 @@ void main() {
         sampler: sampler,
         loadVision: () async => vision,
         cloud: cloud,
+        describer: describer,
         decode: (jpeg) async {
           final width = 1000 + jpeg.first;
           return RgbaImage(width, 1, Uint8List(width * 4));
@@ -1718,6 +1729,200 @@ void main() {
           cloud,
         ).recognize(ClipRequested(clip(), id: 'new'));
         expect(cloud.asked, isEmpty);
+      });
+
+      group('breeds and coats', () {
+        const left = Box(0, 0.2, 0.4, 1);
+        const right = Box(0.5, 0.2, 0.9, 1);
+        Set<String> labels(ClipRequested e) => {
+          for (final o in e.annotations.objects ?? const <ObjectTag>[]) o.label,
+        };
+
+        test('join the object tags, with no subject known', () async {
+          final vision = FakeVision(
+            const {},
+            const {},
+            objects: {
+              0: {'cat': 0.9},
+              1: {'cat': 0.9},
+            },
+            pets: {
+              0: [const Detection(left, 0.9, SeenKind.cat)],
+              1: [
+                const Detection(left, 0.9, SeenKind.cat),
+                const Detection(right, 0.8, SeenKind.dog),
+              ],
+            },
+          );
+          final describer = _FakeDescriber({
+            '0': const [
+              CloudPetLabel('Persian', 'breed', 0.8),
+              CloudPetLabel('black cat', 'coat', 0.9),
+            ],
+            '1': const [CloudPetLabel('black cat', 'coat', 0.95)],
+            '2': const [CloudPetLabel('Beagle', 'breed', 0.85)],
+          });
+          final event = ClipRequested(clip(), id: 'new');
+          final r = withCloud(
+            vision,
+            FakeSampler(2),
+            null,
+            describer: describer,
+          );
+          final result = await r.recognize(event);
+          await r.described;
+          expect(result.objects, ['cat'], reason: 'the device\'s own');
+          final asked = describer.asked.single;
+          expect(asked.keys, ['0', '1', '2']);
+          expect(
+            [for (final (species, _) in asked.values) species],
+            ['cat', 'cat', 'dog'],
+          );
+          expect(
+            asked['0']!.$2,
+            hasLength(CloudCrop.side * CloudCrop.side * 3),
+          );
+          expect(labels(event), {'cat', 'Persian', 'black cat', 'Beagle'});
+          final black = event.annotations.objects!.firstWhere(
+            (o) => o.label == 'black cat',
+          );
+          expect(black.score, 0.95, reason: 'its surest crop');
+          expect(black.ms, 2000, reason: 'where it was surest (frame 1)');
+        });
+
+        test(
+          'neither the subjects nor the breeds wait for the other',
+          () async {
+            log.addHistory([
+              tagged(1, ['Rex']),
+            ]);
+            final vision = FakeVision(
+              {
+                0: [seenAt(body, look: 0, kind: SeenKind.dog)],
+              },
+              {
+                1: [seenAt(body, look: 0, kind: SeenKind.dog)],
+              },
+              objects: {
+                0: {'dog': 0.9},
+              },
+              pets: {
+                0: [const Detection(body, 0.9, SeenKind.dog)],
+              },
+            );
+            // The breeds answer late: the subjects are done first.
+            var describeGate = Completer<void>();
+            var describer = _FakeDescriber({
+              '0': const [CloudPetLabel('Beagle', 'breed', 0.9)],
+            }, gate: describeGate);
+            var event = ClipRequested(clip(), id: 'new');
+            var r = withCloud(
+              vision,
+              FakeSampler(1),
+              _FakeCloud({
+                '0': const [CloudMatch('Rex', 0.97)],
+              }),
+              describer: describer,
+            );
+            final result = await r.recognize(event);
+            expect(result.tagged, ['Rex']);
+            expect(labels(event), {'dog'});
+            describeGate.complete();
+            await r.described;
+            expect(labels(event), {'dog', 'Beagle'});
+            expect(event.annotations.tags.single.name, 'Rex');
+
+            // The subjects answer late: the breeds are in first.
+            final identifyGate = Completer<void>();
+            describer = _FakeDescriber({
+              '0': const [CloudPetLabel('Beagle', 'breed', 0.9)],
+            });
+            event = ClipRequested(clip(), id: 'new-2');
+            r = withCloud(
+              vision,
+              FakeSampler(1),
+              _FakeCloud({
+                '0': const [CloudMatch('Rex', 0.97)],
+              }, gate: identifyGate),
+              describer: describer,
+            );
+            final searching = r.recognize(event);
+            await pumpEventQueue();
+            await r.described;
+            expect(labels(event), {'dog', 'Beagle'});
+            expect(event.annotations.tags, isEmpty);
+            identifyGate.complete();
+            await searching;
+            expect(event.annotations.tags.single.name, 'Rex');
+            expect(labels(event), {'dog', 'Beagle'}, reason: 'kept');
+          },
+        );
+
+        test('not asked unless premium, or with object tags off', () async {
+          final vision = FakeVision(
+            const {},
+            const {},
+            objects: {
+              0: {'cat': 0.9},
+            },
+            pets: {
+              0: [const Detection(left, 0.9, SeenKind.cat)],
+            },
+          );
+          final notPremium = _FakeDescriber({}, available: false);
+          await withCloud(
+            vision,
+            FakeSampler(1),
+            null,
+            describer: notPremium,
+          ).recognize(ClipRequested(clip(), id: 'a'));
+          expect(notPremium.asked, isEmpty);
+          config.update(
+            (c) =>
+                c.copyWith(recognition: c.recognition.copyWith(objects: false)),
+          );
+          final premium = _FakeDescriber({});
+          await withCloud(
+            vision,
+            FakeSampler(1),
+            null,
+            describer: premium,
+          ).recognize(ClipRequested(clip(), id: 'b'));
+          expect(premium.asked, isEmpty);
+        });
+
+        test(
+          'at most 8 pets, 2 a frame, and a failure changes nothing',
+          () async {
+            final vision = FakeVision(
+              const {},
+              const {},
+              pets: {
+                for (var i = 0; i < 6; i++)
+                  i: [
+                    const Detection(left, 0.9, SeenKind.cat),
+                    const Detection(right, 0.8, SeenKind.cat),
+                    const Detection(right, 0.7, SeenKind.dog),
+                  ],
+              },
+            );
+            final describer = _FakeDescriber({});
+            final event = ClipRequested(clip(), id: 'new');
+            final r = withCloud(
+              vision,
+              FakeSampler(6),
+              null,
+              describer: describer,
+            );
+            await r.recognize(event);
+            await r.described;
+            expect(describer.asked.single, hasLength(8));
+            expect([
+              for (final (species, _) in describer.asked.single.values) species,
+            ], everyElement('cat'));
+            expect(event.annotations.objects, isEmpty);
+          },
+        );
       });
 
       test(
@@ -2012,7 +2217,7 @@ VideoClip clip() => VideoClip.restored(
 /// Cloud recognition without HTTP: answers [answer] (crop ID to matches)
 /// and records what it was asked.
 class _FakeCloud extends CloudIdentifier {
-  _FakeCloud(this.answer, {this.available = true})
+  _FakeCloud(this.answer, {this.available = true, this.gate})
     : super(
         auth: FakeAuthService.signedIn(),
         roles: RolesService(auth: FakeAuthService(), client: FakeRolesClient()),
@@ -2025,6 +2230,9 @@ class _FakeCloud extends CloudIdentifier {
   @override
   final bool available;
 
+  /// Answers once it completes, if given.
+  final Completer<void>? gate;
+
   final asked = <Map<String, (String, Uint8List)>>[];
 
   @override
@@ -2032,6 +2240,37 @@ class _FakeCloud extends CloudIdentifier {
     Map<String, (String, Uint8List)> crops,
   ) async {
     asked.add(crops);
+    await gate?.future;
+    return answer;
+  }
+}
+
+/// Cloud recognition's breeds and coats without HTTP: answers [answer]
+/// (crop ID to labels), once [gate] completes if given, and records what
+/// it was asked.
+class _FakeDescriber extends CloudDescriber {
+  _FakeDescriber(this.answer, {this.available = true, this.gate})
+    : super(
+        auth: FakeAuthService.signedIn(),
+        roles: RolesService(auth: FakeAuthService(), client: FakeRolesClient()),
+        client: _UnusedClient(),
+      );
+
+  final Map<String, List<CloudPetLabel>> answer;
+
+  @override
+  final bool available;
+
+  final Completer<void>? gate;
+
+  final asked = <Map<String, (String, Uint8List)>>[];
+
+  @override
+  Future<Map<String, List<CloudPetLabel>>?> describe(
+    Map<String, (String, Uint8List)> crops,
+  ) async {
+    asked.add(crops);
+    await gate?.future;
     return answer;
   }
 }

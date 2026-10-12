@@ -46,7 +46,7 @@ final class Dinov2 implements Embedder {
     /** The function instance's model, fetched ({@link ModelFile}) and loaded at its first use. */
     static synchronized Dinov2 shared() {
         if (shared == null) {
-            shared = new Dinov2(ModelFile.fromEnvironment().path());
+            shared = new Dinov2(ModelFile.fromEnvironment(ModelFile.DINOV2).path());
         }
         return shared;
     }

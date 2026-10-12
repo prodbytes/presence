@@ -8,6 +8,12 @@ labels people place, and **inference**, which says who a new clip's people
 and pets may be. The app places the labels, as with its own recognition
 ([Subject recognition](recognition.md)).
 
+A third, **breeds and coats**, names the cats and dogs on a new clip
+("Persian", "Labrador Retriever", "black cat", "tabby cat") with
+**SigLIP2** (base, 224 px), with no training. It runs **beside the
+subjects' request**, in its own function: neither waits for the other, and
+its labels join the clip's object tags whenever it answers (below).
+
 ## Why DINOv2-L (2026-10-11)
 
 Measured on one black cat, Suerte (45 images from 7 places: video stills
@@ -92,6 +98,88 @@ found by a detector:
 - A failed request (offline, a cold start past 30 s) leaves the device's
   own verdict; it's logged.
 
+## Breeds and coats
+
+### Why SigLIP2 (2026-10-12)
+
+Measured on the Oxford-IIIT Pet test set (30 photos of each of its 37
+breeds, 1110, squared and shrunk to 224 px as the app crops), and on the
+crops of the 2026-10-11 study (90 of Suerte, a black cat; 72 of other
+cats, mostly house cats):
+
+| Model | Breed right (37 breeds) | Suerte "black" | Time |
+|---|---|---|---|
+| **SigLIP2 B/16, zero-shot** | **94.5 %** | 100 % | 1× |
+| SigLIP2 SO400M/14, zero-shot | 95.7 % | 98 % | ~5× |
+| DINOv2-L, a classifier learned on 1500 of Pet's photos | 95.6 % | can't (no coat labels to learn) | |
+
+- **Zero-shot** (a picture compared with captions: "a photo of a Persian,
+  a type of cat"): any breed or coat can be named without pictures to learn
+  from, which colours need. SigLIP2 base is nearly as good as the large
+  models, at a fraction of the time.
+- **House cats** have no breed: given only breeds, SigLIP2 named most black
+  house cats "Bombay" (a breed that is a black shorthair) and some "Manx"
+  (no tail, which a crop doesn't show). So some labels are picked but never
+  shown (`none`): Domestic Shorthair and Longhair, Mixed-breed (dogs), and
+  breeds told apart by a coat or a tail (Bombay, Russian Blue, Chartreux,
+  Korat, Manx); the coat says those better.
+- **As run in Lambda** (ONNX, int8, the function's crop bytes, the labels
+  below): a breed shown on **64 %** of Pet's photos, **right 98 %** of the
+  time (fp32: 98.0 %, int8: 97.5 %); on the 72 house cats, **1** breed
+  (a Maine Coon); Suerte "black cat" on **89 of 90**. The int8 export is a
+  quarter of fp32's size (95 MB), as good, and as fast.
+- Few home pictures, all cats, from one home: a direction, not a verdict.
+  Dogs were measured on Pet's 25 breeds only.
+
+### The labels
+
+`PetLabels` ([PetLabels.java](../presence_api_auth/RecognitionFunction/src/main/java/presence/auth/PetLabels.java)),
+from `pet-labels.tsv` and `pet-labels.bin` (132 labels' text embeddings,
+768 float32s each), made by
+[tools/pet_labels.py](../presence_api_auth/RecognitionFunction/tools/pet_labels.py),
+which also measures them (`--eval`):
+
+- **cats**: 26 breeds (Abyssinian, Bengal, Birman, British Shorthair,
+  Maine Coon, Persian, Ragdoll, Siamese, Sphynx…), 7 never shown (above),
+  and 10 coats: black, white, gray, orange, cream, tabby, black and white,
+  calico, tortoiseshell, colorpoint;
+- **dogs**: 77 breeds (Beagle, Border Collie, German Shepherd, Golden and
+  Labrador Retriever, Poodle, Pug, Rottweiler…), Mixed-breed (never
+  shown), and 11 coats: black, white, brown, golden, cream, gray, black
+  and tan, black and white, brindle, spotted, merle.
+- **A crop's labels**: among its species' breeds (with those never shown),
+  a softmax of SigLIP2's similarities (its logit scale, 112.67); the
+  likeliest is shown from **0.7**, unless it's one never shown. Among its
+  coats, the likeliest from **0.5**, as "black cat", "brindle dog". So a
+  crop has a breed, a coat, both or neither. The species is the app's
+  detector's (cat or dog).
+- To change the labels: edit the lists in `pet_labels.py`, run it (it
+  writes both files), measure with `--eval`, and update this page.
+
+### In the app
+
+- **Asked for** on each new clip searched for object tags (**Tag objects
+  in new clips**, or Auto), for a premium profile signed in
+  (`CloudDescriber`), trained or not, with or without subjects: the cats
+  and dogs the detector finds (`FrameAnalysis.pets`, the boxes only),
+  at most **2 a frame** (the surest) and **8 a clip**, cropped as for
+  identify (`CloudCrop`, 224 × 224), sent in one request once the clip is
+  sampled.
+- **Not waited for**: the device's object tags are set as soon as the clip
+  is sampled; then this request and the subjects' (identify) go out side by
+  side, and each places its answer when it comes. A late answer from one
+  never holds up the other.
+- **The answer** joins the clip's object tags
+  (`ClipAnnotations.addObjects`): each label once, from the crop it was
+  surest on (its frame's `ms`, its confidence as the score); a label
+  already there keeps the surer. They're saved and synced like the
+  device's (`objectTags`), show as chips on the card and in the player, and
+  are found by the Events search ("persian", "black cat"). They don't
+  change the clip's [flags](event-flags.md) (only `human`, `cat` and
+  `dog` count there).
+- A failed request (offline, not premium, a cold start past 30 s) adds
+  nothing; it's logged.
+
 ## The APIs
 
 In [presence_api_auth](../presence_api_auth) (`RecognitionFunction`, its
@@ -106,8 +194,10 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
 | `POST /api/recognition/labels` | `RecognitionTrainFunction` | `{"labels": [{id, clipId, name, kind, labeledAt, pixels}]}`, 1–8 | `{"stored", "labels"}`; 413 past 2000 labels |
 | `POST /api/recognition/train` | `RecognitionTrainFunction` | `{"labels": [{id, name}], "clips": [id]}` | `{"trainedAt", "labels", "subjects"}` |
 | `POST /api/recognition/identify` | `RecognitionInferFunction` | `{"crops": [{id, kind, pixels}]}`, 1–8 | `{"trainedAt", "results": [{id, labels: [{name, confidence}]}]}` |
+| `POST /api/recognition/describe` | `RecognitionDescribeFunction` | `{"crops": [{id, kind, pixels}]}`, 1–8; `kind`: `cat` or `dog` | `{"model": "siglip2-base-patch16-224", "results": [{id, labels: [{label, type, confidence}]}]}`; `type`: `breed` or `coat` |
 
-- `kind`: `person`, or `pet` (`cat` and `dog` are read as `pet`).
+- `kind`: `person`, or `pet` (`cat` and `dog` are read as `pet`); for
+  describe, `cat` or `dog` only.
   `pixels`: 224 × 224 RGB bytes, row by row, in base64 (150,528 bytes).
   A bad body is 400.
 - **Only embeddings are kept, never crops**: `RecognitionTable`, per
@@ -119,20 +209,30 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   come from the device, which can open them.
 - **Without a model** (never trained, or no subjects) identify answers
   `trainedAt` (or null) and no results, without loading DINOv2.
+- **Describe keeps nothing** and reads no table but the caller's profile.
 
-### The model in Lambda
+### The models in Lambda
 
 - `Dinov2` ([Dinov2.java](../presence_api_auth/RecognitionFunction/src/main/java/presence/auth/Dinov2.java)):
   ONNX Runtime 1.30 (Java, CPU, all threads). A crop normalized with
   ImageNet's mean and deviation; the embedding is the last layer's class
   token, made unit length.
-- **The file** (1.2 GB, too big for a package; `ModelFile`): fetched at an
-  instance's first use into `/tmp` (3 GB of ephemeral storage), from the
-  user-data bucket's `models/dinov2-large-305351060a1939d9.onnx` (a prefix
-  only the functions reach), or else from Hugging Face at the pinned
-  revision `4b3550c5…` and then kept in the bucket. Its SHA-256 must be
-  `30535106…7d6ac`, or it isn't used. The bucket's lifecycle expires it
-  after 90 days; the next instance fetches it again.
+- `Siglip2` ([Siglip2.java](../presence_api_auth/RecognitionFunction/src/main/java/presence/auth/Siglip2.java)):
+  SigLIP2's image tower (`google/siglip2-base-patch16-224`, as
+  `onnx-community/siglip2-base-patch16-224-ONNX`'s
+  `vision_model_int8.onnx`). A crop scaled to -1 to 1; the embedding is
+  the pooled output, made unit length.
+- **The files** (too big for a package; `ModelFile`, one `Source` per
+  model): fetched at an instance's first use into `/tmp`, from the
+  user-data bucket's `models/` (a prefix only the functions reach), or else
+  from Hugging Face at a pinned revision and then kept in the bucket. Its
+  SHA-256 must match, or it isn't used. The bucket's lifecycle expires
+  them after 90 days; the next instance fetches them again.
+  - DINOv2: `models/dinov2-large-305351060a1939d9.onnx` (1.2 GB, 3 GB of
+    ephemeral storage), revision `4b3550c5…`, SHA-256 `30535106…7d6ac`;
+  - SigLIP2: `models/siglip2-base-vision-int8-0dd31785a2713f11.onnx`
+    (95 MB, the default 512 MB of ephemeral storage), revision
+    `ba1f3b08…`, SHA-256 `0dd31785…795e70`.
 - **Functions**: Java 25, 3008 MB, 120 s timeout (the API gives up at
   30 s; a first fetch finishes anyway, and the next request finds the
   model), packaged by the [Makefile](../presence_api_auth/Makefile)
@@ -140,8 +240,12 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   [pom.xml](../presence_api_auth/RecognitionFunction/pom.xml) compiles the
   auth API's sources with its own (the caller, profiles, roles), adds ONNX
   Runtime with only its Linux libraries (47 MB jar) and jackson-jr.
+- **`RecognitionDescribeFunction`**: the same jar, Java 25, **2048 MB**,
+  60 s timeout. In the Lambda Java 25 image (arm64, 2 GB, 1.2 CPUs): a
+  cold request (fetching SigLIP2 from Hugging Face, checking and loading
+  it) answered 8 crops in 6.7 s, a warm one in 1.1 s.
 - **Throttles**: labels 2/s (burst 10), train 1/s (burst 5), identify 5/s
-  (burst 20).
+  (burst 20), describe 5/s (burst 20).
 
 ### The classifier
 
@@ -161,16 +265,18 @@ retrained in full at each training (about 0.15 s a subject):
 
 ## Licenses
 
-DINOv2 (`facebook/dinov2-large`) and its ONNX export are Apache-2.0. The
+DINOv2 (`facebook/dinov2-large`) and its ONNX export are Apache-2.0, as
+are SigLIP2 (`google/siglip2-base-patch16-224`) and its ONNX export. The
+labels' embeddings are SigLIP2's of captions written here. The
 negatives are embeddings (not images) of COCO val2017 crops: COCO's
 annotations are CC BY 4.0, its images under their Flickr licenses.
 
 ## Local
 
-The local stack (Floci) deploys both functions and creates the four routes
-(`presence_floci/init/ready.d/05-auth-api.sh`, RBAC mode only). There's no
-bucket to keep the model in, so each function fetches it from Hugging Face
-at its first use (1.2 GB).
+The local stack (Floci) deploys the three functions and creates the five
+routes (`presence_floci/init/ready.d/05-auth-api.sh`, RBAC mode only).
+There's no bucket to keep the models in, so each function fetches its
+model from Hugging Face at its first use (DINOv2 1.2 GB, SigLIP2 95 MB).
 
 ## Verified
 
@@ -200,7 +306,22 @@ at its first use (1.2 GB).
   unsure, is asked about; 8 crops at most, 2 a frame; not asked when
   unavailable; a label's crop is its detection's, its sort `pet`, and
   null where nobody is.
-- `sam build` packages both functions (47 MB each).
+- `DescribeTest` (JUnit, a fake embedder that returns a label's text
+  embedding): premium only, a verified email; bad crops refused (9, none,
+  a person, a pet, wrong pixels, no ID) and nothing embedded; a Persian,
+  a black cat and a Labrador named; a house cat and a Bombay get no breed;
+  a cat never gets a dog's labels; the labels load, unit length. With
+  `PRESENCE_TEST_SIGLIP2` and `PRESENCE_TEST_PET` (run locally): the real
+  model calls a crop of Suerte a black cat (0.98).
+- `recognition_test.dart`, breeds and coats: they join the object tags
+  with no subject known (cats and dogs sent as such, each label from its
+  surest crop); neither request waits for the other (the breeds in while
+  identify is still out, and the subjects tagged while describe is); not
+  asked unless premium, or with object tags off; 8 pets at most, 2 a
+  frame; a failure adds nothing. `cloud_recognition_test.dart`: the
+  describe request and answer (confidences clamped, blank labels
+  dropped); `addObjects` keeps the surer of a label.
+- `sam build` packages the three functions (47 MB each).
 - **In the Lambda Java 25 runtime** (`public.ecr.aws/lambda/java:25`,
   arm64, 3008 MB, with DynamoDB Local and RC rbacr), driven with API
   Gateway events: a free account 403; a premium one's status, 39 of
@@ -212,6 +333,16 @@ at its first use (1.2 GB).
   model fetched it from Hugging Face, checked it and answered in 57 s.
 
 ## Known limitations
+
+- **Breeds and coats not yet run in AWS** (only in the Lambda Java 25
+  image, fetching from Hugging Face): the bucket's copy of SigLIP2 and the
+  2048 MB function's speed there.
+- **A breed is a guess from looks**: a mixed-breed dog that looks like a
+  Labrador is called one. Breeds told apart by coat or tail are never
+  named (the coat is). Coats are named by the colour seen, which the
+  light changes (night vision makes every coat gray or black).
+- **The labels are English** (as the device's object tags), in the chips
+  and the search.
 
 - **Not yet run in AWS** at the time of writing (only in the Lambda
   runtime's image): the account's memory limit (3008 MB), the bucket's
