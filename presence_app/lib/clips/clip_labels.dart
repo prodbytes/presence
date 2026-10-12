@@ -5,11 +5,15 @@ import '../events.dart';
 import '../l10n/l10n.dart';
 import 'clip_model.dart';
 
-/// The border of a label on a clip (a subject or a tag), from how sure it
-/// is ([confidence], 0 to 1): the theme's main color for one someone made
-/// or confirmed (1), a shade of grey for recognition's, the lighter the
-/// surer.
-Color labelBorderColor(ColorScheme scheme, double confidence) => confidence >= 1
+/// The border of a label on a clip (a subject or a tag): the theme's main
+/// color for one someone made or confirmed ([authored]), a shade of grey
+/// for recognition's, the lighter the surer ([confidence], 0 to 1) — grey
+/// even when recognition is 100 % sure.
+Color labelBorderColor(
+  ColorScheme scheme,
+  double confidence, {
+  bool authored = false,
+}) => authored
     ? scheme.primary
     : Color.lerp(_unsureGrey, _sureGrey, confidence.clamp(0, 1))!;
 
@@ -17,8 +21,8 @@ const _unsureGrey = Color(0xFF5C5C5C);
 const _sureGrey = Color(0xFFE0E0E0);
 
 /// A clip's **Tags**: the things recognition saw on it (`human`, `cat`,
-/// `bicycle`, `bottle`…), as small square chips edged by their score
-/// ([labelBorderColor]), by first sighting;
+/// `bicycle`, `bottle`…), as small square chips edged in grey by their
+/// score ([labelBorderColor]: they're all recognition's), by first sighting;
 /// nothing until it's been searched, or if nothing was seen. In a timeline
 /// ([EventSearchScope]) a click on one filters the events by it (again,
 /// clears the filter) and it shows highlighted while it's the search, a

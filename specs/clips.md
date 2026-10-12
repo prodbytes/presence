@@ -255,19 +255,22 @@ needed. Each name is on a frame of the clip, at the spot clicked
   [lib/clips/clip_labels.dart](../presence_app/lib/clips/clip_labels.dart)):
   - **Subjects are round** (pill-shaped, `event-subject-border-<id>`),
     **tags are square** (no rounded corners), so the two read apart.
-  - **The border shows how sure the label is:** one someone made or
-    confirmed (100 %) is edged in the theme's main color (Gruvbox
-    yellow); one recognition found is edged in a **neutral grey, the
-    lighter the surer** (from `#5C5C5C` at 0 % to `#E0E0E0` just under
-    100 %). A subject tagged more than once on the clip takes its surest
-    tag's confidence. Object tags all come from recognition, so they're
-    always grey, by their `score`.
+  - **The border shows who made the label:** only one someone made or
+    confirmed (a `manual` or `confirmed` tag) is edged in the theme's
+    main color (Gruvbox yellow). One recognition found is edged in a
+    **neutral grey, the lighter the surer** (from `#5C5C5C` at 0 % to
+    `#E0E0E0` at 100 %) — grey even when recognition is 100 % sure, so
+    its first match on a clip never looks authored. A subject tagged more
+    than once on the clip is yellow if any of its tags is someone's, else
+    grey by its surest tag's confidence. Object tags all come from
+    recognition, so they're always grey, by their `score`.
   - While a label is the timeline's search it's also filled
-    (`primaryContainer`) and bold; the border keeps its confidence color.
+    (`primaryContainer`) and bold; the border keeps its color.
 - Tests: the model (add, rename, remove and frame dropping, clamping, a
   JSON round-trip that skips bad entries); `label_look_test.dart`: manual and
   confirmed tags store confidence 1 (older records read as 1), the
-  border colors (yellow at 100 %, greys lighter the surer), subjects
+  border colors (yellow only for authored labels, greys lighter the
+  surer, recognition's grey even at 100 %), subjects
   round and tags square on a card, and at app level a frame grabbed
   and clicked twice, restored after a refresh with its image, positions and
   names, and stored in the event record; a click on the video tagging that
