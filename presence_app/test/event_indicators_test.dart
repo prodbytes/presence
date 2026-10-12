@@ -44,7 +44,7 @@ void main() {
     tester,
   ) async {
     final (icon, tooltip) = await pump(tester, clip());
-    expect(icon.icon, Icons.search_off);
+    expect(icon.icon, Icons.psychology_outlined);
     expect(icon.color, schemeOf(tester).onSurface.withValues(alpha: 0.38));
     expect(
       tooltip,
@@ -60,7 +60,7 @@ void main() {
     final a = ClipAnnotations(const [], const {}, const [])
       ..setSubjectSearch(const SubjectSearch(SubjectSearchOutcome.searched, 5));
     final (icon, tooltip) = await pump(tester, clip(annotations: a));
-    expect(icon.icon, Icons.manage_search);
+    expect(icon.icon, Icons.psychology);
     expect(icon.color, schemeOf(tester).primary);
     expect(
       tooltip,
@@ -107,7 +107,7 @@ void main() {
       tester,
       clip(annotations: ClipAnnotations(const [], const {}, const [])),
     );
-    expect(icon.icon, Icons.manage_search);
+    expect(icon.icon, Icons.psychology);
     expect(icon.color, schemeOf(tester).onSurfaceVariant);
     expect(
       tooltip,
