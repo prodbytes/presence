@@ -110,5 +110,7 @@
   "settingsCloudNoLabels": "Nada para aprender ainda: marque pessoas e pets.",
   "settingsCloudFailed": "Não deu para treinar agora; tenta de novo depois.",
   "settingsCloudNotPremium": "O reconhecimento na nuvem é só Premium.",
-  "settingsCloudUpToDate": "Atualizado."
+  "settingsCloudUpToDate": "Atualizado.",
+  "settingsMemoryFree": "{amount} livres",
+  "settingsMemoryAbout": "cerca de {amount}"
 }

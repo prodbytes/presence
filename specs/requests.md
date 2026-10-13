@@ -5419,3 +5419,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        filled once it ran, outlined until it has), not
        `manage_search`/`search_off`; an eye already means hidden. Spec:
        [Recognition](recognition.md).
+
+388. **Settings: the device's memory, and labels apart from values.** (2026-10-13)
+     - Asked: at the bottom of Settings, how much memory is available to
+       the device, in parentheses after its name; the "Device" and
+       "Profile" labels a different color from their values.
+     - Changed: the Device line ends with its memory ("1.2 GB free" on
+       Android and Linux, "about 8 GB" in Chromium, nothing where the
+       platform doesn't say; `DeviceMemory`); the labels are in the accent
+       color, the IDs in the plain text color. Spec: [Settings](settings.md).

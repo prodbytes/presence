@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:presence_app/identity/device_memory.dart';
 import 'package:idb_shim/idb_client_memory.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -199,6 +200,35 @@ void main() {
       await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
       expect(find.text('loading…'), findsOneWidget);
       expect(find.text('none until signed in'), findsOneWidget);
+    });
+
+    testWidgets("the device's memory, after its ID, in parentheses", (
+      tester,
+    ) async {
+      Future<void> show(DeviceMemory? memory) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SettingsView(
+                key: UniqueKey(),
+                config: ConfigController(),
+                deviceId: 'calm_quiet_otter',
+                memory: () async => memory,
+              ),
+            ),
+          ),
+        );
+        await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
+        await tester.pump();
+      }
+
+      await show(const DeviceMemory(bytes: 1288490189, free: true));
+      expect(find.text(' (1.2 GB free)'), findsOneWidget);
+      await show(const DeviceMemory(bytes: 8 << 30, free: false));
+      expect(find.text(' (about 8 GB)'), findsOneWidget);
+      // Where the platform doesn't say: nothing after the ID.
+      await show(null);
+      expect(find.byKey(const Key('device-id-after')), findsNothing);
     });
 
     testWidgets('Settings ends with a QR code for this device and user', (

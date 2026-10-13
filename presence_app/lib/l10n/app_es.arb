@@ -539,6 +539,8 @@
   "settingsMapAttribution": "© Colaboradores de OpenStreetMap",
   "settingsMapZoomIn": "Acercar",
   "settingsMapZoomOut": "Alejar",
+  "settingsMemoryAbout": "unos {amount}",
+  "settingsMemoryFree": "{amount} libres",
   "settingsMotionCooldown": "Como máximo un clip automático cada",
   "settingsMotionNow": "Movimiento ahora: {percent} %",
   "settingsMotionNowWaiting": "Movimiento ahora: esperando la cámara…",

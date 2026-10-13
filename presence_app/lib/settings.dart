@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'app_version.dart';
 import 'camera_feeds.dart';
 import 'config.dart';
+import 'identity/device_memory.dart';
 import 'location/device_location.dart';
 import 'l10n/l10n.dart';
 import 'location/location_settings.dart';
@@ -28,6 +29,7 @@ class SettingsView extends StatefulWidget {
     this.nextClip,
     this.logTabDefault,
     this.liveSync = false,
+    this.memory = DeviceMemory.read,
     this.liveAdmin = false,
   });
 
@@ -64,6 +66,10 @@ class SettingsView extends StatefulWidget {
   /// it's known).
   final String? deviceId;
 
+  /// Reads this device's memory, shown after its ID ([DeviceMemory.read];
+  /// tests give their own). Read when Settings opens.
+  final Future<DeviceMemory?> Function() memory;
+
   /// This device's profile ID, always shown at the top beside the device
   /// ID ("none until signed in" until it's known).
   final String? profileId;
@@ -89,6 +95,9 @@ class _SettingsViewState extends State<SettingsView> {
   /// The location map is held: the list holds still, so a drag on the map
   /// moves the map.
   bool _mapHeld = false;
+
+  /// The device's memory, as Settings opened.
+  late final Future<DeviceMemory?> _memory = widget.memory();
 
   void _onMapHeld(bool held) {
     setState(() => _mapHeld = held);
@@ -549,11 +558,23 @@ class _SettingsViewState extends State<SettingsView> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _IdLine(
-                    label: l.settingsDevice,
-                    id: widget.deviceId,
-                    missing: l.settingsDeviceLoading,
-                    idKey: const Key('device-id'),
+                  FutureBuilder<DeviceMemory?>(
+                    future: _memory,
+                    builder: (context, snapshot) => _IdLine(
+                      label: l.settingsDevice,
+                      id: widget.deviceId,
+                      missing: l.settingsDeviceLoading,
+                      idKey: const Key('device-id'),
+                      // How much memory it has, as its platform says.
+                      after: switch (snapshot.data) {
+                        DeviceMemory(:final bytes, free: true) =>
+                          l.settingsMemoryFree(DeviceMemory.format(bytes)),
+                        DeviceMemory(:final bytes) => l.settingsMemoryAbout(
+                          DeviceMemory.format(bytes),
+                        ),
+                        null => null,
+                      },
+                    ),
                   ),
                   _IdLine(
                     label: l.settingsProfile,
@@ -866,6 +887,7 @@ class _IdLine extends StatelessWidget {
     required this.id,
     required this.missing,
     required this.idKey,
+    this.after,
   });
 
   final String label;
@@ -873,27 +895,43 @@ class _IdLine extends StatelessWidget {
   final String missing;
   final Key idKey;
 
+  /// Shown after the ID, in parentheses (the device's memory).
+  final String? after;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     // bodyMedium, as the version above: IDs get read out and typed on
     // other devices.
-    final style = theme.textTheme.bodyMedium?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final scheme = theme.colorScheme;
+    // The label in the accent color, the value plain, so each reads apart.
+    final style = theme.textTheme.bodyMedium?.copyWith(color: scheme.onSurface);
+    final muted = style?.copyWith(color: scheme.onSurfaceVariant);
     return Wrap(
       alignment: WrapAlignment.center,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        Text('$label ', style: style?.copyWith(fontWeight: FontWeight.w600)),
+        Text(
+          '$label ',
+          style: style?.copyWith(
+            color: scheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         switch (id) {
           final id? => SelectableText(id, key: idKey, style: style),
           null => Text(
             missing,
             key: idKey,
-            style: style?.copyWith(fontStyle: FontStyle.italic),
+            style: muted?.copyWith(fontStyle: FontStyle.italic),
           ),
         },
+        if (after case final after?)
+          Text(
+            ' ($after)',
+            key: Key('${(idKey as ValueKey<String>).value}-after'),
+            style: muted,
+          ),
       ],
     );
   }

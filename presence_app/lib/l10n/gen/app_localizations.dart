@@ -3334,6 +3334,18 @@ abstract class AppLocalizations {
   /// **'Zoom out'**
   String get settingsMapZoomOut;
 
+  /// No description provided for @settingsMemoryAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'about {amount}'**
+  String settingsMemoryAbout(String amount);
+
+  /// No description provided for @settingsMemoryFree.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} free'**
+  String settingsMemoryFree(String amount);
+
   /// No description provided for @settingsMotionCooldown.
   ///
   /// In en, this message translates to:

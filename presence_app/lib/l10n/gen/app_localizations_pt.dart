@@ -2067,6 +2067,16 @@ class AppLocalizationsPt extends AppLocalizations {
   String get settingsMapZoomOut => 'Afastar';
 
   @override
+  String settingsMemoryAbout(String amount) {
+    return 'cerca de $amount';
+  }
+
+  @override
+  String settingsMemoryFree(String amount) {
+    return '$amount livres';
+  }
+
+  @override
   String get settingsMotionCooldown => 'No máximo um clipe automático a cada';
 
   @override
