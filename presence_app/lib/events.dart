@@ -867,7 +867,9 @@ class _EventTimelineState extends State<EventTimeline> {
                       ),
                     ),
                   const SizedBox(width: 8),
-                  Flexible(child: EventIndicators(event: event)),
+                  // Their full size, always: the device's name gives way
+                  // (it ellipsizes) on a narrow card.
+                  EventIndicators(event: event),
                   if (EventDetailsScope.maybeOf(context) case final scope?
                       when scope.canDelete(event))
                     EventDeleteButton(event: event, delete: scope.deleteEvent!),

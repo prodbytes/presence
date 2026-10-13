@@ -5419,3 +5419,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        filled once it ran, outlined until it has), not
        `manage_search`/`search_off`; an eye already means hidden. Spec:
        [Recognition](recognition.md).
+
+388. **Bigger, spaced event indicators.** (2026-10-13)
+     - Asked: the card's indicators are still a bit hard to click; a
+       little bigger and further apart, not too much.
+     - Changed: 22 dp icons (were 20), targets at least 44 × 36 dp (were
+       40 × 32), 4 dp between them (none before). They keep their size on
+       a narrow card: the device's name gives way instead (the indicators
+       aren't `Flexible` any more), which fits a 320 dp phone. Spec:
+       [Event copies](event-copies.md).
