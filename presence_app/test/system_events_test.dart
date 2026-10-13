@@ -60,7 +60,7 @@ void main() {
     expect(inEvents(find.text('Application started')), findsOneWidget);
 
     // The choice stays while switching tabs.
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await showEvents(tester);
     expect(checked(tester), isTrue);

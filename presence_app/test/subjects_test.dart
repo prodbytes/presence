@@ -722,15 +722,16 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
     final camera = tester.getCenter(find.byTooltip('Camera'));
-    final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
-    final settings = tester.getCenter(find.byTooltip('Settings'));
+    final monitoring = tester.getCenter(find.byTooltip('Events'));
+    final settings = tester.getCenter(find.byTooltip('Setup'));
     expect(camera.dx, lessThan(monitoring.dx));
     expect(monitoring.dx, lessThan(settings.dx));
-    expect(find.byTooltip('Events'), findsNothing);
+    // One tab for the events, the map and the subjects (named Events).
+    expect(find.byTooltip('Events'), findsOneWidget);
     expect(find.byTooltip('Subjects'), findsNothing);
     expect(find.byTooltip('Device'), findsNothing);
 
-    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.tap(find.byTooltip('Events'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('subjects-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -771,7 +772,7 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
 
-    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.tap(find.byTooltip('Events'));
     await tester.pumpAndSettle();
     await tester.tap(
       find.descendant(
@@ -809,9 +810,9 @@ void main() {
         .widget<IconButton>(find.byKey(const Key('show-system-events')))
         .isSelected!;
     final system = systemShown();
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.tap(find.byTooltip('Events'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(

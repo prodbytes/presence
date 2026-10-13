@@ -5449,3 +5449,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Android and Linux, "about 8 GB" in Chromium, nothing where the
        platform doesn't say; `DeviceMemory`); the labels are in the accent
        color, the IDs in the plain text color. Spec: [Settings](settings.md).
+
+391. **Shorter tab labels.** (2026-10-13)
+     - Asked: shorter words for the long nav bar labels.
+     - Changed: **Monitoring** is **Events** (Spanish and Portuguese
+       **Eventos**, were Monitoreo and Monitorar) and **Settings** is
+       **Setup** (Spanish and Portuguese keep Ajustes), in the nav bar,
+       its tooltips and the app bar. Spec: [Navigation](navigation.md).

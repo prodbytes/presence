@@ -79,7 +79,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await settleStorage(tester);
     await open(tester);
-    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.tap(find.byTooltip('Events'));
     await tester.pumpAndSettle();
     await revealSystemEvents(tester);
   }
@@ -135,8 +135,8 @@ void main() {
     expect(find.byTooltip("Show every device's events"), findsOneWidget);
 
     // The search stays while switching tabs.
-    await tap(tester, find.byTooltip('Settings'));
-    await tap(tester, find.byTooltip('Monitoring'));
+    await tap(tester, find.byTooltip('Setup'));
+    await tap(tester, find.byTooltip('Events'));
     expect(searched(tester), there);
     expect(find.text('Door opened here'), findsNothing);
 

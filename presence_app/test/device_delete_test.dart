@@ -346,7 +346,7 @@ void main() {
     );
 
     // The account is a tab: back to Monitoring.
-    await tester.tap(find.byTooltip('Monitoring'));
+    await tester.tap(find.byTooltip('Events'));
     await tester.pumpAndSettle();
     expect(find.text('Phone motion'), findsNothing);
     expect(find.text('Phone door'), findsNothing);

@@ -572,7 +572,7 @@ void main() {
 
     /// Opens Settings and scrolls the whole location map into view.
     Future<void> openLocation(WidgetTester tester) async {
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byTooltip('Setup'));
       await tester.pumpAndSettle();
       await scrollSettingsTo(tester, find.byKey(const Key('location-map')));
     }
@@ -584,7 +584,7 @@ void main() {
       expect(find.byTooltip('Device'), findsNothing);
 
       // The first section, above Camera.
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byTooltip('Setup'));
       await tester.pumpAndSettle();
       // (The navigation bar's Camera label is not the section's.)
       final camera = find.descendant(
@@ -830,7 +830,7 @@ void main() {
       expect(find.byTooltip('Battery 100 %, full'), findsOneWidget);
 
       // Only over the camera.
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byTooltip('Setup'));
       await tester.pumpAndSettle();
       expect(pill, findsNothing);
       expect(tester.takeException(), isNull);

@@ -1726,7 +1726,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get navLog => 'Log';
 
   @override
-  String get navMonitoring => 'Monitorar';
+  String get navMonitoring => 'Eventos';
 
   @override
   String get navProfile => 'Perfil';
