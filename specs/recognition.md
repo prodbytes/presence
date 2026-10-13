@@ -20,7 +20,18 @@ confidence is the higher of the two:
   **fully recorded** (before + after) and saved. Only then is it queued:
   clips run one at a time, in the background, on the device that recorded
   them, and one still recording doesn't hold up the others (nor Auto on
-  another clip). Restored and synced clips aren't run.
+  another clip). Restored and synced clips aren't run, except:
+- **Clips from a device that can't recognize** (iOS, for now:
+  `SubjectRecognizer.unrecognizingOs`), synced here from the cloud or live
+  sync, are queued like this device's new clips (same settings, same
+  backpressure) once their clip is here, when they're under a day old
+  and unsearched (no object tags, no subject search). Their recording
+  comes down as it's read. The results are saved on the event, which
+  syncs back, so the iPhone and every other device show them, and the
+  recognition indicator turns on. Every device that can recognize does
+  this; their results merge like any change (`subjectSearch` kept from
+  either copy). Before 2026-10-13 an iPhone's clips were never
+  recognized, so their indicator never showed on.
 - **Backpressure:** at most the **latest 3 new clips** wait their turn;
   when another arrives the oldest waiting one is skipped (logged, outcome
   `deferred`). Auto is never skipped, and goes ahead of the new clips
