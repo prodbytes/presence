@@ -166,12 +166,20 @@
   user (see [Add a device](add-device.md)).
 - **The device and profile IDs, always, the last thing** on the page,
   under Add a device, in **one column**: one centred line each, a bold
-  label then the ID, selectable to copy. Quiet (`onSurfaceVariant`) and
+  label in the accent color (`primary`) then the ID in the plain text
+  color (`onSurface`), selectable to copy, so label and value read apart;
   the same size as the version (`bodyMedium`, 14 sp). When a line doesn't
   fit (e.g. 320 dp at 2x text), the ID wraps under its label; nothing
   overflows.
   - **Device** `automatic_paranoid_gadget` (see [Devices, users and
-    places](devices-users-places.md)), or *loading…* until it's known;
+    places](devices-users-places.md)), or *loading…* until it's known,
+    then, quieter (`onSurfaceVariant`), its **memory** in parentheses, as
+    its platform says when Settings opens (`DeviceMemory`): "(1.2 GB
+    free)" on Android (`ActivityManager`'s `availMem`) and Linux
+    (`/proc/meminfo`'s `MemAvailable`, the Raspberry Pi kiosk too);
+    "(about 8 GB)" in Chromium browsers (`navigator.deviceMemory`, the
+    whole memory, rounded); nothing on iOS, macOS, Windows, Firefox and
+    Safari, which don't say;
   - **Profile** `huge_wavy_darter`, the signed-in account's
     [profile](profiles.md), the same on every device; *none until signed
     in* signed out, in DEV, and until the auth API answers a sign-in.

@@ -5440,3 +5440,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        (web, Android) queues the synced clips of a device that can't (iOS)
        like its own new ones (under a day old, unsearched), and the result
        syncs back to every device.
+
+390. **Settings: the device's memory, and labels apart from values.** (2026-10-13)
+     - Asked: at the bottom of Settings, how much memory is available to
+       the device, in parentheses after its name; the "Device" and
+       "Profile" labels a different color from their values.
+     - Changed: the Device line ends with its memory ("1.2 GB free" on
+       Android and Linux, "about 8 GB" in Chromium, nothing where the
+       platform doesn't say; `DeviceMemory`); the labels are in the accent
+       color, the IDs in the plain text color. Spec: [Settings](settings.md).

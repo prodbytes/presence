@@ -1551,6 +1551,22 @@
   "settingsMapAttribution": "© OpenStreetMap contributors",
   "settingsMapZoomIn": "Zoom in",
   "settingsMapZoomOut": "Zoom out",
+  "settingsMemoryAbout": "about {amount}",
+  "@settingsMemoryAbout": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMemoryFree": "{amount} free",
+  "@settingsMemoryFree": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
   "settingsMotionCooldown": "At most one automatic clip every",
   "settingsMotionNow": "Motion now: {percent} %",
   "@settingsMotionNow": {

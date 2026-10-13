@@ -242,5 +242,21 @@
   "settingsCloudNoLabels": "Nothing to learn yet: tag people and pets.",
   "settingsCloudFailed": "Couldn't train now; it tries again later.",
   "settingsCloudNotPremium": "Cloud recognition is Premium only.",
-  "settingsCloudUpToDate": "Up to date."
+  "settingsCloudUpToDate": "Up to date.",
+  "settingsMemoryFree": "{amount} free",
+  "@settingsMemoryFree": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMemoryAbout": "about {amount}",
+  "@settingsMemoryAbout": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  }
 }

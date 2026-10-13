@@ -2050,6 +2050,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsMapZoomOut => 'Zoom out';
 
   @override
+  String settingsMemoryAbout(String amount) {
+    return 'about $amount';
+  }
+
+  @override
+  String settingsMemoryFree(String amount) {
+    return '$amount free';
+  }
+
+  @override
   String get settingsMotionCooldown => 'At most one automatic clip every';
 
   @override
