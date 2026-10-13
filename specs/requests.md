@@ -5420,7 +5420,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `manage_search`/`search_off`; an eye already means hidden. Spec:
        [Recognition](recognition.md).
 
-388. **Settings: the device's memory, and labels apart from values.** (2026-10-13)
+388. **Bigger, spaced event indicators.** (2026-10-13)
+     - Asked: the card's indicators are still a bit hard to click; a
+       little bigger and further apart, not too much.
+     - Changed: 22 dp icons (were 20), targets at least 44 × 36 dp (were
+       40 × 32), 4 dp between them (none before). They keep their size on
+       a narrow card: the device's name gives way instead (the indicators
+       aren't `Flexible` any more), which fits a 320 dp phone. Spec:
+       [Event copies](event-copies.md).
+
+389. **Recognition for an iPhone's clips.** (2026-10-13)
+     - Asked: the recognition indicator is never on; make sure it's right.
+     - Found: in the profile's events in the bucket, the web's clips had
+       both object tags and a subject search (indicator on), the Pi's
+       streamer clip object tags only (partial, by design), and every
+       iPhone clip neither: iOS can't run recognition yet, and synced clips
+       were never recognized elsewhere. The indicator itself was right.
+     - Changed: [Recognition](recognition.md): a device that can recognize
+       (web, Android) queues the synced clips of a device that can't (iOS)
+       like its own new ones (under a day old, unsearched), and the result
+       syncs back to every device.
+
+390. **Settings: the device's memory, and labels apart from values.** (2026-10-13)
      - Asked: at the bottom of Settings, how much memory is available to
        the device, in parentheses after its name; the "Device" and
        "Profile" labels a different color from their values.

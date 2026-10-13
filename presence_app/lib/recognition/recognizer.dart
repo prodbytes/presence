@@ -238,6 +238,47 @@ class SubjectRecognizer {
         );
   }
 
+  /// Operating systems whose app can't recognize yet: their clips are
+  /// recognized by a device that can, when they sync to it
+  /// ([recognizeSynced]).
+  static const Set<String> unrecognizingOs = {'iOS'};
+
+  /// How old a synced clip may be and still be recognized here: newer
+  /// ones only, not a history being synced in.
+  static const Duration syncedWithin = Duration(days: 1);
+
+  /// Synced clips ([events], just added from another device's sync) that
+  /// their own device couldn't recognize ([unrecognizingOs]) and that
+  /// haven't been, queued like this device's new clips: same settings,
+  /// same backpressure. Their recordings come down as they're read. The
+  /// results are saved on the event, which syncs back, so every device's
+  /// indicator shows them. Clips older than [syncedWithin] are left.
+  void recognizeSynced(Iterable<AppEvent> events, {DateTime? now}) {
+    if (!supported || _disposed) return;
+    final since = (now ?? DateTime.now()).subtract(syncedWithin);
+    for (final event in events) {
+      if (event is! ClipRequested) continue;
+      // Still coming from its device: taken when it arrives (it's replaced
+      // by the clip then, Persistence.showArrivedClips).
+      if (event.clip.awaitingRemote) continue;
+      if (!unrecognizingOs.contains(event.os)) continue;
+      if (event.time.isBefore(since) || _searched.contains(event.id)) continue;
+      final a = event.annotations;
+      if (a.subjectSearch != null || a.objects != null) continue;
+      if (_pending.any((j) => j.event.id == event.id)) continue;
+      _full(event.clip)
+          .then<void>((media) async {
+            if (media == null || _disposed) return;
+            await _enqueue(event, onRequest: false);
+          })
+          .catchError(
+            (Object e, StackTrace stack) => debugPrint(
+              'Presence: recognition failed on synced ${event.id}: $e\n$stack',
+            ),
+          );
+    }
+  }
+
   /// Runs recognition on [event]'s clip now, after any clip already being
   /// searched (ahead of new clips waiting), even with recognition off in
   /// Settings: someone asked. With [again], its object tags are looked

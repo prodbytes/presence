@@ -121,9 +121,12 @@ the cloud and the recording device.
 ## On screen
 
 Each event has **indicators**, small icons with a tooltip each
-(`EventIndicators`), in this order. They're **20 dp** icons (the copies
-number in `labelMedium`), each at least 40 × 32 dp, so they're easy to
-tap; each is a button that does something (see [Tapped](#tapped)):
+(`EventIndicators`), in this order. They're **22 dp** icons (the copies
+number in `labelMedium`), each at least 44 dp tall and 36 dp wide (7 dp
+of padding each side), with 4 dp between them, so they're easy to tap;
+each is a button that does something (see [Tapped](#tapped)). They keep
+that size on a narrow card: the device's name beside them gives way
+(ellipsized).
 
 - **Recognition** (clips only): how far recognition ran. See [Subject
   recognition](recognition.md#on-the-event-card).
