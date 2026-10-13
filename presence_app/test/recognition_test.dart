@@ -813,29 +813,53 @@ void main() {
           },
         );
 
-    test("an iPhone's synced clip is recognized here; others aren't", () async {
-      final sampler = FakeSampler(2);
-      final r = recognizer(FakeVision({}, {}), sampler);
-      final now = DateTime.now();
-      ClipRequested synced(String id, {String? os, DateTime? time}) =>
-          ClipRequested(clip(), id: id, time: time ?? now)..os = os;
-      final iphone = synced('iphone', os: 'iOS');
-      final web = synced('web', os: 'macOS');
-      final old = synced(
-        'old',
-        os: 'iOS',
-        time: now.subtract(const Duration(days: 2)),
-      );
-      final done = synced('done', os: 'iOS')..annotations.setObjects(const []);
-      r.recognizeSynced([iphone, web, old, done], now: now);
-      // Queued once the clip is known to be whole (a microtask on).
-      await Future<void>.delayed(Duration.zero);
-      await r.idle;
-      expect(iphone.annotations.objects, isNotNull, reason: 'searched here');
-      expect(web.annotations.objects, isNull, reason: 'its device recognizes');
-      expect(old.annotations.objects, isNull, reason: 'history, left');
-      expect(sampler.samples, 1);
-    });
+    test(
+      "a synced clip nobody searched for subjects is recognized here: "
+      "an iPhone's, and a streamer's (its objects looked for again)",
+      () async {
+        final sampler = FakeSampler(2);
+        final r = recognizer(FakeVision({}, {}), sampler);
+        final now = DateTime.now();
+        ClipRequested synced(String id, {String? os, DateTime? time}) =>
+            ClipRequested(clip(), id: id, time: time ?? now)..os = os;
+        final iphone = synced('iphone', os: 'iOS');
+        // A Raspberry Pi streamer's: its cloud detector's object tags only.
+        final pi = synced('pi', os: 'Linux')
+          ..annotations.setObjects([
+            const ObjectTag(label: 'bear', ms: 0, score: 0.76),
+          ]);
+        final old = synced(
+          'old',
+          os: 'iOS',
+          time: now.subtract(const Duration(days: 2)),
+        );
+        // Searched for subjects on its own device already.
+        final web = synced('web', os: 'macOS')
+          ..annotations.setObjects(const []);
+        web.annotations.setSubjectSearch(
+          SubjectSearch(
+            SubjectSearchOutcome.searched,
+            now.millisecondsSinceEpoch,
+          ),
+        );
+        r.recognizeSynced([iphone, pi, old, web], now: now);
+        // Queued once the clip is known to be whole (a microtask on).
+        await Future<void>.delayed(Duration.zero);
+        await r.idle;
+        expect(iphone.annotations.objects, isNotNull, reason: 'searched here');
+        expect(
+          pi.annotations.objects!.map((o) => o.label),
+          isNot(contains('bear')),
+          reason: "the streamer's tags looked for again",
+        );
+        expect(old.annotations.objects, isNull, reason: 'history, left');
+        expect(
+          sampler.samples,
+          2,
+          reason: 'the iPhone and the Pi, not the web',
+        );
+      },
+    );
 
     test('tags the sure, asks about the unsure, on their best frame', () async {
       const body = Box(0.3, 0.2, 0.7, 1);

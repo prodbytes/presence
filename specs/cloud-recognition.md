@@ -48,19 +48,25 @@ found by a detector:
   tags without it count from their ID's time (`labeledTime`).
 - **The training check** (`CloudTrainer`,
   [cloud_recognition.dart](../presence_app/lib/recognition/cloud_recognition.dart)),
-  on a premium profile only:
+  on a premium profile only, and only on a device whose recognition runs
+  (web, Android): a label's crop needs the models. (An iPhone's check,
+  before 2026-10-13, sent no crops and still trained, leaving the model
+  empty.)
   - **when it runs**: at once when the app starts (or signs in) premium
     (the roles answering), then every **24 h** since the last check
     (`cloudCheckedAt`, looked at every 15 min). A failed check is tried
     again after **15 min**. One at a time.
   - **what it decides**: it asks the API's status (when it last trained,
     the labels it holds), and trains if:
-    - it was never trained and there are **3** labels or more;
+    - it was never trained, or holds no label, and there are **3**
+      labels or more;
     - **5** labels or more are new since the last training (`labeledAt`
-      after it); or
+      after it, or not held by the API at all); or
     - **7 days** have passed since the last training.
   - **training**: the crops of the labels the API doesn't hold yet (newest
-    first, **8** per request), then the profile's labels. The time it
+    first, **8** per request), then the profile's labels; not at all when
+    no label could be sent or is held (no crop: an empty model never
+    replaces one, "no labels"). The time it
     trained is kept in the settings (`recognition.cloudTrainedAt`, synced
     with the device's settings) and shown in Settings.
 - **A label's crop** (`SubjectRecognizer.cloudCrop`): its frame opened,

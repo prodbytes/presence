@@ -5456,3 +5456,24 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        **Eventos**, were Monitoreo and Monitorar) and **Settings** is
        **Setup** (Spanish and Portuguese keep Ajustes), in the nav bar,
        its tooltips and the app bar. Spec: [Navigation](navigation.md).
+
+392. **Recognizing Suerte: the Pi's clips, and the cloud's labels.** (2026-10-13)
+     - Asked: the cat isn't recognized, neither subject nor tags; the
+       indicator is always grey and not clickable; check the threshold;
+       the latest black cat event should have the subject "Suerte" and the
+       tag "black cat".
+     - Found: the latest cat clips were the Pi streamer's, tagged by its
+       cloud detector only (YOLOv4-tiny: "cat" 0.89 once, "bear" 0.76 for
+       the black cat in the dark), never searched for subjects: synced
+       clips were only recognized elsewhere when an iPhone's. Cloud
+       recognition held no label: the iPhone ran the training check at its
+       start (08:06), couldn't crop (no models on iOS), and trained an
+       empty model, which then waited 7 days. Suerte is tagged on 6 clips.
+       The indicator was right: grey for partial and not run, and not
+       clickable on iOS, where recognition can't run.
+     - Changed: [Recognition](recognition.md): every synced clip without a
+       subject search is recognized on a device that can (objects looked
+       for again, with breeds and coats); [Cloud
+       recognition](cloud-recognition.md): only devices that can crop run
+       the training check, no crop means no training, and labels the API
+       lacks count as new (an empty model trains again at once).

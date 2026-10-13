@@ -295,6 +295,24 @@ void main() {
       expect(client.trainings.single.$1, hasLength(11));
     });
 
+    test('no crop, no training: an empty model never replaces one', () async {
+      labeled('Suerte', 4, at: 10);
+      expect(
+        await trainer(nobody: {'Suerte'}).check(force: true),
+        TrainingOutcome.noLabels,
+      );
+      expect(client.trainings, isEmpty);
+    });
+
+    test('labels the API lacks count as new, even if older than its training '
+        '(one trained empty from a device that could not crop)', () async {
+      labeled('Suerte', 3, at: 10);
+      // Trained just now, holding none of them.
+      client.trainedAt = now;
+      expect(await trainer().check(force: true), TrainingOutcome.trained);
+      expect(client.uploads.single, hasLength(3));
+    });
+
     test('Train now trains whatever there is', () async {
       labeled('Suerte', 1, at: 10);
       expect(await trainer().trainNow(), TrainingOutcome.trained);

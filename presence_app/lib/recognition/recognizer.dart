@@ -238,21 +238,20 @@ class SubjectRecognizer {
         );
   }
 
-  /// Operating systems whose app can't recognize yet: their clips are
-  /// recognized by a device that can, when they sync to it
-  /// ([recognizeSynced]).
-  static const Set<String> unrecognizingOs = {'iOS'};
-
   /// How old a synced clip may be and still be recognized here: newer
   /// ones only, not a history being synced in.
   static const Duration syncedWithin = Duration(days: 1);
 
   /// Synced clips ([events], just added from another device's sync) that
-  /// their own device couldn't recognize ([unrecognizingOs]) and that
-  /// haven't been, queued like this device's new clips: same settings,
-  /// same backpressure. Their recordings come down as they're read. The
-  /// results are saved on the event, which syncs back, so every device's
-  /// indicator shows them. Clips older than [syncedWithin] are left.
+  /// weren't searched for subjects (no `subjectSearch`): an iPhone's (iOS
+  /// can't recognize yet) and a Raspberry Pi streamer's (its cloud
+  /// detector only tags objects, with a small model), queued like this
+  /// device's new clips: same settings, same backpressure. One with object
+  /// tags already has them looked for again ([recognizeNow]'s `again`),
+  /// with this device's detector and the cloud's breeds and coats ("black
+  /// cat"). Their recordings come down as they're read. The results are
+  /// saved on the event, which syncs back, so every device's indicator
+  /// shows them. Clips older than [syncedWithin] are left.
   void recognizeSynced(Iterable<AppEvent> events, {DateTime? now}) {
     if (!supported || _disposed) return;
     final since = (now ?? DateTime.now()).subtract(syncedWithin);
@@ -261,15 +260,16 @@ class SubjectRecognizer {
       // Still coming from its device: taken when it arrives (it's replaced
       // by the clip then, Persistence.showArrivedClips).
       if (event.clip.awaitingRemote) continue;
-      if (!unrecognizingOs.contains(event.os)) continue;
       if (event.time.isBefore(since) || _searched.contains(event.id)) continue;
       final a = event.annotations;
-      if (a.subjectSearch != null || a.objects != null) continue;
+      if (a.subjectSearch != null) continue;
       if (_pending.any((j) => j.event.id == event.id)) continue;
+      // Tagged by a streamer's cloud detector: looked at again here.
+      final again = a.objects != null;
       _full(event.clip)
           .then<void>((media) async {
             if (media == null || _disposed) return;
-            await _enqueue(event, onRequest: false);
+            await _enqueue(event, onRequest: false, again: again);
           })
           .catchError(
             (Object e, StackTrace stack) => debugPrint(
