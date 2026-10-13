@@ -1334,7 +1334,7 @@
   "@navLog": {
     "description": "Navigation bar: the Log tab"
   },
-  "navMonitoring": "Monitoring",
+  "navMonitoring": "Events",
   "@navMonitoring": {
     "description": "Navigation bar: the Monitoring tab"
   },
@@ -1342,7 +1342,7 @@
   "@navProfile": {
     "description": "Navigation bar: the Profile tab"
   },
-  "navSettings": "Settings",
+  "navSettings": "Setup",
   "@navSettings": {
     "description": "Navigation bar: the Settings tab"
   },

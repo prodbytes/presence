@@ -268,7 +268,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        tester.getCenter(find.byTooltip('Settings')).dx,
+        tester.getCenter(find.byTooltip('Setup')).dx,
         lessThan(tester.getCenter(helpTab).dx),
       );
       expect(find.byTooltip('Admin'), findsNothing);

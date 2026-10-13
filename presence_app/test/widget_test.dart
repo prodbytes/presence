@@ -79,15 +79,15 @@ void main() {
       expect(bar.bottom, size.height);
       expect(bar.width, size.width);
       final camera = tester.getCenter(find.byTooltip('Camera'));
-      final monitoring = tester.getCenter(find.byTooltip('Monitoring'));
-      final settings = tester.getCenter(find.byTooltip('Settings'));
+      final monitoring = tester.getCenter(find.byTooltip('Events'));
+      final settings = tester.getCenter(find.byTooltip('Setup'));
       for (final c in [camera, monitoring, settings]) {
         expect(bar.contains(c), isTrue);
       }
       expect(camera.dx, lessThan(monitoring.dx));
       expect(monitoring.dx, lessThan(settings.dx));
       // Each tab is labeled under its icon.
-      for (final label in ['Camera', 'Monitoring', 'Settings']) {
+      for (final label in ['Camera', 'Events', 'Setup']) {
         expect(
           find.descendant(
             of: find.byType(HomeNavigationBar),
@@ -163,8 +163,8 @@ void main() {
       await pumpAt(tester, size);
 
       final title = find.byKey(const Key('screen-title'));
-      await openTab(tester, 'Monitoring');
-      expect(tester.widget<Text>(title).data, 'Monitoring');
+      await openTab(tester, 'Events');
+      expect(tester.widget<Text>(title).data, 'Events');
       expect(tester.getCenter(title).dy, lessThan(kToolbarHeight));
       // On the left, bold.
       expect(tester.getRect(title).left, lessThan(size.width / 2));
@@ -172,8 +172,8 @@ void main() {
         DefaultTextStyle.of(tester.element(title)).style.fontWeight,
         FontWeight.w700,
       );
-      await openTab(tester, 'Settings');
-      expect(tester.widget<Text>(title).data, 'Settings');
+      await openTab(tester, 'Setup');
+      expect(tester.widget<Text>(title).data, 'Setup');
       await openTab(tester, 'Camera');
       expect(title, findsNothing);
       expect(tester.takeException(), isNull);
@@ -202,7 +202,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        tester.getRect(find.byTooltip('Settings')).right,
+        tester.getRect(find.byTooltip('Setup')).right,
         lessThanOrEqualTo(tester.getRect(admin).left),
       );
       expect(tester.getRect(admin).right, lessThanOrEqualTo(size.width));
@@ -257,13 +257,13 @@ void main() {
       expect(tabs(tester).index, HomeTab.camera.index);
       expect(memory.tab, isNull, reason: 'nothing chosen yet');
 
-      await openTab(tester, 'Settings');
+      await openTab(tester, 'Setup');
       expect(memory.tab, 'settings');
       await launch(tester, memory);
       expect(tabs(tester).index, HomeTab.settings.index);
       expect(find.byKey(const Key('settings-page')), findsOneWidget);
 
-      await openTab(tester, 'Monitoring');
+      await openTab(tester, 'Events');
       expect(memory.tab, 'monitoring');
       await launch(tester, memory);
       expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
@@ -302,7 +302,7 @@ void main() {
     await pumpAt(tester, const Size(1280, 800));
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
 
-    await openTab(tester, 'Monitoring');
+    await openTab(tester, 'Events');
     expect(tabs(tester).index, HomeTab.monitoring.index);
     expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
     expect(find.byKey(const Key('subjects-map')), findsOneWidget);
@@ -310,7 +310,7 @@ void main() {
     await revealSystemEvents(tester);
     expect(find.text('Application started'), findsOneWidget);
 
-    await openTab(tester, 'Settings');
+    await openTab(tester, 'Setup');
     expect(tabs(tester).index, HomeTab.settings.index);
     expect(find.byKey(const Key('settings-page')), findsOneWidget);
     // Location first, the other sections under it.
@@ -367,7 +367,7 @@ void main() {
     expect(find.byKey(const Key('google-sign-in')), findsNothing);
     expect(find.byKey(const Key('sign-up')), findsNothing);
     expect(find.byTooltip('Admin'), findsNothing);
-    await openTab(tester, 'Settings');
+    await openTab(tester, 'Setup');
     expect(tabs(tester).index, HomeTab.settings.index);
 
     // No API in tests, and no AWS or OIDC settings: events stay local.
@@ -379,7 +379,7 @@ void main() {
 
   testWidgets('settings show the API answered', (tester) async {
     await pumpAt(tester, const Size(1280, 800));
-    await openTab(tester, 'Settings');
+    await openTab(tester, 'Setup');
     await scrollSettingsTo(tester, find.byKey(const Key('system-health')));
     expect(find.text('🔌 API ✅'), findsOneWidget);
     expect(find.text('☁️ AWS ⚪'), findsOneWidget);
@@ -461,7 +461,7 @@ void main() {
       find.byTooltip('Signed in as Ana · ana@example.com'),
       findsOneWidget,
     );
-    await openTab(tester, 'Monitoring');
+    await openTab(tester, 'Events');
     await revealSystemEvents(tester);
     expect(find.text('Signed in'), findsOneWidget);
 
@@ -521,7 +521,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('clip')), findsOneWidget);
 
-    await openTab(tester, 'Monitoring');
+    await openTab(tester, 'Events');
     expect(find.byKey(const Key('clip')), findsNothing);
   });
 
@@ -551,7 +551,7 @@ void main() {
 
     AppEventBusScope.of(tester.element(find.byType(HomeScreen)))
         .publish(AppEvent(icon: Icons.videocam, title: 'Motion detected'));
-    await openTab(tester, 'Monitoring');
+    await openTab(tester, 'Events');
     await revealSystemEvents(tester);
 
     expect(find.text('Motion detected'), findsOneWidget);

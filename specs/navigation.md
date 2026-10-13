@@ -9,7 +9,8 @@ account.
 - **Bottom navigation bar** (`HomeNavigationBar`,
   `lib/home/home_navigation_bar.dart`, a Material `NavigationBar`): one
   destination per tab, each an **icon over its label**, in order
-  **Camera**, **Monitoring** and **Settings**; for signed-in members
+  **Camera**, **Events** (the monitoring tab: map, subjects and events)
+  and **Setup** (the settings); for signed-in members
   (not DEV: there are no accounts) **Help**, Feedback and Help (see
   [Feedback and Help](feedback.md)); for admins
   (`presence_admin`, so everyone in DEV, where the anonymous user is a
@@ -36,7 +37,8 @@ account.
   - Each destination's tooltip and screen-reader label is the tab's name
     (Profile's says who's signed in), with at least a 48 dp touch target:
     an admin's seven tabs fit a 320 dp phone (labels are kept short for
-    that: "Help", not "Feedback & Help").
+    that: "Help", not "Feedback & Help"; "Events", not "Monitoring";
+    "Setup", not "Settings").
   - **Signed out**, or signed in without access, there's no navigation
     bar: the camera shows alone (see [Sign-in](sign-in.md)).
   - The Help, Log, Admin and Profile tabs come and go as sign-in, the
@@ -50,7 +52,7 @@ account.
     battery shows over the camera.)
 - **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
   - **On the left, the open screen's name** (`HomeTab.title`), bold
-    (22 sp, weight 700), left-aligned ("Monitoring", "Settings",
+    (22 sp, weight 700), left-aligned ("Events", "Setup",
     "Feedback & Help", "Log", "Admin", "Profile"): the tab's label, unless
     it has a longer name, as Help does. **No name
     over the camera.** In DEV the "dev" label follows it (alone over the

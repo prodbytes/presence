@@ -117,7 +117,7 @@ void main() {
     /// Scrolls to "Add a device", near the end of Settings, and returns its
     /// link.
     Future<Uri> openAddDevice(WidgetTester tester) async {
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byTooltip('Setup'));
       await tester.pumpAndSettle();
       // Shown in place, no dialog.
       await scrollSettingsTo(tester, find.byKey(const Key('add-device-share')));
@@ -153,7 +153,7 @@ void main() {
     ) async {
       final roles = FakeRolesClient();
       await launch(tester, roles: roles);
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byTooltip('Setup'));
       await tester.pumpAndSettle();
       await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
       expect(deviceIdShown(tester), matches(DeviceId.pattern));
@@ -175,7 +175,7 @@ void main() {
       String profileShown() =>
           tester.widget<Text>(find.byKey(const Key('profile-id'))).data!;
       Future<void> openSettings() async {
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.byTooltip('Setup'));
         await tester.pumpAndSettle();
         await scrollSettingsTo(tester, find.byKey(const Key('profile-id')));
       }
@@ -309,7 +309,7 @@ void main() {
         // As a new device: its own ID, not the one that shared the link.
         await tester.pump(const Duration(seconds: 5)); // the message goes
         await tester.pumpAndSettle();
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.byTooltip('Setup'));
         await tester.pumpAndSettle();
         await scrollSettingsTo(tester, find.byKey(const Key('device-id')));
         expect(deviceIdShown(tester), isNot('other_device_here'));

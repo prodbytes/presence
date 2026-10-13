@@ -1735,7 +1735,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get navLog => 'Registro';
 
   @override
-  String get navMonitoring => 'Monitoreo';
+  String get navMonitoring => 'Eventos';
 
   @override
   String get navProfile => 'Perfil';

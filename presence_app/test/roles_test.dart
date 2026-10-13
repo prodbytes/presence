@@ -587,7 +587,7 @@ void main() {
 
       /// Flips Settings' "Show the Log tab" switch.
       Future<void> toggleLog(WidgetTester tester) async {
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.byTooltip('Setup'));
         await tester.pumpAndSettle();
         // At the list's edge: a drag in its middle can land on the
         // location map or a slider.
@@ -827,7 +827,7 @@ void main() {
           reason: 'with Help; the Log tab is hidden; Profile is last',
         );
         // In the navigation bar, after Settings and before Profile.
-        final settings = tester.getCenter(find.byTooltip('Settings'));
+        final settings = tester.getCenter(find.byTooltip('Setup'));
         final admin = tester.getCenter(adminTab);
         expect(settings.dx, lessThan(admin.dx));
         expect(
@@ -855,7 +855,7 @@ void main() {
 
         // The navigation bar flips back to Settings, and on to the Admin
         // tab again.
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.byTooltip('Setup'));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('settings-page')), findsOneWidget);
         expect(find.byKey(const Key('admin-view')), findsNothing);

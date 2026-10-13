@@ -321,7 +321,7 @@ void main() {
     });
 
     // Settings shows the device's ID.
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await scrollSettingsTo(tester, find.byKey(const Key('device-id')));
     expect(
@@ -617,7 +617,7 @@ void main() {
 
     // A member set to Always connects every 30 s instead; the setting
     // stays Always.
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     final config = tester
         .widget<SettingsView>(find.byType(SettingsView))
@@ -1239,7 +1239,7 @@ void main() {
   );
 
   Future<String> settingsLabel(WidgetTester tester, String text) async {
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     expect(find.text(text), findsOneWidget);
     return text;
@@ -1261,7 +1261,7 @@ void main() {
     expect(value['config'], const PresenceConfig().toJson());
 
     // A change goes up, with when it was made.
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     // Under the location map, which spans the width.
     await tester.ensureVisible(find.byKey(const Key('motion-switch')));
@@ -1331,7 +1331,7 @@ void main() {
       'automatic_paranoid_axolotl',
     );
     // Changed here, so the local settings are newer than the cloud's below.
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
@@ -1377,7 +1377,7 @@ void main() {
     await launch(tester, cloud: cloud);
     final key = cloudSettings(cloud).keys.single;
     expect(cloudSettings(cloud)[key]!['location'], isNull);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await tester.drag(
       find.byKey(const Key('location-map')),
@@ -1400,7 +1400,7 @@ void main() {
     final cloud = FakeCloudBackend();
     await launch(tester, cloud: cloud);
     final key = cloudSettings(cloud).keys.single;
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await tester.drag(
       find.byKey(const Key('location-map')),
@@ -1430,7 +1430,7 @@ void main() {
 
   testWidgets('motion settings survive a refresh', (tester) async {
     await launch(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     Finder slider(String key) => find.descendant(
       of: find.byKey(Key(key)),
@@ -1460,7 +1460,7 @@ void main() {
     await settleStorage(tester);
 
     await refresh(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await scrollSettingsTo(tester, find.byKey(const Key('motion-switch')));
     expect(
@@ -1479,7 +1479,7 @@ void main() {
 
   testWidgets('brightness survives a refresh', (tester) async {
     await launch(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await tester.drag(
       find.descendant(
@@ -1492,7 +1492,7 @@ void main() {
     await settleStorage(tester);
 
     await refresh(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     expect(find.text('-2.0 EV'), findsOneWidget);
   });
@@ -1516,7 +1516,7 @@ void main() {
     store.close();
 
     await launch(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
 
     await scrollSettingsTo(tester, find.text('-0.5 EV'));
@@ -1632,7 +1632,7 @@ void main() {
 
   testWidgets('clip settings survive a refresh', (tester) async {
     await launch(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await scrollSettingsTo(tester, find.byKey(const Key('clip-after-slider')));
     await tester.drag(
@@ -1646,7 +1646,7 @@ void main() {
     await settleStorage(tester);
 
     await refresh(tester);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
 
     // Brightness is saved too (still the default here).

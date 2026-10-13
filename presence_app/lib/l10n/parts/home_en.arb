@@ -4,11 +4,11 @@
   "@navCamera": {
     "description": "Navigation bar: the Camera tab"
   },
-  "navMonitoring": "Monitoring",
+  "navMonitoring": "Events",
   "@navMonitoring": {
     "description": "Navigation bar: the Monitoring tab"
   },
-  "navSettings": "Settings",
+  "navSettings": "Setup",
   "@navSettings": {
     "description": "Navigation bar: the Settings tab"
   },

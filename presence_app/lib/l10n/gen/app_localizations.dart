@@ -2803,7 +2803,7 @@ abstract class AppLocalizations {
   /// Navigation bar: the Monitoring tab
   ///
   /// In en, this message translates to:
-  /// **'Monitoring'**
+  /// **'Events'**
   String get navMonitoring;
 
   /// Navigation bar: the Profile tab
@@ -2815,7 +2815,7 @@ abstract class AppLocalizations {
   /// Navigation bar: the Settings tab
   ///
   /// In en, this message translates to:
-  /// **'Settings'**
+  /// **'Setup'**
   String get navSettings;
 
   /// Profile tab tooltip

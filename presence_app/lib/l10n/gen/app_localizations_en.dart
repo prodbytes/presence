@@ -1711,13 +1711,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navLog => 'Log';
 
   @override
-  String get navMonitoring => 'Monitoring';
+  String get navMonitoring => 'Events';
 
   @override
   String get navProfile => 'Profile';
 
   @override
-  String get navSettings => 'Settings';
+  String get navSettings => 'Setup';
 
   @override
   String navSignedInAs(String identity) {

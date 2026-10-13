@@ -229,7 +229,7 @@ void main() {
     await pumpApp(tester, noCameras);
     expect(find.byKey(const Key('settings-page')), findsNothing);
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('settings-page')), findsOneWidget);
     await scrollSettingsTo(tester, find.textContaining('Clips play'));
@@ -251,7 +251,7 @@ void main() {
     final camera = FakeCameraSource('Front door');
     await pumpApp(tester, openFakes([camera]));
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     await scrollSettingsTo(tester, find.byKey(const Key('clip-after-slider')));
     // Drag both sliders all the way: before to the max, after to the min.
@@ -369,7 +369,7 @@ void main() {
     // Default: +1 EV.
     expect(back.brightness, [1.0]);
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     expect(find.text('+1.0 EV'), findsOneWidget);
     await tester.drag(
