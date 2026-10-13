@@ -276,7 +276,9 @@ class _PresenceAppState extends State<PresenceApp> {
         );
     // Trains the profile's cloud model when there's enough new: checked
     // when the app starts premium, and every 24 h.
-    if (cloudRecognition != null) {
+    // Only where the models run: a label's crop needs them (an iPhone's
+    // check sent none and trained an empty model).
+    if (cloudRecognition != null && _recognizer.supported) {
       _trainer = CloudTrainer(
         auth: _auth,
         roles: _roles,

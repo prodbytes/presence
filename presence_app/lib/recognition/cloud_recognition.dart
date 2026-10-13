@@ -516,12 +516,20 @@ class CloudTrainer {
     if (labels.isEmpty && status.labels.isEmpty) {
       return TrainingOutcome.noLabels;
     }
-    final fresh = labels.values
-        .where((l) => l.$2.labeledTime > (trainedAt ?? 0))
+    // New since the last training, or not held by the API at all (a
+    // training that couldn't send them, e.g. from a device without the
+    // models to crop them).
+    final fresh = labels.entries
+        .where(
+          (e) =>
+              e.value.$2.labeledTime > (trainedAt ?? 0) ||
+              !status.labels.containsKey(e.key),
+        )
         .length;
     final due = always
         ? labels.isNotEmpty || status.labels.isNotEmpty
-        : trainedAt == null
+        // Never trained, or trained holding no label (as good as never).
+        : trainedAt == null || status.labels.isEmpty
         ? labels.length >= minFirstLabels
         : fresh >= minNewLabels || now - trainedAt >= maxAge.inMilliseconds;
     if (!due) return TrainingOutcome.upToDate;
@@ -549,6 +557,9 @@ class CloudTrainer {
       );
       names[id] = tag.name.trim();
     }
+    // Nothing could be sent (no crops, and none held): training would
+    // replace the model with an empty one.
+    if (names.isEmpty) return TrainingOutcome.noLabels;
     for (var i = 0; i < missing.length; i += maxBatch) {
       await client.upload(
         token,
