@@ -49,6 +49,8 @@ class EventIndicators extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
+    // A little room between them, so each is easier to hit.
+    spacing: 4,
     children: [
       if (event case final ClipRequested clip)
         EventRecognitionBadge(
@@ -82,7 +84,7 @@ class _Indicator extends StatefulWidget {
   final Future<void> Function()? onTap;
 
   /// The icon's size, in logical pixels.
-  static const double iconSize = 20;
+  static const double iconSize = 22;
 
   @override
   State<_Indicator> createState() => _IndicatorState();
@@ -108,9 +110,10 @@ class _IndicatorState extends State<_Indicator> {
         ?.copyWith(color: widget.color);
     final tappable = widget.onTap != null;
     Widget body = ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 40, minWidth: 32),
+      // 44 dp tall (the platforms' least tap target), a little wider.
+      constraints: const BoxConstraints(minHeight: 44, minWidth: 36),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 7),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
