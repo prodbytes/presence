@@ -5419,3 +5419,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        filled once it ran, outlined until it has), not
        `manage_search`/`search_off`; an eye already means hidden. Spec:
        [Recognition](recognition.md).
+
+388. **Recognition for an iPhone's clips.** (2026-10-13)
+     - Asked: the recognition indicator is never on; make sure it's right.
+     - Found: in the profile's events in the bucket, the web's clips had
+       both object tags and a subject search (indicator on), the Pi's
+       streamer clip object tags only (partial, by design), and every
+       iPhone clip neither: iOS can't run recognition yet, and synced clips
+       were never recognized elsewhere. The indicator itself was right.
+     - Changed: [Recognition](recognition.md): a device that can recognize
+       (web, Android) queues the synced clips of a device that can't (iOS)
+       like its own new ones (under a day old, unsearched), and the result
+       syncs back to every device.

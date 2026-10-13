@@ -813,6 +813,30 @@ void main() {
           },
         );
 
+    test("an iPhone's synced clip is recognized here; others aren't", () async {
+      final sampler = FakeSampler(2);
+      final r = recognizer(FakeVision({}, {}), sampler);
+      final now = DateTime.now();
+      ClipRequested synced(String id, {String? os, DateTime? time}) =>
+          ClipRequested(clip(), id: id, time: time ?? now)..os = os;
+      final iphone = synced('iphone', os: 'iOS');
+      final web = synced('web', os: 'macOS');
+      final old = synced(
+        'old',
+        os: 'iOS',
+        time: now.subtract(const Duration(days: 2)),
+      );
+      final done = synced('done', os: 'iOS')..annotations.setObjects(const []);
+      r.recognizeSynced([iphone, web, old, done], now: now);
+      // Queued once the clip is known to be whole (a microtask on).
+      await Future<void>.delayed(Duration.zero);
+      await r.idle;
+      expect(iphone.annotations.objects, isNotNull, reason: 'searched here');
+      expect(web.annotations.objects, isNull, reason: 'its device recognizes');
+      expect(old.annotations.objects, isNull, reason: 'history, left');
+      expect(sampler.samples, 1);
+    });
+
     test('tags the sure, asks about the unsure, on their best frame', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       const other = Box(0.75, 0.2, 0.95, 1);

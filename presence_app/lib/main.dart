@@ -356,6 +356,13 @@ class _PresenceAppState extends State<PresenceApp> {
               _log.addHistory(events);
               // Clips that events from live sync were waiting for.
               await _persistence.showArrivedClips(remote.clips, _log);
+              // An iPhone's clips (it can't recognize yet) are recognized
+              // here, once with their clip.
+              final arrived = {for (final c in remote.clips) c['eventId']};
+              _recognizer.recognizeSynced([
+                ...events,
+                ..._log.events.where((e) => arrived.contains(e.id)),
+              ]);
               // Events changed on another device: their tags as they are
               // there now, on screen too.
               await _persistence.updateFromRemote(remote.updated, _log.events);
