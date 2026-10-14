@@ -26,6 +26,13 @@ _local() { # _local <name>: prints its local value; fails when it has none
   esac
 }
 _env="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env"
+# A git worktree (.claude/worktrees/...) has no .env of its own (it isn't
+# committed): use the main checkout's, or the build has no Google client ID
+# and sign-in says it isn't set up.
+if [[ ! -f "$_env" ]]; then
+  _common="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  [[ -n "$_common" && -f "$(dirname "$_common")/.env" ]] && _env="$(dirname "$_common")/.env"
+fi
 DART_DEFINES=()
 [[ -f "$_env" ]] || echo "note: no .env; Google sign-in will say it isn't set up (see .env.example)" >&2
 for _name in "${_allowed[@]}"; do
