@@ -124,6 +124,7 @@
   "clipAutoNotSureOne": "No hay certeza sobre {names}: responde \"¿Es {name}?\" en los eventos.",
   "clipAutoNotSureMany": "No hay certeza sobre {names}: responde las preguntas en los eventos.",
   "clipAutoTags": "{subjects} Etiquetas: {tags}.",
+  "clipAutoCloudFailed": "{subjects} El reconocimiento en la nube no respondió (razas y pelajes); inténtalo de nuevo.",
   "eventCopiesOnDevices": "{count, plural, =0{En ningún dispositivo} =1{En 1 dispositivo} other{En {count} dispositivos}}",
   "eventCloudSynced": "En la nube",
   "eventCloudNotSynced": "No está en la nube",

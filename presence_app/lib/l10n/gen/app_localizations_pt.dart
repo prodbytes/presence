@@ -598,6 +598,11 @@ class AppLocalizationsPt extends AppLocalizations {
       'Todos os sujeitos já nomeados estão neste clipe.';
 
   @override
+  String clipAutoCloudFailed(String subjects) {
+    return '$subjects O reconhecimento na nuvem não respondeu (raças e pelagens); tente de novo.';
+  }
+
+  @override
   String get clipAutoDeferred =>
       'O celular está com pouca memória: tente de novo daqui a pouco.';
 

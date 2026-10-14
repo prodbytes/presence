@@ -719,8 +719,10 @@ String autoTagMessage(RecognitionResult result, [AppLocalizations? language]) {
             : l.clipAutoNotSureMany(names(asked)),
     ].join(' '),
   };
-  if (result.objects.isEmpty) return subjects;
-  return l.clipAutoTags(subjects, result.objects.join(', '));
+  final withTags = result.objects.isEmpty
+      ? subjects
+      : l.clipAutoTags(subjects, result.objects.join(', '));
+  return result.cloudFailed ? l.clipAutoCloudFailed(withTags) : withTags;
 }
 
 /// Asks for a name; null when cancelled or left blank.

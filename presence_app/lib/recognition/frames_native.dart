@@ -10,7 +10,8 @@ const _channel = MethodChannel('presence/cameras');
 
 /// Asks the platform for frames of the recording file (`keyframesAt`:
 /// `MediaMetadataRetriever` on Android, opened once per batch), [batch]
-/// times at a time. Each time gets the keyframe nearest to it (the
+/// times at a time (`AVAssetImageGenerator` on iOS). Each time gets the
+/// keyframe nearest to it (the
 /// recorder makes one a second), the cheapest frame to decode, each
 /// keyframe once, as raw RGBA; a frame's JPEG is only made (`encodeJpeg`)
 /// if it's asked for.
@@ -19,7 +20,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
   static const int batch = 3;
 
   @override
-  bool get supported => Platform.isAndroid;
+  bool get supported => Platform.isAndroid || Platform.isIOS;
 
   @override
   Stream<SampledFrame> sample(

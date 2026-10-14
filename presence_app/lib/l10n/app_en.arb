@@ -476,6 +476,15 @@
   "cameraTurnOn": "Turn on",
   "clipAuto": "Auto",
   "clipAutoAllTagged": "Every subject named before is already on this clip.",
+  "clipAutoCloudFailed": "{subjects} Cloud recognition didn't answer (breeds and coats); try again.",
+  "@clipAutoCloudFailed": {
+    "description": "After a requested recognition run, when the cloud's breeds and coats request failed; {subjects} is the on-device result message.",
+    "placeholders": {
+      "subjects": {
+        "type": "String"
+      }
+    }
+  },
   "clipAutoDeferred": "The phone is low on memory: try again in a moment.",
   "clipAutoFailed": "Couldn't run recognition; try again.",
   "clipAutoFound": "Found {names}.",

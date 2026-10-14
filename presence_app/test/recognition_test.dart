@@ -2005,6 +2005,52 @@ void main() {
           },
         );
 
+        test('asked for (recognizeNow), it waits for the breeds and coats: '
+            'their labels in the result, or that the cloud failed', () async {
+          final vision = FakeVision(
+            const {},
+            const {},
+            objects: {
+              0: {'cat': 0.9},
+            },
+            pets: {
+              0: [const Detection(body, 0.9, SeenKind.cat)],
+            },
+          );
+          final gate = Completer<void>();
+          final describer = _FakeDescriber({
+            '0': const [CloudPetLabel('black cat', 'coat', 0.9)],
+          }, gate: gate);
+          final event = ClipRequested(clip(), id: 'asked');
+          final r = withCloud(
+            vision,
+            FakeSampler(1),
+            null,
+            describer: describer,
+          );
+          var done = false;
+          final asking = r.recognizeNow(event).whenComplete(() => done = true);
+          await pumpEventQueue();
+          expect(done, isFalse, reason: 'the server is still answering');
+          gate.complete();
+          final result = await asking;
+          expect(result.objects, ['cat', 'black cat']);
+          expect(result.cloudFailed, isFalse);
+
+          final failing = withCloud(
+            vision,
+            FakeSampler(1),
+            null,
+            describer: _FakeDescriber(const {}, fail: true),
+          );
+          final failed = await failing.recognizeNow(
+            ClipRequested(clip(), id: 'asked-2'),
+          );
+          expect(failed.cloudFailed, isTrue);
+          expect(failed.objects, ['cat']);
+          expect(autoTagMessage(failed), contains("Cloud recognition didn't"));
+        });
+
         test('not asked unless premium, or with object tags off', () async {
           final vision = FakeVision(
             const {},
@@ -2396,12 +2442,19 @@ class _FakeCloud extends CloudIdentifier {
 /// (crop ID to labels), once [gate] completes if given, and records what
 /// it was asked.
 class _FakeDescriber extends CloudDescriber {
-  _FakeDescriber(this.answer, {this.available = true, this.gate})
-    : super(
-        auth: FakeAuthService.signedIn(),
-        roles: RolesService(auth: FakeAuthService(), client: FakeRolesClient()),
-        client: _UnusedClient(),
-      );
+  _FakeDescriber(
+    this.answer, {
+    this.available = true,
+    this.gate,
+    this.fail = false,
+  }) : super(
+         auth: FakeAuthService.signedIn(),
+         roles: RolesService(
+           auth: FakeAuthService(),
+           client: FakeRolesClient(),
+         ),
+         client: _UnusedClient(),
+       );
 
   final Map<String, List<CloudPetLabel>> answer;
 
@@ -2409,6 +2462,9 @@ class _FakeDescriber extends CloudDescriber {
   final bool available;
 
   final Completer<void>? gate;
+
+  /// Answers nothing, as when the API fails.
+  final bool fail;
 
   final asked = <Map<String, (String, Uint8List)>>[];
 
@@ -2418,7 +2474,7 @@ class _FakeDescriber extends CloudDescriber {
   ) async {
     asked.add(crops);
     await gate?.future;
-    return answer;
+    return fail ? null : answer;
   }
 }
 

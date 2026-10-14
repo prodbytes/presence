@@ -7,13 +7,14 @@ import 'runtime.dart';
 
 /// LiteRT (TensorFlow Lite) through `tflite_flutter`, running on the
 /// calling isolate: recognition calls it from its worker isolate
-/// (`vision_worker.dart`), so the app doesn't stall. Android only for now.
+/// (`vision_worker.dart`), so the app doesn't stall. Android and iOS (the
+/// iOS app links `TensorFlowLiteC` through CocoaPods).
 class PlatformRuntime implements TfliteRuntime {
   /// CPU threads per model (the worker runs one model at a time).
   static const int threads = 2;
 
   @override
-  bool get supported => Platform.isAndroid;
+  bool get supported => Platform.isAndroid || Platform.isIOS;
 
   /// Keeps a native copy of [bytes] for as long as the app runs
   /// (`tflite_flutter` never frees it): recognition loads from files

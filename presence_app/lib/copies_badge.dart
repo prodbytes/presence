@@ -428,9 +428,11 @@ class _EventRecognitionBadgeState extends State<EventRecognitionBadge> {
     try {
       final result = await recognizer.recognizeNow(clip, again: true);
       message = autoTagMessage(result, l);
-      // Not run after all (memory, no models here): a failure too.
+      // Not run after all (memory, no models here), or the server's part
+      // (breeds and coats) didn't answer: a failure too.
       if (result.outcome == RecognitionOutcome.deferred ||
-          result.outcome == RecognitionOutcome.unsupported) {
+          result.outcome == RecognitionOutcome.unsupported ||
+          result.cloudFailed) {
         failed = message;
       }
     } catch (e) {

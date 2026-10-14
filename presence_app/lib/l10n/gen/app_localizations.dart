@@ -1024,6 +1024,12 @@ abstract class AppLocalizations {
   /// **'Every subject named before is already on this clip.'**
   String get clipAutoAllTagged;
 
+  /// After a requested recognition run, when the cloud's breeds and coats request failed; {subjects} is the on-device result message.
+  ///
+  /// In en, this message translates to:
+  /// **'{subjects} Cloud recognition didn\'t answer (breeds and coats); try again.'**
+  String clipAutoCloudFailed(String subjects);
+
   /// No description provided for @clipAutoDeferred.
   ///
   /// In en, this message translates to:
