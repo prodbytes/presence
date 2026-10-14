@@ -176,10 +176,17 @@ which also measures them (`--eval`):
   ("Norwegian Forest Cat" once), so searching "persian cat" or "poodle
   dog" finds them; the prompt still says "a photo of a Persian, a type of
   cat.", so the embeddings didn't change.
+- **The picture must agree with the detector:** the detector's cat or
+  dog needs at least **half** of the animal check (`AGREE`, 0.5), or the
+  crop gets no breed and no coat. The detector called Suerte, a black
+  cat, a dog, and the dog's coats made her a "black dog" (46 of her 47
+  pictures called a dog); with the check, 3 of 47, and still "black cat"
+  on 42 of 47 called a cat (2026-10-14). Other cats called dogs: 1 wrong
+  coat in 38 (30 before).
 - **A crop's labels**: among its species' breeds (with those never shown),
   a softmax of SigLIP2's similarities (its logit scale, 112.67); the
   likeliest is shown from **0.7**, unless it's one never shown. Among its
-  coats, the likeliest from **0.5**, as "black cat", "brindle dog". So a
+  coats, the likeliest from **0.6** (0.5 until 2026-10-14), as "black cat", "brindle dog". So a
   crop has a breed, a coat, both or neither. The species is the app's
   detector's (cat or dog), or the ferret or rabbit above.
 - **Measured** (2026-10-14, the fp32 tower on whole photos and frames, not
