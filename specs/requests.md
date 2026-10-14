@@ -5609,3 +5609,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the app sends DINOv2 at most 4 crops a request (identify and
        training). Spec: [Cloud recognition](cloud-recognition.md),
        "Memory".
+     - Then (third part): after the deploy, a new identify instance still
+       took 74 s (55 s fetching: ranges didn't help, the instance's
+       bandwidth is the limit, so the ranged fetch went back to one
+       stream), and 4 crops 14.6 s warm. So the
+       recognition functions are warmed every 5 minutes by an EventBridge
+       schedule that loads the model; the deploy role may now create
+       those rules. Specs: [Cloud recognition](cloud-recognition.md),
+       "Warm-up"; [Production deploy](deploy.md).

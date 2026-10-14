@@ -267,6 +267,22 @@ Resources:
                   - lambda:TagResource
                   - lambda:UntagResource
                 Resource: !Sub arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-*
+              # The recognition functions' warm-up schedules (SAM Schedule
+              # events: EventBridge rules named after the stack).
+              - Sid: Schedules
+                Effect: Allow
+                Action:
+                  - events:PutRule
+                  - events:DeleteRule
+                  - events:DescribeRule
+                  - events:EnableRule
+                  - events:DisableRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:TagResource
+                  - events:UntagResource
+                  - events:ListTagsForResource
+                Resource: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${Prefix}-*
               # HTTP APIs have only IDs, no names to scope by (see
               # specs/deploy.md: not separated by stage).
               - Sid: HttpApis

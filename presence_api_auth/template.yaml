@@ -533,6 +533,13 @@ Resources:
                 - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
       Events:
+        # Keeps an instance's model loaded (specs/cloud-recognition.md,
+        # "Warm-up"): a new one takes over a minute, past the API's 30 s.
+        Warm:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Input: '{"rawPath": "/warmup"}'
         Status:
           Type: HttpApi
           Properties:
@@ -597,6 +604,13 @@ Resources:
                 - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
       Events:
+        # Keeps an instance's model loaded (specs/cloud-recognition.md,
+        # "Warm-up"): a new one takes over a minute, past the API's 30 s.
+        Warm:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Input: '{"rawPath": "/warmup"}'
         Identify:
           Type: HttpApi
           Properties:
@@ -649,6 +663,13 @@ Resources:
                 - "arn:${AWS::Partition}:s3:::${Bucket}/models/*"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
       Events:
+        # Keeps an instance's model loaded (specs/cloud-recognition.md,
+        # "Warm-up"): a new one takes over a minute, past the API's 30 s.
+        Warm:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Input: '{"rawPath": "/warmup"}'
         Describe:
           Type: HttpApi
           Properties:
