@@ -273,11 +273,13 @@ set, under the version: `🔌 API · ☁️ AWS · 🔑 OIDC`.
    GOOGLE_WEB_CLIENT_ID="$(sed -n 's/^GOOGLE_WEB_CLIENT_ID=//p' .env)"
    aws cloudformation deploy --region us-east-1 \
      --stack-name presence-user-data \
-     --template-file presence_infra/user-data.yaml
+     --template-file presence_infra/user-data.yaml \
+     --tags project=presence tenancy=GA
    aws cloudformation deploy --region us-east-1 \
      --stack-name presence-identity \
      --template-file presence_infra/identity.yaml --capabilities CAPABILITY_IAM \
-     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID"
+     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+     --tags project=presence tenancy=GA
    ```
 
 4. Copy the outputs into `.env` as `COGNITO_IDENTITY_POOL_ID` and
@@ -491,7 +493,8 @@ below), then deploys the stacks in this order:
    own artifact bucket, then its health check (`presence-health`,
    `GET /health`), which imports the auth API's table names.
 4. `presence-web`: the certificate, the bucket, CloudFront (with its
-   security headers) and the DNS records, and the `/health` check.
+   security headers) and the DNS records. (`/health` is monitored by the
+   central `nu01-monitor` stack in the nu01 repo, not by this repo.)
 
 Every IAM role these stacks create carries the stage's permissions
 boundary. It then uploads the web build, invalidates the cache and

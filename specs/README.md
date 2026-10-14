@@ -275,9 +275,8 @@ their data.
 - [Health check](health-check.md): `GET /health`, its own module and
   stack (`presence_health`, `presence-health`), checks the auth API's
   settings, tables, the user-data bucket, identity pool, Google's keys and
-  rbacr; a Route 53
-  health check polls it and emails `HealthNotificationEmails` (default
-  julio+health@nu01.com) when it fails or recovers.
+  rbacr; the central nu01-monitor (nu01 repo) polls it every 5 minutes
+  and emails julio+health@nu01.com when it fails.
 
 ## Workflow
 

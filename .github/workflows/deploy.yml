@@ -155,8 +155,6 @@ jobs:
           APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
           APPLE_SIGNIN_KEY_ID: ${{ vars.APPLE_SIGNIN_KEY_ID }}
           APPLE_SIGNIN_KEY_PARAMETER: ${{ vars.APPLE_SIGNIN_KEY_PARAMETER }}
-          # Unset: scripts/deploy.sh's default, julio+health@nu01.com.
-          PRESENCE_HEALTH_EMAILS: ${{ vars.PRESENCE_HEALTH_EMAILS }}
         run: bash scripts/deploy.sh
 
       # https://sh.presence.nu01.com: the curl | sh install script.

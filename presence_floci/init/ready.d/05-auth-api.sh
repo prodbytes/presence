@@ -34,7 +34,7 @@
 # to. Keep the routes below in step with template.yaml. GET /health isn't
 # the auth API's (it's presence_health) and isn't deployed here: it checks
 # AWS resources (the identity pool and bucket in .env are AWS's, not
-# Floci's), so it's AWS only, like the Route 53 health check.
+# Floci's), so it's AWS only.
 #
 # LocalCloud=true: Floci has no Cognito Identity, so the auth API makes up
 # each Google account's identity and answers credentials itself

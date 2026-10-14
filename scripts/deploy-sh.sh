@@ -2,7 +2,8 @@
 # Deploys https://sh.presence.nu01.com, which serves scripts/install.sh,
 # and scripts/install-streamer.sh at /streamer:
 #   1. deploys the presence-sh stack (presence_sh/template.yaml: certificate,
-#      bucket, CloudFront, DNS)
+#      bucket, CloudFront, DNS), tagged project=presence tenancy=GA (cost
+#      allocation; production only, like its presence:stage)
 #   2. uploads both scripts and invalidates the CloudFront cache
 #   3. smoke-tests the live URLs: / and /install.sh must return
 #      install.sh, /streamer and /streamer.sh install-streamer.sh, byte for
@@ -39,7 +40,7 @@ echo "==> deploying $STACK (https://$DOMAIN/)"
 aws cloudformation deploy --stack-name "$STACK" \
   --template-file presence_sh/template.yaml \
   --parameter-overrides "DomainName=$DOMAIN" "HostedZoneId=$HOSTED_ZONE_ID" \
-  --no-fail-on-empty-changeset
+  --tags project=presence tenancy=GA --no-fail-on-empty-changeset
 bucket="$(stack_output ScriptBucketName)"
 distribution="$(stack_output DistributionId)"
 echo "    bucket: $bucket, distribution: $distribution"
