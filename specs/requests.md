@@ -5896,3 +5896,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the app's manifest removes them (`tools:node="remove"`);
        the merged release manifest no longer has them. Specs:
        [Android](android.md), [Store readiness](store-readiness.md).
+
+424. **Blink cameras through a streamer.** (2026-10-14)
+     - Asked: support blinkpy in the streamer: a Blink devices section at
+       the end of Settings where users add what's needed; one Linux device
+       fetches the Blink videos and streams them as if recorded by the Pi;
+       each Blink camera a new device with its own generated ID. (Asked:
+       where the login goes; chosen: the app's Settings, sealed to the
+       streamer.)
+     - Changed: Settings' last section, Blink cameras: pick the Linux
+       streamer, the Blink email and password, then the PIN; sealed to
+       that streamer through the profile's folder. The streamer (blinkpy in
+       its own virtualenv, the `presence-blink.py` helper) logs in, keeps
+       only Blink's token, deletes the request, gives each camera a device
+       ID, registers them with its stream key (the auth API's stream
+       credentials take the cameras' IDs), and every 2 minutes fetches new
+       clips into each camera's own pipeline (`os: Blink`). Specs:
+       [Blink cameras](blink.md) (new), [Streamer](streamer.md),
+       [Settings](settings.md).

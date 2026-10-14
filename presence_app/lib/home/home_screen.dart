@@ -17,6 +17,7 @@ import '../auth/payments_client.dart';
 import '../auth/store_billing.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
+import '../blink_settings.dart';
 import '../camera_feeds.dart';
 import '../clips.dart';
 import '../cloud/cloud_sync.dart';
@@ -670,6 +671,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   tiles: widget.mapTiles,
                   logTabDefault: widget.roles.isAdmin ? _dev : null,
                   liveSync: widget.sync?.live?.enabled ?? false,
+                  blink: switch ((widget.sync, widget.roles.profile)) {
+                    (final sync?, final profile?)
+                        when !_dev &&
+                            (widget.roles.isPremium || widget.roles.isAdmin) =>
+                      BlinkSettings.of(
+                        sync: sync,
+                        log: widget.log,
+                        profileId: profile,
+                        thisDevice: widget.deviceId,
+                      ),
+                    _ => null,
+                  },
                   liveAdmin: widget.roles.isAdmin,
                 ),
               ),

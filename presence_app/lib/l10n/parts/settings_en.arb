@@ -269,5 +269,61 @@
     }
   },
   "settingsNightMode": "Night mode",
-  "settingsNightModeSubtitle": "When it's dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)"
+  "settingsNightModeSubtitle": "When it's dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)",
+  "settingsBlinkSection": "Blink cameras",
+  "blinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
+  "blinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras' clips.",
+  "blinkStreamer": "The streamer that fetches them",
+  "blinkEmail": "Blink account email",
+  "blinkPassword": "Blink password",
+  "blinkPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted once it has logged in; it keeps only Blink's token.",
+  "blinkConnect": "Connect",
+  "blinkPin": "PIN",
+  "blinkSendPin": "Send PIN",
+  "blinkDisconnect": "Disconnect",
+  "blinkOff": "Not connected to Blink.",
+  "blinkWaiting": "Sent to {device}; it looks every 30 s…",
+  "@blinkWaiting": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkInstalling": "Installing Blink support on the streamer (once)…",
+  "blinkLoggingIn": "Logging in to Blink…",
+  "blinkPinRequired": "Blink sent a PIN to {account}'s email or phone: enter it here.",
+  "@blinkPinRequired": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkConnected": "Connected to Blink as {account}. Its cameras:",
+  "@blinkConnected": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkError": "Blink: {error}",
+  "@blinkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkNoCameras": "No cameras yet.",
+  "blinkLastFetch": "Clips last fetched at {time}.",
+  "@blinkLastFetch": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute."
 }

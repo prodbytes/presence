@@ -146,11 +146,14 @@ func (a *API) Credentials(ctx context.Context, idToken, deviceID string) (Creden
 
 // StreamCredentials are the profile's credentials for its device deviceID,
 // with the device's stream key (from the app's profile view) instead of a
-// Google sign-in (POST /api/auth/stream/credentials).
-func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID string) (Credentials, error) {
+// Google sign-in (POST /api/auth/stream/credentials). cameras are the
+// devices it streams for (its Blink cameras), which join the profile's
+// devices too.
+func (a *API) StreamCredentials(ctx context.Context, key, profileID, deviceID string, cameras ...string) (Credentials, error) {
 	var c Credentials
+	body := strings.Join(append([]string{profileID, deviceID}, cameras...), " ")
 	err := a.callAs(ctx, http.MethodPost, "/api/auth/stream/credentials", key, ErrKeyRefused,
-		strings.NewReader(profileID+" "+deviceID), &c)
+		strings.NewReader(body), &c)
 	return c, checked(c, err)
 }
 

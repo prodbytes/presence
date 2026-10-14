@@ -79,10 +79,13 @@ type Settings struct {
 	MediaKey  string         `json:"mediaKey"`
 }
 
-// Camera is what an event says of the camera that recorded it.
+// Camera is what an event says of the camera that recorded it. OS is the
+// device's operating system on the event: "Linux" when empty (the Pi's
+// own camera), "Blink" for a Blink camera.
 type Camera struct {
 	ID    string
 	Label string
+	OS    string
 }
 
 // Chunk is a recorded chunk with a subject in it, to be stored as a clip.
@@ -101,6 +104,10 @@ func ClipOf(chunk Chunk, eventID, clipID string, camera Camera, deviceID, userID
 	if tags == nil {
 		tags = []ObjectTag{}
 	}
+	os := camera.OS
+	if os == "" {
+		os = "Linux"
+	}
 	event := Event{
 		ID:         eventID,
 		Type:       "clip_requested",
@@ -112,7 +119,7 @@ func ClipOf(chunk Chunk, eventID, clipID string, camera Camera, deviceID, userID
 		UserID:     userID,
 		ProfileID:  profileID,
 		Location:   location,
-		OS:         "Linux",
+		OS:         os,
 		ClipID:     clipID,
 		ClipState:  "complete",
 		Trigger:    "motion",

@@ -65,6 +65,16 @@ func TestKeys(t *testing.T) {
 	}
 }
 
+// A Blink camera's events say so; the Pi's own, Linux.
+func TestTheEventsOSIsTheCamerasOrLinux(t *testing.T) {
+	chunk := Chunk{Start: time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC), Duration: 30 * time.Second}
+	pi, _ := ClipOf(chunk, "e", "c", Camera{ID: "libcamera", Label: "Raspberry Pi camera"}, "d", "u", "p", nil)
+	blink, _ := ClipOf(chunk, "e", "c", Camera{ID: "blink", Label: "Porch", OS: "Blink"}, "d", "u", "p", nil)
+	if pi.OS != "Linux" || blink.OS != "Blink" || blink.Detail != "Porch" {
+		t.Fatalf("pi %q, blink %q (%q)", pi.OS, blink.OS, blink.Detail)
+	}
+}
+
 // The job fixture presence_ingest's tests check with the cloud detector
 // (test_app.py); UPDATE_FIXTURE=1 writes it again.
 func TestJobFixture(t *testing.T) {
