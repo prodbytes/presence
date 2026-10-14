@@ -327,7 +327,7 @@ class EventCloudBadge extends StatelessWidget {
 /// each, so "searched, nothing found" never reads as "not searched".
 /// Tapped, recognition runs on the clip again, object tags included
 /// ([SubjectRecognizer.recognizeNow]).
-class EventRecognitionBadge extends StatelessWidget {
+class EventRecognitionBadge extends StatefulWidget {
   const EventRecognitionBadge({super.key, required this.clip});
 
   final ClipRequested clip;
@@ -360,6 +360,18 @@ class EventRecognitionBadge extends StatelessWidget {
   }
 
   @override
+  State<EventRecognitionBadge> createState() => _EventRecognitionBadgeState();
+}
+
+class _EventRecognitionBadgeState extends State<EventRecognitionBadge> {
+  ClipRequested get clip => widget.clip;
+
+  /// Why the last run asked for here failed, until the next one: the
+  /// indicator then shows an error icon (in the error color), not the
+  /// brain, so a failure can't pass for a result.
+  String? _failed;
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: clip.annotations,
     builder: (context, _) {
@@ -369,7 +381,13 @@ class EventRecognitionBadge extends StatelessWidget {
       final objects = a.objects != null;
       // A brain, not a magnifying glass (the events search's icon):
       // filled once recognition ran, outlined until it has.
-      final (icon, color, state) = subjects && objects
+      final (icon, color, state) = _failed != null
+          ? (
+              Icons.error_outline,
+              Theme.of(context).colorScheme.error,
+              l.eventRecognitionFailed(_failed!),
+            )
+          : subjects && objects
           ? (Icons.psychology, _on(context), l.eventRecognitionComplete)
           : subjects || objects
           ? (
@@ -389,7 +407,7 @@ class EventRecognitionBadge extends StatelessWidget {
         color: color,
         tooltip: [
           state,
-          ...linesOf(a, l),
+          ...EventRecognitionBadge.linesOf(a, l),
           if (canRun) l.eventRecognitionTapToRerun,
         ].join('\n'),
         onTap: canRun ? () => _rerun(context, recognizer) : null,
@@ -406,15 +424,23 @@ class EventRecognitionBadge extends StatelessWidget {
     final messenger = ScaffoldMessenger.maybeOf(context);
     _say(messenger, l.eventRecognitionRerunning);
     String message;
+    String? failed;
     try {
-      message = autoTagMessage(
-        await recognizer.recognizeNow(clip, again: true),
-        l,
-      );
+      final result = await recognizer.recognizeNow(clip, again: true);
+      message = autoTagMessage(result, l);
+      // Not run after all (memory, no models here): a failure too.
+      if (result.outcome == RecognitionOutcome.deferred ||
+          result.outcome == RecognitionOutcome.unsupported) {
+        failed = message;
+      }
     } catch (e) {
       debugPrint('Presence: recognition failed again on ${clip.id}: $e');
       message = l.clipAutoFailed;
+      failed = message;
     }
+    // Done: the brain shows the result; failed: the error icon, till the
+    // next try.
+    if (mounted) setState(() => _failed = failed);
     _say(messenger, message);
   }
 }

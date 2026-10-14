@@ -5487,3 +5487,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        it was only a soft red label on the neutral background, close to
        the cooldown's amber. Specs: [Camera](camera.md),
        [Navigation](navigation.md).
+
+394. **The recognition indicator: spinner, then done or failed.** (2026-10-14)
+     - Asked: the card's indicator, tapped, a spinner while it runs, then an
+       icon when finished or failed, told apart.
+     - Changed: after a tap the indicator keeps a failure: an error icon
+       in the error color, its tooltip the reason, until the next tap;
+       done, the brain shows the result. (The spinner was there.) Spec:
+       [Recognition](recognition.md).

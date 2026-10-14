@@ -1113,6 +1113,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get eventRecognitionComplete => 'El reconocimiento se completó';
 
   @override
+  String eventRecognitionFailed(String reason) {
+    return 'El reconocimiento falló: $reason';
+  }
+
+  @override
   String get eventRecognitionNotRun => 'El reconocimiento no se ha hecho';
 
   @override

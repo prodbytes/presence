@@ -1828,6 +1828,12 @@ abstract class AppLocalizations {
   /// **'Recognition ran in full'**
   String get eventRecognitionComplete;
 
+  /// No description provided for @eventRecognitionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognition failed: {reason}'**
+  String eventRecognitionFailed(String reason);
+
   /// No description provided for @eventRecognitionNotRun.
   ///
   /// In en, this message translates to:

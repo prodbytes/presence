@@ -10,6 +10,7 @@ import 'package:presence_app/cameras/camera_source.dart';
 import 'package:presence_app/cameras/clip_player_controller.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
+import 'package:presence_app/copies_badge.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/recognition/cloud_recognition.dart';
@@ -224,6 +225,73 @@ class FakeMemory implements MemoryMonitor {
 }
 
 void main() {
+  testWidgets('the card indicator: a spinner while it runs, then the '
+      'error icon when it failed, the brain when it ran', (tester) async {
+    final bus = AppEventBus();
+    final log = EventLog(bus.stream);
+    var fail = true;
+    final loading = Completer<void>();
+    final r = SubjectRecognizer(
+      bus: bus,
+      log: log,
+      config: ConfigController(),
+      runtime: FakeRuntime(),
+      sampler: FakeSampler(1),
+      loadVision: () async {
+        await loading.future;
+        if (fail) throw StateError('no models');
+        return FakeVision({}, {});
+      },
+    );
+    addTearDown(r.dispose);
+    final event = ClipRequested(clip(), id: 'e1');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SubjectRecognizerScope(
+            recognizer: r,
+            child: EventIndicators(event: event),
+          ),
+        ),
+      ),
+    );
+    final badge = find.byKey(const Key('event-recognition-e1'));
+    IconData? icon() => tester
+        .widgetList<Icon>(
+          find.descendant(of: badge, matching: find.byType(Icon)),
+        )
+        .firstOrNull
+        ?.icon;
+    expect(icon(), Icons.psychology_outlined);
+
+    await tester.tap(badge);
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: badge,
+        matching: find.byType(CircularProgressIndicator),
+      ),
+      findsOneWidget,
+      reason: 'a spinner while it runs',
+    );
+    loading.complete();
+    await tester.pumpAndSettle();
+    expect(icon(), Icons.error_outline, reason: 'failed: the error icon');
+    final tooltip = tester
+        .widget<Tooltip>(
+          find.descendant(of: badge, matching: find.byType(Tooltip)),
+        )
+        .message!;
+    expect(tooltip, startsWith('Recognition failed:'));
+
+    // Tried again, and it runs: the brain again, in full.
+    fail = false;
+    await tester.tap(badge);
+    await tester.pumpAndSettle();
+    expect(icon(), Icons.psychology);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   group('decoding', () {
     test('EfficientDet: a scored anchor becomes a box of its kind', () {
       final anchors = efficientDetAnchors;
