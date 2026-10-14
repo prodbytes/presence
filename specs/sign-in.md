@@ -222,19 +222,19 @@ there's no separate sign-in screen:
     streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
-    long. Each ID is selectable, in `bodyLarge` (16 sp); with access it's
+    long. Each ID is selectable, in `bodyMedium` (14 sp, so a long ID fits
+    a small phone); with access it's
     in the accent color and a tap **shows the device's events**: the
     sheet closes and Monitoring opens with the search set to the ID (see
     [Navigation](navigation.md)); "this device"
     sits beside it, or under it when they don't fit on one line (at 320
     dp with a 2x system font). A device shows only once one of its
     events has synced here, and drops off when its events age out of
-    [event retention](event-retention.md) or it's deleted.
-    - **Delete:** every device but this one has a delete button at the
-      end of its row (tooltip "Delete <device ID>"); after a confirmation
-      naming the device and its number of events, its events are hidden
-      on every device and it leaves the list. See
-      [Device deletion](device-deletion.md).
+    [event retention](event-retention.md).
+    - **Hide/show:** every device, this one too, has an eye button at
+      the end of its row: it hides the device's events on this device,
+      or shows them again; the device stays listed. See
+      [Hiding a device](device-hiding.md).
     - Each device shows its **operating system** (`profileDeviceDetails`):
       an icon before the ID (Android `Icons.android`, iOS
       `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,

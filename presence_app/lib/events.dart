@@ -334,16 +334,20 @@ class EventLog extends ChangeNotifier {
   int _version = 0;
 
   /// [profileId]'s events ([EventTimeline.ofProfile]) of the devices that
-  /// show ([visibleDevices]), kept until the log changes.
+  /// show ([visibleDevices]) and aren't hidden ([hiddenDevices]), kept
+  /// until the log changes.
   List<AppEvent> eventsOf(String? profileId) {
     if (_ofProfile case (final v, final p, final list)
         when v == _version && p == profileId) {
       return list;
     }
     final visible = _visibleDevices;
+    final hidden = _hiddenDevices;
     final list = List<AppEvent>.unmodifiable([
       for (final e in EventTimeline.ofProfile(events, profileId))
-        if (visible == null || shows(e.deviceId)) e,
+        if ((visible == null || shows(e.deviceId)) &&
+            !hidden.contains(e.deviceId))
+          e,
     ]);
     _ofProfile = (_version, profileId, list);
     return list;
@@ -370,6 +374,17 @@ class EventLog extends ChangeNotifier {
   /// device ID (not saved yet) are this device's, and always show.
   bool shows(String? device) =>
       device == null || (_visibleDevices?.contains(device) ?? true);
+
+  /// The devices whose events the user hid here (the Profile tab's device
+  /// list), as opposed to those the plan hides ([visibleDevices]).
+  Set<String> get hiddenDevices => _hiddenDevices;
+  Set<String> _hiddenDevices = const {};
+
+  set hiddenDevices(Set<String> devices) {
+    if (setEquals(_hiddenDevices, devices)) return;
+    _hiddenDevices = Set.unmodifiable(devices);
+    _changed();
+  }
 
   (int, String?, List<AppEvent>)? _ofProfile;
 

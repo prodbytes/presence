@@ -185,40 +185,6 @@
   "settingsJoinSameDevice": "This is the device that shared the link. Open it on another device to add that one.",
   "settingsJoinSignOut": "Sign out",
   "settingsJoinDismiss": "Dismiss",
-  "settingsDeleteDeviceTitle": "Delete device?",
-  "settingsDeleteDeviceMessage": "Delete device {deviceId}? {count, plural, =1{Its 1 event will be hidden} other{Its {count} events will be hidden}} on every device.",
-  "@settingsDeleteDeviceMessage": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "settingsDeleteDeviceNote": "Its clips stay in the cloud. If it records again, it shows again with its new events.",
-  "settingsDeleteDeviceCancel": "Cancel",
-  "settingsDeleteDeviceConfirm": "Delete",
-  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
-  "@settingsDeleteDeviceDone": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
-  "@settingsDeleteDeviceFailed": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      }
-    }
-  },
   "settingsCloudTitle": "Cloud recognition (Premium)",
   "settingsCloudNotTrained": "Not trained yet",
   "settingsCloudLastTrained": "Last trained {time}",

@@ -178,12 +178,6 @@ abstract class AppLocalizations {
   /// **'Checking roles…'**
   String get authCheckingRoles;
 
-  /// No description provided for @authDeleteDevice.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete {device}'**
-  String authDeleteDevice(String device);
-
   /// No description provided for @authDeviceCount.
   ///
   /// In en, this message translates to:
@@ -231,6 +225,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Past the plan\'s device limit: it syncs, but its events are hidden here'**
   String get authHiddenTooltip;
+
+  /// No description provided for @authHideDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide {device}\'s events'**
+  String authHideDevice(String device);
 
   /// No description provided for @authLinkAnother.
   ///
@@ -525,6 +525,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Roles: {roles}'**
   String authRolesSemantics(String roles);
+
+  /// No description provided for @authShowDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {device}\'s events'**
+  String authShowDevice(String device);
 
   /// Account button tooltip, signed out
   ///
@@ -3033,48 +3039,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minutes and seconds go up to 59'**
   String get settingsCoordinatesMinutes;
-
-  /// No description provided for @settingsDeleteDeviceCancel.
-  ///
-  /// In en, this message translates to:
-  /// **'Cancel'**
-  String get settingsDeleteDeviceCancel;
-
-  /// No description provided for @settingsDeleteDeviceConfirm.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete'**
-  String get settingsDeleteDeviceConfirm;
-
-  /// No description provided for @settingsDeleteDeviceDone.
-  ///
-  /// In en, this message translates to:
-  /// **'Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden'**
-  String settingsDeleteDeviceDone(String deviceId, int count);
-
-  /// No description provided for @settingsDeleteDeviceFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not delete {deviceId}'**
-  String settingsDeleteDeviceFailed(String deviceId);
-
-  /// No description provided for @settingsDeleteDeviceMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete device {deviceId}? {count, plural, =1{Its 1 event will be hidden} other{Its {count} events will be hidden}} on every device.'**
-  String settingsDeleteDeviceMessage(String deviceId, int count);
-
-  /// No description provided for @settingsDeleteDeviceNote.
-  ///
-  /// In en, this message translates to:
-  /// **'Its clips stay in the cloud. If it records again, it shows again with its new events.'**
-  String get settingsDeleteDeviceNote;
-
-  /// No description provided for @settingsDeleteDeviceTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Delete device?'**
-  String get settingsDeleteDeviceTitle;
 
   /// No description provided for @settingsDevice.
   ///

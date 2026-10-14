@@ -314,8 +314,8 @@ void main() {
   });
 
   for (final scale in [1.0, 2.0]) {
-    testWidgets('the profile and device IDs are larger, and fit 320 dp at '
-        '${scale}x text', (tester) async {
+    testWidgets('the profile ID is larger, the device IDs body-sized, and '
+        'they fit 320 dp at ${scale}x text', (tester) async {
       tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -333,6 +333,8 @@ void main() {
                   profile: 'automatic_paranoid_axolotl',
                   thisDevice: 'calm_sunny_radio_with_a_long_name',
                   now: () => now,
+                  // With its eye button, as the app shows it.
+                  onShow: (_, _) {},
                   devices: [
                     (
                       id: 'calm_sunny_radio_with_a_long_name',
@@ -358,9 +360,21 @@ void main() {
         const Key('profile-device-id-calm_sunny_radio_with_a_long_name'),
       );
       final style = tester.widget<SelectableText>(device).style!;
-      expect(style.fontSize, text.bodyLarge!.fontSize);
-      expect(style.fontSize, greaterThan(text.bodyMedium!.fontSize!));
+      // bodyMedium: a long ID fits a small phone beside its eye button.
+      expect(style.fontSize, text.bodyMedium!.fontSize);
       expect(tester.getTopRight(device).dx, lessThanOrEqualTo(320));
+      expect(
+        tester
+            .getTopRight(
+              find.byKey(
+                const Key(
+                  'profile-device-hide-calm_sunny_radio_with_a_long_name',
+                ),
+              ),
+            )
+            .dx,
+        lessThanOrEqualTo(320),
+      );
       expect(find.text('this device'), findsOneWidget);
       expect(
         tester.getTopRight(find.text('this device')).dx,

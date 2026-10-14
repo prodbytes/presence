@@ -241,6 +241,10 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _location.init().ignore();
+    // The devices whose events were hidden here (the Profile tab).
+    _persistence.loadHiddenDevices().then((hidden) {
+      if (mounted) _log.hiddenDevices = {...hidden, ..._log.hiddenDevices};
+    }).ignore();
     // Settings restored from the cloud include the location set on the map.
     _persistence.onRemoteLocation = _location.applyRemote;
     // Cloud recognition, for premium profiles, in builds with cloud sync.
@@ -461,23 +465,12 @@ class _PresenceAppState extends State<PresenceApp> {
   /// it's handled or dismissed.
   JoinLink? _join;
 
-  /// Deletes another of the signed-in profile's devices
-  /// (`Persistence.deleteDevice`); nothing without a profile.
-  Future<int> _deleteDevice(String deviceId) async {
-    final profile = _roles.profile;
-    if (profile == null) return 0;
-    final deleted = await _persistence.deleteDevice(
-      deviceId,
-      profileId: profile,
-    );
-    // No presence dot from before: it shows again only if it pings or
-    // answers again, with new events.
-    _sync?.live?.forget(deviceId);
-    // Nor is it counted as holding copies of the events left.
-    _copies.forgetDevice(deviceId);
-    // And the next device takes its place among those that show.
-    _sync?.releaseDevice(deviceId).ignore();
-    return deleted;
+  /// Shows or hides [deviceId]'s events here, and remembers it.
+  void _showDevice(String deviceId, bool shown) {
+    final hidden = {..._log.hiddenDevices};
+    shown ? hidden.remove(deviceId) : hidden.add(deviceId);
+    _log.hiddenDevices = hidden;
+    _persistence.saveHiddenDevices(hidden).ignore();
   }
 
   /// Deletes one event of the signed-in profile on every device
@@ -767,7 +760,7 @@ class _PresenceAppState extends State<PresenceApp> {
         join: _join,
         onJoinHandled: _joinHandled,
         tabMemory: widget.tabMemory,
-        deleteDevice: _deleteDevice,
+        showDevice: _showDevice,
         screenOff: _screenOff,
       ),
     },
