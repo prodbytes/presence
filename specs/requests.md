@@ -5510,3 +5510,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Device deletion](device-deletion.md), [Sign-in](sign-in.md),
        [Devices, users and places](devices-users-places.md),
        [Camera](camera.md), [Premium](premium.md).
+
+396. **Builds from a worktree lost the Google client ID.** (2026-10-14)
+     - Asked: the iPhone app said its Google ID isn't configured, just
+       after working; find what broke, fix it, and do a barrel roll.
+     - Cause: the iPhone build was made in a git worktree, which has no
+       `.env` (not committed); `dart-defines.sh` only noted it and built
+       without the Google client IDs. The web RC/GA (built by CI) weren't
+       affected.
+     - Changed: `dart-defines.sh` falls back to the main checkout's `.env`
+       in a worktree. Spec: [Configuration](configuration.md).

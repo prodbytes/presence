@@ -85,7 +85,11 @@ All user configuration is one immutable object, **`PresenceConfig`**
 
 Besides the user's settings, a build takes public settings as
 `--dart-define`s from [scripts/dart-defines.sh](../scripts/dart-defines.sh)
-(see [Sign-in](sign-in.md) for its allowlist). Two say where
+(see [Sign-in](sign-in.md) for its allowlist), each from the environment
+or else the repo's `.env`. A git worktree has no `.env` of its own (it
+isn't committed), so there it reads the main checkout's (`git
+rev-parse --git-common-dir`); without one, a build has no Google client ID
+and sign-in says it isn't configured. Two say where
 [rbacr](https://github.com/prodbytes/rbacr) is, which the app asks
 directly, with the user's Google ID token, for their own roles
 ([Sign-in](sign-in.md)), [maintenance mode](maintenance.md) and redeeming
