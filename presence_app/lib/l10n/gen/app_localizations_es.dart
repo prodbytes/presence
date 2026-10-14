@@ -56,6 +56,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authCheckingRoles => 'Comprobando roles…';
 
   @override
+  String authDeleteDevice(String device) {
+    return 'Eliminar $device';
+  }
+
+  @override
   String authDeviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1885,6 +1890,55 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get settingsCoordinatesMinutes =>
       'Los minutos y segundos llegan hasta 59';
+
+  @override
+  String get settingsDeleteDeviceCancel => 'Cancelar';
+
+  @override
+  String get settingsDeleteDeviceChoice =>
+      'Conservar videos: sale de la lista, sus eventos y videos se quedan. Borrar videos: sus eventos y videos también se ocultan en todos los dispositivos. En ambos casos, vuelve a aparecer si graba de nuevo.';
+
+  @override
+  String get settingsDeleteDeviceConfirm => 'Borrar videos';
+
+  @override
+  String settingsDeleteDeviceDone(String deviceId, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count eventos ocultos',
+      one: '1 evento oculto',
+    );
+    return '$deviceId borrado: $_temp0';
+  }
+
+  @override
+  String settingsDeleteDeviceFailed(String deviceId) {
+    return 'No se pudo borrar $deviceId';
+  }
+
+  @override
+  String get settingsDeleteDeviceKeep => 'Conservar videos';
+
+  @override
+  String settingsDeleteDeviceMessage(String deviceId, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Tiene $count eventos',
+      one: 'Tiene 1 evento',
+      zero: 'No tiene eventos aquí',
+    );
+    return '¿Quitar $deviceId de tus dispositivos? $_temp0.';
+  }
+
+  @override
+  String settingsDeleteDeviceRemoved(String deviceId) {
+    return '$deviceId quitado de la lista; sus videos se quedan';
+  }
+
+  @override
+  String get settingsDeleteDeviceTitle => '¿Borrar dispositivo?';
 
   @override
   String get settingsDevice => 'Dispositivo';

@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:flutter/foundation.dart' show ValueListenable, setEquals;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, mapEquals, setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -384,6 +385,25 @@ class EventLog extends ChangeNotifier {
     if (setEquals(_hiddenDevices, devices)) return;
     _hiddenDevices = Set.unmodifiable(devices);
     _changed();
+  }
+
+  /// The devices deleted from the devices list here, keeping their
+  /// events (Keep videos), and when: each is listed again once it has an
+  /// event after that.
+  Map<String, DateTime> get removedDevices => _removedDevices;
+  Map<String, DateTime> _removedDevices = const {};
+
+  set removedDevices(Map<String, DateTime> devices) {
+    if (mapEquals(_removedDevices, devices)) return;
+    _removedDevices = Map.unmodifiable(devices);
+    _changed();
+  }
+
+  /// Whether [device], whose latest event was at [lastEvent], is off the
+  /// devices list ([removedDevices]).
+  bool removedFromList(String device, DateTime? lastEvent) {
+    final at = _removedDevices[device];
+    return at != null && (lastEvent == null || !lastEvent.isAfter(at));
   }
 
   (int, String?, List<AppEvent>)? _ofProfile;

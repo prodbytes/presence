@@ -105,5 +105,14 @@
   "settingsCloudNotPremium": "El reconocimiento en la nube es solo Premium.",
   "settingsCloudUpToDate": "Al día.",
   "settingsMemoryFree": "{amount} libres",
-  "settingsMemoryAbout": "unos {amount}"
+  "settingsMemoryAbout": "unos {amount}",
+  "settingsDeleteDeviceTitle": "¿Borrar dispositivo?",
+  "settingsDeleteDeviceMessage": "¿Quitar {deviceId} de tus dispositivos? {count, plural, =0{No tiene eventos aquí} =1{Tiene 1 evento} other{Tiene {count} eventos}}.",
+  "settingsDeleteDeviceChoice": "Conservar videos: sale de la lista, sus eventos y videos se quedan. Borrar videos: sus eventos y videos también se ocultan en todos los dispositivos. En ambos casos, vuelve a aparecer si graba de nuevo.",
+  "settingsDeleteDeviceCancel": "Cancelar",
+  "settingsDeleteDeviceKeep": "Conservar videos",
+  "settingsDeleteDeviceConfirm": "Borrar videos",
+  "settingsDeleteDeviceRemoved": "{deviceId} quitado de la lista; sus videos se quedan",
+  "settingsDeleteDeviceDone": "{deviceId} borrado: {count, plural, =1{1 evento oculto} other{{count} eventos ocultos}}",
+  "settingsDeleteDeviceFailed": "No se pudo borrar {deviceId}"
 }

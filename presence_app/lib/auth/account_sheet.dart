@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
 import '../cloud/cloud_sync.dart';
+import '../delete_device.dart';
 import '../show_device.dart';
 import '../device_events.dart';
 import '../cloud/live_sync.dart';
@@ -33,10 +34,14 @@ class AccountButton extends StatelessWidget {
     this.log,
     this.deviceId,
     this.showDevice,
+    this.deleteDevice,
   });
 
   final AuthService auth;
   final CloudSync? sync;
+
+  /// Deletes another of the profile's devices from the sheet's list.
+  final DeleteDevice? deleteDevice;
 
   /// Shows or hides a device's events here, from the sheet's list.
   final ShowDevice? showDevice;
@@ -79,6 +84,7 @@ class AccountButton extends StatelessWidget {
                 log: log,
                 deviceId: deviceId,
                 showDevice: showDevice,
+                deleteDevice: deleteDevice,
               ),
             ),
           ),
@@ -128,6 +134,7 @@ class AccountSheet extends StatelessWidget {
     this.log,
     this.deviceId,
     this.showDevice,
+    this.deleteDevice,
     this.openLink,
     this.now,
   });
@@ -135,6 +142,11 @@ class AccountSheet extends StatelessWidget {
   /// Shows or hides a device's events here (each one's eye button in the
   /// list; [EventLog.hiddenDevices]). None: no eye buttons.
   final ShowDevice? showDevice;
+
+  /// Deletes another of the profile's devices (each one's delete button in
+  /// the list, after asking whether to keep its videos). None: no delete
+  /// buttons.
+  final DeleteDevice? deleteDevice;
 
   final AuthService auth;
 
@@ -237,12 +249,18 @@ class AccountSheet extends StatelessWidget {
                         live: sync?.live,
                         builder: (_) => ProfileDevices(
                           profile: profile,
-                          devices: profileDeviceDetails(
-                            log?.events ?? const [],
-                            profileId: profile,
-                            thisDevice: deviceId,
-                            listed: sync?.deviceSlots?.devices ?? const [],
-                          ),
+                          devices: [
+                            for (final d in profileDeviceDetails(
+                              log?.events ?? const [],
+                              profileId: profile,
+                              thisDevice: deviceId,
+                              listed: sync?.deviceSlots?.devices ?? const [],
+                            ))
+                              // Deleted keeping its videos: off the list.
+                              if (!(log?.removedFromList(d.id, d.lastEvent) ??
+                                  false))
+                                d,
+                          ],
                           thisDevice: deviceId,
                           hidden: switch (log) {
                             final log? => hiddenDevices(
@@ -269,6 +287,20 @@ class AccountSheet extends StatelessWidget {
                             null => null,
                           },
                           onShow: showDevice,
+                          onDelete: switch (deleteDevice) {
+                            final delete? =>
+                              (id) => deleteDeviceAfterConfirming(
+                                context,
+                                deviceId: id,
+                                events: deviceEventCount(
+                                  log?.events ?? const [],
+                                  deviceId: id,
+                                  profileId: profile,
+                                ),
+                                delete: delete,
+                              ),
+                            null => null,
+                          },
                         ),
                       ),
                     ],
@@ -446,6 +478,7 @@ class ProfileDevices extends StatelessWidget {
     this.now,
     this.shown,
     this.onShow,
+    this.onDelete,
     this.live,
     this.thisPresence,
     this.hidden = const {},
@@ -474,6 +507,11 @@ class ProfileDevices extends StatelessWidget {
   /// Shows or hides a device's events here (its eye button, every
   /// device's, when set).
   final ShowDevice? onShow;
+
+  /// Asks to delete a device (its delete button, beside the eye). Every
+  /// device but [thisDevice] has one, when set: this device's next event
+  /// would bring it back.
+  final ValueChanged<String>? onDelete;
 
   /// Labelled "this device" in the list.
   final String? thisDevice;
@@ -619,6 +657,14 @@ class ProfileDevices extends StatelessWidget {
                     icon: const Icon(Icons.visibility_off_outlined, size: 20),
                     onPressed: () => onShow(device.id, true),
                   ),
+              if (onDelete case final onDelete? when device.id != thisDevice)
+                IconButton(
+                  key: Key('profile-device-delete-${device.id}'),
+                  tooltip: l10n.authDeleteDevice(device.id),
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  onPressed: () => onDelete(device.id),
+                ),
             ],
           ),
       ],

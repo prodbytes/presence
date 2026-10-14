@@ -56,6 +56,11 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authCheckingRoles => 'Verificando funções…';
 
   @override
+  String authDeleteDevice(String device) {
+    return 'Excluir $device';
+  }
+
+  @override
   String authDeviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -1876,6 +1881,55 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get settingsCoordinatesMinutes => 'Minutos e segundos vão até 59';
+
+  @override
+  String get settingsDeleteDeviceCancel => 'Cancelar';
+
+  @override
+  String get settingsDeleteDeviceChoice =>
+      'Manter vídeos: ele sai da lista, seus eventos e vídeos ficam. Apagar vídeos: seus eventos e vídeos também ficam ocultos em todos os dispositivos. Nos dois casos, ele volta a aparecer se gravar de novo.';
+
+  @override
+  String get settingsDeleteDeviceConfirm => 'Apagar vídeos';
+
+  @override
+  String settingsDeleteDeviceDone(String deviceId, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count eventos ocultos',
+      one: '1 evento oculto',
+    );
+    return '$deviceId apagado: $_temp0';
+  }
+
+  @override
+  String settingsDeleteDeviceFailed(String deviceId) {
+    return 'Não foi possível apagar $deviceId';
+  }
+
+  @override
+  String get settingsDeleteDeviceKeep => 'Manter vídeos';
+
+  @override
+  String settingsDeleteDeviceMessage(String deviceId, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Ele tem $count eventos',
+      one: 'Ele tem 1 evento',
+      zero: 'Ele não tem eventos aqui',
+    );
+    return 'Tirar $deviceId dos seus dispositivos? $_temp0.';
+  }
+
+  @override
+  String settingsDeleteDeviceRemoved(String deviceId) {
+    return '$deviceId saiu da lista; seus vídeos ficam';
+  }
+
+  @override
+  String get settingsDeleteDeviceTitle => 'Apagar dispositivo?';
 
   @override
   String get settingsDevice => 'Dispositivo';

@@ -105,5 +105,14 @@
   "settingsCloudNotPremium": "O reconhecimento na nuvem é só Premium.",
   "settingsCloudUpToDate": "Atualizado.",
   "settingsMemoryFree": "{amount} livres",
-  "settingsMemoryAbout": "cerca de {amount}"
+  "settingsMemoryAbout": "cerca de {amount}",
+  "settingsDeleteDeviceTitle": "Apagar dispositivo?",
+  "settingsDeleteDeviceMessage": "Tirar {deviceId} dos seus dispositivos? {count, plural, =0{Ele não tem eventos aqui} =1{Ele tem 1 evento} other{Ele tem {count} eventos}}.",
+  "settingsDeleteDeviceChoice": "Manter vídeos: ele sai da lista, seus eventos e vídeos ficam. Apagar vídeos: seus eventos e vídeos também ficam ocultos em todos os dispositivos. Nos dois casos, ele volta a aparecer se gravar de novo.",
+  "settingsDeleteDeviceCancel": "Cancelar",
+  "settingsDeleteDeviceKeep": "Manter vídeos",
+  "settingsDeleteDeviceConfirm": "Apagar vídeos",
+  "settingsDeleteDeviceRemoved": "{deviceId} saiu da lista; seus vídeos ficam",
+  "settingsDeleteDeviceDone": "{deviceId} apagado: {count, plural, =1{1 evento oculto} other{{count} eventos ocultos}}",
+  "settingsDeleteDeviceFailed": "Não foi possível apagar {deviceId}"
 }

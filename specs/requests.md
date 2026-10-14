@@ -5556,3 +5556,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Measured: Suerte "black cat" on 47 of 47 photos and frames. Specs:
        [Cloud recognition](cloud-recognition.md), [Events](events.md),
        [Subject recognition](recognition.md).
+
+400. **The device delete button is back, keeping the videos or not.** (2026-10-14)
+     - Asked: in the Profile screen's device list, add the delete button
+       back beside show/hide; deleting asks whether to keep the videos:
+       kept, the device only leaves the list; otherwise all its events are
+       deleted too.
+     - Changed: every device but this one has a delete button beside its
+       eye. The dialog offers Cancel, Keep videos (off this device's list
+       until it records again, its events stay) and Delete videos (its
+       events deleted on every device, as before). Either releases its slot
+       at the auth API. Specs: [Device deletion](device-deletion.md),
+       [Hiding a device](device-hiding.md), [Sign-in](sign-in.md),
+       [Devices, users and places](devices-users-places.md),
+       [Premium](premium.md).

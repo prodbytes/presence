@@ -45,11 +45,12 @@ their data.
 - [Recording consent](consent.md): asked once per device, before anything
   shows or records: the right to record, and faces as biometric data under
   the GDPR, in plain terms, with a verification hash.
-- [Device deletion](device-deletion.md): events move to a deleted state
-  (`deletedAt`), synced, and are hidden on every device; media stay. One
-  event is deleted from the end of its details (the clip player); a whole
-  device has no delete button, but deleted copies from before still hide
-  its events.
+- [Device deletion](device-deletion.md): delete another device of the
+  profile from the device list, keeping its videos (it only leaves the
+  list) or not (its events move to a deleted state, `deletedAt`, synced,
+  and are hidden on every device); this device can't be, and a device
+  that records again reappears. One event is deleted from the end of its
+  details (the clip player).
 - [Hiding a device](device-hiding.md): the Profile tab's device list's
   eye button hides or shows a device's events, on this device only,
   remembered across restarts.
