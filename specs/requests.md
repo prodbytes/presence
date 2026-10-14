@@ -5717,3 +5717,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        right of Setup and Profile opens Feedback & Help as its own page,
        with a back button. Specs: [Feedback and Help](feedback.md),
        [Navigation](navigation.md).
+
+414. **Recognition on a tap fails on the iPhone: say why.** (2026-10-14)
+     - Asked: make sure recognition services are available; tapping the
+       indicator seems to hit an error.
+     - Found: the cloud functions answered every request during the taps
+       (identify about 10 s for 4 crops, describe about 1 s, no 4xx or 5xx
+       at the API); the failure is on the iPhone (its own recognition,
+       new there), and a release build's log can't be read.
+     - Changed: a failed run's tooltip and message include the error's
+       first line, to find the cause. Spec:
+       [Subject recognition](recognition.md).

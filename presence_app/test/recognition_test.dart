@@ -283,6 +283,8 @@ void main() {
         )
         .message!;
     expect(tooltip, startsWith('Recognition failed:'));
+    // With what went wrong, so it can be told.
+    expect(tooltip, contains('no models'));
 
     // Tried again, and it runs: the brain again, in full.
     fail = false;
