@@ -247,7 +247,9 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
     Cognito identity pools (update, delete) likewise;
   - tagging only with the stage's tag and only resources with that tag or
     none yet (a new one), or only the cost-allocation tags (`project`,
-    `tenancy`) on the stage's own; untagging never removes `presence:stage`;
+    `tenancy`) on the stage's own (a separate `<prefix>-github-deploy-cost-tags`
+    policy, as the edge policy is near the managed-policy size limit);
+    untagging never removes `presence:stage`;
   - CloudFront functions by name (`<prefix>-*`);
   - creating distributions, functions, certificates, pools, origin access
     controls and response headers policies, and reading CloudFront, ACM

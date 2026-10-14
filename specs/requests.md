@@ -6002,7 +6002,7 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        next deploy has deleted them. Specs: [Health check](health-check.md),
        [Production deploy](deploy.md).
 
-429. **The first session-token deploy failed: deploy it in two steps.**
+430. **The first session-token deploy failed: deploy it in two steps.**
      (2026-10-14)
      - Asked: (during the release) fix the failed deploy, so the phone can
        be updated.
@@ -6017,3 +6017,15 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and `scripts/deploy.sh` deploys with `bootstrap` while the site
        doesn't serve the issuer's document, waits for it, then deploys with
        `on`. Specs: [Sessions](sessions.md), [Production deploy](deploy.md).
+
+431. **Cost tags: the deploy-roles update failed on IAM's policy size
+     limit.** (2026-10-14)
+     - Found: redeploying `presence-github-deploy` with #429's three
+       cost-tag statements put each stage's edge policy over IAM's
+       6,144-character limit for a managed policy; CloudFormation rolled
+       back and the roles were unchanged.
+     - Changed: the three statements are one `CostTags` statement in a
+       policy of its own per stage (`<prefix>-github-deploy-cost-tags`),
+       attached to that stage's deploy role; the edge policy is back to
+       its earlier size (about 5,650 characters). Same permissions. Specs:
+       [Production deploy](deploy.md).
