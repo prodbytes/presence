@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:presence_app/about.dart';
 import 'package:presence_app/auth/account_sheet.dart';
+import 'package:presence_app/consent/consent_screen.dart';
 import 'package:presence_app/main.dart';
 
 import 'fakes.dart';
@@ -101,5 +102,132 @@ void main() {
     await tester.tap(link);
     await tester.pumpAndSettle();
     expect(find.text('Link copied'), findsOneWidget);
+  });
+
+  group('Privacy Policy and Terms of Service', () {
+    test('are the API site\'s /privacy and /tos', () {
+      expect(LegalPages.privacy.path, '/privacy');
+      expect(LegalPages.terms.path, '/tos');
+      // Android and iOS tests: production, unless API_BASE_URL says.
+      expect(LegalPages.privacy.origin, LegalPages.terms.origin);
+      expect(LegalPages.privacy.scheme, anyOf('https', 'http'));
+    });
+
+    Future<void> tapOpens(WidgetTester tester, List<Uri> opened) async {
+      for (final (key, url) in [
+        ('legal-privacy', LegalPages.privacy),
+        ('legal-terms', LegalPages.terms),
+      ]) {
+        final link = find.byKey(Key(key));
+        if (find.byType(Scrollable).evaluate().isNotEmpty) {
+          await tester.scrollUntilVisible(
+            link,
+            100,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(link);
+        await tester.pumpAndSettle();
+        expect(opened.last, url);
+      }
+      expect(opened, hasLength(2));
+    }
+
+    testWidgets('signed in: the account sheet\'s About links to both', (
+      tester,
+    ) async {
+      final opened = <Uri>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AccountSheet(
+              auth: FakeAuthService.signedIn(),
+              openLink: (url) async {
+                opened.add(url);
+                return true;
+              },
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.descendant(of: about, matching: find.text('Privacy Policy')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: about, matching: find.text('Terms of Service')),
+        findsOneWidget,
+      );
+      await tapOpens(tester, opened);
+    });
+
+    testWidgets('on the consent screen, under I agree', (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final opened = <Uri>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ConsentScreen(
+            onAgree: () async {},
+            openLink: (url) async {
+              opened.add(url);
+              return true;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tapOpens(tester, opened);
+      expect(
+        tester.getTopLeft(find.byKey(const Key('legal-links'))).dy,
+        greaterThan(
+          tester.getTopLeft(find.byKey(const Key('consent-agree'))).dy,
+        ),
+      );
+    });
+
+    testWidgets('signed out: at the bottom of the camera, at 360 wide', (
+      tester,
+    ) async {
+      await pumpApp(
+        tester,
+        auth: FakeAuthService(),
+        size: const Size(360, 640),
+      );
+      expect(find.byKey(const Key('google-sign-in')), findsOneWidget);
+      final links = find.byKey(const Key('legal-links'));
+      expect(links, findsOneWidget);
+      expect(find.text('Privacy Policy'), findsOneWidget);
+      expect(find.text('Terms of Service'), findsOneWidget);
+      expect(tester.getBottomLeft(links).dy, greaterThan(560));
+    });
+
+    testWidgets('signed in with access: not over the camera (the Profile '
+        'tab has them)', (tester) async {
+      await pumpApp(tester, auth: FakeAuthService.signedIn());
+      expect(find.byKey(const Key('legal-links')), findsNothing);
+    });
+
+    testWidgets('signed out, the links open outside the app', (tester) async {
+      final opened = <Uri>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Stack(
+            children: [
+              SignedOutLegalLinks(
+                openLink: (url) async {
+                  opened.add(url);
+                  return true;
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+      await tapOpens(tester, opened);
+    });
   });
 }

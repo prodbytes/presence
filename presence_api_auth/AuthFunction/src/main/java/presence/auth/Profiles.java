@@ -93,6 +93,9 @@ public final class Profiles {
         /** Removes {@code subject}'s link. */
         void unlink(String subject);
 
+        /** Deletes the profile {@code id} (none: nothing happens). Its links are {@link #unlink}'s. */
+        void delete(String id);
+
         /** Every subject linked to the profile. */
         List<Member> members(String profileId);
 
@@ -332,6 +335,14 @@ public final class Profiles {
                 dynamo.deleteItem(DeleteItemRequest.builder()
                         .tableName(subjectsTable)
                         .key(Map.of("subject", AttributeValue.fromS(subject)))
+                        .build());
+            }
+
+            @Override
+            public void delete(String id) {
+                dynamo.deleteItem(DeleteItemRequest.builder()
+                        .tableName(profilesTable)
+                        .key(Map.of("id", AttributeValue.fromS(id)))
                         .build());
             }
 

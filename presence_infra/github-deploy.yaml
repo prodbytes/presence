@@ -129,6 +129,8 @@ Resources:
                 Action:
                   - cognito-identity:GetOpenIdTokenForDeveloperIdentity
                   - cognito-identity:DescribeIdentityPool
+                  # Account deletion: the deleted profile's identity.
+                  - cognito-identity:DeleteIdentities
                 Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
                 Condition:
                   StringEqualsIfExists:
@@ -167,12 +169,15 @@ Resources:
                 Condition:
                   StringEquals:
                     kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
-              # Live sync: the auth API attaches the IoT policy (AttachPolicy
-              # can't be scoped to an identity), and signed-in users use
-              # their stage's topics.
+              # Live sync: the auth API attaches the IoT policy, and detaches
+              # it from a deleted profile's identity (neither can be scoped
+              # to an identity), and signed-in users use their stage's
+              # topics.
               - Sid: LiveSyncAttach
                 Effect: Allow
-                Action: iot:AttachPolicy
+                Action:
+                  - iot:AttachPolicy
+                  - iot:DetachPolicy
                 Resource: '*'
               - Sid: LiveSyncConnect
                 Effect: Allow

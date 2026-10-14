@@ -14,7 +14,7 @@ One CloudFront distribution serves the whole site, laid out like the local
 | Path | Origin |
 |---|---|
 | `/` | S3 `index.html`, the [site index](site-index.md), which redirects to `/app/` |
-| `/privacy`, `/tos` | S3 `privacy/index.html` and `tos/index.html` (a CloudFront Function, `<stack>-pages`, maps them): the [legal pages](legal.md) |
+| `/privacy`, `/tos`, `/delete-account` | S3 `privacy/index.html`, `tos/index.html` and `delete-account/index.html` (a CloudFront Function, `<stack>-pages`, maps them): the [legal pages](legal.md) |
 | `/app*` | S3 `app/`: the Flutter web build (`--base-href /app/`). A CloudFront Function redirects `/app` to `/app/` and maps directory URIs to `index.html` |
 | `/api/payments/*` | The [payments API](payments-api.md)'s own HTTP API (`presence_api_payments`, stack `presence-payments`; origin `payments`), matched before `/api/*`. Not cached, every viewer header but `Host` forwarded |
 | `/api/*` | The [auth API](auth-api.md)'s HTTP API (no origin path). Not cached, with every viewer header but `Host` forwarded, `Authorization` included |
@@ -92,7 +92,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   `.env`, else the links in `deploy.sh`; each must be empty or an HTTPS
   link on stripe.com). Then `site.yaml` (with the three APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
-  page, `/app/` must answer, and `/api/auth/profile` and
+  page, `/app/` must answer, `/privacy`, `/tos` and `/delete-account`
+  must be the [legal pages](legal.md) (by their titles), and `/api/auth/profile` and
   `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
   and `/health` must answer `"status":"ok"` with this release's
@@ -228,8 +229,11 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
   (`/aws/lambda/<prefix>-*`), the `<prefix>-*` tables, the
   `<prefix>-user-data-*` bucket, the stage's identity pool (by tag;
   `IfExists`, so it can't break sign-in if Cognito leaves the key out),
-  `GetId`, `iot:AttachPolicy`, and live sync on `presence/<stage>/*`
-  topics. `scripts/deploy.sh` passes it to `identity.yaml` and the auth API
+  `GetId`, `iot:AttachPolicy` and `iot:DetachPolicy`, deleting an
+  identity of the stage's pool (`cognito-identity:DeleteIdentities`, for
+  [account deletion](account-deletion.md)), and live sync on
+  `presence/<stage>/*` topics. Changing it means updating the
+  `presence-github-deploy` stack by hand. `scripts/deploy.sh` passes it to `identity.yaml` and the auth API
   (`PermissionsBoundary`; SAM's `Globals.Function.PermissionsBoundary`).
   So a deploy can't create a role reaching past its stage: an RC function
   can't read prod's tables or bucket, or mint tokens for prod's pool.
@@ -369,8 +373,8 @@ strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
     `media-src 'self' data: blob: https://*.amazonaws.com`; `font-src
     'self' data: https://fonts.gstatic.com`; `frame-src
     https://accounts.google.com`.
-- **`<stack>-index`** (`/`, and the [legal pages](legal.md) `/privacy`
-  and `/tos`): `default-src 'none'`, the redirect script
+- **`<stack>-index`** (`/`, and the [legal pages](legal.md) `/privacy`,
+  `/tos` and `/delete-account`): `default-src 'none'`, the redirect script
   allowed by its SHA-256 hash, `style-src 'self'` (the legal pages'
   stylesheet), `img-src 'self'`, `base-uri`/`form-action
   'none'`, `frame-ancestors 'none'`, and camera, microphone and location

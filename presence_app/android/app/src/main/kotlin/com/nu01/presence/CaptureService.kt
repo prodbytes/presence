@@ -17,7 +17,9 @@ import android.os.PowerManager
 
 /**
  * Keeps the app capturing while nobody touches the phone: a foreground
- * service (with its ongoing notification) so Android lets the app keep the
+ * service (with its ongoing notification, "Presence is recording", which
+ * says whether the microphone records too and stays up in Unattended and
+ * on the lock screen) so Android lets the app keep the
  * camera and microphone with the screen off or the app in the background,
  * plus a partial wake lock (the CPU keeps running) and a Wi-Fi lock (events
  * keep syncing). The screen itself may turn off.
@@ -42,8 +44,10 @@ class CaptureService : Service() {
             }
         } catch (e: Exception) {
             // Not allowed now (e.g. started from the background): capture
-            // goes on while the app is shown, as before.
+            // goes on while the app is shown, as before. Restarted by
+            // Android with the app gone, say so, to be tapped open.
             FileLog.w("could not keep capturing in the background", e)
+            if (intent == null) KeepAlive.open(this, "capture service restarted by Android")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -74,10 +78,13 @@ class CaptureService : Service() {
         super.onDestroy()
     }
 
+    private fun microphoneAllowed() =
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
     /** Camera, and the microphone when it may be used. */
     private fun types(): Int {
         var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+        if (microphoneAllowed()) {
             types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         }
         return types
@@ -94,9 +101,15 @@ class CaptureService : Service() {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "Capturing", NotificationManager.IMPORTANCE_LOW).apply {
-                    description = "Shown while Presence keeps the camera recording"
+                // Low: in the status bar and the shade, without a sound.
+                NotificationChannel(
+                    CHANNEL_ID,
+                    getString(R.string.capture_channel),
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = getString(R.string.capture_channel_description)
                     setShowBadge(false)
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 },
             )
             Notification.Builder(this, CHANNEL_ID)
@@ -104,10 +117,21 @@ class CaptureService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this).setPriority(Notification.PRIORITY_LOW)
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Shown at once, not after Android's 10 s grace for services.
+            builder.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        }
+        val text = getString(
+            if (microphoneAllowed()) R.string.capture_text_camera_microphone else R.string.capture_text_camera,
+        )
         return builder
             .setSmallIcon(android.R.drawable.presence_video_online)
-            .setContentTitle("Presence is capturing")
-            .setContentText("The camera keeps recording with the screen off")
+            .setContentTitle(getString(R.string.capture_title))
+            .setContentText(text)
+            .setStyle(Notification.BigTextStyle().bigText(text))
+            .setCategory(Notification.CATEGORY_SERVICE)
+            // Also on the lock screen, as in Unattended (screen off).
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setContentIntent(open)
             .setOngoing(true)
             .build()

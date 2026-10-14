@@ -62,6 +62,13 @@ class MemoryProfiles implements Profiles.Store {
     }
 
     @Override
+    public void delete(String id) {
+        profiles.remove(id);
+        details.remove(id);
+        devices.remove(id);
+    }
+
+    @Override
     public List<Profiles.Member> members(String profileId) {
         var result = new ArrayList<Profiles.Member>();
         links.forEach((subject, id) -> {

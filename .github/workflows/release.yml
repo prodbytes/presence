@@ -19,6 +19,19 @@
 # sign-in client comes from the GOOGLE_DEVICE_CLIENT_ID variable and the
 # GOOGLE_DEVICE_CLIENT_SECRET secret (Google doesn't treat that kind of
 # client's secret as confidential: it ships in the binary).
+#
+# Store builds, when their secrets are set (never on pull requests; see
+# specs/release.md for how to make each one):
+# - Android: the upload key (ANDROID_UPLOAD_KEYSTORE_BASE64,
+#   ANDROID_UPLOAD_KEYSTORE_PASSWORD, optional ANDROID_UPLOAD_KEY_ALIAS and
+#   ANDROID_UPLOAD_KEY_PASSWORD) signs the APK and an App Bundle (.aab) for
+#   Google Play. Without it, the APK is debug-signed and there's no .aab.
+# - iOS: the variable APPLE_TEAM_ID and the secrets
+#   IOS_DISTRIBUTION_CERTIFICATE_BASE64, IOS_DISTRIBUTION_CERTIFICATE_PASSWORD
+#   and IOS_APPSTORE_PROFILE_BASE64 make an App Store .ipa instead of the
+#   unsigned Runner.app; with APP_STORE_CONNECT_API_KEY_ID,
+#   APP_STORE_CONNECT_API_ISSUER_ID and APP_STORE_CONNECT_API_KEY_BASE64, an
+#   *RC* or *GA* tag's .ipa is also uploaded to App Store Connect (TestFlight).
 name: Release
 
 on:
@@ -51,6 +64,8 @@ on:
       - presence_ingest/**
       - scripts/dart-defines.sh
       - scripts/version.sh
+      - presence_app/android/app/build.gradle.kts
+      - presence_app/ios/Flutter/Release.xcconfig
       - version.X.txt
       - version.Y.txt
 
@@ -251,10 +266,167 @@ jobs:
           printf 'GOOGLE_WEB_CLIENT_ID=%s\nGOOGLE_IOS_CLIENT_ID=%s\n' \
             "$GOOGLE_WEB_CLIENT_ID" "$GOOGLE_IOS_CLIENT_ID" > .env
 
+      # Store signing (see specs/release.md). Pull requests never get the
+      # keys: they build the APK (debug key) and the unsigned iOS app only.
+      # The keys live in $RUNNER_TEMP and are removed after the build.
+
+      # The Android upload key, decoded from its secret. Without it the APK
+      # is signed with the runner's debug key and no App Bundle is built.
+      - id: upload_key
+        if: matrix.target == 'android' && github.event_name != 'pull_request'
+        name: Set up the Android upload key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "::notice::No ANDROID_UPLOAD_KEYSTORE_BASE64/ANDROID_UPLOAD_KEYSTORE_PASSWORD secrets: the APK is debug-signed and no App Bundle (.aab) is built"
+            exit 0
+          fi
+          umask 077
+          keystore="$RUNNER_TEMP/upload-keystore.jks"
+          base64 --decode > "$keystore" <<< "$KEYSTORE_BASE64"
+          echo "keystore=$keystore" >> "$GITHUB_OUTPUT"
+
+      - if: matrix.target == 'android' && github.event_name == 'pull_request'
+        name: No App Bundle on pull requests
+        run: echo "::notice::Pull requests get no signing secrets, so the App Bundle (.aab) isn't built"
+
+      # The App Store distribution certificate (into a temporary keychain)
+      # and provisioning profile, the Runner target's manual signing
+      # (Flutter/Signing.xcconfig, included by Release.xcconfig) and the
+      # ExportOptions.plist for `flutter build ipa`. Entitlements (e.g. Sign
+      # in with Apple's) come from the project and must be in the profile.
+      - id: ios_signing
+        if: matrix.target == 'ios' && github.event_name != 'pull_request'
+        name: Set up App Store signing
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          PROFILE_BASE64: ${{ secrets.IOS_APPSTORE_PROFILE_BASE64 }}
+          TEAM_ID: ${{ vars.APPLE_TEAM_ID || secrets.APPLE_TEAM_ID }}
+          BUNDLE_ID: com.nu01.presence
+        run: |
+          if [[ -z "$CERTIFICATE_BASE64" || -z "$CERTIFICATE_PASSWORD" || -z "$PROFILE_BASE64" || -z "$TEAM_ID" ]]; then
+            echo "::notice::No App Store signing (APPLE_TEAM_ID, IOS_DISTRIBUTION_CERTIFICATE_BASE64/_PASSWORD, IOS_APPSTORE_PROFILE_BASE64): building the unsigned Runner.app"
+            exit 0
+          fi
+          if [[ ! "$TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APPLE_TEAM_ID must be the 10-character team ID"
+            exit 1
+          fi
+          umask 077
+
+          # The profile: for this team and app, App Store (no devices).
+          profile="$RUNNER_TEMP/appstore.mobileprovision"
+          base64 --decode > "$profile" <<< "$PROFILE_BASE64"
+          security cms -D -i "$profile" > "$RUNNER_TEMP/profile.plist"
+          pb() { /usr/libexec/PlistBuddy -c "Print :$1" "$RUNNER_TEMP/profile.plist"; }
+          uuid="$(pb UUID)"
+          profile_team="$(pb TeamIdentifier:0)"
+          app_id="$(pb Entitlements:application-identifier)"
+          if [[ ! "$uuid" =~ ^[A-Fa-f0-9-]{36}$ ]]; then
+            echo "::error::The provisioning profile has no valid UUID"
+            exit 1
+          fi
+          if [[ "$profile_team" != "$TEAM_ID" || "$app_id" != "$TEAM_ID.$BUNDLE_ID" ]]; then
+            echo "::error::The provisioning profile is for $app_id (team $profile_team), not $TEAM_ID.$BUNDLE_ID"
+            exit 1
+          fi
+          if pb ProvisionedDevices >/dev/null 2>&1; then
+            echo "::error::The provisioning profile lists devices: it's a development or ad hoc profile, not an App Store one"
+            exit 1
+          fi
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                     "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$profile" "$dir/$uuid.mobileprovision"
+          done
+
+          # The certificate, in a keychain of its own with a random password.
+          keychain="$RUNNER_TEMP/presence-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          base64 --decode > "$RUNNER_TEMP/distribution.p12" <<< "$CERTIFICATE_BASE64"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$keychain" -f pkcs12 \
+            -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/distribution.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$keychain_password" "$keychain" >/dev/null
+          keychains=()
+          while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"
+            keychains+=("${line//\"/}")
+          done < <(security list-keychains -d user)
+          security list-keychains -d user -s "$keychain" "${keychains[@]}"
+          security find-identity -v -p codesigning "$keychain"
+
+          # The Runner target's signing, and how to export the .ipa.
+          cat > presence_app/ios/Flutter/Signing.xcconfig <<EOF
+          CODE_SIGN_STYLE = Manual
+          DEVELOPMENT_TEAM = $TEAM_ID
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER = $uuid
+          EOF
+          export_options="$RUNNER_TEMP/ExportOptions.plist"
+          cat > "$export_options" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>teamID</key>
+            <string>$TEAM_ID</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key>
+              <string>$uuid</string>
+            </dict>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <false/>
+          </dict>
+          </plist>
+          EOF
+          plutil -lint "$export_options"
+          {
+            echo "export_options=$export_options"
+            echo "keychain=$keychain"
+          } >> "$GITHUB_OUTPUT"
+
+      # With the upload key, the APK and the App Bundle are signed with it
+      # (the passwords reach only the Android build, and only when the key
+      # was set up); with App Store signing, iOS is the .ipa (make ipa).
       - name: make ${{ matrix.target }}
-        run: make "$TARGET"
+        env:
+          IOS_EXPORT_OPTIONS: ${{ steps.ios_signing.outputs.export_options }}
+          ANDROID_KEYSTORE_PATH: ${{ steps.upload_key.outputs.keystore }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ steps.upload_key.outputs.keystore != '' && secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD || '' }}
+          ANDROID_KEY_ALIAS: ${{ steps.upload_key.outputs.keystore != '' && secrets.ANDROID_UPLOAD_KEY_ALIAS || '' }}
+          ANDROID_KEY_PASSWORD: ${{ steps.upload_key.outputs.keystore != '' && secrets.ANDROID_UPLOAD_KEY_PASSWORD || '' }}
+        run: |
+          if [[ "$TARGET" == ios && -n "$IOS_EXPORT_OPTIONS" ]]; then
+            make ipa
+          elif [[ "$TARGET" == android && -n "$ANDROID_KEYSTORE_PATH" ]]; then
+            make android appbundle
+          else
+            make "$TARGET"
+          fi
 
       - name: Package
+        env:
+          IOS_EXPORT_OPTIONS: ${{ steps.ios_signing.outputs.export_options }}
         run: |
           dist="$PWD/dist"
           mkdir -p "$dist"
@@ -265,9 +437,18 @@ jobs:
               ;;
             android)
               cp app/outputs/flutter-apk/app-release.apk "$dist/presence-$TAG-android.apk"
+              if [[ -f app/outputs/bundle/release/app-release.aab ]]; then
+                cp app/outputs/bundle/release/app-release.aab "$dist/presence-$TAG-android.aab"
+                keytool -printcert -jarfile "$dist/presence-$TAG-android.aab" | grep -E 'Owner:|SHA256:'
+              fi
               ;;
             ios)
-              ditto -c -k --keepParent ios/iphoneos/Runner.app "$dist/presence-$TAG-ios-unsigned.zip"
+              if [[ -n "$IOS_EXPORT_OPTIONS" ]]; then
+                ipas=(ios/ipa/*.ipa)
+                cp "${ipas[0]}" "$dist/presence-$TAG-ios.ipa"
+              else
+                ditto -c -k --keepParent ios/iphoneos/Runner.app "$dist/presence-$TAG-ios-unsigned.zip"
+              fi
               ;;
             linux | deb)
               bundle=(linux/*/release/bundle)
@@ -282,6 +463,54 @@ jobs:
               ;;
           esac
           ls -l "$dist"
+
+      # TestFlight: an *RC* or *GA* tag's .ipa (both checked to be on main)
+      # goes to App Store Connect when its API key is set; review and
+      # release stay manual there.
+      - if: steps.ios_signing.outputs.export_options != '' && github.event_name == 'push'
+        name: Upload to App Store Connect
+        env:
+          API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+          API_KEY_BASE64: ${{ secrets.APP_STORE_CONNECT_API_KEY_BASE64 }}
+        run: |
+          if [[ "$TAG" != *GA && "$TAG" != *RC* ]]; then
+            echo "::notice::$TAG isn't an RC or GA tag: not uploading to App Store Connect"
+            exit 0
+          fi
+          if [[ -z "$API_KEY_ID" || -z "$API_ISSUER_ID" || -z "$API_KEY_BASE64" ]]; then
+            echo "::notice::No App Store Connect API key (APP_STORE_CONNECT_API_KEY_ID, _ISSUER_ID, _KEY_BASE64): the .ipa is only attached to the release"
+            exit 0
+          fi
+          if [[ ! "$API_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APP_STORE_CONNECT_API_KEY_ID must be the 10-character key ID"
+            exit 1
+          fi
+          # altool looks for AuthKey_<id>.p8 in ~/.appstoreconnect/private_keys.
+          umask 077
+          keys="$HOME/.appstoreconnect/private_keys"
+          mkdir -p "$keys"
+          base64 --decode > "$keys/AuthKey_$API_KEY_ID.p8" <<< "$API_KEY_BASE64"
+          xcrun altool --upload-app --type ios --file "dist/presence-$TAG-ios.ipa" \
+            --apiKey "$API_KEY_ID" --apiIssuer "$API_ISSUER_ID"
+
+      # Never leave a key on the runner, even after a failure.
+      - if: always() && (matrix.target == 'android' || matrix.target == 'ios')
+        name: Remove the signing keys
+        env:
+          KEYCHAIN: ${{ steps.ios_signing.outputs.keychain }}
+        run: |
+          rm -f "$RUNNER_TEMP/upload-keystore.jks" "$RUNNER_TEMP/distribution.p12" \
+            "$RUNNER_TEMP/appstore.mobileprovision" "$RUNNER_TEMP/profile.plist" \
+            presence_app/ios/Flutter/Signing.xcconfig
+          rm -rf "$HOME/.appstoreconnect/private_keys"
+          if [[ -n "$KEYCHAIN" ]]; then
+            security delete-keychain "$KEYCHAIN" || true
+          fi
+          if [[ "$TARGET" == ios ]]; then
+            rm -f "$HOME/Library/MobileDevice/Provisioning Profiles/"*.mobileprovision \
+              "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision
+          fi
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

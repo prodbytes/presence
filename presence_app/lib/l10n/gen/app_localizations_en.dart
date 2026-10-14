@@ -56,6 +56,70 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authCheckingRoles => 'Checking roles…';
 
   @override
+  String get authDeleteAccount => 'Delete account';
+
+  @override
+  String get authDeleteAccountCancel => 'Cancel';
+
+  @override
+  String get authDeleteAccountChanged =>
+      'Your account\'s profile changed. Close this and try again.';
+
+  @override
+  String get authDeleteAccountConfirm =>
+      'I understand that this can\'t be undone';
+
+  @override
+  String get authDeleteAccountDevice =>
+      'This device\'s copies of the profile\'s events and clips are deleted too, and you\'re signed out. This can\'t be undone.';
+
+  @override
+  String get authDeleteAccountDone =>
+      'Your account and its profile were deleted';
+
+  @override
+  String authDeleteAccountFailed(String error) {
+    return 'Couldn\'t delete the account ($error). Try again.';
+  }
+
+  @override
+  String authDeleteAccountLinked(String email, String profile, String owner) {
+    return '$email is linked to the profile $profile, owned by $owner. Deleting your account unlinks it and deletes your Feedback & Help messages; the profile and its data stay its owner\'s.';
+  }
+
+  @override
+  String get authDeleteAccountManage => 'How to cancel a subscription';
+
+  @override
+  String authDeleteAccountOthers(String emails) {
+    return 'These accounts linked to it lose access too: $emails.';
+  }
+
+  @override
+  String authDeleteAccountOwner(String profile) {
+    return 'You own the profile $profile. Deleting your account deletes the whole profile: its events, clips, recordings and settings in the cloud, its Feedback & Help messages, its recognition labels and its devices\' stream keys.';
+  }
+
+  @override
+  String get authDeleteAccountSignInAgain =>
+      'Sign in again, then delete the account.';
+
+  @override
+  String get authDeleteAccountSubscription =>
+      'Deleting your account doesn\'t cancel a Premium subscription: cancel it first, from the link in your Stripe receipt, or ask us.';
+
+  @override
+  String get authDeleteAccountTitle => 'Delete your account?';
+
+  @override
+  String get authDeleteAccountUnfinished =>
+      'The cloud data is still being deleted. Try again in a minute to finish.';
+
+  @override
+  String get authDeleteAccountUnlinked =>
+      'Your account was deleted and unlinked from the profile';
+
+  @override
   String authDeleteDevice(String device) {
     return 'Delete $device';
   }
@@ -1711,6 +1775,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get languageSystem => 'Same as the device';
+
+  @override
+  String get legalPrivacy => 'Privacy Policy';
+
+  @override
+  String get legalTerms => 'Terms of Service';
 
   @override
   String get logClear => 'Clear';

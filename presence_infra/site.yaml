@@ -159,22 +159,23 @@ Resources:
           return request;
         }
 
-  # The site's own pages (presence_index/site): /privacy and /tos, with or
-  # without the slash, serve their directory's index.html. Everything else
-  # (/, /legal.css, unknown paths) passes as it is; / is DefaultRootObject.
+  # The site's own pages (presence_index/site): /privacy, /tos and
+  # /delete-account, with or without the slash, serve their directory's
+  # index.html. Everything else (/, /legal.css, unknown paths) passes as it
+  # is; / is DefaultRootObject.
   PagesFunction:
     Type: AWS::CloudFront::Function
     Properties:
       Name: !Sub ${AWS::StackName}-pages
       AutoPublish: true
       FunctionConfig:
-        Comment: /privacy and /tos to their index.html
+        Comment: /privacy, /tos and /delete-account to their index.html
         Runtime: cloudfront-js-2.0
       FunctionCode: |
         function handler(event) {
           var request = event.request;
           var page = request.uri.replace(/\/$/, '');
-          if (page === '/privacy' || page === '/tos') {
+          if (page === '/privacy' || page === '/tos' || page === '/delete-account') {
             request.uri = page + '/index.html';
           }
           return request;
@@ -244,7 +245,8 @@ Resources:
               Value: camera=(self), microphone=(self), geolocation=(self)
               Override: true
 
-  # The index page (/) and the legal pages (/privacy, /tos): the index's
+  # The index page (/) and the legal pages (/privacy, /tos,
+  # /delete-account): the index's
   # only script is the redirect to /app/, allowed by its hash (update it if
   # presence_index/site/index.html's <script> changes; the meta refresh
   # still redirects if it doesn't match). The legal pages have no script,

@@ -104,6 +104,15 @@ Parameters:
     Description: >
       The bucket cloud sync uploads to (presence-user-data's
       UserDataBucketName). Only reported as set or not, for the app's health line.
+  FeedbackTable:
+    Type: String
+    Default: ''
+    Description: >
+      Feedback and Help's table (presence-user-data's FeedbackTableName),
+      keyed by the profile's identity: POST /api/auth/account/delete deletes
+      the profile's conversation (or a linked account's own messages).
+      Empty: there's none to delete from.
+    AllowedPattern: '[A-Za-z0-9_.-]*'
   IotPolicyName:
     Type: String
     Default: ''
@@ -188,6 +197,7 @@ Conditions:
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
+  HasFeedbackTable: !Not [!Equals [!Ref FeedbackTable, '']]
   HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
 
 Globals:
@@ -458,6 +468,8 @@ Resources:
               - kms:ScheduleKeyDeletion
               - kms:CancelKeyDeletion
             Resource: '*'
+          # The session function seals them; account deletion (the profile
+          # function) opens them to revoke them. IAM says which does which.
           - Sid: SealAppleTokens
             Effect: Allow
             Principal:
@@ -499,6 +511,11 @@ Resources:
           ThrottlingBurstLimit: 10
           ThrottlingRateLimit: 2
         "POST /api/auth/profile/stream-key":
+          ThrottlingBurstLimit: 5
+          ThrottlingRateLimit: 1
+        # Account deletion: rare, and each request deletes up to 20 s of
+        # the profile's folder.
+        "POST /api/auth/account/delete":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
         # Cloud recognition: each request runs DINOv2 on up to 8 crops
@@ -702,6 +719,10 @@ Resources:
     Properties:
       CodeUri: AuthFunction
       Handler: presence.auth.ProfileHandler::handleRequest
+      # Account deletion deletes a profile's folder for up to 20 s a
+      # request (then answers 202 and the app asks again), inside the HTTP
+      # API's 30 s.
+      Timeout: 29
       Environment:
         Variables:
           RBACR_URL: !Ref RbacrUrl
@@ -711,6 +732,10 @@ Resources:
           PROFILE_SUBJECTS_TABLE: !Ref ProfileSubjectsTable
           LINK_CODES_TABLE: !Ref LinkCodesTable
           STREAM_KEYS_TABLE: !Ref StreamKeysTable
+          # Account deletion deletes the profile's labels and model, and its
+          # Feedback and Help conversation (empty: none).
+          RECOGNITION_TABLE: !Ref RecognitionTable
+          FEEDBACK_TABLE: !Ref FeedbackTable
           COGNITO_IDENTITY_POOL_ID: !Ref IdentityPoolId
           USER_DATA_BUCKET: !Ref UserDataBucket
           # The identity pool's DeveloperProviderName (presence_infra/identity.yaml).
@@ -719,8 +744,52 @@ Resources:
           IOT_POLICY_NAME: !Ref IotPolicyName
           # The local stack only: no Cognito Identity (LocalCloudBackend).
           LOCAL_CLOUD: !Ref LocalCloud
+          # Account deletion ends the accounts' sign-ins (AccountSessions):
+          # their sessions, and Sign in with Apple's tokens at Apple.
+          SESSIONS_TABLE: !Ref SessionsTable
+          IDENTITIES_TABLE: !Ref IdentitiesTable
+          APPLE_TEAM_ID: !If [HasAppleKey, !Ref AppleTeamId, '']
+          APPLE_KEY_ID: !If [HasAppleKey, !Ref AppleKeyId, '']
+          APPLE_KEY_PARAMETER: !If [HasAppleKey, !Ref AppleKeyParameter, '']
+          DATA_KEY_ARN: !If [HasAppleKey, !GetAtt SessionDataKey.Arn, '']
       Policies:
         - Statement:
+            # Account deletion: revokes the accounts' session families
+            # (found by identity), and forgets their identities after
+            # revoking their Apple refresh tokens (read with Apple's key,
+            # decrypted with the data key). Without Apple's key: a parameter
+            # and key that don't exist.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt SessionsTable.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub "${SessionsTable.Arn}/index/subject"
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt IdentitiesTable.Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub
+                - "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Name}"
+                - Name: !If [HasAppleKey, !Ref AppleKeyParameter, /none]
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+              Condition:
+                StringEquals:
+                  kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !If
+                - HasAppleKey
+                - !GetAtt SessionDataKey.Arn
+                - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/none"
             # Links, moves and unlinks subjects; lists a profile's.
             - Effect: Allow
               Action:
@@ -731,49 +800,86 @@ Resources:
               Resource:
                 - !GetAtt ProfileSubjectsTable.Arn
                 - !Sub "${ProfileSubjectsTable.Arn}/index/profile"
-            # Makes profiles, records sign-ins, sets the identity once.
+            # Makes profiles, records sign-ins, sets the identity once;
+            # deletes one with its owner's account.
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
               Resource: !GetAtt ProfilesTable.Arn
             # Saves codes; reads one to check a link before using it up
-            # (a conditional delete).
+            # (a conditional delete). Scan: a deleted profile's codes
+            # (keyed by their hash).
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:DeleteItem
+                - dynamodb:Scan
               Resource: !GetAtt LinkCodesTable.Arn
             # Streamers' keys: saved, checked, revoked with their device.
+            # Scan: a deleted profile's (keyed <profile>/<device>).
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:DeleteItem
+                - dynamodb:Scan
               Resource: !GetAtt StreamKeysTable.Arn
-            # Makes a profile's identity and issues its tokens. Only this
-            # pool ("none" when it isn't set).
+            # A deleted profile's cloud recognition labels and model.
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:DeleteItem
+              Resource: !GetAtt RecognitionTable.Arn
+            # A deleted account's Feedback and Help messages ("none" when
+            # the table isn't set).
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:DeleteItem
+              Resource: !Sub
+                - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
+                - Table: !If [HasFeedbackTable, !Ref FeedbackTable, none]
+            # Makes a profile's identity, issues its tokens, and deletes the
+            # identity with its owner's account. Only this pool ("none" when
+            # it isn't set).
             - Effect: Allow
               Action:
                 - cognito-identity:GetOpenIdTokenForDeveloperIdentity
+                - cognito-identity:DeleteIdentities
               Resource: !Sub
                 - "arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/${Pool}"
                 - Pool: !If [HasIdentityPool, !Ref IdentityPoolId, none]
-            # Only to see whether an account's folder is empty before linking it.
+            # To see whether an account's folder is empty before linking it,
+            # and to list a deleted profile's folder.
             - Effect: Allow
               Action: s3:ListBucket
               Resource: !Sub
                 - "arn:${AWS::Partition}:s3:::${Bucket}"
                 - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
-            # Live sync: attaches the IoT policy to the caller's identity.
-            # AttachPolicy can only be scoped to certificates and thing
-            # groups, not to a Cognito identity target or a policy, so it's
-            # any resource; the function only ever attaches IotPolicyName.
+            # Deletes a deleted profile's folder (DeleteObjects needs
+            # DeleteObject on each key). The folder is the profile's
+            # identity, known only at run time, so it's any key in the
+            # bucket; the function deletes only <identity ID>/ of the
+            # caller's own profile (ProfileBackend.IDENTITY_ID).
+            - Effect: Allow
+              Action: s3:DeleteObject
+              Resource: !Sub
+                - "arn:${AWS::Partition}:s3:::${Bucket}/*"
+                - Bucket: !If [HasUserDataBucket, !Ref UserDataBucket, none]
+            # Live sync: attaches the IoT policy to the caller's identity,
+            # and detaches it when the profile is deleted. Neither can be
+            # scoped to a Cognito identity target or a policy (only to
+            # certificates and thing groups), so it's any resource; the
+            # function only ever attaches or detaches IotPolicyName.
             # Without one, a certificate that doesn't exist ("none").
             - Effect: Allow
-              Action: iot:AttachPolicy
+              Action:
+                - iot:AttachPolicy
+                - iot:DetachPolicy
               Resource: !If
                 - HasIotPolicy
                 - '*'
@@ -821,6 +927,13 @@ Resources:
           Properties:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/profile/stream-key
+            Method: post
+        # Deletes the caller's account, or its whole profile for the owner.
+        DeleteAccount:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/account/delete
             Method: post
         # The streamer's: no session token (no authorizer); its stream key,
         # checked by the function, is the proof.

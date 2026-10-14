@@ -2,3 +2,7 @@
 #include "Generated.xcconfig"
 // Private values (GOOGLE_REVERSED_CLIENT_ID), written by scripts/dart-defines.sh.
 #include? "Private.xcconfig"
+// Distribution signing for the App Store .ipa (manual style, team,
+// provisioning profile), written only by the release workflow; absent
+// locally, so Flutter's automatic development signing is unchanged.
+#include? "Signing.xcconfig"

@@ -133,7 +133,70 @@ class ProfileTest {
         public void deleteStreamKey(String profileId, String deviceId) {
             streamKeys.remove(profileId + "/" + deviceId);
         }
+
+        @Override
+        public ProfileHandler.FolderDeletion deleteFolder(String identityId, Instant deadline) {
+            // One page of up to 1000 a call while pagesPerCall allows.
+            var left = folderObjects.getOrDefault(identityId, 0);
+            var deleted = 0;
+            for (var page = 0; page < pagesPerCall && left > 0; page++) {
+                var n = Math.min(1000, left);
+                left -= n;
+                deleted += n;
+            }
+            folderObjects.put(identityId, left);
+            if (left == 0) {
+                foldersWithData.remove(identityId);
+            }
+            return new ProfileHandler.FolderDeletion(deleted, left == 0);
+        }
+
+        @Override
+        public boolean deleteIdentity(String identityId) {
+            deletedIdentities.add(identityId);
+            liveSyncAllowed.remove(identityId);
+            return true;
+        }
+
+        @Override
+        public int deleteFeedback(String identityId, String email) {
+            var conversation = feedback.getOrDefault(identityId, new ArrayList<>());
+            var before = conversation.size();
+            conversation.removeIf(from -> email == null || from.equals(email));
+            return before - conversation.size();
+        }
+
+        @Override
+        public int deleteRecognition(String profileId) {
+            var labels = recognition.remove(profileId);
+            return labels == null ? 0 : labels;
+        }
+
+        @Override
+        public int deleteStreamKeys(String profileId) {
+            var before = streamKeys.size();
+            streamKeys.keySet().removeIf(k -> k.startsWith(profileId + "/"));
+            return before - streamKeys.size();
+        }
+
+        @Override
+        public int deleteLinkCodes(String profileId) {
+            var before = codes.size();
+            codes.values().removeIf(c -> c.profileId().equals(profileId));
+            return before - codes.size();
+        }
     };
+
+    /** Identity -> how many objects its folder holds. */
+    private final Map<String, Integer> folderObjects = new HashMap<>();
+    /** How many 1000-object pages one deletion request gets through before its time is up. */
+    private int pagesPerCall = Integer.MAX_VALUE;
+    /** Identities deleted from the pool. */
+    private final List<String> deletedIdentities = new ArrayList<>();
+    /** Identity -> its Feedback conversation, each message by the email that sent it. */
+    private final Map<String, List<String>> feedback = new HashMap<>();
+    /** Profile -> how many recognition items (labels and the model) it has. */
+    private final Map<String, Integer> recognition = new HashMap<>();
 
     /** The stream keys table: "<profile>/<device>" -> the key's record. */
     private final Map<String, ProfileHandler.StreamKey> streamKeys = new HashMap<>();
@@ -232,9 +295,20 @@ class ProfileTest {
 
     private final Roles roles = new Roles(e -> rbacr.getOrDefault(e, Set.of()));
 
+    /** The subjects whose sign-ins a deletion ended (sessions, Apple tokens), in order. */
+    private final List<String> signInsEnded = new ArrayList<>();
+    /** Whether Apple can't be told (AccountSessions.end answers false). */
+    private boolean appleUnreachable;
+
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
-        return new ProfileHandler(roles, profiles, backend, configured, new SecureRandom());
+        return new ProfileHandler(roles, profiles, backend, configured, new SecureRandom(), null, subject -> {
+            if (appleUnreachable) {
+                return false;
+            }
+            signInsEnded.add(subject);
+            return true;
+        });
     }
 
     /** The profile {@code sub}'s subject is linked to. */
@@ -622,6 +696,202 @@ class ProfileTest {
         var members = new Roles(e -> e.equals("ana@example.com") ? Set.of("admin") : Set.of());
         assertEquals(Set.of(Roles.PREMIUM, Roles.USER),
                 members.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#ana", "ana@example.com", null)));
+    }
+
+    /** julio@nu01.com ("work") owns profile_1, with its folder, julio@gmail.com ("home") linked to it. */
+    private void ownerWithLinkedAccountAndData() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        googleIdentities.put("tok-home", "us-east-1:home");
+        assertEquals(200, link("home", "julio@gmail.com", linkCode("work", "julio@nu01.com")).getStatusCode());
+        assertEquals(200, profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                "calm_quiet_otter"), null).getStatusCode());
+        streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        linkCode("work", "julio@nu01.com");
+        folderObjects.put("us-east-1:work", 2500);
+        foldersWithData.add("us-east-1:work");
+        feedback.put("us-east-1:work", new ArrayList<>(List.of("julio@nu01.com", "julio@gmail.com",
+                "julio@nu01.com")));
+        recognition.put("profile_1", 4);
+    }
+
+    private com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse deleteAccount(
+            String sub, String email, String profile) {
+        return profiles.handleRequest(call(ProfileHandler.DELETE_ACCOUNT, sub, email, profile), null);
+    }
+
+    @Test
+    void theOwnerDeletesTheWholeProfile() {
+        ownerWithLinkedAccountAndData();
+
+        var response = deleteAccount("work", "julio@nu01.com", "profile_1");
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertEquals("{\"deleted\":\"profile\",\"profile\":\"profile_1\",\"accounts\":2,\"objects\":2500,"
+                + "\"feedback\":3,\"recognition\":4,\"streamKeys\":1,\"identity\":true,\"complete\":true}",
+                response.getBody());
+        // The profile, every account's link, its codes, keys, folder and identity.
+        assertNull(store.profile("profile_1"));
+        assertNull(store.links.get(GOOGLE + "#work"));
+        assertNull(store.links.get(GOOGLE + "#home"));
+        assertTrue(codes.isEmpty());
+        assertTrue(streamKeys.isEmpty());
+        assertEquals(0, folderObjects.get("us-east-1:work"));
+        assertEquals(List.of("us-east-1:work"), deletedIdentities);
+        assertTrue(feedback.get("us-east-1:work").isEmpty());
+        assertFalse(recognition.containsKey("profile_1"));
+        // The next sign-in of either account starts a new, empty profile.
+        listing("work", "julio@nu01.com");
+        listing("home", "julio@gmail.com");
+        assertNotEquals("profile_1", profileOf("work").id());
+        assertNotEquals("profile_1", profileOf("home").id());
+        assertNotEquals(profileOf("work").id(), profileOf("home").id());
+        assertFalse(profileOf("work").hasIdentity());
+    }
+
+    @Test
+    void aLinkedAccountOnlyLeavesTheProfile() {
+        ownerWithLinkedAccountAndData();
+
+        var response = deleteAccount("home", "julio@gmail.com", "profile_1");
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertEquals("{\"deleted\":\"account\",\"profile\":\"profile_1\",\"accounts\":1,\"objects\":0,"
+                + "\"feedback\":1,\"identity\":false,\"complete\":true}", response.getBody());
+        assertNull(store.links.get(GOOGLE + "#home"));
+        // The owner's profile and data stay; only the account's own messages go.
+        assertEquals("profile_1", store.links.get(GOOGLE + "#work"));
+        assertNotNull(store.profile("profile_1"));
+        assertEquals(2500, folderObjects.get("us-east-1:work"));
+        assertTrue(deletedIdentities.isEmpty());
+        assertEquals(List.of("julio@nu01.com", "julio@nu01.com"), feedback.get("us-east-1:work"));
+        assertEquals(1, streamKeys.size());
+        assertEquals(4, recognition.get("profile_1"));
+        assertEquals("{\"profile\":\"profile_1\",\"shared\":[],\"accounts\":["
+                + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":true}]}", listing("work", "julio@nu01.com"));
+    }
+
+    @Test
+    void deletingTheProfileEndsEveryAccountsSignIns() {
+        ownerWithLinkedAccountAndData();
+        assertEquals(200, deleteAccount("work", "julio@nu01.com", "profile_1").getStatusCode());
+        assertEquals(Set.of(GOOGLE + "#work", GOOGLE + "#home"), Set.copyOf(signInsEnded));
+    }
+
+    @Test
+    void aLinkedAccountEndsOnlyItsOwnSignIns() {
+        ownerWithLinkedAccountAndData();
+        assertEquals(200, deleteAccount("home", "julio@gmail.com", "profile_1").getStatusCode());
+        assertEquals(List.of(GOOGLE + "#home"), signInsEnded);
+    }
+
+    @Test
+    void whenAppleCantBeToldNothingMoreIsDeletedAndARetryFinishes() {
+        ownerWithLinkedAccountAndData();
+        appleUnreachable = true;
+        var refused = deleteAccount("home", "julio@gmail.com", "profile_1");
+        assertEquals(503, refused.getStatusCode());
+        assertEquals("profile_1", store.links.get(GOOGLE + "#home"));
+        var owner = deleteAccount("work", "julio@nu01.com", "profile_1");
+        assertEquals(503, owner.getStatusCode());
+        assertNotNull(store.profile("profile_1"));
+        assertEquals("profile_1", store.links.get(GOOGLE + "#work"));
+        appleUnreachable = false;
+        assertEquals(200, deleteAccount("work", "julio@nu01.com", "profile_1").getStatusCode());
+        assertNull(store.profile("profile_1"));
+    }
+
+    @Test
+    void deletingIsSafeToRepeat() {
+        ownerWithLinkedAccountAndData();
+        assertEquals(200, deleteAccount("work", "julio@nu01.com", "profile_1").getStatusCode());
+
+        var again = deleteAccount("work", "julio@nu01.com", "profile_1");
+
+        assertEquals(200, again.getStatusCode());
+        assertEquals("{\"deleted\":\"nothing\",\"complete\":true}", again.getBody());
+        // Nothing was made for the caller by asking.
+        assertNull(store.links.get(GOOGLE + "#work"));
+        assertEquals(List.of("us-east-1:work"), deletedIdentities);
+    }
+
+    @Test
+    void anotherProfileIdDeletesNothing() {
+        ownerWithLinkedAccountAndData();
+        for (var body : new String[] {null, "", "profile_2", "profile_1 profile_2"}) {
+            var response = deleteAccount("work", "julio@nu01.com", body);
+            assertEquals(409, response.getStatusCode(), String.valueOf(body));
+        }
+        assertNotNull(store.profile("profile_1"));
+        assertEquals("profile_1", store.links.get(GOOGLE + "#home"));
+        assertEquals(2500, folderObjects.get("us-east-1:work"));
+    }
+
+    @Test
+    void aBigFolderTakesMoreThanOneRequest() {
+        ownerWithLinkedAccountAndData();
+        pagesPerCall = 2;
+
+        var first = deleteAccount("work", "julio@nu01.com", "profile_1");
+
+        assertEquals(202, first.getStatusCode());
+        assertEquals("{\"deleted\":\"profile\",\"profile\":\"profile_1\",\"objects\":2000,\"complete\":false}",
+                first.getBody());
+        // Nothing else went yet: the next request finds everything.
+        assertNotNull(store.profile("profile_1"));
+        assertEquals("profile_1", store.links.get(GOOGLE + "#home"));
+        assertTrue(deletedIdentities.isEmpty());
+
+        var second = deleteAccount("work", "julio@nu01.com", "profile_1");
+
+        assertEquals(200, second.getStatusCode());
+        assertTrue(second.getBody().contains("\"objects\":500,"), second.getBody());
+        assertNull(store.profile("profile_1"));
+        assertNull(store.links.get(GOOGLE + "#home"));
+    }
+
+    @Test
+    void aDeletionStoppedHalfWayIsFinished() {
+        ownerWithLinkedAccountAndData();
+        // The profile went, but the links didn't (the function stopped).
+        store.delete("profile_1");
+
+        var response = deleteAccount("home", "julio@gmail.com", "profile_1");
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertTrue(response.getBody().startsWith("{\"deleted\":\"profile\""), response.getBody());
+        assertNull(store.links.get(GOOGLE + "#home"));
+        assertNull(store.links.get(GOOGLE + "#work"));
+        assertTrue(streamKeys.isEmpty());
+        assertFalse(recognition.containsKey("profile_1"));
+    }
+
+    @Test
+    void anAccountWithoutRolesCanDeleteItself() {
+        listing("x", "x@example.com");
+
+        var response = deleteAccount("x", "x@example.com", "profile_1");
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertTrue(response.getBody().startsWith("{\"deleted\":\"profile\""), response.getBody());
+        assertTrue(store.links.isEmpty());
+        assertNull(store.profile("profile_1"));
+        // No folder or identity yet: nothing to delete in the cloud.
+        assertTrue(deletedIdentities.isEmpty());
+    }
+
+    @Test
+    void withoutCloudSyncTheProfileIsStillDeleted() {
+        var off = handler(false);
+        off.handleRequest(call("GET /api/auth/profile", "work", "julio@nu01.com", null), null);
+        store.identity("profile_1", "us-east-1:work");
+        folderObjects.put("us-east-1:work", 10);
+
+        var response = off.handleRequest(call(ProfileHandler.DELETE_ACCOUNT, "work", "julio@nu01.com",
+                "profile_1"), null);
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertNull(store.profile("profile_1"));
+        assertEquals(10, folderObjects.get("us-east-1:work"), "no bucket to delete from");
     }
 
     @Test

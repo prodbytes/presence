@@ -5766,3 +5766,89 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the first one seen (earliest frame; suggestions aside), whole,
        with a dot and their name at the tagged spot; otherwise the clip's
        thumbnail as before. Spec: [Clips](clips.md).
+
+418. **Store readiness: iOS permission texts, iPhone only, export
+     compliance, and the privacy policy and terms in the app.** (2026-10-14)
+     - Asked: fix the App Store items of the [store readiness](store-readiness.md)
+       audit: a truthful camera text, `ITSAppUsesNonExemptEncryption`,
+       iPhone only, and links to the Privacy Policy and Terms of Service
+       in the app, signed in and out.
+     - Changed: `Info.plist`'s camera text says it records video
+       continuously while open and saves clips (microphone likewise);
+       `ITSAppUsesNonExemptEncryption` is `false`; `TARGETED_DEVICE_FAMILY`
+       is `1` and the iPad orientations are gone. "Privacy Policy · Terms
+       of Service" links (to the API site's `/privacy` and `/tos`) are in
+       the account sheet's About, on the consent screen, and signed out
+       at the bottom of the camera, in English, Spanish and Portuguese.
+       Specs: [iOS](ios.md), [About](about.md), [Legal](legal.md),
+       [Consent](consent.md), [Store readiness](store-readiness.md).
+
+419. **Store readiness: the Android capture notification, and no
+     background starts.** (2026-10-14)
+     - Asked: on Android 13+ ask for `POST_NOTIFICATIONS` so the capture
+       notification always shows while recording, saying it records the
+       camera (and microphone), also in Unattended; and where Android 10+
+       blocks the watchdog and boot receiver from opening the app, post a
+       "Presence stopped — tap to resume" notification instead, without
+       starting the camera service from boot (Android 15).
+     - Changed: the manifest has `POST_NOTIFICATIONS`, requested at launch
+       with the camera and microphone. The ongoing notification is now
+       "Presence is recording", naming the camera and microphone, shown at
+       once and public on the lock screen. On Android 10+ `KeepAlive.open`
+       also posts a high-priority "Presence stopped — tap to resume"
+       (tapping opens the app; the app's screen removes it); a capture
+       service restarted by Android that can't go foreground does too.
+       Notification texts are Android string resources in English,
+       Spanish and Portuguese. Specs: [Android](android.md),
+       [Store readiness](store-readiness.md).
+
+420. **Signed store builds for Google Play and the App Store.** (2026-10-14)
+     - Asked: store-ready signed builds: an Android upload key and App
+       Bundle, an App Store `.ipa` with distribution signing and an
+       optional App Store Connect upload, all from secrets, and a list of
+       the secrets to create.
+     - Changed: Gradle signs release builds with the upload key from the
+       environment (`ANDROID_KEYSTORE_PATH`, ...) or `key.properties`,
+       falls back to the debug key for APKs, and fails a release App
+       Bundle without a key. New `make appbundle` and `make ipa` targets,
+       and `scripts/android-upload-key.sh` (creates the key outside the
+       repo, prints its fingerprints and the `gh secret set` commands).
+       The Release workflow builds `presence-<tag>-android.aab` with the
+       `ANDROID_UPLOAD_KEY*` secrets, and `presence-<tag>-ios.ipa` with
+       `APPLE_TEAM_ID` and the distribution certificate and profile
+       secrets (temporary keychain, `Signing.xcconfig` included by
+       `Release.xcconfig`, generated `ExportOptions.plist`), uploading RC
+       and GA builds to App Store Connect when its API key is set; each
+       is skipped with a notice without its secrets, and the keys are
+       removed after the job. Signing files are never committed. Specs:
+       [Release builds](release.md#store-signing), [Android](android.md),
+       [iOS](ios.md), [Store readiness](store-readiness.md),
+       [Add a device](add-device.md).
+
+421. **Delete an account from the app, and a page on how without it.** (2026-10-14)
+     - Asked: App Store guideline 5.1.1(v) and Google Play's account
+       deletion policy: a signed-in user must be able to delete their
+       account inside the app, on every platform, and a public web page
+       must say how to ask for deletion without the app.
+     - Changed: `POST /api/auth/account/delete` on the auth API (any
+       verified account, the body its profile ID): a linked account
+       leaves its profile (its link and its own Feedback messages); the
+       owner deletes the whole profile (its bucket folder, a page at a
+       time and over several requests if big, its Feedback conversation,
+       Cognito identity and IoT policy, recognition data, stream keys,
+       link codes, every account's link and the profile). Idempotent,
+       throttled to 1/s, least-privilege IAM (and the stage boundary,
+       which needs `presence-github-deploy` updated by hand). The account
+       sheet ends with **Delete account**: a dialog says what goes (owner
+       or linked account), that Premium isn't cancelled (with a link to
+       how), and needs a tick; then the API, sign-out, and this device
+       forgets the profile's events, clips, recordings and keys.
+       `/delete-account` on the site (deploy smoke-tested), linked from
+       the privacy policy, whose rights now name in-app deletion. Specs:
+       new [Account deletion](account-deletion.md);
+       [Auth API](auth-api.md), [Profiles](profiles.md),
+       [Sign-in](sign-in.md), [Legal](legal.md),
+       [Store readiness](store-readiness.md), [Production deploy](deploy.md),
+       [Site index](site-index.md), [Local CDN](local-cdn.md),
+       [Feedback and Help](feedback.md),
+       [Cloud recognition](cloud-recognition.md), [Streamer](streamer.md).

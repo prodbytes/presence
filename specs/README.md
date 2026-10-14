@@ -76,6 +76,13 @@ their data.
   at once with the user's ID token), the account sheet (the profile ID
   and its devices, from events and the auth API's list) and the OAuth
   clients.
+- [Account deletion](account-deletion.md): the account sheet's **Delete
+  account** (after a confirmation that says what goes and that Premium
+  isn't cancelled): the profile's owner deletes the whole profile (its
+  cloud folder, identity, feedback, recognition, stream keys and every
+  linked account's link), a linked account only leaves it; this device
+  forgets the profile and signs out. `POST /api/auth/account/delete`,
+  idempotent; without the app, `/delete-account` says how by email.
 - [Premium and free](premium.md): rbacr says who is premium (its
   `premium` or `admin` role): premium profiles sync with the cloud (S3,
   enforced by a `tier` tag on their credentials); free ones' devices sync
@@ -220,7 +227,8 @@ their data.
 - [Site index](site-index.md): the `presence_index` root page, which
   redirects to `/app/`.
 - [Privacy policy and terms of service](legal.md): static pages of
-  `presence_index` at `/privacy` and `/tos`.
+  `presence_index` at `/privacy` and `/tos`, and how to delete an account
+  at `/delete-account`.
 
 **Project**
 
@@ -239,7 +247,7 @@ their data.
   binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
 - [Store readiness](store-readiness.md): what the App Store and Google
   Play require that Presence meets, and what it doesn't yet (Stripe
-  billing, account deletion, Sign in with Apple, release signing).
+  billing, Sign in with Apple, release signing).
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
