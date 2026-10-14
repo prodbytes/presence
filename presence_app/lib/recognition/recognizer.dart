@@ -262,6 +262,8 @@ class SubjectRecognizer {
 
   void _onEvent(AppEvent event) {
     if (event is! ClipRequested || event.clip.capture == null) return;
+    // A device hidden here (the Profile tab): nothing asked about it.
+    if (log.hidesDevice(event.deviceId)) return;
     // Wait for the "after" part outside the queue.
     _full(event.clip)
         .then<void>((media) async {
@@ -294,6 +296,8 @@ class SubjectRecognizer {
     final since = (now ?? DateTime.now()).subtract(syncedWithin);
     for (final event in events) {
       if (event is! ClipRequested) continue;
+      // A device hidden here (the Profile tab): not recognized here.
+      if (log.hidesDevice(event.deviceId)) continue;
       // Still coming from its device: taken when it arrives (it's replaced
       // by the clip then, Persistence.showArrivedClips).
       if (event.clip.awaitingRemote) continue;

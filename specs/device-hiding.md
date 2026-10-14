@@ -11,11 +11,20 @@ The Profile tab's device list ([Sign-in](sign-in.md), `ProfileDevices` in
 
 Hiding is **only on this device** and deletes nothing: the device stays in
 the list (so it can be shown again), its events still sync and stay
-stored, and the other devices still show them. Its events leave the
-Monitoring timeline and its count (`EventLog.eventsOf` skips
-`EventLog.hiddenDevices`), apart from what the plan hides past its device
-limit ([Premium](premium.md); `EventLog.visibleDevices`, labelled
-"hidden").
+stored, and the other devices still show them. **Nothing of it shows
+here**, apart from its row in the device list:
+
+- its events leave the Monitoring timeline and its count, the subjects
+  map and the Camera tab's All grid (`EventLog.eventsOf` skips
+  `EventLog.hiddenDevices`; what the plan hides past its device limit is
+  apart: [Premium](premium.md), `EventLog.visibleDevices`, labelled
+  "hidden");
+- a question about one of its clips ("Is this Rex?") goes too, even when
+  another device asked it (`eventsOf` looks at the suggestion's clip);
+- **recognition doesn't run here** on its clips, new or synced
+  (`SubjectRecognizer` skips them, `EventLog.hidesDevice`), so nothing
+  is asked about them from here. Shown again, its clips from then on are
+  recognized as before.
 
 The hidden devices are **remembered** in this device's settings store
 (`Persistence.saveHiddenDevices`, key `hiddenDevices`, `{"devices":

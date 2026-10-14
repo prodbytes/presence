@@ -943,6 +943,47 @@ void main() {
       },
     );
 
+    test('a question about a hidden device\'s clip, asked by another '
+        'device, shows nowhere here', () {
+      final theClip = ClipRequested(clip(), id: 'c')
+        ..deviceId = 'brave_little_lamp'
+        ..profileId = 'p';
+      final question =
+          SubjectSuggestion(
+              clipEventId: 'c',
+              annotationId: 'a',
+              subjectName: 'Rex',
+              confidence: 0.6,
+              clip: theClip,
+            )
+            ..deviceId = 'calm_quiet_otter'
+            ..profileId = 'p';
+      log.addHistory([theClip, question]);
+      expect(log.eventsOf('p'), hasLength(2));
+      log.hiddenDevices = {'brave_little_lamp'};
+      expect(log.eventsOf('p'), isEmpty, reason: 'the clip and the question');
+    });
+
+    test("a device hidden here (the Profile tab): its clips aren't "
+        'recognized here, synced or new; nor asked about', () async {
+      final sampler = FakeSampler(2);
+      final r = recognizer(FakeVision({}, {}), sampler);
+      final now = DateTime.now();
+      log.hiddenDevices = {'brave_little_lamp'};
+      final hidden = ClipRequested(clip(), id: 'hidden', time: now)
+        ..os = 'iOS'
+        ..deviceId = 'brave_little_lamp';
+      final shown = ClipRequested(clip(), id: 'shown', time: now)
+        ..os = 'iOS'
+        ..deviceId = 'calm_quiet_otter';
+      r.recognizeSynced([hidden, shown], now: now);
+      await Future<void>.delayed(Duration.zero);
+      await r.idle;
+      expect(hidden.annotations.objects, isNull, reason: 'hidden: left');
+      expect(shown.annotations.objects, isNotNull);
+      expect(sampler.samples, 1);
+    });
+
     test('tags the sure, asks about the unsure, on their best frame', () async {
       const body = Box(0.3, 0.2, 0.7, 1);
       const other = Box(0.75, 0.2, 0.95, 1);
