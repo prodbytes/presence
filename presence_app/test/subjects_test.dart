@@ -195,8 +195,11 @@ void main() {
       // Tagged twice on one clip, shown once; as written on that clip.
       expect(find.byKey(const Key('event-subject-rex')), findsNWidgets(2));
       expect(find.byKey(const Key('event-subject-ana')), findsOneWidget);
-      expect(find.text('rex'), findsOneWidget);
-      expect(find.text('Ana'), findsOneWidget);
+      // In the subjects row (the thumbnail names its first subject too).
+      Finder chip(String key, String text) =>
+          find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+      expect(chip('event-subject-rex', 'rex'), findsOneWidget);
+      expect(chip('event-subject-ana', 'Ana'), findsOneWidget);
       Color colorOf(Finder f) =>
           ((tester.widget<Container>(
                     find.descendant(of: f, matching: find.byType(Container)),
@@ -546,8 +549,11 @@ void main() {
       final rex = find.byKey(const Key('subjects-dot-rex-event-1'));
       final ana = find.byKey(const Key('subjects-dot-ana-event-2'));
       final events = find.byKey(const Key('events-page'));
-      Finder card(String name) =>
-          find.descendant(of: events, matching: find.text(name));
+      // A card's subject (its chip; the thumbnail names it too).
+      Finder card(String name) => find.descendant(
+        of: events,
+        matching: find.byKey(Key('event-subject-${name.toLowerCase()}')),
+      );
 
       expect(rex, findsOneWidget);
       expect(ana, findsOneWidget);

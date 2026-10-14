@@ -17,13 +17,16 @@ class FrameTagger extends StatelessWidget {
     super.key,
     required this.frame,
     required this.tags,
-    required this.onTap,
+    this.onTap,
     this.spot,
   });
 
   final TagFrame frame;
   final List<Annotation> tags;
-  final void Function(Offset fraction) onTap;
+
+  /// A click on the frame, as fractions of it; none: the frame only shows
+  /// its tags (a card's thumbnail), taking no taps.
+  final void Function(Offset fraction)? onTap;
 
   /// Where the next name goes, clicked but not named yet: a ring there.
   final Offset? spot;
@@ -43,14 +46,20 @@ class FrameTagger extends StatelessWidget {
             builder: (context, box) => Semantics(
               label: context.l10n.clipFrameTagLabel,
               child: GestureDetector(
-                key: const Key('tag-surface'),
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (d) => onTap(
-                  Offset(
-                    d.localPosition.dx / box.maxWidth,
-                    d.localPosition.dy / box.maxHeight,
+                key: onTap == null ? null : const Key('tag-surface'),
+                // Without onTap, taps go through (to a card's InkWell).
+                behavior: onTap == null
+                    ? HitTestBehavior.deferToChild
+                    : HitTestBehavior.opaque,
+                onTapUp: switch (onTap) {
+                  final onTap? => (d) => onTap(
+                    Offset(
+                      d.localPosition.dx / box.maxWidth,
+                      d.localPosition.dy / box.maxHeight,
+                    ),
                   ),
-                ),
+                  null => null,
+                },
                 child: Stack(
                   fit: StackFit.expand,
                   children: [

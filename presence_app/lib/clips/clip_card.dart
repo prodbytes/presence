@@ -5,12 +5,14 @@ import '../crypto/sealed_image.dart';
 import 'package:flutter/material.dart';
 
 import '../event_flags.dart';
+import '../annotations.dart';
 import '../events.dart';
 import '../l10n/l10n.dart';
 import '../subjects.dart';
 import 'clip_labels.dart';
 import 'clip_model.dart';
 import 'clip_player_dialog.dart';
+import 'frame_tagger.dart';
 
 /// A clip event's card in the timeline: its thumbnail (tapped, the player
 /// opens), title, camera, status, subjects, tags and flags.
@@ -33,8 +35,10 @@ class ClipEventCard extends StatelessWidget {
     final clip = event.clip;
     final l = context.l10n;
     return ListenableBuilder(
-      listenable: clip,
+      // The annotations too: a subject tagged later shows on the thumbnail.
+      listenable: Listenable.merge([clip, event.annotations]),
       builder: (context, _) {
+        final subject = firstSubject(event.annotations);
         // A label opens the player paused where it was seen.
         final openAt = clip.playable
             ? (Duration? at) => showClipPlayer(context, event, at: at)
@@ -45,7 +49,22 @@ class ClipEventCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _Thumbnail(bytes: clip.thumbnail),
+              if (subject case (final frame, final tag))
+                // The first subject seen, on their frame, with their name
+                // where they were tagged: the frame whole (on black), so
+                // the spot is exact.
+                ColoredBox(
+                  color: Colors.black,
+                  child: Center(
+                    child: FrameTagger(
+                      key: const Key('clip-card-subject-frame'),
+                      frame: frame,
+                      tags: [tag],
+                    ),
+                  ),
+                )
+              else
+                _Thumbnail(bytes: clip.thumbnail),
               if (clip.playable)
                 Center(
                   child: Icon(
@@ -130,6 +149,19 @@ class ClipEventCard extends StatelessWidget {
       },
     );
   }
+}
+
+/// The subject a clip's card shows on its thumbnail: of the tags with a
+/// frame (not suggestions), the one seen first in the clip (its frame's
+/// time; then the first tagged), with that frame; null when there's none.
+(TagFrame, Annotation)? firstSubject(ClipAnnotations annotations) {
+  (TagFrame, Annotation)? first;
+  for (final tag in annotations.tags) {
+    final frame = annotations.frames[tag.frameId];
+    if (frame == null) continue;
+    if (first == null || frame.ms < first.$1.ms) first = (frame, tag);
+  }
+  return first;
 }
 
 class _Thumbnail extends StatelessWidget {
