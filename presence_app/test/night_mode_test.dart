@@ -1,13 +1,18 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/battery.dart';
 import 'package:presence_app/camera/night_mode.dart';
 import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cameras/cameras.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
+import 'package:presence_app/home/camera_status.dart';
+import 'package:presence_app/l10n/gen/app_localizations.dart';
 import 'package:presence_app/motion.dart';
 import 'package:presence_app/screen_light.dart';
 
@@ -185,6 +190,43 @@ void main() {
       expect(camera.brightness.last, CameraConfig.defaultBrightness);
     });
 
+    testWidgets('the Night pill is with the status pills at the top', (
+      tester,
+    ) async {
+      final (rig, camera) = (await tester.runAsync(open))!;
+      final battery = BatteryController(_NoBattery());
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: FakeRolesClient(),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Stack(
+            children: [CameraStatus(rig: rig, battery: battery, roles: roles)],
+          ),
+        ),
+      );
+      expect(find.byKey(const Key('camera-night')), findsNothing);
+      await tester.runAsync(() => send(camera, dim(15), 40));
+      await tester.pump();
+      final pill = find.byKey(const Key('camera-night'));
+      expect(pill, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('camera-status')),
+          matching: pill,
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Night'), findsOneWidget);
+      // Its timers run in the test's fake time: end them before it does.
+      await tester.pumpWidget(const SizedBox());
+      battery.dispose();
+      roles.dispose();
+    });
+
     test('a clip at night lights the torch while it records', () async {
       final (rig, camera) = await open(torch: true);
       await send(camera, dim(15), 40);
@@ -256,4 +298,13 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('screen-light')), findsNothing);
   });
+}
+
+/// No battery reading, so only the Night pill shows.
+class _NoBattery implements BatteryReader {
+  @override
+  Future<BatteryReading?> read() async => null;
+
+  @override
+  Stream<void> get changes => const Stream.empty();
 }

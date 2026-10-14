@@ -5977,3 +5977,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        which devices saved as on while that was the default, is ignored,
        so every device starts with it off. Specs:
        [Night mode](night-mode.md), [Settings](settings.md).
+
+428. **The Night indicator: a pill at the top.** (2026-10-14)
+     - Asked: make the night mode indicator a pill at the top, not at the
+       bottom.
+     - Changed: the Night chip at the bottom left of the preview is now a
+       **Night** status pill (a moon) at the top left, after the battery
+       and temperature pills (`CameraStatus`, `StatusPill`), shown while
+       it's night with night mode on. Spec: [Night mode](night-mode.md).

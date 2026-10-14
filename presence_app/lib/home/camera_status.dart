@@ -6,13 +6,16 @@ import '../auth/roles_service.dart';
 import '../camera_feeds.dart';
 import '../cloud/cloud_sync.dart';
 import '../l10n/l10n.dart';
+import '../status_pill.dart';
 import '../system_health.dart';
 import 'clip_button.dart';
 
 /// The status pills over the camera, top left, just under the app bar: a
 /// failed health check ([HealthWarningPill]), the battery, its temperature
-/// (Android) and a clip that just started ([message]); the Clip button
-/// itself shows whether a clip can be taken ([ClipButton]). Up there they
+/// (Android), **Night** while night mode has made the camera as bright as
+/// it goes ([CameraRig.night]) and a clip that just started ([message]);
+/// the Clip button itself shows whether a clip can be taken
+/// ([ClipButton]). Up there they
 /// never sit over the view button, Flip or Clip at the bottom. They're one
 /// row that wraps onto the next line where they don't fit; only a message
 /// wider than the screen is cut short.
@@ -83,6 +86,14 @@ class CameraStatus extends StatelessWidget {
                   if (reading != null) BatteryPill(battery: battery),
                   if (reading?.celsius != null)
                     BatteryTemperaturePill(battery: battery),
+                  // Night mode on: brighter, and a light while a clip records.
+                  if (rig.night)
+                    StatusPill(
+                      key: const Key('camera-night'),
+                      leading: const Icon(Icons.nightlight_round, size: 18),
+                      label: context.l10n.cameraNight,
+                      semantics: context.l10n.cameraNightTooltip,
+                    ),
                   // The message, cut short only if wider than the screen.
                   if (message case final m?)
                     ConstrainedBox(
