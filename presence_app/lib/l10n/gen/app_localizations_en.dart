@@ -1735,7 +1735,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navAdmin => 'Admin';
 
   @override
-  String get navCamera => 'Camera';
+  String get navCamera => 'Cams';
 
   @override
   String get navHelp => 'Help';

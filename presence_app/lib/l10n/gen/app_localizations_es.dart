@@ -1759,7 +1759,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get navAdmin => 'Admin';
 
   @override
-  String get navCamera => 'Cámara';
+  String get navCamera => 'Cáms';
 
   @override
   String get navHelp => 'Ayuda';
