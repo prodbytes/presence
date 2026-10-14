@@ -171,7 +171,7 @@ How each choice was measured (datasets, numbers) is in the models'
   subject tags. No `objectTags` means not searched yet; `[]` means
   searched, nothing seen. Malformed entries are skipped on restore.
 - For a premium profile, **cloud recognition adds the cats' and dogs'
-  breeds and coats** ("Persian", "black cat") when it answers, after the
+  breeds and coats** ("Persian cat", "black cat", "ferret") when it answers, after the
   device's, without holding up the subjects ([Cloud
   recognition](cloud-recognition.md), "Breeds and coats").
 - They're the clip's **Tags**, the user-facing name, as opposed to its

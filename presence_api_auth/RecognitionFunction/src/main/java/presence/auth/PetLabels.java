@@ -18,6 +18,14 @@ import java.util.List;
  * coat or a tail (a Bombay is a black cat to a camera; the coat says it).
  * On the Oxford-IIIT pets this showed a breed on 64 % of them, right 98 %
  * of the time; on 72 house cats, 1 breed (specs/cloud-recognition.md).
+ * Breeds are tagged with their species ("Persian cat", "Poodle dog").
+ *
+ * <p>First, which animal it is ({@code animal} labels, of species
+ * {@code any}): the detector has no class for a ferret or a rabbit (a
+ * ferret is a cat or a dog to it), so one of those, from
+ * {@link #ANIMAL_SURE}, is tagged ("ferret") and its coat looked for
+ * among its own ("sable ferret"). A cat stays a cat and a dog a dog: the
+ * detector tells those apart better.
  */
 final class PetLabels {
 
@@ -29,11 +37,16 @@ final class PetLabels {
 
     static final double BREED_SURE = 0.7;
     static final double COAT_SURE = 0.5;
+    static final double ANIMAL_SURE = 0.8;
 
     static final String CAT = "cat";
     static final String DOG = "dog";
+    static final String ANY = "any";
 
-    /** One label: its species, type ({@code breed}, {@code coat} or {@code none}), what it says, and its text embedding. */
+    /**
+     * One label: its species ({@code any} for an animal), type ({@code animal}, {@code breed}, {@code coat} or
+     * {@code none}), what it says, and its text embedding.
+     */
     record Label(String species, String type, String label, float[] vector) {
     }
 
@@ -52,8 +65,15 @@ final class PetLabels {
     }
 
     /** A {@code species}' crop's labels (embedding {@code vector}): its breed and coat, those sure enough. */
-    static List<Found> describe(float[] vector, String species) {
+    static List<Found> describe(float[] vector, String detected) {
         var out = new ArrayList<Found>();
+        var species = detected;
+        var animal = likeliest(vector, ANY, "animal");
+        if (animal != null && !animal.label().equals(CAT) && !animal.label().equals(DOG)
+                && animal.confidence() >= ANIMAL_SURE) {
+            out.add(animal);
+            species = animal.label();
+        }
         var breed = likeliest(vector, species, "breed", "none");
         if (breed != null && !breed.type().equals("none") && breed.confidence() >= BREED_SURE) {
             out.add(breed);

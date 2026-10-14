@@ -9,7 +9,9 @@ and pets may be. The app places the labels, as with its own recognition
 ([Subject recognition](recognition.md)).
 
 A third, **breeds and coats**, names the cats and dogs on a new clip
-("Persian", "Labrador Retriever", "black cat", "tabby cat") with
+("Persian cat", "Labrador Retriever dog", "black cat", "tabby cat"), and
+a ferret or a rabbit the detector took for one ("ferret", "sable
+ferret"), with
 **SigLIP2** (base, 224 px), with no training. It runs **beside the
 subjects' request**, in its own function: neither waits for the other, and
 its labels join the clip's object tags whenever it answers (below).
@@ -140,7 +142,7 @@ cats, mostly house cats):
 ### The labels
 
 `PetLabels` ([PetLabels.java](../presence_api_auth/RecognitionFunction/src/main/java/presence/auth/PetLabels.java)),
-from `pet-labels.tsv` and `pet-labels.bin` (132 labels' text embeddings,
+from `pet-labels.tsv` and `pet-labels.bin` (142 labels' text embeddings,
 768 float32s each), made by
 [tools/pet_labels.py](../presence_api_auth/RecognitionFunction/tools/pet_labels.py),
 which also measures them (`--eval`):
@@ -149,16 +151,36 @@ which also measures them (`--eval`):
   Maine Coon, Persian, Ragdoll, Siamese, Sphynx…), 7 never shown (above),
   and 10 coats: black, white, gray, orange, cream, tabby, black and white,
   calico, tortoiseshell, colorpoint;
+- **animals** (species `any`): cat, dog, ferret, rabbit ("a photo of a
+  ferret.");
+- **ferrets**: 6 coats: sable, albino, black, champagne, cinnamon,
+  silver (no breeds);
 - **dogs**: 77 breeds (Beagle, Border Collie, German Shepherd, Golden and
   Labrador Retriever, Poodle, Pug, Rottweiler…), Mixed-breed (never
   shown), and 11 coats: black, white, brown, golden, cream, gray, black
   and tan, black and white, brindle, spotted, merle.
+- **Which animal** first: the likeliest of the four animals (a softmax,
+  as below); a **ferret** or a **rabbit** from **0.8** is tagged
+  ("ferret", type `animal`) and becomes the crop's species, so its coat
+  is a ferret's ("sable ferret"). Never a dog for the detector's cat or a
+  cat for its dog: the detector tells those apart better (on Suerte's 47
+  photos and frames, 2 would have been a "dog"). The detector has no
+  class for ferrets or rabbits, so they only get here when it calls one
+  a cat or a dog; not measured on real ferrets yet.
+- **Breeds are tagged with their species**: "Persian cat", "Poodle dog"
+  ("Norwegian Forest Cat" once), so searching "persian cat" or "poodle
+  dog" finds them; the prompt still says "a photo of a Persian, a type of
+  cat.", so the embeddings didn't change.
 - **A crop's labels**: among its species' breeds (with those never shown),
   a softmax of SigLIP2's similarities (its logit scale, 112.67); the
   likeliest is shown from **0.7**, unless it's one never shown. Among its
   coats, the likeliest from **0.5**, as "black cat", "brindle dog". So a
   crop has a breed, a coat, both or neither. The species is the app's
-  detector's (cat or dog).
+  detector's (cat or dog), or the ferret or rabbit above.
+- **Measured** (2026-10-14, the fp32 tower on whole photos and frames, not
+  crops): Suerte **"black cat" on 47 of 47**; the 38 other cats' coats
+  black 20, orange 5, black and white 4, gray 2, tabby 2, tortoiseshell 1,
+  colorpoint 1, none 3; no ferret or rabbit among them.
 - To change the labels: edit the lists in `pet_labels.py`, run it (it
   writes both files), measure with `--eval`, and update this page.
 

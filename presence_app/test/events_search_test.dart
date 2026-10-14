@@ -156,6 +156,19 @@ void main() {
       ObjectTag(label: 'bicycle', ms: 0, score: 0.8),
     ]);
     expect(eventMatches(rex, 'BICYCLE'), isTrue);
+    // A pet's breed and coat, as cloud recognition tags them, and the
+    // other words for its color.
+    rex.annotations.setObjects(const [
+      ObjectTag(label: 'cat', ms: 0, score: 0.9),
+      ObjectTag(label: 'orange cat', ms: 0, score: 0.8),
+      ObjectTag(label: 'Persian cat', ms: 0, score: 0.8),
+    ]);
+    for (final q in ['orange cat', 'yellow cat', 'Ginger cat', 'persian cat']) {
+      expect(eventMatches(rex, q), isTrue, reason: q);
+    }
+    expect(eventMatches(rex, 'black cat'), isFalse);
+    expect(coatSynonyms('black and white cat'), ['tuxedo cat']);
+    expect(coatSynonyms('Persian cat'), isEmpty);
   });
 
   testWidgets('object tags found later show up in the search', (tester) async {

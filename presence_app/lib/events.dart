@@ -982,6 +982,7 @@ Iterable<String> eventSearchFields(
       }
       for (final object in clip.annotations.objects ?? const <ObjectTag>[]) {
         yield object.label;
+        yield* coatSynonyms(object.label);
       }
     }
   }
@@ -989,6 +990,29 @@ Iterable<String> eventSearchFields(
   for (final flag in event.flags) {
     yield flag.name;
     if (l != null) yield flag.labelIn(l);
+  }
+}
+
+/// Other words people use for a pet's coat color, by the word cloud
+/// recognition tags it with ("orange cat", "golden dog").
+const Map<String, List<String>> coatWords = {
+  'orange': ['yellow', 'ginger', 'red'],
+  'golden': ['yellow', 'gold'],
+  'cream': ['beige', 'yellow'],
+  'gray': ['grey', 'blue'],
+  'black and white': ['tuxedo'],
+  'brown': ['chocolate'],
+};
+
+/// [label] with its coat color in [coatWords]' other words ("yellow cat",
+/// "ginger cat" for "orange cat"), so searching any of them finds it.
+Iterable<String> coatSynonyms(String label) sync* {
+  final lower = label.toLowerCase();
+  for (final MapEntry(key: word, value: others) in coatWords.entries) {
+    if (!RegExp('\\b$word\\b').hasMatch(lower)) continue;
+    for (final other in others) {
+      yield lower.replaceAll(word, other);
+    }
   }
 }
 

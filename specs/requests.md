@@ -5543,3 +5543,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the details' device ID is `bodySmall` (12 sp), not
        `bodyMedium` (14 sp); the OS name under it stays `labelSmall`.
        Spec: [Clips](clips.md).
+
+399. **More detail on pets: breed and color in the tags, ferrets too.** (2026-10-14)
+     - Asked: when recognition sees a pet (a dog, a cat, a ferret), add its
+       color or breed to the tag, to find "my black cat", "my Persian
+       cat", "my yellow cat", "my poodle dog".
+     - Changed: cloud recognition's breeds name their species ("Persian
+       cat", "Poodle dog"); it first checks which animal it is, and a
+       ferret or a rabbit the detector took for a cat or dog is tagged
+       ("ferret") with a ferret's coat ("sable ferret"); the search finds
+       coat colors by other words ("yellow cat" finds "orange cat").
+       Measured: Suerte "black cat" on 47 of 47 photos and frames. Specs:
+       [Cloud recognition](cloud-recognition.md), [Events](events.md),
+       [Subject recognition](recognition.md).

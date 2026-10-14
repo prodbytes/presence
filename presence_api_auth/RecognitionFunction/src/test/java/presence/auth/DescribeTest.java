@@ -62,7 +62,7 @@ class DescribeTest {
         assertTrue(cats > 30 && dogs > 70, cats + " cat and " + dogs + " dog labels");
         for (var l : PetLabels.LABELS) {
             assertEquals(1, Math.sqrt(Vectors.dot(l.vector(), l.vector())), 1e-3, l.label());
-            assertTrue(List.of("breed", "coat", "none").contains(l.type()), l.type());
+            assertTrue(List.of("animal", "breed", "coat", "none").contains(l.type()), l.type());
         }
     }
 
@@ -101,9 +101,9 @@ class DescribeTest {
     @Test
     void namesBreedsAndCoats() throws IOException {
         var answer = describe(List.of(
-                Map.of("id", "persian", "kind", "cat", "pixels", crop(index("Persian"), 1)),
+                Map.of("id", "persian", "kind", "cat", "pixels", crop(index("Persian cat"), 1)),
                 Map.of("id", "black", "kind", "cat", "pixels", crop(index("black cat"), 2)),
-                Map.of("id", "lab", "kind", "dog", "pixels", crop(index("Labrador Retriever"), 3)),
+                Map.of("id", "lab", "kind", "dog", "pixels", crop(index("Labrador Retriever dog"), 3)),
                 Map.of("id", "house", "kind", "cat", "pixels", crop(index("Domestic Shorthair"), 4)),
                 Map.of("id", "bombay", "kind", "cat", "pixels", crop(index("Bombay"), 5))));
         assertEquals("siglip2-base-patch16-224", answer.get("model"));
@@ -115,9 +115,9 @@ class DescribeTest {
             byId.put((String) m.get("id"), ((List<?>) m.get("labels")).stream()
                     .map(l -> ((Map<?, ?>) l).get("label") + "/" + ((Map<?, ?>) l).get("type")).toList());
         }
-        assertTrue(byId.get("persian").contains("Persian/breed"), byId.get("persian").toString());
+        assertTrue(byId.get("persian").contains("Persian cat/breed"), byId.get("persian").toString());
         assertTrue(byId.get("black").contains("black cat/coat"), byId.get("black").toString());
-        assertTrue(byId.get("lab").contains("Labrador Retriever/breed"), byId.get("lab").toString());
+        assertTrue(byId.get("lab").contains("Labrador Retriever dog/breed"), byId.get("lab").toString());
         assertTrue(byId.get("house").stream().noneMatch(l -> l.endsWith("/breed")), "a house cat: no breed");
         assertTrue(byId.get("bombay").stream().noneMatch(l -> l.endsWith("/breed")), "a Bombay: no breed");
         for (var r : results) {
@@ -129,9 +129,30 @@ class DescribeTest {
     }
 
     @Test
+    void aFerretSeenAsACatIsAFerretWithAFerretsCoat() throws IOException {
+        var answer = describe(List.of(
+                Map.of("id", "ferret", "kind", "cat", "pixels", crop(index("ferret"), 1)),
+                Map.of("id", "sable", "kind", "dog", "pixels", crop(index("sable ferret"), 2)),
+                Map.of("id", "cat", "kind", "dog", "pixels", crop(index("cat"), 3))));
+        var byId = new java.util.HashMap<String, List<String>>();
+        for (var r : (List<?>) answer.get("results")) {
+            var m = (Map<?, ?>) r;
+            byId.put((String) m.get("id"), ((List<?>) m.get("labels")).stream()
+                    .map(l -> ((Map<?, ?>) l).get("label") + "/" + ((Map<?, ?>) l).get("type")).toList());
+        }
+        assertTrue(byId.get("ferret").contains("ferret/animal"), byId.get("ferret").toString());
+        for (var l : byId.get("ferret")) {
+            assertTrue(l.equals("ferret/animal") || l.endsWith("ferret/coat"), "a ferret's labels only: " + l);
+        }
+        assertTrue(byId.get("sable").contains("sable ferret/coat"), byId.get("sable").toString());
+        assertTrue(byId.get("cat").stream().noneMatch(l -> l.endsWith("/animal")),
+                "a dog the detector found stays a dog: " + byId.get("cat"));
+    }
+
+    @Test
     void aCatIsNeverGivenADogsLabels() throws IOException {
         var answer = describe(List.of(Map.of("id", "a", "kind", "cat", "pixels",
-                crop(index("Labrador Retriever"), 1))));
+                crop(index("Labrador Retriever dog"), 1))));
         var labels = (List<?>) ((Map<?, ?>) ((List<?>) answer.get("results")).get(0)).get("labels");
         for (var l : labels) {
             var label = (String) ((Map<?, ?>) l).get("label");
