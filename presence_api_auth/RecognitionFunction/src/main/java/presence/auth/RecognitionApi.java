@@ -10,6 +10,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /** What the recognition handlers share: who may call, and the requests' JSON. */
 final class RecognitionApi {
@@ -39,6 +40,32 @@ final class RecognitionApi {
             return new Access(profile == null ? null : profile.id(),
                     roles.of(caller, profile).contains(Roles.PREMIUM));
         };
+    }
+
+    /** The warm-up schedule's {@code rawPath} (template.yaml). */
+    static final String WARMUP = "/warmup";
+
+    /**
+     * Whether {@code event} is the warm-up schedule's (EventBridge, every 5
+     * minutes): no route, which the API always gives, and {@link #WARMUP}.
+     * Only EventBridge (or someone with AWS access) can invoke the
+     * function so.
+     */
+    static boolean warmup(APIGatewayV2HTTPEvent event) {
+        return event != null && event.getRouteKey() == null && WARMUP.equals(event.getRawPath());
+    }
+
+    /**
+     * Loads {@code embedder}'s model if this instance hasn't yet, so a
+     * person's request finds it ready: a new instance takes over a minute
+     * to fetch and load DINOv2, past the API's 30 s
+     * (specs/cloud-recognition.md, "Warm-up").
+     */
+    static APIGatewayV2HTTPResponse warm(Supplier<Embedder> embedder) {
+        var started = System.nanoTime();
+        embedder.get();
+        Timing.log("warm", Timing.since(started), "");
+        return Http.response(200, "{\"warm\":true}");
     }
 
     /** Null if the caller may use cloud recognition; otherwise the answer refusing it. */

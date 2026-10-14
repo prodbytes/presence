@@ -189,7 +189,9 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
   `<prefix>-*` stacks and the `Serverless` and `LanguageExtensions`
   transforms; S3 on `<prefix>-*` buckets; the Lambda actions
   CloudFormation's function and permission handlers call (no `lambda:*`,
-  no `InvokeFunction`) on `<prefix>-*` functions; the HTTP API; DynamoDB
+  no `InvokeFunction`) on `<prefix>-*` functions; the EventBridge rules
+  of the recognition functions' warm-up schedules (`<prefix>-*` rules:
+  put, delete, describe, enable, disable, targets, tags); the HTTP API; DynamoDB
   `<prefix>-*` tables (TTL included); `<prefix>-*` IoT policies and the IoT
   endpoint lookup ([live sync](live-sync.md)); and IAM on `<prefix>-*`
   roles:

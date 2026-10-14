@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static presence.auth.RecognitionTest.crop;
 import static presence.auth.RecognitionTest.json;
@@ -64,6 +65,27 @@ class DescribeTest {
             assertEquals(1, Math.sqrt(Vectors.dot(l.vector(), l.vector())), 1e-3, l.label());
             assertTrue(List.of("animal", "breed", "coat", "none").contains(l.type()), l.type());
         }
+    }
+
+    @Test
+    void theWarmUpLoadsTheModelAndNothingFromTheApiIsOne() throws IOException {
+        var loads = new java.util.concurrent.atomic.AtomicInteger();
+        var warming = new DescribeHandler(caller -> new RecognitionApi.Access("brave_quiet_otter", true), () -> {
+            loads.incrementAndGet();
+            return embedder;
+        });
+        var warmup = new com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent();
+        warmup.setRawPath(RecognitionApi.WARMUP);
+        var answer = warming.handleRequest(warmup, null);
+        assertEquals(200, answer.getStatusCode());
+        assertEquals(1, loads.get());
+        assertEquals(0, embedder.crops.get(), "no crops: nobody's data");
+
+        // Through the API (it always has a route): not a warm-up.
+        var api = request("POST /api/recognition/describe", Map.of("crops", List.of()), true);
+        api.setRawPath(RecognitionApi.WARMUP);
+        assertFalse(RecognitionApi.warmup(api));
+        assertEquals(400, warming.handleRequest(api, null).getStatusCode());
     }
 
     @Test

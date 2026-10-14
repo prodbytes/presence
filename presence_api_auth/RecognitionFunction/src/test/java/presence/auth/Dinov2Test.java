@@ -9,7 +9,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Random;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -54,28 +53,5 @@ class Dinov2Test {
                 "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"), null, dir);
         assertTrue(right.save(new ByteArrayInputStream(new byte[]{1, 2, 3}), to));
         assertTrue(right.key().startsWith("models/dinov2-large-039058c6f2c0cb49"));
-    }
-
-    @Test
-    void theBucketsCopyComesInPartsPutTogetherInOrder(@org.junit.jupiter.api.io.TempDir Path dir) throws Exception {
-        // 3 MB and some, so each of the parts has bytes, some not a whole MB.
-        var bytes = new byte[3 * (1 << 20) + 12345];
-        new java.util.Random(7).nextBytes(bytes);
-        var sha = ModelFile.sha256Of(new ByteArrayInputStream(bytes));
-        var file = new ModelFile(new ModelFile.Source("dinov2-large", "http://unused", sha), null, dir);
-        var asked = java.util.Collections.synchronizedList(new java.util.ArrayList<long[]>());
-        var to = dir.resolve("x.part");
-        assertTrue(file.fetchInParts(bytes.length, (start, end) -> {
-            asked.add(new long[]{start, end});
-            return new ByteArrayInputStream(bytes, (int) start, (int) (end - start + 1));
-        }, to));
-        assertEquals(ModelFile.PARTS, asked.size());
-        assertArrayEquals(bytes, Files.readAllBytes(to));
-
-        // A wrong copy is refused and deleted.
-        var wrong = new ModelFile(new ModelFile.Source("dinov2-large", "http://unused", "00".repeat(32)), null, dir);
-        assertFalse(wrong.fetchInParts(bytes.length,
-                (start, end) -> new ByteArrayInputStream(bytes, (int) start, (int) (end - start + 1)), to));
-        assertFalse(Files.exists(to));
     }
 }

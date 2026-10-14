@@ -10,21 +10,14 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 /**
  * A model's file (DINOv2's is 1.2 GB, SigLIP2's 95 MB): too big for a
@@ -98,16 +91,16 @@ final class ModelFile {
         var partial = dir.resolve(file.getFileName() + ".part");
         if (bucket != null) {
             try (var s3 = s3()) {
-                var size = s3.headObject(b -> b.bucket(bucket).key(key())).contentLength();
-                if (fetchInParts(size, (start, end) -> s3.getObject(
-                        b -> b.bucket(bucket).key(key()).range("bytes=" + start + "-" + end)), partial)) {
-                    Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING);
-                    return "bucket";
+                try (var in = s3.getObject(b -> b.bucket(bucket).key(key()))) {
+                    if (save(in, partial)) {
+                        Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING);
+                        return "bucket";
+                    }
+                    System.err.println("presence: the model in the bucket isn't the right one; fetching it again");
+                } catch (RuntimeException | IOException e) {
+                    System.err.println("presence: no model in the bucket (" + e.getClass().getSimpleName()
+                            + "); fetching it from Hugging Face");
                 }
-                System.err.println("presence: the model in the bucket isn't the right one; fetching it again");
-            } catch (RuntimeException | IOException e) {
-                System.err.println("presence: no model in the bucket (" + e.getClass().getSimpleName()
-                        + ": " + e.getMessage() + "); fetching it from Hugging Face");
             }
         }
         download(partial);
@@ -125,77 +118,6 @@ final class ModelFile {
             }
         }
         return "huggingface";
-    }
-
-    /** Parts fetched at once: one stream from S3 gave DINOv2 some 20 MB/s (55 to 77 s). */
-    static final int PARTS = 8;
-
-    /** Opens the bytes from {@code start} to {@code end} (inclusive) of the bucket's copy. */
-    interface Ranges {
-        InputStream open(long start, long end) throws IOException;
-    }
-
-    /**
-     * Fetches the {@code size} bytes of the bucket's copy into {@code to} in
-     * {@link #PARTS} ranges at once, each written at its place, then checks
-     * the whole file's SHA-256; whether it's the right one (if not, it's
-     * deleted).
-     */
-    boolean fetchInParts(long size, Ranges ranges, Path to) throws IOException {
-        var part = (size + PARTS - 1) / PARTS;
-        try (var channel = FileChannel.open(to, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-             var pool = Executors.newFixedThreadPool(PARTS)) {
-            var parts = new ArrayList<Future<?>>();
-            for (long from = 0; from < size; from += part) {
-                var start = from;
-                var end = Math.min(size, from + part) - 1;
-                parts.add(pool.submit(() -> {
-                    try (var in = ranges.open(start, end)) {
-                        var buffer = new byte[1 << 20];
-                        var at = start;
-                        for (int n; (n = in.read(buffer)) > 0; at += n) {
-                            var bytes = ByteBuffer.wrap(buffer, 0, n);
-                            while (bytes.hasRemaining()) {
-                                channel.write(bytes, at + bytes.position());
-                            }
-                        }
-                    }
-                    return null;
-                }));
-            }
-            for (var p : parts) {
-                p.get();
-            }
-        } catch (ExecutionException e) {
-            throw new IOException("a part of the model didn't come", e.getCause());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException(e);
-        }
-        try (var in = Files.newInputStream(to)) {
-            return sha256Of(in).equals(sha256) || deleted(to);
-        }
-    }
-
-    private static boolean deleted(Path file) throws IOException {
-        Files.deleteIfExists(file);
-        return false;
-    }
-
-    /** The SHA-256 of what {@code in} reads, in hex. */
-    static String sha256Of(InputStream in) throws IOException {
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-        var buffer = new byte[1 << 20];
-        for (int n; (n = in.read(buffer)) > 0; ) {
-            digest.update(buffer, 0, n);
-        }
-        return HexFormat.of().formatHex(digest.digest());
     }
 
     private void download(Path partial) {

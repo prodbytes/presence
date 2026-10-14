@@ -257,9 +257,9 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   the pooled output, made unit length.
 - **The files** (too big for a package; `ModelFile`, one `Source` per
   model): fetched at an instance's first use into `/tmp`, from the
-  user-data bucket's `models/` (a prefix only the functions reach), in **8
-  ranges at once** (`fetchInParts`: one stream gave DINOv2 some 20 MB/s,
-  55 to 77 s), or else from Hugging Face at a pinned revision and then
+  user-data bucket's `models/` (a prefix only the functions reach), some
+  20 MB/s (DINOv2: 55 to 77 s; 8 ranges at once were no faster, so it's
+  one stream), or else from Hugging Face at a pinned revision and then
   kept in the bucket. Its SHA-256 must match, or it isn't used. The bucket's lifecycle expires
   them after 90 days; the next instance fetches them again.
   - DINOv2: `models/dinov2-large-305351060a1939d9.onnx` (1.2 GB, 3 GB of
@@ -306,10 +306,34 @@ the same size differ: some answer twice as fast, so each size ran on 3 to
   sends at most **4** a request (`CloudRecognitionClient.maxSubjectBatch`:
   identify's crops of a clip, `SubjectRecognizer.maxIdentifyCrops`, and
   training's labels, `CloudTrainer.maxBatch`). A new instance fetched
-  DINOv2 from the bucket in 55-77 s with one stream; now in ranges.
+  DINOv2 from the bucket in 55-77 s, in ranges or one stream alike: see
+  Warm-up.
 - What would be faster: more CPU (memory past 3008 MB, after AWS
   Support), or a smaller model (DINOv2-B, or int8 L, which matched worse,
   above).
+
+### Warm-up
+
+A new identify or training instance takes **over a minute** before it
+answers: 55 s to fetch DINOv2's 1.2 GB from the bucket (in ranges or one
+stream alike: the instance's bandwidth is the limit), 3 s to load it, then
+the crops. That's past the API's 30 s, and the app's second try finds
+another new instance, as the first is still busy. So each recognition
+function (identify, training, describe) has a **schedule**: EventBridge
+invokes it **every 5 minutes** with `{"rawPath": "/warmup"}`
+(template.yaml, the `Warm` event), and the handler, before anything else,
+loads its model if that instance hasn't (`RecognitionApi.warmup`, `warm`:
+an event with no route, which the API always gives; logged as `presence:
+timing warm`). The instance stays loaded between requests, and when
+Lambda replaces it, the schedule pays the load, not a person.
+
+- Cost: some 8,600 invocations a month per function, a few milliseconds
+  each once loaded, plus one load per new instance.
+- The deploy role may create these rules (`<prefix>-*` EventBridge rules,
+  [presence_infra/github-deploy.yaml](../presence_infra/github-deploy.yaml);
+  see [Production deploy](deploy.md)), applied by hand before the deploy.
+- It keeps one instance of each warm; requests at once beyond that (the
+  account allows 10 at once in all) start new ones, as before.
 
 ### Timing
 

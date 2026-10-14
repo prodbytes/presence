@@ -68,6 +68,10 @@ public class TrainingHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
 
     @Override
     public APIGatewayV2HTTPResponse handleRequest(APIGatewayV2HTTPEvent event, Context context) {
+        // The warm-up schedule: the model loaded, nobody's data touched.
+        if (RecognitionApi.warmup(event)) {
+            return RecognitionApi.warm(embedder);
+        }
         // Only through the site (CloudFront), never the API's own host.
         if (!OriginCheck.fromEnvironment().allows(event)) {
             return OriginCheck.refused();
