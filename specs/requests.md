@@ -5477,3 +5477,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        recognition](cloud-recognition.md): only devices that can crop run
        the training check, no crop means no training, and labels the API
        lacks count as new (an empty model trains again at once).
+
+393. **The Clip button red while a clip is being taken.** (2026-10-14)
+     - Asked: the grab button a different indicator color while the clip
+       is being taken (its "after" seconds).
+     - Changed: in that state (`ClipTone.recording`, as before: the latest
+       clip's "after" part not saved yet) the whole button is red
+       (`#CC241D`, `#9D0006` on a light theme) with a pale label and icon;
+       it was only a soft red label on the neutral background, close to
+       the cooldown's amber. Specs: [Camera](camera.md),
+       [Navigation](navigation.md).
