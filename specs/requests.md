@@ -6031,3 +6031,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the same conditions (the stage's own resources, only `project` and
        `tenancy`); applied to `presence-github-deploy` (edge policies about
        5,930 characters). Spec: [Production deploy](deploy.md).
+
+431. **The session-token release failed again: the issuer moves to the
+     site.** (2026-10-14)
+     - Asked: (during the release) do what it takes to fix the deploy.
+     - Found: `0.6.202610142110`'s two-step deploy got past the bootstrap,
+       but the switch to session tokens dropped the auth API's authorizer
+       and protected routes again (both stages, `/api/auth/profile` 404),
+       though the document was served: API Gateway fetches it while it
+       imports the API, which then can't serve it. The payments API,
+       imported a minute later, kept its routes. Its site deploy also
+       failed: the deploy roles couldn't tag the CloudFront function.
+       Production went back to `0.6.202610142027` (its deploy re-run).
+     - Changed: the issuer is `https://<site>`, with its documents copied
+       from the auth API to the site's bucket at `/.well-known/` by every
+       deploy (before switching the authorizer); rbacr trusts the new
+       issuers too. The deploy roles may tag their CloudFront functions
+       (applied). Specs: [Sessions](sessions.md), [Production
+       deploy](deploy.md), [Auth API](auth-api.md),
+       [Payments API](payments-api.md), [README](README.md).

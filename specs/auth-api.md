@@ -66,7 +66,8 @@ them while the health stack imports them. The API's routes:
   token and a refresh token), **`/api/auth/session/refresh`** rotates it,
   **`/api/auth/session/revoke`** ends it, and **`GET
   /api/auth/.well-known/openid-configuration`** and **`jwks.json`**
-  publish the issuer and its key. See [Sessions](sessions.md).
+  make the issuer's documents, which the deploy copies to the site's
+  `/.well-known/`, where they're published. See [Sessions](sessions.md).
 - **`POST /api/auth/profile/stream-key`** (a member) and **`POST
   /api/auth/stream/credentials`** (no authorizer: the stream key is the
   proof): a Raspberry Pi's [stream key](streamer.md#the-stream-key), and

@@ -23,7 +23,7 @@ An RS256 JWT, signed by the auth stack's **KMS key** (below), valid
 
 | Claim | Value |
 |---|---|
-| `iss` | `https://<site>/api/auth`: `https://presence.nu01.com/api/auth` (prod), `https://rc.presence.nu01.com/api/auth` (RC), from the stack's `DomainName` |
+| `iss` | `https://<site>`: `https://presence.nu01.com` (prod), `https://rc.presence.nu01.com` (RC), from the stack's `DomainName` |
 | `aud` | `presence` |
 | `sub` | the identity's Presence subject: `p_` and 32 hex digits of SHA-256 of `<idp>#<idp_sub>`, stable, and saying nothing of the provider's ID |
 | `idp`, `idp_sub` | the provider's issuer (`https://accounts.google.com`, `https://appleid.apple.com`) and subject |
@@ -41,17 +41,23 @@ An RS256 JWT, signed by the auth stack's **KMS key** (below), valid
   its own profile at its first sign-in, and joins another with a
   [link code](profiles.md#linking).
 - **rbacr** knows the user by `email`, as before.
-- **The issuer publishes** (public, `Cache-Control: public, max-age=3600`):
-  - `GET /api/auth/.well-known/openid-configuration`: `issuer`,
-    `jwks_uri`, RS256;
-  - `GET /api/auth/.well-known/jwks.json`: the public key as a JWK, `kid`
-    its RFC 7638 thumbprint.
-
-  CloudFront routes `/api/*` to the auth API (no caching), so the issuer
-  URL resolves publicly through the site, with the
-  [origin secret](origin-check.md) added on the way. API Gateway's JWT
-  authorizers fetch `<issuer>/.well-known/openid-configuration` and the
-  keys from there; rbacr fetches the keys too.
+- **The issuer publishes** at the site's root, as static files:
+  `https://<site>/.well-known/openid-configuration` (`issuer`, `jwks_uri`
+  `https://<site>/.well-known/jwks.json`, RS256) and `jwks.json` (the
+  public key as a JWK, `kid` its RFC 7638 thumbprint). The auth API makes
+  them (public routes `GET /api/auth/.well-known/openid-configuration`
+  and `jwks.json`, `Cache-Control: public, max-age=3600`), and every
+  deploy copies them to the site's bucket (`publish_session_issuer` in
+  `scripts/deploy.sh`: `max-age=300`, CloudFront's copies invalidated).
+  API Gateway's JWT authorizers fetch `<issuer>/.well-known/openid-configuration`
+  and the keys from there; rbacr fetches the keys too.
+  - **Why not the auth API's own routes:** API Gateway fetches the
+    document while it imports an API, and silently drops an authorizer it
+    can't fetch, with every route behind it (the stack still says it
+    updated). An API being imported can't serve its own document: on
+    2026-10-14 the auth API lost its protected routes that way (the
+    payments API, imported a minute later from the same document, kept
+    them). The issuer was `https://<site>/api/auth` until then.
 
 ## The routes
 
@@ -187,9 +193,10 @@ the stage's, audience `presence`.
   `/api/recognition/*`.
 - The payments API's (`SessionIssuer`, from the auth stack's output).
 - rbacr: its `RBACR_TRUSTED_ISSUERS` (built in rbacr alongside this) lists
-  `[{"issuer": "https://presence.nu01.com/api/auth", "jwks":
-  "https://presence.nu01.com/api/auth/.well-known/jwks.json",
-  "audiences": ["presence"]}]` (the RC issuer for the rbacr the RC uses),
+  `[{"issuer": "https://presence.nu01.com", "jwks":
+  "https://presence.nu01.com/.well-known/jwks.json",
+  "audiences": ["presence"]}]` and the RC's (both stages' rbacr list both,
+  and the former `…/api/auth` issuers, unused),
   and takes `email` as the identity on its self-service routes. The APIs'
   own server-side calls to rbacr (a root's API token) are unchanged.
 - Google ID tokens are no longer accepted as bearers anywhere in Presence.
@@ -197,22 +204,28 @@ the stage's, audience `presence`.
   authorizer's `<issuer>/.well-known/openid-configuration` when it imports
   the API, and when it can't, it silently drops the authorizer and every
   route behind it (the stack still says it updated). The issuer's document
-  is served by the auth API itself, so on a stage that doesn't serve it
-  yet, `scripts/deploy.sh` first deploys the auth API with
+  comes from the auth API, so on a stage whose site doesn't serve it yet,
+  `scripts/deploy.sh` first deploys the auth API with
   `SessionAuthorizer=bootstrap` (the same `PresenceSession` authorizer,
-  on Google's issuer and the web client), waits up to 5 minutes for the
-  site to serve the document naming the issuer, then deploys it again with
-  `on`. Every later deploy finds the document and deploys once, `on`.
+  on Google's issuer and the web client), copies the documents to the
+  site, waits up to 5 minutes for them to be served, then deploys it again
+  with `on`. Every later deploy finds the document and deploys once, `on`
+  (and copies the documents again). A new stage needs its site stack
+  first: the copy goes to its bucket.
   During the minutes between, the APIs take Google ID tokens, which the
   functions (reading the session claims) mostly refuse.
   - Found on 2026-10-14: the first release with session tokens
-    (`0.6.202610142035`) lost those routes on both stages; the stage's
+    (`0.6.202610142035`) lost those routes on both stages, the issuer's
+    document not yet existing; the stage's
     throttling settings then named routes that didn't exist, the update
     failed and so did its rollback (`UPDATE_ROLLBACK_FAILED`, finished by
     hand with `continue-update-rollback`, skipping the stage, whose live
     settings were the old ones). Reproduced on a throwaway stack: an
     issuer without the document drops the routes; `bootstrap` then `on`
-    keeps them and switches the issuer in place.
+    keeps them and switches the issuer in place. The next release
+    (`0.6.202610142110`) lost them again at `on`, the document being
+    served by the API under import; the issuer moved to the site's root.
+    Both times production went back to the release before.
 
 ## Clients
 
@@ -241,9 +254,10 @@ issuer), `AppleClientIds` (`APPLE_CLIENT_IDS`, default
 Store build, `APPLE_SIGNIN_KEY_ID` and `APPLE_SIGNIN_KEY_PARAMETER`, a
 parameter under `/<prefix>/`; environment, `.env`, or in CI the
 repository variables of the same names), checks the stack's
-`SessionIssuer` output is `https://<site>/api/auth`, and passes it to the
-payments stack. Its smoke test requires the openid-configuration to name
-that issuer and its `jwks_uri`, and the JWKS to hold an RSA key.
+`SessionIssuer` output is `https://<site>`, and passes it to the
+payments stack. Its smoke test requires the site's
+`/.well-known/openid-configuration` to name that issuer and its
+`jwks_uri`, and the JWKS to hold an RSA key.
 
 **Order, the first time:**
 

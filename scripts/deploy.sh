@@ -11,7 +11,8 @@
 #      and system (the app asks rbacr for its roles itself)
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
 #      presence-auth-api / presence-rc-auth-api: also the Presence session
-#      issuer, https://<site>/api/auth, whose tokens every API accepts) and
+#      issuer, https://<site>, whose tokens every API accepts; its
+#      /.well-known/ documents are copied to the site) and
 #      its health check
 #      (presence_health, stack presence-health / presence-rc-health: GET
 #      /health, which imports the auth API's table exports): an existing
@@ -32,7 +33,7 @@
 #      a request without a token (401: the route and its authorizer are live),
 #      and so must /api/payments/links,
 #      and /api/auth/anonymous must report RBAC mode, the session issuer's
-#      /.well-known/openid-configuration must name https://<site>/api/auth
+#      /.well-known/openid-configuration must name https://<site>
 #      and its jwks.json an RSA key, and /health must say every dependency
 #      is ok
 #
@@ -503,15 +504,50 @@ if aws cloudformation describe-stacks --stack-name "$HEALTH_STACK" >/dev/null 2>
   health_first=1
   deploy_health
 fi
-# The session issuer's /.well-known/openid-configuration, through the site,
-# naming itself. API Gateway fetches it when it imports the APIs, and drops
-# a JWT authorizer it can't fetch together with every route behind it.
+# The session issuer (https://<site>) names itself in its
+# /.well-known/openid-configuration, a static file on the site. API Gateway
+# fetches it when it imports the APIs, and drops a JWT authorizer it can't
+# fetch together with every route behind it; so it's never the auth API's
+# own route, which can't answer while that API is being imported.
 session_issuer_live() {
   local discovery
-  discovery="$(curl -fsS --max-time 10 "https://$DOMAIN/api/auth/.well-known/openid-configuration" 2>/dev/null)" \
+  discovery="$(curl -fsS --max-time 10 "https://$DOMAIN/.well-known/openid-configuration" 2>/dev/null)" \
     || return 1
   python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("issuer")==sys.argv[2] else 1)' \
-    "$discovery" "https://$DOMAIN/api/auth" 2>/dev/null
+    "$discovery" "https://$DOMAIN" 2>/dev/null
+}
+# publish_session_issuer: copies the auth API's /api/auth/.well-known/
+# openid-configuration and jwks.json (public routes) to the site's bucket
+# at /.well-known/, and has CloudFront drop its copies. Every deploy, so a
+# new signing key is published too.
+publish_session_issuer() {
+  local bucket distribution dir name
+  bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
+  distribution="$(stack_output "$SITE_STACK" DistributionId)"
+  if [[ -z "$bucket" || -z "$distribution" ]]; then
+    echo "error: no $SITE_STACK to publish the session issuer on (a new stage: deploy the site first)" >&2
+    return 1
+  fi
+  dir="$(mktemp -d)"
+  for name in openid-configuration jwks.json; do
+    curl -fsS --max-time 20 "https://$DOMAIN/api/auth/.well-known/$name" -o "$dir/$name" || {
+      echo "error: the auth API didn't answer /api/auth/.well-known/$name" >&2
+      rm -rf "$dir"; return 1
+    }
+  done
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("issuer")==sys.argv[2] else 1)' \
+    "$dir/openid-configuration" "https://$DOMAIN" || {
+    echo "error: the auth API's openid-configuration doesn't name https://$DOMAIN" >&2
+    rm -rf "$dir"; return 1
+  }
+  for name in openid-configuration jwks.json; do
+    aws s3 cp "$dir/$name" "s3://$bucket/.well-known/$name" --content-type application/json \
+      --cache-control "public, max-age=300" --only-show-errors
+  done
+  rm -rf "$dir"
+  aws cloudfront create-invalidation --distribution-id "$distribution" \
+    --paths '/.well-known/openid-configuration' '/.well-known/jwks.json' >/dev/null
+  echo "    session issuer published on the site (/.well-known/)"
 }
 # deploy_auth on|bootstrap: the auth API, its authorizer taking session
 # tokens (on) or, before the issuer is served, Google ID tokens (bootstrap).
@@ -535,18 +571,20 @@ echo "==> deploying $AUTH_STACK"
 (cd presence_api_auth && sam build)
 if session_issuer_live; then
   deploy_auth on
+  publish_session_issuer
 else
-  # The first deploy with session tokens: the issuer is served by this API,
-  # so it's brought up on Google's issuer, then switched once the site
-  # serves the document (CloudFront already routes /api/* to this API).
-  echo "    the session issuer isn't served yet: deploying on Google's issuer first"
+  # The site doesn't serve the issuer yet (the first deploy with session
+  # tokens): the auth API comes up on Google's issuer, its documents are
+  # copied to the site, then its authorizer switches to them.
+  echo "    the session issuer isn't on the site yet: deploying on Google's issuer first"
   deploy_auth bootstrap
+  publish_session_issuer
   for _ in $(seq 1 30); do
     session_issuer_live && break
     sleep 10
   done
   if ! session_issuer_live; then
-    echo "error: https://$DOMAIN/api/auth/.well-known/openid-configuration isn't served after 5 minutes;" \
+    echo "error: https://$DOMAIN/.well-known/openid-configuration isn't served after 5 minutes;" \
       "the auth API is up on Google's issuer (SessionAuthorizer=bootstrap)" >&2
     exit 1
   fi
@@ -556,8 +594,8 @@ fi
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
 session_issuer="$(stack_output "$AUTH_STACK" SessionIssuer)"
-if [[ "$session_issuer" != "https://$DOMAIN/api/auth" ]]; then
-  echo "error: the auth API's session issuer is '$session_issuer', want https://$DOMAIN/api/auth" >&2
+if [[ "$session_issuer" != "https://$DOMAIN" ]]; then
+  echo "error: the auth API's session issuer is '$session_issuer', want https://$DOMAIN" >&2
   exit 1
 fi
 echo "    session issuer: $session_issuer"
@@ -636,16 +674,16 @@ check() {
   payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/payments/links")"
   [[ "$payments" == 401 ]] || { echo "    /api/payments/links without a token answered $payments, want 401"; return 1; }
   # The session issuer, which the APIs' JWT authorizers and rbacr fetch
-  # through the site: it names itself, and its key set has an RSA key.
+  # from the site: it names itself, and its key set has an RSA key.
   local discovery
-  discovery="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/.well-known/openid-configuration")" \
-    || { echo "    /api/auth/.well-known/openid-configuration failed"; return 1; }
+  discovery="$(curl -fsS --max-time 20 "https://$DOMAIN/.well-known/openid-configuration")" \
+    || { echo "    /.well-known/openid-configuration failed"; return 1; }
   python3 -c 'import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if d.get("issuer")==sys.argv[2] and d.get("jwks_uri")==sys.argv[2]+"/.well-known/jwks.json" else 1)' \
-    "$discovery" "https://$DOMAIN/api/auth" \
-    || { echo "    openid-configuration answered $discovery, want issuer https://$DOMAIN/api/auth"; return 1; }
-  curl -fsS --max-time 20 "https://$DOMAIN/api/auth/.well-known/jwks.json" \
+    "$discovery" "https://$DOMAIN" \
+    || { echo "    openid-configuration answered $discovery, want issuer https://$DOMAIN"; return 1; }
+  curl -fsS --max-time 20 "https://$DOMAIN/.well-known/jwks.json" \
     | python3 -c 'import json,sys; k=json.load(sys.stdin)["keys"]; sys.exit(0 if k and all(x.get("kty")=="RSA" and x.get("kid") and x.get("n") for x in k) else 1)' \
-    || { echo "    /api/auth/.well-known/jwks.json has no RSA key"; return 1; }
+    || { echo "    /.well-known/jwks.json has no RSA key"; return 1; }
   # Apple's notifications route has no authorizer: a body Apple didn't sign is 400 (503 while store purchases are off).
   payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' \
     --data '{}' "https://$DOMAIN/api/payments/store/apple-notifications")"
