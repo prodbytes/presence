@@ -111,6 +111,20 @@ void main() {
     });
   });
 
+  group('the setting', () {
+    test('is off by default, and on only when saved as nightMode', () {
+      expect(const CameraConfig().night, isFalse);
+      expect(CameraConfig.fromJson(const {}).night, isFalse);
+      // Saved as on while that was the default: ignored.
+      expect(CameraConfig.fromJson(const {'night': true}).night, isFalse);
+      expect(CameraConfig.fromJson(const {'nightMode': true}).night, isTrue);
+      final on = const CameraConfig().copyWith(night: true);
+      expect(on.toJson()['nightMode'], isTrue);
+      expect(on.toJson().containsKey('night'), isFalse);
+      expect(CameraConfig.fromJson(on.toJson()), on);
+    });
+  });
+
   group('the rig at night', () {
     final media = ClipMedia(
       url: 'blob:fake',
@@ -127,6 +141,8 @@ void main() {
     }) async {
       now = DateTime(2026, 10, 14, 23);
       config = ConfigController();
+      // Off by default: these tests are about night mode switched on.
+      config.update((c) => c.copyWith(camera: c.camera.copyWith(night: true)));
       bus = AppEventBus();
       final camera = FakeCameraSource(
         'Main',

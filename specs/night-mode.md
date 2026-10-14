@@ -3,9 +3,12 @@
 For seeing animals in the wild at night: when the picture stays dark, the
 camera is made as bright as it goes, motion detection gets more sensitive,
 and while a clip records the scene is lit, by the camera's torch or, with
-none, by the screen when it faces the scene. On by default; the **Night
-mode** switch in Settings' Camera section turns it off
-(`CameraConfig.night`, saved as `night`; see [Settings](settings.md)).
+none, by the screen when it faces the scene. **Off by default**: the
+**Night mode** switch in Settings' Camera section turns it on
+(`CameraConfig.night`, saved as `nightMode`; see [Settings](settings.md)).
+It was on by default, and devices saved that as `night: true`; that old
+key is ignored, so every device starts with it off until someone turns it
+on.
 
 ## Telling night
 
@@ -68,8 +71,9 @@ same as [motion clips](motion-clips.md)'):
 `night_mode_test.dart`: night after the window, not before; the brighter
 night picture doesn't end it, dawn does; dusk around the threshold
 doesn't flicker; paused frames don't count; the motion steps, and a dim
-animal in the dark is motion while the same change by day isn't; the rig
-at night is at +2 EV and back with night mode off; a clip at night lights
+animal in the dark is motion while the same change by day isn't; the
+setting is off by default and the old `night` key is ignored; the rig
+(night mode on) at night is at +2 EV and back with night mode off; a clip at night lights
 the torch until it's recorded, or the screen for a front camera without
 one, and nothing for a back camera without one or by day; the screen
 light is white over everything and lets taps through.

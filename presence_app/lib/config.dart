@@ -187,7 +187,7 @@ class CameraConfig {
     this.brightness = defaultBrightness,
     this.paused = false,
     this.chosen,
-    this.night = true,
+    this.night = false,
   });
 
   static const double minBrightness = -2;
@@ -208,9 +208,11 @@ class CameraConfig {
   /// default camera). Kept in this device's settings, never another's.
   final ChosenCamera? chosen;
 
-  /// Night mode (on by default): when the picture stays dark the camera
+  /// Night mode (off by default): when the picture stays dark the camera
   /// is made as bright as it goes, and a clip recording lights the scene
   /// (the camera's torch, or the screen facing it). See `NightDetector`.
+  /// Saved as `nightMode`: the old `night` key, saved as on while that was
+  /// the default, is ignored, so every device starts with it off.
   final bool night;
 
   CameraConfig copyWith({
@@ -231,7 +233,7 @@ class CameraConfig {
     'brightnessEv': brightness,
     'paused': paused,
     'chosen': ?chosen?.toJson(),
-    'night': night,
+    'nightMode': night,
   };
 
   factory CameraConfig.fromJson(Map<String, Object?> json) =>
@@ -239,7 +241,7 @@ class CameraConfig {
         brightness: _num(json['brightnessEv']),
         paused: json['paused'] == true,
         chosen: ChosenCamera.fromJson(json['chosen']),
-        night: json['night'] != false,
+        night: json['nightMode'] == true,
       );
 
   @override
