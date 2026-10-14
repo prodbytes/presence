@@ -172,6 +172,19 @@ class DescribeTest {
     }
 
     @Test
+    void aBlackCatTheDetectorCalledADogIsNoBlackDog() throws IOException {
+        // The picture says cat (a black cat's), the detector dog.
+        var answer = describe(List.of(Map.of("id", "a", "kind", "dog", "pixels",
+                crop(index("black cat"), 1))));
+        var labels = (List<?>) ((Map<?, ?>) ((List<?>) answer.get("results")).get(0)).get("labels");
+        assertTrue(labels.isEmpty(), "no breed or coat: " + labels);
+        // The same called a cat: a black cat.
+        answer = describe(List.of(Map.of("id", "a", "kind", "cat", "pixels", crop(index("black cat"), 1))));
+        labels = (List<?>) ((Map<?, ?>) ((List<?>) answer.get("results")).get(0)).get("labels");
+        assertTrue(labels.stream().anyMatch(l -> "black cat".equals(((Map<?, ?>) l).get("label"))), labels.toString());
+    }
+
+    @Test
     void aCatIsNeverGivenADogsLabels() throws IOException {
         var answer = describe(List.of(Map.of("id", "a", "kind", "cat", "pixels",
                 crop(index("Labrador Retriever dog"), 1))));

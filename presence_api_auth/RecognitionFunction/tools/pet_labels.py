@@ -146,8 +146,9 @@ def write(out):
 # --- --eval: as the function runs (PetLabels / Siglip2) ---
 
 BREED_SURE = float(os.environ.get("BREED_SURE", "0.7"))
-COAT_SURE = float(os.environ.get("COAT_SURE", "0.5"))
+COAT_SURE = float(os.environ.get("COAT_SURE", "0.6"))
 ANIMAL_SURE = float(os.environ.get("ANIMAL_SURE", "0.8"))
+AGREE = float(os.environ.get("AGREE", "0.5"))
 
 
 def describe(vectors, rows, text, scale, detected):
@@ -164,6 +165,11 @@ def describe(vectors, rows, text, scale, detected):
         if rows[idx[j]][2] not in ("cat", "dog") and p[j] >= ANIMAL_SURE:
             species = rows[idx[j]][2]
             found.append((species, "animal", float(p[j])))
+        # A cat or dog the picture doesn't agree with: no breed, no coat
+        # (the detector called a black cat a dog: "black dog").
+        elif p[[rows[i][2] for i in idx].index(detected)] < AGREE:
+            out.append(found)
+            continue
         for kinds, sure in ((("breed", "none"), BREED_SURE), (("coat",), COAT_SURE)):
             idx = [i for i, r in enumerate(rows) if r[0] == species and r[1] in kinds]
             if not idx:

@@ -5686,3 +5686,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        user's devices, never changed) reads as 85 %, once; the old
        migration of a stored 85 % to 90 % went, so 85 % stays. Specs:
        [Settings](settings.md), [Subject recognition](recognition.md).
+
+410. **No "black dog" for a black cat.** (2026-10-14)
+     - Asked: a cat got a wrong "black dog" tag; raise the tags' threshold
+       a little, still getting "black cat".
+     - Found: the device's detector called the cat a dog, and cloud
+       recognition picks among the detector's species' coats: as a dog,
+       Suerte was a "black dog" on 46 of 47 pictures.
+     - Changed: the picture must agree with the detector (its cat or dog
+       at least half of the animal check), or no breed or coat: 3 of 47;
+       and a coat needs 0.6 (was 0.5). Suerte called a cat is still "black
+       cat" on 42 of 47. Spec: [Cloud recognition](cloud-recognition.md).
