@@ -6040,3 +6040,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        no longer runs recognition on its clips, new or synced. (Its events
        had already left the timeline, the subjects map and the All grid.)
        Spec: [Hiding a device](device-hiding.md).
+
+432. **The cost-tagged site deploy failed on CloudFront Functions.**
+     (2026-10-14)
+     - Found: the RC and GA site deploys rolled back: the deploy role may
+       not `cloudfront:TagResource` the stage's CloudFront Functions
+       (`<prefix>-web-pages`, `-app-index`), which do take tags, so the
+       new `project`/`tenancy` stack tags couldn't reach them.
+     - Changed: the edge policy's `CloudFrontFunctions` statement also
+       allows `cloudfront:TagResource`/`UntagResource` on the stage's own
+       functions (`function/<prefix>-*`). Edge policy about 5,980 of 6,144
+       characters. Spec: [Production deploy](deploy.md).

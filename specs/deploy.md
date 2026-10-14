@@ -250,7 +250,7 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
     `tenancy`) on the stage's own (one `CostTags` statement for the
     distribution, certificate and pool, on `*` scoped by those
     conditions); untagging never removes `presence:stage`;
-  - CloudFront functions by name (`<prefix>-*`);
+  - CloudFront functions by name (`<prefix>-*`), tagging included;
   - creating distributions, functions, certificates, pools, origin access
     controls and response headers policies, and reading CloudFront, ACM
     and pools, stay account-wide (nothing existing is changed by them).
