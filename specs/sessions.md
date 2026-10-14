@@ -122,14 +122,17 @@ Apple tokens when they delete their account.
   `.p8` (`iss` the team, `sub` the bundle ID, `aud`
   `https://appleid.apple.com`, five minutes). The key is read from SSM
   when first needed, never logged, never in the repository or a template.
-- **`AccountSessions.end(subject)`** (`presence_api_auth`) is what account
-  deletion calls: it revokes every session of the identity, revokes the
-  Apple refresh token at `https://appleid.apple.com/auth/revoke` and
-  forgets the identity. It answers false (and keeps the Apple token, to
-  retry) when Apple can't be told. The account deletion itself isn't
-  built yet ([Store readiness](store-readiness.md)): it must call this,
-  with the session function's settings and permissions (its Javadoc lists
-  them).
+- **[Account deletion](account-deletion.md)** (`POST
+  /api/auth/account/delete`) calls **`AccountSessions.end(subject)`** for
+  every deleted account (a linked account's own; for the owner, every
+  account of the profile): it revokes every session of the identity,
+  revokes the Apple refresh token at `https://appleid.apple.com/auth/revoke`
+  and forgets the identity. It answers false (and keeps the Apple token,
+  to retry) when Apple can't be told; the deletion then answers 503 having
+  deleted nothing more, and the app's retry finishes it. The profile
+  function has the settings and permissions for it (revoking families,
+  reading and forgetting identities, Apple's key and the data key's
+  `kms:Decrypt`).
 - Without Apple's key, nothing is kept or revoked: Apple sign-in works,
   but deleting an account can't revoke its Apple tokens.
 
@@ -142,6 +145,10 @@ Apple tokens when they delete their account.
   allows: the session function's. Tagged `presence:stack`.
 - **`SessionDataKey`** (only with Apple's key): KMS, symmetric, rotated
   yearly; `kms:Encrypt`/`kms:Decrypt` the same way.
+- **The profile function** (account deletion) may: get and update
+  `SessionsTable` items and query its `subject` index (revoking
+  families), get, update and delete `IdentitiesTable` items, read Apple's
+  key's parameter (through SSM) and decrypt with the data key.
 - **The session function** may: sign with the signing key and read its
   public key; get, put, update and condition-check `SessionsTable` items
   and query its `subject` index; get, update and delete
@@ -209,9 +216,11 @@ the stage's, audience `presence`.
 
 [scripts/deploy.sh](../scripts/deploy.sh) passes `DomainName` (the
 issuer), `AppleClientIds` (`APPLE_CLIENT_IDS`, default
-`com.nu01.presence`) and, when all three are set, `AppleTeamId`,
-`AppleKeyId` and `AppleKeyParameter` (`APPLE_TEAM_ID`, `APPLE_KEY_ID`,
-`APPLE_KEY_PARAMETER`; environment or `.env`), checks the stack's
+`com.nu01.presence`) and, when the key is set, `AppleTeamId`,
+`AppleKeyId` and `AppleKeyParameter` (`APPLE_TEAM_ID`, as for the App
+Store build, `APPLE_SIGNIN_KEY_ID` and `APPLE_SIGNIN_KEY_PARAMETER`, a
+parameter under `/<prefix>/`; environment, `.env`, or in CI the
+repository variables of the same names), checks the stack's
 `SessionIssuer` output is `https://<site>/api/auth`, and passes it to the
 payments stack. Its smoke test requires the openid-configuration to name
 that issuer and its `jwks_uri`, and the JWKS to hold an RSA key.

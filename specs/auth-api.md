@@ -8,7 +8,7 @@ site (`/api/*` in the CloudFront distribution; see
 roles**, [maintenance mode](maintenance.md) and
 [voucher codes](membership.md#voucher-codes) are
 [rbacr](https://github.com/prodbytes/rbacr)'s, which the app asks
-directly with the user's Google ID token (see the roles below). The
+directly with the user's session token (see the roles below). The
 public **`GET /health`**, which checks the API's dependencies for Route
 53, is its own module, [presence_health](../presence_health) (see
 [Health check](health-check.md)): the auth API stack exports its table
@@ -60,6 +60,13 @@ them while the health stack imports them. The API's routes:
   /api/auth/profile/devices/remove` takes a deleted device off the list
   (and deletes its stream key).
   See [Profiles](profiles.md) and [Premium and free](premium.md#devices).
+- **Sessions** (`SessionHandler`, `SessionFunction`; no authorizer, the
+  request carries its proof): **`POST /api/auth/session`** trades a
+  Google or Apple ID token for a Presence session (a KMS-signed session
+  token and a refresh token), **`/api/auth/session/refresh`** rotates it,
+  **`/api/auth/session/revoke`** ends it, and **`GET
+  /api/auth/.well-known/openid-configuration`** and **`jwks.json`**
+  publish the issuer and its key. See [Sessions](sessions.md).
 - **`POST /api/auth/profile/stream-key`** (a member) and **`POST
   /api/auth/stream/credentials`** (no authorizer: the stream key is the
   proof): a Raspberry Pi's [stream key](streamer.md#the-stream-key), and
@@ -71,7 +78,10 @@ them while the health stack imports them. The API's routes:
   profile (its folder in the user-data bucket, its Feedback and Help
   conversation, its Cognito identity with live sync's IoT policy, its
   cloud recognition data, stream keys and link codes, every account's
-  link and the profile). Idempotent; 202 while a big folder is still
+  link and the profile). Every deleted account's sign-ins end: its
+  sessions are revoked and a Sign in with Apple account's Apple tokens
+  revoked at Apple (`AccountSessions`; 503, deleting nothing more, when
+  Apple can't be told). Idempotent; 202 while a big folder is still
   being deleted. Throttled to 1 request/s (burst 5). See [Account
   deletion](account-deletion.md#the-api).
 - No roles, maintenance or voucher routes (removed on 2026-10-10 with
@@ -93,19 +103,22 @@ them while the health stack imports them. The API's routes:
   the `RecognitionTable` keeps each profile's labels' embeddings and
   model.
 
-- **Authentication:** the HTTP API's **JWT authorizer** verifies the Google
-  ID token in `Authorization: Bearer …`: issuer `https://accounts.google.com`,
-  and audience the web OAuth client, or the [streamer](streamer.md)'s
-  device sign-in client (`GoogleDeviceClientId`, from
-  `GOOGLE_DEVICE_CLIENT_ID`, when set), so tokens for other apps are refused.
-  `GoogleWebClientId` may be empty only for local development: the
-  audience is then `no-oidc-client`, which no token matches.
-  Otherwise it answers 401 before a function runs. The authorizer passes
-  every claim of the token to the function (as strings); the functions
-  read them in one place, `Caller`: `iss` and `sub` for the profile,
-  `email` and `email_verified` for the roles, `hd` (the Google Workspace
-  domain that manages the account; absent for personal accounts) kept
-  with a profile's owner, and `name` for requests.
+- **Authentication:** the HTTP API's **JWT authorizer**
+  (`PresenceSession`) verifies the Presence session token in
+  `Authorization: Bearer …`: issuer the stage's
+  (`https://<DomainName>/api/auth`), audience `presence`. Google ID
+  tokens are no longer accepted: the exchange verifies them (audience the
+  web OAuth client, or the [streamer](streamer.md)'s device sign-in client,
+  `GoogleDeviceClientId`, when set), and Apple's (audience
+  `AppleClientIds`). A missing, expired, forged or foreign token gets 401
+  before a function runs. The authorizer passes every claim of the token
+  to the function (as strings); the functions read them in one place,
+  `Caller`: `idp` and `idp_sub` (the provider's issuer and subject, so
+  `<idp>#<idp_sub>` is the subject profiles were always keyed by) for the
+  profile, `email` and `email_verified` for the roles, `hd` (the Google
+  Workspace domain that manages the account; absent for personal and
+  Apple accounts) kept with a profile's owner, and `name` for requests.
+  Without `GoogleWebClientId` (DEV, local only), no Google exchange works.
 - **Roles** come from **[rbacr](https://github.com/prodbytes/rbacr)**
   alone, the organisation's role manager (https://rbacr.nu01.com), which
   keeps them in its `presence` system (`RBACR_SYSTEM`):
@@ -125,8 +138,9 @@ them while the health stack imports them. The API's routes:
     `presence_premium` and `presence_user`. Nothing in presence makes a
     root; the root list is rbacr's configuration;
   - **the app asks rbacr for the user's own roles** (`GET /api/me`, with
-    the user's Google ID token; rbacr's rules I1 to I6 and `RBACR_GOOGLE_AUDIENCES`,
-    which lists Presence's Google web, Android and iOS client IDs), and
+    the user's session token, which rbacr trusts through its
+    `RBACR_TRUSTED_ISSUERS`, identity `email`; see
+    [Sessions](sessions.md#the-authorizers)), and
     its maintenance mode and vouchers the same way: see
     [Sign-in](sign-in.md), [Maintenance mode](maintenance.md) and
     [Membership](membership.md). The root rbacr token never reaches the
@@ -156,6 +170,8 @@ them while the health stack imports them. The API's routes:
     [Profiles](profiles.md#the-profiles-folder-and-roles)), in every route
     and in `shared`; never the owner's `presence_admin` or
     `presence_root`, which each account gets only from its own email.
+- **Sessions' tables** (`SessionsTable`, `IdentitiesTable`) and KMS keys:
+  see [Sessions](sessions.md#the-tables).
 - **The tables** ([`ProfilesTable` and
   `ProfileSubjectsTable`](profiles.md#where-its-kept)): on-demand,
   encrypted, with point-in-time recovery, and kept if the stack is
@@ -179,6 +195,11 @@ them while the health stack imports them. The API's routes:
     (as has the anonymous one): whoever can read their configuration can
     manage rbacr as that root. It's a `NoEcho` parameter, never in the
     repository; give it an expiry and rotate it;
+  - the session function signs with the stack's KMS key and reads its
+    public key, keeps refresh tokens and identities in their tables, and
+    reads Sign in with Apple's key from SSM; the profile function may also
+    revoke sessions, read and forget identities and open their Apple
+    tokens, for account deletion. See [Sessions](sessions.md#keys-and-permissions);
   - the profile function's permissions are listed in
     [Profiles](profiles.md#where-its-kept). One is broad:
     `iot:AttachPolicy` on `*` (with `IotPolicyName` set), since IAM can
@@ -221,10 +242,12 @@ address uses up a route's budget for everyone:
   can't start signed-in features until the flood stops: a cheap
   denial of service. Raising the limit only raises the flood needed (and
   the bill), so it stays;
-- the token routes need a valid Google ID token for the web client, which
-  anyone can get with a free Google account, so their limits (1 request/s
-  for making and using link codes and for deleting accounts) can be used up the
-  same way, blocking those actions for everyone meanwhile.
+- the token routes need a session token, which anyone can get with a
+  free Google account (or an Apple ID on an iPhone), so their limits (1
+  request/s for making and using link codes and for deleting accounts) can
+  be used up the same way, blocking those actions for everyone meanwhile;
+  so can the session routes' (10 exchanges/s, 20 refreshes/s), which would
+  stop sign-ins and refreshes meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
 CloudFront distribution, scoped to `/api/*` and `/health`, the health
@@ -245,8 +268,11 @@ attempt.)
   auth API drops in the same deploy), after the auth API for a new stage
   (see [Health check](health-check.md)). The smoke test requires
   `/api/auth/profile` to answer **401** without a token, which proves the
-  route and its authorizer are live, and `/api/auth/anonymous` to answer
-  exactly `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`.
+  route and its authorizer are live, `/api/auth/anonymous` to answer
+  exactly `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
+  the openid-configuration to name the stage's issuer and the JWKS to
+  hold an RSA key. `deploy.sh` passes `DomainName` (the issuer) and Sign
+  in with Apple's settings ([Sessions](sessions.md#deploy)).
   `deploy.sh` passes the identity pool, bucket and Feedback table
   (`FeedbackTable`, for account deletion) from their stacks' outputs,
   and exports the stage's `RBACR_URL` and `RBACR_SYSTEM` (never
@@ -257,7 +283,8 @@ attempt.)
 - **Locally,** the auth API runs inside Floci (see
   [Local CDN](local-cdn.md#the-local-auth-api)): the same Lambdas and
   tables, deployed from this template at every start, behind an HTTP
-  API with the same Google JWT authorizer. Nothing local reaches AWS; its
+  API with the same session authorizer (its issuer the local API on
+  Floci's loopback address; [Sessions](sessions.md#locally)). Nothing local reaches AWS; its
   rbacr is rbacr's RC (https://rc.rbacr.nu01.com, `RBACR_RC_*` in
   `.env`), as is the local web build's, while prod's is GA rbacr
   (https://rbacr.nu01.com): `deploy.sh` refuses any other rbacr for prod.
@@ -289,4 +316,9 @@ attempt.)
     the identity and its IoT policy, the profile's records only
     (`ProfileTest`, `ProfileBackendTest`; see [Account
     deletion](account-deletion.md#tests));
+  - account deletion ends every deleted account's sign-ins (the owner's
+    every account's, a linked account's own), and stops with 503 when
+    Apple can't be told (`ProfileTest`);
+  - sessions: the exchange, the session token, refresh tokens and
+    Apple's revocation (`SessionTest`; see [Sessions](sessions.md#verified));
   - a failing store answers a sanitized 502.

@@ -7,8 +7,8 @@ device go up, events only in the user's folder come down, and events
 another device changed (such as a tag removed) come down again and
 replace what's on screen, so every device of a user shows the same
 events as the bucket. The auth API only
-hands out credentials: the app trades the user's Google ID token for a
-token for their [profile](profiles.md), and that for temporary AWS
+hands out credentials: the app trades the user's Presence
+[session token](sessions.md) for a token for their [profile](profiles.md), and that for temporary AWS
 credentials through a **Cognito identity pool**. It then makes signed S3
 uploads itself ([lib/cloud/](../presence_app/lib/cloud)).
 
@@ -353,8 +353,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   [cloud_backend.dart](../presence_app/lib/cloud/cloud_backend.dart)
   (exported by `cloud_sync.dart`).
 - **Credentials** (`CognitoCredentials`):
-  - `POST /api/auth/credentials` on the auth API, with the Google ID token,
-    answers the profile's identity ID and a developer-identity token
+  - `POST /api/auth/credentials` on the auth API, with the
+    [session token](sessions.md), answers the profile's identity ID and a developer-identity token
     (`presence_user` only; see [Profiles](profiles.md));
   - then `GetCredentialsForIdentity` with
     `Logins: {"cognito-identity.amazonaws.com": <token>}`. This call is
@@ -387,12 +387,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - if S3 rejects expired credentials, the app fetches new ones and
     continues;
   - if S3 refuses a request as signed at the wrong time, see **Clock**;
-  - if the auth API rejects the Google token (401, for example once it
-    has expired), or Cognito rejects its token (`NotAuthorizedException`),
+  - if the auth API rejects the session token (401, for example once
+    the session has ended and couldn't be refreshed), or Cognito rejects its token (`NotAuthorizedException`),
     the account sheet says **"Sign in again to resume uploads"**;
   - any failure to get credentials (the auth API or Cognito) **stops
     syncing**: no more passes, not even for new events or every 15 s,
-    until the Google ID token changes (signing in again), the account
+    until the session token changes (its hourly refresh, or signing in
+    again), the account
     sheet's **Retry** button (shown beside the error while stopped,
     `CloudSync.retry`), or `reconnect()` after a profile link. Other
     errors than a rejected token show the auth API's message (for
@@ -413,9 +414,11 @@ an Athena table are in [Recording and data formats](data-formats.md).
   `scripts/deploy.sh` sets them from the stack outputs (and
   `IOT_ENDPOINT` from `aws iot describe-endpoint`); locally they come
   from `.env`.
-- The Google ID token is issued for the web client on every platform: web
-  directly, and Android and iOS through `serverClientId`. So the auth API
-  and the identity pool trust that one client ID.
+- The auth API takes only Presence session tokens. The Google ID token
+  the app trades for one is issued for the web client on every platform
+  (web directly, Android and iOS through `serverClientId`), so that one
+  client ID is what the session exchange accepts for Google and what the
+  identity pool lists for Google.
 
 The first failed pass of a streak is logged with its full error and stack
 (the S3 or auth API response, not only the "Upload failed (HTTP 403)" in
@@ -459,9 +462,10 @@ In [presence_infra/](../presence_infra):
   stack output `IdentityPoolId`, `COGNITO_IDENTITY_POOL_ID` in the private
   `.env`).
   - The auth API's developer provider (`login.presence.profiles`) for
-    profiles, plus Google (`accounts.google.com` = the web client ID), which
-    the API's `GetId` uses to find pre-profile identities. No guests, no
-    classic flow.
+    profiles, plus Google (`accounts.google.com` = the web client ID),
+    left from before profiles: the API no longer calls `GetId` with a
+    Google token (it never sees one; see [Sessions](sessions.md)). No
+    guests, no classic flow.
   - Its authenticated role may only `PutObject`, `GetObject` and
     `DeleteObject` (upload, fetch, and the one-time deletion of what was
     stored unencrypted, see [Media encryption](encryption.md)) in
@@ -540,8 +544,9 @@ In [presence_infra/](../presence_infra):
 
 ## Known limitations
 
-- Google ID tokens last about an hour, and the app has no silent refresh.
-  After that, uploads stop with "Sign in again to resume uploads".
+- Uploads stop with "Sign in again to resume uploads" only when the
+  [session](sessions.md) ends (sign-out elsewhere, a reused refresh token,
+  60 days unused): the app refreshes its session token before it expires.
 - Local development uses the production bucket and pool, each user in their
   own prefix.
 - Recordings are uploaded in one `PUT`, not multipart. That's fine at about

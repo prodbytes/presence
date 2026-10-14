@@ -110,9 +110,11 @@ top-level domain, so the web OAuth client lists
 [scripts/build-auth-api.sh](../scripts/build-auth-api.sh) runs `sam build`
 (when the sources changed) before Floci starts. The `05-auth-api.sh` hook
 then deploys the build as the stack `presence-local-auth-api`, and creates
-an HTTP API with the fixed ID `presence`. That API has the template's Google
-JWT authorizer (audience `GOOGLE_WEB_CLIENT_ID` from `.env`) and its five
-routes. CloudFront routes `/api/*` to
+an HTTP API with the fixed ID `presence`. That API has the template's
+routes and its JWT authorizer, which trusts only Presence
+[session tokens](../specs/sessions.md): the app trades its Google ID token
+(issued for `GOOGLE_WEB_CLIENT_ID` from `.env`) for one at
+`POST /api/auth/session`. CloudFront routes `/api/*` to
 `presence.execute-api.localhost.floci.io`, the only API host it's allowed
 to reach (`FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`).
 
@@ -120,6 +122,16 @@ to reach (`FLOCI_SERVICES_CLOUDFRONT_ALLOWED_PRIVATE_ORIGIN_HOSTS`).
   `presence-lambda-*`, so compose mounts the **Docker socket**. That gives
   the container control of the Docker daemon: local development only.
   Shutdown removes those containers.
+- **Sessions locally:** the hook makes the signing key with the KMS API
+  (RSA_2048, SIGN_VERIFY; Floci's CloudFormation makes only symmetric
+  keys), new at every start, so everyone signs in again. The issuer is
+  `http://127.0.0.1:4566/execute-api/presence/$default/api/auth`: Floci's
+  JWT authorizer fetches its keys from inside the container, and from HTTP
+  or private addresses only with `FLOCI_SECURITY_ALLOW_PRIVATE_JWT_TARGETS`
+  (set in [compose.yaml](compose.yaml); Floci's ports are bound to
+  127.0.0.1).
+- **No roles locally:** rbacr's RC can't reach the local issuer, so it
+  can't verify local session tokens, and the app's roles check fails.
 - The hook takes longer than Floci's default 30 s
   (`FLOCI_INIT_HOOKS_TIMEOUT_SECONDS` is 180).
 - Storage is memory, so every start has empty tables. `@nu01.com` accounts

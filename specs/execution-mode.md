@@ -67,8 +67,9 @@ API's `GET /api/auth/profile` decide the rest (see [Sign-in](sign-in.md)).
   (it also refuses to deploy without an rbacr token, which the auth API
   needs for a linked account's shared membership and a profile's tier).
 - DEV only changes what the app shows. The API's other routes still need a
-  Google ID token (in DEV the authorizer's audience is `no-oidc-client`, so
-  none passes), and cloud sync needs a Google sign-in.
+  Presence [session token](sessions.md), and in DEV the session exchange
+  has no Google client, so it answers a Google sign-in 503; cloud sync
+  needs a sign-in.
 - Known gap: a manual `sam deploy` of a new auth API stack without
   `GoogleWebClientId` would come up in DEV.
 

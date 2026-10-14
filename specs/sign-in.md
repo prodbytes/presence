@@ -1,32 +1,103 @@
 # Sign-in
 
-Sign in with Google, through the `google_sign_in` package
-([lib/auth/](../presence_app/lib/auth)). Signing in unlocks the navigation;
-there's no separate sign-in screen:
+Sign in with Google (the `google_sign_in` package), and on iOS also with
+**Sign in with Apple** (the `sign_in_with_apple` package)
+([lib/auth/](../presence_app/lib/auth)). Either way the app trades the
+provider's ID token for a **Presence session** at once
+([Sessions](sessions.md)) and from then on uses only the session token.
+Signing in unlocks the navigation; there's no separate sign-in screen:
 
-- **At launch** the app checks for a session quietly
-  (`attemptLightweightAuthentication`: FedCM auto sign-in on web, Credential
-  Manager's authorized accounts on Android, the saved session on iOS). The
-  camera opens right away either way. On Android, a remembered account is
-  signed back in first, with no UI (below).
-- **Reloads keep you signed in (web).** Google Identity Services keeps no
-  session on web, so the app remembers it itself:
-  - on each sign-in, the user (ID, email, name, photo) and their Google ID
-    token go into `localStorage` (`presence.session`; `SessionStore`,
-    `SavedSession`);
-  - at launch, before Google's library loads, a remembered session whose
-    token has more than a minute left is restored, so the user is signed in
-    at once;
-  - a restored session is **not asked to sign in again**: the silent
-    FedCM attempt doesn't run at launch, only five minutes before the
-    token expires, to refresh it (`SavedSession.refreshIn`). Each sign-in
-    schedules the next refresh. When it finds nothing, the session stays
-    until the token expires. Without a restored session, the silent
-    attempt runs at launch as before;
-  - an expired or malformed session is dropped;
-  - **Sign out** forgets it.
+- **At launch** the app restores the session it kept, before Google's
+  library even loads (below); without one it checks for a Google session
+  quietly (`attemptLightweightAuthentication`: FedCM auto sign-in on web,
+  Credential Manager's authorized accounts on Android, the saved session
+  on iOS), and on Android first signs a remembered account back in with no
+  UI (below). The camera opens right away either way.
 
-  iOS doesn't need this: its Google SDK keeps the session.
+## Sessions
+
+- **Every sign-in is exchanged** (`GoogleAuthService`, which also does
+  Apple; `AuthSession`'s `HttpSessionApi`,
+  [lib/auth/auth_session.dart](../presence_app/lib/auth/auth_session.dart)):
+  Google's sign-in event, its quiet check, Android's silent sign-in and
+  Apple's sign-in all send the provider's ID token to `POST
+  /api/auth/session`. The user and the session token are set together,
+  only once the exchange answers, so the roles check never sees a user
+  without a token. A refused exchange shows as the sign-in error;
+  one that can't reach the API (offline, 429, 5xx) is tried three times
+  (now, after 1 s and 3 s), and a silent one backs off quietly.
+- **`AuthService.idToken` is the session token**, the bearer of every
+  call: the auth API (profile, credentials, linking, account deletion),
+  [cloud recognition](cloud-recognition.md), [payments](payments-api.md),
+  [cloud sync](cloud-sync.md)'s credentials, and rbacr. No provider's ID
+  token is sent anywhere but the exchange.
+- **The user** (`AuthUser`) comes from the session token's claims: `id` is
+  the provider's subject (`idp_sub`: Google's `sub` as before, or
+  Apple's), with its `email`, `name` and `picture`.
+- **Refreshed five minutes before it expires** (it lasts an hour), with
+  the refresh token, one refresh at a time; the new refresh token replaces
+  the old one, which is never sent again. A refresh that can't reach the
+  API keeps the session and tries again in 1, 2, 4, 8 and then every 15
+  minutes. A refused refresh (the session ended: expired, revoked, or the
+  refresh token used twice) falls back: for a Google session, the
+  Android silent sign-in of the same account (with its backoff) or, off
+  Android or when the account must sign in with UI, Google's quiet check,
+  whose new token is exchanged; for an Apple session, which can't sign in
+  without the user, the app signs out and says "Your session ended. Sign
+  in again." Results that arrive after a sign-out or a newer sign-in are
+  dropped (their refresh token revoked).
+- **Kept across restarts and reloads:** `{provider, user, token,
+  expiresAt, refreshToken}` (`SavedSession`,
+  [lib/auth/saved_session.dart](../presence_app/lib/auth/saved_session.dart)):
+  - on Android and iOS in secure storage (`flutter_secure_storage`
+    11.1.1: Keystore-encrypted on Android; the Keychain on iOS, readable
+    after the first unlock so a locked phone refreshes after a reboot,
+    this device only, never in a backup or iCloud). An Android backup
+    restored on another phone can't be decrypted there, so it falls back
+    to the silent sign-in;
+  - on web in `localStorage` (`presence.session`). Anything able to run
+    script on the site could read the refresh token; an httpOnly cookie
+    set by the API would avoid that, and isn't built.
+
+  At launch a kept session with more than a minute left signs in at once;
+  an expired one is refreshed at once (the user shows while it's asked,
+  without a token, and retries with the backoff if the API can't be
+  reached); a refused one is dropped and the launch goes on as without
+  one. Sessions kept by builds before sessions (a Google ID token) are
+  dropped.
+- **Sign out** revokes the session (`POST /api/auth/session/revoke`,
+  without waiting for it), forgets it, forgets Android's remembered
+  account and signs out of Google.
+
+## Sign in with Apple (iOS)
+
+- Offered only on iOS (`appleSignInSupported`: never on web or Android),
+  **beside Google with equal prominence**: the signed-out account sheet
+  stacks Apple's button (`SignInWithAppleButton`: black in light mode,
+  white in dark, Apple's logo, "Sign in with Apple" translated) over
+  Google's, both full width, 48 high, pill-shaped. The app bar has room
+  for one button at 320 dp, so on iOS it shows **Sign in**, which opens a
+  sheet with both (`SignInSheet`); it closes once signed in.
+- It asks Apple for the **email and full name**, with a **nonce**: 32
+  random bytes (base64url) per sign-in, whose SHA-256 goes to Apple and
+  the nonce itself to the exchange, which checks Apple's token carries its
+  hash. The exchange also gets Apple's **authorization code** (so the
+  auth API can revoke the user's Apple tokens when the account is deleted)
+  and, at the account's very first sign-in, the **name**, which Apple
+  gives only then and the auth API keeps for later sessions. Apple's
+  private-relay email addresses are fine.
+- Cancelling Apple's sheet isn't an error. An Apple account is its own
+  [profile](profiles.md) subject (`https://appleid.apple.com#<sub>`): it
+  joins a Google account's profile with a link code.
+- The iOS app has `Runner.entitlements` with
+  `com.apple.developer.applesignin` = `[Default]` (the Runner target's
+  `CODE_SIGN_ENTITLEMENTS`); see [iOS](ios.md).
+
+## Restarts and reloads
+
+- **Reloads keep you signed in (web)**, from the kept session (above).
+  Google Identity Services keeps no session on web: without a kept
+  session, the silent FedCM attempt runs at launch.
 - **Restarts keep the same account signed in, with no UI (Android).**
   Credential Manager's quiet check auto-selects only when exactly one
   Google account on the phone has signed in to the app; with two or more
@@ -48,15 +119,14 @@ there's no separate sign-in screen:
     kept in files on the phone and may be shared, are masked to their
     first character and domain (`maskEmail`; `GoogleSilentSignIn.masked`
     on the Kotlin side); the token is never logged;
-  - the hourly token refresh (five minutes before expiry) also tries this
-    first, for the signed-in account. Play services returns its cached
-    token until shortly before expiry, so getting the same token back
-    retries a minute later;
+  - when the session's refresh token is refused (above), this is the
+    fallback, for the signed-in account: its new Google ID token is
+    exchanged for a new session;
   - **a failure is retried quietly, never with the chooser**: when the
     silent sign-in fails for a reason that may pass (Play services'
-    status 8, `INTERNAL_ERROR`, seen once on the phone at an hourly
-    refresh; offline), the app tries again in 1, 2, 4, 8 and then every
-    15 minutes, keeping the session (the user stays signed in; cloud sync
+    status 8, `INTERNAL_ERROR`; offline; the auth API unreachable for the
+    exchange), the app tries again in 1, 2, 4, 8 and then every 15
+    minutes, keeping the session (the user stays signed in; cloud sync
     pauses if the token expires, and resumes on the new token). The log
     says `silent sign-in of a***@example.com failed (N in a row); trying
     again in <s> s`. The backoff starts over at a sign-in with UI and at
@@ -69,10 +139,11 @@ there's no separate sign-in screen:
   - **Sign out** forgets the account (and signs Play services' sign-in
     out), so a restart doesn't sign it back in.
 
-  The first launch after updating from a version without this has no
-  remembered account, so it still takes one tap on the chooser if several
-  accounts have signed in; after that, restarts are silent. Web and iOS
-  are unchanged.
+  With a kept session, a restart doesn't need any of this: the session is
+  restored or refreshed. This path signs in when there's none (the first
+  launch after updating to sessions, or a session that ended).
+## Signed out and signed in
+
 - **Before anything shows**, the app asks the auth API for the
   [execution mode](execution-mode.md). In DEV (no OIDC client) there's no
   sign-in at all, and everything below about signing in doesn't apply.
@@ -80,7 +151,8 @@ there's no separate sign-in screen:
   sign in. The camera shows full screen, always recording as
   usual, with **no buttons on it** (no view, Flip or Clip button), and the
   **navigation is hidden**: no bottom navigation bar, and the app bar
-  has only **Sign in with Google**. Nothing is uploaded. You can't switch
+  has only **Sign in with Google** (on iOS, **Sign in**, for Apple and
+  Google; above). Nothing is uploaded. You can't switch
   to Monitoring or Settings, and the clip
   message has no "View" action. On web the button is Google's own (GIS
   `renderButton` with FedCM, medium size to fit the app bar), as Google
@@ -102,9 +174,9 @@ there's no separate sign-in screen:
   `[28473] Caller could not be verified`. Signing in again opens a fresh
   sheet.
 - **Roles decide the rest** (`RolesService`, `lib/auth/roles_service.dart`).
-  After sign-in, the app asks two places at once, with the Google ID
-  token (`HttpRolesClient`):
-  - **rbacr** (`GET /api/me`, `Authorization: Bearer <ID token>`;
+  After sign-in, the app asks two places at once, with the session token
+  (`HttpRolesClient`):
+  - **rbacr** (`GET /api/me`, `Authorization: Bearer <session token>`;
     `HttpRbacrClient` in
     [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart))
     for the user's **own roles**: rbacr's roles in the build's system
@@ -113,8 +185,8 @@ there's no separate sign-in screen:
     (`presenceRoles`): `presence_user` for `free`, `premium` or `admin`,
     `presence_premium` for `premium` or `admin`, `presence_admin` for
     `admin`, and all four (`presence_root` too) for an rbacr root
-    (`root: true`). rbacr accepts ID tokens for Presence's Google web,
-    Android and iOS clients;
+    (`root: true`). rbacr accepts Presence's session tokens (its
+    `RBACR_TRUSTED_ISSUERS`; see [Sessions](sessions.md#the-authorizers));
   - the [auth API](auth-api.md) (`GET /api/auth/profile`) for their
     [profile](profiles.md) (`RolesService.profile`), which it finds by
     the account or makes at the first sign-in, and `shared`, the
@@ -141,7 +213,7 @@ there's no separate sign-in screen:
   - While the check runs, a small spinner takes the sign-up icon's place.
   - The check runs when the user changes (sign-in, a session restored at
     launch, sign-out). A check that failed also runs again when a silent
-    sign-in brings a new ID token, so a stale restored token or an API
+    sign-in or refresh brings a new token, so a stale restored token or an API
     still starting doesn't leave a member on the sign-up screen.
   - **A check that failed is retried on its own**, after 5 s, 15 s, 30 s
     and then every minute, until it answers (and at once when the auth
@@ -273,26 +345,66 @@ there's no separate sign-in screen:
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
   "Signed out", with the email; a deleted account's sign-out is "Account
   deleted", without it).
-- Signing in also turns on [cloud sync](cloud-sync.md): the user's Google
-  ID token (`AuthService.idToken`) is exchanged, through the auth API and
+- Signing in also turns on [cloud sync](cloud-sync.md): the session token
+  (`AuthService.idToken`) is exchanged, through the auth API and
   Cognito, for temporary AWS credentials for their
   [profile](profiles.md), and clips and events upload to S3.
 - **Linked accounts:** the account sheet (and the sign-up sheet, for an
   account without access) opens **Linked accounts**, where a member makes
-  a one-time code and another of their Google accounts enters it. That
+  a one-time code and another of their accounts (Google or Apple) enters it. That
   account then shares the profile's folder and membership
   (`presence_user`), never the owner's Admin or root roles. See
   [Profiles](profiles.md). On iOS the app now
   also passes the web client as `serverClientId`, so, as on Android and
   web, the ID token is issued for the web client.
-- `AuthService` is the interface (`GoogleAuthService` in the app, a fake in
-  tests).
-- Known limitation: Google ID tokens last about an hour. If the refresh
-  before expiry finds nothing (no FedCM auto sign-in), a reload after
-  that signs out. The refresh itself may briefly show Google's FedCM
-  prompt (web), or Credential Manager's chooser on Android when the
-  remembered account must sign in with UI and several accounts have
-  signed in to the app.
+- `AuthService` is the interface (`GoogleAuthService` in the app, Google
+  and Apple, a fake in tests). Sign-in problems it knows
+  (`AuthService.problem`: refused, no verified email, not set up, the
+  server unreachable, the session ended) show translated; others as
+  "Sign-in failed: <reason>".
+- Known limitations: a session ends after 60 days without a refresh, at
+  sign-out, or when its refresh token is used twice (a copy, or a retry
+  more than a minute after a lost answer). Then a Google session falls
+  back to Google, which may briefly show Google's FedCM prompt (web), or
+  Credential Manager's chooser on Android when the remembered account
+  must sign in with UI and several accounts have signed in to the app;
+  an Apple session must sign in again.
+
+## Verified
+
+- `session_test.dart`: the kept session's encoding, validity and refresh
+  time, malformed and pre-session ones dropped; `HttpSessionApi`'s
+  requests (Apple's nonce, code and trimmed name) and how answers are
+  classified (400/401/403 refused; 429, 5xx, offline and malformed
+  retried); a kept session at launch, and sign-out revoking and
+  forgetting it; an expired token refreshed at launch and rotated; a
+  refused one dropped; the API unreachable at launch keeping the user
+  without a token and backing off; refresh before expiry with rotation
+  (no refresh token sent twice); a failed refresh keeping the session;
+  an Apple session refused signing out with "session ended"; a refused
+  exchange's problem; the exchange's quick retries; a refresh answering
+  after sign-out revoked; no token in the log.
+- `silent_sign_in_test.dart`: Android's silent sign-in at launch, the
+  quiet check without a remembered account, the backoff without the
+  chooser, `SIGN_IN_REQUIRED`, sign-out, all through the exchange; a dead
+  refresh token falling back to the same account's silent sign-in; the
+  exchange unreachable retried quietly, refused not retried; off Android,
+  the quiet check's token exchanged.
+- `apple_sign_in_test.dart`: Apple offered on iOS only; both buttons the
+  same size on iOS, Google alone on Android and web; Apple's button
+  white and translated in dark mode in Spanish; at 320 dp the app bar's
+  **Sign in** opens both and closes once signed in.
+- `flutter build ios --simulator --debug` builds with the entitlement.
+
+## Clients
+
+**Apple:** Sign in with Apple needs the capability on the App ID
+`com.nu01.presence` (Apple Developer, Identifiers), which the
+entitlement asks for: a build signed for a team without it fails to
+sign (the simulator doesn't check). The auth API accepts Apple ID tokens
+for the bundle ID (`AppleClientIds`). Revoking users' Apple tokens when
+they delete their account needs a Sign in with Apple key (Apple
+Developer, Keys) in SSM; see [Sessions](sessions.md#sign-in-with-apples-revocation).
 
 **Google Cloud:** the project's Google Cloud project (its ID, owner and the
 client IDs are in the private repo, `setec-astronomy/presence.nu01`), with

@@ -91,7 +91,7 @@ isn't committed), so there it reads the main checkout's (`git
 rev-parse --git-common-dir`); without one, a build has no Google client ID
 and sign-in says it isn't configured. Two say where
 [rbacr](https://github.com/prodbytes/rbacr) is, which the app asks
-directly, with the user's Google ID token, for their own roles
+directly, with the user's Presence [session token](sessions.md), for their own roles
 ([Sign-in](sign-in.md)), [maintenance mode](maintenance.md) and redeeming
 [voucher codes](membership.md#voucher-codes):
 
@@ -127,12 +127,14 @@ Checks:
 - `dart-defines.sh` refuses a `RBACR_URL` that isn't an `https://` origin
   (`http://` only for `localhost` or `127.0.0.1`), and a `RBACR_SYSTEM`
   that isn't an rbacr system ID.
-- The app (`RbacrConfig.isSafe`) also sends the ID token only to https,
+- The app (`RbacrConfig.isSafe`) also sends the session token only to https,
   or http to localhost, and falls back to GA rbacr when `RBACR_URL` is
   unset or unsafe, as `ApiConfig` defaults to production.
 - rbacr must allow the app's web origin (CORS, rbacr's H3): GA rbacr
   allows https://presence.nu01.com and https://rc.presence.nu01.com; RC
   rbacr https://rc.presence.nu01.com, https://local.presence.nu01.com:8443
-  and http://localhost:8080. It accepts ID tokens whose audience is one of
-  Presence's Google web, Android and iOS client IDs
-  (`RBACR_GOOGLE_AUDIENCES`, rbacr's I1).
+  and http://localhost:8080. It accepts Presence session tokens through
+  its `RBACR_TRUSTED_ISSUERS` (the stage's issuer, audience `presence`,
+  the user known by `email`; see [Sessions](sessions.md#the-authorizers)).
+  RC rbacr can't verify the local stack's session tokens, so locally the
+  roles check fails.

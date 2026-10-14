@@ -10,7 +10,7 @@ devices as the deployed one does with AWS.
 ## Why
 
 Floci emulates S3, STS and AWS IoT's MQTT broker, but not Cognito
-Identity's `GetId`, `GetOpenIdTokenForDeveloperIdentity` and
+Identity's `GetOpenIdTokenForDeveloperIdentity` and
 `GetCredentialsForIdentity` (it answers `UnknownOperationException`), which
 the auth API and the app use for credentials in AWS. So the local auth API
 stands in for Cognito, and the app reaches Floci instead of AWS.
@@ -21,9 +21,8 @@ stands in for Cognito, and the app reaches Floci instead of AWS.
   `ProfileFunction`; only `presence_floci/init/ready.d/05-auth-api.sh`
   sets it, and `scripts/deploy.sh` passes `false`):
   `LocalCloudBackend` ([LocalCloudBackend.java](../presence_api_auth/AuthFunction/src/main/java/presence/auth/LocalCloudBackend.java))
-  - makes up a Google account's identity from its token's `iss` and `sub`
-    (which the JWT authorizer verified): `us-east-1:<UUID of
-    "presence-local|<iss>#<sub>">`, the same every time, as `GetId`
+  - makes up a profile's identity from its ID: `us-east-1:<UUID of
+    "presence-local|profile#<id>">`, the same every time, as Cognito's
     would be;
   - answers `POST /api/auth/credentials` with `"credentials"` itself, in
     Cognito's shape (`AccessKeyId` `ASIALOCAL…`, `SecretKey`,

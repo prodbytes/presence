@@ -17,9 +17,12 @@ Premium](upgrade.md#how-it-becomes-premium)).
 
 ## Routes
 
-A Google JWT authorizer (issuer `https://accounts.google.com`, audience
-the web client, as the auth API's) refuses calls without a valid ID token
-(401) before the function runs.
+A JWT authorizer refuses calls without a valid Presence
+[session token](sessions.md) (401) before the function runs: issuer the
+auth API stack's `SessionIssuer` output (`https://<site>/api/auth`, the
+stack's `SessionIssuer` parameter, from `deploy.sh`), audience
+`presence`. The function reads the caller's `email` and `email_verified`
+in one place (`PaymentsHandler.verifiedEmail`).
 
 - **`GET /api/payments/links`** (any signed-in user; 20 requests/s, burst
   50): `{"monthly": "https://buy.stripe.com/…", "yearly": "…", "saved":
@@ -73,7 +76,7 @@ role and table are named `<prefix>-payments-…`, inside their scope.
 - **`PaymentsService`**
   ([lib/auth/payments_client.dart](../presence_app/lib/auth/payments_client.dart))
   asks `GET /api/payments/links` (on the site's origin, `ApiConfig`) with
-  the user's ID token at each sign-in, and forgets the links at sign-out.
+  the user's session token at each sign-in, and forgets the links at sign-out.
   Its `links` are null while unknown: signed out, loading, or when the API
   didn't answer. The app keeps only HTTPS stripe.com links of the answer.
 - **The upgrade buttons** ([Upgrade to Premium](upgrade.md)) use them.

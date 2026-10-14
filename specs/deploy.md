@@ -72,7 +72,12 @@ One CloudFront distribution serves the whole site, laid out like the local
   `scripts/dart-defines.sh`; never the token: the app asks rbacr with the
   user's own token, see [Configuration](configuration.md)). After that it
   deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
-  live-sync policy it attaches to each identity) and the
+  live-sync policy it attaches to each identity; `DomainName`, which makes
+  the [session](sessions.md) issuer `https://<site>/api/auth`, checked
+  against the stack's `SessionIssuer` output; and Sign in with Apple's
+  `APPLE_CLIENT_IDS` and, when set, its key: `APPLE_TEAM_ID`,
+  `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`, also repository
+  variables in CI) and the
   [health check](health-check.md) (`presence_health`, stack
   `<prefix>-health`, with `AuthStackName`, the release as `Version`, the
   same OIDC client, pool and bucket, rbacr's URL but not its token, and
@@ -86,7 +91,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   boundary), then the user-data stack again with its function as
   `IngestFunctionArn` (the bucket's notification, which needs the
   function's permission first) when that changed. Then the [payments API](payments-api.md) (`presence_api_payments`,
-  stack `<prefix>-payments`, with the OIDC client, the boundary, rbacr's
+  stack `<prefix>-payments`, with the session issuer (its JWT
+  authorizer's), the boundary, rbacr's
   URL, token and system, and `STRIPE_MONTHLY_LINK` and
   `STRIPE_YEARLY_LINK` as its default links: from the environment, else
   `.env`, else the links in `deploy.sh`; each must be empty or an HTTPS
@@ -96,6 +102,9 @@ One CloudFront distribution serves the whole site, laid out like the local
   must be the [legal pages](legal.md) (by their titles), and `/api/auth/profile` and
   `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
+  `/api/auth/.well-known/openid-configuration` must name the issuer
+  `https://<site>/api/auth` (and its `jwks_uri`) and `jwks.json` hold an
+  RSA key,
   and `/health` must answer `"status":"ok"` with this release's
   `"version"` (see [Health check](health-check.md)); and, once the APIs
   enforce the origin secret, the auth API's and the health check's own
@@ -283,7 +292,22 @@ An administrator deploys the stack (it creates IAM resources and uses
 [presence_infra/README.md](../presence_infra/README.md). Run it again
 whenever `github-deploy.yaml` changes, before the next deploy.
 
-**Moving to the boundaries and tags** (this change; once, in this
+**Moving to sessions** (once, in this order; see
+[Sessions](sessions.md#deploy)):
+
+1. With admin credentials, update `presence-github-deploy` (the boundary
+   allows the session KMS keys, `/<prefix>/*` SSM parameters and SSM's
+   decryption; the deploy role may create and manage KMS keys tagged
+   `presence:stack=<prefix>-*`). For Apple's revocation, put the Sign in
+   with Apple key in SSM and set `APPLE_SIGNIN_KEY_ID`,
+   `APPLE_SIGNIN_KEY_PARAMETER` and `APPLE_TEAM_ID` (repository
+   variables).
+2. Configure rbacr's `RBACR_TRUSTED_ISSUERS` with the stage's issuer.
+3. Deploy RC, then GA (backends, then the web app, in one `deploy.sh`).
+4. Install the new Android and iOS builds: older ones send Google ID
+   tokens, which every API now refuses.
+
+**Moving to the boundaries and tags** (an earlier change; once, in this
 order):
 
 1. With admin credentials, tag the existing resources of both stages:

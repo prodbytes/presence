@@ -130,9 +130,14 @@ asks directly (see Roles below):
   `arm64`.
 - **Deploy:** the ready hook
   [05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh) deploys
-  `template.yaml` as the stack `presence-local-auth-api`: the two Java 25
+  `template.yaml` as the stack `presence-local-auth-api`: the Java 25
   Lambdas and their tables (`ProfilesTable`, `ProfileSubjectsTable`,
-  `LinkCodesTable`). Floci
+  `LinkCodesTable`, and the [sessions](sessions.md)' `SessionsTable` and
+  `IdentitiesTable`). Before deploying, it makes the session signing key
+  with the KMS API (RSA_2048, SIGN_VERIFY; Floci's CloudFormation makes
+  symmetric keys whatever the `KeySpec`) and passes it as `SigningKeyArn`;
+  Floci keeps nothing, so each start has a new key and everyone signs in
+  again. Floci
   runs the Lambdas as Docker containers (`presence-lambda-*`), which is
   why compose mounts the Docker socket. That gives Floci control of the
   Docker daemon, which is acceptable only for local development (its ports
@@ -141,18 +146,33 @@ asks directly (see Roles below):
   are allowlisted by exact name, and CloudFormation gives the stack's HTTP
   API a random ID. The hook therefore also creates an HTTP API with the
   fixed ID `presence` (Floci's `floci:override-id` tag). It has the same
-  Google JWT authorizer (issuer `https://accounts.google.com`, audience
-  `GOOGLE_WEB_CLIENT_ID` from `.env`) and the template's routes:
-  `GET /api/auth/anonymous` (`AuthFunction`) and the `ProfileFunction`
-  routes (`POST /api/auth/credentials`, `GET /api/auth/profile`,
+  `PresenceSession` JWT authorizer, trusting only local session tokens
+  (issuer `http://127.0.0.1:4566/execute-api/presence/$default/api/auth`,
+  the API's path form on Floci's loopback address, audience `presence`),
+  and the template's routes: `GET /api/auth/anonymous` (`AuthFunction`);
+  the `SessionFunction` routes without an authorizer
+  (`POST /api/auth/session`, `/session/refresh` and `/session/revoke`,
+  `GET /api/auth/.well-known/openid-configuration` and `/jwks.json`); and
+  the `ProfileFunction` routes (`POST /api/auth/credentials`, `GET /api/auth/profile`,
   `POST /api/auth/profile/link-code`, `/link`, `/unlink`,
   `/devices/remove` and `/stream-key`, and `POST /api/auth/account/delete`).
   `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
+- **The issuer from inside Floci:** Floci's JWT authorizer fetches the
+  issuer's documents from inside its container, and from HTTP or private
+  addresses only with `FLOCI_SECURITY_ALLOW_PRIVATE_JWT_TARGETS` (set in
+  [compose.yaml](../presence_floci/compose.yaml); Floci listens on
+  127.0.0.1 only), and then only from a literal IP, hence the issuer
+  above. The app gets its session from the local
+  `POST /api/auth/session` with its Google ID token (issued for `.env`'s
+  `GOOGLE_WEB_CLIENT_ID`).
 - **Roles** come from **rbacr's RC** (https://rc.rbacr.nu01.com, its own
   database), never GA rbacr, which prod uses. The local web build
-  (`scripts/flutter-web.sh`) asks it directly with the user's ID token:
+  (`scripts/flutter-web.sh`) asks it directly with the user's session
+  token, which RC rbacr can't verify (it can't reach the local issuer), so
+  locally the roles check fails and a signed-in user sees the sign-up
+  screen ([Sessions](sessions.md#known-limitations)). The build:
   `scripts/dart-defines.sh` passes `.env`'s `RBACR_RC_URL` and
   `RBACR_RC_SYSTEM` (default https://rc.rbacr.nu01.com and `presence`) as
   `RBACR_URL` and `RBACR_SYSTEM`, never `.env`'s `RBACR_URL` (which is

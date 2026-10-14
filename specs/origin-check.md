@@ -14,7 +14,7 @@ call `https://presence.nu01.com/api/...` (or the RC site).
   and with them anything only CloudFront applies (the site's headers,
   and a future WAF; see [Auth API](auth-api.md), "Throttling and floods").
 - **Doesn't stop**: a script calling through the site's domain with a
-  user's own Google ID token, exactly as the app does. Nothing a client
+  user's own [session token](sessions.md), exactly as the app does. Nothing a client
   holds can prove the call came from the app's code; only attestation
   could (Play Integrity, App Attest, a WAF browser challenge), which isn't
   done. A key the app fetched at start would add nothing: a script fetches
@@ -32,7 +32,7 @@ call `https://presence.nu01.com/api/...` (or the RC site).
   `ProfileHandler`, the three recognition handlers, `PaymentsHandler`,
   `HealthHandler`). Without the header, or with another value (compared in
   constant time), it answers **403** `{"error":"use the site:
-  https://presence.nu01.com"}`. Token routes check the Google token first
+  https://presence.nu01.com"}`. Token routes check the session token first
   (the API's authorizer, 401), then this. With no secret configured
   (`ORIGIN_SECRET` empty) every request passes.
 - **Each function** gets `ORIGIN_SECRET` from its stack's `OriginSecret`

@@ -67,11 +67,12 @@
 #                ID tokens the auth API exchanges for sessions too (optional; also .env)
 #   APPLE_CLIENT_IDS  Sign in with Apple's clients, the iOS bundle ID
 #                (default com.nu01.presence; also .env)
-#   APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_KEY_PARAMETER  Sign in with Apple's
+#   APPLE_SIGNIN_KEY_ID, APPLE_SIGNIN_KEY_PARAMETER  Sign in with Apple's
 #                key, to revoke users' Apple tokens when they delete their
-#                account: the team, the key's ID and the SSM SecureString
-#                parameter an administrator put the .p8 in (never the key
-#                itself; all three or none; also .env)
+#                account: the key's ID and the SSM SecureString parameter an
+#                administrator put the .p8 in (never the key itself; both
+#                or neither; also .env), with APPLE_TEAM_ID, the team (as
+#                the App Store build's)
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
@@ -205,27 +206,27 @@ GOOGLE_DEVICE_CLIENT_ID="${GOOGLE_DEVICE_CLIENT_ID:-}"
 # Sign in with Apple (environment, else .env): its clients, and the key that
 # revokes users' Apple tokens (optional: all three or none). Only the key's
 # SSM parameter name is passed, never the key.
-for name in APPLE_CLIENT_IDS APPLE_TEAM_ID APPLE_KEY_ID APPLE_KEY_PARAMETER; do
+for name in APPLE_CLIENT_IDS APPLE_TEAM_ID APPLE_SIGNIN_KEY_ID APPLE_SIGNIN_KEY_PARAMETER; do
   if [[ -z "${!name:-}" && -f .env ]]; then
     printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
   fi
 done
 APPLE_CLIENT_IDS="${APPLE_CLIENT_IDS:-com.nu01.presence}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
-APPLE_KEY_ID="${APPLE_KEY_ID:-}"
-APPLE_KEY_PARAMETER="${APPLE_KEY_PARAMETER:-}"
+APPLE_SIGNIN_KEY_ID="${APPLE_SIGNIN_KEY_ID:-}"
+APPLE_SIGNIN_KEY_PARAMETER="${APPLE_SIGNIN_KEY_PARAMETER:-}"
 if [[ ! "$APPLE_CLIENT_IDS" =~ ^[A-Za-z0-9.-]+(,[A-Za-z0-9.-]+)*$ ]]; then
   echo "error: APPLE_CLIENT_IDS must be comma-separated bundle IDs" >&2
   exit 1
 fi
 apple_key=()
-if [[ -n "$APPLE_TEAM_ID$APPLE_KEY_ID$APPLE_KEY_PARAMETER" ]]; then
-  if [[ ! "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ || ! "$APPLE_KEY_ID" =~ ^[A-Z0-9]{10}$
-        || ! "$APPLE_KEY_PARAMETER" =~ ^(/[A-Za-z0-9_.-]+)+$ ]]; then
-    echo "error: APPLE_TEAM_ID and APPLE_KEY_ID must be Apple's 10-character IDs and APPLE_KEY_PARAMETER an SSM parameter name (all three, or none)" >&2
+if [[ -n "$APPLE_SIGNIN_KEY_ID$APPLE_SIGNIN_KEY_PARAMETER" ]]; then
+  if [[ ! "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ || ! "$APPLE_SIGNIN_KEY_ID" =~ ^[A-Z0-9]{10}$
+        || ! "$APPLE_SIGNIN_KEY_PARAMETER" =~ ^/$stack_prefix/[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ ]]; then
+    echo "error: APPLE_TEAM_ID and APPLE_SIGNIN_KEY_ID must be Apple's 10-character IDs and APPLE_SIGNIN_KEY_PARAMETER an SSM parameter under /$stack_prefix/ (both key settings, or neither)" >&2
     exit 1
   fi
-  apple_key=("AppleTeamId=$APPLE_TEAM_ID" "AppleKeyId=$APPLE_KEY_ID" "AppleKeyParameter=$APPLE_KEY_PARAMETER")
+  apple_key=("AppleTeamId=$APPLE_TEAM_ID" "AppleKeyId=$APPLE_SIGNIN_KEY_ID" "AppleKeyParameter=$APPLE_SIGNIN_KEY_PARAMETER")
   echo "    Sign in with Apple: $APPLE_CLIENT_IDS, with a key for revocation"
 else
   echo "    Sign in with Apple: $APPLE_CLIENT_IDS (no key: Apple tokens aren't revoked at account deletion)"

@@ -27,10 +27,16 @@ signing](release.md#store-signing)).
 
 ## Blockers: App Store
 
-- **Sign in with Apple, or an equivalent (4.8).** Google is the only
-  sign-in. An app that uses a third-party login must also offer one that
-  limits data to name and email, lets users hide their email, and doesn't
-  track them. Sign in with Apple is the usual one.
+- **Sign in with Apple (4.8): built, needs Apple's setup.** The iOS app
+  offers Sign in with Apple beside Google, with equal prominence, asking
+  only for name and email (private relay addresses work), on top of
+  Presence's own [sessions](sessions.md); account deletion revokes the
+  Apple tokens ([Sessions](sessions.md#sign-in-with-apples-revocation)).
+  Still to do: enable Sign in with Apple on the App ID
+  `com.nu01.presence` (the App Store profile must include it), create a
+  Sign in with Apple key and put it in SSM
+  (`APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`), and give the
+  review notes a way to sign in with Apple too.
 - **No distribution certificate yet.** The release workflow builds an
   App Store `.ipa` (manual signing, `ExportOptions.plist` with
   `app-store-connect`) and uploads RC and GA builds to App Store Connect,
