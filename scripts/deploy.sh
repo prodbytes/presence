@@ -538,6 +538,12 @@ if [[ "$health_first" != 1 ]]; then
 fi
 health_domain="$(stack_output "$HEALTH_STACK" ApiDomain)"
 echo "    health origin: $health_domain"
+# The store settings are optional: an empty one is left out (sam deploy
+# refuses "RbacrGrantToken="), and the template's default (off) applies.
+store_overrides=()
+[[ -n "$RBACR_GRANT_TOKEN" ]] && store_overrides+=("RbacrGrantToken=$RBACR_GRANT_TOKEN")
+[[ -n "$GOOGLE_PLAY_SECRET" ]] && store_overrides+=("GooglePlaySecretName=$GOOGLE_PLAY_SECRET")
+[[ -n "$STORE_ALLOW_SANDBOX" ]] && store_overrides+=("StoreAllowSandbox=$STORE_ALLOW_SANDBOX")
 echo "==> deploying $PAYMENTS_STACK"
 (
   cd presence_api_payments
@@ -548,8 +554,7 @@ echo "==> deploying $PAYMENTS_STACK"
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
-      "RbacrGrantToken=$RBACR_GRANT_TOKEN" "GooglePlaySecretName=$GOOGLE_PLAY_SECRET" \
-      "StoreAllowSandbox=$STORE_ALLOW_SANDBOX" \
+      ${store_overrides[@]+"${store_overrides[@]}"} \
       ${origin_override[@]+"${origin_override[@]}"} \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )

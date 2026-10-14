@@ -5897,7 +5897,36 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the merged release manifest no longer has them. Specs:
        [Android](android.md), [Store readiness](store-readiness.md).
 
-424. **Sign in with Apple, on Presence's own session tokens.** (2026-10-14)
+424. **Blink cameras through a streamer.** (2026-10-14)
+     - Asked: support blinkpy in the streamer: a Blink devices section at
+       the end of Settings where users add what's needed; one Linux device
+       fetches the Blink videos and streams them as if recorded by the Pi;
+       each Blink camera a new device with its own generated ID. (Asked:
+       where the login goes; chosen: the app's Settings, sealed to the
+       streamer.)
+     - Changed: Settings' last section, Blink cameras: pick the Linux
+       streamer, the Blink email and password, then the PIN; sealed to
+       that streamer through the profile's folder. The streamer (blinkpy in
+       its own virtualenv, the `presence-blink.py` helper) logs in, keeps
+       only Blink's token, deletes the request, gives each camera a device
+       ID, registers them with its stream key (the auth API's stream
+       credentials take the cameras' IDs), and every 2 minutes fetches new
+       clips into each camera's own pipeline (`os: Blink`). Specs:
+       [Blink cameras](blink.md) (new), [Streamer](streamer.md),
+       [Settings](settings.md).
+
+425. **The deploy: no empty store settings.** (2026-10-14)
+     - Found: the GA and RC deploys failed: `sam deploy` refused the
+       payments stack's empty `RbacrGrantToken=` override (no
+       `RBACR_GRANT_TOKEN` secret yet), as it once refused an empty
+       `OriginSecret=`.
+     - Changed: `scripts/deploy.sh` passes the store settings
+       (`RbacrGrantToken`, `GooglePlaySecretName`, `StoreAllowSandbox`)
+       only when set; otherwise the template's defaults (store purchases
+       off) apply. Spec: [Production deploy](deploy.md) unchanged (the
+       defaults were already described).
+
+426. **Sign in with Apple, on Presence's own session tokens.** (2026-10-14)
      - Asked: App Store 4.8 needs Sign in with Apple beside Google on
        iOS. Apple's ID tokens last about 10 minutes and can't be renewed
        quietly, while every API (and rbacr) took the sign-in's ID token as

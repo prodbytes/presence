@@ -520,6 +520,81 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authYourAccount => 'Your account';
 
   @override
+  String get blinkAbout =>
+      'A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.';
+
+  @override
+  String get blinkConnect => 'Connect';
+
+  @override
+  String blinkConnected(String account) {
+    return 'Connected to Blink as $account. Its cameras:';
+  }
+
+  @override
+  String get blinkDisconnect => 'Disconnect';
+
+  @override
+  String get blinkEmail => 'Blink account email';
+
+  @override
+  String blinkError(String error) {
+    return 'Blink: $error';
+  }
+
+  @override
+  String get blinkInstalling =>
+      'Installing Blink support on the streamer (once)…';
+
+  @override
+  String blinkLastFetch(String time) {
+    return 'Clips last fetched at $time.';
+  }
+
+  @override
+  String get blinkLoggingIn => 'Logging in to Blink…';
+
+  @override
+  String get blinkNoCameras => 'No cameras yet.';
+
+  @override
+  String get blinkNoStreamer =>
+      'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras\' clips.';
+
+  @override
+  String get blinkNotSent =>
+      'Couldn\'t send it: the streamer\'s key isn\'t here yet, or cloud sync is off. Try again in a minute.';
+
+  @override
+  String get blinkOff => 'Not connected to Blink.';
+
+  @override
+  String get blinkPassword => 'Blink password';
+
+  @override
+  String get blinkPasswordNote =>
+      'Sealed with the streamer\'s key (only your devices can open it) and deleted once it has logged in; it keeps only Blink\'s token.';
+
+  @override
+  String get blinkPin => 'PIN';
+
+  @override
+  String blinkPinRequired(String account) {
+    return 'Blink sent a PIN to $account\'s email or phone: enter it here.';
+  }
+
+  @override
+  String get blinkSendPin => 'Send PIN';
+
+  @override
+  String get blinkStreamer => 'The streamer that fetches them';
+
+  @override
+  String blinkWaiting(String device) {
+    return 'Sent to $device; it looks every 30 s…';
+  }
+
+  @override
   String get cameraActionAll => 'Show all devices';
 
   @override
@@ -1892,6 +1967,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String settingsAutoTagValue(int percent) {
     return '$percent % sure';
   }
+
+  @override
+  String get settingsBlinkSection => 'Blink cameras';
 
   @override
   String get settingsBrightness => 'Brightness';

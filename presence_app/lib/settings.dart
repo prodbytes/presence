@@ -23,6 +23,7 @@ class SettingsView extends StatefulWidget {
     this.profileId,
     this.health,
     this.addDevice,
+    this.blink,
     this.location,
     this.tiles,
     this.onMapHeld,
@@ -80,6 +81,10 @@ class SettingsView extends StatefulWidget {
   /// Above the IDs, at the end: opens a QR code and a Share button, to
   /// open Presence on another device as a new device of the same user.
   final Widget? addDevice;
+
+  /// The last section, **Blink cameras** (`BlinkSettings`): for a premium
+  /// profile with cloud sync. None: no section.
+  final Widget? blink;
 
   /// The app's configuration; every control edits it.
   final ConfigController config;
@@ -594,6 +599,13 @@ class _SettingsViewState extends State<SettingsView> {
                 ],
               ),
             ),
+            // Last: a Linux streamer fetching Blink's cameras.
+            if (widget.blink case final blink?)
+              SettingsSection(
+                key: const Key('blink-section'),
+                title: l.settingsBlinkSection,
+                children: [blink],
+              ),
           ],
         );
       },

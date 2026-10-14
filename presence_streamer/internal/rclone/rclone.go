@@ -98,3 +98,13 @@ func (f *Folder) Move(ctx context.Context, from, to string) error {
 func (f *Folder) Delete(ctx context.Context, key string) error {
 	return f.run(ctx, "deletefile", f.remote(key))
 }
+
+// Get downloads key to the file path; os.ErrNotExist when there's no such
+// object.
+func (f *Folder) Get(ctx context.Context, key, path string) error {
+	err := f.run(ctx, "copyto", f.remote(key), path)
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "not found") {
+		return fmt.Errorf("%s: %w", key, os.ErrNotExist)
+	}
+	return err
+}

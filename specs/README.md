@@ -51,6 +51,10 @@ their data.
   and are hidden on every device); this device can't be, and a device
   that records again reappears. One event is deleted from the end of its
   details (the clip player).
+- [Blink cameras](blink.md): a Linux streamer the Settings pick logs in
+  to a Blink account (blinkpy; the login sealed to it, the 2FA PIN from
+  the app) and fetches its cameras' clips, each camera a device of its own
+  through the streamer's pipeline.
 - [Hiding a device](device-hiding.md): the Profile tab's device list's
   eye button hides or shows a device's events, on this device only,
   remembered across restarts.

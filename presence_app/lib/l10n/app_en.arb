@@ -419,6 +419,61 @@
   "authVoucherTooMany": "Too many tries. Wait a while and try again.",
   "authVouchersTitle": "Vouchers and maintenance",
   "authYourAccount": "Your account",
+  "blinkAbout": "A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras' clips: each camera becomes a device, and its clips with a person or an animal become events.",
+  "blinkConnect": "Connect",
+  "blinkConnected": "Connected to Blink as {account}. Its cameras:",
+  "@blinkConnected": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkDisconnect": "Disconnect",
+  "blinkEmail": "Blink account email",
+  "blinkError": "Blink: {error}",
+  "@blinkError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkInstalling": "Installing Blink support on the streamer (once)…",
+  "blinkLastFetch": "Clips last fetched at {time}.",
+  "@blinkLastFetch": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkLoggingIn": "Logging in to Blink…",
+  "blinkNoCameras": "No cameras yet.",
+  "blinkNoStreamer": "Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras' clips.",
+  "blinkNotSent": "Couldn't send it: the streamer's key isn't here yet, or cloud sync is off. Try again in a minute.",
+  "blinkOff": "Not connected to Blink.",
+  "blinkPassword": "Blink password",
+  "blinkPasswordNote": "Sealed with the streamer's key (only your devices can open it) and deleted once it has logged in; it keeps only Blink's token.",
+  "blinkPin": "PIN",
+  "blinkPinRequired": "Blink sent a PIN to {account}'s email or phone: enter it here.",
+  "@blinkPinRequired": {
+    "placeholders": {
+      "account": {
+        "type": "String"
+      }
+    }
+  },
+  "blinkSendPin": "Send PIN",
+  "blinkStreamer": "The streamer that fetches them",
+  "blinkWaiting": "Sent to {device}; it looks every 30 s…",
+  "@blinkWaiting": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
   "cameraActionAll": "Show all devices",
   "cameraActionNormal": "Back to normal: this camera",
   "cameraActionStopped": "Stop: no capturing or syncing",
@@ -1493,6 +1548,7 @@
       }
     }
   },
+  "settingsBlinkSection": "Blink cameras",
   "settingsBrightness": "Brightness",
   "settingsCameraSection": "Camera",
   "settingsClipAfter": "After press",

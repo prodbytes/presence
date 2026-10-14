@@ -523,6 +523,81 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authYourAccount => 'Sua conta';
 
   @override
+  String get blinkAbout =>
+      'Um streamer Linux seu (um Raspberry Pi) busca os clipes das suas câmeras Blink: cada câmera vira um dispositivo, e seus clipes com uma pessoa ou um animal viram eventos.';
+
+  @override
+  String get blinkConnect => 'Conectar';
+
+  @override
+  String blinkConnected(String account) {
+    return 'Conectado à Blink como $account. Suas câmeras:';
+  }
+
+  @override
+  String get blinkDisconnect => 'Desconectar';
+
+  @override
+  String get blinkEmail => 'E-mail da conta Blink';
+
+  @override
+  String blinkError(String error) {
+    return 'Blink: $error';
+  }
+
+  @override
+  String get blinkInstalling =>
+      'Instalando o suporte à Blink no streamer (uma vez)…';
+
+  @override
+  String blinkLastFetch(String time) {
+    return 'Clipes buscados por último às $time.';
+  }
+
+  @override
+  String get blinkLoggingIn => 'Entrando na Blink…';
+
+  @override
+  String get blinkNoCameras => 'Ainda sem câmeras.';
+
+  @override
+  String get blinkNoStreamer =>
+      'Configure primeiro um streamer num Raspberry Pi (Perfil › Transmitir de um Raspberry Pi); ele busca os clipes das câmeras Blink.';
+
+  @override
+  String get blinkNotSent =>
+      'Não foi possível enviar: a chave do streamer ainda não chegou, ou a sincronização está desligada. Tente em um minuto.';
+
+  @override
+  String get blinkOff => 'Sem conexão com a Blink.';
+
+  @override
+  String get blinkPassword => 'Senha da Blink';
+
+  @override
+  String get blinkPasswordNote =>
+      'Selada com a chave do streamer (só seus dispositivos a abrem) e apagada quando ele entra; ele guarda só o token da Blink.';
+
+  @override
+  String get blinkPin => 'PIN';
+
+  @override
+  String blinkPinRequired(String account) {
+    return 'A Blink enviou um PIN para o e-mail ou telefone de $account: digite-o aqui.';
+  }
+
+  @override
+  String get blinkSendPin => 'Enviar PIN';
+
+  @override
+  String get blinkStreamer => 'O streamer que os busca';
+
+  @override
+  String blinkWaiting(String device) {
+    return 'Enviado para $device; ele confere a cada 30 s…';
+  }
+
+  @override
   String get cameraActionAll => 'Mostrar todos os dispositivos';
 
   @override
@@ -1906,6 +1981,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String settingsAutoTagValue(int percent) {
     return '$percent % de certeza';
   }
+
+  @override
+  String get settingsBlinkSection => 'Câmeras Blink';
 
   @override
   String get settingsBrightness => 'Brilho';

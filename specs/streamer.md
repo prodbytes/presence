@@ -46,7 +46,9 @@ streamer get its profile's credentials with no Google account:
   ([Account deletion](account-deletion.md)).
 - **Used by the streamer** (`POST /api/auth/stream/credentials`, no
   authorizer: `Authorization: Bearer <key>`, the body `<profile ID>
-  <device ID>`): when the key's hash is that device's (compared in
+  <device ID> [<camera device ID>...]`: the IDs after its own are the
+  cameras it streams for, its [Blink cameras](blink.md), up to 16, which
+  join the profile's devices too): when the key's hash is that device's (compared in
   constant time), the auth API answers as `POST /api/auth/credentials`
   does for that device (which joins the profile's devices), tiered by the
   profile owner's roles in rbacr, plus `userId`, the `sub` of who made the
@@ -468,9 +470,16 @@ Every flag is also `PRESENCE_STREAMER_<NAME>` (the service reads them from
 `bucket`, `s3-endpoint`, `source`, `device`, `encoder`, `width`, `height`,
 `fps`, `bitrate`, `rotation`, `chunk`, `motion-min` (5), `detection`
 (`auto`), `spool-max-mb`, `bwlimit`,
-`camera-label`, `location`, `detector-threads`, `state-dir`, the tools'
+`camera-label`, `location`, `detector-threads`, `state-dir`, `blink`
+(`auto`, or `off`), `blink-every` (2m), the tools'
 paths (`python`, `rclone`, `ffmpeg`, `ffprobe`, `rpicam-vid`, `detector`,
-`models`) and the Google client.
+`models`, `blink-helper`) and the Google client.
+
+## Blink cameras
+
+A streamer the app's Settings pick also fetches a Blink account's
+cameras' clips, each camera a device of its own: see
+[Blink cameras](blink.md).
 
 ## Infrastructure it needs
 

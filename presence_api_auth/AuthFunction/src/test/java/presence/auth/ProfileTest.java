@@ -242,6 +242,32 @@ class ProfileTest {
     }
 
     @Test
+    void aStreamersBlinkCamerasJoinTheProfilesDevicesUnderItsKey() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+
+        var response = profiles.handleRequest(
+                streamerCall(key, "profile_1 calm_quiet_otter brave_little_lamp swift_gentle_fox"), null);
+
+        assertEquals(200, response.getStatusCode(), response.getBody());
+        assertTrue(response.getBody().contains(
+                "\"devices\":[\"calm_quiet_otter\",\"brave_little_lamp\",\"swift_gentle_fox\"]"),
+                response.getBody());
+        // Bad camera IDs, or too many: refused, nothing added.
+        assertEquals(400, profiles.handleRequest(
+                streamerCall(key, "profile_1 calm_quiet_otter Not/A/Device"), null).getStatusCode());
+        var many = new StringBuilder("profile_1 calm_quiet_otter");
+        for (var i = 0; i <= ProfileHandler.MAX_STREAMED_DEVICES; i++) {
+            many.append(" camera_number_").append((char) ('a' + i));
+        }
+        assertEquals(400, profiles.handleRequest(streamerCall(key, many.toString()), null).getStatusCode());
+        // Its cameras don't make another device's key good.
+        assertEquals(401, profiles.handleRequest(
+                streamerCall(key, "profile_1 brave_little_lamp calm_quiet_otter"), null).getStatusCode());
+    }
+
+    @Test
     void aFreeOwnersProfileStreamsFree() {
         googleIdentities.put("tok-work", "us-east-1:work");
         var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");

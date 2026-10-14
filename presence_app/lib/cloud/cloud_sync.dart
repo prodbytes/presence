@@ -904,6 +904,57 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// The most clips a full fetch wants again ([_Fetcher.rewantClips]).
   static const int maxRewanted = 100;
 
+  /// A small JSON file of another device of the profile
+  /// (`devices/<deviceId>/<name>`), sealed with that device's key, so only
+  /// the profile's devices open it: how the app asks a streamer to log in
+  /// to Blink (`blink.json`). False when it can't be sent (signed out, not
+  /// premium, the device's key not known yet: it's asked for).
+  Future<bool> putDeviceFile(
+    String deviceId,
+    String name,
+    Map<String, Object?> json,
+  ) async {
+    final key = seal.keys.keyOf(deviceId);
+    if (key == null) {
+      seal.keys.want(deviceId);
+      return false;
+    }
+    final session = await _actions._session();
+    if (session == null) return false;
+    final sealed = SealFormat.sealSync(
+      Uint8List.fromList(utf8.encode(jsonEncode(json))),
+      key,
+      deviceId,
+    );
+    await session.put('devices/$deviceId/$name', sealed, sealedType);
+    return true;
+  }
+
+  /// A device's sealed JSON file ([putDeviceFile]), opened: a streamer's
+  /// Blink status (`blink-status.json`). Null when there's none, or it
+  /// can't be had or opened yet.
+  Future<Map<String, Object?>?> getDeviceFile(
+    String deviceId,
+    String name,
+  ) async {
+    final session = await _actions._session();
+    if (session == null) return null;
+    final Uint8List sealed;
+    try {
+      sealed = await session.get('devices/$deviceId/$name');
+    } catch (_) {
+      return null;
+    }
+    try {
+      final plain = await seal.open(sealed);
+      final json = jsonDecode(utf8.decode(plain));
+      return json is Map ? json.cast<String, Object?>() : null;
+    } catch (e) {
+      debugPrint('Presence: devices/$deviceId/$name doesn\'t open: $e');
+      return null;
+    }
+  }
+
   /// The content type of sealed media in the bucket ([MediaSeal]): its
   /// thumbnails, tagged frames and recordings.
   static const String sealedType = 'application/octet-stream';
