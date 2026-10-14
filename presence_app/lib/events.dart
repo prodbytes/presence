@@ -128,6 +128,10 @@ class AppEvent {
   /// when it's saved; null on events saved before events had one.
   String? os;
 
+  /// The total memory of the device that recorded the event, in MB
+  /// (`deviceMemoryMb`), when it says; for the device list.
+  int? memoryMb;
+
   /// When the event was deleted, with every other event of its device
   /// (`Persistence.deleteDevice`): a soft delete. The record stays, with
   /// this time, in storage and in the cloud, so the deletion syncs to the
@@ -149,6 +153,7 @@ class AppEvent {
     'profileId': profileId,
     'location': location?.toJson(),
     if (os != null) 'os': os,
+    if (memoryMb != null) 'memoryMb': memoryMb,
     if (deletedAt case final at?) deletedAtField: at.millisecondsSinceEpoch,
   };
 
@@ -206,7 +211,15 @@ class AppEvent {
       ?..location = DeviceLocation.fromJson(record['location'])
       ..profileId = profileOf(record)
       ..os = osOf(record)
+      ..memoryMb = memoryOf(record)
       ..deletedAt = deletedAtOf(record);
+  }
+
+  /// The total memory (MB) of the device a stored event was recorded on;
+  /// null if it doesn't say.
+  static int? memoryOf(Map<String, Object?> record) {
+    final mb = record['memoryMb'];
+    return mb is num && mb > 0 ? mb.toInt() : null;
   }
 
   /// The operating system a stored event was recorded on; null if it

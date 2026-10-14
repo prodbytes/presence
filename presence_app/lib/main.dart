@@ -29,6 +29,7 @@ import 'config.dart';
 import 'consent/consent_screen.dart';
 import 'event_details.dart';
 import 'cameras/cameras.dart';
+import 'device_memory.dart';
 import 'events.dart';
 import 'home/home_screen.dart';
 import 'identity/join_link.dart';
@@ -241,6 +242,13 @@ class _PresenceAppState extends State<PresenceApp> {
       now: widget.now,
     );
     _location.init().ignore();
+    // This device's memory: on its events (the device list), and too
+    // little of it keeps recognition off here.
+    deviceMemoryMb().then((mb) {
+      if (!mounted || mb == null) return;
+      _persistence.memoryMb = mb;
+      _recognizer.totalMemoryMb = mb;
+    }).ignore();
     // The devices whose events were hidden here (the Profile tab).
     _persistence.loadHiddenDevices().then((hidden) {
       if (mounted) _log.hiddenDevices = {...hidden, ..._log.hiddenDevices};

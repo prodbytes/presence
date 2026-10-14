@@ -174,7 +174,9 @@ void main() {
                 child: ProfileDevices(
                   profile: profile,
                   now: () => noon,
-                  devices: [(id: phone, os: 'Android', lastEvent: noon)],
+                  devices: [
+                    (id: phone, os: 'Android', lastEvent: noon, memoryMb: null),
+                  ],
                 ),
               ),
             ),
