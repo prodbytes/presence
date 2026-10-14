@@ -61,7 +61,11 @@ type options struct {
 	width, height, fps, bitrate, rotation, spoolMaxMB, threads         int
 	motionMin                                                          float64
 	chunk                                                              time.Duration
-	detector, models, python, rclone, ffmpeg, ffprobe, rpicam          string
+	// Blink (specs/streamer.md, "Blink cameras"): auto or off; the helper
+	// script; how often clips are fetched.
+	blink, blinkHelper                                        string
+	blinkEvery                                                time.Duration
+	detector, models, python, rclone, ffmpeg, ffprobe, rpicam string
 }
 
 // env is the PRESENCE_STREAMER_<name> setting, or def.
@@ -221,6 +225,13 @@ func parse(name string, args []string) (*options, *flag.FlagSet) {
 	fs.StringVar(&o.detector, "detector", env("DETECTOR", beside("presence-detect.py", "/usr/lib/presence-streamer/presence-detect.py")), "the detector script")
 	fs.StringVar(&o.models, "models", env("MODELS", beside("models", "/usr/share/presence-streamer/models")), "the detector's models folder")
 	fs.StringVar(&o.python, "python", env("PYTHON", "python3"), "python3")
+	fs.StringVar(&o.blink, "blink", env("BLINK", "auto"), "Blink cameras: auto (when the app's Settings pick this streamer) or off")
+	fs.StringVar(&o.blinkHelper, "blink-helper", env("BLINK_HELPER", beside("presence-blink.py", "/usr/lib/presence-streamer/presence-blink.py")), "the Blink helper script")
+	blinkEvery, err := time.ParseDuration(env("BLINK_EVERY", "2m"))
+	if err != nil {
+		blinkEvery = 2 * time.Minute
+	}
+	fs.DurationVar(&o.blinkEvery, "blink-every", blinkEvery, "how often Blink's clips are fetched")
 	fs.StringVar(&o.rclone, "rclone", env("RCLONE", "rclone"), "rclone")
 	fs.StringVar(&o.ffmpeg, "ffmpeg", env("FFMPEG", "ffmpeg"), "ffmpeg")
 	fs.StringVar(&o.ffprobe, "ffprobe", env("FFPROBE", "ffprobe"), "ffprobe")
@@ -726,6 +737,8 @@ func streamCamera(ctx context.Context, o *options, s *state.State, sess *session
 	}()
 
 	var wg sync.WaitGroup
+	// Blink's cameras, when this streamer is the one the app picked.
+	startBlink(ctx, o, s.DeviceID, key, sess, folder, st, &wg, cancel, logf)
 	wg.Add(2)
 	go func() {
 		defer wg.Done()

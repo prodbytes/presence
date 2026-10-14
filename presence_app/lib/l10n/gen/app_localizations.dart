@@ -856,6 +856,126 @@ abstract class AppLocalizations {
   /// **'Your account'**
   String get authYourAccount;
 
+  /// No description provided for @blinkAbout.
+  ///
+  /// In en, this message translates to:
+  /// **'A Linux streamer of yours (a Raspberry Pi) fetches your Blink cameras\' clips: each camera becomes a device, and its clips with a person or an animal become events.'**
+  String get blinkAbout;
+
+  /// No description provided for @blinkConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect'**
+  String get blinkConnect;
+
+  /// No description provided for @blinkConnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to Blink as {account}. Its cameras:'**
+  String blinkConnected(String account);
+
+  /// No description provided for @blinkDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get blinkDisconnect;
+
+  /// No description provided for @blinkEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Blink account email'**
+  String get blinkEmail;
+
+  /// No description provided for @blinkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Blink: {error}'**
+  String blinkError(String error);
+
+  /// No description provided for @blinkInstalling.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing Blink support on the streamer (once)…'**
+  String get blinkInstalling;
+
+  /// No description provided for @blinkLastFetch.
+  ///
+  /// In en, this message translates to:
+  /// **'Clips last fetched at {time}.'**
+  String blinkLastFetch(String time);
+
+  /// No description provided for @blinkLoggingIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Logging in to Blink…'**
+  String get blinkLoggingIn;
+
+  /// No description provided for @blinkNoCameras.
+  ///
+  /// In en, this message translates to:
+  /// **'No cameras yet.'**
+  String get blinkNoCameras;
+
+  /// No description provided for @blinkNoStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up a Raspberry Pi streamer first (Profile › Stream from a Raspberry Pi); it fetches the Blink cameras\' clips.'**
+  String get blinkNoStreamer;
+
+  /// No description provided for @blinkNotSent.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t send it: the streamer\'s key isn\'t here yet, or cloud sync is off. Try again in a minute.'**
+  String get blinkNotSent;
+
+  /// No description provided for @blinkOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected to Blink.'**
+  String get blinkOff;
+
+  /// No description provided for @blinkPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'Blink password'**
+  String get blinkPassword;
+
+  /// No description provided for @blinkPasswordNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Sealed with the streamer\'s key (only your devices can open it) and deleted once it has logged in; it keeps only Blink\'s token.'**
+  String get blinkPasswordNote;
+
+  /// No description provided for @blinkPin.
+  ///
+  /// In en, this message translates to:
+  /// **'PIN'**
+  String get blinkPin;
+
+  /// No description provided for @blinkPinRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Blink sent a PIN to {account}\'s email or phone: enter it here.'**
+  String blinkPinRequired(String account);
+
+  /// No description provided for @blinkSendPin.
+  ///
+  /// In en, this message translates to:
+  /// **'Send PIN'**
+  String get blinkSendPin;
+
+  /// No description provided for @blinkStreamer.
+  ///
+  /// In en, this message translates to:
+  /// **'The streamer that fetches them'**
+  String get blinkStreamer;
+
+  /// No description provided for @blinkWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Sent to {device}; it looks every 30 s…'**
+  String blinkWaiting(String device);
+
   /// No description provided for @cameraActionAll.
   ///
   /// In en, this message translates to:
@@ -3057,6 +3177,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{percent} % sure'**
   String settingsAutoTagValue(int percent);
+
+  /// No description provided for @settingsBlinkSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Blink cameras'**
+  String get settingsBlinkSection;
 
   /// No description provided for @settingsBrightness.
   ///

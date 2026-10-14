@@ -268,6 +268,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /** The streamer's route, which has no Google token: the stream key is its proof. */
     static final String STREAM_CREDENTIALS = "POST /api/auth/stream/credentials";
 
+    /** The most cameras one streamer streams for (its Blink cameras). */
+    static final int MAX_STREAMED_DEVICES = 16;
+
     /** The longest device ID taken. */
     static final int MAX_DEVICE_ID = 64;
 
@@ -423,7 +426,10 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
     /**
      * {@code POST /api/auth/stream/credentials}, the streamer's, with no
      * Google token: {@code Authorization: Bearer <stream key>} and the body
-     * {@code <profile ID> <device ID>}. When the key is the device's, the
+     * {@code <profile ID> <device ID> [<camera device ID>...]}: the device
+     * IDs after its own are the cameras it streams for (Blink cameras, up
+     * to {@link #MAX_STREAMED_DEVICES}), which join the profile's devices
+     * too, under its key. When the key is the device's, the
      * profile's credentials, as {@code POST /api/auth/credentials} answers
      * them for that device, tiered by the profile owner's roles, with
      * {@code "userId"}, the Google {@code sub} of who made the key. Any
@@ -433,10 +439,13 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         if (!configured) {
             return notConfigured();
         }
-        var parts = body == null ? new String[0] : body.split(" ");
+        var parts = body == null ? new String[0] : body.strip().split(" ");
         // The key is the check; this only keeps junk out of the table's key.
-        if (parts.length != 2 || !PROFILE_ID.matcher(parts[0]).matches() || !validDevice(parts[1])) {
-            return response(400, "{\"error\":\"the body must be <profile ID> <device ID>\"}");
+        var cameras = parts.length < 2 ? List.<String>of() : List.of(parts).subList(2, parts.length);
+        if (parts.length < 2 || !PROFILE_ID.matcher(parts[0]).matches() || !validDevice(parts[1])
+                || cameras.size() > MAX_STREAMED_DEVICES
+                || !cameras.stream().allMatch(ProfileHandler::validDevice)) {
+            return response(400, "{\"error\":\"the body must be <profile ID> <device ID> [<camera device ID>...]\"}");
         }
         var profileId = parts[0];
         var device = parts[1];
@@ -459,6 +468,12 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var token = backend.openIdToken(profile.identityId(), profile.id(), null, premium ? PREMIUM : FREE, false);
         backend.allowLiveSync(profile.identityId());
         var devices = profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
+        // The cameras it streams for (Blink's): devices of the profile too.
+        for (var camera : cameras) {
+            if (!camera.equals(device)) {
+                devices = profiles.store().addDevice(profile.id(), camera, PREMIUM_DEVICES);
+            }
+        }
         var subject = stored.get().subject();
         return response(200, credentialsAnswer(profile, token, premium, devices,
                 subject == null ? "" : ",\"userId\":" + Json.string(subject)));

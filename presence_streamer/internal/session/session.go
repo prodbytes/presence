@@ -36,7 +36,10 @@ type Session struct {
 	RefreshToken string
 	ProfileID    string
 	DeviceID     string
-	Now          func() time.Time
+	// Cameras are the devices it streams for (its Blink cameras): with a
+	// stream key, they join the profile's devices at each renewal.
+	Cameras func() []string
+	Now     func() time.Time
 
 	mu     sync.Mutex
 	creds  presence.Credentials
@@ -73,8 +76,8 @@ func Check(ctx context.Context, api *presence.API, idToken, profileID, deviceID 
 
 // CheckKey gets the profile's credentials with the device's stream key; the
 // profile must be premium.
-func CheckKey(ctx context.Context, api *presence.API, key, profileID, deviceID string) (presence.Credentials, error) {
-	creds, err := api.StreamCredentials(ctx, key, profileID, deviceID)
+func CheckKey(ctx context.Context, api *presence.API, key, profileID, deviceID string, cameras ...string) (presence.Credentials, error) {
+	creds, err := api.StreamCredentials(ctx, key, profileID, deviceID, cameras...)
 	if err != nil {
 		return creds, err
 	}
@@ -87,7 +90,11 @@ func CheckKey(ctx context.Context, api *presence.API, key, profileID, deviceID s
 // renew gets everything anew. Callers hold mu.
 func (s *Session) renew(ctx context.Context) error {
 	if s.StreamKey != "" {
-		creds, err := CheckKey(ctx, s.API, s.StreamKey, s.ProfileID, s.DeviceID)
+		var cameras []string
+		if s.Cameras != nil {
+			cameras = s.Cameras()
+		}
+		creds, err := CheckKey(ctx, s.API, s.StreamKey, s.ProfileID, s.DeviceID, cameras...)
 		if err != nil {
 			return err
 		}
@@ -116,6 +123,14 @@ func (s *Session) renew(ctx context.Context) error {
 	}
 	s.creds, s.aws, s.claims = creds, aws, claims
 	return nil
+}
+
+// Register renews now, so new cameras (Cameras) join the profile's
+// devices at once.
+func (s *Session) Register(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.renew(ctx)
 }
 
 // AWS is current AWS credentials for the profile's folder, renewed five

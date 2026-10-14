@@ -61,6 +61,7 @@ for arch in armhf arm64; do
   (cd "$src" && GOOS=linux GOARCH=$goarch GOARM=$goarm CGO_ENABLED=0 \
     go build -trimpath -buildvcs=false -ldflags "$ldflags" -o "$root/$dir/presence-streamer" .)
   install -m 755 "$src/detector/presence-detect.py" "$dir/presence-detect.py"
+  install -m 755 "$src/detector/presence-blink.py" "$dir/presence-blink.py"
   install -m 644 "$out"/models/yolov4-tiny.* "$dir/models/"
   install -m 644 "$src/README.md" "$dir/README.md"
   tar -czf "$out/presence-streamer_${VERSION}_$arch.tar.gz" -C "$stage" presence-streamer
@@ -72,6 +73,7 @@ for arch in armhf arm64; do
       "$pkg/usr/share/doc/presence-streamer"
     install -m 755 "$dir/presence-streamer" "$pkg/usr/bin/presence-streamer"
     install -m 755 "$dir/presence-detect.py" "$pkg/usr/lib/presence-streamer/presence-detect.py"
+    install -m 755 "$dir/presence-blink.py" "$pkg/usr/lib/presence-streamer/presence-blink.py"
     install -m 644 "$dir"/models/* "$pkg/usr/share/presence-streamer/models/"
     install -m 644 packaging/streamer/presence-streamer.service "$pkg/lib/systemd/system/"
     install -m 644 packaging/streamer/default "$pkg/etc/default/presence-streamer"

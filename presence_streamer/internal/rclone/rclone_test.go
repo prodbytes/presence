@@ -2,6 +2,7 @@ package rclone
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -18,6 +19,18 @@ func creds(context.Context) (presence.AWS, error) {
 	return presence.AWS{AccessKeyID: "AK", SecretKey: "SECRETKEY", SessionToken: "ST"}, nil
 }
 
+// A missing object is os.ErrNotExist.
+func TestGetOfAMissingObjectIsNotExist(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "rclone")
+	os.WriteFile(fake, []byte("#!/bin/sh\necho 'ERROR : blink.json: object not found' >&2\nexit 3\n"), 0o755)
+	f := &Folder{Rclone: fake, Config: "/dev/null", Bucket: "b", Identity: "us-east-1:abc", Region: "us-east-1", Credentials: creds}
+	err := f.Get(context.Background(), "devices/d/blink.json", filepath.Join(dir, "x"))
+	if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("got %v, want os.ErrNotExist", err)
+	}
+}
+
 // A fake rclone that writes its arguments and S3 environment to a file.
 func TestCommandsKeepSecretsOffTheCommandLine(t *testing.T) {
 	dir := t.TempDir()
@@ -31,12 +44,14 @@ func TestCommandsKeepSecretsOffTheCommandLine(t *testing.T) {
 	}
 	f.Move(ctx, "ingest/d/x.mp4", "media/x.mp4")
 	f.Delete(ctx, "ingest/d/y.mp4")
+	f.Get(ctx, "devices/d/blink.json", "/spool/blink.json")
 	data, _ := os.ReadFile(log)
 	out := string(data)
 	for _, want := range []string{
 		"ARGS copyto /spool/x.sealed :s3:b/us-east-1:abc/ingest/d/x.mp4 --header-upload Content-Type: application/octet-stream --config /dev/null --s3-no-check-bucket",
 		"ARGS moveto :s3:b/us-east-1:abc/ingest/d/x.mp4 :s3:b/us-east-1:abc/media/x.mp4",
 		"ARGS deletefile :s3:b/us-east-1:abc/ingest/d/y.mp4",
+		"ARGS copyto :s3:b/us-east-1:abc/devices/d/blink.json /spool/blink.json",
 		"RCLONE_S3_SECRET_ACCESS_KEY=SECRETKEY",
 		"RCLONE_S3_SESSION_TOKEN=ST",
 		"RCLONE_S3_STORAGE_CLASS=INTELLIGENT_TIERING",

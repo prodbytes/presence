@@ -91,6 +91,8 @@
     90 % (that version's default) reads as the new 85 %, once: saved
     again as version 2, a 90 % chosen later stays. A stored level under
     50 % reads as 50 %.
+- **Blink cameras** section, last (premium, cloud sync): see
+  [Blink cameras](blink.md).
 - **Language** section, after History (see [Languages](i18n.md)): an
   **App language** picker: Same as the device (default), English,
   Español, Português; the app switches at once. Stored as `language:

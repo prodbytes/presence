@@ -23,6 +23,8 @@ abstract final class DeviceOs {
       'macOS' => Icons.laptop_mac,
       'Windows' => Icons.desktop_windows,
       'Linux' => Icons.computer,
+      // A Blink camera a streamer fetches for (specs/blink.md).
+      'Blink' => Icons.videocam_outlined,
       _ => Icons.devices_other,
     };
   }
