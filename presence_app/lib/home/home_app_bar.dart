@@ -6,7 +6,7 @@ import '../auth/rbacr_client.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
 import '../cloud/cloud_sync.dart';
-import '../delete_device.dart';
+import '../show_device.dart';
 import '../events.dart';
 import '../home_tabs.dart';
 import '../l10n/l10n.dart';
@@ -33,7 +33,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.log,
     this.sync,
     this.deviceId,
-    this.deleteDevice,
+    this.showDevice,
   });
 
   final HomeTabs tabs;
@@ -48,7 +48,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final EventLog log;
   final CloudSync? sync;
   final String? deviceId;
-  final DeleteDevice? deleteDevice;
+  final ShowDevice? showDevice;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -120,7 +120,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
             profiles: profiles,
             log: log,
             deviceId: deviceId,
-            deleteDevice: deleteDevice,
+            showDevice: showDevice,
           ),
           const SizedBox(width: 4),
         ],

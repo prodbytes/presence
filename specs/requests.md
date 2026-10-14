@@ -5495,3 +5495,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        in the error color, its tooltip the reason, until the next tap;
        done, the brain shows the result. (The spinner was there.) Spec:
        [Recognition](recognition.md).
+
+395. **Hide or show a device's events instead of deleting it.** (2026-10-14)
+     - Asked: in the Profile view's device list, the button should not
+       delete but only hide or show the device's events; then the device
+       name labels a little smaller, as they broke on a small phone; then
+       update the iPhone.
+     - Changed: the delete button became an eye button on every device's
+       row (this one's too) that hides or shows its events on this device
+       only, remembered across restarts; nothing is deleted and the device
+       stays listed. The delete dialog and its strings went. Device IDs in
+       the list are `bodyMedium` (14 sp), not `bodyLarge`. Specs:
+       [Hiding a device](device-hiding.md) (new),
+       [Device deletion](device-deletion.md), [Sign-in](sign-in.md),
+       [Devices, users and places](devices-users-places.md),
+       [Camera](camera.md), [Premium](premium.md).

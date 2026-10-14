@@ -184,6 +184,31 @@ class Persistence implements DeviceSettings {
   /// Settings-store key of this device's location (`DeviceLocation`).
   static const String _locationKey = 'location';
 
+  /// Settings-store key of the devices whose events are hidden here
+  /// (`EventLog.hiddenDevices`).
+  static const String _hiddenDevicesKey = 'hiddenDevices';
+
+  /// The devices whose events were hidden here; none saved, none.
+  Future<Set<String>> loadHiddenDevices() async {
+    final json = await (await _store).getSettings(_hiddenDevicesKey);
+    return {
+      for (final d in (json?['devices'] as List?) ?? const [])
+        if (d is String) d,
+    };
+  }
+
+  /// Saves the devices whose events are hidden here. Only here: each
+  /// device chooses what it shows.
+  Future<void> saveHiddenDevices(Set<String> devices) {
+    final write = () async {
+      await (await _store).putSettings(_hiddenDevicesKey, {
+        'devices': devices.toList()..sort(),
+      });
+    }();
+    _track(write);
+    return write;
+  }
+
   /// The saved location of this device, if any.
   Future<Map<String, Object?>?> loadLocation() async =>
       (await _store).getSettings(_locationKey);

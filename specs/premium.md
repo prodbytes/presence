@@ -160,8 +160,8 @@ they publish, receive and store events as before. Their events are
   (`CloudSync.noticeDevices`). A device is listed before its events can
   reach another, since it needs credentials to send them. Otherwise the list is read
   again with each new set of credentials (hourly) or a change of tier.
-- **Deleting a device** ([Device deletion](device-deletion.md)) takes it
-  off the list (`POST /api/auth/profile/devices/remove`, the device ID
+- **Deleting a device** ([Device deletion](device-deletion.md); no button
+  does it now) takes it off the list (`POST /api/auth/profile/devices/remove`, the device ID
   as the body; `CloudSync.releaseDevice`), so the next one takes its
   place. It's added again, last, if it asks for credentials again.
 

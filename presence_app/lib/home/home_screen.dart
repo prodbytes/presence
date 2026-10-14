@@ -18,7 +18,7 @@ import '../camera_feeds.dart';
 import '../clips.dart';
 import '../cloud/cloud_sync.dart';
 import '../config.dart';
-import '../delete_device.dart';
+import '../show_device.dart';
 import '../device_events.dart';
 import '../events.dart';
 import '../home_tabs.dart';
@@ -70,7 +70,7 @@ class HomeScreen extends StatefulWidget {
     this.join,
     this.onJoinHandled,
     this.tabMemory,
-    this.deleteDevice,
+    this.showDevice,
     this.screenOff,
   });
 
@@ -78,9 +78,9 @@ class HomeScreen extends StatefulWidget {
   /// goes on, where the platform can.
   final ScreenOff? screenOff;
 
-  /// Deletes another of the profile's devices: from the account sheet's
-  /// device list, after a confirmation.
-  final DeleteDevice? deleteDevice;
+  /// Shows or hides a device's events here: from the account sheet's
+  /// device list.
+  final ShowDevice? showDevice;
 
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
@@ -554,7 +554,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         sync: widget.sync,
         log: widget.log,
         deviceId: widget.deviceId,
-        deleteDevice: widget.deleteDevice,
+        showDevice: widget.showDevice,
       ),
       body: Stack(
         children: [
@@ -682,7 +682,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           payments: widget.payments,
                           log: widget.log,
                           deviceId: widget.deviceId,
-                          deleteDevice: widget.deleteDevice,
+                          showDevice: widget.showDevice,
                         ),
                       ),
                     ),

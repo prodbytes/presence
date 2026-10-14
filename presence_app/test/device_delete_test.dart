@@ -12,7 +12,6 @@ import 'package:presence_app/camera_feeds.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/live_sync.dart';
 import 'package:presence_app/config.dart';
-import 'package:presence_app/delete_device.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/recognition/suggestion.dart';
@@ -49,29 +48,12 @@ void main() {
     expect(AppEvent.deletedAtOf({'deletedAt': 'soon'}), isNull);
   });
 
-  test('deviceEventCount counts the device\'s events in the profile', () {
-    final events = [
-      eventOf('brave_quiet_lamp'),
-      eventOf('brave_quiet_lamp', minutesAgo: 1),
-      eventOf('brave_quiet_lamp', profile: 'other_profile'),
-      eventOf('zesty_calm_kettle'),
-    ];
-    expect(
-      deviceEventCount(
-        events,
-        deviceId: 'brave_quiet_lamp',
-        profileId: 'automatic_paranoid_axolotl',
-      ),
-      2,
-    );
-  });
-
   group('the account sheet', () {
     late FakeAuthService auth;
     late RolesService roles;
     late StreamController<AppEvent> bus;
     late EventLog log;
-    late List<String> deleted;
+    late List<(String, bool)> shows;
 
     setUp(() async {
       auth = FakeAuthService.signedIn();
@@ -90,7 +72,7 @@ void main() {
           eventOf('brave_quiet_lamp', minutesAgo: 1),
           eventOf('happy_tidy_gadget', minutesAgo: 2),
         ]);
-      deleted = [];
+      shows = [];
     });
 
     tearDown(() {
@@ -116,14 +98,12 @@ void main() {
                 roles: roles,
                 log: log,
                 deviceId: 'happy_tidy_gadget',
-                deleteDevice: (id) async {
-                  deleted.add(id);
-                  // As Persistence.deleteDevice: out of the log.
-                  log.remove({
-                    for (final e in log.events)
-                      if (e.deviceId == id) e.id,
-                  });
-                  return 2;
+                showDevice: (id, shown) {
+                  shows.add((id, shown));
+                  // As the app does: the log hides its events.
+                  log.hiddenDevices = shown
+                      ? ({...log.hiddenDevices}..remove(id))
+                      : {...log.hiddenDevices, id};
                 },
               ),
             ),
@@ -133,76 +113,58 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('every other device has a delete button; this one has none', (
-      tester,
-    ) async {
+    testWidgets('every device has a hide button, this one too; none '
+        'deletes', (tester) async {
       await show(tester);
-      expect(
-        find.byKey(const Key('profile-device-delete-brave_quiet_lamp')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('profile-device-delete-happy_tidy_gadget')),
-        findsNothing,
-      );
+      for (final device in ['brave_quiet_lamp', 'happy_tidy_gadget']) {
+        expect(find.byKey(Key('profile-device-hide-$device')), findsOneWidget);
+      }
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
     for (final scale in [1.0, 2.0]) {
-      testWidgets('the delete button fits 320 dp at ${scale}x text', (
+      testWidgets('the hide button fits 320 dp at ${scale}x text', (
         tester,
       ) async {
         await show(tester, scale: scale);
         expect(tester.takeException(), isNull);
         final button = find.byKey(
-          const Key('profile-device-delete-brave_quiet_lamp'),
+          const Key('profile-device-hide-brave_quiet_lamp'),
         );
         expect(tester.getTopRight(button).dx, lessThanOrEqualTo(320));
       });
     }
 
-    testWidgets('a confirmation names the device and its events; Cancel '
-        'keeps it, Delete deletes it and it leaves the list', (tester) async {
+    testWidgets('hide hides its events, the device stays listed; show '
+        'shows them again', (tester) async {
       await show(tester);
-      expect(find.text('2 devices'), findsOneWidget);
+      List<String?> devices() => [
+        for (final e in log.eventsOf('automatic_paranoid_axolotl')) e.deviceId,
+      ];
+      expect(devices(), contains('brave_quiet_lamp'));
 
       await tester.tap(
-        find.byKey(const Key('profile-device-delete-brave_quiet_lamp')),
+        find.byKey(const Key('profile-device-hide-brave_quiet_lamp')),
       );
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('delete-device-dialog')), findsOneWidget);
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('delete-device-message')))
-            .data,
-        'Delete device brave_quiet_lamp? Its 2 events will be hidden on '
-        'every device.',
-      );
-      expect(tester.takeException(), isNull, reason: 'fits 320 dp');
-
-      await tester.tap(find.byKey(const Key('delete-device-cancel')));
-      await tester.pumpAndSettle();
-      expect(deleted, isEmpty);
+      expect(shows, [('brave_quiet_lamp', false)]);
+      expect(devices(), isNot(contains('brave_quiet_lamp')));
       expect(find.text('2 devices'), findsOneWidget);
+      expect(find.byTooltip("Show brave_quiet_lamp's events"), findsOneWidget);
 
       await tester.tap(
-        find.byKey(const Key('profile-device-delete-brave_quiet_lamp')),
+        find.byKey(const Key('profile-device-show-brave_quiet_lamp')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('delete-device-confirm')));
-      await tester.pumpAndSettle();
-      expect(deleted, ['brave_quiet_lamp']);
+      expect(shows.last, ('brave_quiet_lamp', true));
+      expect(devices(), contains('brave_quiet_lamp'));
       expect(
-        find.byKey(const Key('profile-device-brave_quiet_lamp')),
-        findsNothing,
-      );
-      expect(find.text('1 device'), findsOneWidget);
-      expect(
-        find.text('Deleted brave_quiet_lamp: 2 events hidden'),
+        find.byKey(const Key('profile-device-hide-brave_quiet_lamp')),
         findsOneWidget,
       );
     });
 
-    testWidgets('without a delete, no delete buttons', (tester) async {
+    testWidgets('without a showDevice, no eye buttons', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -217,7 +179,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const Key('profile-device-delete-brave_quiet_lamp')),
+        find.byKey(const Key('profile-device-hide-brave_quiet_lamp')),
         findsNothing,
       );
     });
@@ -248,8 +210,7 @@ void main() {
       bus.close();
     });
 
-    testWidgets('no cell has a delete button: devices are deleted from '
-        'the account sheet', (tester) async {
+    testWidgets('no cell has a delete button', (tester) async {
       tester.view.physicalSize = const Size(320, 640);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -276,8 +237,10 @@ void main() {
     });
   });
 
-  testWidgets('in the app: deleting a device from the account sheet hides '
-      'its events from the timeline and its count', (tester) async {
+  testWidgets('in the app: hiding a device from the account sheet hides '
+      'its events from the timeline and its count, after a restart too', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -301,19 +264,18 @@ void main() {
       );
     }
     seed!.close();
-    await tester.pumpWidget(
-      PresenceApp(
-        consentGiven: true,
-        cameras: openFakes(const []),
-        storage: storage,
-        mediaIo: fakeMediaIo,
-        now: () => noon,
-        auth: FakeAuthService.signedIn(),
-        rolesClient: FakeRolesClient(),
-        mapTiles: const SizedBox(),
-        locator: NoLocation(),
-      ),
+    Widget app() => PresenceApp(
+      consentGiven: true,
+      cameras: openFakes(const []),
+      storage: storage,
+      mediaIo: fakeMediaIo,
+      now: () => noon,
+      auth: FakeAuthService.signedIn(),
+      rolesClient: FakeRolesClient(),
+      mapTiles: const SizedBox(),
+      locator: NoLocation(),
     );
+    await tester.pumpWidget(app());
     await tester.pumpAndSettle();
     await settleStorage(tester);
     await tester.pumpAndSettle();
@@ -326,23 +288,14 @@ void main() {
 
     await tester.tap(find.byKey(const Key('account-button')));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('profile-device-delete-brave_phone')),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.byKey(const Key('delete-device-message'))).data,
-      'Delete device brave_phone? Its 2 events will be hidden on every '
-      'device.',
-    );
-    await tester.tap(find.byKey(const Key('delete-device-confirm')));
+    await tester.tap(find.byKey(const Key('profile-device-hide-brave_phone')));
     await tester.pump();
     await settleStorage(tester);
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('profile-device-brave_phone')), findsNothing);
+    // Still listed, to show again.
     expect(
-      find.byKey(const Key('profile-device-delete-brave_phone')),
-      findsNothing,
+      find.byKey(const Key('profile-device-show-brave_phone')),
+      findsOneWidget,
     );
 
     // The account is a tab: back to Monitoring.
@@ -352,6 +305,17 @@ void main() {
     expect(find.text('Phone door'), findsNothing);
     final [shown, all] = before.split(' / ').map(int.parse).toList();
     expect(count(), '${shown - 2} / ${all - 2}');
+
+    // Remembered: a restart keeps them hidden.
+    await tester.pumpWidget(const SizedBox());
+    await settleStorage(tester);
+    await tester.pumpWidget(app());
+    await tester.pumpAndSettle();
+    await settleStorage(tester);
+    await tester.pumpAndSettle();
+    await showEvents(tester);
+    await revealSystemEvents(tester);
+    expect(find.text('Phone motion'), findsNothing);
   });
 
   group('with storage and cloud sync', () {

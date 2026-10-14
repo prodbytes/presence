@@ -56,11 +56,6 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authCheckingRoles => 'Verificando funções…';
 
   @override
-  String authDeleteDevice(String device) {
-    return 'Excluir $device';
-  }
-
-  @override
   String authDeviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -107,6 +102,11 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get authHiddenTooltip =>
       'Passou do limite de dispositivos do plano: sincroniza, mas os eventos dele ficam ocultos aqui';
+
+  @override
+  String authHideDevice(String device) {
+    return 'Ocultar os eventos de $device';
+  }
 
   @override
   String get authLinkAnother => 'Vincular outra conta';
@@ -295,6 +295,11 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String authRolesSemantics(String roles) {
     return 'Funções: $roles';
+  }
+
+  @override
+  String authShowDevice(String device) {
+    return 'Mostrar os eventos de $device';
   }
 
   @override
@@ -1866,46 +1871,6 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get settingsCoordinatesMinutes => 'Minutos e segundos vão até 59';
-
-  @override
-  String get settingsDeleteDeviceCancel => 'Cancelar';
-
-  @override
-  String get settingsDeleteDeviceConfirm => 'Apagar';
-
-  @override
-  String settingsDeleteDeviceDone(String deviceId, int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count eventos ocultos',
-      one: '1 evento oculto',
-    );
-    return '$deviceId apagado: $_temp0';
-  }
-
-  @override
-  String settingsDeleteDeviceFailed(String deviceId) {
-    return 'Não foi possível apagar $deviceId';
-  }
-
-  @override
-  String settingsDeleteDeviceMessage(String deviceId, int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Seus $count eventos ficarão ocultos',
-      one: 'Seu evento ficará oculto',
-    );
-    return 'Apagar o dispositivo $deviceId? $_temp0 em todos os dispositivos.';
-  }
-
-  @override
-  String get settingsDeleteDeviceNote =>
-      'Os clipes continuam na nuvem. Se ele gravar de novo, volta a aparecer com os novos eventos.';
-
-  @override
-  String get settingsDeleteDeviceTitle => 'Apagar dispositivo?';
 
   @override
   String get settingsDevice => 'Dispositivo';

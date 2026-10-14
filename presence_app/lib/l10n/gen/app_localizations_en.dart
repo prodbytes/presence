@@ -56,11 +56,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authCheckingRoles => 'Checking roles…';
 
   @override
-  String authDeleteDevice(String device) {
-    return 'Delete $device';
-  }
-
-  @override
   String authDeviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -106,6 +101,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authHiddenTooltip =>
       'Past the plan\'s device limit: it syncs, but its events are hidden here';
+
+  @override
+  String authHideDevice(String device) {
+    return 'Hide $device\'s events';
+  }
 
   @override
   String get authLinkAnother => 'Link another account';
@@ -293,6 +293,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String authRolesSemantics(String roles) {
     return 'Roles: $roles';
+  }
+
+  @override
+  String authShowDevice(String device) {
+    return 'Show $device\'s events';
   }
 
   @override
@@ -1850,46 +1855,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsCoordinatesMinutes => 'Minutes and seconds go up to 59';
-
-  @override
-  String get settingsDeleteDeviceCancel => 'Cancel';
-
-  @override
-  String get settingsDeleteDeviceConfirm => 'Delete';
-
-  @override
-  String settingsDeleteDeviceDone(String deviceId, int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count events',
-      one: '1 event',
-    );
-    return 'Deleted $deviceId: $_temp0 hidden';
-  }
-
-  @override
-  String settingsDeleteDeviceFailed(String deviceId) {
-    return 'Could not delete $deviceId';
-  }
-
-  @override
-  String settingsDeleteDeviceMessage(String deviceId, int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Its $count events will be hidden',
-      one: 'Its 1 event will be hidden',
-    );
-    return 'Delete device $deviceId? $_temp0 on every device.';
-  }
-
-  @override
-  String get settingsDeleteDeviceNote =>
-      'Its clips stay in the cloud. If it records again, it shows again with its new events.';
-
-  @override
-  String get settingsDeleteDeviceTitle => 'Delete device?';
 
   @override
   String get settingsDevice => 'Device';

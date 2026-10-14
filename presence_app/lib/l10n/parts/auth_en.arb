@@ -36,8 +36,16 @@
     "description": "A device whose events are hidden"
   },
   "authNoEvents": "No events",
-  "authDeleteDevice": "Delete {device}",
-  "@authDeleteDevice": {
+  "authHideDevice": "Hide {device}'s events",
+  "authShowDevice": "Show {device}'s events",
+  "@authHideDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "@authShowDevice": {
     "placeholders": {
       "device": {
         "type": "String"

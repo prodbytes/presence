@@ -1,39 +1,27 @@
 # Device deletion
 
-A signed-in user can **delete another device of their profile**: every
-event it recorded moves to a **deleted** state and is hidden on every
-device of the profile. It's a soft delete: nothing in the cloud or on the
-devices is destroyed by it. **One event** is deleted the same way, from
-the end of its details or its card in the events list
-([One event](#one-event)), and **the events shown** all at once
-([Delete all](#delete-all)).
+A device's events can be **deleted**: every event it recorded moves to a
+**deleted** state and is hidden on every device of the profile. It's a
+soft delete: nothing in the cloud or on the devices is destroyed by it.
+**One event** is deleted this way, from the end of its details or its
+card in the events list ([One event](#one-event)), and **the events
+shown** all at once ([Delete all](#delete-all)).
 
 ## Where
 
-- **The account sheet's device list** ([Sign-in](sign-in.md)): each
-  device other than this one has a delete button (`delete_outline`,
-  tooltip "Delete <device ID>") at the end of its row
-  (`ProfileDevices.onDelete`,
-  [account_sheet.dart](../presence_app/lib/auth/account_sheet.dart)).
-- **Only there.** The Camera tab's All grid
-  ([Camera screen](camera.md#all-devices)) has no delete button on its
-  cells; a deleted device's cell goes from it.
-- It asks first, in a dialog ([delete_device.dart](../presence_app/lib/delete_device.dart),
-  `DeleteDeviceDialog`): **"Delete device brave_phone? Its 12 events will
-  be hidden on every device."** (the count is that device's events in the
-  profile now shown, `deviceEventCount`), with a smaller line, "Its clips
-  stay in the cloud. If it records again, it shows again with its new
-  events.", and **Cancel** / **Delete** (error-colored). After Delete a
-  snack bar says "Deleted brave_phone: 12 events hidden".
-- Signed in with a profile only (the list shows only then);
-  not in DEV. It fits a 320 dp phone, at a 2x system font too.
+- **A whole device has no delete button** any more. The account sheet's
+  device list had one; it's now a hide/show button that only hides the
+  device's events on this device ([Hiding a device](device-hiding.md)).
+  The Camera tab's All grid ([Camera screen](camera.md#all-devices)) has
+  none either.
+- `Persistence.deleteDevice` stays, and so does what it does below: the
+  devices still honor the deleted copies a device's deletion uploaded
+  (from older versions, or another device), and its events stay hidden.
 
 ## This device
 
-**This device can't be deleted:** its row has no delete button, and `Persistence.deleteDevice` does nothing for its own
-ID. Its next event (an app start, a clip) would bring it straight back.
-To stop a device appearing, sign out on it (or uninstall it), then
-delete it from another device.
+`Persistence.deleteDevice` does nothing for this device's own ID: its
+next event (an app start, a clip) would bring it straight back.
 
 ## What it does
 
@@ -152,14 +140,9 @@ setting, and the bucket expires every object after 90 days
 
 `device_delete_test.dart`:
 
-- `deletedAt` round-trips through the stored record and JSON;
-  `deviceEventCount`.
-- The account sheet: a delete button on every other device, none on this
-  one; it fits 320 dp at 1x and 2x text; the dialog's wording and count;
-  Cancel keeps the device; Delete deletes it and it leaves the list.
+- `deletedAt` round-trips through the stored record and JSON.
+- The account sheet's hide/show buttons ([Hiding a device](device-hiding.md#tests)).
 - The All grid: no cell has a delete button.
-- In the app: deleting from the account sheet hides the device's events
-  from the timeline and lowers the count.
 - With storage and cloud sync (real `Persistence`, `CloudSync`,
   `LiveSync` on fakes): the device's events and the suggestion about its
   clip are marked deleted and leave the log, the devices list, the grid's

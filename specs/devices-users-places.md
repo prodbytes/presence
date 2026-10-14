@@ -39,11 +39,9 @@ not built yet.
   and above the profile ID (see
   [Settings screen](settings.md)), above the Location section with where
   the device is (see [Device location and battery](device-location.md)).
-- **Deleting a device:** another device of the profile can be deleted
-  from the account sheet's device list or its All grid cell: its events
-  are marked deleted (`deletedAt`), synced, and hidden everywhere; it
-  reappears if it records again. This device can't be. See
-  [Device deletion](device-deletion.md).
+- **Hiding a device:** the account sheet's device list hides or shows a
+  device's events on this device only (an eye button); nothing is
+  deleted. See [Hiding a device](device-hiding.md).
 - **Adding a device:** Settings' **Add a device** shows a QR code and a
   link that open Presence on another device. That device keeps its own
   device ID (the link's is the sharing device's, never copied) and, after a

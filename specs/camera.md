@@ -135,9 +135,8 @@ profile (`CameraFeedsView.showAll`,
   device's ID (tooltip "Show this device's events"; see
   [Navigation](navigation.md)); the rest of the cell keeps opening the
   clip. Without access the label lets taps through to the cell.
-- **No delete button:** the cells don't delete devices; that's done from
-  the account sheet's device list ([Device deletion](device-deletion.md)).
-  A deleted device's cell goes.
+- **No delete button:** the cells don't delete devices
+  ([Device deletion](device-deletion.md)). A deleted device's cell goes.
 - **Which devices:** those in the event log with a device ID other than
   this one's, from the signed-in account's [profile](profiles.md)'s events
   only (signed out and in DEV, every event's). Other devices' events reach

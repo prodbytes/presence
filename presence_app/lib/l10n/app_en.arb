@@ -37,14 +37,6 @@
   "authBackupOff": "Cloud backup is off",
   "authCheckAgain": "Check again",
   "authCheckingRoles": "Checking roles…",
-  "authDeleteDevice": "Delete {device}",
-  "@authDeleteDevice": {
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
-  },
   "authDeviceCount": "{count, plural, =1{1 device} other{{count} devices}}",
   "@authDeviceCount": {
     "placeholders": {
@@ -83,6 +75,14 @@
     "description": "A device whose events are hidden"
   },
   "authHiddenTooltip": "Past the plan's device limit: it syncs, but its events are hidden here",
+  "authHideDevice": "Hide {device}'s events",
+  "@authHideDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
   "authLinkAnother": "Link another account",
   "authLinkCode": "Link code",
   "authLinkCodeHelp": "Within 10 minutes, sign in with the other Google account and enter this code under Linked accounts.",
@@ -245,6 +245,14 @@
   "@authRolesSemantics": {
     "placeholders": {
       "roles": {
+        "type": "String"
+      }
+    }
+  },
+  "authShowDevice": "Show {device}'s events",
+  "@authShowDevice": {
+    "placeholders": {
+      "device": {
         "type": "String"
       }
     }
@@ -1439,40 +1447,6 @@
   "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
   "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
   "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
-  "settingsDeleteDeviceCancel": "Cancel",
-  "settingsDeleteDeviceConfirm": "Delete",
-  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
-  "@settingsDeleteDeviceDone": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
-  "@settingsDeleteDeviceFailed": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      }
-    }
-  },
-  "settingsDeleteDeviceMessage": "Delete device {deviceId}? {count, plural, =1{Its 1 event will be hidden} other{Its {count} events will be hidden}} on every device.",
-  "@settingsDeleteDeviceMessage": {
-    "placeholders": {
-      "deviceId": {
-        "type": "String"
-      },
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "settingsDeleteDeviceNote": "Its clips stay in the cloud. If it records again, it shows again with its new events.",
-  "settingsDeleteDeviceTitle": "Delete device?",
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",
   "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",
