@@ -4,17 +4,16 @@ Members write to the administrators from the app, and read their replies
 there. Each member has **one conversation**, kept by their email; admins
 see every conversation on the [Admin tab](membership.md#the-admin-tab) and
 answer it. There are no notifications: a member sees a reply when they
-open or reload the Help tab, and an admin sees new messages when they open
+open or reload Help, and an admin sees new messages when they open
 or reload the Admin tab.
 
-## The Help tab
+## Help
 
-The **Help** tab (`HomeTab.help`, `Icons.help_outline` / `Icons.help`,
-tooltip and label "Help") sits after Settings in the bottom navigation bar,
-before the Log and Admin tabs (see [Navigation](navigation.md)). The
-navigation bar's label is the short "Help", so six tabs still fit a
-320 dp phone; the app bar names the screen **"Feedback & Help"**
-(`HomeTab.title`).
+**Help** isn't a tab any more (it took room in the navigation bar): a
+**?** button (`Icons.help_outline`, key `help-button`, tooltip "Feedback &
+Help") at the **top right of Setup and Profile** (`HomeAppBar.onHelp`)
+opens it as a page of its own over the tabs, titled **"Feedback & Help"**,
+with a back button (see [Navigation](navigation.md)).
 
 - **Who sees it:** signed-in users with access (`presence_user`, or an
   account linked to a member's profile). Never in DEV, where there are no
@@ -109,7 +108,7 @@ calls DynamoDB's JSON API, signed with SigV4
   credentials 503.
 - **Locally**, the [local cloud](local-cloud.md)'s web build has no
   Feedback table (Floci's DynamoDB answers no CORS preflight), so Help is
-  off there; in DEV there's no Help tab.
+  off there; in DEV there's no Help button.
 
 ### Known limitations
 
@@ -133,8 +132,9 @@ calls DynamoDB's JSON API, signed with SigV4
   member's query of their own conversation, never `by`; a send as the
   member; blank, long and over-the-limit messages refused; the admin's
   paged scan, its order and naming; a reply as the admin) and errors
-  (AccessDenied, no table); the tab's place and title; a member sending (Send disabled
+  (AccessDenied, no table); the button on Setup and Profile (no Help tab),
+  the page's title; a member sending (Send disabled
   while blank, the field cleared) and reading a reply after Reload; a
-  refused message keeping its text; no Help tab in DEV or without a role;
+  refused message keeping its text; no Help button in DEV or without a role;
   an admin's list (order, awaiting-reply and answered icons), opening a
   conversation and replying (it moves first, answered).

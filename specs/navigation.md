@@ -11,11 +11,9 @@ account.
   destination per tab, each an **icon over its label**, in order
   **Cams** (the camera tab; "Cáms", "Câms"; short, to fit the bar),
   **Events** (the monitoring tab: map, subjects and events)
-  and **Setup** (the settings); for signed-in members
-  (not DEV: there are no accounts) **Help**, Feedback and Help (see
-  [Feedback and Help](feedback.md)); for admins
+  and **Setup** (the settings); for admins
   (`presence_admin`, so everyone in DEV, where the anonymous user is a
-  root) a fourth, **Log**, when Settings' **Show the Log tab** switch is
+  root) a **Log** tab, when Settings' **Show the Log tab** switch is
   on: on by default in DEV, off otherwise (see [Log](log.md)); for
   signed-in admins (not DEV: there are no accounts) an **Admin** tab
   (see [Membership](membership.md#the-admin-tab)); and, signed in (not
@@ -37,27 +35,28 @@ account.
     theme's `navigationBarTheme` ([Theme](theme.md)).
   - Each destination's tooltip and screen-reader label is the tab's name
     (Profile's says who's signed in), with at least a 48 dp touch target:
-    an admin's seven tabs fit a 320 dp phone (labels are kept short for
-    that: "Help", not "Feedback & Help"; "Events", not "Monitoring";
-    "Setup", not "Settings").
+    an admin's six tabs fit a 320 dp phone (labels are kept short for
+    that: "Cams", not "Camera"; "Events", not "Monitoring"; "Setup", not
+    "Settings"; and Help is a button, not a tab).
   - **Signed out**, or signed in without access, there's no navigation
     bar: the camera shows alone (see [Sign-in](sign-in.md)).
-  - The Help, Log, Admin and Profile tabs come and go as sign-in, the
+  - The Log, Admin and Profile tabs come and go as sign-in, the
     roles or the switch change
     (the tab controller is rebuilt, staying on the open tab, or on the
     nearest tab before it if that one goes: Settings for the Log). A tab's
     controller index is its place among the shown tabs (`indexOf`), not
-    its `HomeTab.index`: with the Log hidden, the Admin tab is the fifth
-    (after Help).
+    its `HomeTab.index`: with the Log hidden, the Admin tab is the fourth
+    (after Setup).
     (The Device tab is gone: its map is a section of Settings, and the
     battery shows over the camera.)
 - **App bar** (`HomeAppBar`, `lib/home/home_app_bar.dart`):
   - **On the left, the open screen's name** (`HomeTab.title`), bold
     (22 sp, weight 700), left-aligned ("Events", "Setup",
-    "Feedback & Help", "Log", "Admin", "Profile"): the tab's label, unless
-    it has a longer name, as Help does. **No name
+    "Log", "Admin", "Profile"): the tab's label. **No name
     over the camera.** In DEV the "dev" label follows it (alone over the
     camera; see [Execution mode](execution-mode.md)).
+  - **On the right, on Setup and Profile:** a **?** button that opens
+    [Feedback and Help](feedback.md) as its own page (members, not DEV).
   - **On the right, only without access:** signed out, **Sign in**;
     signed in without a role, sign-up and the **account button** (your
     avatar), which opens the [account sheet](sign-in.md) as a bottom

@@ -625,27 +625,27 @@ void main() {
             .widget<HomeNavigationBar>(find.byType(HomeNavigationBar))
             .controller;
         await toggleLog(tester);
-        // With Help, and Profile last.
-        expect(tabs().length, 7, reason: 'with Help');
+        // Profile last; Help is a button, not a tab.
+        expect(tabs().length, 6);
         expect(
           tester.getCenter(logTab).dx,
           lessThan(tester.getCenter(adminTab).dx),
         );
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(tabs().index, HomeTab.admin.index);
+        expect(tabs().index, 4);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
         await tester.tap(logTab);
         await tester.pumpAndSettle();
-        expect(tabs().index, HomeTab.log.index);
+        expect(tabs().index, 3);
         expect(find.byKey(const Key('log-view')), findsOneWidget);
 
         // The Log tab hidden again: the Admin tab takes its place.
         await toggleLog(tester);
-        expect(tabs().length, 6, reason: 'with Help and Profile');
+        expect(tabs().length, 5, reason: 'with Profile');
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(tabs().index, 4);
+        expect(tabs().index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
@@ -807,8 +807,8 @@ void main() {
         );
         expect(
           tabs(tester).length,
-          6,
-          reason: 'with Help; the Log tab is hidden; Profile is last',
+          5,
+          reason: 'the Log tab is hidden; Profile is last',
         );
         // In the navigation bar, after Settings and before Profile.
         final settings = tester.getCenter(find.byTooltip('Setup'));
@@ -828,7 +828,7 @@ void main() {
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
         // Where the Log tab would be: indices map through the shown tabs.
-        expect(tabs(tester).index, 4);
+        expect(tabs(tester).index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
         expect(find.text('Feedback'), findsOneWidget);
         // A page of the tabs, not a screen over them.
@@ -845,7 +845,7 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsNothing);
         await tester.tap(adminTab);
         await tester.pumpAndSettle();
-        expect(tabs(tester).index, 4);
+        expect(tabs(tester).index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
@@ -902,7 +902,7 @@ void main() {
         expect(memory.tab, 'admin', reason: 'not the Log at its index');
 
         await open(memory);
-        expect(tabs(tester).index, 4);
+        expect(tabs(tester).index, 3);
         expect(find.byKey(const Key('admin-view')), findsOneWidget);
       });
 
