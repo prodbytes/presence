@@ -84,7 +84,7 @@ their data.
   and the auth API's list) and the OAuth clients.
 - [Sessions](sessions.md): Presence's own session tokens. A Google or
   Apple ID token is traded at `POST /api/auth/session` for a KMS-signed
-  JWT (1 hour, issuer `https://<site>/api/auth`, audience `presence`,
+  JWT (1 hour, issuer `https://<site>`, audience `presence`,
   the provider's identity in `idp`/`idp_sub`) and a rotating refresh
   token (60 days, reuse revokes the session); every API's authorizer and
   rbacr trust only it. Sign in with Apple's tokens are revoked at account

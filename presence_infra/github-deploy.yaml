@@ -620,6 +620,7 @@ Resources:
                   - cloudfront:PublishFunction
                   - cloudfront:DeleteFunction
                   - cloudfront:TestFunction
+                  - cloudfront:TagResource
                 Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:function/${Prefix}-*
               # Distributions by their presence:stage tag.
               - Sid: Distributions

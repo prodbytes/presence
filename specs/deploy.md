@@ -86,11 +86,13 @@ One CloudFront distribution serves the whole site, laid out like the local
   user's own token, see [Configuration](configuration.md)). After that it
   deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
   live-sync policy it attaches to each identity; `DomainName`, which makes
-  the [session](sessions.md) issuer `https://<site>/api/auth`, checked
+  the [session](sessions.md) issuer `https://<site>`, checked
   against the stack's `SessionIssuer` output; on a stage whose site
   doesn't serve that issuer's `/.well-known/openid-configuration` yet, it
-  deploys first with `SessionAuthorizer=bootstrap` and again with `on`
-  once it's served, see [Sessions](sessions.md#the-authorizers); and Sign in with Apple's
+  deploys first with `SessionAuthorizer=bootstrap`, copies the auth API's
+  issuer documents to the site's bucket (every deploy does), and deploys
+  again with `on` once they're served, see
+  [Sessions](sessions.md#the-authorizers); and Sign in with Apple's
   `APPLE_CLIENT_IDS` and, when set, its key: `APPLE_TEAM_ID`,
   `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`, also repository
   variables in CI) and the
@@ -120,8 +122,8 @@ One CloudFront distribution serves the whole site, laid out like the local
   must be the [legal pages](legal.md) (by their titles), and `/api/auth/profile` and
   `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly
   `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`,
-  `/api/auth/.well-known/openid-configuration` must name the issuer
-  `https://<site>/api/auth` (and its `jwks_uri`) and `jwks.json` hold an
+  `/.well-known/openid-configuration` must name the issuer
+  `https://<site>` (and its `jwks_uri`) and `jwks.json` hold an
   RSA key,
   and `/health` must answer `"status":"ok"` with this release's
   `"version"` (see [Health check](health-check.md)); and, once the APIs
@@ -250,7 +252,8 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
     `tenancy`) on the stage's own (one `CostTags` statement for the
     distribution, certificate and pool, on `*` scoped by those
     conditions); untagging never removes `presence:stage`;
-  - CloudFront functions by name (`<prefix>-*`);
+  - CloudFront functions by name (`<prefix>-*`), tagging them too (the
+    cost-allocation tags);
   - creating distributions, functions, certificates, pools, origin access
     controls and response headers policies, and reading CloudFront, ACM
     and pools, stay account-wide (nothing existing is changed by them).

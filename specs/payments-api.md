@@ -23,7 +23,7 @@ Premium](upgrade.md#how-it-becomes-premium)).
 A JWT authorizer refuses calls without a valid Presence
 [session token](sessions.md) (401) before the function runs; only
 Apple's notifications route has none. Its issuer is the auth API stack's
-`SessionIssuer` output (`https://<site>/api/auth`, passed by
+`SessionIssuer` output (`https://<site>`, passed by
 `deploy.sh`), its audience `presence`. The caller is the token's email,
 which the sign-in provider (Google or Apple) verified (`email_verified`,
 always true in a session token), lowercased: `Identity.verifiedEmail`
@@ -179,7 +179,7 @@ It holds emails: AWS only.
 and passes its domain to the site stack (`PaymentsApiDomainName`):
 
 - `SessionIssuer` (the auth API stack's output, which `deploy.sh` checks
-  is `https://<site>/api/auth`), `PermissionsBoundary`, and rbacr's
+  is `https://<site>`), `PermissionsBoundary`, and rbacr's
   `RbacrUrl`, `RbacrToken` and `RbacrSystem`, the auth API's;
 - **`RbacrGrantToken`** (NoEcho): `RBACR_GRANT_TOKEN` from the
   environment (the `RBACR_GRANT_TOKEN` repository secret in CI), else

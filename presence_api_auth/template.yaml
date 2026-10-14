@@ -38,16 +38,18 @@ Parameters:
     Default: ''
     Description: >
       The site's host (presence.nu01.com, rc.presence.nu01.com): the session
-      tokens' issuer is https://<it>/api/auth, which CloudFront routes here, so
-      API Gateway's JWT authorizers (this API's and the payments API's) and
-      rbacr fetch its /.well-known/openid-configuration and keys through the
-      site. scripts/deploy.sh passes it.
+      tokens' issuer is https://<it>, whose /.well-known/openid-configuration
+      and jwks.json are static files on the site (scripts/deploy.sh copies
+      them from this API's /api/auth/.well-known/*), where API Gateway's JWT
+      authorizers (this API's and the payments API's) and rbacr fetch them.
+      Not this API itself: API Gateway fetches them while it imports this
+      API, when its own routes can't answer. scripts/deploy.sh passes it.
     AllowedPattern: '([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?|'
   SessionIssuer:
     Type: String
     Default: ''
     Description: >
-      Overrides the issuer (https://<DomainName>/api/auth). Only the local
+      Overrides the issuer (https://<DomainName>). Only the local
       stack sets it (presence_floci: the local HTTP API on Floci's loopback
       address, which its JWT authorizer can reach). Empty: from DomainName.
     AllowedPattern: '(https?://[A-Za-z0-9.:-]+(/[A-Za-z0-9._/$-]*)?)?'
@@ -60,10 +62,10 @@ Parameters:
       takes Google ID tokens instead, for the first deploy only. API Gateway
       fetches the issuer's /.well-known/openid-configuration when it imports
       the API, and silently drops an authorizer it can't fetch, with every
-      route behind it; the session issuer's document is served by this API,
-      so it can't be the authorizer's issuer until this API is up.
+      route behind it; the document is copied to the site from this API, so
+      it can't be the authorizer's issuer until this API is up.
       scripts/deploy.sh deploys with bootstrap while the site doesn't serve
-      the document yet, then with on.
+      the document yet, copies it there, then deploys with on.
   SigningKeyArn:
     Type: String
     Default: ''
@@ -584,7 +586,7 @@ Resources:
                 - !If
                   - HasSessionIssuer
                   - !Ref SessionIssuer
-                  - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+                  - !If [HasDomain, !Sub "https://${DomainName}", https://no-session-issuer.invalid]
               audience: !If
                 - BootstrapAuthorizer
                 - [!Ref GoogleWebClientId]
@@ -628,7 +630,7 @@ Resources:
           SESSION_ISSUER: !If
             - HasSessionIssuer
             - !Ref SessionIssuer
-            - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+            - !If [HasDomain, !Sub "https://${DomainName}", https://no-session-issuer.invalid]
           SIGNING_KEY_ARN: !If [CreateSigningKey, !GetAtt SessionSigningKey.Arn, !Ref SigningKeyArn]
           SESSIONS_TABLE: !Ref SessionsTable
           IDENTITIES_TABLE: !Ref IdentitiesTable
@@ -1203,7 +1205,7 @@ Outputs:
     Value: !If
       - HasSessionIssuer
       - !Ref SessionIssuer
-      - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+      - !If [HasDomain, !Sub "https://${DomainName}", https://no-session-issuer.invalid]
   SessionsTableName:
     Description: Presence sessions' refresh tokens and families
     Value: !Ref SessionsTable
