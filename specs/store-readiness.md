@@ -59,6 +59,11 @@ signing](release.md#store-signing)).
 ## Declarations and reviews needed
 
 - **Play Console:**
+  - the release manifest asks only for what the app uses: camera,
+    microphone, foreground location, notifications, the camera and
+    microphone foreground services, wake lock, boot, battery
+    optimization, network and billing (library extras are removed; see
+    [Android](android.md));
   - foreground service types `camera` and `microphone`, with a video of
     the feature;
   - `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` is restricted: only apps whose

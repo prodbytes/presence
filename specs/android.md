@@ -170,6 +170,17 @@ Android uses the standard dashcam technique instead
   The manifest also has `FOREGROUND_SERVICE` (and its `_CAMERA` and
   `_MICROPHONE` types), `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED` and
   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, for capturing untouched.
+  It **removes** permissions that libraries would add and the app doesn't
+  use, so Google Play doesn't ask to justify them (`tools:node="remove"`):
+  geolocator's `FOREGROUND_SERVICE_LOCATION` and its background location
+  service (`GeolocatorLocationService`; location is only asked while the
+  app is shown), and `READ_PHONE_STATE`, `READ_EXTERNAL_STORAGE` and
+  `WRITE_EXTERNAL_STORAGE`, which Android implies for LiteRT's GPU library
+  (`litert-gpu-api` declares no target SDK). The log files are in the
+  app's own external folder, which needs no permission. Left in, as
+  harmless: `USE_BIOMETRIC`/`USE_FINGERPRINT` (`androidx.biometric`,
+  through Google sign-in) and `com.android.vending.BILLING` (Play
+  purchases).
 - **Storage:** metadata goes in a persistent sembast database (via
   `idb_shim`) in the app's private storage. Recordings are sealed MP4 files
   (`<id>.sealed`, see [Media encryption](encryption.md)) in the app's
