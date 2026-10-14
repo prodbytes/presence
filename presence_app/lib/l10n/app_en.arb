@@ -1356,7 +1356,7 @@
   "@navAdmin": {
     "description": "Navigation bar: the Admin tab"
   },
-  "navCamera": "Camera",
+  "navCamera": "Cams",
   "@navCamera": {
     "description": "Navigation bar: the Camera tab"
   },

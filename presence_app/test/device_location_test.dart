@@ -944,7 +944,7 @@ void main() {
 
       // Answering again: no warning.
       client.anonymousError = null;
-      await tester.tap(find.byTooltip('Camera'));
+      await tester.tap(find.byTooltip('Cams'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(minutes: 5));
       await tester.pumpAndSettle();

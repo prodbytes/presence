@@ -2833,7 +2833,7 @@ abstract class AppLocalizations {
   /// Navigation bar: the Camera tab
   ///
   /// In en, this message translates to:
-  /// **'Camera'**
+  /// **'Cams'**
   String get navCamera;
 
   /// Navigation bar: the Help tab

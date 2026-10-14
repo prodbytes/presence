@@ -1750,7 +1750,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get navAdmin => 'Admin';
 
   @override
-  String get navCamera => 'Câmera';
+  String get navCamera => 'Câms';
 
   @override
   String get navHelp => 'Ajuda';

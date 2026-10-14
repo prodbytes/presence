@@ -5697,3 +5697,8 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        at least half of the animal check), or no breed or coat: 3 of 47;
        and a coat needs 0.6 (was 0.5). Suerte called a cat is still "black
        cat" on 42 of 47. Spec: [Cloud recognition](cloud-recognition.md).
+
+411. **"Cams", not "Camera", in the navigation bar.** (2026-10-14)
+     - Asked: rename the Camera tab to Cams so it fits the menu.
+     - Changed: the tab's label (and tooltip) is "Cams" ("Cáms", "Câms").
+       Spec: [Navigation](navigation.md).

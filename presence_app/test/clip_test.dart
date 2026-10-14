@@ -235,7 +235,7 @@ void main() {
       findsNothing,
     );
 
-    await tester.tap(find.byTooltip('Camera'));
+    await tester.tap(find.byTooltip('Cams'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('settings-page')), findsNothing);
   });
@@ -386,7 +386,7 @@ void main() {
     expect(back.brightness.last, 2.0);
 
     // A camera opened later (flip) gets the current value too.
-    await tester.tap(find.byTooltip('Camera'));
+    await tester.tap(find.byTooltip('Cams'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Flip camera'));
     await tester.pumpAndSettle();

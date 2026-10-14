@@ -78,7 +78,7 @@ void main() {
       final bar = tester.getRect(find.byType(HomeNavigationBar));
       expect(bar.bottom, size.height);
       expect(bar.width, size.width);
-      final camera = tester.getCenter(find.byTooltip('Camera'));
+      final camera = tester.getCenter(find.byTooltip('Cams'));
       final monitoring = tester.getCenter(find.byTooltip('Events'));
       final settings = tester.getCenter(find.byTooltip('Setup'));
       for (final c in [camera, monitoring, settings]) {
@@ -87,7 +87,7 @@ void main() {
       expect(camera.dx, lessThan(monitoring.dx));
       expect(monitoring.dx, lessThan(settings.dx));
       // Each tab is labeled under its icon.
-      for (final label in ['Camera', 'Events', 'Setup']) {
+      for (final label in ['Cams', 'Events', 'Setup']) {
         expect(
           find.descendant(
             of: find.byType(HomeNavigationBar),
@@ -172,7 +172,7 @@ void main() {
       );
       await openTab(tester, 'Setup');
       expect(tester.widget<Text>(title).data, 'Setup');
-      await openTab(tester, 'Camera');
+      await openTab(tester, 'Cams');
       expect(title, findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -266,7 +266,7 @@ void main() {
       await launch(tester, memory);
       expect(find.byKey(const Key('monitoring-page')), findsOneWidget);
 
-      await openTab(tester, 'Camera');
+      await openTab(tester, 'Cams');
       await launch(tester, memory);
       expect(tabs(tester).index, HomeTab.camera.index);
     });
@@ -316,7 +316,7 @@ void main() {
     await scrollSettingsTo(tester, find.text('Before press'));
     expect(find.text('Before press'), findsOneWidget);
 
-    await openTab(tester, 'Camera');
+    await openTab(tester, 'Cams');
     expect(tabs(tester).index, HomeTab.camera.index);
     expect(find.byKey(const Key('camera-page')), findsOneWidget);
   });

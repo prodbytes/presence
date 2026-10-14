@@ -9,7 +9,8 @@ account.
 - **Bottom navigation bar** (`HomeNavigationBar`,
   `lib/home/home_navigation_bar.dart`, a Material `NavigationBar`): one
   destination per tab, each an **icon over its label**, in order
-  **Camera**, **Events** (the monitoring tab: map, subjects and events)
+  **Cams** (the camera tab; "Cáms", "Câms"; short, to fit the bar),
+  **Events** (the monitoring tab: map, subjects and events)
   and **Setup** (the settings); for signed-in members
   (not DEV: there are no accounts) **Help**, Feedback and Help (see
   [Feedback and Help](feedback.md)); for admins

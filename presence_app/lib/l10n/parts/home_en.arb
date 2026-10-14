@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "navCamera": "Camera",
+  "navCamera": "Cams",
   "@navCamera": {
     "description": "Navigation bar: the Camera tab"
   },
