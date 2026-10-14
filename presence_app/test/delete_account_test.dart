@@ -10,6 +10,7 @@ import 'package:presence_app/auth/account_sheet.dart';
 import 'package:presence_app/auth/delete_account.dart';
 import 'package:presence_app/auth/profile_client.dart';
 import 'package:presence_app/auth/roles_service.dart';
+import 'package:presence_app/auth/store_billing.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
@@ -348,6 +349,25 @@ void main() {
       expect(opened, hasLength(1));
       expect(opened.single.path, '/delete-account');
       expect(opened.single.fragment, 'subscriptions');
+    });
+
+    testWidgets("on iOS and Android: the store's subscriptions, never Stripe", (
+      tester,
+    ) async {
+      PurchaseChannel.debugOverride = PurchaseChannel.appStore;
+      addTearDown(() => PurchaseChannel.debugOverride = PurchaseChannel.stripe);
+      final opened = await show(
+        tester,
+        profiles: FakeProfileClient(),
+        delete: () async => const AccountDeletion(profile: _profile),
+      );
+      expect(find.textContaining('Stripe'), findsNothing);
+      expect(find.textContaining('App Store subscription settings'), findsOne);
+      await tester.tap(find.byKey(const Key('delete-account-subscriptions')));
+      await tester.pump();
+      expect(opened, [
+        Uri.parse('https://apps.apple.com/account/subscriptions'),
+      ]);
     });
 
     testWidgets('fits a 320 dp phone', (tester) async {

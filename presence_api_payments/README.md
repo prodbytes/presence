@@ -1,7 +1,9 @@
 # presence_api_payments
 
 The payments API: the **Stripe Payment Links** a free member upgrades to
-Premium with, monthly and yearly. An
+Premium with on the web, monthly and yearly, and **App Store and Google
+Play subscriptions** of the iOS and Android apps, verified server-side and
+granted in rbacr. An
 [AWS SAM](https://aws.amazon.com/serverless/sam/) application with one Java
 25 Lambda (`java25`, arm64), a DynamoDB table and its own API Gateway
 **HTTP API**, served under **`/api/payments/*`** by the site's CloudFront
@@ -16,21 +18,40 @@ distribution (see [specs/payments-api.md](../specs/payments-api.md)).
   `admin` in rbacr's `presence` system, or an rbacr root): saves both. Each
   must be empty or an HTTPS link on `stripe.com`, at most 512 characters,
   with no query. 403 for anyone else, 400 otherwise.
+- **`GET /api/payments/store`**: which stores this stack verifies, and
+  the account's token (a random UUID) the app puts on its purchases.
+- **`POST /api/payments/store/verify`** `{"platform": "ios"|"android",
+  "productId", "verificationData"}`: StoreKit 2's signed transaction
+  (verified to Apple Root CA - G3) or Google Play's purchase token (the
+  Android Publisher API, with a service account from Secrets Manager);
+  bound to the caller's email (409 for another's), and `premium` granted
+  in rbacr until it ends. 503 until `RbacrGrantToken` is set.
+- **`POST /api/payments/store/apple-notifications`**: App Store Server
+  Notifications V2 (no JWT; Apple's signature checks it): renewals extend
+  the grant, refunds and expiries end it.
 - A JWT authorizer refuses calls without a valid Presence session token
-  (401) before the function runs: issuer the auth API's (`SessionIssuer`,
-  `https://<site>/api/auth`), audience `presence` (see
-  [specs/sessions.md](../specs/sessions.md)).
+  (401) before the function runs (all but Apple's notifications): issuer
+  the auth API's (`SessionIssuer`, `https://<site>/api/auth`), audience
+  `presence` (see [specs/sessions.md](../specs/sessions.md));
+  `Identity.verifiedEmail` is the one place the caller's email is read.
 
-It never sees a payment: the links are Stripe's checkout pages, and rbacr
-syncs the Stripe account's subscriptions into the `premium` role.
+It never sees a Stripe payment: the links are Stripe's checkout pages, and
+rbacr syncs the Stripe account's subscriptions into the `premium` role.
 
 - **Its own stack per stage:** `presence-payments` and
   `presence-rc-payments`, deployed by [scripts/deploy.sh](../scripts/deploy.sh)
   with `STRIPE_MONTHLY_LINK` and `STRIPE_YEARLY_LINK` as the defaults and
   the auth API's rbacr URL and token.
 - **The table** (`PaymentsTable`, kept on stack deletion, point-in-time
-  recovery) holds one item, `links`, with the admin's email who saved it.
+  recovery) holds `links` (with the admin's email who saved it), and per
+  account and per store purchase who it's bound to.
+- **Store purchases** need `RBACR_GRANT_TOKEN` (an rbacr root's token),
+  and for Google Play `GOOGLE_PLAY_SECRET` (a Secrets Manager secret under
+  the stage's prefix); `STORE_ALLOW_SANDBOX` takes sandbox and test
+  purchases (the RC's default).
 - **Not in the local stack** (Floci): the app falls back to nu01.com when
   the API doesn't answer.
 
-Tests: `mvn test` in `PaymentsFunction/` (inside `devbox shell`).
+Tests: `mvn test` in `PaymentsFunction/` (inside `devbox shell`). The
+Apple tests make a fake certificate chain with Bouncy Castle (test scope
+only).

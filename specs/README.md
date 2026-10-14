@@ -100,11 +100,13 @@ their data.
   lists them, show each other's events; later ones sync, their events
   hidden, with a prompt to sign up at nu01.com. The account sheet says
   Free or Premium.
-- [Upgrade to Premium](upgrade.md): a free member's **Premium monthly**
-  (US$20 a month, the first week free) and **Premium yearly** buttons on
-  the account sheet (and the Monitoring tab's hidden-devices card) open
-  the plan's Stripe checkout, on every platform; rbacr's Stripe sync
-  grants `premium` to the email.
+- [Upgrade to Premium](upgrade.md): on the web, a free member's
+  **Premium monthly** (US$20 a month, the first week free) and **Premium
+  yearly** buttons open the plan's Stripe checkout (rbacr's Stripe sync
+  grants `premium`); on iOS and Android, App Store and Google Play
+  subscriptions (`in_app_purchase`) with the store's prices, Restore
+  purchases and Manage subscription, verified by the payments API, and
+  never a mention of Stripe; elsewhere no purchase buttons.
 - [Membership](membership.md): users without access subscribe at
   nu01.com or redeem a voucher code with rbacr on the Sign up sheet;
   vouchers are managed in rbacr, which the Admin tab (feedback) links to.
@@ -227,7 +229,11 @@ their data.
 - [Payments API](payments-api.md): `presence_api_payments` (Lambda,
   DynamoDB, its own HTTP API under `/api/payments/*`): the plans' Stripe
   Payment Links, the deploy's (GA and RC) until an admin saves others in
-  the Admin tab's Payments (`PUT`, rbacr admins only).
+  the Admin tab's Payments (`PUT`, rbacr admins only); and store
+  purchases: App Store signed transactions (Apple's certificate chain)
+  and Google Play tokens (the Android Publisher API) verified, bound to
+  the buyer's email and granted as `premium` in rbacr, plus App Store
+  Server Notifications.
 - [Origin check](origin-check.md): the APIs (auth, payments, health)
   answer only through the site's CloudFront, which adds a secret header
   (`x-presence-origin-verify`); direct calls to their `execute-api` hosts
@@ -256,8 +262,8 @@ their data.
 - [Release builds](release.md): the GitHub Actions workflow that builds the
   binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
 - [Store readiness](store-readiness.md): what the App Store and Google
-  Play require that Presence meets, and what it doesn't yet (Stripe
-  billing, Sign in with Apple, release signing).
+  Play require that Presence meets, and what it doesn't yet (the
+  stores' subscription setup, Sign in with Apple, release signing).
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).

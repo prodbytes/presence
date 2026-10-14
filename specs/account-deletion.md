@@ -37,11 +37,15 @@ What goes depends on the account's place in its [profile](profiles.md):
   - (when the list doesn't load, the owner's text, which says most;)
   - both: this device's copies of the profile's events and clips go too,
     and it signs out; it can't be undone;
-  - **subscriptions**: "Deleting your account doesn't cancel a Premium
-    subscription: cancel it first, from the link in your Stripe receipt,
-    or ask us.", with **How to cancel a subscription**
+  - **subscriptions**: on the web, "Deleting your account doesn't cancel
+    a Premium subscription: cancel it first, from the link in your Stripe
+    receipt, or ask us.", with **How to cancel a subscription**
     (`delete-account-subscriptions`), which opens
-    `/delete-account#subscriptions` on the site (copied when it can't open);
+    `/delete-account#subscriptions` on the site (copied when it can't
+    open); on iOS and Android, never naming Stripe ([Upgrade](upgrade.md)),
+    "… cancel it first in your App Store (Google Play) subscription
+    settings." with **Manage subscription**, which opens the store's
+    subscriptions page;
   - a checkbox, **I understand that this can't be undone**
     (`delete-account-confirm`): **Delete account** (`delete-account-go`,
     error-colored) works only once it's ticked. **Cancel** deletes nothing.
@@ -146,8 +150,11 @@ account that moved meanwhile isn't deleted by mistake.
   keeps), so accounts of any sign-in provider, Google or Apple, are
   deleted the same way.
 - **Not touched:** rbacr's roles and grants (kept by email; a subscription
-  keeps working if the person comes back) and Stripe's subscription, which
-  must be cancelled in Stripe. The dialog and the web page say so.
+  keeps working if the person comes back), the subscription itself, which
+  must be cancelled where it was bought (Stripe, the App Store or Google
+  Play), and the payments table's record of which store purchase belongs
+  to the email ([Payments API](payments-api.md#storage)), so it can't be
+  claimed by another account. The dialog and the web page say so.
 - **Throttled** to 1 request a second (burst 5), for all callers together
   (see [Throttling and floods](auth-api.md#throttling-and-floods)). The
   profile function's timeout is 29 s (the HTTP API gives up at 30 s).
@@ -202,9 +209,12 @@ deploy's smoke test checks its title, "Delete your account"):
   35 days (point-in-time recovery); other devices still signed in keep
   their copies until their History setting deletes them (three months at
   most); rbacr keeps the email's access and Premium (deleted on request);
-  Stripe keeps its payment records; logs as the privacy policy says.
+  Apple, Google or Stripe keep their payment records, and the payments
+  API which store subscription was the account's; logs as the privacy
+  policy says.
 - **Subscriptions** (`#subscriptions`): deleting doesn't cancel Premium;
-  cancel it from the Stripe receipt's link, or ask by email.
+  cancel it where it was bought: the App Store's or Google Play's
+  subscriptions (linked), or the Stripe receipt's link, or ask by email.
 
 The Play Console's Data safety form gives this page as the deletion link.
 

@@ -6,6 +6,7 @@ import 'api_config.dart';
 import 'auth_service.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
+import 'store_billing.dart';
 
 /// Deletes the signed-in account at the auth API, then forgets its
 /// profile on this device and signs out (`_deleteAccount` in main.dart).
@@ -14,7 +15,8 @@ import 'roles_service.dart';
 typedef DeleteAccount = Future<AccountDeletion> Function();
 
 /// The site's page on deleting an account, whose "Subscriptions" part
-/// says how to cancel Premium (Stripe), which deleting doesn't.
+/// says how to cancel Premium bought on the web (Stripe), which deleting
+/// doesn't; on iOS and Android the dialog links to the store instead.
 Uri get deleteAccountPage =>
     ApiConfig.baseUrl.resolve('/delete-account#subscriptions');
 
@@ -241,16 +243,30 @@ class _DeleteAccountDialogState extends State<DeleteAccountDialog> {
               key: const Key('delete-account-linked'),
             ),
           Text(l.authDeleteAccountDevice, style: muted),
-          Text(l.authDeleteAccountSubscription, style: muted),
+          // On iOS and Android Premium is the store's: its own settings,
+          // never Stripe (App Store 3.1.1).
+          if (PurchaseChannel.current case final channel when channel.isStore)
+            Text(
+              l.storeDeleteAccountSubscription(channel.storeName),
+              style: muted,
+            )
+          else
+            Text(l.authDeleteAccountSubscription, style: muted),
           Align(
             alignment: AlignmentDirectional.centerStart,
             child: TextButton.icon(
               key: const Key('delete-account-subscriptions'),
               icon: const Icon(Icons.open_in_new, size: 18),
-              label: Text(l.authDeleteAccountManage),
+              label: Text(
+                PurchaseChannel.current.isStore
+                    ? l.storeManage
+                    : l.authDeleteAccountManage,
+              ),
               onPressed: () => openOrCopyLink(
                 context,
-                deleteAccountPage,
+                PurchaseChannel.current.isStore
+                    ? StoreProducts.manage(PurchaseChannel.current)
+                    : deleteAccountPage,
                 widget.openLink ?? launchLink,
               ),
             ),

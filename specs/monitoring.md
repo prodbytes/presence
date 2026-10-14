@@ -16,7 +16,8 @@ the separate Events and Subjects tabs.
 
 - **Above everything,** when devices' events are hidden (past a free
   profile's first 2 devices, or a premium one's 50), a card says so, with
-  an **Upgrade** button to the Premium checkout for a free profile
+  an **Upgrade** button for a free profile: the Premium checkout on the
+  web, the Profile tab's store plans on iOS and Android, none elsewhere
   ([Upgrade to Premium](upgrade.md)); nothing otherwise.
   See [Premium and free](premium.md#devices).
 - **At the top,** one compact row (40 dp): on the left the **events

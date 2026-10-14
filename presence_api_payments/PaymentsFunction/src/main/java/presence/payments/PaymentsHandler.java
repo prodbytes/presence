@@ -5,11 +5,13 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+
 import java.time.Clock;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static presence.payments.Http.response;
 
@@ -26,9 +28,13 @@ import static presence.payments.Http.response;
  *       rbacr root) saves them: Stripe HTTPS links, or empty for a plan
  *       that isn't offered. 403 for anyone else, 400 for links that aren't
  *       Stripe's.</li>
+ *   <li>{@code /api/payments/store/*}: Premium bought in the App Store or
+ *       Google Play ({@link StorePurchases}).</li>
  * </ul>
- * Who pays becomes premium in rbacr, which syncs the Stripe account's
- * subscriptions: this API never sees a payment.
+ * Who pays through Stripe (the web) becomes premium in rbacr, which syncs
+ * the Stripe account's subscriptions: this API never sees those payments.
+ * Store purchases it verifies with the store, and grants {@code premium}
+ * in rbacr itself.
  */
 public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
@@ -42,19 +48,54 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
     private final PaymentLinks defaults;
     private final Function<String, Set<String>> rbacr;
     private final Clock clock;
+    private final StorePurchases purchases;
 
     /** Lambda's entry point: configured from the environment (see template.yaml). */
     public PaymentsHandler() {
         this(LinkStore.dynamo(System.getenv("PAYMENTS_TABLE")),
                 PaymentLinks.defaults(System.getenv("MONTHLY_LINK"), System.getenv("YEARLY_LINK")),
-                Rbacr.fromEnvironment(), Clock.systemUTC());
+                Rbacr.fromEnvironment(), Clock.systemUTC(), storeFromEnvironment());
     }
 
-    PaymentsHandler(LinkStore store, PaymentLinks defaults, Function<String, Set<String>> rbacr, Clock clock) {
+    PaymentsHandler(LinkStore store, PaymentLinks defaults, Function<String, Set<String>> rbacr, Clock clock,
+                    StorePurchases purchases) {
         this.store = store;
         this.defaults = defaults;
         this.rbacr = rbacr;
         this.clock = clock;
+        this.purchases = purchases;
+    }
+
+    /**
+     * Store purchases from the environment: {@code STORE_ALLOW_SANDBOX}
+     * ({@code true}: App Store sandbox and Google Play test purchases
+     * count), {@code GOOGLE_PLAY_SECRET} (the Secrets Manager secret
+     * holding the Google service account's key file; empty: no Google
+     * Play) and {@code RBACR_GRANT_TOKEN} (empty: neither store).
+     */
+    static StorePurchases storeFromEnvironment() {
+        var allowSandbox = "true".equals(System.getenv("STORE_ALLOW_SANDBOX"));
+        var web = Web.jdk();
+        var secret = System.getenv().getOrDefault("GOOGLE_PLAY_SECRET", "").strip();
+        Supplier<GooglePlay> google = secret.isEmpty() ? null : new Supplier<>() {
+            private GooglePlay play;
+
+            @Override
+            public synchronized GooglePlay get() {
+                if (play == null) {
+                    // Read once per instance, when an Android purchase first needs it.
+                    try (var secrets = SecretsManagerClient.builder()
+                            .httpClient(UrlConnectionHttpClient.create()).build()) {
+                        var keyFile = secrets.getSecretValue(r -> r.secretId(secret)).secretString();
+                        play = GooglePlay.fromKeyFile(keyFile, web, Clock.systemUTC(), allowSandbox);
+                    }
+                }
+                return play;
+            }
+        };
+        return new StorePurchases(new AppleStore(AppleJws.apple(), allowSandbox), google,
+                RbacrGrants.fromEnvironment(web), PurchaseStore.dynamo(System.getenv("PAYMENTS_TABLE")),
+                Clock.systemUTC());
     }
 
     @Override
@@ -68,7 +109,10 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
             return switch (route) {
                 case GET_LINKS -> response(200, store.load().orElse(defaults).toJson());
                 case PUT_LINKS -> save(event);
-                default -> response(404, "{\"error\":\"no such route\"}");
+                default -> {
+                    var answer = purchases == null ? null : purchases.handle(route, event);
+                    yield answer != null ? answer : response(404, "{\"error\":\"no such route\"}");
+                }
             };
         } catch (RuntimeException e) {
             var requestId = context == null ? null : context.getAwsRequestId();
@@ -79,7 +123,7 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
     }
 
     private APIGatewayV2HTTPResponse save(APIGatewayV2HTTPEvent event) {
-        var email = verifiedEmail(claims(event));
+        var email = Identity.verifiedEmail(event);
         if (email == null || rbacr.apply(email).stream().noneMatch(ADMINS::contains)) {
             return response(403, "{\"error\":\"only an admin may change the payment links\"}");
         }
@@ -96,26 +140,5 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
         store.save(links);
         System.out.println("presence: payment links saved by an admin");
         return response(200, links.toJson());
-    }
-
-    /**
-     * The caller's email, lowercase, if verified; else null. The one place the
-     * handler reads who calls: the claims of the Presence session token the
-     * JWT authorizer verified ({@code email}, which the sign-in provider
-     * verified; rbacr is asked about it).
-     */
-    static String verifiedEmail(Map<String, String> claims) {
-        var email = claims.get("email");
-        var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));
-        return verified && email != null && !email.isBlank() ? email.strip().toLowerCase(Locale.ROOT) : null;
-    }
-
-    /** The claims the JWT authorizer verified and passed through; empty without a token. */
-    private static Map<String, String> claims(APIGatewayV2HTTPEvent event) {
-        var context = event == null ? null : event.getRequestContext();
-        var authorizer = context == null ? null : context.getAuthorizer();
-        var jwt = authorizer == null ? null : authorizer.getJwt();
-        var claims = jwt == null ? null : jwt.getClaims();
-        return claims == null ? Map.of() : claims;
     }
 }

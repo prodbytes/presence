@@ -136,6 +136,14 @@ jobs:
           RBACR_TOKEN: ${{ secrets.RBACR_TOKEN }}
           RBACR_URL: ${{ vars.RBACR_URL }}
           RBACR_SYSTEM: ${{ vars.RBACR_SYSTEM }}
+          # App Store and Google Play purchases (specs/payments-api.md): an
+          # rbacr root's token to grant premium with (a secret; unset: store
+          # purchases off), the Google Play key file's secret name (unset:
+          # no Google Play), and whether sandbox purchases count (unset:
+          # false; true while a build is in App Review).
+          RBACR_GRANT_TOKEN: ${{ secrets.RBACR_GRANT_TOKEN }}
+          GOOGLE_PLAY_SECRET: ${{ vars.GOOGLE_PLAY_SECRET }}
+          STORE_ALLOW_SANDBOX: ${{ vars.STORE_ALLOW_SANDBOX }}
           # presence-streamer's device sign-in client (a public identifier),
           # whose ID tokens the auth API accepts too; unset: none.
           GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}
