@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="capture_channel">Grabación</string>
+    <string name="capture_channel_description">Se muestra todo el tiempo que Presence graba con la cámara</string>
+    <string name="capture_title">Presence está grabando</string>
+    <string name="capture_text_camera_microphone">Grabando la cámara y el micrófono, también con la pantalla apagada. Toca para abrir.</string>
+    <string name="capture_text_camera">Grabando la cámara, también con la pantalla apagada. Toca para abrir.</string>
+    <string name="resume_channel">App detenida</string>
+    <string name="resume_channel_description">Presence se detuvo y Android no la dejó volver a abrirse sola</string>
+    <string name="resume_title">Presence se detuvo: toca para reanudar</string>
+    <string name="resume_text">No está grabando. Android no la deja volver a abrirse sola.</string>
+</resources>

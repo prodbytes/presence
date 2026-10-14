@@ -64,6 +64,16 @@ them while the health stack imports them. The API's routes:
   /api/auth/stream/credentials`** (no authorizer: the stream key is the
   proof): a Raspberry Pi's [stream key](streamer.md#the-stream-key), and
   the profile's credentials for it, with no Google sign-in on the Pi.
+- **`POST /api/auth/account/delete`** (`ProfileHandler`, any verified
+  account, the body the profile ID the app shows): deletes the caller's
+  account. A linked account leaves the profile (its link and its own
+  Feedback and Help messages); the profile's owner deletes the whole
+  profile (its folder in the user-data bucket, its Feedback and Help
+  conversation, its Cognito identity with live sync's IoT policy, its
+  cloud recognition data, stream keys and link codes, every account's
+  link and the profile). Idempotent; 202 while a big folder is still
+  being deleted. Throttled to 1 request/s (burst 5). See [Account
+  deletion](account-deletion.md#the-api).
 - No roles, maintenance or voucher routes (removed on 2026-10-10 with
   `GET /api/auth`, `POST /api/auth/voucher`, `/api/auth/vouchers`,
   `/api/auth/maintenance`, `VoucherHandler` and `AdminHandler`): the app
@@ -177,7 +187,17 @@ them while the health stack imports them. The API's routes:
     `IotPolicyName` to the caller's own profile identity; a compromised
     function could attach any IoT policy in the account to any principal.
     Moving it to a separate, minimal function would only narrow which
-    code holds it, so it stays, documented.
+    code holds it, so it stays, documented. `iot:DetachPolicy` (account
+    deletion) is the same, on `*`;
+  - for [account deletion](account-deletion.md#least-privilege), the
+    profile function may also delete profiles, scan the link-code and
+    stream-key tables, query and delete the profile's recognition items
+    and Feedback messages (`FeedbackTable`, a template parameter),
+    `DeleteIdentities` in this pool, and `s3:DeleteObject` on any key of
+    the user-data bucket: IAM can't narrow it to the caller's folder,
+    known only at run time, so the function deletes only the caller's own
+    profile's `<identity ID>/` (an identity-shaped prefix, never empty).
+    A compromised function could delete any profile's cloud data.
 - **AWS clients and errors:** each function makes one HTTP client and one
   DynamoDB client per instance (`Aws`), shared by its stores. When AWS (or
   anything unexpected) fails, the profile routes answer **502** `{"error":
@@ -203,7 +223,7 @@ address uses up a route's budget for everyone:
   the bill), so it stays;
 - the token routes need a valid Google ID token for the web client, which
   anyone can get with a free Google account, so their limits (1 request/s
-  for making and using link codes) can be used up the
+  for making and using link codes and for deleting accounts) can be used up the
   same way, blocking those actions for everyone meanwhile.
 
 The fix is a **per-IP rate rule** (AWS WAF rate-based rules on the
@@ -227,8 +247,9 @@ attempt.)
   `/api/auth/profile` to answer **401** without a token, which proves the
   route and its authorizer are live, and `/api/auth/anonymous` to answer
   exactly `{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}`.
-  `deploy.sh` passes the identity pool and bucket from their stacks'
-  outputs, and exports the stage's `RBACR_URL` and `RBACR_SYSTEM` (never
+  `deploy.sh` passes the identity pool, bucket and Feedback table
+  (`FeedbackTable`, for account deletion) from their stacks' outputs,
+  and exports the stage's `RBACR_URL` and `RBACR_SYSTEM` (never
   the token) for the app's build (see [Configuration](configuration.md)).
 - **The app** calls it, and rbacr, after sign-in to decide what to show
   (see [Sign-in](sign-in.md)): without `presence_user`, only the account
@@ -262,4 +283,10 @@ attempt.)
     `shared`), the owner's membership and the credentials' tags, only an
     administrator's own tagged `admin` (`ProfileTest`,
     `ProfileBackendTest`; see [Profiles](profiles.md#verified));
+  - account deletion: the owner's whole profile, a linked account's link
+    only, retries, the profile ID check, a big folder over several
+    requests, the folder deleted a page at a time and only an identity's,
+    the identity and its IoT policy, the profile's records only
+    (`ProfileTest`, `ProfileBackendTest`; see [Account
+    deletion](account-deletion.md#tests));
   - a failing store answers a sanitized 502.

@@ -106,6 +106,11 @@ calls DynamoDB's JSON API, signed with SigV4
   latest own message (email, name).
 - **Errors:** AWS's AccessDenied is 403, throttling 429, no table or no
   credentials 503.
+- **Account deletion** ([Account deletion](account-deletion.md)): the
+  auth API deletes the profile's whole conversation when its owner
+  deletes their account, and a linked account's own messages (by its
+  email) when it deletes its own (`FeedbackTable` parameter; `Query` and
+  `DeleteItem` on this table only).
 - **Locally**, the [local cloud](local-cloud.md)'s web build has no
   Feedback table (Floci's DynamoDB answers no CORS preflight), so Help is
   off there; in DEV there's no Help button.

@@ -20,12 +20,12 @@
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
-#   5. uploads the site pages (/, /privacy, /tos) and the web build (/app/), and
+#   5. uploads the site pages (/, /privacy, /tos, /delete-account) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site (and, once the APIs enforce the origin
 #      secret, that their own execute-api hosts refuse direct calls with
 #      403): /app/version.json must report this
-#      version, / must be the index page, /privacy and /tos the legal pages, and /api/auth/profile must refuse
+#      version, / must be the index page, /privacy, /tos and /delete-account the legal pages, and /api/auth/profile must refuse
 #      a request without a token (401: the route and its authorizer are live),
 #      and so must /api/payments/links,
 #      and /api/auth/anonymous must report RBAC mode, and /health must say
@@ -333,6 +333,12 @@ export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT FEEDBACK_TABLE
 USER_DATA_BUCKET="$(stack_output "$USER_DATA_STACK" UserDataBucketName)"
 # Feedback and Help's table, which the app reads and writes itself.
 FEEDBACK_TABLE="$(stack_output "$USER_DATA_STACK" FeedbackTableName)"
+# The auth API deletes a deleted account's messages from it (sam deploy
+# refuses an empty override, so it must be there).
+if [[ ! "$FEEDBACK_TABLE" =~ ^[A-Za-z0-9_.-]{3,255}$ ]]; then
+  echo "error: unexpected feedback table '$FEEDBACK_TABLE'" >&2
+  exit 1
+fi
 COGNITO_IDENTITY_POOL_ID="$(stack_output "$IDENTITY_STACK" IdentityPoolId)"
 # Live sync: the policy the auth API attaches to each identity, and the
 # account's MQTT endpoint (not a CloudFormation attribute). Public values.
@@ -465,7 +471,7 @@ echo "==> deploying $AUTH_STACK"
       "GoogleDeviceClientId=$GOOGLE_DEVICE_CLIENT_ID" \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
-      "IotPolicyName=$LIVE_POLICY_NAME" \
+      "IotPolicyName=$LIVE_POLICY_NAME" "FeedbackTable=$FEEDBACK_TABLE" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
       "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
     --no-confirm-changeset --no-fail-on-empty-changeset
@@ -515,7 +521,7 @@ echo "    bucket: $bucket, distribution: $distribution"
 # 5. The content. Flutter's web files aren't content-hashed, so browsers
 # revalidate everything (no-cache); CloudFront is invalidated below.
 echo "==> uploading"
-# The site's own pages (presence_index/site: the index, /privacy, /tos and
+# The site's own pages (presence_index/site: the index, /privacy, /tos, /delete-account and
 # their stylesheet) at the root; never under app/, which is the app's.
 aws s3 sync presence_index/site/ "s3://$bucket/" --exclude "app/*" \
   --cache-control no-cache --only-show-errors
@@ -536,6 +542,7 @@ check() {
   curl -fsS --max-time 20 -o /dev/null "https://$DOMAIN/app/" || { echo "    /app/ failed"; return 1; }
   curl -fsS --max-time 20 "https://$DOMAIN/privacy" | grep -q "<title>Privacy Policy" || { echo "    /privacy isn't the privacy policy"; return 1; }
   curl -fsS --max-time 20 "https://$DOMAIN/tos" | grep -q "<title>Terms of Service" || { echo "    /tos isn't the terms of service"; return 1; }
+  curl -fsS --max-time 20 "https://$DOMAIN/delete-account" | grep -q "<title>Delete your account" || { echo "    /delete-account isn't the account deletion page"; return 1; }
   local auth
   auth="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/auth/profile")"
   [[ "$auth" == 401 ]] || { echo "    /api/auth/profile without a token answered $auth, want 401"; return 1; }

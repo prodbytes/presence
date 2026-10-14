@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Android 13+: show "Presence is recording" (CaptureService) all the
+         time it records, and "Presence stopped — tap to resume" (KeepAlive). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Reopen the app after a boot, a crash or a kill (KeepAlive). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />

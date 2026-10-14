@@ -2,7 +2,9 @@
 
 [presence_index/](../presence_index) is the site root. It also serves
 the [privacy policy and terms of service](legal.md) at `/privacy` and
-`/tos` (`site/privacy/`, `site/tos/` and `site/legal.css`). Its root page,
+`/tos`, and the [account deletion](account-deletion.md) page at
+`/delete-account` (`site/privacy/`, `site/tos/`, `site/delete-account/`
+and `site/legal.css`). Its root page,
 [site/index.html](../presence_index/site/index.html), redirects to the app
 at `/app/`:
 

@@ -108,6 +108,9 @@ if [ -n "$CLIENT_ID" ]; then
   route "POST /api/auth/profile/unlink" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/devices/remove" ProfileFunction "$authorizer"
   route "POST /api/auth/profile/stream-key" ProfileFunction "$authorizer"
+  # Account deletion: the account, or its whole profile for the owner
+  # (Floci's tables and bucket; no Feedback table locally).
+  route "POST /api/auth/account/delete" ProfileFunction "$authorizer"
   # The streamer's: no Google token, its stream key is checked by the function.
   route "POST /api/auth/stream/credentials" ProfileFunction
   # Cloud recognition (premium only). Locally the models come from Hugging

@@ -56,6 +56,69 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authCheckingRoles => 'Verificando funções…';
 
   @override
+  String get authDeleteAccount => 'Excluir conta';
+
+  @override
+  String get authDeleteAccountCancel => 'Cancelar';
+
+  @override
+  String get authDeleteAccountChanged =>
+      'O perfil da sua conta mudou. Feche isto e tente de novo.';
+
+  @override
+  String get authDeleteAccountConfirm => 'Entendo que não dá para desfazer';
+
+  @override
+  String get authDeleteAccountDevice =>
+      'As cópias dos eventos e clipes do perfil neste dispositivo também são excluídas, e você sai da conta. Não dá para desfazer.';
+
+  @override
+  String get authDeleteAccountDone =>
+      'Sua conta e o perfil dela foram excluídos';
+
+  @override
+  String authDeleteAccountFailed(String error) {
+    return 'Não foi possível excluir a conta ($error). Tente de novo.';
+  }
+
+  @override
+  String authDeleteAccountLinked(String email, String profile, String owner) {
+    return '$email está vinculada ao perfil $profile, de $owner. Excluir sua conta a desvincula e exclui suas mensagens de Feedback e ajuda; o perfil e seus dados continuam do dono.';
+  }
+
+  @override
+  String get authDeleteAccountManage => 'Como cancelar uma assinatura';
+
+  @override
+  String authDeleteAccountOthers(String emails) {
+    return 'Estas contas vinculadas a ele também perdem o acesso: $emails.';
+  }
+
+  @override
+  String authDeleteAccountOwner(String profile) {
+    return 'Você é o dono do perfil $profile. Excluir sua conta exclui o perfil inteiro: seus eventos, clipes, gravações e configurações na nuvem, suas mensagens de Feedback e ajuda, seus rótulos de reconhecimento e as chaves de transmissão dos seus dispositivos.';
+  }
+
+  @override
+  String get authDeleteAccountSignInAgain =>
+      'Entre de novo e depois exclua a conta.';
+
+  @override
+  String get authDeleteAccountSubscription =>
+      'Excluir sua conta não cancela uma assinatura Premium: cancele-a antes, pelo link do seu recibo do Stripe, ou fale conosco.';
+
+  @override
+  String get authDeleteAccountTitle => 'Excluir sua conta?';
+
+  @override
+  String get authDeleteAccountUnfinished =>
+      'Os dados na nuvem ainda estão sendo excluídos. Tente de novo em um minuto para terminar.';
+
+  @override
+  String get authDeleteAccountUnlinked =>
+      'Sua conta foi excluída e desvinculada do perfil';
+
+  @override
   String authDeleteDevice(String device) {
     return 'Excluir $device';
   }
@@ -1708,6 +1771,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String get languageSystem => 'O mesmo do dispositivo';
 
   @override
+  String get legalPrivacy => 'Política de Privacidade';
+
+  @override
+  String get legalTerms => 'Termos de Serviço';
+
+  @override
   String get logClear => 'Limpar';
 
   @override
@@ -2228,6 +2297,16 @@ class AppLocalizationsPt extends AppLocalizations {
       one: '1 dia',
     );
     return '$_temp0';
+  }
+
+  @override
+  String storeDeleteAccountSubscription(String store) {
+    String _temp0 = intl.Intl.selectLogic(store, {
+      'apple': 'da App Store',
+      'google': 'do Google Play',
+      'other': 'da loja',
+    });
+    return 'Excluir sua conta não cancela uma assinatura Premium: cancele-a antes nas configurações de assinaturas $_temp0.';
   }
 
   @override

@@ -31,5 +31,6 @@
   "storeOtherAccount": "Esta assinatura pertence a outra conta do Presence.",
   "storeNotVerified": "A loja não confirmou esta compra.",
   "storeFailed": "Ainda não foi possível confirmar a compra com o Presence. Será tentado de novo automaticamente.",
-  "storePurchaseFailed": "A compra não foi concluída."
+  "storePurchaseFailed": "A compra não foi concluída.",
+  "storeDeleteAccountSubscription": "Excluir sua conta não cancela uma assinatura Premium: cancele-a antes nas configurações de assinaturas {store, select, apple{da App Store} google{do Google Play} other{da loja}}."
 }

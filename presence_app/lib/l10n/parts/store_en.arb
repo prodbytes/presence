@@ -157,5 +157,14 @@
   "storeOtherAccount": "This subscription belongs to another Presence account.",
   "storeNotVerified": "The store didn't confirm this purchase.",
   "storeFailed": "Couldn't confirm the purchase with Presence yet. It's tried again automatically.",
-  "storePurchaseFailed": "The purchase didn't go through."
+  "storePurchaseFailed": "The purchase didn't go through.",
+  "storeDeleteAccountSubscription": "Deleting your account doesn't cancel a Premium subscription: cancel it first in your {store, select, apple{App Store} google{Google Play} other{store}} subscription settings.",
+  "@storeDeleteAccountSubscription": {
+    "description": "In the Delete account dialog on iOS and Android, instead of authDeleteAccountSubscription (which names Stripe)",
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  }
 }

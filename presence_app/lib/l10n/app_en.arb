@@ -37,6 +37,59 @@
   "authBackupOff": "Cloud backup is off",
   "authCheckAgain": "Check again",
   "authCheckingRoles": "Checking roles…",
+  "authDeleteAccount": "Delete account",
+  "@authDeleteAccount": {
+    "description": "The account sheet's last button, and the confirmation dialog's delete button."
+  },
+  "authDeleteAccountCancel": "Cancel",
+  "authDeleteAccountChanged": "Your account's profile changed. Close this and try again.",
+  "authDeleteAccountConfirm": "I understand that this can't be undone",
+  "authDeleteAccountDevice": "This device's copies of the profile's events and clips are deleted too, and you're signed out. This can't be undone.",
+  "authDeleteAccountDone": "Your account and its profile were deleted",
+  "authDeleteAccountFailed": "Couldn't delete the account ({error}). Try again.",
+  "@authDeleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountLinked": "{email} is linked to the profile {profile}, owned by {owner}. Deleting your account unlinks it and deletes your Feedback & Help messages; the profile and its data stay its owner's.",
+  "@authDeleteAccountLinked": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      },
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountManage": "How to cancel a subscription",
+  "authDeleteAccountOthers": "These accounts linked to it lose access too: {emails}.",
+  "@authDeleteAccountOthers": {
+    "placeholders": {
+      "emails": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountOwner": "You own the profile {profile}. Deleting your account deletes the whole profile: its events, clips, recordings and settings in the cloud, its Feedback & Help messages, its recognition labels and its devices' stream keys.",
+  "@authDeleteAccountOwner": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountSignInAgain": "Sign in again, then delete the account.",
+  "authDeleteAccountSubscription": "Deleting your account doesn't cancel a Premium subscription: cancel it first, from the link in your Stripe receipt, or ask us.",
+  "authDeleteAccountTitle": "Delete your account?",
+  "authDeleteAccountUnfinished": "The cloud data is still being deleted. Try again in a minute to finish.",
+  "authDeleteAccountUnlinked": "Your account was deleted and unlinked from the profile",
   "authDeleteDevice": "Delete {device}",
   "@authDeleteDevice": {
     "placeholders": {
@@ -1334,6 +1387,8 @@
   "@languageSystem": {
     "description": "Language choice: follow the device's language"
   },
+  "legalPrivacy": "Privacy Policy",
+  "legalTerms": "Terms of Service",
   "logClear": "Clear",
   "logCopied": "Log copied",
   "logCopy": "Copy",
@@ -1669,6 +1724,15 @@
     "placeholders": {
       "count": {
         "type": "int"
+      }
+    }
+  },
+  "storeDeleteAccountSubscription": "Deleting your account doesn't cancel a Premium subscription: cancel it first in your {store, select, apple{App Store} google{Google Play} other{store}} subscription settings.",
+  "@storeDeleteAccountSubscription": {
+    "description": "In the Delete account dialog on iOS and Android, instead of authDeleteAccountSubscription (which names Stripe)",
+    "placeholders": {
+      "store": {
+        "type": "String"
       }
     }
   },

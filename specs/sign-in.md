@@ -265,10 +265,16 @@ there's no separate sign-in screen:
     **Copy command** (see [Install script](install-script.md#streamer)).
   - The account sheet for a signed-in user without access shows the same
     profile and devices.
+  - Under **Sign out**, once the auth API has answered with the profile,
+    **Delete account** (error-colored), which asks first and deletes the
+    account, or with it the whole profile for its owner, then signs out
+    (see [Account deletion](account-deletion.md)); for signed-in users
+    without access too.
   - The account sheet ends with a short paragraph on what Presence is and
     a link to its source code (see [About](about.md)).
 - Sign-ins and sign-outs appear on the **event stream** ("Signed in" /
-  "Signed out", with the email).
+  "Signed out", with the email; a deleted account's sign-out is "Account
+  deleted", without it).
 - Signing in also turns on [cloud sync](cloud-sync.md): the user's Google
   ID token (`AuthService.idToken`) is exchanged, through the auth API and
   Cognito, for temporary AWS credentials for their

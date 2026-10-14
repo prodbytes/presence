@@ -644,6 +644,27 @@ class FakeProfileClient implements ProfileClient {
     return members = joins;
   }
 
+  /// The profiles [deleteAccount] was asked to delete the account of.
+  final deletedAccounts = <String>[];
+
+  @override
+  Future<AccountDeletion> deleteAccount(
+    String idToken,
+    String profile, {
+    int rounds = 20,
+  }) async {
+    if (error case final e?) throw e;
+    deletedAccounts.add(profile);
+    final owner = members.any((a) => a.owner && a.current);
+    final accounts = owner ? members.length : 1;
+    members = [];
+    return AccountDeletion(
+      profile: profile,
+      wholeProfile: owner,
+      accounts: accounts,
+    );
+  }
+
   @override
   Future<List<ProfileAccount>> unlink(String idToken, String email) async {
     if (error case final e?) throw e;

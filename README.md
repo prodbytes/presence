@@ -367,13 +367,17 @@ The [Makefile](Makefile) builds release binaries through
 make            # every platform this host can build
 make web        # presence_app/build/web/
 make android    # presence_app/build/app/outputs/flutter-apk/app-release.apk
+make appbundle  # presence_app/build/app/outputs/bundle/release/app-release.aab (needs the upload key)
 make ios        # presence_app/build/ios/iphoneos/Runner.app (macOS, unsigned)
+make ipa IOS_EXPORT_OPTIONS=ExportOptions.plist  # App Store .ipa (macOS, distribution signing)
 make linux      # presence_app/build/linux/<arch>/release/bundle/ (Linux only)
 make clean
 ```
 
 Pass `MODE=profile` or `MODE=debug` for other build modes, and
 `IOS_CODESIGN=1` to sign the iOS build (this needs a signing team in Xcode).
+Store signing (the Android upload key, `scripts/android-upload-key.sh`, and
+App Store signing) is in [specs/release.md](specs/release.md#store-signing).
 
 ## Run it on GitHub Codespaces
 

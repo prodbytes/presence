@@ -41,7 +41,9 @@ streamer get its profile's credentials with no Google account:
   The auth API keeps only the key's SHA-256, with who made it (email and
   Google `sub`) and when, in `StreamKeysTable`. It also links the
   profile to its Cognito identity then, with the member's token, since the
-  streamer has none. The key is shown once, in the command.
+  streamer has none. The key is shown once, in the command. Every key of
+  a profile is deleted with it when its owner deletes their account
+  ([Account deletion](account-deletion.md)).
 - **Used by the streamer** (`POST /api/auth/stream/credentials`, no
   authorizer: `Authorization: Bearer <key>`, the body `<profile ID>
   <device ID>`): when the key's hash is that device's (compared in

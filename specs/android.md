@@ -73,7 +73,18 @@ Android uses the standard dashcam technique instead
     [Camera](camera.md).
   - **`CaptureService`**, a foreground service (types `camera` and
     `microphone`, the latter only with the microphone allowed), with an
-    ongoing low-importance notification, "Presence is capturing". Android
+    ongoing notification all the time it records: **"Presence is
+    recording"**, "Recording the camera and microphone, also with the
+    screen off. Tap to open." (just "the camera" without the microphone).
+    It's on a low-importance channel ("Recording": in the status bar and
+    the shade, no sound), shown at once (`FOREGROUND_SERVICE_IMMEDIATE`,
+    Android 12+), public on the lock screen, so it stays visible in
+    Unattended with the screen off; tapping it opens the app. Its texts
+    are Android string resources in English, Spanish and Portuguese
+    (`res/values*/strings.xml`), in the phone's language. On Android 13+
+    it needs `POST_NOTIFICATIONS`, asked for at launch with the camera and
+    microphone; granting it restarts the service, which posts the
+    notification again. Android
     lets only such an app use the camera with the screen off or covered
     (on the S40: "can't use the camera from an idle UID", e.g. under
     Google's sign-in chooser at launch). It may only start while the app is
@@ -109,7 +120,9 @@ Android uses the standard dashcam technique instead
     - after an uncaught **crash** (logged with its stack first), the
       watchdog reopens it 10 s later;
     - when Android restarts the **capture service** after killing the
-      process (`START_STICKY`), the service reopens the app;
+      process (`START_STICKY`), the service reopens the app (also when
+      Android won't let it go foreground from the background, as on
+      Android 14+);
     - after the phone **boots** (`BootReceiver`, `RECEIVE_BOOT_COMPLETED`),
       or the app is **updated** (`MY_PACKAGE_REPLACED`; not after `flutter
       run` or `android-install.sh`, which force-stop it first, and a
@@ -117,10 +130,23 @@ Android uses the standard dashcam technique instead
     - The watchdog opens it in a fresh task (`NEW_TASK | CLEAR_TASK`), so
       a screen left on top of the app's old task can't keep it from
       starting.
+    - **Android 10 and later** don't let an app in the background open
+      its screen (they refuse silently). There, besides trying, the app
+      posts a high-priority notification, **"Presence stopped — tap to
+      resume"** ("It isn't recording. Android doesn't let it reopen by
+      itself."), on its own channel ("App stopped"), public on the lock
+      screen, alerting once (the watchdog only updates it); its tap opens
+      the app (an immutable `PendingIntent`, which may start a screen from
+      the background). The app's screen removes it once it's up. Without
+      `POST_NOTIFICATIONS` (Android 13+) it can't show, and that's logged.
+      The app asks for neither `SYSTEM_ALERT_WINDOW` nor
+      `USE_FULL_SCREEN_INTENT`.
+    - **Boot never starts the camera service:** the boot receiver only
+      opens the screen (or notifies), and the screen starts the service
+      once shown. Android 15 forbids starting a camera or microphone
+      foreground service from `BOOT_COMPLETED`.
     - Only a force stop (Settings > Apps) keeps it closed: it cancels the
-      alarms until the app is opened again. Android 10 and later may refuse
-      to open an app from the background (the S40 runs Android 9); the
-      attempt is logged.
+      alarms until the app is opened again.
     - Verified on the S40: after `adb shell am crash`, the log file had the
       crash and its stack; Android restarted the capture service 4 s later,
       which reopened the app, and the camera was open again 18 s after the
@@ -137,10 +163,12 @@ Android uses the standard dashcam technique instead
 - Slow work (encoders, microphone, opening the camera, thumbnails) runs off
   the main thread, and thumbnails have their own thread so they never delay
   a clip's before part.
-- **Permissions:** camera and microphone are requested at launch. Without
-  the microphone, recording is video-only. The screen is kept on while the
-  app is shown. The manifest also has `FOREGROUND_SERVICE` (and its
-  `_CAMERA` and `_MICROPHONE` types), `WAKE_LOCK` and
+- **Permissions:** camera and microphone, and on Android 13+
+  notifications (`POST_NOTIFICATIONS`, for the recording and "stopped"
+  notifications), are requested at launch. Without the microphone,
+  recording is video-only. The screen is kept on while the app is shown.
+  The manifest also has `FOREGROUND_SERVICE` (and its `_CAMERA` and
+  `_MICROPHONE` types), `WAKE_LOCK`, `RECEIVE_BOOT_COMPLETED` and
   `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, for capturing untouched.
 - **Storage:** metadata goes in a persistent sembast database (via
   `idb_shim`) in the app's private storage. Recordings are sealed MP4 files
@@ -153,7 +181,15 @@ Android uses the standard dashcam technique instead
   links (the [Add a device](add-device.md) links) to `app_links`, with
   Flutter's own deep linking off (`flutter_deeplinking_enabled`). Without
   the site's `assetlinks.json`, Android doesn't open them in the app by
-  itself yet.
+  itself yet; for the Play build it must list Play's app signing key
+  (see [Store signing](release.md#google-play-android)).
+- **Release signing** (`android/app/build.gradle.kts`): release builds
+  are signed with the upload key, from `ANDROID_KEYSTORE_PATH` and
+  `ANDROID_KEYSTORE_PASSWORD` (alias `ANDROID_KEY_ALIAS`, default
+  `upload`) or `android/key.properties`; without one, with the debug key,
+  except a release App Bundle (`make appbundle`), which then fails.
+  `scripts/android-upload-key.sh` creates the key outside the repo. See
+  [Store signing](release.md#google-play-android).
 
 ## Subject recognition
 
@@ -248,10 +284,17 @@ Android uses the standard dashcam technique instead
 ## Known limitations
 
 - Capturing untouched was verified for minutes, plugged in, on Android 9;
-  not yet for hours, on battery (Doze), or on Android 13+, where the
-  capture notification needs `POST_NOTIFICATIONS`, which the app doesn't
-  ask for: without it the service still runs, with its notification only
+  not yet for hours, on battery (Doze), or on Android 10+. The
+  notifications and the permission request compile (`flutter build apk`)
+  but weren't yet checked on an Android 13+ phone.
+- **On Android 10+ the app can't reopen itself:** after a kill, a crash,
+  a boot or an update it waits for a tap on "Presence stopped — tap to
+  resume"; until then nothing records. With notifications denied
+  (Android 13+), nothing says so, and the capture notification shows only
   in the task manager.
+- Android 14+ lets the user swipe away the capture notification; the
+  service keeps running, and the notification comes back the next time
+  the service starts.
 - Between a kill and the watchdog's next check, up to 15 min go
   unrecorded (a crash reopens it in 10 s). A native crash (in a codec or
   a model) skips the crash handler: the watchdog reopens the app, and the

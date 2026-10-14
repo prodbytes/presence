@@ -4,7 +4,9 @@
 #   make           every platform this host can build
 #   make web       presence_app/build/web/
 #   make android   release APK
+#   make appbundle release App Bundle for Google Play (needs the upload key)
 #   make ios       Runner.app (macOS only; unsigned unless IOS_CODESIGN=1)
+#   make ipa       App Store .ipa (macOS only; IOS_EXPORT_OPTIONS=<plist>)
 #   make linux     Linux bundle (Linux only)
 #   make deb       Linux bundle as the Raspberry Pi camera kiosk .deb (Linux only)
 #   make streamer  presence-streamer for the Raspberry Pi (armhf, arm64): tarballs, and .debs with dpkg-deb
@@ -16,11 +18,11 @@ ifndef BUILD_NUMBER
 BUILD_NUMBER := $(shell date -u +%s)
 endif
 
-export MODE IOS_CODESIGN BUILD_NUMBER VERSION_Z
+export MODE IOS_CODESIGN IOS_EXPORT_OPTIONS BUILD_NUMBER VERSION_Z
 
-.PHONY: all web android ios linux deb streamer clean
+.PHONY: all web android appbundle ios ipa linux deb streamer clean
 
-all web android ios linux deb clean:
+all web android appbundle ios ipa linux deb clean:
 	@bash scripts/make.sh $@
 
 streamer:

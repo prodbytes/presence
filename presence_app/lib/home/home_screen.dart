@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../about.dart';
 import '../app_log.dart';
 import '../battery.dart';
 import '../auth/account_sheet.dart';
 import '../auth/admin_screen.dart';
 import '../auth/auth_service.dart';
+import '../auth/delete_account.dart';
 import '../auth/rbacr_client.dart';
 import '../feedback/feedback_client.dart';
 import '../feedback/help_view.dart';
@@ -76,6 +78,7 @@ class HomeScreen extends StatefulWidget {
     this.tabMemory,
     this.showDevice,
     this.deleteDevice,
+    this.deleteAccount,
     this.screenOff,
   });
 
@@ -90,6 +93,9 @@ class HomeScreen extends StatefulWidget {
   /// Deletes another of the profile's devices, from the account sheet's
   /// device list.
   final DeleteDevice? deleteDevice;
+
+  /// Deletes the signed-in account, from the account sheet's last button.
+  final DeleteAccount? deleteAccount;
 
   /// Where the open tab is remembered, so a browser refresh comes back to
   /// it; defaults to the platform's ([TabMemory]).
@@ -580,6 +586,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         deviceId: widget.deviceId,
         showDevice: widget.showDevice,
         deleteDevice: widget.deleteDevice,
+        deleteAccount: widget.deleteAccount,
         onHelp: _showHelp ? _openHelp : null,
       ),
       body: Stack(
@@ -711,6 +718,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           deviceId: widget.deviceId,
                           showDevice: widget.showDevice,
                           deleteDevice: widget.deleteDevice,
+                          deleteAccount: widget.deleteAccount,
                         ),
                       ),
                     ),
@@ -744,6 +752,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 null => null,
               },
             ),
+          // Signed out, nothing else is at the bottom: the Privacy Policy
+          // and Terms of Service (with access, they're in the Profile tab).
+          if (_onCamera && !_hasAccess && !_signedIn)
+            const SignedOutLegalLinks(),
           // Opened with a link to add this device: what's left to do.
           if (joinStatus != null)
             SafeArea(

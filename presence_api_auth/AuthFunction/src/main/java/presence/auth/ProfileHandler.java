@@ -68,6 +68,9 @@ import static presence.auth.Http.response;
  *       email in the body from the caller's profile (not the owner). Its
  *       next sign-in makes it a profile of its own again. Answers the
  *       listing.</li>
+ *   <li>{@code POST /api/auth/account/delete}: deletes the caller's
+ *       account, or with it the whole profile when the caller owns it
+ *       ({@link #deleteAccount}).</li>
  * </ul>
  */
 public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
@@ -175,7 +178,68 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         /** Forgets the stream key of the profile's device (none: nothing happens). */
         default void deleteStreamKey(String profileId, String deviceId) {
         }
+
+        /**
+         * Deletes every object in the identity's folder ({@code <identity>/}
+         * in the user-data bucket), a page at a time, until it's empty or
+         * {@code deadline} passes. Safe to call again: it carries on with
+         * what's left.
+         */
+        default FolderDeletion deleteFolder(String identityId, Instant deadline) {
+            return new FolderDeletion(0, true);
+        }
+
+        /**
+         * Deletes the identity: detaches the live-sync IoT policy from it and
+         * deletes it from the identity pool. Whether the pool no longer has
+         * it; a failure is logged (with the identity, to delete by hand) and
+         * answers false, never throws.
+         */
+        default boolean deleteIdentity(String identityId) {
+            return false;
+        }
+
+        /**
+         * Deletes Feedback and Help messages of the identity's conversation:
+         * every one, or with {@code email}, only those that email sent. How
+         * many went.
+         */
+        default int deleteFeedback(String identityId, String email) {
+            return 0;
+        }
+
+        /** Deletes the profile's cloud recognition labels and model; how many items went. */
+        default int deleteRecognition(String profileId) {
+            return 0;
+        }
+
+        /** Deletes the stream keys of every device of the profile; how many went. */
+        default int deleteStreamKeys(String profileId) {
+            return 0;
+        }
+
+        /** Deletes the link codes into the profile that haven't been used; how many went. */
+        default int deleteLinkCodes(String profileId) {
+            return 0;
+        }
     }
+
+    /**
+     * What {@link Backend#deleteFolder} did: how many objects it deleted, and
+     * whether the folder is empty now (false: time ran out, call again).
+     */
+    record FolderDeletion(int objects, boolean complete) {
+    }
+
+    /** The account deletion route. */
+    static final String DELETE_ACCOUNT = "POST /api/auth/account/delete";
+
+    /**
+     * The longest one account deletion request spends deleting the
+     * profile's folder before it answers that it isn't done ({@code 202}):
+     * well inside the HTTP API's 30 s and the function's timeout.
+     */
+    static final Duration DELETION_BUDGET = Duration.ofSeconds(20);
 
     /** The principal tag the credentials carry: whether they may use the bucket. */
     static final String TIER_TAG = "tier";
@@ -272,6 +336,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 case "POST /api/auth/profile/link-code" -> linkCode(caller);
                 case "POST /api/auth/profile/link" -> link(caller, Http.bodyText(event, 32));
                 case "POST /api/auth/profile/unlink" -> unlink(caller, Http.bodyText(event, 254));
+                case DELETE_ACCOUNT -> deleteAccount(caller, Http.bodyText(event, 128), deadline(context));
                 default -> response(404, "{\"error\":\"no such route\"}");
             };
         } catch (RuntimeException e) {
@@ -509,6 +574,108 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         }
         profiles.store().unlink(member.subject());
         return listing(caller);
+    }
+
+    /**
+     * When an account deletion stops deleting the folder: {@link
+     * #DELETION_BUDGET} from now, or sooner if the function would time out
+     * first (keeping 5 s to finish and answer).
+     */
+    private Instant deadline(Context context) {
+        var now = profiles.clock().instant();
+        var budget = DELETION_BUDGET;
+        if (context != null) {
+            var left = Duration.ofMillis(context.getRemainingTimeInMillis()).minusSeconds(5);
+            if (left.compareTo(budget) < 0) {
+                budget = left.isNegative() ? Duration.ZERO : left;
+            }
+        }
+        return now.plus(budget);
+    }
+
+    /**
+     * {@code POST /api/auth/account/delete}: deletes the caller's account.
+     * The body is the profile ID the caller means (what the app showed), so
+     * an account that moved meanwhile isn't deleted by mistake: another
+     * answers 409. Any verified account may, with or without roles.
+     * <ul>
+     *   <li>A <b>linked</b> account (not the profile's owner) leaves the
+     *       profile: its link (the identity mapping) is deleted, and its
+     *       Feedback and Help messages in the profile's conversation. The
+     *       profile and its data stay the owner's.</li>
+     *   <li>The <b>owner</b> deletes the whole profile: its folder in the
+     *       user-data bucket (every object, a page at a time), its Feedback
+     *       and Help conversation, its Cognito identity (and live sync's IoT
+     *       policy on it), its cloud recognition labels and model, its
+     *       devices' stream keys, its unused link codes, every linked
+     *       account's link, the profile itself and, last, the owner's own
+     *       link. A big folder may take more than one request: until it's
+     *       empty the answer is 202 with {@code "complete": false}, having
+     *       deleted nothing else, and the app calls again.</li>
+     * </ul>
+     * Safe to retry: each step does nothing when it's done, and the
+     * caller's own link goes last, so a request that failed half-way is
+     * finished by the next. Once it's gone, the answer is {@code
+     * {"deleted": "nothing", "complete": true}}. Keyed by the subject and
+     * the profile only, so any sign-in provider's subjects are deleted the
+     * same way. Roles (rbacr) and subscriptions (Stripe) are untouched.
+     */
+    private APIGatewayV2HTTPResponse deleteAccount(Caller caller, String body, Instant deadline) {
+        var profileId = profiles.store().linked(caller.subject());
+        if (profileId == null) {
+            return response(200, "{\"deleted\":\"nothing\",\"complete\":true}");
+        }
+        if (body == null || !profileId.equals(body.strip())) {
+            return response(409, "{\"error\":\"the body must be this account's profile ID\"}");
+        }
+        var profile = profiles.store().profile(profileId);
+        // A profile that's gone, or bare (no owner, no folder: made again by
+        // a sign-in meanwhile), is one whose owner's deletion stopped
+        // half-way: whoever is still linked finishes it.
+        var ownerless = profile == null || ((profile.ownerSubject() == null || profile.ownerSubject().isBlank())
+                && !profile.hasIdentity());
+        if (!ownerless && !caller.subject().equals(profile.ownerSubject())) {
+            var feedback = configured && profile.hasIdentity()
+                    ? backend.deleteFeedback(profile.identityId(), caller.verifiedEmail())
+                    : 0;
+            profiles.store().unlink(caller.subject());
+            return response(200, "{\"deleted\":\"account\",\"profile\":" + Json.string(profileId)
+                    + ",\"accounts\":1,\"objects\":0,\"feedback\":" + feedback
+                    + ",\"identity\":false,\"complete\":true}");
+        }
+        var objects = 0;
+        var feedback = 0;
+        var identity = false;
+        if (configured && profile != null && profile.hasIdentity()) {
+            var folder = backend.deleteFolder(profile.identityId(), deadline);
+            if (!folder.complete()) {
+                return response(202, "{\"deleted\":\"profile\",\"profile\":" + Json.string(profileId)
+                        + ",\"objects\":" + folder.objects() + ",\"complete\":false}");
+            }
+            objects = folder.objects();
+            feedback = backend.deleteFeedback(profile.identityId(), null);
+            identity = backend.deleteIdentity(profile.identityId());
+        }
+        var labels = backend.deleteRecognition(profileId);
+        var streamKeys = backend.deleteStreamKeys(profileId);
+        backend.deleteLinkCodes(profileId);
+        var members = profiles.store().members(profileId);
+        for (var member : members) {
+            if (!member.subject().equals(caller.subject())) {
+                profiles.store().unlink(member.subject());
+            }
+        }
+        profiles.store().delete(profileId);
+        // Last: until it goes, a retry finds the profile and finishes.
+        profiles.store().unlink(caller.subject());
+        return response(200, "{\"deleted\":\"profile\",\"profile\":" + Json.string(profileId)
+                + ",\"accounts\":" + Math.max(1, members.size())
+                + ",\"objects\":" + objects
+                + ",\"feedback\":" + feedback
+                + ",\"recognition\":" + labels
+                + ",\"streamKeys\":" + streamKeys
+                + ",\"identity\":" + identity
+                + ",\"complete\":true}");
     }
 
     /** An email as an account's: one {@code @}, not at either end, no spaces or commas. */

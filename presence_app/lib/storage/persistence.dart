@@ -482,39 +482,84 @@ class Persistence implements DeviceSettings {
               when time < before)
             id,
       };
-      if (old.isEmpty) {
-        await _sweep(store);
-        return 0;
-      }
-      // A suggestion goes with the clip it asks about.
-      final ids = {
-        ...old,
-        for (final r in records)
-          if (r['type'] == SubjectSuggestion.suggestionType &&
-              old.contains(r['clipEventId']))
-            if (r['id'] case final String id) id,
-      };
-      final clips = [
-        for (final c in await store.allClips())
-          if (ids.contains(c['eventId']) && c['id'] is String) c,
-      ];
-      final clipIds = {for (final c in clips) c['id']! as String};
-      await store.deleteEvents(ids, clipIds);
-      // What cloud sync remembers of them (uploads, ETags) goes too, so
-      // its store doesn't grow forever.
-      await store.deleteSynced(
-        (key) => CloudSync.isSyncedKeyOf(key, ids, clipIds),
-      );
-      await (await _media).delete([
-        for (final c in clips)
-          for (final ref in [c['past'], c['full']])
-            if (ref is Map && ref['mediaId'] is String)
-              ref['mediaId']! as String,
-      ]);
-      _watched.removeAll(ids);
-      _log?.remove(ids);
+      final deleted = old.isEmpty ? 0 : await _purge(store, records, old);
       await _sweep(store);
-      return ids.length;
+      return deleted;
+    }();
+    _track(delete);
+    return delete;
+  }
+
+  /// Deletes the events [old] from the device for good, as
+  /// [deleteEventsBefore] does: their records, the suggestions about their
+  /// clips, the clips with their recordings, and what cloud sync remembers
+  /// of them; then takes them out of the event log. How many records went.
+  Future<int> _purge(
+    EventStore store,
+    List<Map<String, Object?>> records,
+    Set<String> old,
+  ) async {
+    // A suggestion goes with the clip it asks about.
+    final ids = {
+      ...old,
+      for (final r in records)
+        if (r['type'] == SubjectSuggestion.suggestionType &&
+            old.contains(r['clipEventId']))
+          if (r['id'] case final String id) id,
+    };
+    final clips = [
+      for (final c in await store.allClips())
+        if (ids.contains(c['eventId']) && c['id'] is String) c,
+    ];
+    final clipIds = {for (final c in clips) c['id']! as String};
+    await store.deleteEvents(ids, clipIds);
+    // What cloud sync remembers of them (uploads, ETags) goes too, so
+    // its store doesn't grow forever.
+    await store.deleteSynced(
+      (key) => CloudSync.isSyncedKeyOf(key, ids, clipIds),
+    );
+    await (await _media).delete([
+      for (final c in clips)
+        for (final ref in [c['past'], c['full']])
+          if (ref is Map && ref['mediaId'] is String) ref['mediaId']! as String,
+    ]);
+    _watched.removeAll(ids);
+    _log?.remove(ids);
+    return ids.length;
+  }
+
+  /// Forgets [profileId] on this device, once its account is deleted: every
+  /// event of the profile goes for good ([_purge]: the records, their clips
+  /// and recordings, the suggestions about them, what cloud sync remembers
+  /// of them), whichever device recorded it; the other devices' media keys
+  /// learned from the profile; and the settings' link to it. Events of no
+  /// profile or of another stay, and so do this device's ID, key, consent,
+  /// location and settings. How many records went.
+  Future<int> deleteProfile(String profileId) {
+    final pending = List.of(_pending);
+    final restoring = _restoring;
+    final delete = () async {
+      await restoring?.then((_) {}, onError: (Object _) {});
+      await Future.wait(pending);
+      if (_disposed) return 0;
+      final store = await _store;
+      final records = await store.allEvents();
+      final ids = {
+        for (final r in records)
+          if ((r['profileId'], r['id'])
+              case (final String profile, final String id)
+              when profile == profileId)
+            id,
+      };
+      final deleted = ids.isEmpty ? 0 : await _purge(store, records, ids);
+      // The profile's devices' keys: nothing of theirs is left to open.
+      seal.keys.forgetPeers();
+      await store.putSettings(_keysKey, const {});
+      if (_settingsProfile == profileId) {
+        _settingsProfile = null;
+        _writeConfig();
+      }
+      return deleted;
     }();
     _track(delete);
     return delete;

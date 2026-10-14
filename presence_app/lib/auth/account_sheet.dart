@@ -14,6 +14,7 @@ import '../events.dart';
 import '../identity/device_os.dart';
 import '../l10n/l10n.dart';
 import 'auth_service.dart';
+import 'delete_account.dart';
 import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
 import 'plan_notice.dart';
@@ -37,6 +38,7 @@ class AccountButton extends StatelessWidget {
     this.deviceId,
     this.showDevice,
     this.deleteDevice,
+    this.deleteAccount,
   });
 
   final AuthService auth;
@@ -44,6 +46,9 @@ class AccountButton extends StatelessWidget {
 
   /// Deletes another of the profile's devices from the sheet's list.
   final DeleteDevice? deleteDevice;
+
+  /// Deletes the signed-in account, from the sheet's last button.
+  final DeleteAccount? deleteAccount;
 
   /// Shows or hides a device's events here, from the sheet's list.
   final ShowDevice? showDevice;
@@ -87,6 +92,7 @@ class AccountButton extends StatelessWidget {
                 deviceId: deviceId,
                 showDevice: showDevice,
                 deleteDevice: deleteDevice,
+                deleteAccount: deleteAccount,
               ),
             ),
           ),
@@ -138,9 +144,14 @@ class AccountSheet extends StatelessWidget {
     this.deviceId,
     this.showDevice,
     this.deleteDevice,
+    this.deleteAccount,
     this.openLink,
     this.now,
   });
+
+  /// Deletes the signed-in account (its last button, after asking; see
+  /// [DeleteAccountButton]). None: no button.
+  final DeleteAccount? deleteAccount;
 
   /// Shows or hides a device's events here (each one's eye button in the
   /// list; [EventLog.hiddenDevices]). None: no eye buttons.
@@ -375,6 +386,23 @@ class AccountSheet extends StatelessWidget {
                         auth.signOut();
                       },
                     ),
+                    // Last, apart: deleting the account (or, for the
+                    // profile's owner, the whole profile). Only once the
+                    // auth API has answered with the account's profile.
+                    if ((deleteAccount, profiles, roles?.profile) case (
+                      final delete?,
+                      final profiles?,
+                      final profile?,
+                    )) ...[
+                      const SizedBox(height: 8),
+                      DeleteAccountButton(
+                        auth: auth,
+                        profiles: profiles,
+                        profile: profile,
+                        delete: delete,
+                        openLink: openLink,
+                      ),
+                    ],
                   ],
                   if (error != null) ...[
                     const SizedBox(height: 12),

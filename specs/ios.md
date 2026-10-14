@@ -46,8 +46,25 @@ The Swift counterpart of the Android layer
   `flutter build ios` runs `pod install` (CocoaPods must be installed, as
   on GitHub's macOS runners). [Recognition](recognition.md) runs on iOS
   with it (frames from `keyframesAt` in Swift).
-- `Info.plist` declares camera and **microphone** usage, locks iPhone to
-  portrait, and names the app "Presence".
+- `Info.plist` names the app "Presence" and locks it to portrait. Its
+  permission texts say what the app does, as the App Store wants
+  ([Store readiness](store-readiness.md)):
+  - camera: while open, it records video continuously, keeping recent
+    footage and saving clips, and shows the live feed;
+  - microphone: while open, it records sound with the video and keeps it
+    in clips;
+  - location (when in use): it shows the device on a map and records it
+    with each event.
+- **iPhone only:** `TARGETED_DEVICE_FAMILY = 1` in every build
+  configuration (Runner and RunnerTests inherit it), so there's no iPad
+  build, iPad review or iPad screenshots, and no iPad orientations in
+  `Info.plist`. It has only been run on an iPhone.
+- **Export compliance:** `ITSAppUsesNonExemptEncryption` is `false`, so
+  App Store Connect doesn't ask at each upload. The app's only
+  cryptography is HTTPS (the system's) and standard AES-256-GCM for its
+  own media ([Encryption](encryption.md)), both exempt (standard
+  algorithms, used to protect the app's own data), so no export
+  documentation is needed.
 - **Verified:** it builds with Xcode 27, and on the iOS simulator the
   plugin answers the channel: the camera permission prompt appears, where
   before there was a `MissingPluginException`.
@@ -60,3 +77,11 @@ The Swift counterpart of the Android layer
   devicectl device process launch --terminate-existing --device <UDID>
   com.nu01.presence` install and start it; it runs. What it does once
   open (the camera, sign-in) wasn't checked from the command line.
+- **App Store signing:** the Xcode project still names no team, and local
+  builds keep Flutter's automatic development signing. The Release
+  workflow's App Store build writes `Flutter/Signing.xcconfig` (included
+  by `Release.xcconfig` when present: manual style, `APPLE_TEAM_ID`,
+  `Apple Distribution`, the App Store profile) and builds an `.ipa` with
+  `make ipa`; entitlements (Sign in with Apple's, once
+  `Runner.entitlements` exists) come from the project and must be in the
+  profile. See [Store signing](release.md#app-store-ios).
