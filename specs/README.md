@@ -237,6 +237,9 @@ their data.
   deployed on `*GA` tags.
 - [Release builds](release.md): the GitHub Actions workflow that builds the
   binaries and publishes a release for `*QA` / `*RC*` tags and manual runs.
+- [Store readiness](store-readiness.md): what the App Store and Google
+  Play require that Presence meets, and what it doesn't yet (Stripe
+  billing, account deletion, Sign in with Apple, release signing).
 - [Production deploy](deploy.md): `*GA` tags deploy to
   https://presence.nu01.com, and `*RC*` tags (or manual runs) to
   https://rc.presence.nu01.com (CloudFront, S3, API Gateway).
