@@ -37,6 +37,14 @@
   "authBackupOff": "Cloud backup is off",
   "authCheckAgain": "Check again",
   "authCheckingRoles": "Checking roles…",
+  "authDeleteDevice": "Delete {device}",
+  "@authDeleteDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
   "authDeviceCount": "{count, plural, =1{1 device} other{{count} devices}}",
   "@authDeviceCount": {
     "placeholders": {
@@ -1456,6 +1464,49 @@
   "settingsCoordinatesLatitudeRange": "Latitude must be between -90 and 90",
   "settingsCoordinatesLongitudeRange": "Longitude must be between -180 and 180",
   "settingsCoordinatesMinutes": "Minutes and seconds go up to 59",
+  "settingsDeleteDeviceCancel": "Cancel",
+  "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
+  "settingsDeleteDeviceConfirm": "Delete videos",
+  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
+  "@settingsDeleteDeviceDone": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
+  "@settingsDeleteDeviceFailed": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteDeviceKeep": "Keep videos",
+  "settingsDeleteDeviceMessage": "Delete {deviceId} from your devices? {count, plural, =0{It has no events here} =1{It has 1 event} other{It has {count} events}}.",
+  "@settingsDeleteDeviceMessage": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceRemoved": "Removed {deviceId} from the list; its videos stay",
+  "@settingsDeleteDeviceRemoved": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteDeviceTitle": "Delete device?",
   "settingsDevice": "Device",
   "settingsDeviceLoading": "loading…",
   "settingsHistoryNote": "Older events and their clips are deleted from this device when the app starts and every 3 hours.",

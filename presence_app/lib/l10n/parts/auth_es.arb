@@ -15,6 +15,7 @@
   "authNoEvents": "Sin eventos",
   "authHideDevice": "Ocultar los eventos de {device}",
   "authShowDevice": "Mostrar los eventos de {device}",
+  "authDeleteDevice": "Eliminar {device}",
   "authLinkedAccounts": "Cuentas vinculadas",
   "authAccessAdmin": "Acceso admin",
   "authAccessPremium": "Acceso Premium",

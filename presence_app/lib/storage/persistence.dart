@@ -209,6 +209,36 @@ class Persistence implements DeviceSettings {
     return write;
   }
 
+  /// Settings-store key of the devices deleted from the list keeping their
+  /// events (`EventLog.removedDevices`).
+  static const String _removedDevicesKey = 'removedDevices';
+
+  /// The devices deleted from the list here, and when; none saved, none.
+  Future<Map<String, DateTime>> loadRemovedDevices() async {
+    final json = await (await _store).getSettings(_removedDevicesKey);
+    return {
+      for (final MapEntry(:key, :value)
+          in ((json?['devices'] as Map?) ?? const {}).entries)
+        if (key is String && value is int)
+          key: DateTime.fromMillisecondsSinceEpoch(value),
+    };
+  }
+
+  /// Saves the devices deleted from the list here. Only here, as
+  /// [saveHiddenDevices].
+  Future<void> saveRemovedDevices(Map<String, DateTime> devices) {
+    final write = () async {
+      await (await _store).putSettings(_removedDevicesKey, {
+        'devices': {
+          for (final MapEntry(:key, :value) in devices.entries)
+            key: value.millisecondsSinceEpoch,
+        },
+      });
+    }();
+    _track(write);
+    return write;
+  }
+
   /// The saved location of this device, if any.
   Future<Map<String, Object?>?> loadLocation() async =>
       (await _store).getSettings(_locationKey);

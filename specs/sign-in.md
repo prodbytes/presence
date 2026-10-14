@@ -235,6 +235,10 @@ there's no separate sign-in screen:
       the end of its row: it hides the device's events on this device,
       or shows them again; the device stays listed. See
       [Hiding a device](device-hiding.md).
+    - **Delete:** every device but this one has a delete button beside
+      the eye; it asks whether to keep the device's videos (it only leaves
+      the list) or delete them (its events are hidden on every device).
+      See [Device deletion](device-deletion.md).
     - Each device shows its **operating system** (`profileDeviceDetails`):
       an icon before the ID (Android `Icons.android`, iOS
       `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,

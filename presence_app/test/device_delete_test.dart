@@ -237,6 +237,126 @@ void main() {
     });
   });
 
+  for (final keep in [true, false]) {
+    testWidgets('in the app: deleting a device from the account sheet, '
+        '${keep ? 'keeping its videos: it leaves the list, its events stay' : 'with its videos: its events go too'}'
+        '; after a restart too', (tester) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final storage = newIdbFactoryMemory();
+      final noon = DateTime(2026, 10, 6, 12);
+      final seed = await tester.runAsync(() => EventStore.open(storage));
+      for (final (i, title) in ['Phone motion', 'Phone door'].indexed) {
+        await tester.runAsync(
+          () => seed!.putEvent({
+            'id': 'phone-$i',
+            'type': AppEvent.genericType,
+            'title': title,
+            'time': noon
+                .subtract(Duration(minutes: i + 1))
+                .millisecondsSinceEpoch,
+            'deviceId': 'brave_phone',
+            'userId': '1',
+            'profileId': 'automatic_paranoid_axolotl',
+          }),
+        );
+      }
+      seed!.close();
+      Widget app() => PresenceApp(
+        consentGiven: true,
+        cameras: openFakes(const []),
+        storage: storage,
+        mediaIo: fakeMediaIo,
+        now: () => noon,
+        auth: FakeAuthService.signedIn(),
+        rolesClient: FakeRolesClient(),
+        mapTiles: const SizedBox(),
+        locator: NoLocation(),
+      );
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+      await settleStorage(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('account-button')));
+      await tester.pumpAndSettle();
+      // Beside its eye button.
+      expect(
+        find.byKey(const Key('profile-device-hide-brave_phone')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('profile-device-delete-brave_phone')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('profile-device-delete-brave_phone')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('delete-device-message')))
+            .data,
+        'Delete brave_phone from your devices? It has 2 events.',
+      );
+      expect(tester.takeException(), isNull, reason: 'fits 320 dp');
+      await tester.tap(
+        find.byKey(Key(keep ? 'delete-device-keep' : 'delete-device-confirm')),
+      );
+      await tester.pump();
+      await settleStorage(tester);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('profile-device-brave_phone')), findsNothing);
+      expect(
+        find.text(
+          keep
+              ? 'Removed brave_phone from the list; its videos stay'
+              : 'Deleted brave_phone: 2 events hidden',
+        ),
+        findsOneWidget,
+      );
+
+      Future<void> eventsShow() async {
+        await showEvents(tester);
+        await revealSystemEvents(tester);
+        expect(find.text('Phone motion'), keep ? findsOneWidget : findsNothing);
+      }
+
+      await tester.tap(find.byTooltip('Events'));
+      await tester.pumpAndSettle();
+      await eventsShow();
+
+      // Remembered: after a restart it's still off the list.
+      await tester.pumpWidget(const SizedBox());
+      await settleStorage(tester);
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+      await settleStorage(tester);
+      await tester.pumpAndSettle();
+      // Its events gone stay gone (kept ones may be past the screen, under
+      // the restarts' own events).
+      if (!keep) await eventsShow();
+      await tester.tap(find.byKey(const Key('account-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('profile-device-brave_phone')), findsNothing);
+    });
+  }
+
+  test('a device deleted keeping its videos is listed again once it has a '
+      'newer event', () {
+    final log = EventLog(const Stream.empty());
+    final at = DateTime(2026, 10, 6, 12);
+    log.removedDevices = {'brave_phone': at};
+    expect(log.removedFromList('brave_phone', at), isTrue);
+    expect(log.removedFromList('brave_phone', null), isTrue);
+    expect(
+      log.removedFromList('brave_phone', at.add(const Duration(seconds: 1))),
+      isFalse,
+    );
+    expect(log.removedFromList('zesty_owl', at), isFalse);
+    log.dispose();
+  });
+
   testWidgets('in the app: hiding a device from the account sheet hides '
       'its events from the timeline and its count, after a restart too', (
     tester,
@@ -287,6 +407,10 @@ void main() {
     final before = count();
 
     await tester.tap(find.byKey(const Key('account-button')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('profile-device-hide-brave_phone')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile-device-hide-brave_phone')));
     await tester.pump();

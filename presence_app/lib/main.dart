@@ -245,6 +245,10 @@ class _PresenceAppState extends State<PresenceApp> {
     _persistence.loadHiddenDevices().then((hidden) {
       if (mounted) _log.hiddenDevices = {...hidden, ..._log.hiddenDevices};
     }).ignore();
+    // And those deleted from the list keeping their videos.
+    _persistence.loadRemovedDevices().then((removed) {
+      if (mounted) _log.removedDevices = {...removed, ..._log.removedDevices};
+    }).ignore();
     // Settings restored from the cloud include the location set on the map.
     _persistence.onRemoteLocation = _location.applyRemote;
     // Cloud recognition, for premium profiles, in builds with cloud sync.
@@ -464,6 +468,33 @@ class _PresenceAppState extends State<PresenceApp> {
   /// The link this device was opened with to join a user's devices, until
   /// it's handled or dismissed.
   JoinLink? _join;
+
+  /// Deletes another of the signed-in profile's devices: off the devices
+  /// list, and with [events] its events too (`Persistence.deleteDevice`);
+  /// nothing without a profile. Returns how many events went.
+  Future<int> _deleteDevice(String deviceId, {required bool events}) async {
+    final profile = _roles.profile;
+    if (profile == null) return 0;
+    var deleted = 0;
+    if (events) {
+      deleted = await _persistence.deleteDevice(deviceId, profileId: profile);
+      // Nor is it counted as holding copies of the events left.
+      _copies.forgetDevice(deviceId);
+    }
+    // Off the list here, until it has a newer event.
+    final removed = {
+      ..._log.removedDevices,
+      deviceId: (widget.now ?? DateTime.now)(),
+    };
+    _log.removedDevices = removed;
+    _persistence.saveRemovedDevices(removed).ignore();
+    // No presence dot from before: it shows again only if it pings or
+    // answers again.
+    _sync?.live?.forget(deviceId);
+    // And the next device takes its place among those that show.
+    _sync?.releaseDevice(deviceId).ignore();
+    return deleted;
+  }
 
   /// Shows or hides [deviceId]'s events here, and remembers it.
   void _showDevice(String deviceId, bool shown) {
@@ -761,6 +792,7 @@ class _PresenceAppState extends State<PresenceApp> {
         onJoinHandled: _joinHandled,
         tabMemory: widget.tabMemory,
         showDevice: _showDevice,
+        deleteDevice: _deleteDevice,
         screenOff: _screenOff,
       ),
     },

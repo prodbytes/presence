@@ -38,6 +38,7 @@
   "authNoEvents": "No events",
   "authHideDevice": "Hide {device}'s events",
   "authShowDevice": "Show {device}'s events",
+  "authDeleteDevice": "Delete {device}",
   "@authHideDevice": {
     "placeholders": {
       "device": {
@@ -46,6 +47,13 @@
     }
   },
   "@authShowDevice": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "@authDeleteDevice": {
     "placeholders": {
       "device": {
         "type": "String"

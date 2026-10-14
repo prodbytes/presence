@@ -224,5 +224,48 @@
         "type": "String"
       }
     }
+  },
+  "settingsDeleteDeviceTitle": "Delete device?",
+  "settingsDeleteDeviceMessage": "Delete {deviceId} from your devices? {count, plural, =0{It has no events here} =1{It has 1 event} other{It has {count} events}}.",
+  "@settingsDeleteDeviceMessage": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceChoice": "Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.",
+  "settingsDeleteDeviceCancel": "Cancel",
+  "settingsDeleteDeviceKeep": "Keep videos",
+  "settingsDeleteDeviceConfirm": "Delete videos",
+  "settingsDeleteDeviceRemoved": "Removed {deviceId} from the list; its videos stay",
+  "@settingsDeleteDeviceRemoved": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDeleteDeviceDone": "Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden",
+  "@settingsDeleteDeviceDone": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsDeleteDeviceFailed": "Could not delete {deviceId}",
+  "@settingsDeleteDeviceFailed": {
+    "placeholders": {
+      "deviceId": {
+        "type": "String"
+      }
+    }
   }
 }

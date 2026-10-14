@@ -178,6 +178,12 @@ abstract class AppLocalizations {
   /// **'Checking roles…'**
   String get authCheckingRoles;
 
+  /// No description provided for @authDeleteDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {device}'**
+  String authDeleteDevice(String device);
+
   /// No description provided for @authDeviceCount.
   ///
   /// In en, this message translates to:
@@ -3045,6 +3051,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Minutes and seconds go up to 59'**
   String get settingsCoordinatesMinutes;
+
+  /// No description provided for @settingsDeleteDeviceCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get settingsDeleteDeviceCancel;
+
+  /// No description provided for @settingsDeleteDeviceChoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep videos: it leaves the list, its events and videos stay. Delete videos: its events and videos are hidden on every device too. Either way, it shows again if it records again.'**
+  String get settingsDeleteDeviceChoice;
+
+  /// No description provided for @settingsDeleteDeviceConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete videos'**
+  String get settingsDeleteDeviceConfirm;
+
+  /// No description provided for @settingsDeleteDeviceDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted {deviceId}: {count, plural, =1{1 event} other{{count} events}} hidden'**
+  String settingsDeleteDeviceDone(String deviceId, int count);
+
+  /// No description provided for @settingsDeleteDeviceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not delete {deviceId}'**
+  String settingsDeleteDeviceFailed(String deviceId);
+
+  /// No description provided for @settingsDeleteDeviceKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep videos'**
+  String get settingsDeleteDeviceKeep;
+
+  /// No description provided for @settingsDeleteDeviceMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete {deviceId} from your devices? {count, plural, =0{It has no events here} =1{It has 1 event} other{It has {count} events}}.'**
+  String settingsDeleteDeviceMessage(String deviceId, int count);
+
+  /// No description provided for @settingsDeleteDeviceRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Removed {deviceId} from the list; its videos stay'**
+  String settingsDeleteDeviceRemoved(String deviceId);
+
+  /// No description provided for @settingsDeleteDeviceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete device?'**
+  String get settingsDeleteDeviceTitle;
 
   /// No description provided for @settingsDevice.
   ///

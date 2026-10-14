@@ -24,8 +24,9 @@ cloud. The app wires it as `ShowDevice`
 ([show_device.dart](../presence_app/lib/show_device.dart),
 `_showDevice` in [main.dart](../presence_app/lib/main.dart)).
 
-It replaced the list's delete button ([Device deletion](device-deletion.md)):
-the user asked only to hide or show a device's events, not delete them.
+Beside it, every other device has a delete button
+([Device deletion](device-deletion.md)), which asks whether to keep its
+videos.
 
 Signed in with a profile only (the list shows only then). The button
 fits a 320 dp phone, at a 2x system font too.

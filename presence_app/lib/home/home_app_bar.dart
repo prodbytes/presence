@@ -6,6 +6,7 @@ import '../auth/rbacr_client.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
 import '../cloud/cloud_sync.dart';
+import '../delete_device.dart';
 import '../show_device.dart';
 import '../events.dart';
 import '../home_tabs.dart';
@@ -34,6 +35,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.sync,
     this.deviceId,
     this.showDevice,
+    this.deleteDevice,
   });
 
   final HomeTabs tabs;
@@ -49,6 +51,10 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   final CloudSync? sync;
   final String? deviceId;
   final ShowDevice? showDevice;
+
+  /// Deletes another of the profile's devices, from the account sheet's
+  /// device list.
+  final DeleteDevice? deleteDevice;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -121,6 +127,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
             log: log,
             deviceId: deviceId,
             showDevice: showDevice,
+            deleteDevice: deleteDevice,
           ),
           const SizedBox(width: 4),
         ],

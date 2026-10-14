@@ -96,6 +96,9 @@ void main() {
     // Still selectable to copy.
     expect(tester.widget(id), isA<SelectableText>());
 
+    // Above the navigation bar.
+    await tester.ensureVisible(id);
+    await tester.pumpAndSettle();
     await tester.tap(id);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('account-sheet')), findsNothing);

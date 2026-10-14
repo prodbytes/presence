@@ -42,6 +42,9 @@ not built yet.
 - **Hiding a device:** the account sheet's device list hides or shows a
   device's events on this device only (an eye button); nothing is
   deleted. See [Hiding a device](device-hiding.md).
+- **Deleting a device:** beside it, another device's delete button takes
+  it off the list, keeping its videos or deleting its events on every
+  device too. See [Device deletion](device-deletion.md).
 - **Adding a device:** Settings' **Add a device** shows a QR code and a
   link that open Presence on another device. That device keeps its own
   device ID (the link's is the sharing device's, never copied) and, after a
