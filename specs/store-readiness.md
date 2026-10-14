@@ -1,7 +1,8 @@
 # Store readiness
 
 What the App Store (iOS) and Google Play (Android) require that Presence
-does and doesn't meet yet. Audited 2026-10-14 against the code on `main`.
+does and doesn't meet yet. Audited 2026-10-14 against the code on `main`,
+and updated as items are fixed.
 Presence isn't in either store: Android ships as a side-loaded APK, iOS as
 an unsigned development build ([Release builds](release.md)).
 
@@ -27,10 +28,6 @@ an unsigned development build ([Release builds](release.md)).
     their account in the app.
   - Google Play: the same in the app, plus a web link where users can ask
     for deletion without the app, given in the Data safety form.
-- **No privacy policy in the app.** The policy is at
-  https://presence.nu01.com/privacy ([Legal](legal.md)) but the app
-  doesn't link to it. Both stores want it in the app (Apple 5.1.1(i)) as
-  well as in the listing.
 
 ## Blockers: App Store
 
@@ -76,22 +73,13 @@ an unsigned development build ([Release builds](release.md)).
 - **App Store Connect:**
   - privacy labels, with the same data (face features count as
     sensitive);
-  - `ITSAppUsesNonExemptEncryption` isn't in `Info.plist`, so every
-    upload asks. The app uses HTTPS and AES-256-GCM for its own media,
-    which is usually exempt: set it to `false` once confirmed;
   - age rating;
   - review notes: a Google test account and how to get past the
     [consent](consent.md) screen, plus Premium access, or the reviewer
     can't see the features.
-- **Permission texts (iOS):** `NSCameraUsageDescription` says the app
-  "shows live feeds", but it records video always. Apple rejects texts
-  that understate the use (5.1.1(ii)), so it should say it records clips.
 
 ## Risks
 
-- **iPad.** `TARGETED_DEVICE_FAMILY = "1,2"`: it's reviewed on an iPad
-  too, and needs iPad screenshots. It has only been run on an iPhone.
-  Making it `1` (iPhone only) avoids this.
 - **Surveillance apps** get a closer look in both stores (Apple 5.1.1,
   2.5.14: clear consent, and a visible or audible sign of recording).
   The consent screen helps; the screen-off Unattended mode should still
@@ -120,9 +108,19 @@ an unsigned development build ([Release builds](release.md)).
   `url_launcher_ios`, `battery_plus`, `video_player_avfoundation`,
   `app_links`) ship their own. TensorFlowLiteC has none, but isn't on
   Apple's list of SDKs that must have one.
-- **Permission texts** for camera, microphone and location are in
-  `Info.plist`; no background modes are declared, so iOS doesn't expect
-  background recording.
 - **Icons:** Android adaptive and density icons; the iOS set includes
   the 1024 px marketing icon ([App icon](app-icon.md)).
-- **Privacy policy and terms** are public at `/privacy` and `/tos`.
+- **Privacy policy and terms** are public at `/privacy` and `/tos`, and
+  the app links to both (Apple 5.1.1(i)): the account sheet's About, the
+  consent screen, and signed out the bottom of the camera
+  ([About](about.md)).
+- **iOS permission texts** (5.1.1(ii)) say the camera records video
+  continuously while the app is open and saves clips, the microphone
+  records sound with it, and location is shown on a map and recorded
+  with events; no background modes are declared, so iOS doesn't expect
+  background recording ([iOS](ios.md)).
+- **iPhone only** (`TARGETED_DEVICE_FAMILY = 1`): no iPad review or iPad
+  screenshots.
+- **Export compliance:** `ITSAppUsesNonExemptEncryption` is `false`
+  (HTTPS and AES-256-GCM for its own data are exempt), so uploads don't
+  ask.

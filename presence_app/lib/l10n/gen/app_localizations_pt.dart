@@ -1708,6 +1708,12 @@ class AppLocalizationsPt extends AppLocalizations {
   String get languageSystem => 'O mesmo do dispositivo';
 
   @override
+  String get legalPrivacy => 'Política de Privacidade';
+
+  @override
+  String get legalTerms => 'Termos de Serviço';
+
+  @override
   String get logClear => 'Limpar';
 
   @override
