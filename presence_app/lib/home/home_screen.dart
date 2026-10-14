@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../about.dart';
 import '../app_log.dart';
 import '../battery.dart';
 import '../auth/account_sheet.dart';
@@ -734,6 +735,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 null => null,
               },
             ),
+          // Signed out, nothing else is at the bottom: the Privacy Policy
+          // and Terms of Service (with access, they're in the Profile tab).
+          if (_onCamera && !_hasAccess && !_signedIn)
+            const SignedOutLegalLinks(),
           // Opened with a link to add this device: what's left to do.
           if (joinStatus != null)
             SafeArea(

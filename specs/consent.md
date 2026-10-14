@@ -40,7 +40,9 @@ short, and one click to agree.
     need care: clear consent, safe keeping, and deleting on request.
 - **I agree**: one click accepts both and opens the app. There's no way
   past the screen without it, and nothing to tick.
-- A small line says it's asked once on this device and isn't legal advice.
+- A small line says it's asked once on this device and isn't legal advice,
+  then links to the **Privacy Policy** and **Terms of Service**
+  ([About](about.md), [Legal](legal.md)).
 - On a small phone the screen scrolls if it must; it doesn't overflow.
 
 ## The record

@@ -101,6 +101,8 @@
   "aboutLinkCopied": "Link copiado",
   "aboutParagraph": "O Presence transforma um celular, tablet, notebook ou Raspberry Pi em uma câmera sempre ligada para um lugar de que você cuida: imagens ao vivo, clipes que incluem os momentos anteriores e clipes ao detectar movimento. Só grave onde for permitido.",
   "aboutOpenSource": "O Presence é de código aberto:",
+  "legalPrivacy": "Política de Privacidade",
+  "legalTerms": "Termos de Serviço",
   "devModeTooltip": "Modo de desenvolvimento: o login não está configurado, então tudo fica aberto a todos.",
   "devModeTooltipVersion": "Modo de desenvolvimento, versão {version}: o login não está configurado, então tudo fica aberto a todos.",
   "authPremiumMonthly": "Premium mensal",
