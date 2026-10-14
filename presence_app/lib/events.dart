@@ -349,7 +349,8 @@ class EventLog extends ChangeNotifier {
 
   /// [profileId]'s events ([EventTimeline.ofProfile]) of the devices that
   /// show ([visibleDevices]) and aren't hidden ([hiddenDevices]), kept
-  /// until the log changes.
+  /// until the log changes. A question about a hidden device's clip
+  /// ("Is this Rex?", asked by another device) goes too.
   List<AppEvent> eventsOf(String? profileId) {
     if (_ofProfile case (final v, final p, final list)
         when v == _version && p == profileId) {
@@ -360,7 +361,8 @@ class EventLog extends ChangeNotifier {
     final list = List<AppEvent>.unmodifiable([
       for (final e in EventTimeline.ofProfile(events, profileId))
         if ((visible == null || shows(e.deviceId)) &&
-            !hidden.contains(e.deviceId))
+            !hidden.contains(e.deviceId) &&
+            !hidden.contains(_clipDeviceOf(e)))
           e,
     ]);
     _ofProfile = (_version, profileId, list);
@@ -383,6 +385,15 @@ class EventLog extends ChangeNotifier {
     _visibleDevices = devices == null ? null : Set.unmodifiable(devices);
     _changed();
   }
+
+  /// The device that recorded the clip [e] is about, when it's about
+  /// another event's clip (a question "Is this Rex?"); null otherwise.
+  static String? _clipDeviceOf(AppEvent e) =>
+      e is SubjectSuggestion ? e.clip?.deviceId : null;
+
+  /// Whether [device]'s events are hidden here ([hiddenDevices]).
+  bool hidesDevice(String? device) =>
+      device != null && _hiddenDevices.contains(device);
 
   /// Whether events of [device] show ([visibleDevices]). Events without a
   /// device ID (not saved yet) are this device's, and always show.

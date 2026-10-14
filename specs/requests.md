@@ -6032,7 +6032,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        `tenancy`); applied to `presence-github-deploy` (edge policies about
        5,930 characters). Spec: [Production deploy](deploy.md).
 
-431. **The session-token release failed again: the issuer moves to the
+431. **A hidden device: no recognition, nothing about it.** (2026-10-14)
+     - Asked: when a device is hidden on the Profile page, don't ask for
+       recognition of subjects, or show anything related to that device.
+     - Changed: questions about a hidden device's clips ("Is this Rex?")
+       leave the events, even when another device asked them; this device
+       no longer runs recognition on its clips, new or synced. (Its events
+       had already left the timeline, the subjects map and the All grid.)
+       Spec: [Hiding a device](device-hiding.md).
+
+432. **The session-token release failed again: the issuer moves to the
      site.** (2026-10-14)
      - Asked: (during the release) do what it takes to fix the deploy.
      - Found: `0.6.202610142110`'s two-step deploy got past the bootstrap,
