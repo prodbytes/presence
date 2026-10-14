@@ -63,8 +63,11 @@ same as [motion clips](motion-clips.md)'):
   - The "before" part was recorded dark; the light reaches the "after".
   - Motion is reset when the light goes on and off (its warm-up ignores
     the jump), so the light doesn't trigger a clip.
-- The camera view shows a **Night** chip (a moon, bottom left; tooltip
-  "Night mode: as bright as it goes, and lit while a clip records").
+- A **Night** pill (a moon) shows with the status pills at the top left
+  of the camera, after the battery and its temperature (`CameraStatus`;
+  tooltip "Night mode: as bright as it goes, and lit while a clip
+  records"), while it's night with night mode on. It was a chip at the
+  bottom left of the preview, where it sat among the camera's buttons.
 
 ## Tests
 
@@ -76,7 +79,8 @@ setting is off by default and the old `night` key is ignored; the rig
 (night mode on) at night is at +2 EV and back with night mode off; a clip at night lights
 the torch until it's recorded, or the screen for a front camera without
 one, and nothing for a back camera without one or by day; the screen
-light is white over everything and lets taps through.
+light is white over everything and lets taps through; the Night pill
+shows in the status pills (`camera-status`) once it's night.
 
 ## Not yet
 
