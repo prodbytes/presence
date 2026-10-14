@@ -134,7 +134,11 @@
       gets narrower so the count stays beside it.
   - What's searched is one function, `eventSearchFields` (used by
     `eventMatches`) in [lib/events.dart](../presence_app/lib/events.dart);
-    a new searchable field is one more line there.
+    a new searchable field is one more line there. A pet's coat color is
+    also found by its other words (`coatSynonyms`): "orange cat" by
+    "yellow cat", "ginger cat" or "red cat"; "golden dog" by "yellow" or
+    "gold"; "cream" by "beige" or "yellow"; "gray" by "grey" or "blue";
+    "black and white" by "tuxedo"; "brown" by "chocolate".
   - While searching, the list also matches again whenever a clip's tags
     or object tags change, so a clip recognition tags after the search was
     typed shows up then.

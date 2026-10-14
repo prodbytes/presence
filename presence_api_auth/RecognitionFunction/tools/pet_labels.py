@@ -58,6 +58,16 @@ DOG_BREEDS = [
     "Wheaten Terrier", "Whippet", "Yorkshire Terrier",
 ]
 DOG_NONE = ["Mixed-breed"]
+# The animal the detector found as a cat or a dog may be neither: it has no
+# class for these (a ferret is a cat or a dog to it). Checked first, among
+# all of them ("animal" rows, species "any"); a sure ferret or rabbit takes
+# over (never a dog for its cat: the detector tells those apart better).
+ANIMALS = ["cat", "dog", "ferret", "rabbit"]
+FERRET_COATS = [
+    ("sable", "sable (dark brown mask and legs)"), ("albino", "albino (white, red eyes)"),
+    ("black", "black"), ("champagne", "champagne (light tan)"),
+    ("cinnamon", "cinnamon (reddish brown)"), ("silver", "silver (gray)"),
+]
 # (label, how the prompt says it)
 CAT_COATS = [
     ("black", "black"), ("white", "white"), ("gray", "gray"), ("orange", "orange (ginger)"),
@@ -91,12 +101,21 @@ OXFORD = {
 }
 
 
+def tagged_as(breed, species):
+    """A breed as tagged: with its species ("Persian cat", "Poodle dog"),
+    so a search for "persian cat" finds it; once ("Norwegian Forest Cat")."""
+    return breed if breed.lower().endswith(species) else f"{breed} {species}"
+
+
 def labels():
     rows = []
+    for animal in ANIMALS:
+        rows.append(("any", "animal", animal, f"a photo of a {animal}."))
     for species, breeds, none, coats in (("cat", CAT_BREEDS, CAT_NONE, CAT_COATS),
-                                         ("dog", DOG_BREEDS, DOG_NONE, DOG_COATS)):
+                                         ("dog", DOG_BREEDS, DOG_NONE, DOG_COATS),
+                                         ("ferret", [], [], FERRET_COATS)):
         for b in breeds:
-            rows.append((species, "breed", b, f"a photo of a {b}, a type of {species}."))
+            rows.append((species, "breed", tagged_as(b, species), f"a photo of a {b}, a type of {species}."))
         for b in none:
             rows.append((species, "none", b, f"a photo of a {b}, a type of {species}."))
         for label, said in coats:
@@ -128,15 +147,27 @@ def write(out):
 
 BREED_SURE = float(os.environ.get("BREED_SURE", "0.7"))
 COAT_SURE = float(os.environ.get("COAT_SURE", "0.5"))
+ANIMAL_SURE = float(os.environ.get("ANIMAL_SURE", "0.8"))
 
 
-def describe(vectors, rows, text, scale, species):
+def describe(vectors, rows, text, scale, detected):
     """Each crop's labels: [(label, type, confidence)], as PetLabels.describe."""
     out = []
     for v in vectors:
         found = []
+        species = detected
+        idx = [i for i, r in enumerate(rows) if r[1] == "animal"]
+        p = np.exp(scale * (text[idx] @ v) - (scale * (text[idx] @ v)).max())
+        p /= p.sum()
+        j = int(p.argmax())
+        # Only to one the detector can't name: its cat or dog stays.
+        if rows[idx[j]][2] not in ("cat", "dog") and p[j] >= ANIMAL_SURE:
+            species = rows[idx[j]][2]
+            found.append((species, "animal", float(p[j])))
         for kinds, sure in ((("breed", "none"), BREED_SURE), (("coat",), COAT_SURE)):
             idx = [i for i, r in enumerate(rows) if r[0] == species and r[1] in kinds]
+            if not idx:
+                continue
             logits = scale * (text[idx] @ v)
             p = np.exp(logits - logits.max())
             p /= p.sum()
@@ -190,7 +221,7 @@ def evaluate(onnx_path, pets, crops=None):
             breeds = [l for l, t, _ in describe([v], rows, text, scale, species)[0] if t == "breed"]
             if breeds:
                 shown += 1
-                right += breeds[0] == OXFORD[k]
+                right += breeds[0] == tagged_as(OXFORD[k], species)
     dt = (time.time() - t0) / len(picked)
     print(f"Oxford pets ({len(picked)}): a breed shown on {shown / len(picked):.1%}, right {right / max(shown, 1):.1%}"
           f" (breeds >= {BREED_SURE}); {dt * 1000:.0f} ms a crop, 2 threads")
