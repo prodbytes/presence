@@ -11,6 +11,11 @@ and the RC's), as static pages of the [site index](site-index.md) module:
   [site/delete-account/index.html](../presence_index/site/delete-account/index.html),
   with a shared stylesheet, [site/legal.css](../presence_index/site/legal.css).
   No scripts and no external fonts or images.
+- **The app links to them** ([About](about.md)): the account sheet's
+  About, the [consent](consent.md) screen, and signed out the bottom of
+  the camera, on the same site as the app's API. Google's OAuth consent
+  screen can point at them too. The Delete account dialog links to the
+  deletion page's subscriptions part ([Account deletion](account-deletion.md)).
 - Each links to the others and to the app (`/app/`), with a canonical URL
   and an effective date (the privacy policy and the deletion page 14
   October 2026, the terms 11 October 2026). The operator is
@@ -79,7 +84,3 @@ and the RC's), as static pages of the [site index](site-index.md) module:
   of the effective date; a lawyer should review them, and they name no
   governing law or registered address.
 - **English only**, unlike the app.
-- **The policy and terms aren't linked from the app yet** (the account
-  sheet's About, sign-in): only from each other. Google's OAuth consent
-  screen can now point at them. The app links only to the deletion page's
-  subscriptions part, from its Delete account dialog.

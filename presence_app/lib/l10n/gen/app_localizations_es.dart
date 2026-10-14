@@ -1779,6 +1779,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get languageSystem => 'El mismo que el dispositivo';
 
   @override
+  String get legalPrivacy => 'Política de privacidad';
+
+  @override
+  String get legalTerms => 'Términos del servicio';
+
+  @override
   String get logClear => 'Borrar';
 
   @override

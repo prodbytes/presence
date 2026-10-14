@@ -1387,6 +1387,8 @@
   "@languageSystem": {
     "description": "Language choice: follow the device's language"
   },
+  "legalPrivacy": "Privacy Policy",
+  "legalTerms": "Terms of Service",
   "logClear": "Clear",
   "logCopied": "Log copied",
   "logCopy": "Copy",

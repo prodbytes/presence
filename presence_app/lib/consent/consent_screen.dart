@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../about.dart';
 import '../l10n/l10n.dart';
 
 /// Asked once per device, before anything shows or records (see
 /// `DeviceConsent`): two highlighted conditions, in plain terms, that the
 /// user has the right to record where the device records, and that faces
 /// used to recognise people are biometric data under the GDPR. One click,
-/// **I agree**, accepts both.
+/// **I agree**, accepts both. Under it, the Privacy Policy and the Terms of
+/// Service ([LegalLinks]).
 class ConsentScreen extends StatefulWidget {
-  const ConsentScreen({super.key, required this.onAgree});
+  const ConsentScreen({super.key, required this.onAgree, this.openLink});
 
   /// Called once, when the user agrees.
   final Future<void> Function() onAgree;
+
+  /// Opens the legal pages; the browser by default.
+  final LinkOpener? openLink;
 
   @override
   State<ConsentScreen> createState() => _ConsentScreenState();
@@ -78,6 +83,11 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
+                ),
+                const SizedBox(height: 4),
+                LegalLinks(
+                  openLink: widget.openLink,
+                  alignment: WrapAlignment.center,
                 ),
               ],
             ),

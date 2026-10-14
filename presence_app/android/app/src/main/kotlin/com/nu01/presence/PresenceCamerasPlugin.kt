@@ -371,8 +371,18 @@ class PresenceCamerasPlugin(
         open.clear()
     }
 
+    /**
+     * The camera and microphone, and on Android 13+ notifications: without
+     * them "Presence is recording" ([CaptureService]) and "Presence stopped"
+     * ([KeepAlive]) don't show. Granting restarts the service, which posts
+     * its notification again.
+     */
     private fun requestPermissions(result: MethodChannel.Result) {
-        val missing = listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        val wanted = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            wanted += Manifest.permission.POST_NOTIFICATIONS
+        }
+        val missing = wanted
             .filter { activity.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (missing.isEmpty()) {
             result.success(permissionState())

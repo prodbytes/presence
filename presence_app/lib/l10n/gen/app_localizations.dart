@@ -2854,6 +2854,18 @@ abstract class AppLocalizations {
   /// **'Same as the device'**
   String get languageSystem;
 
+  /// No description provided for @legalPrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get legalPrivacy;
+
+  /// No description provided for @legalTerms.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of Service'**
+  String get legalTerms;
+
   /// No description provided for @logClear.
   ///
   /// In en, this message translates to:
