@@ -5744,7 +5744,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Subject recognition](recognition.md),
        [Data formats](data-formats.md).
 
-416. **The card's thumbnail shows the first subject, named on their frame.** (2026-10-14)
+416. **Check that Presence can be published in the App Store and Google
+     Play.** (2026-10-14)
+     - Asked: verify Presence meets all the requirements to be published
+       on the Apple App Store and Google Play.
+     - Found: it doesn't yet. Blockers: Premium sold through Stripe
+       (both stores' billing rules), no account deletion in the app, no
+       in-app privacy policy link, no Sign in with Apple (App Store 4.8),
+       debug-key signing and no App Bundle (Play), no distribution signing
+       (App Store), and the capture notification hidden on Android 13+.
+       Met: target SDK 36, 16 KB-aligned native libraries, rising version
+       codes, privacy manifests, permission texts, icons, public policy
+       and terms.
+     - Changed: no code. New spec: [Store readiness](store-readiness.md).
+
+417. **The card's thumbnail shows the first subject, named on their frame.** (2026-10-14)
      - Asked: on events with subject tags, show on the card's thumbnail
        the frame, where the subject was tagged, and the tag, of the first
        subject detected.
