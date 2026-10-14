@@ -160,17 +160,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// accounts).
   bool get _showAdmin => !_dev && widget.roles.isAdmin;
 
-  /// The Help tab shows for signed-in members, not in DEV (there are no
-  /// accounts to write from).
+  /// Help is offered to signed-in members, not in DEV (there are no
+  /// accounts to write from): a button at the top right of Setup and
+  /// Profile ([HomeAppBar.onHelp]), no longer a tab.
   bool get _showHelp => !_dev && _hasAccess;
 
+  /// Opens Help as a page of its own, over the tabs.
+  void _openHelp() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => Scaffold(
+          key: const Key('help-page'),
+          appBar: AppBar(title: Text(context.l10n.navHelpTitle)),
+          body: SafeArea(
+            child: HelpView(auth: widget.auth, feedback: widget.feedback),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// The tabs to show, in [HomeTab] order.
-  List<HomeTab> get _shownTabs => HomeTab.shown(
-    help: _showHelp,
-    log: _showLog,
-    admin: _showAdmin,
-    profile: _showProfile,
-  );
+  List<HomeTab> get _shownTabs =>
+      HomeTab.shown(log: _showLog, admin: _showAdmin, profile: _showProfile);
 
   /// The Profile tab shows signed in, not in DEV (there are no accounts).
   bool get _showProfile => !_dev && _signedIn;
@@ -563,6 +575,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         deviceId: widget.deviceId,
         showDevice: widget.showDevice,
         deleteDevice: widget.deleteDevice,
+        onHelp: _showHelp ? _openHelp : null,
       ),
       body: Stack(
         children: [
@@ -644,10 +657,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   liveAdmin: widget.roles.isAdmin,
                 ),
               ),
-              if (_tabs.shows(HomeTab.help))
-                SafeArea(
-                  child: HelpView(auth: widget.auth, feedback: widget.feedback),
-                ),
               if (_tabs.shows(HomeTab.log))
                 SafeArea(
                   child: LogView(

@@ -213,21 +213,14 @@ void main() {
     });
   });
 
-  test('the Help tab comes after Settings, before the Log and Admin', () {
-    expect(HomeTab.shown(help: true, log: true, admin: true), [
+  test('Help is no tab: Settings, then the Log and Admin', () {
+    expect(HomeTab.shown(log: true, admin: true), [
       HomeTab.camera,
       HomeTab.monitoring,
       HomeTab.settings,
-      HomeTab.help,
       HomeTab.log,
       HomeTab.admin,
     ]);
-    expect(
-      HomeTab.shown(log: false, admin: false),
-      isNot(contains(HomeTab.help)),
-    );
-    expect(HomeTab.help.label, 'Help');
-    expect(HomeTab.help.title, 'Feedback & Help');
     expect(HomeTab.settings.title, 'Settings');
   });
 
@@ -256,25 +249,35 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    final helpTab = find.byTooltip('Help');
+    final helpButton = find.byKey(const Key('help-button'));
 
-    testWidgets('a member writes on the Help tab and reads the reply', (
-      tester,
-    ) async {
+    /// Opens Help from the top right of Setup.
+    Future<void> openHelp(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Setup'));
+      await tester.pumpAndSettle();
+      await tester.tap(helpButton);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a member opens Help from the top right of Setup or Profile '
+        '(no Help tab), writes, and reads the reply', (tester) async {
       final feedback = FakeFeedbackClient();
       await launch(tester, FakeRolesClient([userRole]), feedback);
       expect(
-        find.descendant(of: find.byType(HomeNavigationBar), matching: helpTab),
-        findsOneWidget,
+        find.descendant(
+          of: find.byType(HomeNavigationBar),
+          matching: find.byTooltip('Help'),
+        ),
+        findsNothing,
       );
-      expect(
-        tester.getCenter(find.byTooltip('Setup')).dx,
-        lessThan(tester.getCenter(helpTab).dx),
-      );
+      expect(helpButton, findsNothing, reason: 'not over the camera');
       expect(find.byTooltip('Admin'), findsNothing);
-
-      await tester.tap(helpTab);
+      // On Profile too.
+      await tester.tap(find.byKey(const Key('account-button')));
       await tester.pumpAndSettle();
+      expect(helpButton, findsOneWidget);
+
+      await openHelp(tester);
       expect(find.byKey(const Key('help-view')), findsOneWidget);
       expect(find.text('Feedback & Help'), findsOneWidget, reason: 'title');
       expect(find.text('No messages yet.'), findsOneWidget);
@@ -316,8 +319,7 @@ void main() {
     ) async {
       final feedback = FakeFeedbackClient();
       await launch(tester, FakeRolesClient([userRole]), feedback);
-      await tester.tap(helpTab);
-      await tester.pumpAndSettle();
+      await openHelp(tester);
       feedback.error = RolesException(409);
       await tester.enterText(find.byKey(const Key('feedback-field')), 'again');
       await tester.pump();
@@ -336,7 +338,7 @@ void main() {
       );
     });
 
-    testWidgets('no Help tab in DEV, signed out, or without access', (
+    testWidgets('no Help button in DEV, signed out, or without access', (
       tester,
     ) async {
       await launch(
@@ -346,10 +348,12 @@ void main() {
         auth: FakeAuthService(),
       );
       expect(find.byType(HomeNavigationBar), findsOneWidget);
-      expect(helpTab, findsNothing, reason: 'DEV');
+      await tester.tap(find.byTooltip('Setup'));
+      await tester.pumpAndSettle();
+      expect(helpButton, findsNothing, reason: 'DEV');
 
       await launch(tester, FakeRolesClient.none(), FakeFeedbackClient());
-      expect(helpTab, findsNothing, reason: 'no role');
+      expect(helpButton, findsNothing, reason: 'no role');
     });
 
     testWidgets('an admin sees every conversation and replies', (tester) async {

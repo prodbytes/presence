@@ -36,7 +36,13 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.deviceId,
     this.showDevice,
     this.deleteDevice,
+    this.onHelp,
   });
+
+  /// Opens Help (feedback and the team's answers): a button at the top
+  /// right of Setup and Profile, not a tab, to save the navigation bar's
+  /// room. None: no button.
+  final VoidCallback? onHelp;
 
   final HomeTabs tabs;
   final bool onCamera;
@@ -132,6 +138,18 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
           const SizedBox(width: 4),
         ],
         // With access, the account is the navigation bar's Profile tab.
+        if (hasAccess &&
+            onHelp != null &&
+            (tabs.current == HomeTab.settings ||
+                tabs.current == HomeTab.profile)) ...[
+          IconButton(
+            key: const Key('help-button'),
+            tooltip: context.l10n.navHelpTitle,
+            icon: const Icon(Icons.help_outline),
+            onPressed: onHelp,
+          ),
+          const SizedBox(width: 4),
+        ],
       ],
     );
   }

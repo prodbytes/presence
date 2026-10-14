@@ -5708,3 +5708,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the message: "running recognition" is enough.
      - Changed: "Running recognition…" and the tooltip "Tap to run
        recognition" (es, pt likewise). Spec: [Subject recognition](recognition.md).
+
+413. **Help out of the navigation bar.** (2026-10-14)
+     - Asked: remove Help from the navigation menu and put it at the top
+       right of the Setup and Profile views: room on the navbar, the
+       feature kept.
+     - Changed: no Help tab (`HomeTab.help` went); a ? button at the top
+       right of Setup and Profile opens Feedback & Help as its own page,
+       with a back button. Specs: [Feedback and Help](feedback.md),
+       [Navigation](navigation.md).

@@ -10,10 +10,6 @@ enum HomeTab {
   monitoring('Monitoring', Icons.monitor_heart_outlined, Icons.monitor_heart),
   settings('Settings', Icons.settings_outlined, Icons.settings),
 
-  /// Feedback and Help: signed-in members (not DEV: there are no accounts)
-  /// write to the administrators and read their replies (`HelpView`).
-  help('Help', Icons.help_outline, Icons.help, title: 'Feedback & Help'),
-
   /// Admins only, when Settings' switch shows it (on by default in DEV,
   /// whose anonymous user is a root); after the always-shown tabs, so they
   /// keep their index.
@@ -22,7 +18,7 @@ enum HomeTab {
   /// Signed-in admins only (not DEV: there are no accounts): members'
   /// feedback, and a link to rbacr for vouchers and maintenance mode
   /// (`AdminView`). Before
-  /// Profile; with the Help or Log tab hidden it moves up, so map a tab to
+  /// Profile; with the Log tab hidden it moves up, so map a tab to
   /// its controller index through the shown tabs ([HomeTabs.indexOf]),
   /// never by [HomeTab.index] alone.
   admin(
@@ -51,15 +47,13 @@ enum HomeTab {
     HomeTab.camera => l.navCamera,
     HomeTab.monitoring => l.navMonitoring,
     HomeTab.settings => l.navSettings,
-    HomeTab.help => l.navHelp,
     HomeTab.log => l.navLog,
     HomeTab.admin => l.navAdmin,
     HomeTab.profile => l.navProfile,
   };
 
   /// [title] in the language shown.
-  String titleIn(AppLocalizations l) =>
-      this == HomeTab.help ? l.navHelpTitle : labelIn(l);
+  String titleIn(AppLocalizations l) => labelIn(l);
 
   /// Outlined, while another tab is open.
   final IconData icon;
@@ -67,18 +61,15 @@ enum HomeTab {
   /// Filled, while this tab is open.
   final IconData selectedIcon;
 
-  /// The tabs shown, in [HomeTab] order: the Help tab with [help], the Log
-  /// tab with [log], the Admin tab with [admin], the Profile tab with
+  /// The tabs shown, in [HomeTab] order: the Log tab with [log], the Admin tab with [admin], the Profile tab with
   /// [profile], the others always.
   static List<HomeTab> shown({
     required bool log,
     required bool admin,
-    bool help = false,
     bool profile = false,
   }) => [
     for (final tab in values)
       if (switch (tab) {
-        HomeTab.help => help,
         HomeTab.log => log,
         HomeTab.admin => admin,
         HomeTab.profile => profile,
@@ -158,7 +149,7 @@ class HomeTabs {
     onChanged();
   }
 
-  /// Shows [shown] (the Help, Log and Admin tabs come and go with the roles and
+  /// Shows [shown] (the Log and Admin tabs come and go with the roles and
   /// the Log switch), staying on the same tab or, if it goes, the nearest
   /// one before it. Returns whether the tabs changed.
   bool sync(List<HomeTab> shown) {
