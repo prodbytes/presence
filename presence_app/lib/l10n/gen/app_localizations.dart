@@ -1162,6 +1162,18 @@ abstract class AppLocalizations {
   /// **'{label}: click them on the video to name them, or try Auto.'**
   String clipIdentifyHint(String label);
 
+  /// No description provided for @clipNameAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get clipNameAdd;
+
+  /// No description provided for @clipNameFrameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Name someone on this frame'**
+  String get clipNameFrameHint;
+
   /// No description provided for @clipNameHint.
   ///
   /// In en, this message translates to:
@@ -1173,6 +1185,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Name more subjects on this frame'**
   String get clipNameMore;
+
+  /// No description provided for @clipNameSpotHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Who is at the ring?'**
+  String get clipNameSpotHint;
 
   /// No description provided for @clipNameSubject.
   ///
@@ -1345,7 +1363,7 @@ abstract class AppLocalizations {
   /// No description provided for @clipTagHint.
   ///
   /// In en, this message translates to:
-  /// **'Click each person or pet on the video to name them as a subject (frame at {time}).'**
+  /// **'Click where a person or pet is on the picture, then type their name below; or just type the name for this frame (at {time}).'**
   String clipTagHint(String time);
 
   /// No description provided for @clipTags.

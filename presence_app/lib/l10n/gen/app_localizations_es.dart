@@ -689,10 +689,19 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get clipNameAdd => 'Añadir';
+
+  @override
+  String get clipNameFrameHint => 'Nombra a alguien en este fotograma';
+
+  @override
   String get clipNameHint => 'Nombre';
 
   @override
   String get clipNameMore => 'Nombrar más sujetos en este fotograma';
+
+  @override
+  String get clipNameSpotHint => '¿Quién está en el círculo?';
 
   @override
   String get clipNameSubject => 'Nombrar sujeto';
@@ -809,7 +818,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String clipTagHint(String time) {
-    return 'Haz clic en cada persona o mascota del video para nombrarla como sujeto (fotograma en $time).';
+    return 'Haz clic donde está una persona o mascota en la imagen y escribe su nombre abajo; o solo escribe el nombre para este fotograma (en $time).';
   }
 
   @override

@@ -5627,3 +5627,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the time (moved there from the question's line), then the answer,
        which now wraps instead of running off the card. Spec:
        [Subject recognition](recognition.md).
+
+404. **Naming a subject under the image, not in a pop-up.** (2026-10-14)
+     - Asked: in the event details' subject tool, instead of a pop-up for
+       the name, put it under the image: click the image to point at
+       exactly where the subject is, or just type the name for that frame.
+     - Changed: the frame being tagged has a name field and Add under it.
+       A click on the frame puts a ring there and focuses the field; the
+       name goes at the ring, or at the frame's middle without a click.
+       Renaming still uses its dialog. Spec: [Clips](clips.md).

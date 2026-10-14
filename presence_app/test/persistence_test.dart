@@ -1023,13 +1023,21 @@ void main() {
           surface.topLeft + Offset(surface.width * fx, surface.height * fy),
         );
         await tester.pumpAndSettle();
-        await tester.enterText(find.byKey(const Key('annotation-name')), name);
-        await tester.tap(find.byKey(const Key('save-name')));
+        // The spot's ring, and the name typed under the frame: no dialog.
+        expect(find.byKey(const Key('tag-spot')), findsOneWidget);
+        expect(find.byType(AlertDialog), findsNothing);
+        await tester.enterText(find.byKey(const Key('subject-name')), name);
+        await tester.ensureVisible(find.byKey(const Key('subject-name-add')));
+        await tester.tap(find.byKey(const Key('subject-name-add')));
         await tester.pumpAndSettle();
       }
 
       await clickAndName('Rex', 0.25, 0.5);
       await clickAndName('Ana', 0.75, 0.4);
+      // Or just the name, for the frame: at its middle.
+      await tester.enterText(find.byKey(const Key('subject-name')), 'Bo');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('done-tagging')));
       await tester.tap(find.byKey(const Key('done-tagging')));
       await tester.pumpAndSettle();
@@ -1037,7 +1045,9 @@ void main() {
       expect(find.widgetWithText(InputChip, 'Ana'), findsOneWidget);
 
       final tags = clipEvent(tester).annotations;
-      expect(tags.items.map((a) => a.name), ['Rex', 'Ana']);
+      expect(tags.items.map((a) => a.name), ['Rex', 'Ana', 'Bo']);
+      expect((tags.items.last.x, tags.items.last.y), (0.5, 0.5));
+      clipEvent(tester).annotations.remove(tags.items.last.id);
       final frameId = tags.items.first.frameId!;
       expect(tags.items.every((a) => a.frameId == frameId), isTrue);
       expect(tags.items.first.frameMs, 7400);
@@ -1120,11 +1130,13 @@ void main() {
         .widget<ClipPlayerView>(find.byType(ClipPlayerView))
         .controller!;
 
-    // A click the name prompt is cancelled for tags nothing: back to video.
+    // A click left unnamed tags nothing: Done, back to the video.
     player.pictureTapped(const Offset(0.5, 0.5));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
+    expect(find.byKey(const Key('tag-spot')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('done-tagging')));
+    await tester.tap(find.byKey(const Key('done-tagging')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('frame-tagger')), findsNothing);
     expect(clipEvent(tester).annotations.isEmpty, isTrue);
@@ -1132,8 +1144,9 @@ void main() {
     // A named click: the frame stays over the player, tagged there.
     player.pictureTapped(const Offset(0.3, 0.6));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const Key('annotation-name')), 'Rex');
-    await tester.tap(find.byKey(const Key('save-name')));
+    await tester.enterText(find.byKey(const Key('subject-name')), 'Rex');
+    await tester.ensureVisible(find.byKey(const Key('subject-name-add')));
+    await tester.tap(find.byKey(const Key('subject-name-add')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('frame-tagger')), findsOneWidget);
     final tagger = tester.getRect(find.byKey(const Key('frame-tagger')));

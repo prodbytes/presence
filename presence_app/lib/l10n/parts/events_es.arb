@@ -99,7 +99,7 @@
   "clipAuto": "Auto",
   "clipNameSubject": "Nombrar sujeto",
   "clipDone": "Listo",
-  "clipTagHint": "Haz clic en cada persona o mascota del video para nombrarla como sujeto (fotograma en {time}).",
+  "clipTagHint": "Haz clic donde está una persona o mascota en la imagen y escribe su nombre abajo; o solo escribe el nombre para este fotograma (en {time}).",
   "clipAutoLooking": "Buscando los sujetos ya nombrados…",
   "clipAutoWaiting": "Esperando a que termine de grabarse el clip…",
   "clipIdentifyHint": "{label}: haz clic en el video para nombrarlo, o prueba Auto.",
@@ -155,5 +155,8 @@
   "eventCopiesTapToShare": "Toca para sincronizar una copia en todos los dispositivos",
   "eventCopiesSharing": "Se pidió a los otros dispositivos que tomen una copia",
   "eventCopiesShareFailed": "No se pudo llegar a los otros dispositivos: la sincronización en vivo está apagada o sin conexión",
-  "eventRecognitionFailed": "El reconocimiento falló: {reason}"
+  "eventRecognitionFailed": "El reconocimiento falló: {reason}",
+  "clipNameSpotHint": "¿Quién está en el círculo?",
+  "clipNameFrameHint": "Nombra a alguien en este fotograma",
+  "clipNameAdd": "Añadir"
 }

@@ -103,6 +103,13 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
     _player.onPictureTap = _tagOnVideo;
   }
 
+  @override
+  void dispose() {
+    _name.dispose();
+    _nameFocus.dispose();
+    super.dispose();
+  }
+
   /// Pauses, grabs the shown frame and puts it over the player for tagging.
   Future<TagFrame?> _grabFrame() async {
     if (_grabbing) return null;
@@ -138,23 +145,48 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
     return _frame;
   }
 
-  /// A click on the playing video: that frame goes over the player, and the
-  /// name asked is tagged where the click was.
+  /// A click on the playing video: that frame goes over the player, with
+  /// the click as the spot the name under it goes to.
   Future<void> _tagOnVideo(Offset fraction) async {
     if (_frame != null) return;
     final frame = await _grabFrame();
     if (frame == null || !mounted) return;
-    await _tag(frame, fraction);
-    // Nothing named: back to the video.
-    if (mounted && _frame == frame && _annotations.on(frame.id).isEmpty) {
-      setState(() => _frame = null);
-    }
+    _pickSpot(fraction);
   }
 
-  Future<void> _tag(TagFrame frame, Offset fraction) async {
-    final name = await _askName(context, title: context.l10n.clipWhoIsThis);
-    if (name == null || !mounted) return;
-    _annotations.add(name, fraction.dx, fraction.dy, frame: frame);
+  /// Where the next name goes on the frame being tagged: a click on it.
+  /// None: its middle.
+  Offset? _spot;
+
+  /// The name field under the frame ([_NameField]).
+  final _name = TextEditingController();
+  final _nameFocus = FocusNode(debugLabel: 'subject-name');
+
+  /// A click on the frame: the spot for the name, which is asked for under
+  /// the frame (no dialog).
+  void _pickSpot(Offset fraction) {
+    setState(() => _spot = fraction);
+    _nameFocus.requestFocus();
+  }
+
+  /// Names the subject typed under the frame at the clicked spot, or at the
+  /// frame's middle without one; ready for the next.
+  void _addName(TagFrame frame) {
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
+    final spot = _spot ?? const Offset(0.5, 0.5);
+    _annotations.add(name, spot.dx, spot.dy, frame: frame);
+    _name.clear();
+    setState(() => _spot = null);
+  }
+
+  /// Leaves the frame (Done): back to the video, the field cleared.
+  void _doneTagging() {
+    _name.clear();
+    setState(() {
+      _frame = null;
+      _spot = null;
+    });
   }
 
   /// Auto: looks for the known subjects on the clip, on this device, and
@@ -265,13 +297,22 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                             key: const Key('frame-tagger'),
                             frame: frame,
                             tags: _annotations.on(frame.id),
-                            onTap: (fraction) => _tag(frame, fraction),
+                            spot: _spot,
+                            onTap: _pickSpot,
                           ),
                         ),
                       ),
                   ],
                 ),
               ),
+              // Naming, under the frame: click where they are, or not.
+              if (frame != null)
+                _NameField(
+                  controller: _name,
+                  focus: _nameFocus,
+                  spotted: _spot != null,
+                  onAdd: () => _addName(frame),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
                 child: ListenableBuilder(
@@ -298,7 +339,7 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
                       identify: widget.identify,
                       onAuto: () => _autoTag(recognizer!),
                       onGrab: _grabFrame,
-                      onDone: () => setState(() => _frame = null),
+                      onDone: _doneTagging,
                       onOpenFrame: (f) => setState(() => _frame = f),
                       onRename: _rename,
                       onFilter: (name) => _filter(search!, name),
@@ -325,6 +366,59 @@ class _ClipPlayerDialogState extends State<ClipPlayerDialog> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Under the frame being tagged: a name to add, at the spot clicked on the
+/// frame ([spotted]) or for the frame as a whole, with Add (or Enter).
+class _NameField extends StatelessWidget {
+  const _NameField({
+    required this.controller,
+    required this.focus,
+    required this.spotted,
+    required this.onAdd,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focus;
+  final bool spotted;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Row(
+        spacing: 8,
+        children: [
+          Expanded(
+            child: TextField(
+              key: const Key('subject-name'),
+              controller: controller,
+              focusNode: focus,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.done,
+              decoration: InputDecoration(
+                isDense: true,
+                border: const OutlineInputBorder(),
+                prefixIcon: Icon(
+                  spotted ? Icons.my_location : Icons.person_add_alt,
+                ),
+                hintText: spotted ? l.clipNameSpotHint : l.clipNameFrameHint,
+              ),
+              onSubmitted: (_) => onAdd(),
+            ),
+          ),
+          // Always on: an empty name adds nothing.
+          FilledButton(
+            key: const Key('subject-name-add'),
+            onPressed: onAdd,
+            child: Text(l.clipNameAdd),
+          ),
+        ],
       ),
     );
   }
