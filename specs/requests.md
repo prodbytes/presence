@@ -5743,3 +5743,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        its OS icon 16 px. Specs: [Sign-in](sign-in.md),
        [Subject recognition](recognition.md),
        [Data formats](data-formats.md).
+
+416. **The card's thumbnail shows the first subject, named on their frame.** (2026-10-14)
+     - Asked: on events with subject tags, show on the card's thumbnail
+       the frame, where the subject was tagged, and the tag, of the first
+       subject detected.
+     - Changed: a clip's card with a tagged subject shows the frame of
+       the first one seen (earliest frame; suggestions aside), whole,
+       with a dot and their name at the tagged spot; otherwise the clip's
+       thumbnail as before. Spec: [Clips](clips.md).

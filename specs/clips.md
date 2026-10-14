@@ -14,6 +14,12 @@ file of *before* + *after* once the *after* seconds have passed.
    recording next 10 s…". On a narrow list the thumbnail is on top, 16:9
    at the card's width; from 600 dp on it sits beside the details, 16:9
    and 320 dp wide (`ClipEventCard.sideBySideWidth`).
+   - **With a subject tagged**, the thumbnail is instead **the frame of
+     the first subject seen** in the clip (`firstSubject`: of the tags
+     with a frame, not suggestions, the earliest frame), whole on black so
+     the spot is exact, with **a dot and their name where they were
+     tagged** (the player's marker, `FrameTagger` without taps: a tap
+     still opens the player). It updates as subjects are tagged.
    - Cameras publish independently: a slow camera doesn't hold up the
      others.
    - If a camera's before part takes longer than 2 s (`CameraRig.pastWait`),

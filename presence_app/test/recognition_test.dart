@@ -2214,6 +2214,49 @@ void main() {
     expect(event.annotations.objects!.single.label, 'cat');
   });
 
+  testWidgets("the clip's card shows its first subject's frame, named where "
+      'they were tagged; without one, the clip\'s thumbnail', (tester) async {
+    final event = ClipRequested(clip(), id: 'c');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: ClipEventCard(event: event)),
+      ),
+    );
+    expect(find.byKey(const Key('clip-card-subject-frame')), findsNothing);
+    final later = testFrame(onePixelPng, 9000);
+    final earlier = testFrame(onePixelPng, 2000);
+    event.annotations
+      ..add('Bo', 0.6, 0.6, frame: later)
+      ..add('Suerte', 0.3, 0.7, frame: earlier)
+      // A suggestion isn't a subject yet.
+      ..add(
+        'Ana',
+        0.5,
+        0.5,
+        frame: testFrame(onePixelPng, 100),
+        source: TagSource.suggested,
+      );
+    await tester.pump();
+    expect(find.byKey(const Key('clip-card-subject-frame')), findsOneWidget);
+    final thumb = find.byKey(const Key('clip-card-thumbnail'));
+    // The first seen (2 s), not the first tagged, nor the suggestion.
+    expect(
+      find.descendant(of: thumb, matching: find.text('Suerte')),
+      findsOneWidget,
+    );
+    expect(find.descendant(of: thumb, matching: find.text('Bo')), findsNothing);
+    expect(
+      find.descendant(of: thumb, matching: find.text('Ana')),
+      findsNothing,
+    );
+    final suerte = event.annotations.tags.firstWhere((t) => t.name == 'Suerte');
+    expect(
+      find.byKey(Key('marker-${suerte.id}')),
+      findsOneWidget,
+      reason: 'a dot where she was tagged',
+    );
+  });
+
   testWidgets("the clip's card shows its object tags", (tester) async {
     final event = ClipRequested(clip(), id: 'c');
     await tester.pumpWidget(
