@@ -66,7 +66,8 @@ their data.
   tagging people and pets by clicking them on the video, or with Auto;
   the details end with the event's map, its device and Delete event.
 - [Motion clips](motion-clips.md): automatic clips when the picture moves.
-- [Night mode](night-mode.md): the camera tells night by its own picture;
+- [Night mode](night-mode.md) (off by default; a Settings switch): the
+  camera tells night by its own picture;
   then it's as bright as it goes, motion follows the dark, and a clip
   recording lights the scene (the torch, or the screen facing it).
 - [Scheduled clips](scheduled-clips.md): a clip at start, then one every

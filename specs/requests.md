@@ -5968,3 +5968,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Local CDN](local-cdn.md), [Local cloud](local-cloud.md),
        [Health check](health-check.md), [Origin check](origin-check.md),
        [Languages](i18n.md).
+
+427. **Night mode off by default.** (2026-10-14)
+     - Asked: night mode worked, but make it a setting, disabled by
+       default; then update the phone.
+     - Changed: it was already the Settings switch, on by default. Now
+       it's off by default and saved as `nightMode`; the old `night` key,
+       which devices saved as on while that was the default, is ignored,
+       so every device starts with it off. Specs:
+       [Night mode](night-mode.md), [Settings](settings.md).
