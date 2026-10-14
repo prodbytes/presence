@@ -5653,3 +5653,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        This device's dot in the device list keeps its color from the
        same checks (`Connectivity.of`). Specs: [Sign-in](sign-in.md),
        [Cloud sync](cloud-sync.md), [Premium](premium.md).
+
+407. **Trim the test suite.** (2026-10-14)
+     - Asked: review the test suite (some 900 tests seemed excessive):
+       are they all needed, or are some obsolete and safe to delete?
+     - Found (a read-only review of 85 files, ~950 tests run): little true
+       duplication; most of the size is distinct end-to-end scenarios
+       (recognition 72, cloud sync 50, roles and live sync 35 each). About
+       40 were redundant: duplicates of tests elsewhere, guards for
+       features removed long ago (an About button, a Screen off button, a
+       grid delete button, the Subjects tab), and size or text-scale loops
+       whose other values add nothing.
+     - Changed: 31 tests removed (944 to 913): 13 duplicate or obsolete
+       tests, 1 per-trigger loop folded into one test, 17 loop cases (the
+       narrowest screen or largest text kept), and 3 obsolete assertions.
+       No feature lost its coverage. Specs: [About](about.md),
+       [Hiding a device](device-hiding.md),
+       [Device deletion](device-deletion.md).

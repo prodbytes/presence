@@ -700,43 +700,6 @@ void main() {
     });
   });
 
-  testWidgets('the Monitoring tab sits between Camera and Settings', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(400, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    await tester.pumpWidget(
-      PresenceApp(
-        cameras: noCameras,
-        auth: FakeAuthService.signedIn(),
-        rolesClient: FakeRolesClient(),
-        storage: newIdbFactoryMemory(),
-        consentGiven: true,
-        locator: _NoLocation(),
-        mapTiles: const SizedBox(),
-        // The day of the test events, so none is too old to keep.
-        now: () => DateTime(2026, 10, 1, 12),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await settleStorage(tester);
-    final camera = tester.getCenter(find.byTooltip('Camera'));
-    final monitoring = tester.getCenter(find.byTooltip('Events'));
-    final settings = tester.getCenter(find.byTooltip('Setup'));
-    expect(camera.dx, lessThan(monitoring.dx));
-    expect(monitoring.dx, lessThan(settings.dx));
-    // One tab for the events, the map and the subjects (named Events).
-    expect(find.byTooltip('Events'), findsOneWidget);
-    expect(find.byTooltip('Subjects'), findsNothing);
-    expect(find.byTooltip('Device'), findsNothing);
-
-    await tester.tap(find.byTooltip('Events'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('subjects-map')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-
   testWidgets('tapping a dot opens its event in the Monitoring timeline', (
     tester,
   ) async {

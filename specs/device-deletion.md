@@ -170,7 +170,6 @@ setting, and the bucket expires every object after 90 days
   timeline, Delete videos hides them, after a restart too.
 - A device deleted keeping its videos is listed again once it has a newer
   event.
-- The All grid: no cell has a delete button.
 - With storage and cloud sync (real `Persistence`, `CloudSync`,
   `LiveSync` on fakes): the device's events and the suggestion about its
   clip are marked deleted and leave the log, the devices list, the grid's

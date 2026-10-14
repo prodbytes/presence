@@ -41,24 +41,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('new defaults: motion at 15 %, tag at 90 %, 100 events', () {
-    const c = PresenceConfig();
-    expect(c.motion.threshold, 15);
-    expect(c.recognition.autoTag, 0.90);
-    expect(c.subjects.mapEvents, 100);
-    // Stored values are kept; only the defaults changed.
-    final stored = PresenceConfig.fromJson({
-      'version': 1,
-      'motion': {'threshold': 10},
-      'recognition': {'autoTag': 0.8, 'ask': 0.5},
-      'subjects': {'mapEvents': 20},
-    });
-    expect(stored.motion.threshold, 10);
-    expect(stored.recognition.autoTag, 0.8);
-    expect(stored.subjects.mapEvents, 20);
-  });
-
-  for (final width in [320.0, 1280.0]) {
+  for (final width in [320.0]) {
     testWidgets('settings come in groups: a bold heading over a full-width '
         'block, at ${width.round()} wide', (tester) async {
       await show(tester, width: width);
@@ -259,12 +242,7 @@ void main() {
     expect(find.text('Always'), findsOneWidget);
   });
 
-  for (final (width, scale) in [
-    (320.0, 1.0),
-    (320.0, 2.0),
-    (1280.0, 1.0),
-    (1280.0, 2.0),
-  ]) {
+  for (final (width, scale) in [(320.0, 1.0), (320.0, 2.0)]) {
     testWidgets('the device and profile IDs come last, bodyMedium, one '
         'line each, and fit ${width.round()} dp at ${scale}x text', (
       tester,

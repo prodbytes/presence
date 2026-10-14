@@ -2276,7 +2276,7 @@ void main() {
     );
   });
 
-  for (final width in [320.0, 1000.0]) {
+  for (final width in [320.0]) {
     testWidgets('the player shows Subjects and Tags apart at $width dp', (
       tester,
     ) async {

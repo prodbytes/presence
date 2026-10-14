@@ -228,7 +228,7 @@ void main() {
       expect(find.text('Event already deleted'), findsOneWidget);
     });
 
-    for (final scale in [1.0, 2.0]) {
+    for (final scale in [2.0]) {
       testWidgets('it fits 320 dp at ${scale}x text', (tester) async {
         await show(tester, clipEvent(location: lisbon), scale: scale);
         for (final key in ['event-map', 'event-device', 'delete-event']) {

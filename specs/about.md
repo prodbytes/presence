@@ -20,6 +20,5 @@ There's no About button or screen any more, and no call to become a member.
     `github.com/prodbytes/presence`. Tapping it opens it outside the app
     (`url_launcher`); when it can't open, it's copied, saying "Link
     copied".
-- Tests: `about_test.dart` (no About button signed in at 320 and 1280
-  wide, or signed out; the paragraph after Sign out, with no membership
-  pitch; the link opening, or copied when it can't).
+- Tests: `about_test.dart` (the paragraph after Sign out at 320 wide,
+  with no membership pitch; the link opening, or copied when it can't).

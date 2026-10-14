@@ -222,15 +222,5 @@ void main() {
       expect(flag, findsOneWidget);
       expect(tester.takeException(), isNull);
     });
-
-    testWidgets('fits a wide screen', (tester) async {
-      tester.view
-        ..physicalSize = const Size(1400, 900)
-        ..devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await pumpCard(tester, clipWith(['human']));
-      expect(flag, findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
   });
 }

@@ -662,15 +662,6 @@ void main() {
         expect(find.byKey(const Key('camera-page')), findsOneWidget);
       });
 
-      testWidgets('OIDC: a root sees it once Settings shows it', (
-        tester,
-      ) async {
-        await open(tester, FakeRolesClient([userRole, adminRole, rootRole]));
-        expect(logTab, findsNothing);
-        await toggleLog(tester);
-        expect(logTab, findsOneWidget);
-      });
-
       testWidgets('OIDC: nobody else sees it', (tester) async {
         final cases = <String, (FakeRolesClient, FakeAuthService)>{
           'signed out': (
@@ -793,13 +784,6 @@ void main() {
       expect(find.byKey(const Key('clip')), findsOneWidget);
       expect(find.byKey(const Key('sign-up')), findsNothing);
       expect(find.byTooltip('Admin'), findsNothing);
-    });
-
-    testWidgets('an admin without presence_user gets nothing', (tester) async {
-      await launch(tester, FakeRolesClient([adminRole]));
-      expect(find.byType(HomeNavigationBar), findsNothing);
-      expect(find.byTooltip('Admin'), findsNothing);
-      expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
 
     group('the Admin tab', () {
@@ -945,14 +929,6 @@ void main() {
         expect(find.byKey(const Key('admin-view')), findsNothing);
         expect(tabs(tester).index, 0);
       });
-    });
-
-    testWidgets('a failed roles check shows only the account and sign-up', (
-      tester,
-    ) async {
-      await launch(tester, FakeRolesClient()..error = RolesException(503));
-      expect(find.byType(HomeNavigationBar), findsNothing);
-      expect(find.byKey(const Key('sign-up')), findsOneWidget);
     });
   });
 }

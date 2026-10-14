@@ -123,7 +123,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final size in const [Size(320, 640), Size(390, 844), Size(1280, 800)]) {
+  for (final size in const [Size(320, 640), Size(1280, 800)]) {
     testWidgets('fits ${size.width.toInt()} dp without overflow', (
       tester,
     ) async {
