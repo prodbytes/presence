@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Always-on recording: camera video plus microphone audio. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -19,6 +20,16 @@
     <!-- Reopen the app after a boot, a crash or a kill (KeepAlive). -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
+    <!-- Permissions libraries would add that the app doesn't use (Google Play
+         asks apps to justify each): geolocator's background location service
+         (the app asks for location only while it's shown), and the phone
+         state and shared storage Android implies for LiteRT's GPU library,
+         which declares no target SDK. Logs go to the app's own external
+         folder, which needs no permission. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
     <application
         android:label="Presence"
         android:name="${applicationName}"
@@ -63,6 +74,10 @@
               android:name="flutter_deeplinking_enabled"
               android:value="false" />
         </activity>
+        <!-- geolocator's location service, for background location, unused. -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            tools:node="remove" />
         <service
             android:name=".CaptureService"
             android:exported="false"

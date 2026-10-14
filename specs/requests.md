@@ -5886,7 +5886,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Legal](legal.md), [Account deletion](account-deletion.md),
        [Production deploy](deploy.md).
 
-423. **Sign in with Apple, on Presence's own session tokens.** (2026-10-14)
+423. **Store readiness: no unused permissions from libraries (Android).**
+     (2026-10-14)
+     - Asked: (part of fixing the store readiness audit) the release
+       manifest had permissions the app never uses, added by libraries.
+     - Found: geolocator adds `FOREGROUND_SERVICE_LOCATION` and a
+       background location service; LiteRT's GPU library, with no target
+       SDK, makes Android imply `READ_PHONE_STATE` and external storage.
+     - Changed: the app's manifest removes them (`tools:node="remove"`);
+       the merged release manifest no longer has them. Specs:
+       [Android](android.md), [Store readiness](store-readiness.md).
+
+424. **Sign in with Apple, on Presence's own session tokens.** (2026-10-14)
      - Asked: App Store 4.8 needs Sign in with Apple beside Google on
        iOS. Apple's ID tokens last about 10 minutes and can't be renewed
        quietly, while every API (and rbacr) took the sign-in's ID token as
