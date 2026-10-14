@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../auth/account_sheet.dart';
 import '../auth/auth_service.dart';
+import '../auth/delete_account.dart';
 import '../auth/rbacr_client.dart';
 import '../auth/profile_client.dart';
 import '../auth/roles_service.dart';
@@ -36,6 +37,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.deviceId,
     this.showDevice,
     this.deleteDevice,
+    this.deleteAccount,
     this.onHelp,
   });
 
@@ -61,6 +63,9 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
   /// Deletes another of the profile's devices, from the account sheet's
   /// device list.
   final DeleteDevice? deleteDevice;
+
+  /// Deletes the signed-in account, from the account sheet's last button.
+  final DeleteAccount? deleteAccount;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -134,6 +139,7 @@ class HomeAppBar extends StatelessWidget implements PreferredSizeWidget {
             deviceId: deviceId,
             showDevice: showDevice,
             deleteDevice: deleteDevice,
+            deleteAccount: deleteAccount,
           ),
           const SizedBox(width: 4),
         ],

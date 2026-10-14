@@ -1,4 +1,4 @@
-/* The legal pages (/privacy, /tos): the app's Gruvbox palette, readable
+/* The legal pages (/privacy, /tos, /delete-account): the app's Gruvbox palette, readable
    width, no scripts or external fonts (the index's CSP allows only 'self'). */
 :root {
   --bg: #fbf1c7;

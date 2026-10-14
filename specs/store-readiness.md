@@ -20,13 +20,6 @@ an unsigned development build ([Release builds](release.md)).
     purchases and grants `premium` in rbacr, or hiding the buttons in
     store builds (and selling only on the web, without mentioning it in
     the app).
-- **No account deletion.** Users can delete devices and events, not their
-  account and profile. The privacy policy only offers deletion on request
-  by email.
-  - App Store 5.1.1(v): an app with sign-in must let users start deleting
-    their account in the app.
-  - Google Play: the same in the app, plus a web link where users can ask
-    for deletion without the app, given in the Data safety form.
 - **No privacy policy in the app.** The policy is at
   https://presence.nu01.com/privacy ([Legal](legal.md)) but the app
   doesn't link to it. Both stores want it in the app (Apple 5.1.1(i)) as
@@ -70,7 +63,8 @@ an unsigned development build ([Release builds](release.md)).
     always-on camera may qualify, but it's reviewed);
   - Data safety: email, name, photo and ID; precise location; photos,
     videos and audio; face features (biometric); app activity; logs;
-    encrypted in transit; deletion;
+    encrypted in transit; deletion in the app and at
+    https://presence.nu01.com/delete-account (the deletion link);
   - content rating, target audience (16+, as the terms say), privacy
     policy URL.
 - **App Store Connect:**
@@ -126,3 +120,12 @@ an unsigned development build ([Release builds](release.md)).
 - **Icons:** Android adaptive and density icons; the iOS set includes
   the 1024 px marketing icon ([App icon](app-icon.md)).
 - **Privacy policy and terms** are public at `/privacy` and `/tos`.
+- **Account deletion** ([Account deletion](account-deletion.md)), since
+  2026-10-14: the account sheet's **Delete account**, on every platform,
+  deletes the account (the owner's whole profile and its cloud data, or a
+  linked account's link) after a confirmation that says Premium isn't
+  cancelled and links to how to cancel it (App Store 5.1.1(v)); and
+  https://presence.nu01.com/delete-account explains how to ask without
+  the app and what's kept, the link for Play's Data safety form. Before
+  it works in AWS, the `presence-github-deploy` stack's permissions
+  boundary needs updating by hand (identity deletion).

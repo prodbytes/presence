@@ -1,6 +1,7 @@
 package presence.auth;
 
 import software.amazon.awssdk.services.cognitoidentity.CognitoIdentityClient;
+import software.amazon.awssdk.services.cognitoidentity.model.DeleteIdentitiesRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetIdRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityResponse;
@@ -11,17 +12,28 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import software.amazon.awssdk.services.dynamodb.model.DeleteItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 import software.amazon.awssdk.services.dynamodb.model.ReturnValue;
+import software.amazon.awssdk.services.dynamodb.model.ScanRequest;
 import software.amazon.awssdk.services.iot.IotClient;
 import software.amazon.awssdk.services.iot.model.AttachPolicyRequest;
+import software.amazon.awssdk.services.iot.model.DetachPolicyRequest;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 import static presence.auth.Attrs.text;
 
@@ -43,7 +55,24 @@ final class ProfileBackend implements ProfileHandler.Backend {
     private final String codesTable;
 
     /** The stream keys table ({@code STREAM_KEYS_TABLE}): {@code {"device": "<profile>/<device>", "hash", "createdBy", "subject", "createdAt"}}. */
-    private String streamKeysTable;
+    String streamKeysTable;
+
+    /** Cloud recognition's table ({@code RECOGNITION_TABLE}): {@code {"profile", "item"}}; null: none. */
+    String recognitionTable;
+
+    /** Feedback and Help's table ({@code FEEDBACK_TABLE}): {@code {"conversation" (identity), "sentAt", "email"}}; null: none. */
+    String feedbackTable;
+
+    /** Tells when an account deletion's time is up. */
+    Clock clock = Clock.systemUTC();
+
+    /**
+     * A Cognito identity ID, {@code <region>:<UUID>}: the only prefix whose
+     * folder {@link #deleteFolder} deletes, so an empty or odd one can never
+     * reach the rest of the bucket.
+     */
+    static final Pattern IDENTITY_ID =
+            Pattern.compile("[a-z]{2}(-[a-z]+)+-[0-9]+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
     private final String identityPoolId;
     private final String developerProvider;
     private final String bucket;
@@ -96,6 +125,8 @@ final class ProfileBackend implements ProfileHandler.Backend {
                 iotPolicy == null || iotPolicy.isBlank() ? null : IotClient.builder().httpClient(http).build(),
                 iotPolicy);
         backend.streamKeysTable = System.getenv("STREAM_KEYS_TABLE");
+        backend.recognitionTable = blankToNull(System.getenv("RECOGNITION_TABLE"));
+        backend.feedbackTable = blankToNull(System.getenv("FEEDBACK_TABLE"));
         return backend;
     }
 
@@ -267,6 +298,194 @@ final class ProfileBackend implements ProfileHandler.Backend {
             System.err.println("presence: could not attach the live-sync policy: "
                     + Aws.cause(e) + ": " + e);
         }
+    }
+
+    /**
+     * Lists the folder's first 1000 objects and deletes them
+     * ({@code DeleteObjects}), again until none are left or {@code deadline}
+     * passes. The bucket is versioned: what's deleted stays a noncurrent
+     * version until the bucket's lifecycle expires it (30 days).
+     */
+    @Override
+    public ProfileHandler.FolderDeletion deleteFolder(String identityId, Instant deadline) {
+        if (identityId == null || !IDENTITY_ID.matcher(identityId).matches()) {
+            // Never a prefix that could reach other folders, or the bucket.
+            throw new IllegalArgumentException("not an identity ID");
+        }
+        var prefix = identityId + "/";
+        var deleted = 0;
+        while (true) {
+            var page = s3.listObjectsV2(ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .maxKeys(1000)
+                    .build());
+            var keys = new ArrayList<ObjectIdentifier>();
+            for (var object : page.contents()) {
+                if (object.key() != null && object.key().startsWith(prefix)) {
+                    keys.add(ObjectIdentifier.builder().key(object.key()).build());
+                }
+            }
+            if (keys.isEmpty()) {
+                return new ProfileHandler.FolderDeletion(deleted, true);
+            }
+            var result = s3.deleteObjects(DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(Delete.builder().objects(keys).quiet(true).build())
+                    .build());
+            if (result.hasErrors() && !result.errors().isEmpty()) {
+                var first = result.errors().getFirst();
+                throw new IllegalStateException("S3 didn't delete " + result.errors().size() + " of "
+                        + keys.size() + " objects: " + first.code());
+            }
+            deleted += keys.size();
+            if (!clock.instant().isBefore(deadline)) {
+                return new ProfileHandler.FolderDeletion(deleted, false);
+            }
+        }
+    }
+
+    /**
+     * Detaches the live-sync IoT policy from the identity, then deletes it
+     * from the pool ({@code DeleteIdentities}). Failures are logged with the
+     * identity, to delete by hand, and answer false.
+     */
+    @Override
+    public boolean deleteIdentity(String identityId) {
+        liveSyncAllowed.remove(identityId);
+        if (iot != null && iotPolicy != null && !iotPolicy.isBlank()) {
+            try {
+                iot.detachPolicy(DetachPolicyRequest.builder().policyName(iotPolicy).target(identityId).build());
+            } catch (RuntimeException e) {
+                // Not attached, or IoT failed: the identity goes anyway.
+                System.err.println("presence: could not detach the live-sync policy from " + identityId + ": "
+                        + Aws.cause(e) + ": " + e);
+            }
+        }
+        try {
+            var result = cognito.deleteIdentities(DeleteIdentitiesRequest.builder()
+                    .identityIdsToDelete(identityId)
+                    .build());
+            if (result.hasUnprocessedIdentityIds() && !result.unprocessedIdentityIds().isEmpty()) {
+                System.err.println("presence: Cognito didn't delete identity " + identityId + ": "
+                        + result.unprocessedIdentityIds().getFirst().errorCodeAsString() + "; delete it by hand");
+                return false;
+            }
+            return true;
+        } catch (RuntimeException e) {
+            System.err.println("presence: could not delete identity " + identityId + " (delete it by hand): "
+                    + Aws.cause(e) + ": " + e);
+            return false;
+        }
+    }
+
+    @Override
+    public int deleteFeedback(String identityId, String email) {
+        if (feedbackTable == null) {
+            return 0;
+        }
+        var query = QueryRequest.builder()
+                .tableName(feedbackTable)
+                .keyConditionExpression("#c = :c")
+                .expressionAttributeNames(Map.of("#c", "conversation", "#s", "sentAt", "#e", "email"))
+                .expressionAttributeValues(Map.of(":c", AttributeValue.fromS(identityId)))
+                .projectionExpression("#c, #s, #e")
+                .consistentRead(true)
+                .build();
+        var deleted = 0;
+        for (var page : dynamo.queryPaginator(query)) {
+            for (var item : page.items()) {
+                var from = text(item, "email");
+                if (email != null && (from == null || !from.strip().toLowerCase(Locale.ROOT).equals(email))) {
+                    continue;
+                }
+                dynamo.deleteItem(DeleteItemRequest.builder()
+                        .tableName(feedbackTable)
+                        .key(Map.of("conversation", item.get("conversation"), "sentAt", item.get("sentAt")))
+                        .build());
+                deleted++;
+            }
+        }
+        return deleted;
+    }
+
+    @Override
+    public int deleteRecognition(String profileId) {
+        if (recognitionTable == null) {
+            return 0;
+        }
+        var query = QueryRequest.builder()
+                .tableName(recognitionTable)
+                .keyConditionExpression("#p = :p")
+                .expressionAttributeNames(Map.of("#p", "profile", "#i", "item"))
+                .expressionAttributeValues(Map.of(":p", AttributeValue.fromS(profileId)))
+                .projectionExpression("#p, #i")
+                .consistentRead(true)
+                .build();
+        var keys = new ArrayList<Map<String, AttributeValue>>();
+        for (var page : dynamo.queryPaginator(query)) {
+            for (var item : page.items()) {
+                keys.add(Map.of("profile", item.get("profile"), "item", item.get("item")));
+            }
+        }
+        return deleteAll(recognitionTable, keys);
+    }
+
+    /** The table is keyed {@code <profile>/<device>}: a scan finds the profile's (it's small). */
+    @Override
+    public int deleteStreamKeys(String profileId) {
+        if (streamKeysTable == null || streamKeysTable.isBlank()) {
+            return 0;
+        }
+        return deleteAll(streamKeysTable, scan(ScanRequest.builder()
+                .tableName(streamKeysTable)
+                .filterExpression("begins_with(#d, :p)")
+                .expressionAttributeNames(Map.of("#d", "device"))
+                .expressionAttributeValues(Map.of(":p", AttributeValue.fromS(profileId + "/")))
+                .projectionExpression("#d")
+                .consistentRead(true)
+                .build(), "device"));
+    }
+
+    /** Codes are keyed by their hash: a scan finds the profile's (few, and they expire in minutes). */
+    @Override
+    public int deleteLinkCodes(String profileId) {
+        if (codesTable == null || codesTable.isBlank()) {
+            return 0;
+        }
+        return deleteAll(codesTable, scan(ScanRequest.builder()
+                .tableName(codesTable)
+                .filterExpression("#p = :p")
+                .expressionAttributeNames(Map.of("#p", "profileId", "#c", "code"))
+                .expressionAttributeValues(Map.of(":p", AttributeValue.fromS(profileId)))
+                .projectionExpression("#c")
+                .consistentRead(true)
+                .build(), "code"));
+    }
+
+    /** The keys ({@code key}, the table's only key attribute) of every item {@code scan} finds. */
+    private List<Map<String, AttributeValue>> scan(ScanRequest scan, String key) {
+        var keys = new ArrayList<Map<String, AttributeValue>>();
+        for (var page : dynamo.scanPaginator(scan)) {
+            for (var item : page.items()) {
+                if (item.get(key) != null) {
+                    keys.add(Map.of(key, item.get(key)));
+                }
+            }
+        }
+        return keys;
+    }
+
+    /** Deletes each item by its key, one at a time (idempotent); how many. */
+    private int deleteAll(String table, List<Map<String, AttributeValue>> keys) {
+        for (var key : keys) {
+            dynamo.deleteItem(DeleteItemRequest.builder().tableName(table).key(key).build());
+        }
+        return keys.size();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     private static ProfileHandler.LinkCode linkCode(Map<String, AttributeValue> item) {

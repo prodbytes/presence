@@ -60,6 +60,14 @@ class MediaKeys extends ChangeNotifier {
   /// Device IDs whose key was needed and isn't known.
   Set<String> get wanted => UnmodifiableSetView(_wanted);
 
+  /// Forgets every other device's key (a deleted account's profile): this
+  /// device's own stays. Saved keys are the caller's to delete.
+  void forgetPeers() {
+    if (_peers.isEmpty) return;
+    _peers.clear();
+    notifyListeners();
+  }
+
   /// Restores other devices' keys saved earlier: not saved again.
   void restore(Map<String, Uint8List> keys) {
     var changed = false;

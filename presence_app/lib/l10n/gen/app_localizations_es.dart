@@ -56,6 +56,68 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authCheckingRoles => 'Comprobando roles…';
 
   @override
+  String get authDeleteAccount => 'Eliminar cuenta';
+
+  @override
+  String get authDeleteAccountCancel => 'Cancelar';
+
+  @override
+  String get authDeleteAccountChanged =>
+      'El perfil de tu cuenta cambió. Cierra esto e inténtalo de nuevo.';
+
+  @override
+  String get authDeleteAccountConfirm => 'Entiendo que no se puede deshacer';
+
+  @override
+  String get authDeleteAccountDevice =>
+      'También se eliminan las copias de los eventos y clips del perfil en este dispositivo, y se cierra tu sesión. No se puede deshacer.';
+
+  @override
+  String get authDeleteAccountDone => 'Se eliminaron tu cuenta y su perfil';
+
+  @override
+  String authDeleteAccountFailed(String error) {
+    return 'No se pudo eliminar la cuenta ($error). Inténtalo de nuevo.';
+  }
+
+  @override
+  String authDeleteAccountLinked(String email, String profile, String owner) {
+    return '$email está vinculada al perfil $profile, de $owner. Eliminar tu cuenta la desvincula y elimina tus mensajes de Comentarios y ayuda; el perfil y sus datos siguen siendo de su dueño.';
+  }
+
+  @override
+  String get authDeleteAccountManage => 'Cómo cancelar una suscripción';
+
+  @override
+  String authDeleteAccountOthers(String emails) {
+    return 'Estas cuentas vinculadas a él también pierden el acceso: $emails.';
+  }
+
+  @override
+  String authDeleteAccountOwner(String profile) {
+    return 'Eres el dueño del perfil $profile. Eliminar tu cuenta elimina todo el perfil: sus eventos, clips, grabaciones y ajustes en la nube, sus mensajes de Comentarios y ayuda, sus etiquetas de reconocimiento y las claves de transmisión de sus dispositivos.';
+  }
+
+  @override
+  String get authDeleteAccountSignInAgain =>
+      'Vuelve a iniciar sesión y luego elimina la cuenta.';
+
+  @override
+  String get authDeleteAccountSubscription =>
+      'Eliminar tu cuenta no cancela una suscripción Premium: cancélala antes, desde el enlace de tu recibo de Stripe, o escríbenos.';
+
+  @override
+  String get authDeleteAccountTitle => '¿Eliminar tu cuenta?';
+
+  @override
+  String get authDeleteAccountUnfinished =>
+      'Los datos en la nube aún se están eliminando. Inténtalo de nuevo en un minuto para terminar.';
+
+  @override
+  String get authDeleteAccountUnlinked =>
+      'Se eliminó tu cuenta y se desvinculó del perfil';
+
+  @override
   String authDeleteDevice(String device) {
     return 'Eliminar $device';
   }

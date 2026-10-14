@@ -246,7 +246,9 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   `subjects`: `{name, kind, labels, bias, weights}`). A crop is seen
   only in the function's memory, over HTTPS. The app's media stays
   sealed in the bucket ([Media encryption](encryption.md)): the crops
-  come from the device, which can open them.
+  come from the device, which can open them. A profile's items are
+  deleted with it when its owner deletes their account ([Account
+  deletion](account-deletion.md)).
 - **Without a model** (never trained, or no subjects) identify answers
   `trainedAt` (or null) and no results, without loading DINOv2.
 - **Describe keeps nothing** and reads no table but the caller's profile.

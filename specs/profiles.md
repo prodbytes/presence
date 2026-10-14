@@ -175,6 +175,9 @@
   an **Unlink** button, available to any member.
 - An unlinked subject loses the owner's membership. Its next sign-in gives it a
   new profile of its own, whose folder is its own Google identity's.
+- **Deleting an account** ([Account deletion](account-deletion.md)) also
+  unlinks a linked account (from that account, with its own Feedback
+  messages); the owner's deletes the whole profile and unlinks everyone.
 
 ## Routes
 
@@ -186,6 +189,7 @@
 | `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |
 | `POST /api/auth/profile/unlink` | a member (body: the email) | the listing, or 404, or 409 for the owner |
 | `POST /api/auth/profile/devices/remove` | `presence_user` (body: a device ID) | `{"deviceLimit", "devices"}`: the device taken off the profile's list |
+| `POST /api/auth/account/delete` | any verified account (body: its profile ID) | `{"deleted": "profile" \| "account" \| "nothing", …, "complete"}`: the owner deletes the whole profile, a linked account leaves it (202 while the folder is still being deleted; 409 for another profile ID); see [Account deletion](account-deletion.md) |
 
 - The profile routes need a verified email. A Cognito or DynamoDB failure
   answers 502 `{"error": "the profile service failed", "cause",
@@ -225,11 +229,15 @@ deleted, and the contents live only in AWS.
   unused.
 - **Least privilege:**
   - the profile function (`ProfileFunction`) may get, put, delete and
-    query links, get, put and update profiles, and get, put and delete
-    link codes;
-  - it may also call `GetId` and `GetOpenIdTokenForDeveloperIdentity` on
-    this pool only, and `s3:ListBucket` on the user-data bucket, only to
-    see whether a folder is empty.
+    query links, get, put, update and delete profiles, and get, put,
+    delete and scan link codes;
+  - it may also call `GetId`, `GetOpenIdTokenForDeveloperIdentity` and
+    `DeleteIdentities` on this pool only, and `s3:ListBucket` on the
+    user-data bucket, to see whether a folder is empty;
+  - for [account deletion](account-deletion.md#least-privilege) it may
+    delete the bucket's objects (only the caller's own profile's folder,
+    by its code), scan stream keys, and query and delete the profile's
+    recognition items and Feedback messages.
 - **Identity pool** ([presence_infra/identity.yaml](../presence_infra/identity.yaml)):
   `DeveloperProviderName: login.presence.profiles`, which can't be changed
   once set. Adding it to an existing pool keeps the pool and its identity
@@ -359,6 +367,7 @@ deleted, and the contents live only in AWS.
   then.
 - Any Google account can create a profile by signing in (one per subject;
   `GET /api/auth/profile` is throttled to 20 requests/s, burst 50). A lost race
-  leaves one unused profile row. Profiles are never deleted.
+  leaves one unused profile row. Profiles are deleted only by their
+  owner's [account deletion](account-deletion.md); unused rows stay.
 - A linked subject's email in the links table is the one it had when it
   linked.

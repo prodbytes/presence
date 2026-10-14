@@ -51,6 +51,42 @@ class StreamKey {
   final String key;
 }
 
+/// What `POST /api/auth/account/delete` deleted.
+class AccountDeletion {
+  const AccountDeletion({
+    required this.profile,
+    this.wholeProfile = false,
+    this.accounts = 0,
+    this.objects = 0,
+    this.complete = true,
+  });
+
+  factory AccountDeletion.fromJson(Map<String, Object?> json) =>
+      AccountDeletion(
+        profile: json['profile'] is String ? json['profile']! as String : null,
+        wholeProfile: json['deleted'] == 'profile',
+        accounts: (json['accounts'] as num?)?.toInt() ?? 0,
+        objects: (json['objects'] as num?)?.toInt() ?? 0,
+        complete: json['complete'] != false,
+      );
+
+  /// The profile it was (null: the account had none left, nothing to do).
+  final String? profile;
+
+  /// The owner's: the whole profile went, with every account linked to it.
+  /// Otherwise only this account left the profile.
+  final bool wholeProfile;
+
+  /// How many accounts lost the profile (this one included).
+  final int accounts;
+
+  /// How many files of the profile's cloud folder went in this request.
+  final int objects;
+
+  /// False while the profile's folder isn't empty yet: ask again.
+  final bool complete;
+}
+
 /// The auth API's profile routes: a profile is one person's cloud folder,
 /// whichever of their Google accounts signs in. Failures throw
 /// [RolesException] with the HTTP status (404: a wrong, used or expired
@@ -72,6 +108,18 @@ abstract class ProfileClient {
   /// Raspberry Pi running the streamer), replacing any key it had
   /// (`POST /api/auth/profile/stream-key`).
   Future<StreamKey> streamKey(String idToken, String device);
+
+  /// Deletes the signed-in account (`POST /api/auth/account/delete`) of
+  /// [profile], the profile the app shows (409 if it's another now): a
+  /// linked account leaves the profile; its owner deletes the whole
+  /// profile, its cloud data and every linked account's link. Asks again
+  /// while the API says it isn't [AccountDeletion.complete] (a big folder),
+  /// up to [rounds] times.
+  Future<AccountDeletion> deleteAccount(
+    String idToken,
+    String profile, {
+    int rounds = 20,
+  });
 }
 
 /// The real client, next to `GET /api/auth` (see [HttpRolesClient]).
@@ -145,6 +193,30 @@ class HttpProfileClient implements ProfileClient {
       device: '${body['device']}',
       key: '${body['key']}',
     );
+  }
+
+  @override
+  Future<AccountDeletion> deleteAccount(
+    String idToken,
+    String profile, {
+    int rounds = 20,
+  }) async {
+    var objects = 0;
+    for (var round = 0; ; round++) {
+      final result = AccountDeletion.fromJson(
+        await _send('POST', '/api/auth/account/delete', idToken, profile),
+      );
+      objects += result.objects;
+      if (result.complete || round + 1 >= rounds) {
+        return AccountDeletion(
+          profile: result.profile,
+          wholeProfile: result.wholeProfile,
+          accounts: result.accounts,
+          objects: objects,
+          complete: result.complete,
+        );
+      }
+    }
   }
 
   @override

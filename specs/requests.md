@@ -5766,3 +5766,31 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the first one seen (earliest frame; suggestions aside), whole,
        with a dot and their name at the tagged spot; otherwise the clip's
        thumbnail as before. Spec: [Clips](clips.md).
+
+421. **Delete an account from the app, and a page on how without it.** (2026-10-14)
+     - Asked: App Store guideline 5.1.1(v) and Google Play's account
+       deletion policy: a signed-in user must be able to delete their
+       account inside the app, on every platform, and a public web page
+       must say how to ask for deletion without the app.
+     - Changed: `POST /api/auth/account/delete` on the auth API (any
+       verified account, the body its profile ID): a linked account
+       leaves its profile (its link and its own Feedback messages); the
+       owner deletes the whole profile (its bucket folder, a page at a
+       time and over several requests if big, its Feedback conversation,
+       Cognito identity and IoT policy, recognition data, stream keys,
+       link codes, every account's link and the profile). Idempotent,
+       throttled to 1/s, least-privilege IAM (and the stage boundary,
+       which needs `presence-github-deploy` updated by hand). The account
+       sheet ends with **Delete account**: a dialog says what goes (owner
+       or linked account), that Premium isn't cancelled (with a link to
+       how), and needs a tick; then the API, sign-out, and this device
+       forgets the profile's events, clips, recordings and keys.
+       `/delete-account` on the site (deploy smoke-tested), linked from
+       the privacy policy, whose rights now name in-app deletion. Specs:
+       new [Account deletion](account-deletion.md);
+       [Auth API](auth-api.md), [Profiles](profiles.md),
+       [Sign-in](sign-in.md), [Legal](legal.md),
+       [Store readiness](store-readiness.md), [Production deploy](deploy.md),
+       [Site index](site-index.md), [Local CDN](local-cdn.md),
+       [Feedback and Help](feedback.md),
+       [Cloud recognition](cloud-recognition.md), [Streamer](streamer.md).
