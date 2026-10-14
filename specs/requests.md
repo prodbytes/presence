@@ -5617,3 +5617,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        schedule that loads the model; the deploy role may now create
        those rules. Specs: [Cloud recognition](cloud-recognition.md),
        "Warm-up"; [Production deploy](deploy.md).
+
+403. **The "Is this Suerte?" question under the picture.** (2026-10-14)
+     - Asked: when asking about a tag or subject, put it on its own line
+       below the picture, so it doesn't break (a screenshot: "Is this
+       Suerte?" a letter or two a line beside the frame).
+     - Changed: the suggestion card stacks the frame (now 180 px wide),
+       then the question on its own full-width line, then the detail with
+       the time (moved there from the question's line), then the answer,
+       which now wraps instead of running off the card. Spec:
+       [Subject recognition](recognition.md).
