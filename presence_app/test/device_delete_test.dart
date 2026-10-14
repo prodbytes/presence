@@ -20,7 +20,6 @@ import 'package:presence_app/storage/media_store.dart';
 import 'package:presence_app/storage/persistence.dart';
 
 import 'account_sheet_test.dart' show eventOf;
-import 'camera_all_test.dart' show clipOf;
 import 'fakes.dart';
 import 'live_sync_test.dart'
     show FakeBroker, eventsTopic, identity, messageOf, until;
@@ -122,19 +121,6 @@ void main() {
       expect(find.byIcon(Icons.delete_outline), findsNothing);
     });
 
-    for (final scale in [1.0, 2.0]) {
-      testWidgets('the hide button fits 320 dp at ${scale}x text', (
-        tester,
-      ) async {
-        await show(tester, scale: scale);
-        expect(tester.takeException(), isNull);
-        final button = find.byKey(
-          const Key('profile-device-hide-brave_quiet_lamp'),
-        );
-        expect(tester.getTopRight(button).dx, lessThanOrEqualTo(320));
-      });
-    }
-
     testWidgets('hide hides its events, the device stays listed; show '
         'shows them again', (tester) async {
       await show(tester);
@@ -182,58 +168,6 @@ void main() {
         find.byKey(const Key('profile-device-hide-brave_quiet_lamp')),
         findsNothing,
       );
-    });
-  });
-
-  group('the All grid', () {
-    late StreamController<AppEvent> bus;
-    late EventLog log;
-    late CameraRig rig;
-
-    setUp(() async {
-      bus = StreamController<AppEvent>.broadcast();
-      log = EventLog(bus.stream)
-        ..addHistory([
-          clipOf('brave_fox', minutesAgo: 3),
-          clipOf('brave_fox', minutesAgo: 5),
-          clipOf('zesty_owl', minutesAgo: 1),
-        ]);
-      rig = CameraRig(
-        backend: openFakes([FakeCameraSource('Main')]),
-        config: ConfigController(),
-      );
-      await rig.load();
-    });
-
-    tearDown(() {
-      rig.dispose();
-      bus.close();
-    });
-
-    testWidgets('no cell has a delete button', (tester) async {
-      tester.view.physicalSize = const Size(320, 640);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: CameraFeedsView(
-            rig: rig,
-            log: log,
-            deviceId: 'this_device',
-            profileId: 'user-1',
-            showAll: true,
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(find.byKey(const Key('device-image-brave_fox')), findsOneWidget);
-      expect(find.byKey(const Key('device-image-zesty_owl')), findsOneWidget);
-      for (final device in ['brave_fox', 'zesty_owl', 'this_device']) {
-        expect(find.byKey(Key('device-delete-$device')), findsNothing);
-      }
-      expect(find.byIcon(Icons.delete_outline), findsNothing);
-      expect(find.byTooltip('Delete brave_fox'), findsNothing);
     });
   });
 

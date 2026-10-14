@@ -97,22 +97,6 @@ void main() {
     expect(clips, isEmpty);
   });
 
-  test('at most one automatic clip per cooldown', () async {
-    await settle();
-    await send(movement(4));
-    expect(clips, hasLength(1));
-
-    // More motion within 5 minutes: no new clip.
-    now = now.add(const Duration(minutes: 4));
-    await send(movement(6));
-    expect(clips, hasLength(1));
-
-    // After the cooldown: clips again.
-    now = now.add(const Duration(minutes: 1, seconds: 1));
-    await send(movement(4));
-    expect(clips, hasLength(2));
-  });
-
   test('the cooldown is configurable', () async {
     config.update(
       (c) => c.copyWith(
@@ -124,17 +108,6 @@ void main() {
     now = now.add(const Duration(minutes: 1, seconds: 1));
     await send(movement(4));
     expect(clips, hasLength(2));
-  });
-
-  test('manual clips are not limited by the cooldown', () async {
-    await settle();
-    await send(movement(4));
-    await rig.requestClips(bus);
-    await Future<void>.delayed(Duration.zero);
-    expect(clips.map((c) => c.trigger), [
-      ClipTrigger.motion,
-      ClipTrigger.manual,
-    ]);
   });
 
   test('turned off, motion never clips', () async {

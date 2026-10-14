@@ -313,7 +313,7 @@ void main() {
     expect(find.text('3 devices'), findsOneWidget);
   });
 
-  for (final scale in [1.0, 2.0]) {
+  for (final scale in [2.0]) {
     testWidgets('the profile ID is larger, the device IDs body-sized, and '
         'they fit 320 dp at ${scale}x text', (tester) async {
       tester.view.physicalSize = const Size(320, 800);

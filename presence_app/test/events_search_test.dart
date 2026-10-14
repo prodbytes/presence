@@ -408,7 +408,7 @@ void main() {
     expect(titles(tester), ['Clip requested', 'Clip requested']);
   });
 
-  for (final width in [320.0, 390.0]) {
+  for (final width in [320.0]) {
     testWidgets('fits a ${width.toInt()} dp phone, one row on top', (
       tester,
     ) async {

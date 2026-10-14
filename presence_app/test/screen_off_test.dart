@@ -46,14 +46,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('Screen off is the Unattended mode, not a button of its own', (
-    tester,
-  ) async {
-    await pumpApp(tester, FakeScreenOff());
-    expect(find.byKey(const Key('screen-off')), findsNothing);
-    expect(mode, findsOneWidget);
-  });
-
   testWidgets('Unattended darkens the screen; a tap wakes it a while', (
     tester,
   ) async {

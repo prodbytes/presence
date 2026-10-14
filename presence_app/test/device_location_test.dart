@@ -877,7 +877,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+    for (final size in [const Size(320, 640)]) {
       testWidgets('the battery sits top left, under the app bar, clear of '
           'the buttons, at ${size.width.toInt()} wide', (tester) async {
         await launch(

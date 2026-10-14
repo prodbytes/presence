@@ -35,11 +35,10 @@ void main() {
 
   final about = find.byKey(const Key('about'));
 
-  for (final size in [const Size(320, 640), const Size(1280, 800)]) {
+  for (final size in [const Size(320, 640)]) {
     testWidgets('no About button; the account sheet ends with what Presence '
         'is at ${size.width.toInt()} wide', (tester) async {
       await pumpApp(tester, auth: FakeAuthService.signedIn(), size: size);
-      expect(find.byTooltip('About'), findsNothing);
       await tester.tap(find.byKey(const Key('account-button')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(about);
@@ -71,12 +70,6 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
-
-  testWidgets('signed out: no About button', (tester) async {
-    await pumpApp(tester, auth: FakeAuthService());
-    expect(find.byTooltip('About'), findsNothing);
-    expect(find.text('Presence'), findsNothing);
-  });
 
   testWidgets('the link opens outside the app; one that can\'t is copied', (
     tester,

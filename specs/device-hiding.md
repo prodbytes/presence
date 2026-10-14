@@ -36,7 +36,7 @@ fits a 320 dp phone, at a 2x system font too.
 `device_delete_test.dart`:
 
 - Every device has a hide button, this one too; no delete button.
-- It fits 320 dp at 1x and 2x text.
+- It fits 320 dp at 2x text (`account_sheet_test.dart`, with a long ID).
 - Hide takes the device's events out of the log's profile events and
   keeps the device listed with a show button; show brings them back.
 - Without a `showDevice`, no eye buttons.

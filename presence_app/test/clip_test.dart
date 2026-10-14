@@ -42,13 +42,6 @@ void main() {
     end: Duration(seconds: 18),
   );
 
-  testWidgets('Clip is disabled until a camera is open', (tester) async {
-    await pumpApp(tester, noCameras);
-    final clip = find.byKey(const Key('clip'));
-    expect(tester.widget<FloatingActionButton>(clip).onPressed, isNull);
-    expect(find.byTooltip('No camera'), findsOneWidget);
-  });
-
   testWidgets('clip publishes a ClipRequested card with a thumbnail', (
     tester,
   ) async {

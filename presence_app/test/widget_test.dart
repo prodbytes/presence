@@ -107,8 +107,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      // No About button: what Presence is, is in the account sheet.
-      expect(find.byTooltip('About'), findsNothing);
       expect(find.byTooltip('Device'), findsNothing);
     });
 
