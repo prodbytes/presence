@@ -4,10 +4,16 @@
 #
 # Targets: web, android, ios, linux, deb (the Linux bundle as the camera
 # kiosk .deb for Raspberry Pi OS; Linux only), all (every platform this host
-# can build; not deb), clean. Settings, from the environment or `make VAR=value`:
+# can build; not deb, appbundle or ipa), clean, and the store builds:
+# appbundle (the Android App Bundle for Google Play; needs the upload key,
+# see android/app/build.gradle.kts) and ipa (the App Store .ipa; macOS only,
+# needs distribution signing and IOS_EXPORT_OPTIONS). Settings, from the
+# environment or `make VAR=value`:
 #   MODE          release (default), profile or debug
 #   IOS_CODESIGN  1 to sign the iOS build (needs a signing team in Xcode);
 #                 unsigned by default
+#   IOS_EXPORT_OPTIONS  the ExportOptions.plist for ipa (method, team,
+#                 provisioning profile; the release workflow writes one)
 #   WEB_BASE_HREF the web build's base href, e.g. /app/ for the deployed site
 #                 (where CloudFront serves the app); / by default
 # Settings such as the Google client IDs come from the repo's .env (see
@@ -40,7 +46,7 @@ BUILD_ARGS=(--build-name "$VERSION" --build-number "$BUILD_NUMBER" "${DART_DEFIN
 # can_build <target>: whether this host's OS can build the target.
 can_build() {
   case "$1" in
-    ios) [[ "$(uname -s)" == Darwin ]] ;;
+    ios | ipa) [[ "$(uname -s)" == Darwin ]] ;;
     linux | deb) [[ "$(uname -s)" == Linux ]] ;;
     *) return 0 ;;
   esac
@@ -63,6 +69,18 @@ build() {
     android)
       flutter build apk "--$MODE" "${BUILD_ARGS[@]}"
       echo "==> android: presence_app/build/app/outputs/flutter-apk/app-$MODE.apk"
+      ;;
+    appbundle)
+      flutter build appbundle "--$MODE" "${BUILD_ARGS[@]}"
+      echo "==> appbundle: presence_app/build/app/outputs/bundle/$MODE/app-$MODE.aab"
+      ;;
+    ipa)
+      if [[ -z "${IOS_EXPORT_OPTIONS:-}" || ! -f "$IOS_EXPORT_OPTIONS" ]]; then
+        echo "error: ipa needs IOS_EXPORT_OPTIONS, an ExportOptions.plist (got '${IOS_EXPORT_OPTIONS:-}')" >&2
+        return 1
+      fi
+      flutter build ipa "--$MODE" --export-options-plist "$IOS_EXPORT_OPTIONS" "${BUILD_ARGS[@]}"
+      echo "==> ipa: presence_app/build/ios/ipa/"
       ;;
     ios)
       local sign=--no-codesign
@@ -94,7 +112,7 @@ build() {
 [[ $# -gt 0 ]] || set -- all
 for arg in "$@"; do
   case "$arg" in
-    web | android | ios | linux | deb) build "$arg" ;;
+    web | android | appbundle | ios | ipa | linux | deb) build "$arg" ;;
     all)
       for target in web android ios linux; do
         if can_build "$target"; then
@@ -105,6 +123,6 @@ for arg in "$@"; do
       done
       ;;
     clean) flutter clean ;;
-    *) echo "error: unknown target '$arg' (web, android, ios, linux, deb, all, clean)" >&2; exit 2 ;;
+    *) echo "error: unknown target '$arg' (web, android, appbundle, ios, ipa, linux, deb, all, clean)" >&2; exit 2 ;;
   esac
 done

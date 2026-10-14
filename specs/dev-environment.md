@@ -126,9 +126,11 @@
   to [scripts/make.sh](../scripts/make.sh), which runs `flutter build` with
   the `.env` settings from [scripts/dart-defines.sh](../scripts/dart-defines.sh)
   (same allowlist as the run scripts). `make web` builds
-  `presence_app/build/web/`, `make android` a release APK, `make ios` an
-  unsigned `Runner.app` (signed with `IOS_CODESIGN=1`) and `make linux` the
-  Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
+  `presence_app/build/web/`, `make android` a release APK, `make appbundle`
+  the Play App Bundle (needs the upload key), `make ios` an
+  unsigned `Runner.app` (signed with `IOS_CODESIGN=1`), `make ipa` the App
+  Store `.ipa` (see [Store signing](release.md#store-signing)) and `make
+  linux` the Linux bundle; `make clean` runs `flutter clean`. `MODE` picks `release`
   (default), `profile` or `debug`. Every build is versioned `X.Y.Z` (see
   [Versioning](release.md#versioning)). Plain `make` (`all`) builds every
   platform the host can build and skips the rest: iOS needs macOS and Linux

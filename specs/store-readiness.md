@@ -3,7 +3,10 @@
 What the App Store (iOS) and Google Play (Android) require that Presence
 does and doesn't meet yet. Audited 2026-10-14 against the code on `main`.
 Presence isn't in either store: Android ships as a side-loaded APK, iOS as
-an unsigned development build ([Release builds](release.md)).
+an unsigned development build ([Release builds](release.md)). The release
+workflow can now make signed store builds (an `.aab` and an App Store
+`.ipa`) once their keys are in its secrets ([Store
+signing](release.md#store-signing)).
 
 ## Blockers: both stores
 
@@ -38,21 +41,28 @@ an unsigned development build ([Release builds](release.md)).
   sign-in. An app that uses a third-party login must also offer one that
   limits data to name and email, lets users hide their email, and doesn't
   track them. Sign in with Apple is the usual one.
-- **No distribution signing.** Builds are signed with a development
-  identity (team `LMX88986F3`) by Flutter; the release workflow uploads an
-  unsigned `Runner.app`. App Store builds need a distribution certificate,
-  an App Store provisioning profile, an `.ipa` archive and an upload
-  (Xcode, `xcrun altool` or Transporter).
+- **No distribution certificate yet.** The release workflow builds an
+  App Store `.ipa` (manual signing, `ExportOptions.plist` with
+  `app-store-connect`) and uploads RC and GA builds to App Store Connect,
+  but only once `APPLE_TEAM_ID`, an Apple Distribution certificate, an
+  App Store provisioning profile (and, for the upload, an App Store
+  Connect API key) are in its secrets ([Store
+  signing](release.md#app-store-ios)). Until then it uploads an unsigned
+  `Runner.app`.
 
 ## Blockers: Google Play
 
-- **Release builds use the debug key** (`signingConfig =
-  signingConfigs.getByName("debug")` in `android/app/build.gradle.kts`).
-  Play rejects debug-signed uploads. It needs an upload key (outside git),
-  Play App Signing, and an **Android App Bundle** (`flutter build
-  appbundle`); the release workflow builds an APK only. The
-  `assetlinks.json` for [App Links](add-device.md) must then list Play's
-  app-signing certificate.
+- **No upload key yet.** Release builds sign with an upload key from
+  the environment or `android/key.properties`, and the release workflow
+  builds an **Android App Bundle** signed with it, once the
+  `ANDROID_UPLOAD_KEY*` secrets exist; a release bundle without a key
+  fails rather than use the debug key. Still to do: create the key
+  (`scripts/android-upload-key.sh`), set the secrets, turn on Play App
+  Signing and upload the first `.aab` ([Store
+  signing](release.md#google-play-android)). The `assetlinks.json` for
+  [App Links](add-device.md), which the site doesn't serve yet, must then
+  list Play's app signing certificate, and Google sign-in's Android
+  client its SHA-1.
 - **The capture notification is hidden on Android 13+.** The app doesn't
   ask for `POST_NOTIFICATIONS`, so "Presence is capturing" doesn't show
   ([Android](android.md#known-limitations)). An app that records camera

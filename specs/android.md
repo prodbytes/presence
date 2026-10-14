@@ -153,7 +153,15 @@ Android uses the standard dashcam technique instead
   links (the [Add a device](add-device.md) links) to `app_links`, with
   Flutter's own deep linking off (`flutter_deeplinking_enabled`). Without
   the site's `assetlinks.json`, Android doesn't open them in the app by
-  itself yet.
+  itself yet; for the Play build it must list Play's app signing key
+  (see [Store signing](release.md#google-play-android)).
+- **Release signing** (`android/app/build.gradle.kts`): release builds
+  are signed with the upload key, from `ANDROID_KEYSTORE_PATH` and
+  `ANDROID_KEYSTORE_PASSWORD` (alias `ANDROID_KEY_ALIAS`, default
+  `upload`) or `android/key.properties`; without one, with the debug key,
+  except a release App Bundle (`make appbundle`), which then fails.
+  `scripts/android-upload-key.sh` creates the key outside the repo. See
+  [Store signing](release.md#google-play-android).
 
 ## Subject recognition
 
