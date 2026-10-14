@@ -5677,3 +5677,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: an answered suggestion card shows the answer ("Tagged as
        Suerte" with a check, or "Not Suerte") in the question's place, and
        no separate answer line. Spec: [Subject recognition](recognition.md).
+
+409. **Subject recognition at 85 %.** (2026-10-14)
+     - Asked: make the default threshold, and the current setting, 85 %
+       for subject recognition.
+     - Changed: the "Tag automatically" default is 85 % (was 90 %).
+       Settings are now version 2: a version 1 record still on 90 % (the
+       user's devices, never changed) reads as 85 %, once; the old
+       migration of a stored 85 % to 90 % went, so 85 % stays. Specs:
+       [Settings](settings.md), [Subject recognition](recognition.md).

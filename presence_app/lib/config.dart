@@ -26,7 +26,9 @@ class PresenceConfig {
     this.language = const LanguageConfig(),
   });
 
-  static const int version = 1;
+  /// 2: the recognition default went from 90 % to 85 % (a version 1 record
+  /// still on 90 % takes 85 %, see [RecognitionConfig.fromJson]).
+  static const int version = 2;
 
   final ClipConfig clip;
   final CameraConfig camera;
@@ -86,7 +88,10 @@ class PresenceConfig {
     motion: MotionConfig.fromJson(_map(json['motion'])),
     schedule: ScheduleConfig.fromJson(_map(json['schedule'])),
     subjects: SubjectsConfig.fromJson(_map(json['subjects'])),
-    recognition: RecognitionConfig.fromJson(_map(json['recognition'])),
+    recognition: RecognitionConfig.fromJson(
+      _map(json['recognition']),
+      version: json['version'] is int ? json['version']! as int : 1,
+    ),
     history: HistoryConfig.fromJson(_map(json['history'])),
     log: LogConfig.fromJson(_map(json['log'])),
     live: LiveConfig.fromJson(_map(json['live'])),
@@ -675,14 +680,14 @@ class RecognitionConfig {
   static const double maxConfidence = 0.95;
   static const double step = 0.05;
 
-  /// 90 %: a face's cosine of 0.615, a person's look's of 0.79 (see
-  /// `faceConfidence`, `lookConfidence`). It was 85 %, which tagged too
-  /// many strangers as someone known.
-  static const double defaultAutoTag = 0.90;
+  /// 85 % (2026-10-14, asked for: 90 % left the user's cat to be asked
+  /// about too often). It was 90 % from 2026-10-12, and 85 % before.
+  static const double defaultAutoTag = 0.85;
 
-  /// The default before it was raised: a device still on it (never
-  /// changed) takes the new [defaultAutoTag].
-  static const double oldDefaultAutoTag = 0.85;
+  /// The default of settings version 1: a version 1 record still on it
+  /// takes the new [defaultAutoTag], once (saved again as version 2, a
+  /// 90 % chosen later stays).
+  static const double oldDefaultAutoTag = 0.90;
 
   /// Under this confidence a match isn't asked about: a face scoring 50 %
   /// has a cosine of 0.475, above 99.9 % of different people's (LFW), a
@@ -731,14 +736,20 @@ class RecognitionConfig {
   };
 
   /// Records from before always asking also have an `ask` level; it's
-  /// ignored. One left at the [oldDefaultAutoTag] takes the
-  /// [defaultAutoTag]; one under [minConfidence] is raised to it.
-  factory RecognitionConfig.fromJson(Map<String, Object?> json) {
+  /// ignored. A [version] 1 record left at the [oldDefaultAutoTag] takes
+  /// the [defaultAutoTag]; one under [minConfidence] is raised to it.
+  factory RecognitionConfig.fromJson(
+    Map<String, Object?> json, {
+    int version = PresenceConfig.version,
+  }) {
     final autoTag = _num(json['autoTag']);
     return const RecognitionConfig().copyWith(
       enabled: json['enabled'] is bool ? json['enabled']! as bool : null,
       objects: json['objects'] is bool ? json['objects']! as bool : null,
-      autoTag: autoTag != null && (autoTag - oldDefaultAutoTag).abs() < 1e-9
+      autoTag:
+          version < 2 &&
+              autoTag != null &&
+              (autoTag - oldDefaultAutoTag).abs() < 1e-9
           ? defaultAutoTag
           : autoTag,
       cloudTrainedAt: _int(json['cloudTrainedAt']),

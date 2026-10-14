@@ -150,7 +150,7 @@ void main() {
       find.byKey(const Key('recognition-auto-slider'), skipOffstage: false),
     );
     await tester.pumpAndSettle();
-    expect(find.text('90 % sure'), findsOneWidget);
+    expect(find.text('85 % sure'), findsOneWidget);
     expect(find.byKey(const Key('recognition-ask-slider')), findsNothing);
     expect(find.text('Ask me when at least'), findsNothing);
   });

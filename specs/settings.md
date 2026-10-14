@@ -77,7 +77,7 @@
     bicycle, bottle… for search": the [object tags](recognition.md).
     Disabled the same way where there's no runtime.
   - **Tag automatically when at least** 50–95 % sure, in 5 % steps,
-    default **90 %**, off while the subjects switch is. Under it, "Less
+    default **85 %**, off while the subjects switch is. Under it, "Less
     sure than that, it asks you whether it's them.": there's no separate
     "Ask me" level any more; anyone recognized below it (from 50 %, the
     floor) is asked about.
@@ -87,9 +87,10 @@
     now** (see [Cloud recognition](cloud-recognition.md)).
   - Stored as `recognition: {enabled, objects, autoTag, cloudTrainedAt,
     cloudCheckedAt}`; an `ask` value
-    in older records is ignored. A stored 85 % (the old default, never
-    changed) reads as the new 90 %; a stored level under 50 % reads as
-    50 %.
+    in older records is ignored. A settings **version 1** record still on
+    90 % (that version's default) reads as the new 85 %, once: saved
+    again as version 2, a 90 % chosen later stays. A stored level under
+    50 % reads as 50 %.
 - **Language** section, after History (see [Languages](i18n.md)): an
   **App language** picker: Same as the device (default), English,
   Español, Português; the app switches at once. Stored as `language:

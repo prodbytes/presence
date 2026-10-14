@@ -140,8 +140,7 @@ How each choice was measured (datasets, numbers) is in the models'
    looked for on later frames.
 6. **Tag, ask, or neither** (the threshold in Settings), once the clip is
    done:
-   - from **Tag automatically** (default **90 %**: a face's cosine of
-     0.615, a person's look's of 0.79): a **recognized tag**
+   - from **Tag automatically** (default **85 %**): a **recognized tag**
      (`source: detected`, with that confidence) on their **best frame**,
      at the face's center (or the box's);
    - below it, always asked: from **50 %** (`RecognitionConfig.askFloor`,
@@ -152,7 +151,8 @@ How each choice was measured (datasets, numbers) is in the models'
      used to be an **Ask me** slider, default 50 %; it's gone, and stored
      `ask` values are ignored.)
    - These were 85 % and 30 % until 2026-10-10: too many strangers were
-     tagged or asked about as someone known.
+     tagged or asked about as someone known; then 90 % until 2026-10-14,
+     back to 85 % (asked for: a known cat was asked about too often).
 
    A subject is tagged or asked about at most once per clip. Subjects
    already on the clip are skipped.
