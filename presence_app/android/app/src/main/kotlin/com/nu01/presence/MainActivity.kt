@@ -30,6 +30,7 @@ class MainActivity : FlutterActivity() {
         alive = true
         FileLog.i("app screen created")
         KeepAlive.schedule(this)
+        KeepAlive.clearStopped(this)
         super.onCreate(savedInstanceState)
         // A surveillance screen shouldn't go to sleep.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

@@ -5782,3 +5782,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        at the bottom of the camera, in English, Spanish and Portuguese.
        Specs: [iOS](ios.md), [About](about.md), [Legal](legal.md),
        [Consent](consent.md), [Store readiness](store-readiness.md).
+
+419. **Store readiness: the Android capture notification, and no
+     background starts.** (2026-10-14)
+     - Asked: on Android 13+ ask for `POST_NOTIFICATIONS` so the capture
+       notification always shows while recording, saying it records the
+       camera (and microphone), also in Unattended; and where Android 10+
+       blocks the watchdog and boot receiver from opening the app, post a
+       "Presence stopped — tap to resume" notification instead, without
+       starting the camera service from boot (Android 15).
+     - Changed: the manifest has `POST_NOTIFICATIONS`, requested at launch
+       with the camera and microphone. The ongoing notification is now
+       "Presence is recording", naming the camera and microphone, shown at
+       once and public on the lock screen. On Android 10+ `KeepAlive.open`
+       also posts a high-priority "Presence stopped — tap to resume"
+       (tapping opens the app; the app's screen removes it); a capture
+       service restarted by Android that can't go foreground does too.
+       Notification texts are Android string resources in English,
+       Spanish and Portuguese. Specs: [Android](android.md),
+       [Store readiness](store-readiness.md).

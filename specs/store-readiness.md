@@ -50,12 +50,6 @@ an unsigned development build ([Release builds](release.md)).
   appbundle`); the release workflow builds an APK only. The
   `assetlinks.json` for [App Links](add-device.md) must then list Play's
   app-signing certificate.
-- **The capture notification is hidden on Android 13+.** The app doesn't
-  ask for `POST_NOTIFICATIONS`, so "Presence is capturing" doesn't show
-  ([Android](android.md#known-limitations)). An app that records camera
-  and microphone with the screen off (Unattended), reopens itself at boot,
-  and shows no notice risks Play's stalkerware and spyware policy, which
-  requires a persistent notice while recording.
 
 ## Declarations and reviews needed
 
@@ -82,13 +76,9 @@ an unsigned development build ([Release builds](release.md)).
 
 - **Surveillance apps** get a closer look in both stores (Apple 5.1.1,
   2.5.14: clear consent, and a visible or audible sign of recording).
-  The consent screen helps; the screen-off Unattended mode should still
-  show that it's recording.
-- **Starting itself on Android 10+.** The watchdog and boot receiver
-  open the activity from the background, which Android 10+ blocks (it's
-  logged). That isn't a policy issue, but it means the feature doesn't
-  work on new phones. On Android 15 a boot receiver may not start a
-  camera or microphone foreground service either.
+  The consent screen helps; on Android the ongoing "Presence is
+  recording" notification shows it in Unattended (screen off) too. iOS
+  records only while the app is open and shown.
 - **The name "Presence"** may already be taken in either store.
 
 ## Already met
@@ -101,6 +91,17 @@ an unsigned development build ([Release builds](release.md)).
 - **Version codes** are the build time in Unix seconds, so they always
   go up, and stay under Play's limit (2,100,000,000) until 2036.
 - **App IDs:** `com.nu01.presence` on both.
+- **A persistent recording notice on Android** (Play's stalkerware and
+  spyware policy): `POST_NOTIFICATIONS` is asked for at launch on
+  Android 13+, and the foreground service's ongoing "Presence is
+  recording" notification says it records the camera (and the
+  microphone, when allowed), in Unattended and on the lock screen too
+  ([Android](android.md)).
+- **No background starts on Android 10+:** where Android blocks the
+  watchdog and boot receiver from opening the app, they post "Presence
+  stopped — tap to resume" instead (no `SYSTEM_ALERT_WINDOW` or
+  `USE_FULL_SCREEN_INTENT`), and nothing starts the camera or microphone
+  service from `BOOT_COMPLETED` (forbidden on Android 15).
 - **Location** is asked only in the foreground (no background location).
 - **iOS privacy manifests:** the app's own Swift code uses none of
   Apple's required-reason APIs. The Flutter engine and the plugins

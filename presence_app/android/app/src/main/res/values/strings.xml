@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The native notifications' texts (CaptureService, KeepAlive), in the
+     phone's language: English here, Spanish and Portuguese in values-es and
+     values-pt, like the app's own strings. -->
+<resources>
+    <string name="capture_channel">Recording</string>
+    <string name="capture_channel_description">Shown all the time Presence records from the camera</string>
+    <string name="capture_title">Presence is recording</string>
+    <string name="capture_text_camera_microphone">Recording the camera and microphone, also with the screen off. Tap to open.</string>
+    <string name="capture_text_camera">Recording the camera, also with the screen off. Tap to open.</string>
+    <string name="resume_channel">App stopped</string>
+    <string name="resume_channel_description">Presence stopped and Android didn\'t let it reopen by itself</string>
+    <string name="resume_title">Presence stopped — tap to resume</string>
+    <string name="resume_text">It isn\'t recording. Android doesn\'t let it reopen by itself.</string>
+</resources>
