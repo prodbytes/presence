@@ -5914,3 +5914,14 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        clips into each camera's own pipeline (`os: Blink`). Specs:
        [Blink cameras](blink.md) (new), [Streamer](streamer.md),
        [Settings](settings.md).
+
+425. **The deploy: no empty store settings.** (2026-10-14)
+     - Found: the GA and RC deploys failed: `sam deploy` refused the
+       payments stack's empty `RbacrGrantToken=` override (no
+       `RBACR_GRANT_TOKEN` secret yet), as it once refused an empty
+       `OriginSecret=`.
+     - Changed: `scripts/deploy.sh` passes the store settings
+       (`RbacrGrantToken`, `GooglePlaySecretName`, `StoreAllowSandbox`)
+       only when set; otherwise the template's defaults (store purchases
+       off) apply. Spec: [Production deploy](deploy.md) unchanged (the
+       defaults were already described).
