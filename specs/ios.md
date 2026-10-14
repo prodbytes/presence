@@ -77,3 +77,11 @@ The Swift counterpart of the Android layer
   devicectl device process launch --terminate-existing --device <UDID>
   com.nu01.presence` install and start it; it runs. What it does once
   open (the camera, sign-in) wasn't checked from the command line.
+- **App Store signing:** the Xcode project still names no team, and local
+  builds keep Flutter's automatic development signing. The Release
+  workflow's App Store build writes `Flutter/Signing.xcconfig` (included
+  by `Release.xcconfig` when present: manual style, `APPLE_TEAM_ID`,
+  `Apple Distribution`, the App Store profile) and builds an `.ipa` with
+  `make ipa`; entitlements (Sign in with Apple's, once
+  `Runner.entitlements` exists) come from the project and must be in the
+  profile. See [Store signing](release.md#app-store-ios).

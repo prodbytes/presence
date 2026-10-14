@@ -24,9 +24,12 @@ app binaries with `make` and publishes them as a GitHub release.
   - **Pull requests** that change the workflow, the `Makefile`,
     `scripts/make.sh`, `scripts/deb.sh`, `packaging/`,
     `presence_streamer/`, `scripts/streamer.sh`,
-    `scripts/dart-defines.sh`, `scripts/version.sh` or
+    `scripts/dart-defines.sh`, `scripts/version.sh`,
+    `presence_app/android/app/build.gradle.kts`,
+    `presence_app/ios/Flutter/Release.xcconfig` or
     the version files run the builds only,
-    without a release.
+    without a release. They never get the signing secrets: they build the
+    debug-signed APK and the unsigned iOS app, not the `.aab` or `.ipa`.
   - Tag names must be letters, digits, `.`, `_` and `-`.
 - **Version:** the `prepare` job resolves one version for all the builds
   (see [Versioning](#versioning)). A tag that carries `X.Y.Z` (e.g.
@@ -50,8 +53,14 @@ app binaries with `make` and publishes them as a GitHub release.
 - **Release assets**, uploaded to a new release or replacing same-named
   assets on an existing one, with generated notes:
   - `presence-<tag>-web.zip`: the contents of `build/web/`.
-  - `presence-<tag>-android.apk`: the release APK.
-  - `presence-<tag>-ios-unsigned.zip`: the unsigned `Runner.app`.
+  - `presence-<tag>-android.apk`: the release APK, signed with the
+    upload key when it's set (see [Store signing](#store-signing)), else
+    with the runner's debug key.
+  - `presence-<tag>-android.aab`: the Android App Bundle for Google Play,
+    signed with the upload key; only when the upload key is set.
+  - `presence-<tag>-ios.ipa`: the App Store `.ipa`, when App Store signing
+    is set; otherwise `presence-<tag>-ios-unsigned.zip`, the unsigned
+    `Runner.app`.
   - `presence-<tag>-linux-x64.tar.gz` and
     `presence-<tag>-linux-arm64.tar.gz`: the Linux `bundle/` for each
     architecture (named from Flutter's `build/linux/<arch>/` folder).
@@ -77,6 +86,113 @@ app binaries with `make` and publishes them as a GitHub release.
   workflow token is read-only except in the release job (`contents:
   write`); checkout doesn't keep credentials; inputs reach scripts only
   through environment variables.
+
+## Store signing
+
+The Release workflow signs the store builds when their secrets are set,
+and skips them, with a notice in the run, when they aren't. Nothing is
+signed on pull requests. The keys are decoded into the runner's temporary
+folder, and removed at the end of the job, even after a failure.
+
+### Google Play (Android)
+
+- **Upload key:** Play App Signing holds the key that signs what users
+  install; the workflow signs with the **upload key**, which Play checks.
+  [scripts/android-upload-key.sh](../scripts/android-upload-key.sh)
+  creates it with `keytool` (PKCS12, RSA 4096, alias `upload`, one
+  password, valid ~27 years) at `~/.config/presence/upload-keystore.jks`
+  by default (it refuses a path inside the repo), and prints its SHA-1
+  and SHA-256 fingerprints and the `gh secret set` commands below. Given
+  an existing keystore, it only prints those. Keep the keystore and
+  password backed up: losing them means asking Google to reset the
+  upload key.
+- **Gradle** ([android/app/build.gradle.kts](../presence_app/android/app/build.gradle.kts))
+  signs release builds with the upload key from the environment
+  (`ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`,
+  `ANDROID_KEY_ALIAS`, default `upload`, and `ANDROID_KEY_PASSWORD`,
+  default the keystore's), or else from
+  `presence_app/android/key.properties` (`storeFile`, `storePassword`,
+  `keyAlias`, `keyPassword`; never committed, like `*.jks`, `*.keystore`,
+  `*.p12`, `*.p8` and `*.mobileprovision`). With neither, release APKs
+  fall back to the debug key (`flutter run --release`,
+  `scripts/android-install.sh`), but a **release App Bundle fails** ("A
+  release App Bundle needs the upload key"), so a debug-signed bundle is
+  never made. A named keystore that's missing, or has no password, fails
+  every release build.
+- **Builds:** `make appbundle` (`flutter build appbundle`, with the same
+  version and settings as `make android`). The workflow runs `make
+  android appbundle` when the key is set, and prints the bundle's signer.
+- **Secrets** (Settings → Secrets and variables → Actions, or `gh`):
+
+  | Name | What |
+  | --- | --- |
+  | `ANDROID_UPLOAD_KEYSTORE_BASE64` | the keystore, base64: `base64 < ~/.config/presence/upload-keystore.jks \| gh secret set ANDROID_UPLOAD_KEYSTORE_BASE64` |
+  | `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | its password: `gh secret set ANDROID_UPLOAD_KEYSTORE_PASSWORD` (asks for it) |
+  | `ANDROID_UPLOAD_KEY_ALIAS` | optional, default `upload` |
+  | `ANDROID_UPLOAD_KEY_PASSWORD` | optional, default the keystore's password |
+
+- **In Play Console:** create the app (`com.nu01.presence`), turn on Play
+  App Signing (let Google generate the app signing key), and upload the
+  first `.aab` by hand; its upload key becomes the registered one. Then
+  copy, from Setup → App signing, the **app signing key's** SHA-256 and
+  SHA-1, which differ from the upload key's:
+  - `/.well-known/assetlinks.json` on presence.nu01.com and
+    rc.presence.nu01.com must list the app signing key's SHA-256, for
+    [App Links](add-device.md) to open in the Play-installed app (and the
+    upload key's, for side-loaded builds). The site doesn't serve that
+    file yet: nothing in `presence_index/site/` or `scripts/deploy.sh`
+    makes it. Its `sha256_cert_fingerprints` list takes several.
+  - Google sign-in's Android OAuth client must have the app signing key's
+    SHA-1 (and the upload key's, for side-loaded builds), or sign-in fails
+    in the store build.
+
+### App Store (iOS)
+
+- **Signing:** with the secrets set, the iOS job imports the distribution
+  certificate into a temporary keychain (random password, deleted after
+  the job), installs the App Store provisioning profile (checked to be
+  for `<team>.com.nu01.presence` and to list no devices), and writes
+  `presence_app/ios/Flutter/Signing.xcconfig` (never committed), which
+  `Release.xcconfig` includes if present: `CODE_SIGN_STYLE = Manual`, the
+  team, `Apple Distribution` and the profile's UUID, for the Runner
+  target only (not the Pods). Locally the file doesn't exist, so
+  Flutter's automatic development signing is unchanged.
+- **Builds:** `make ipa IOS_EXPORT_OPTIONS=<plist>` (`flutter build ipa
+  --export-options-plist`). The workflow writes the `ExportOptions.plist`:
+  method `app-store-connect`, the team, `signingStyle` manual,
+  `Apple Distribution`, and `com.nu01.presence` mapped to the profile.
+  Entitlements come from the Xcode project (e.g. Sign in with Apple's
+  `Runner.entitlements`, when it's added): the App ID must have those
+  capabilities before the profile is made, or the archive fails; remake
+  the profile, and update its secret, after adding one.
+- **Upload:** for a pushed `*RC*` or `*GA` tag (both checked to be on
+  `main`), when the App Store Connect API key is set, the job uploads the
+  `.ipa` with `xcrun altool --upload-app` (the key at
+  `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`, removed after). It
+  then shows in TestFlight; review and release stay manual. Without the
+  key, the `.ipa` is only attached to the release.
+- **Variables and secrets:**
+
+  | Name | Kind | What |
+  | --- | --- | --- |
+  | `APPLE_TEAM_ID` | variable (or secret) | the 10-character team ID (Membership details; the development team seen locally is `LMX88986F3`): `gh variable set APPLE_TEAM_ID --body <team id>` |
+  | `IOS_DISTRIBUTION_CERTIFICATE_BASE64` | secret | the **Apple Distribution** certificate with its private key, exported from Keychain Access as `.p12`, base64: `base64 < dist.p12 \| gh secret set IOS_DISTRIBUTION_CERTIFICATE_BASE64` |
+  | `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD` | secret | the `.p12`'s export password |
+  | `IOS_APPSTORE_PROFILE_BASE64` | secret | an **App Store** provisioning profile for `com.nu01.presence` with that certificate, base64: `base64 < Presence_AppStore.mobileprovision \| gh secret set IOS_APPSTORE_PROFILE_BASE64` |
+  | `APP_STORE_CONNECT_API_KEY_ID` | secret | optional (upload): the API key's ID |
+  | `APP_STORE_CONNECT_API_ISSUER_ID` | secret | optional (upload): the issuer ID |
+  | `APP_STORE_CONNECT_API_KEY_BASE64` | secret | optional (upload): the `AuthKey_<id>.p8`, base64 |
+
+- **In Apple Developer and App Store Connect:** register the App ID
+  `com.nu01.presence` (with Sign in with Apple once the app uses it);
+  make an Apple Distribution certificate (Certificates → +, from a CSR
+  made in Keychain Access) and export it with its key as `.p12`; make an
+  App Store provisioning profile (Profiles → + → App Store Connect) for
+  that App ID and certificate; create the app in App Store Connect; and,
+  for uploads, an API key with the App Manager role (Users and Access →
+  Integrations → App Store Connect API; the `.p8` downloads once).
+- The certificate and profile expire yearly; renew them and update the
+  secrets.
 
 ## Release trust
 
@@ -172,11 +288,19 @@ The app version is `X.Y.Z`, resolved by
 
 ## Known limitations
 
-- The APK is signed with the runner's throwaway debug key, which differs on
-  every run. Google sign-in on Android won't accept it (the Android client
-  is matched by the development Mac's debug-key SHA-1), and it can't be
-  installed over an earlier build without uninstalling first. A release
-  keystore, kept in repository secrets, would fix both.
-- The iOS app is unsigned, so it can't be installed on a device as is.
+- Until the upload key secrets are set, the APK is signed with the
+  runner's throwaway debug key, which differs on every run: Google sign-in
+  on Android won't accept it (the Android client is matched by the
+  development Mac's debug-key SHA-1), it can't be installed over an
+  earlier build without uninstalling first, and there's no `.aab`.
+- Until the App Store secrets are set, the iOS app is unsigned, so it
+  can't be installed on a device as is. The signed `.ipa` and the upload
+  haven't run yet (no certificate or profile exists); only the generated
+  `Signing.xcconfig` and `ExportOptions.plist` were checked (Xcode reads
+  the signing settings for Release, not Debug).
+- The marketing version's Z is a 12-digit timestamp
+  (`0.6.202610141530`); App Store Connect may refuse a component that
+  large in `CFBundleShortVersionString`. If it does, iOS builds need a
+  shorter Z.
 - The build number (Unix seconds) outgrows Android's `versionCode` limit in
   2036.

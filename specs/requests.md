@@ -5801,3 +5801,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Notification texts are Android string resources in English,
        Spanish and Portuguese. Specs: [Android](android.md),
        [Store readiness](store-readiness.md).
+
+420. **Signed store builds for Google Play and the App Store.** (2026-10-14)
+     - Asked: store-ready signed builds: an Android upload key and App
+       Bundle, an App Store `.ipa` with distribution signing and an
+       optional App Store Connect upload, all from secrets, and a list of
+       the secrets to create.
+     - Changed: Gradle signs release builds with the upload key from the
+       environment (`ANDROID_KEYSTORE_PATH`, ...) or `key.properties`,
+       falls back to the debug key for APKs, and fails a release App
+       Bundle without a key. New `make appbundle` and `make ipa` targets,
+       and `scripts/android-upload-key.sh` (creates the key outside the
+       repo, prints its fingerprints and the `gh secret set` commands).
+       The Release workflow builds `presence-<tag>-android.aab` with the
+       `ANDROID_UPLOAD_KEY*` secrets, and `presence-<tag>-ios.ipa` with
+       `APPLE_TEAM_ID` and the distribution certificate and profile
+       secrets (temporary keychain, `Signing.xcconfig` included by
+       `Release.xcconfig`, generated `ExportOptions.plist`), uploading RC
+       and GA builds to App Store Connect when its API key is set; each
+       is skipped with a notice without its secrets, and the keys are
+       removed after the job. Signing files are never committed. Specs:
+       [Release builds](release.md#store-signing), [Android](android.md),
+       [iOS](ios.md), [Store readiness](store-readiness.md),
+       [Add a device](add-device.md).

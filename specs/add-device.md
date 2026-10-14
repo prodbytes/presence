@@ -93,9 +93,12 @@ top of the screen, over every tab, until it's done or dismissed (✕):
 
 ## Known limitations
 
-- **No `assetlinks.json` yet:** it needs the release signing key's SHA-256
-  (the app is signed with a debug key, recorded in the private repo), so
-  Android doesn't open the links in the app by itself.
+- **No `assetlinks.json` yet:** it needs the signing keys' SHA-256: Play
+  App Signing's key for the store build, and the upload key's for
+  side-loaded release builds (see [Store
+  signing](release.md#google-play-android)); local builds use a debug
+  key, recorded in the private repo. Until then, Android doesn't open the
+  links in the app by itself.
 - **iOS** opens the site: Universal Links need an Apple Team ID (none yet),
   the Associated Domains entitlement and an `apple-app-site-association`
   file.
