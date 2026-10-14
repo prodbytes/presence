@@ -179,5 +179,7 @@
   "helpSend": "Enviar",
   "monitoringSyncTooltip": "Sincronizar todos los dispositivos",
   "monitoringSyncAsked": "Sincronizando: este dispositivo ahora, y se pidió a los demás",
-  "monitoringSyncHere": "Sincronizando este dispositivo; no se pudo pedir a los demás (la sincronización en vivo está apagada o sin conexión)"
+  "monitoringSyncHere": "Sincronizando este dispositivo; no se pudo pedir a los demás (la sincronización en vivo está apagada o sin conexión)",
+  "cameraNight": "Noche",
+  "cameraNightTooltip": "Modo noche: lo más brillante posible, e iluminado mientras graba un clip"
 }

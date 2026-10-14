@@ -114,5 +114,7 @@
   "settingsDeleteDeviceConfirm": "Apagar vídeos",
   "settingsDeleteDeviceRemoved": "{deviceId} saiu da lista; seus vídeos ficam",
   "settingsDeleteDeviceDone": "{deviceId} apagado: {count, plural, =1{1 evento oculto} other{{count} eventos ocultos}}",
-  "settingsDeleteDeviceFailed": "Não foi possível apagar {deviceId}"
+  "settingsDeleteDeviceFailed": "Não foi possível apagar {deviceId}",
+  "settingsNightMode": "Modo noturno",
+  "settingsNightModeSubtitle": "Quando está escuro: a imagem mais clara, e uma luz enquanto grava um clipe (a lanterna, ou a tela voltada para a cena)"
 }

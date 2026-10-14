@@ -155,6 +155,17 @@ class _NativeCameraSource implements CameraSource {
       _invoke<void>('setBrightness', {'ev': ev});
 
   @override
+  Future<bool> setLight(bool on) async {
+    try {
+      return await _invoke<bool>('setTorch', {'on': on}) ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
   Future<Uint8List?> captureFrame() async {
     try {
       return await _invoke<Uint8List>('captureFrame');

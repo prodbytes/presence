@@ -589,5 +589,7 @@
   "helpSend": "Send",
   "monitoringSyncTooltip": "Sync all devices",
   "monitoringSyncAsked": "Syncing: this device now, and the others were asked to",
-  "monitoringSyncHere": "Syncing this device now; the others couldn't be asked (live sync is off or offline)"
+  "monitoringSyncHere": "Syncing this device now; the others couldn't be asked (live sync is off or offline)",
+  "cameraNight": "Night",
+  "cameraNightTooltip": "Night mode: as bright as it goes, and lit while a clip records"
 }

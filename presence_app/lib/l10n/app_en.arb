@@ -477,6 +477,8 @@
   "@cameraModeUnattended": {
     "description": "Camera mode: screen off, still capturing"
   },
+  "cameraNight": "Night",
+  "cameraNightTooltip": "Night mode: as bright as it goes, and lit while a clip records",
   "cameraNotFound": "No camera found",
   "cameraOffMessage": "Camera off\nNothing is recorded until you turn it on.",
   "cameraRetry": "Retry",
@@ -1639,6 +1641,8 @@
       }
     }
   },
+  "settingsNightMode": "Night mode",
+  "settingsNightModeSubtitle": "When it's dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)",
   "settingsObjectsSubtitle": "Human, cat, dog, bicycle, bottle… for search",
   "settingsObjectsSwitch": "Tag objects in new clips",
   "settingsProfile": "Profile",

@@ -12,6 +12,12 @@ const int motionFrameHeight = 48;
 /// [pixelThreshold], after removing any overall brightness shift, so
 /// auto-exposure adjusting or a light switching on isn't counted as motion.
 ///
+/// **The step follows the light** ([stepFor]): a quarter of the two
+/// frames' mean brightness, from [minPixelThreshold] up to
+/// [pixelThreshold]. A lit scene (mean 96 or more) keeps the full step; in
+/// a dark one (mean 10) it's 4, where an animal crossing changes few pixels
+/// by 24, as the Raspberry Pi streamer does it (specs/streamer.md).
+///
 /// The overall shift is the *median* per-pixel change: an object covering
 /// less than half the picture leaves it at 0 (a mean would move with the
 /// object and make the whole background look changed), while a global
@@ -24,8 +30,16 @@ class MotionDetector {
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
-  /// How much a pixel's brightness (0–255) must change to count as moving.
+  /// How much a pixel's brightness (0–255) must change to count as moving,
+  /// in a lit scene.
   final int pixelThreshold;
+
+  /// The smallest step, in the dark.
+  static const int minPixelThreshold = 4;
+
+  /// The step for frames whose mean brightness is [mean] (0–255).
+  int stepFor(double mean) =>
+      (mean / 4).round().clamp(minPixelThreshold, pixelThreshold);
 
   /// Frames are ignored for this long after [reset] (a camera just opened:
   /// exposure and focus are still settling).
@@ -54,9 +68,14 @@ class MotionDetector {
     if (now.difference(_start!) < warmup) return null;
 
     final shift = _medianDelta(luma, previous);
+    var total = 0;
+    for (var i = 0; i < luma.length; i++) {
+      total += luma[i] + previous[i];
+    }
+    final step = stepFor(total / (2 * luma.length));
     var changed = 0;
     for (var i = 0; i < luma.length; i++) {
-      if ((luma[i] - previous[i] - shift).abs() > pixelThreshold) changed++;
+      if ((luma[i] - previous[i] - shift).abs() > step) changed++;
     }
     return changed * 100 / luma.length;
   }

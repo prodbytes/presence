@@ -30,6 +30,7 @@ import '../location/device_location.dart';
 import '../log_view.dart';
 import '../monitoring.dart';
 import '../screen_off.dart';
+import '../screen_light.dart';
 import '../settings.dart';
 import '../system_health.dart';
 import '../tab_memory.dart';
@@ -740,6 +741,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
             ),
+          // Night mode: the screen lights the scene while a clip records.
+          ScreenLightOverlay(on: widget.rig.screenLight),
         ],
       ),
       // The tabs, with access; signed out, the camera shows alone.

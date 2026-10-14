@@ -285,6 +285,24 @@ class RollingCamera(
     /** Requested brightness, in EV (exposure compensation). */
     @Volatile private var brightnessEv = 0f
 
+    /** The flash on as a torch (night mode, while a clip records). */
+    @Volatile private var torch = false
+
+    /** Whether this camera has a flash to use as a torch. */
+    val hasTorch: Boolean
+        get() = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+
+    /**
+     * Turns the flash on as a torch, or off; false (and nothing done) when
+     * this camera has none. Applied live, to recordings too.
+     */
+    fun setTorch(on: Boolean): Boolean {
+        if (!hasTorch) return false
+        torch = on
+        cameraHandler.post { applyRequest() }
+        return true
+    }
+
     /**
      * Brighter or darker picture: auto-exposure compensation in EV, clamped
      * to what this camera supports. Applied live, and to recordings too.
@@ -303,6 +321,12 @@ class RollingCamera(
         if (range != null && step != null && step.toFloat() > 0f) {
             val index = Math.round(brightnessEv / step.toFloat()).coerceIn(range.lower, range.upper)
             builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, index)
+        }
+        if (hasTorch) {
+            builder.set(
+                CaptureRequest.FLASH_MODE,
+                if (torch) CaptureRequest.FLASH_MODE_TORCH else CaptureRequest.FLASH_MODE_OFF,
+            )
         }
         runCatching { s.setRepeatingRequest(builder.build(), null, cameraHandler) }
     }

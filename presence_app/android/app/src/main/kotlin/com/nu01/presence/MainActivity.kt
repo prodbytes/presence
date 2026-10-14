@@ -104,6 +104,32 @@ class MainActivity : FlutterActivity() {
         FileLog.i(if (off) "screen off asked; capture goes on" else "screen back on")
     }
 
+    /** The screen lighting the scene (night mode, while a clip records). */
+    private var screenLight = false
+
+    /**
+     * The screen as a light for night mode: on and at full brightness while
+     * [on], even with Screen off; then back to how it was (screen off's
+     * lowest brightness, or the system's).
+     */
+    fun setScreenLight(on: Boolean) {
+        if (on == screenLight) return
+        screenLight = on
+        if (on) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else if (screenOff) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        window.attributes = window.attributes.apply {
+            screenBrightness = when {
+                on -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+                screenOff -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_OFF
+                else -> WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+        }
+        FileLog.i(if (on) "night: the screen lights the scene" else "night: screen light off")
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val plugin = PresenceCamerasPlugin(this, flutterEngine.renderer)

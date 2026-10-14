@@ -11,6 +11,7 @@ import '../events.dart';
 import '../motion.dart';
 import 'auto_clip_policy.dart';
 import 'capture_all.dart';
+import 'night_mode.dart';
 
 /// The camera being shown and recorded: one at a time, starting with the
 /// device's default camera, switchable with [flip]. Owned by the app so the
@@ -44,6 +45,32 @@ class CameraRig extends ChangeNotifier {
   StreamSubscription<Uint8List>? _motionFrames;
   final _motionTrigger = MotionTrigger();
   bool _motionClipStarting = false;
+
+  /// Night mode ([CameraConfig.night]): tells night from day by the motion
+  /// frames.
+  final _night = NightDetector();
+
+  /// Whether it's night for the open camera (night mode on): it's as
+  /// bright as it goes, and clips light the scene ([screenLight], or the
+  /// camera's torch).
+  bool get night => config.camera.night && _night.night;
+
+  /// The screen should light the scene: night, a clip recording, and a
+  /// camera with no light of its own that faces the same way as the
+  /// screen (a phone's front camera, a laptop's). The camera screen shows
+  /// white at full brightness meanwhile.
+  final ValueNotifier<bool> screenLight = ValueNotifier(false);
+
+  /// How many clips are lighting the scene now.
+  int _lighting = 0;
+
+  /// Whether the camera's own light is on for them.
+  bool _torchOn = false;
+
+  /// How long after the app's light goes out the night detector waits to
+  /// look again (the exposure settles back).
+  static const Duration lightSettle = Duration(seconds: 3);
+  Timer? _nightResume;
 
   /// When the latest clip (any trigger) was taken: the cooldown runs from
   /// it.
@@ -488,9 +515,11 @@ class CameraRig extends ChangeNotifier {
     _queuePaused();
     // While a camera opens, [load] or [flip] applies it once it's open.
     if (!_busy) _applyChosen();
-    final ev = config.camera.brightness;
+    final ev = _brightness;
     if (_active == null || ev == _appliedBrightness) return;
     _applyBrightness();
+    // Night mode switched off at night: back to the setting, live.
+    if (ev != config.camera.brightness) return;
     _brightnessRestart?.cancel();
     _brightnessRestart = Timer(brightnessRestartDelay, _restartCamera);
   }
@@ -505,10 +534,16 @@ class CameraRig extends ChangeNotifier {
     await _openCurrent();
   }
 
-  /// Sends the brightness setting to the open camera when it changes.
+  /// The brightness the camera gets: the setting's, or by [night] as bright
+  /// as it goes.
+  double get _brightness =>
+      night ? CameraConfig.maxBrightness : config.camera.brightness;
+
+  /// Sends the brightness ([_brightness]) to the open camera when it
+  /// changes.
   void _applyBrightness() {
     final source = _active;
-    final ev = config.camera.brightness;
+    final ev = _brightness;
     if (source == null || ev == _appliedBrightness) return;
     _appliedBrightness = ev;
     source.setBrightness(ev).ignore();
@@ -518,11 +553,22 @@ class CameraRig extends ChangeNotifier {
     _motionFrames?.cancel();
     _motion.reset();
     _motionTrigger.reset();
+    _night.reset();
     motionLevel.value = null;
     _motionFrames = source.motionFrames?.listen(_onMotionFrame);
   }
 
   void _onMotionFrame(Uint8List luma) {
+    final wasNight = night;
+    _night.add(luma);
+    if (night != wasNight) {
+      debugPrint(
+        'Presence: ${night ? 'night' : 'day'} '
+        '(mean brightness ${_night.level?.round()})',
+      );
+      _applyBrightness();
+      notifyListeners();
+    }
     final score = _motion.add(luma);
     motionLevel.value = score;
     if (!_motionTrigger.add(score, config.motion)) return;
@@ -594,6 +640,8 @@ class CameraRig extends ChangeNotifier {
     _armCooldownWake();
     notifyListeners();
     final capture = camera.requestClip(before: before, after: after);
+    // At night, light the scene while it records.
+    if (night) _lightWhile(camera, capture.full);
     final (thumbnail, past) = await (
       camera.captureFrame().then(_sealThumbnail, onError: (Object _) => null),
       capture.past
@@ -616,6 +664,47 @@ class CameraRig extends ChangeNotifier {
     _latestClip = clip..addListener(notifyListeners);
     notifyListeners();
     bus.publish(ClipRequested(clip, trigger: trigger, time: requestedAt));
+  }
+
+  /// Lights the scene for night mode until [recorded] completes: the
+  /// camera's torch, or else the screen ([screenLight]) when the camera
+  /// faces the same way as it. The night detector and motion look away
+  /// meanwhile (the app's own light isn't the day, nor motion), and until
+  /// [lightSettle] after.
+  Future<void> _lightWhile(
+    CameraSource camera,
+    Future<Object?> recorded,
+  ) async {
+    if (_lighting++ == 0) {
+      _nightResume?.cancel();
+      _night.paused = true;
+      _torchOn = await camera.setLight(true);
+      final facing = _current?.facing ?? CameraFacing.unknown;
+      if (!_torchOn && facing != CameraFacing.back && !_disposed) {
+        screenLight.value = true;
+      }
+      _motion.reset();
+      debugPrint(
+        'Presence: night: lit by the ${_torchOn
+            ? 'torch'
+            : screenLight.value
+            ? 'screen'
+            : 'nothing (no light)'}',
+      );
+    }
+    try {
+      await recorded;
+    } catch (_) {
+      // Lit until it ended, however it ended.
+    }
+    if (--_lighting > 0 || _disposed) return;
+    if (_torchOn) {
+      _torchOn = false;
+      await camera.setLight(false);
+    }
+    screenLight.value = false;
+    _motion.reset();
+    _nightResume = Timer(lightSettle, () => _night.paused = false);
   }
 
   /// [jpeg] sealed ([MediaSeal]), as every image is before it's stored or
@@ -706,6 +795,8 @@ class CameraRig extends ChangeNotifier {
     _cooldownWake?.cancel();
     _brightnessRestart?.cancel();
     _lostRetry?.cancel();
+    _nightResume?.cancel();
+    screenLight.dispose();
     _latestClip?.removeListener(notifyListeners);
     _motionFrames?.cancel();
     motionLevel.dispose();

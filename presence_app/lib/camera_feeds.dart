@@ -271,7 +271,27 @@ class _CameraFeedsViewState extends State<CameraFeedsView> {
     if (active != null) {
       return SizedBox.expand(
         key: ObjectKey(active),
-        child: active.buildPreview(context),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            active.buildPreview(context),
+            // Night mode on: brighter, and a light while a clip records.
+            if (rig.night)
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: Tooltip(
+                  message: l.cameraNightTooltip,
+                  child: Chip(
+                    key: const Key('camera-night'),
+                    avatar: const Icon(Icons.nightlight_round, size: 16),
+                    label: Text(l.cameraNight),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ),
+          ],
+        ),
       );
     }
     final error = rig.error;

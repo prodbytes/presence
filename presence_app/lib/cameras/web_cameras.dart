@@ -315,6 +315,32 @@ class WebCameraSource implements CameraSource {
     }
   }
 
+  /// The torch, where the browser offers it (`torch` in the track's
+  /// capabilities: Chrome on Android, a phone's back camera); false
+  /// elsewhere, as on laptops.
+  @override
+  Future<bool> setLight(bool on) async {
+    final track = _stream.getVideoTracks().toDart.firstOrNull;
+    if (track == null) return false;
+    try {
+      final capabilities = track.getCapabilities().dartify();
+      if (capabilities is! Map || capabilities['torch'] != true) return false;
+      await track
+          .applyConstraints(
+            {
+                  'advanced': [
+                    {'torch': on},
+                  ],
+                }.jsify()!
+                as web.MediaTrackConstraints,
+          )
+          .toDart;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   ClipCapture requestClip({required Duration before, required Duration after}) {
     if (!supportsVideo) return ClipCapture.unsupported;

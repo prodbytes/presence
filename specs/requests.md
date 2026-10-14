@@ -5570,3 +5570,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Hiding a device](device-hiding.md), [Sign-in](sign-in.md),
        [Devices, users and places](devices-users-places.md),
        [Premium](premium.md).
+
+401. **Night mode.** (2026-10-14)
+     - Asked: detect when it's night and improve the capture's brightness;
+       then, on motion, light the scene while the capture is on (a flash,
+       or a screen that can be lit), to see animals in the wild at night.
+     - Changed: the camera tells night from day by its motion frames'
+       brightness (with hysteresis that the brighter exposure doesn't
+       undo); at night it's at +2 EV, and a clip recording lights the
+       scene with the camera's torch (Android, iOS, the browser where it
+       can) or, for a camera facing the screen's way, the screen, white
+       at full brightness. The motion step follows the light, down to
+       4/255 in the dark. A Night mode switch in Settings (on), and a
+       Night chip on the camera. Specs: [Night mode](night-mode.md) (new),
+       [Motion clips](motion-clips.md), [Settings](settings.md).

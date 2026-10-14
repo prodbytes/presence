@@ -182,6 +182,7 @@ class CameraConfig {
     this.brightness = defaultBrightness,
     this.paused = false,
     this.chosen,
+    this.night = true,
   });
 
   static const double minBrightness = -2;
@@ -202,22 +203,30 @@ class CameraConfig {
   /// default camera). Kept in this device's settings, never another's.
   final ChosenCamera? chosen;
 
+  /// Night mode (on by default): when the picture stays dark the camera
+  /// is made as bright as it goes, and a clip recording lights the scene
+  /// (the camera's torch, or the screen facing it). See `NightDetector`.
+  final bool night;
+
   CameraConfig copyWith({
     double? brightness,
     bool? paused,
     ChosenCamera? chosen,
+    bool? night,
   }) => CameraConfig(
     brightness: (brightness ?? this.brightness)
         .clamp(minBrightness, maxBrightness)
         .toDouble(),
     paused: paused ?? this.paused,
     chosen: chosen ?? this.chosen,
+    night: night ?? this.night,
   );
 
   Map<String, Object?> toJson() => {
     'brightnessEv': brightness,
     'paused': paused,
     'chosen': ?chosen?.toJson(),
+    'night': night,
   };
 
   factory CameraConfig.fromJson(Map<String, Object?> json) =>
@@ -225,6 +234,7 @@ class CameraConfig {
         brightness: _num(json['brightnessEv']),
         paused: json['paused'] == true,
         chosen: ChosenCamera.fromJson(json['chosen']),
+        night: json['night'] != false,
       );
 
   @override
@@ -232,10 +242,11 @@ class CameraConfig {
       other is CameraConfig &&
       other.brightness == brightness &&
       other.paused == paused &&
-      other.chosen == chosen;
+      other.chosen == chosen &&
+      other.night == night;
 
   @override
-  int get hashCode => Object.hash(brightness, paused, chosen);
+  int get hashCode => Object.hash(brightness, paused, chosen, night);
 }
 
 /// A camera of this device, remembered across restarts: the camera
