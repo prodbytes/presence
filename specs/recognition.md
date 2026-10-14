@@ -244,12 +244,12 @@ Its tooltip (and screen-reader label) says the state, then each part:
   already named".
 - **Object tags:** "not searched"; "searched, nothing seen"; or the
   labels found.
-- "Tap to run recognition again", where recognition runs.
+- "Tap to run recognition", where recognition runs.
 
 **Tapped**, it runs recognition on the clip again
 (`SubjectRecognizer.recognizeNow(again: true)`), as Auto does, and object
-tags too even if they were searched before: "Running recognition
-again…", then what Auto would say ("Found Rex.", "Couldn't run
+tags too even if they were searched before: "Running recognition…"
+(no "again"), then what Auto would say ("Found Rex.", "Couldn't run
 recognition; try again."). A spinner stands in for the icon meanwhile,
 and a second tap waits for it. The spinner keeps turning while the
 **server's part** runs too: `recognizeNow` waits for cloud recognition's

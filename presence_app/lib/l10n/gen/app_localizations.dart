@@ -1897,13 +1897,13 @@ abstract class AppLocalizations {
   /// No description provided for @eventRecognitionRerunning.
   ///
   /// In en, this message translates to:
-  /// **'Running recognition again…'**
+  /// **'Running recognition…'**
   String get eventRecognitionRerunning;
 
   /// No description provided for @eventRecognitionTapToRerun.
   ///
   /// In en, this message translates to:
-  /// **'Tap to run recognition again'**
+  /// **'Tap to run recognition'**
   String get eventRecognitionTapToRerun;
 
   /// No description provided for @eventSubjectsAllTagged.

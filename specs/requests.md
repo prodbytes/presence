@@ -5702,3 +5702,9 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Asked: rename the Camera tab to Cams so it fits the menu.
      - Changed: the tab's label (and tooltip) is "Cams" ("Cáms", "Câms").
        Spec: [Navigation](navigation.md).
+
+412. **"Running recognition…", without "again".** (2026-10-14)
+     - Asked: when the recognition indicator is tapped, drop "again" from
+       the message: "running recognition" is enough.
+     - Changed: "Running recognition…" and the tooltip "Tap to run
+       recognition" (es, pt likewise). Spec: [Subject recognition](recognition.md).
