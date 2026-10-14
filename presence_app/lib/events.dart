@@ -1332,9 +1332,8 @@ class DeleteShownEvents extends StatelessWidget {
 }
 
 /// The device an event was taken on, small and quiet above its card in the
-/// timeline: its operating system's icon ([DeviceOs.iconOf]), its ID, this
-/// device's in bold, and the operating system's name ([os], left out on
-/// events recorded before events had one). Tapping it searches for the
+/// timeline: its operating system's icon ([DeviceOs.iconOf]; no name, for
+/// the room) and its ID, this device's in bold. Tapping it searches for the
 /// device ([value], the timeline's [EventFilters.search]): only its events
 /// show ([EventFilters.showDevice]); tapped again, the search clears and
 /// every device's show.
@@ -1349,7 +1348,8 @@ class EventDeviceTag extends StatelessWidget {
 
   final String device;
 
-  /// The operating system the event was recorded on, if it says.
+  /// The operating system the event was recorded on, if it says: its icon
+  /// (no name, so the device's has the room).
   final String? os;
 
   /// Whether [device] is this device.
@@ -1383,7 +1383,6 @@ class EventDeviceTag extends StatelessWidget {
                   Icon(DeviceOs.iconOf(os), size: 14, color: color),
                   const SizedBox(width: 4),
                   Flexible(
-                    flex: 3,
                     child: Text(
                       device,
                       overflow: TextOverflow.ellipsis,
@@ -1393,18 +1392,6 @@ class EventDeviceTag extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (os case final os?)
-                    Flexible(
-                      flex: 2,
-                      child: Text(
-                        ' · $os',
-                        key: const Key('event-device-os'),
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: color,
-                        ),
-                      ),
-                    ),
                 ],
               ),
             ),

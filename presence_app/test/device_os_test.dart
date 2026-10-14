@@ -190,7 +190,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text(' · Web (Firefox, Android)'), findsOneWidget);
+    // The icon only: no OS name, so the device's has the room.
+    expect(find.textContaining('Firefox'), findsNothing);
     expect(
       find.descendant(
         of: find.byKey(const Key('without-os')),
@@ -198,7 +199,6 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('event-device-os')), findsOneWidget);
   });
 
   testWidgets("the details' device: the ID in small text, its OS smaller", (

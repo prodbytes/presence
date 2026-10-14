@@ -158,11 +158,10 @@
   button; its tooltip says "Show this device's events".
   - The icon is the event's **operating system**'s (`DeviceOs.iconOf`:
     Android, iPhone, Mac laptop, Windows desktop, a computer for Linux, a
-    globe for the web), and after the ID comes its name, as in
-    `brave_quiet_lamp · Android`. Both shrink with an ellipsis on a
-    narrow phone (the ID gets three fifths of the room). Events saved
-    before events recorded an OS show the generic device icon and no
-    name.
+    globe for the web); its name isn't shown, so the ID has the room
+    (it shrinks with an ellipsis on a narrow phone). Events saved before
+    events recorded an OS show the generic device icon. The OS's name is
+    in the event's details ([Clips](clips.md)).
   - **Tapping it** sets the search to the device's ID
     (`EventFilters.showDevice`): the field opens with it and only that
     device's events show (`EventTimeline.ofDevices`) on the timeline, the
