@@ -155,9 +155,13 @@ class SuggestionCard extends StatelessWidget {
             size: 18,
             color: tagged ? scheme.primary : scheme.onSurfaceVariant,
           ),
-          Text(
-            tagged ? l.eventSuggestionTagged(name) : l.eventSuggestionNot(name),
-            style: quiet,
+          Flexible(
+            child: Text(
+              tagged
+                  ? l.eventSuggestionTagged(name)
+                  : l.eventSuggestionNot(name),
+              style: quiet,
+            ),
           ),
         ],
       );
@@ -168,47 +172,40 @@ class SuggestionCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Row(
+        // The picture on top, the question on its own line under it, full
+        // width: beside the picture it had too little room on a phone.
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 12,
+          spacing: 4,
           children: [
-            if (frame != null && annotation != null)
+            if (frame != null && annotation != null) ...[
               _Frame(frame: frame, annotation: annotation, color: color),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                spacing: 4,
-                children: [
-                  Row(
-                    spacing: 8,
-                    children: [
-                      Icon(suggestion.icon, size: 20, color: scheme.primary),
-                      SubjectSwatch(color: color, size: 12),
-                      Expanded(
-                        child: Text(
-                          suggestion.displayTitle(l),
-                          style: theme.textTheme.titleSmall,
-                        ),
-                      ),
-                      Text(
-                        formatEventTime(suggestion.time),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+              const SizedBox(height: 4),
+            ],
+            Row(
+              key: const Key('suggestion-question'),
+              spacing: 8,
+              children: [
+                Icon(suggestion.icon, size: 20, color: scheme.primary),
+                SubjectSwatch(color: color, size: 12),
+                Expanded(
+                  child: Text(
+                    suggestion.displayTitle(l),
+                    style: theme.textTheme.titleSmall,
                   ),
-                  Text(
-                    [
-                      suggestion.displayDetail(l)!,
-                      if (clip != null) clip.clip.cameraLabel,
-                    ].join(' · '),
-                    style: quiet,
-                  ),
-                  answer,
-                ],
-              ),
+                ),
+              ],
             ),
+            // The time here, so the question has the line to itself.
+            Text(
+              [
+                suggestion.displayDetail(l)!,
+                if (clip != null) clip.clip.cameraLabel,
+                formatEventTime(suggestion.time),
+              ].join(' · '),
+              style: quiet,
+            ),
+            answer,
           ],
         ),
       ),
@@ -228,7 +225,7 @@ class _Frame extends StatelessWidget {
   final Annotation annotation;
   final Color color;
 
-  static const double width = 120;
+  static const double width = 180;
 
   @override
   Widget build(BuildContext context) => ClipRRect(

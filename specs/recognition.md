@@ -293,9 +293,12 @@ recognizer, or a platform without it).
 
 ## The question
 
-- The **"Is this Rex?"** card in the events shows the frame with a dot in
-  Rex's color where they were seen, "62 % sure · Back camera", and **Yes,
-  it's Rex** / **No**.
+- The **"Is this Rex?"** card in the events shows, top to bottom: the
+  frame (180 px wide) with a dot in Rex's color where they were seen; the
+  question on its own line, full width (the person-search icon, Rex's
+  color, "Is this Rex?"); "62 % sure · Back camera · 14:47:12"; and **Yes,
+  it's Rex** / **No**. Beside the frame, a phone left the question a
+  letter wide. It fits 320 dp at 1x and 2x text, the answer line too.
 - **Yes** makes the suggestion a tag (`source: confirmed`), which then also
   becomes one of Rex's references. **No** removes it. The card then says
   "Tagged as Rex" or "Not Rex".

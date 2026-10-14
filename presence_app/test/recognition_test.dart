@@ -2347,6 +2347,68 @@ void main() {
     expect(find.byTooltip('Not available on this device yet'), findsOneWidget);
   });
 
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('a suggestion card on a 320 dp phone at ${scale}x text: the '
+        'question on its own line under the picture, on one line', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final a = ClipAnnotations();
+      final s = a.add(
+        'Suerte',
+        0.5,
+        0.5,
+        frame: testFrame(onePixelPng, 2000),
+        source: TagSource.confirmed,
+        confidence: 0.89,
+      )!;
+      final event = ClipRequested(clip(), annotations: a, id: 'c1');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(
+              size: const Size(320, 900),
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: Scaffold(
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Builder(
+                  builder: SubjectSuggestion(
+                    clipEventId: 'c1',
+                    annotationId: s.id,
+                    subjectName: 'Suerte',
+                    confidence: 0.89,
+                    clip: event,
+                  ).buildCard,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull, reason: 'nothing overflows');
+      final frame = tester.getRect(find.byKey(const Key('suggestion-frame')));
+      final question = tester.getRect(
+        find.byKey(const Key('suggestion-question')),
+      );
+      expect(question.top, greaterThanOrEqualTo(frame.bottom));
+      final title = find.text('Is this Suerte?');
+      final card = tester.getRect(find.byType(Card));
+      // The line to itself: most of the card's width.
+      expect(tester.getSize(title).width, greaterThan(card.width * 0.6));
+      if (scale == 1) {
+        // On one line.
+        final style = tester.widget<Text>(title).style!;
+        expect(tester.getSize(title).height, lessThan(style.fontSize! * 2));
+      }
+      expect(find.text('Tagged as Suerte'), findsOneWidget);
+    });
+  }
+
   testWidgets('a suggestion asks, and Yes makes it a tag', (tester) async {
     final a = ClipAnnotations();
     final frame = testFrame(onePixelPng, 2000);
@@ -2373,7 +2435,7 @@ void main() {
     );
     await show(suggestion());
     expect(find.text('Is this Ana?'), findsOneWidget);
-    expect(find.textContaining('62 % sure · Back camera'), findsOneWidget);
+    expect(find.textContaining('62 % sure · Back camera · '), findsOneWidget);
     expect(find.byKey(const Key('suggestion-frame')), findsOneWidget);
     await tester.tap(find.byKey(const Key('suggestion-yes')));
     await tester.pump();
