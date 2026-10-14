@@ -300,8 +300,9 @@ recognizer, or a platform without it).
   it's Rex** / **No**. Beside the frame, a phone left the question a
   letter wide. It fits 320 dp at 1x and 2x text, the answer line too.
 - **Yes** makes the suggestion a tag (`source: confirmed`), which then also
-  becomes one of Rex's references. **No** removes it. The card then says
-  "Tagged as Rex" or "Not Rex".
+  becomes one of Rex's references. **No** removes it. Answered, the card
+  no longer asks: **the answer takes the question's place**, "✓ Tagged
+  as Rex" or "✗ Not Rex" (with Rex's color), and Yes / No go.
 - Suggestions aren't tags until confirmed: they're left out of the clip's
   card, the player's list, the maps and the subject's screen.
 - The event (`type: subject_suggestion`, with `clipEventId`,

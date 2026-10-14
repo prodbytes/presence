@@ -124,7 +124,9 @@ class SuggestionCard extends StatelessWidget {
       color: scheme.onSurfaceVariant,
     );
     final color = Subject.colorOf(Subject.idOf(name));
-    final Widget answer;
+    // Answered: the answer takes the question's place, nothing asked again.
+    final answered = clip != null && !pending;
+    final Widget? answer;
     if (clip == null) {
       answer = Text(l.eventSuggestionClipMissing, style: quiet);
     } else if (pending) {
@@ -145,27 +147,9 @@ class SuggestionCard extends StatelessWidget {
         ],
       );
     } else {
-      final tagged = annotation != null;
-      answer = Row(
-        key: const Key('suggestion-answer'),
-        spacing: 6,
-        children: [
-          Icon(
-            tagged ? Icons.check_circle : Icons.cancel,
-            size: 18,
-            color: tagged ? scheme.primary : scheme.onSurfaceVariant,
-          ),
-          Flexible(
-            child: Text(
-              tagged
-                  ? l.eventSuggestionTagged(name)
-                  : l.eventSuggestionNot(name),
-              style: quiet,
-            ),
-          ),
-        ],
-      );
+      answer = null;
     }
+    final tagged = annotation != null;
     return Card.filled(
       margin: EdgeInsets.zero,
       color: scheme.surfaceContainerHighest,
@@ -183,14 +167,25 @@ class SuggestionCard extends StatelessWidget {
               const SizedBox(height: 4),
             ],
             Row(
-              key: const Key('suggestion-question'),
+              key: Key(answered ? 'suggestion-answer' : 'suggestion-question'),
               spacing: 8,
               children: [
-                Icon(suggestion.icon, size: 20, color: scheme.primary),
+                if (answered)
+                  Icon(
+                    tagged ? Icons.check_circle : Icons.cancel,
+                    size: 20,
+                    color: tagged ? scheme.primary : scheme.onSurfaceVariant,
+                  )
+                else
+                  Icon(suggestion.icon, size: 20, color: scheme.primary),
                 SubjectSwatch(color: color, size: 12),
                 Expanded(
                   child: Text(
-                    suggestion.displayTitle(l),
+                    answered
+                        ? (tagged
+                              ? l.eventSuggestionTagged(name)
+                              : l.eventSuggestionNot(name))
+                        : suggestion.displayTitle(l),
                     style: theme.textTheme.titleSmall,
                   ),
                 ),
@@ -205,7 +200,7 @@ class SuggestionCard extends StatelessWidget {
               ].join(' · '),
               style: quiet,
             ),
-            answer,
+            ?answer,
           ],
         ),
       ),
