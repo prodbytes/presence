@@ -873,8 +873,8 @@
   },
   "eventRecognitionNotRun": "Recognition hasn't run",
   "eventRecognitionPartial": "Recognition ran in part",
-  "eventRecognitionRerunning": "Running recognition again…",
-  "eventRecognitionTapToRerun": "Tap to run recognition again",
+  "eventRecognitionRerunning": "Running recognition…",
+  "eventRecognitionTapToRerun": "Tap to run recognition",
   "eventSubjectsAllTagged": "People and pets: everyone known is already named",
   "eventSubjectsFound": "People and pets: {names}",
   "@eventSubjectsFound": {

@@ -424,8 +424,8 @@
     }
   },
   "eventCloudArchived": "Archived in the cloud (not on this device)",
-  "eventRecognitionTapToRerun": "Tap to run recognition again",
-  "eventRecognitionRerunning": "Running recognition again…",
+  "eventRecognitionTapToRerun": "Tap to run recognition",
+  "eventRecognitionRerunning": "Running recognition…",
   "eventCloudTapToPut": "Tap to put it in the cloud",
   "eventCloudTapToDelete": "Tap to delete it from the cloud",
   "eventCloudPutting": "Putting it in the cloud…",

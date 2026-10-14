@@ -1137,10 +1137,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventRecognitionPartial => 'Recognition ran in part';
 
   @override
-  String get eventRecognitionRerunning => 'Running recognition again…';
+  String get eventRecognitionRerunning => 'Running recognition…';
 
   @override
-  String get eventRecognitionTapToRerun => 'Tap to run recognition again';
+  String get eventRecognitionTapToRerun => 'Tap to run recognition';
 
   @override
   String get eventSubjectsAllTagged =>

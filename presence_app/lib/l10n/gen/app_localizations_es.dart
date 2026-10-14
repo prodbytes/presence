@@ -1155,12 +1155,11 @@ class AppLocalizationsEs extends AppLocalizations {
   String get eventRecognitionPartial => 'El reconocimiento se hizo en parte';
 
   @override
-  String get eventRecognitionRerunning =>
-      'Ejecutando el reconocimiento de nuevo…';
+  String get eventRecognitionRerunning => 'Ejecutando el reconocimiento…';
 
   @override
   String get eventRecognitionTapToRerun =>
-      'Toca para volver a ejecutar el reconocimiento';
+      'Toca para ejecutar el reconocimiento';
 
   @override
   String get eventSubjectsAllTagged =>
