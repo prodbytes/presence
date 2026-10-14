@@ -79,6 +79,18 @@
 #   STRIPE_MONTHLY_LINK, STRIPE_YEARLY_LINK  the Premium plans' Stripe
 #                Payment Links until an admin saves others in the Admin tab
 #                (default: the links below; also .env; empty: not offered)
+#   RBACR_GRANT_TOKEN  an rbacr root's API token the payments API grants and
+#                revokes premium with for App Store and Google Play
+#                subscriptions (may be the same token as RBACR_TOKEN; also
+#                .env; the RBACR_GRANT_TOKEN secret in CI). Unset: store
+#                purchases are off (the verify route answers 503).
+#   GOOGLE_PLAY_SECRET  the Secrets Manager secret (name, under the stage's
+#                prefix: presence/... or presence-rc/...) with the Google
+#                service account's key file for Google Play purchases
+#                (also .env). Unset: Google Play purchases are off.
+#   STORE_ALLOW_SANDBOX  true or false: App Store sandbox and Google Play
+#                test purchases count (default: true for rc, false for
+#                prod; set true on prod while a build is in App Review)
 # Needs the AWS CLI, the SAM CLI, JDK 25, Maven and Flutter (all in devbox).
 set -euo pipefail
 
@@ -267,6 +279,31 @@ for name in STRIPE_MONTHLY_LINK STRIPE_YEARLY_LINK; do
   fi
 done
 echo "    payment links: monthly ${STRIPE_MONTHLY_LINK:-none}, yearly ${STRIPE_YEARLY_LINK:-none}"
+# Store purchases (App Store, Google Play): from the environment, else .env.
+# Off unless RBACR_GRANT_TOKEN is set; the token is never logged.
+for name in RBACR_GRANT_TOKEN GOOGLE_PLAY_SECRET STORE_ALLOW_SANDBOX; do
+  if [[ -z "${!name:-}" && -f .env ]]; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+done
+RBACR_GRANT_TOKEN="${RBACR_GRANT_TOKEN:-}"
+GOOGLE_PLAY_SECRET="${GOOGLE_PLAY_SECRET:-}"
+if [[ -z "${STORE_ALLOW_SANDBOX:-}" ]]; then
+  if [[ "$STAGE" == rc ]]; then STORE_ALLOW_SANDBOX=true; else STORE_ALLOW_SANDBOX=false; fi
+fi
+if [[ -n "$RBACR_GRANT_TOKEN" && ! "$RBACR_GRANT_TOKEN" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  echo "error: RBACR_GRANT_TOKEN must be an rbacr API token" >&2
+  exit 1
+fi
+if [[ -n "$GOOGLE_PLAY_SECRET" && ! "$GOOGLE_PLAY_SECRET" =~ ^$stack_prefix/[A-Za-z0-9/_+=.@-]{1,200}$ ]]; then
+  echo "error: GOOGLE_PLAY_SECRET must be a secret name under $stack_prefix/" >&2
+  exit 1
+fi
+if [[ "$STORE_ALLOW_SANDBOX" != true && "$STORE_ALLOW_SANDBOX" != false ]]; then
+  echo "error: STORE_ALLOW_SANDBOX must be true or false" >&2
+  exit 1
+fi
+echo "    store purchases: $([[ -n "$RBACR_GRANT_TOKEN" ]] && echo "App Store$([[ -n "$GOOGLE_PLAY_SECRET" ]] && echo ", Google Play ($GOOGLE_PLAY_SECRET)")" || echo off), sandbox $STORE_ALLOW_SANDBOX"
 
 # 1. User data: the bucket, then the identity pool (which imports it)
 echo "==> deploying $USER_DATA_STACK and $IDENTITY_STACK"
@@ -456,6 +493,8 @@ echo "==> deploying $PAYMENTS_STACK"
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
+      "RbacrGrantToken=$RBACR_GRANT_TOKEN" "GooglePlaySecretName=$GOOGLE_PLAY_SECRET" \
+      "StoreAllowSandbox=$STORE_ALLOW_SANDBOX" \
       ${origin_override[@]+"${origin_override[@]}"} \
     --no-confirm-changeset --no-fail-on-empty-changeset
 )
@@ -510,6 +549,10 @@ check() {
   local payments
   payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/payments/links")"
   [[ "$payments" == 401 ]] || { echo "    /api/payments/links without a token answered $payments, want 401"; return 1; }
+  # Apple's notifications route has no authorizer: a body Apple didn't sign is 400 (503 while store purchases are off).
+  payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' \
+    --data '{}' "https://$DOMAIN/api/payments/store/apple-notifications")"
+  [[ "$payments" == 400 || "$payments" == 503 ]] || { echo "    an unsigned App Store notification answered $payments, want 400 or 503"; return 1; }
   # Never DEV in AWS: that would give anonymous users every role. And AWS
   # must have every expected setting.
   local anonymous

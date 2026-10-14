@@ -8,6 +8,8 @@ import 'account_sheet.dart' show profileDevices;
 import 'payments_client.dart';
 import 'premium_checkout.dart';
 import 'roles_service.dart';
+import 'store_billing.dart';
+import 'store_plans.dart';
 
 /// The profile's devices in [log] whose events are hidden here
 /// ([EventLog.shows]: a free profile's past its first two), sorted.
@@ -28,12 +30,20 @@ List<String> hiddenDevices(
 /// says it, and what's hidden for it:
 ///
 /// - Premium: cloud backup, and up to 50 devices;
-/// - Free: up to 2 devices, syncing while online; Premium (cloud backup
-///   and up to 50 devices, US$20 a month, the first week free) with a
-///   **Premium monthly** and a **Premium yearly** button, each opening its
-///   Stripe checkout ([PremiumCheckout]) when the payments API has its
-///   link ([links]); without either, **Upgrade to Premium** to nu01.com.
+/// - Free: up to 2 devices, syncing while online; and how to get Premium,
+///   by [channel]:
+///   - the web ([PurchaseChannel.stripe]): cloud backup and up to 50
+///     devices, US$20 a month, the first week free, with a **Premium
+///     monthly** and a **Premium yearly** button, each opening its Stripe
+///     checkout ([PremiumCheckout]) when the payments API has its link
+///     ([links]); without either, **Upgrade to Premium** to nu01.com;
+///   - iOS and Android: the store's subscriptions ([StorePlans], from
+///     [store]), with the store's prices; never Stripe, nu01.com or a
+///     web price;
+///   - elsewhere (Linux, ...): no purchase buttons.
+///
 ///   And **Check again** for once it's paid.
+/// - Premium bought in the store here: **Manage subscription**.
 ///
 /// Past the limit, it says so: this device's events are hidden on the
 /// others and theirs here, or how many devices are hidden.
@@ -48,6 +58,8 @@ class PlanNotice extends StatelessWidget {
     this.profileId,
     this.links,
     this.onCheckAgain,
+    this.store,
+    this._channel,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
@@ -75,13 +87,26 @@ class PlanNotice extends StatelessWidget {
   /// Opens the checkout; one that can't open is copied.
   final LinkOpener openLink;
 
+  /// The App Store's or Google Play's subscriptions, on iOS and Android.
+  final StoreBilling? store;
+
+  /// Where Premium is bought in this build ([PurchaseChannel.current]).
+  PurchaseChannel get channel => _channel ?? PurchaseChannel.current;
+  final PurchaseChannel? _channel;
+
   /// The text for a [premium] profile, or a free one, in [l10n]'s
-  /// language (English without).
-  static String planText({required bool premium, AppLocalizations? l10n}) {
+  /// language (English without); the web price on [PurchaseChannel.stripe]
+  /// only.
+  static String planText({
+    required bool premium,
+    AppLocalizations? l10n,
+    PurchaseChannel channel = PurchaseChannel.stripe,
+  }) {
     final l = l10n ?? lookupAppLocalizations(const Locale('en'));
-    return premium
-        ? l.authPlanPremiumText(DeviceSlots.premiumLimit)
-        : l.authPlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit);
+    if (premium) return l.authPlanPremiumText(DeviceSlots.premiumLimit);
+    return channel == PurchaseChannel.stripe
+        ? l.authPlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit)
+        : l.storePlanFreeText(DeviceSlots.freeLimit, DeviceSlots.premiumLimit);
   }
 
   @override
@@ -135,7 +160,7 @@ class PlanNotice extends StatelessWidget {
             ],
           ),
           Text(
-            planText(premium: premium, l10n: l10n),
+            planText(premium: premium, l10n: l10n, channel: channel),
             key: const Key('plan-text'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
@@ -145,7 +170,27 @@ class PlanNotice extends StatelessWidget {
               key: const Key('plan-warning'),
               style: TextStyle(color: scheme.tertiary),
             ),
-          if (!premium)
+          if (!premium && channel.isStore && store != null)
+            StorePlans(
+              billing: store!,
+              onCheckAgain: onCheckAgain,
+              openLink: openLink,
+            )
+          else if (!premium && channel != PurchaseChannel.stripe)
+            // No store here (or none loaded yet): no purchase buttons.
+            TextButton(
+              key: const Key('plan-check-again'),
+              onPressed: onCheckAgain,
+              child: Text(l10n.authCheckAgain),
+            )
+          else if (premium && channel.isStore && store?.owned != null)
+            TextButton(
+              key: const Key('store-manage'),
+              onPressed: () =>
+                  openOrCopyLink(context, store!.manageUrl, openLink),
+              child: Text(l10n.storeManage),
+            )
+          else if (!premium)
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -199,7 +244,9 @@ class PlanNotice extends StatelessWidget {
 
 /// Above the Monitoring tab's events, when devices' events are hidden
 /// (a free profile's past its first two): which, and for a free profile
-/// an Upgrade button to the Premium checkout. Nothing when nothing's hidden.
+/// an Upgrade button: on the web to the Premium checkout, on iOS and
+/// Android [onUpgrade] (the Profile tab, where the store's plans are),
+/// elsewhere none. Nothing when nothing's hidden.
 class DeviceLimitNotice extends StatelessWidget {
   const DeviceLimitNotice({
     super.key,
@@ -209,6 +256,8 @@ class DeviceLimitNotice extends StatelessWidget {
     this.thisDevice,
     this.email,
     this.links,
+    this.onUpgrade,
+    this._channel,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
@@ -226,6 +275,14 @@ class DeviceLimitNotice extends StatelessWidget {
   /// yearly's, else nu01.com).
   final PaymentLinks? links;
   final LinkOpener openLink;
+
+  /// Where Premium is bought in this build ([PurchaseChannel.current]).
+  PurchaseChannel get channel => _channel ?? PurchaseChannel.current;
+  final PurchaseChannel? _channel;
+
+  /// Shows the store's plans (iOS, Android); no Upgrade button there
+  /// without it.
+  final VoidCallback? onUpgrade;
 
   @override
   Widget build(BuildContext context) {
@@ -263,7 +320,13 @@ class DeviceLimitNotice extends StatelessWidget {
                     : l10n.authPremiumShowsUpTo(text, DeviceSlots.premiumLimit),
               ),
             ),
-            if (!slots.premium)
+            if (!slots.premium && channel.isStore && onUpgrade != null)
+              TextButton(
+                key: const Key('device-limit-upgrade'),
+                onPressed: onUpgrade,
+                child: Text(l10n.authUpgrade),
+              )
+            else if (!slots.premium && channel == PurchaseChannel.stripe)
               TextButton(
                 key: const Key('device-limit-upgrade'),
                 onPressed: () => openOrCopyLink(

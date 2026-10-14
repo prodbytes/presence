@@ -3688,6 +3688,204 @@ abstract class AppLocalizations {
   /// **'Subjects'**
   String get settingsSubjectsSection;
 
+  /// A free trial's length
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 day} other{{count} days}}'**
+  String storeDays(int count);
+
+  /// In the Delete account dialog on iOS and Android, instead of authDeleteAccountSubscription (which names Stripe)
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your account doesn\'t cancel a Premium subscription: cancel it first in your {store, select, apple{App Store} google{Google Play} other{store}} subscription settings.'**
+  String storeDeleteAccountSubscription(String store);
+
+  /// A billing period of one day, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'day'**
+  String get storeEveryDay;
+
+  /// A billing period of several days, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'{count} days'**
+  String storeEveryDays(int count);
+
+  /// A billing period of one month, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'month'**
+  String get storeEveryMonth;
+
+  /// A billing period of several months, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'{count} months'**
+  String storeEveryMonths(int count);
+
+  /// A billing period of one week, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'week'**
+  String get storeEveryWeek;
+
+  /// A billing period of several weeks, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'{count} weeks'**
+  String storeEveryWeeks(int count);
+
+  /// A billing period of one year, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'year'**
+  String get storeEveryYear;
+
+  /// A billing period of several years, after a price and a slash
+  ///
+  /// In en, this message translates to:
+  /// **'{count} years'**
+  String storeEveryYears(int count);
+
+  /// No description provided for @storeFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t confirm the purchase with Presence yet. It\'s tried again automatically.'**
+  String get storeFailed;
+
+  /// No description provided for @storeLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading the plans…'**
+  String get storeLoading;
+
+  /// No description provided for @storeManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage subscription'**
+  String get storeManage;
+
+  /// No description provided for @storeMonths.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 month} other{{count} months}}'**
+  String storeMonths(int count);
+
+  /// No description provided for @storeNotVerified.
+  ///
+  /// In en, this message translates to:
+  /// **'The store didn\'t confirm this purchase.'**
+  String get storeNotVerified;
+
+  /// No description provided for @storeNothingToRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'No active subscription to restore.'**
+  String get storeNothingToRestore;
+
+  /// No description provided for @storeOtherAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'This subscription belongs to another Presence account.'**
+  String get storeOtherAccount;
+
+  /// No description provided for @storePending.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase pending: Premium starts once the store confirms it.'**
+  String get storePending;
+
+  /// The free plan's text in the iOS and Android apps, where Premium is bought in the store: no web price
+  ///
+  /// In en, this message translates to:
+  /// **'Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices.'**
+  String storePlanFreeText(int free, int premium);
+
+  /// The monthly store subscription's name, before its price
+  ///
+  /// In en, this message translates to:
+  /// **'Premium monthly'**
+  String get storePlanMonthly;
+
+  /// A store subscription's button: its name, the store's localized price and the billing period (storeEvery*)
+  ///
+  /// In en, this message translates to:
+  /// **'{plan}: {price} / {period}'**
+  String storePlanPrice(String plan, String price, String period);
+
+  /// The yearly store subscription's name, before its price
+  ///
+  /// In en, this message translates to:
+  /// **'Premium yearly'**
+  String get storePlanYearly;
+
+  /// No description provided for @storePrivacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get storePrivacy;
+
+  /// No description provided for @storePurchaseFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The purchase didn\'t go through.'**
+  String get storePurchaseFailed;
+
+  /// No description provided for @storePurchased.
+  ///
+  /// In en, this message translates to:
+  /// **'Thank you! Premium is on.'**
+  String get storePurchased;
+
+  /// Next to the store purchase buttons
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions renew automatically until you cancel them in your {store, select, apple{App Store} google{Google Play} other{store}} account settings, at least 24 hours before the period ends.'**
+  String storeRenews(String store);
+
+  /// No description provided for @storeRestore.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore purchases'**
+  String get storeRestore;
+
+  /// No description provided for @storeRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Your subscription is restored.'**
+  String get storeRestored;
+
+  /// No description provided for @storeTerms.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms of Service'**
+  String get storeTerms;
+
+  /// Under a subscription with a free trial: the trial's length (storeDays...), then the price and period
+  ///
+  /// In en, this message translates to:
+  /// **'{trial} free, then {price} / {period}.'**
+  String storeTrial(String trial, String price, String period);
+
+  /// No description provided for @storeUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases aren\'t available right now.'**
+  String get storeUnavailable;
+
+  /// No description provided for @storeWeeks.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 week} other{{count} weeks}}'**
+  String storeWeeks(int count);
+
+  /// No description provided for @storeYears.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 year} other{{count} years}}'**
+  String storeYears(int count);
+
   /// No description provided for @subjectsEvents.
   ///
   /// In en, this message translates to:

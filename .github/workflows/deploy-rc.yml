@@ -171,6 +171,13 @@ jobs:
           RBACR_TOKEN: ${{ secrets.RBACR_TOKEN }}
           RBACR_URL: ${{ vars.RBACR_URL }}
           RBACR_SYSTEM: ${{ vars.RBACR_SYSTEM }}
+          # App Store and Google Play purchases (specs/payments-api.md): an
+          # rbacr root's token to grant premium with (a secret; unset: store
+          # purchases off) and the RC's Google Play key file's secret name
+          # (presence-rc/...; unset: no Google Play). Sandbox and test
+          # purchases count on the RC.
+          RBACR_GRANT_TOKEN: ${{ secrets.RBACR_GRANT_TOKEN }}
+          GOOGLE_PLAY_SECRET: ${{ vars.GOOGLE_PLAY_SECRET_RC }}
           # presence-streamer's device sign-in client (a public identifier),
           # whose ID tokens the auth API accepts too; unset: none.
           GOOGLE_DEVICE_CLIENT_ID: ${{ vars.GOOGLE_DEVICE_CLIENT_ID }}

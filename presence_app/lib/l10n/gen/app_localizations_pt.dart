@@ -2289,6 +2289,169 @@ class AppLocalizationsPt extends AppLocalizations {
   String get settingsSubjectsSection => 'Sujeitos';
 
   @override
+  String storeDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dias',
+      one: '1 dia',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String storeDeleteAccountSubscription(String store) {
+    String _temp0 = intl.Intl.selectLogic(store, {
+      'apple': 'da App Store',
+      'google': 'do Google Play',
+      'other': 'da loja',
+    });
+    return 'Excluir sua conta não cancela uma assinatura Premium: cancele-a antes nas configurações de assinaturas $_temp0.';
+  }
+
+  @override
+  String get storeEveryDay => 'dia';
+
+  @override
+  String storeEveryDays(int count) {
+    return '$count dias';
+  }
+
+  @override
+  String get storeEveryMonth => 'mês';
+
+  @override
+  String storeEveryMonths(int count) {
+    return '$count meses';
+  }
+
+  @override
+  String get storeEveryWeek => 'semana';
+
+  @override
+  String storeEveryWeeks(int count) {
+    return '$count semanas';
+  }
+
+  @override
+  String get storeEveryYear => 'ano';
+
+  @override
+  String storeEveryYears(int count) {
+    return '$count anos';
+  }
+
+  @override
+  String get storeFailed =>
+      'Ainda não foi possível confirmar a compra com o Presence. Será tentado de novo automaticamente.';
+
+  @override
+  String get storeLoading => 'Carregando os planos…';
+
+  @override
+  String get storeManage => 'Gerenciar assinatura';
+
+  @override
+  String storeMonths(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count meses',
+      one: '1 mês',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get storeNotVerified => 'A loja não confirmou esta compra.';
+
+  @override
+  String get storeNothingToRestore =>
+      'Nenhuma assinatura ativa para restaurar.';
+
+  @override
+  String get storeOtherAccount =>
+      'Esta assinatura pertence a outra conta do Presence.';
+
+  @override
+  String get storePending =>
+      'Compra pendente: o Premium começa quando a loja a confirmar.';
+
+  @override
+  String storePlanFreeText(int free, int premium) {
+    return 'Grátis: até $free dispositivos sincronizam entre si quando online. O Premium adiciona backup na nuvem e até $premium dispositivos.';
+  }
+
+  @override
+  String get storePlanMonthly => 'Premium mensal';
+
+  @override
+  String storePlanPrice(String plan, String price, String period) {
+    return '$plan: $price / $period';
+  }
+
+  @override
+  String get storePlanYearly => 'Premium anual';
+
+  @override
+  String get storePrivacy => 'Política de Privacidade';
+
+  @override
+  String get storePurchaseFailed => 'A compra não foi concluída.';
+
+  @override
+  String get storePurchased => 'Obrigado! O Premium está ativo.';
+
+  @override
+  String storeRenews(String store) {
+    String _temp0 = intl.Intl.selectLogic(store, {
+      'apple': 'da App Store',
+      'google': 'do Google Play',
+      'other': 'da loja',
+    });
+    return 'As assinaturas renovam automaticamente até você cancelá-las nas configurações da sua conta $_temp0, pelo menos 24 horas antes do fim do período.';
+  }
+
+  @override
+  String get storeRestore => 'Restaurar compras';
+
+  @override
+  String get storeRestored => 'Sua assinatura foi restaurada.';
+
+  @override
+  String get storeTerms => 'Termos de Serviço';
+
+  @override
+  String storeTrial(String trial, String price, String period) {
+    return '$trial grátis, depois $price / $period.';
+  }
+
+  @override
+  String get storeUnavailable => 'As compras não estão disponíveis agora.';
+
+  @override
+  String storeWeeks(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count semanas',
+      one: '1 semana',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String storeYears(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count anos',
+      one: '1 ano',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String subjectsEvents(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

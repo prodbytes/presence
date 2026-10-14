@@ -14,6 +14,7 @@ import 'auth/google_auth_service.dart';
 import 'auth/rbacr_client.dart';
 import 'feedback/feedback_client.dart';
 import 'auth/payments_client.dart';
+import 'auth/store_billing.dart';
 import 'auth/profile_client.dart';
 import 'auth/roles_service.dart';
 import 'camera_feeds.dart';
@@ -81,6 +82,7 @@ class PresenceApp extends StatefulWidget {
     this.feedbackClient,
     this.profileClient,
     this.paymentsClient,
+    this.storeClient,
     this.consentGiven = false,
     this.locator,
     this.mapTiles,
@@ -141,6 +143,10 @@ class PresenceApp extends StatefulWidget {
   /// Overrides the payments API (used by tests); defaults to
   /// `/api/payments/links`.
   final PaymentsClient? paymentsClient;
+
+  /// Overrides the payments API's store routes (tests); defaults to
+  /// `/api/payments/store`.
+  final StoreClient? storeClient;
 
   /// Overrides where roles come from (used by tests); defaults to rbacr's
   /// `GET /api/me` with the auth API's `GET /api/auth/profile`.
@@ -217,6 +223,16 @@ class _PresenceAppState extends State<PresenceApp> {
       auth: _auth,
       client: widget.paymentsClient ?? HttpPaymentsClient(ApiConfig.baseUrl),
     );
+    // Premium in the App Store or Google Play, on iOS and Android only;
+    // a verified purchase checks the roles again, so the app turns Premium.
+    if (PurchaseChannel.current.isStore) {
+      _store = StoreBilling(
+        auth: _auth,
+        client: widget.storeClient ?? HttpStoreClient(ApiConfig.baseUrl),
+        channel: PurchaseChannel.current,
+        onVerified: _roles.refresh,
+      );
+    }
     final mediaIo = widget.mediaIo;
     _persistence = Persistence(
       factory: widget.storage != null
@@ -695,6 +711,7 @@ class _PresenceAppState extends State<PresenceApp> {
 
   /// The Premium plans' Stripe links, loaded at each sign-in.
   late final PaymentsService _payments;
+  StoreBilling? _store;
   CloudSync? _sync;
 
   /// Ends the events list's loading raised for a cloud fetch of the
@@ -745,6 +762,7 @@ class _PresenceAppState extends State<PresenceApp> {
     _copies.dispose();
     _roles.dispose();
     _payments.dispose();
+    _store?.dispose();
     _location.dispose();
     _trainer?.dispose();
     _recognizer.dispose();
@@ -832,6 +850,7 @@ class _PresenceAppState extends State<PresenceApp> {
         feedback: _feedback,
         profiles: _profiles,
         payments: _payments,
+        store: _store,
         sync: _sync,
         deviceId: _deviceId,
         location: _location,

@@ -1718,6 +1718,173 @@
   "settingsStartupClip": "Startup clip: once the camera is ready",
   "settingsSubjectEvents": "How many events to load at once",
   "settingsSubjectsSection": "Subjects",
+  "storeDays": "{count, plural, =1{1 day} other{{count} days}}",
+  "@storeDays": {
+    "description": "A free trial's length",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeDeleteAccountSubscription": "Deleting your account doesn't cancel a Premium subscription: cancel it first in your {store, select, apple{App Store} google{Google Play} other{store}} subscription settings.",
+  "@storeDeleteAccountSubscription": {
+    "description": "In the Delete account dialog on iOS and Android, instead of authDeleteAccountSubscription (which names Stripe)",
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
+  "storeEveryDay": "day",
+  "@storeEveryDay": {
+    "description": "A billing period of one day, after a price and a slash"
+  },
+  "storeEveryDays": "{count} days",
+  "@storeEveryDays": {
+    "description": "A billing period of several days, after a price and a slash",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeEveryMonth": "month",
+  "@storeEveryMonth": {
+    "description": "A billing period of one month, after a price and a slash"
+  },
+  "storeEveryMonths": "{count} months",
+  "@storeEveryMonths": {
+    "description": "A billing period of several months, after a price and a slash",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeEveryWeek": "week",
+  "@storeEveryWeek": {
+    "description": "A billing period of one week, after a price and a slash"
+  },
+  "storeEveryWeeks": "{count} weeks",
+  "@storeEveryWeeks": {
+    "description": "A billing period of several weeks, after a price and a slash",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeEveryYear": "year",
+  "@storeEveryYear": {
+    "description": "A billing period of one year, after a price and a slash"
+  },
+  "storeEveryYears": "{count} years",
+  "@storeEveryYears": {
+    "description": "A billing period of several years, after a price and a slash",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeFailed": "Couldn't confirm the purchase with Presence yet. It's tried again automatically.",
+  "storeLoading": "Loading the plans…",
+  "storeManage": "Manage subscription",
+  "storeMonths": "{count, plural, =1{1 month} other{{count} months}}",
+  "@storeMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeNotVerified": "The store didn't confirm this purchase.",
+  "storeNothingToRestore": "No active subscription to restore.",
+  "storeOtherAccount": "This subscription belongs to another Presence account.",
+  "storePending": "Purchase pending: Premium starts once the store confirms it.",
+  "storePlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices.",
+  "@storePlanFreeText": {
+    "description": "The free plan's text in the iOS and Android apps, where Premium is bought in the store: no web price",
+    "placeholders": {
+      "free": {
+        "type": "int"
+      },
+      "premium": {
+        "type": "int"
+      }
+    }
+  },
+  "storePlanMonthly": "Premium monthly",
+  "@storePlanMonthly": {
+    "description": "The monthly store subscription's name, before its price"
+  },
+  "storePlanPrice": "{plan}: {price} / {period}",
+  "@storePlanPrice": {
+    "description": "A store subscription's button: its name, the store's localized price and the billing period (storeEvery*)",
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      },
+      "period": {
+        "type": "String"
+      }
+    }
+  },
+  "storePlanYearly": "Premium yearly",
+  "@storePlanYearly": {
+    "description": "The yearly store subscription's name, before its price"
+  },
+  "storePrivacy": "Privacy Policy",
+  "storePurchaseFailed": "The purchase didn't go through.",
+  "storePurchased": "Thank you! Premium is on.",
+  "storeRenews": "Subscriptions renew automatically until you cancel them in your {store, select, apple{App Store} google{Google Play} other{store}} account settings, at least 24 hours before the period ends.",
+  "@storeRenews": {
+    "description": "Next to the store purchase buttons",
+    "placeholders": {
+      "store": {
+        "type": "String"
+      }
+    }
+  },
+  "storeRestore": "Restore purchases",
+  "storeRestored": "Your subscription is restored.",
+  "storeTerms": "Terms of Service",
+  "storeTrial": "{trial} free, then {price} / {period}.",
+  "@storeTrial": {
+    "description": "Under a subscription with a free trial: the trial's length (storeDays...), then the price and period",
+    "placeholders": {
+      "trial": {
+        "type": "String"
+      },
+      "price": {
+        "type": "String"
+      },
+      "period": {
+        "type": "String"
+      }
+    }
+  },
+  "storeUnavailable": "Purchases aren't available right now.",
+  "storeWeeks": "{count, plural, =1{1 week} other{{count} weeks}}",
+  "@storeWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storeYears": "{count, plural, =1{1 year} other{{count} years}}",
+  "@storeYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "subjectsEvents": "{count, plural, =1{1 event} other{{count} events}}",
   "@subjectsEvents": {
     "placeholders": {

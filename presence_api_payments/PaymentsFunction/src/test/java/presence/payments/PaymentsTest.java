@@ -50,7 +50,7 @@ class PaymentsTest {
                 asked.add(email);
                 return roles.getOrDefault(email, Set.of());
             },
-            Clock.fixed(Instant.ofEpochMilli(1_790_000_000_000L), ZoneOffset.UTC));
+            Clock.fixed(Instant.ofEpochMilli(1_790_000_000_000L), ZoneOffset.UTC), null);
 
     private static APIGatewayV2HTTPEvent event(String route, String email, boolean verified, String body) {
         var claims = email == null ? Map.<String, String>of()

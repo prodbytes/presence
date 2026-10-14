@@ -58,6 +58,12 @@ dependencies:
   # Live sync: MQTT over WebSockets to AWS IoT Core (pinned).
   mqtt_client: 10.11.11
   cryptography: 2.9.0
+  # Premium in the App Store (StoreKit 2) and Google Play on iOS and
+  # Android (pinned): lib/auth/store_billing.dart, specs/upgrade.md.
+  in_app_purchase: 3.3.1
+  in_app_purchase_android: 0.5.4
+  in_app_purchase_storekit: 0.4.13+2
+  in_app_purchase_platform_interface: 1.4.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

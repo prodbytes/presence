@@ -11,19 +11,21 @@ signing](release.md#store-signing)).
 
 ## Blockers: both stores
 
-- **Premium is sold through Stripe.** [Upgrade](upgrade.md) opens a
-  Stripe checkout for a digital subscription (cloud backup, more devices).
-  - App Store 3.1.1: outside the US storefront, the app may not link to
-    or offer another way to buy (the EU, Japan and Brazil allow it with an
-    entitlement, and Apple still takes a commission). In the US storefront
-    a link out is allowed (since May 2025).
-  - Google Play: Play Billing, unless the developer is enrolled in the
-    alternative billing or external-links programs (the US, the UK and
-    the EEA from 2026-06-30, with a service fee).
-  - Either way, it needs store products and a server that checks
-    purchases and grants `premium` in rbacr, or hiding the buttons in
-    store builds (and selling only on the web, without mentioning it in
-    the app).
+- **Store billing needs its store setup.** The code is done: on iOS and
+  Android [Premium](upgrade.md#on-ios-and-android-the-stores) is sold
+  only as App Store and Google Play subscriptions (StoreKit 2, Play
+  Billing), verified server-side by the [payments API](payments-api.md#store-purchases),
+  with Restore purchases, Manage subscription and the terms and privacy
+  links by the buttons (App Store 3.1.1, 3.1.2; Play's payments policy);
+  Stripe stays on the web and is never shown, linked or named in the
+  mobile apps. Still to do, outside the code: the subscriptions, trial
+  and server notification URL in App Store Connect, the subscriptions,
+  base plans, trial offer and service account in Play Console, and the
+  deploy's `RBACR_GRANT_TOKEN` and `GOOGLE_PLAY_SECRET` ([Upgrade:
+  Setting it up](upgrade.md#setting-it-up)).
+  - The Terms of Service and the account deletion page, linked from the
+    app, still name Stripe as the web's processor (not a link or a call
+    to buy); App Review rarely objects to that, but it's a judgment call.
 
 ## Blockers: App Store
 
@@ -74,7 +76,12 @@ signing](release.md#store-signing)).
   - age rating;
   - review notes: a Google test account and how to get past the
     [consent](consent.md) screen, plus Premium access, or the reviewer
-    can't see the features.
+    can't see the features;
+  - while a build is in review, GA must take sandbox purchases
+    (`STORE_ALLOW_SANDBOX=true`, [Payments API](payments-api.md#deploying)):
+    the reviewer buys Premium in the sandbox with the production build;
+  - the subscriptions submitted with the version, with a review
+    screenshot each.
 
 ## Risks
 
@@ -118,7 +125,8 @@ signing](release.md#store-signing)).
 - **Privacy policy and terms** are public at `/privacy` and `/tos`, and
   the app links to both (Apple 5.1.1(i)): the account sheet's About, the
   consent screen, and signed out the bottom of the camera
-  ([About](about.md)).
+  ([About](about.md)); on iOS and Android also next to the store purchase
+  buttons (Apple 3.1.2).
 - **iOS permission texts** (5.1.1(ii)) say the camera records video
   continuously while the app is open and saves clips, the microphone
   records sound with it, and location is shown on a map and recorded
@@ -133,7 +141,8 @@ signing](release.md#store-signing)).
   2026-10-14: the account sheet's **Delete account**, on every platform,
   deletes the account (the owner's whole profile and its cloud data, or a
   linked account's link) after a confirmation that says Premium isn't
-  cancelled and links to how to cancel it (App Store 5.1.1(v)); and
+  cancelled and links to how to cancel it (on iOS and Android, the
+  store's subscription settings) (App Store 5.1.1(v)); and
   https://presence.nu01.com/delete-account explains how to ask without
   the app and what's kept, the link for Play's Data safety form. Before
   it works in AWS, the `presence-github-deploy` stack's permissions

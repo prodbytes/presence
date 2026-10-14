@@ -5852,3 +5852,36 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Site index](site-index.md), [Local CDN](local-cdn.md),
        [Feedback and Help](feedback.md),
        [Cloud recognition](cloud-recognition.md), [Streamer](streamer.md).
+
+422. **Premium through the App Store and Google Play on mobile; Stripe
+     only on the web.** (2026-10-14)
+     - Asked: keep Stripe only on the web; on iOS and Android, sell Premium
+       through the App Store and Google Play (`in_app_purchase`, products
+       `presence.premium.monthly` with a 1-week trial and
+       `presence.premium.yearly`), never mentioning Stripe or web prices
+       there; Restore purchases, Manage subscription, the terms and
+       privacy links by the buttons; verify every purchase server-side
+       (Apple's signed transactions to Apple Root CA - G3, Google's
+       Android Publisher API with a service account), bind it to the
+       verified email, grant `premium` in rbacr until it ends, App Store
+       Server Notifications, re-verification at sign-in and daily.
+     - Changed: the app picks how Premium is sold by platform
+       (`PurchaseChannel`): the web keeps the Stripe buttons; iOS and
+       Android show the store's plans with its own localized prices,
+       period and trial, Restore purchases, Manage subscription, how
+       renewal works and the Terms of Service and Privacy Policy, and
+       complete a purchase only after the payments API verified it;
+       elsewhere no purchase buttons. The Monitoring notice's Upgrade
+       opens the Profile tab on mobile. The payments API adds `GET
+       /api/payments/store`, `POST /api/payments/store/verify` and `POST
+       /api/payments/store/apple-notifications`, a payments-table binding
+       per purchase (409 for another account's), and rbacr grants with a
+       root's token (`RbacrGrantToken`); store purchases stay off (503)
+       until it's set, and Google Play until its secret is. The terms,
+       privacy policy and account deletion page cover store purchases;
+       on mobile the Delete account dialog points at the store's
+       subscriptions instead of Stripe. Specs:
+       [Upgrade to Premium](upgrade.md), [Payments API](payments-api.md),
+       [Premium and free](premium.md), [Store readiness](store-readiness.md),
+       [Legal](legal.md), [Account deletion](account-deletion.md),
+       [Production deploy](deploy.md).
