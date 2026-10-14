@@ -193,6 +193,26 @@ the stage's, audience `presence`.
   and takes `email` as the identity on its self-service routes. The APIs'
   own server-side calls to rbacr (a root's API token) are unchanged.
 - Google ID tokens are no longer accepted as bearers anywhere in Presence.
+- **The first deploy** (`SessionAuthorizer`): API Gateway fetches an
+  authorizer's `<issuer>/.well-known/openid-configuration` when it imports
+  the API, and when it can't, it silently drops the authorizer and every
+  route behind it (the stack still says it updated). The issuer's document
+  is served by the auth API itself, so on a stage that doesn't serve it
+  yet, `scripts/deploy.sh` first deploys the auth API with
+  `SessionAuthorizer=bootstrap` (the same `PresenceSession` authorizer,
+  on Google's issuer and the web client), waits up to 5 minutes for the
+  site to serve the document naming the issuer, then deploys it again with
+  `on`. Every later deploy finds the document and deploys once, `on`.
+  During the minutes between, the APIs take Google ID tokens, which the
+  functions (reading the session claims) mostly refuse.
+  - Found on 2026-10-14: the first release with session tokens
+    (`0.6.202610142035`) lost those routes on both stages; the stage's
+    throttling settings then named routes that didn't exist, the update
+    failed and so did its rollback (`UPDATE_ROLLBACK_FAILED`, finished by
+    hand with `continue-update-rollback`, skipping the stage, whose live
+    settings were the old ones). Reproduced on a throwaway stack: an
+    issuer without the document drops the routes; `bootstrap` then `on`
+    keeps them and switches the issuer in place.
 
 ## Clients
 

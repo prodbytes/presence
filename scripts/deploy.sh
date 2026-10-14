@@ -503,13 +503,24 @@ if aws cloudformation describe-stacks --stack-name "$HEALTH_STACK" >/dev/null 2>
   health_first=1
   deploy_health
 fi
-echo "==> deploying $AUTH_STACK"
-(
+# The session issuer's /.well-known/openid-configuration, through the site,
+# naming itself. API Gateway fetches it when it imports the APIs, and drops
+# a JWT authorizer it can't fetch together with every route behind it.
+session_issuer_live() {
+  local discovery
+  discovery="$(curl -fsS --max-time 10 "https://$DOMAIN/api/auth/.well-known/openid-configuration" 2>/dev/null)" \
+    || return 1
+  python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1]).get("issuer")==sys.argv[2] else 1)' \
+    "$discovery" "https://$DOMAIN/api/auth" 2>/dev/null
+}
+# deploy_auth on|bootstrap: the auth API, its authorizer taking session
+# tokens (on) or, before the issuer is served, Google ID tokens (bootstrap).
+deploy_auth() {
+  (
   cd presence_api_auth
-  sam build
   sam deploy --stack-name "$AUTH_STACK" --region "$AWS_REGION" \
     --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$AUTH_STACK" \
-    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    --parameter-overrides "SessionAuthorizer=$1" "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "GoogleDeviceClientId=$GOOGLE_DEVICE_CLIENT_ID" \
       "DomainName=$DOMAIN" "AppleClientIds=$APPLE_CLIENT_IDS" ${apple_key[@]+"${apple_key[@]}"} \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
@@ -518,7 +529,30 @@ echo "==> deploying $AUTH_STACK"
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
       "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
     --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
-)
+  )
+}
+echo "==> deploying $AUTH_STACK"
+(cd presence_api_auth && sam build)
+if session_issuer_live; then
+  deploy_auth on
+else
+  # The first deploy with session tokens: the issuer is served by this API,
+  # so it's brought up on Google's issuer, then switched once the site
+  # serves the document (CloudFront already routes /api/* to this API).
+  echo "    the session issuer isn't served yet: deploying on Google's issuer first"
+  deploy_auth bootstrap
+  for _ in $(seq 1 30); do
+    session_issuer_live && break
+    sleep 10
+  done
+  if ! session_issuer_live; then
+    echo "error: https://$DOMAIN/api/auth/.well-known/openid-configuration isn't served after 5 minutes;" \
+      "the auth API is up on Google's issuer (SessionAuthorizer=bootstrap)" >&2
+    exit 1
+  fi
+  echo "    the session issuer is served: switching the authorizer to session tokens"
+  deploy_auth on
+fi
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
 session_issuer="$(stack_output "$AUTH_STACK" SessionIssuer)"

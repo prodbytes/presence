@@ -51,6 +51,19 @@ Parameters:
       stack sets it (presence_floci: the local HTTP API on Floci's loopback
       address, which its JWT authorizer can reach). Empty: from DomainName.
     AllowedPattern: '(https?://[A-Za-z0-9.:-]+(/[A-Za-z0-9._/$-]*)?)?'
+  SessionAuthorizer:
+    Type: String
+    Default: 'on'
+    AllowedValues: ['on', bootstrap]
+    Description: >
+      on: the APIs' authorizer takes Presence session tokens. bootstrap: it
+      takes Google ID tokens instead, for the first deploy only. API Gateway
+      fetches the issuer's /.well-known/openid-configuration when it imports
+      the API, and silently drops an authorizer it can't fetch, with every
+      route behind it; the session issuer's document is served by this API,
+      so it can't be the authorizer's issuer until this API is up.
+      scripts/deploy.sh deploys with bootstrap while the site doesn't serve
+      the document yet, then with on.
   SigningKeyArn:
     Type: String
     Default: ''
@@ -189,6 +202,7 @@ Conditions:
     - !Not [!Equals [!Ref GoogleDeviceClientId, '']]
   HasSessionIssuer: !Not [!Equals [!Ref SessionIssuer, '']]
   HasDomain: !Not [!Equals [!Ref DomainName, '']]
+  BootstrapAuthorizer: !Equals [!Ref SessionAuthorizer, bootstrap]
   CreateSigningKey: !Equals [!Ref SigningKeyArn, '']
   HasAppleKey: !And
     - !Not [!Equals [!Ref AppleTeamId, '']]
@@ -558,16 +572,23 @@ Resources:
           # Presence session tokens only (POST /api/auth/session makes them):
           # missing, expired, forged or foreign tokens get 401 before the
           # function runs. API Gateway finds the keys at the issuer's
-          # /.well-known/openid-configuration, through the site.
+          # /.well-known/openid-configuration, through the site. With
+          # SessionAuthorizer=bootstrap (a first deploy, before that document
+          # is served), Google ID tokens instead: see the parameter.
           PresenceSession:
             IdentitySource: $request.header.Authorization
             JwtConfiguration:
               issuer: !If
-                - HasSessionIssuer
-                - !Ref SessionIssuer
-                - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
-              audience:
-                - presence
+                - BootstrapAuthorizer
+                - https://accounts.google.com
+                - !If
+                  - HasSessionIssuer
+                  - !Ref SessionIssuer
+                  - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+              audience: !If
+                - BootstrapAuthorizer
+                - [!Ref GoogleWebClientId]
+                - [presence]
 
   AuthFunction:
     Type: AWS::Serverless::Function

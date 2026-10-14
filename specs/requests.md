@@ -6001,3 +6001,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        roles keep the health check, alarm and topic permissions until the
        next deploy has deleted them. Specs: [Health check](health-check.md),
        [Production deploy](deploy.md).
+
+429. **The first session-token deploy failed: deploy it in two steps.**
+     (2026-10-14)
+     - Asked: (during the release) fix the failed deploy, so the phone can
+       be updated.
+     - Found: the auth API's new authorizer names an issuer whose
+       `/.well-known/openid-configuration` the same API serves. API
+       Gateway, which fetches it on import, couldn't, and dropped the
+       authorizer and its routes; the stage's throttling settings then
+       failed, and so did the rollback, on both stages. Reproduced on a
+       throwaway stack. Production kept serving the previous release.
+     - Changed: both stacks' rollbacks were finished by hand. The auth
+       API has `SessionAuthorizer` (`on`, or `bootstrap`: Google's issuer),
+       and `scripts/deploy.sh` deploys with `bootstrap` while the site
+       doesn't serve the issuer's document, waits for it, then deploys with
+       `on`. Specs: [Sessions](sessions.md), [Production deploy](deploy.md).
