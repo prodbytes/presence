@@ -247,6 +247,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authNoRoles => 'Ainda sem funções';
 
   @override
+  String get authNoVerifiedEmail => 'Esta conta não tem um e-mail verificado.';
+
+  @override
   String get authNotSignedIn => 'Você não entrou.';
 
   @override
@@ -335,6 +338,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authProfile => 'Perfil';
 
   @override
+  String get authProviderNotConfigured =>
+      'Este tipo de entrada ainda não está configurado no servidor.';
+
+  @override
   String get authRbacrText =>
       'Os códigos de cupom e o modo de manutenção são gerenciados no rbacr, que guarda todas as funções. Os membros resgatam códigos na tela Assinar.';
 
@@ -366,6 +373,16 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get authSessionEnded => 'Sua sessão terminou. Entre novamente.';
+
+  @override
+  String get authSessionRefused => 'O Presence não aceitou esta entrada.';
+
+  @override
+  String get authSessionUnreachable =>
+      'Não foi possível conectar ao Presence. Tente novamente.';
+
+  @override
   String authShowDevice(String device) {
     return 'Mostrar os eventos de $device';
   }
@@ -375,6 +392,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get authSignInToPresence => 'Entre no Presence';
+
+  @override
+  String get authSignInWithApple => 'Iniciar sessão com a Apple';
 
   @override
   String get authSignInWithGoogle => 'Entrar com o Google';

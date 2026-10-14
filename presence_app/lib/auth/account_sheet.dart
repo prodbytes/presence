@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart'
+    show SignInWithAppleButton, SignInWithAppleButtonStyle;
 
 import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
@@ -103,8 +105,10 @@ class AccountButton extends StatelessWidget {
 }
 
 /// The app bar's sign-in control while signed out: "Sign in with Google"
-/// (Google's own button on web). Nothing while the launch check runs; if
-/// sign-in isn't set up, a person icon whose sheet says so.
+/// (Google's own button on web). On iOS, where Sign in with Apple sits
+/// beside Google and two buttons don't fit a 320 dp app bar, one "Sign
+/// in" button opens [SignInSheet] with both. Nothing while the launch
+/// check runs; if sign-in isn't set up, a person icon whose sheet says so.
 class SignInAction extends StatelessWidget {
   const SignInAction({super.key, required this.auth});
 
@@ -114,6 +118,20 @@ class SignInAction extends StatelessWidget {
   Widget build(BuildContext context) {
     if (auth.checking) return const SizedBox.shrink();
     if (!auth.available) return AccountButton(auth: auth);
+    if (auth.appleAvailable) {
+      return Center(
+        child: FilledButton.icon(
+          key: const Key('sign-in'),
+          icon: const Icon(Icons.login, size: 18),
+          label: Text(context.l10n.authSignIn),
+          onPressed: () => showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (_) => SignInSheet(auth: auth),
+          ),
+        ),
+      );
+    }
     return Center(
       child:
           auth.buildSignInButton() ??
@@ -123,6 +141,143 @@ class SignInAction extends StatelessWidget {
             label: Text(context.l10n.authSignInWithGoogle),
             onPressed: auth.signIn,
           ),
+    );
+  }
+}
+
+/// The sign-in error to show, translated where the app knows what it
+/// means ([AuthService.problem]); the provider's own errors as they are.
+String? authErrorText(AuthService auth, AppLocalizations l10n) =>
+    switch (auth.problem) {
+      AuthProblem.refused => l10n.authSessionRefused,
+      AuthProblem.noVerifiedEmail => l10n.authNoVerifiedEmail,
+      AuthProblem.notConfigured => l10n.authProviderNotConfigured,
+      AuthProblem.unreachable => l10n.authSessionUnreachable,
+      AuthProblem.sessionEnded => l10n.authSessionEnded,
+      null => auth.error,
+    };
+
+/// The ways to sign in: Google's button and, on iOS, Sign in with Apple
+/// above it, with equal prominence (App Store guideline 4.8): both full
+/// width, the same height and shape. Apple's is its own (`sign_in_with_apple`'s
+/// button, per Apple's guidelines: black in light mode, white in dark).
+/// Elsewhere, Google's alone.
+class SignInButtons extends StatelessWidget {
+  const SignInButtons({super.key, required this.auth});
+
+  final AuthService auth;
+
+  /// Apple's recommended button height; Google's matches it.
+  static const double height = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = context.l10n;
+    if (!auth.appleAvailable) {
+      return auth.buildSignInButton() ??
+          FilledButton.icon(
+            key: const Key('google-sign-in'),
+            icon: const Icon(Icons.login),
+            label: Text(l10n.authSignInWithGoogle),
+            onPressed: auth.signIn,
+          );
+    }
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    const radius = BorderRadius.all(Radius.circular(height / 2));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SignInWithAppleButton(
+          key: const Key('apple-sign-in'),
+          text: l10n.authSignInWithApple,
+          height: height,
+          borderRadius: radius,
+          style: dark
+              ? SignInWithAppleButtonStyle.white
+              : SignInWithAppleButtonStyle.black,
+          onPressed: auth.signInWithApple,
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          key: const Key('google-sign-in'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(height),
+            shape: const RoundedRectangleBorder(borderRadius: radius),
+          ),
+          icon: const Icon(Icons.login),
+          label: Text(l10n.authSignInWithGoogle),
+          onPressed: auth.signIn,
+        ),
+      ],
+    );
+  }
+}
+
+/// The sign-in sheet the iOS app bar's "Sign in" opens: both ways to sign
+/// in ([SignInButtons]) and the last error. Closes once signed in.
+class SignInSheet extends StatefulWidget {
+  const SignInSheet({super.key, required this.auth});
+
+  final AuthService auth;
+
+  @override
+  State<SignInSheet> createState() => _SignInSheetState();
+}
+
+class _SignInSheetState extends State<SignInSheet> {
+  @override
+  void initState() {
+    super.initState();
+    widget.auth.addListener(_changed);
+  }
+
+  @override
+  void dispose() {
+    widget.auth.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (!mounted) return;
+    if (widget.auth.user != null) {
+      Navigator.of(context).maybePop();
+    } else {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final error = authErrorText(widget.auth, context.l10n);
+    return SafeArea(
+      child: SingleChildScrollView(
+        child: Padding(
+          key: const Key('sign-in-sheet'),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.l10n.authSignInToPresence,
+                style: theme.textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              SignInButtons(auth: widget.auth),
+              if (error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  error,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -207,7 +362,7 @@ class AccountSheet extends StatelessWidget {
       ]),
       builder: (context, _) {
         final user = auth.user;
-        final error = auth.error;
+        final error = authErrorText(auth, context.l10n);
         return SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -234,13 +389,7 @@ class AccountSheet extends StatelessWidget {
                       style: theme.textTheme.titleLarge,
                     ),
                     const SizedBox(height: 16),
-                    auth.buildSignInButton() ??
-                        FilledButton.icon(
-                          key: const Key('google-sign-in'),
-                          icon: const Icon(Icons.login),
-                          label: Text(context.l10n.authSignInWithGoogle),
-                          onPressed: auth.signIn,
-                        ),
+                    SignInButtons(auth: auth),
                   ] else ...[
                     UserAvatar(user: user, radius: 32),
                     const SizedBox(height: 12),

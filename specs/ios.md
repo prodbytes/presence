@@ -82,6 +82,15 @@ The Swift counterpart of the Android layer
   workflow's App Store build writes `Flutter/Signing.xcconfig` (included
   by `Release.xcconfig` when present: manual style, `APPLE_TEAM_ID`,
   `Apple Distribution`, the App Store profile) and builds an `.ipa` with
-  `make ipa`; entitlements (Sign in with Apple's, once
-  `Runner.entitlements` exists) come from the project and must be in the
-  profile. See [Store signing](release.md#app-store-ios).
+  `make ipa`; entitlements (`Runner.entitlements`: Sign in with Apple's)
+  come from the project and must be in the profile. See [Store
+  signing](release.md#app-store-ios).
+- **Sign in with Apple:** `Runner/Runner.entitlements` holds
+  `com.apple.developer.applesignin` = `[Default]`, set as the Runner
+  target's `CODE_SIGN_ENTITLEMENTS` (Debug, Release, Profile). Device
+  builds need the capability on the App ID `com.nu01.presence`; the
+  simulator build doesn't check it. The `sign_in_with_apple` plugin
+  (8.2.0) uses `ASAuthorizationAppleIDProvider`; see
+  [Sign-in](sign-in.md#sign-in-with-apple-ios). Sessions are kept in the
+  Keychain (`flutter_secure_storage` 11.1.1, readable after the first
+  unlock, this device only).

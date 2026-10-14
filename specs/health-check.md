@@ -40,8 +40,9 @@ and emails when it fails or recovers.
     `HeadBucket`;
   - **`cognito`**: the identity pool answers `DescribeIdentityPool`;
   - **`google`**: Google's token signing keys
-    (`https://www.googleapis.com/oauth2/v3/certs`) load. The HTTP API's
-    JWT authorizer needs them to check every sign-in;
+    (`https://www.googleapis.com/oauth2/v3/certs`) load. The auth API's
+    session exchange needs them to check every Google sign-in (the APIs'
+    JWT authorizers check Presence's own [session tokens](sessions.md));
   - **`rbacr`**: rbacr's own `/health` answers 200. It fails when the
     health stack's `RbacrUrl` is empty (`RBACR_URL` on `HealthFunction`;
     the token never goes to the health stack). `scripts/deploy.sh` always

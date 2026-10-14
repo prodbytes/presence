@@ -255,6 +255,22 @@ class FakeAuthService extends AuthService {
     notifyListeners();
   }
 
+  /// Sign in with Apple offered (iOS).
+  bool apple = false;
+
+  /// Sign in with Apple's taps.
+  int appleSignIns = 0;
+
+  @override
+  bool get appleAvailable => apple;
+
+  @override
+  Future<void> signInWithApple() async {
+    appleSignIns++;
+    _user = account;
+    notifyListeners();
+  }
+
   @override
   Future<void> signOut() async {
     _user = null;

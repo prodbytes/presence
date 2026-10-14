@@ -39,7 +39,7 @@ shows every signed-in user **no UI at all**: only a sorry message.
 
 - The app asks rbacr **`GET /api/systems/presence/status`** (the build's
   `RBACR_SYSTEM`; see [Configuration](configuration.md)) with the
-  signed-in user's Google ID token, which answers `{id, name, url,
+  signed-in user's [session token](sessions.md), which answers `{id, name, url,
   maintenance}` (`HttpRbacrClient.maintenance` in
   [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart)).
 - It asks **at each roles check** (with `GET /api/me` and the auth API's

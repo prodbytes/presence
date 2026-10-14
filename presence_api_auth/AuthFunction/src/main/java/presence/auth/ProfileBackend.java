@@ -2,10 +2,8 @@ package presence.auth;
 
 import software.amazon.awssdk.services.cognitoidentity.CognitoIdentityClient;
 import software.amazon.awssdk.services.cognitoidentity.model.DeleteIdentitiesRequest;
-import software.amazon.awssdk.services.cognitoidentity.model.GetIdRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityRequest;
 import software.amazon.awssdk.services.cognitoidentity.model.GetOpenIdTokenForDeveloperIdentityResponse;
-import software.amazon.awssdk.services.cognitoidentity.model.NotAuthorizedException;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
@@ -45,9 +43,6 @@ import static presence.auth.Attrs.text;
  * are {@link Profiles}'.
  */
 final class ProfileBackend implements ProfileHandler.Backend {
-
-    /** The provider the app's Google ID tokens sign in to directly (the pool's SupportedLoginProviders). */
-    static final String GOOGLE = "accounts.google.com";
 
     private final DynamoDbClient dynamo;
     private final CognitoIdentityClient cognito;
@@ -213,42 +208,33 @@ final class ProfileBackend implements ProfileHandler.Backend {
     }
 
     @Override
-    public String googleIdentity(String googleIdToken) {
-        return cognito.getId(GetIdRequest.builder()
+    public String newIdentity(String profileId) {
+        // No identity named: Cognito makes one for the developer identifier
+        // (or answers the one it's linked to already).
+        return cognito.getOpenIdTokenForDeveloperIdentity(GetOpenIdTokenForDeveloperIdentityRequest.builder()
                 .identityPoolId(identityPoolId)
-                .logins(Map.of(GOOGLE, googleIdToken))
+                .logins(Map.of(developerProvider, profileId))
                 .build()).identityId();
     }
 
     @Override
-    public String openIdToken(String identityId, String profileId, String googleIdToken) {
-        return openIdToken(identityId, profileId, googleIdToken, ProfileHandler.FREE);
+    public String openIdToken(String identityId, String profileId) {
+        return openIdToken(identityId, profileId, ProfileHandler.FREE);
     }
 
     @Override
-    public String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
-        return openIdToken(identityId, profileId, googleIdToken, tier, false);
+    public String openIdToken(String identityId, String profileId, String tier) {
+        return openIdToken(identityId, profileId, tier, false);
     }
 
     @Override
-    public String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
-                              boolean admin) {
+    public String openIdToken(String identityId, String profileId, String tier, boolean admin) {
         var tags = admin
                 ? Map.of(ProfileHandler.TIER_TAG, tier, ProfileHandler.ADMIN_TAG, "true")
                 : Map.of(ProfileHandler.TIER_TAG, tier);
-        GetOpenIdTokenForDeveloperIdentityResponse result;
-        try {
-            // Once linked, the profile ID alone is the proof.
-            result = openIdToken(identityId, Map.of(developerProvider, profileId), tags);
-        } catch (NotAuthorizedException e) {
-            // Not linked yet: the identity was made by Google sign-in (GetId),
-            // and Cognito links another login to it only beside one it has
-            // ("Logins don't match").
-            if (googleIdToken == null || googleIdToken.isBlank()) {
-                throw e;
-            }
-            result = openIdToken(identityId, Map.of(developerProvider, profileId, GOOGLE, googleIdToken), tags);
-        }
+        // The profile ID is the proof: it's linked to the identity (made
+        // with it, or linked while the bearer was still Google's ID token).
+        var result = openIdToken(identityId, Map.of(developerProvider, profileId), tags);
         if (!identityId.equals(result.identityId())) {
             // Never hand out another folder's credentials.
             throw new IllegalStateException("Cognito answered for identity " + result.identityId()

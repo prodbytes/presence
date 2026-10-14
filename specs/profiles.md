@@ -3,7 +3,7 @@
 > **Data belongs to a profile, not to a login.** A profile is the stable
 > owner of a user's data: one folder in the user-data bucket, and roles.
 > The ways its owner signs in are **subjects linked to the profile**. That
-> can be one Google account or several, even two from Google (for example
+> can be one Google account or several, an Apple ID, even two from Google (for example
 > `julio@gmail.com` and `julio@nu01.com`), and other providers later.
 > People can change their email, add accounts or switch providers
 > **without losing their data**, because none of it is keyed by the email
@@ -28,11 +28,15 @@
   here without a profile (signed out, while the sign-in was being
   answered, or before events had profiles) becomes the profile's, and
   syncs. See [Devices, users and places](devices-users-places.md#users).
-- **A subject is the issuer and the `sub`**, `<iss>#<sub>`, e.g.
-  `https://accounts.google.com#1234567890`. That's the provider's stable
+- **A subject is the provider's issuer and `sub`**, `<iss>#<sub>`, e.g.
+  `https://accounts.google.com#1234567890` or
+  `https://appleid.apple.com#001234.abcd…`. That's the provider's stable
   account ID, never the email. The same account with a new email keeps its
   profile; another account with the old email gets its own. The same `sub`
-  from another issuer is another subject.
+  from another issuer is another subject. The APIs read it from the
+  [session token](sessions.md)'s `idp` and `idp_sub` claims (`Caller`),
+  never its own `iss` and `sub`, so the subjects profiles were linked by
+  when the bearer was Google's ID token are the same.
 - **Many subjects, one profile.** The links table maps each subject to one
   profile, and any number of subjects may point at the same profile. A
   subject joins another profile with a **link code** (below). A Cognito
@@ -97,19 +101,19 @@
   - the bucket policy is unchanged:
     `<bucket>/${cognito-identity.amazonaws.com:sub}/*`.
 - **The identity is set once**, at the profile's first credentials or link
-  code. It's the identity the caller's Google sign-in already had (`GetId`
-  with its Google token), so data uploaded before profiles stays where it
-  is and nothing moves. After that the folder never changes (a conditional
-  write).
-- **Linking the profile ID to the identity:** that identity was made by
-  Google sign-in, and Cognito adds another login to an identity only
-  beside one it already has; the profile ID alone answers
-  `NotAuthorizedException: Logins don't match`. So the API asks with the
-  profile ID alone and, when Cognito refuses, again with the caller's
-  Google ID token beside it (`accounts.google.com`), which links the
-  profile ID for good. After that the profile ID alone works, for every
-  account in the profile. A link code links it too, so accounts that join
-  (whose Google logins aren't on the identity) get credentials.
+  code: Cognito makes it for the profile's developer identifier
+  (`GetOpenIdTokenForDeveloperIdentity` without an identity, the profile ID
+  as the login), so it's linked to the profile as it's made. After that
+  the folder never changes (a conditional write), and the profile ID alone
+  gets its tokens, for every account in the profile.
+- **Profiles from before sessions** got the identity their owner's Google
+  sign-in already had (`GetId` with the Google ID token, so data uploaded
+  before profiles stayed put), linked to the profile ID beside that Google
+  login. Every one of them was linked then, at its first credentials or
+  link code, so they keep working with the profile ID alone. The auth API
+  no longer sees Google ID tokens ([Sessions](sessions.md)), so a profile
+  that never had an identity gets a new, empty one, not its owner's
+  pre-profile Google identity (whose data is past the bucket's 90 days).
 - **Roles:** a subject has its own roles (from rbacr, for its own email)
   plus the owner's **membership** and premium: `presence_user` and
   `presence_premium` when the **owner** (the subject that made the
@@ -160,8 +164,8 @@
     deletion lags;
   - both code routes are throttled to 1 request a second (burst 5).
 - **Refused (409)** when the joining subject owns its profile and:
-  - that profile has cloud data: its folder (or, before it has one, its
-    Google identity's folder) isn't empty. Linking would strand the data;
+  - that profile has cloud data: its folder isn't empty (one without an
+    identity has none). Linking would strand the data;
   - other subjects are linked to it.
 
   A subject linked to another profile (not its owner) can move. A wrong,
@@ -174,10 +178,12 @@
   marked **Owner**, then **This account**. Every account but the owner has
   an **Unlink** button, available to any member.
 - An unlinked subject loses the owner's membership. Its next sign-in gives it a
-  new profile of its own, whose folder is its own Google identity's.
+  new profile of its own, with a new folder.
 - **Deleting an account** ([Account deletion](account-deletion.md)) also
   unlinks a linked account (from that account, with its own Feedback
   messages); the owner's deletes the whole profile and unlinks everyone.
+  Either way the deleted accounts' sign-ins end: their sessions, and Sign
+  in with Apple's tokens at Apple ([Sessions](sessions.md#sign-in-with-apples-revocation)).
 
 ## Routes
 
@@ -231,7 +237,7 @@ deleted, and the contents live only in AWS.
   - the profile function (`ProfileFunction`) may get, put, delete and
     query links, get, put, update and delete profiles, and get, put,
     delete and scan link codes;
-  - it may also call `GetId`, `GetOpenIdTokenForDeveloperIdentity` and
+  - it may also call `GetOpenIdTokenForDeveloperIdentity` and
     `DeleteIdentities` on this pool only, and `s3:ListBucket` on the
     user-data bucket, to see whether a folder is empty;
   - for [account deletion](account-deletion.md#least-privilege) it may
@@ -241,9 +247,9 @@ deleted, and the contents live only in AWS.
 - **Identity pool** ([presence_infra/identity.yaml](../presence_infra/identity.yaml)):
   `DeveloperProviderName: login.presence.profiles`, which can't be changed
   once set. Adding it to an existing pool keeps the pool and its identity
-  IDs ("update requires: no interruption"). Google stays as a login
-  provider, because the API's `GetId` needs it to find an account's
-  pre-profile identity.
+  IDs ("update requires: no interruption"). Google stays a login
+  provider, for identities made before profiles (the API no longer calls
+  `GetId`).
 - Locally, Floci gets the same routes
   ([05-auth-api.sh](../presence_floci/init/ready.d/05-auth-api.sh)).
 
@@ -307,7 +313,8 @@ deleted, and the contents live only in AWS.
     unverified one never replaces it, and one kept unverified before is
     dropped.
 - `ProfileTest` (JUnit, 30 tests):
-  - an existing user keeps the identity Google sign-in gave them;
+  - an existing user keeps the identity they have; a profile without one
+    gets one made for it;
   - credentials need `presence_user`;
   - a linked subject gets the same identity and the owner's membership
     only, and the listing says what it shares (`shared`), nothing for the
@@ -365,7 +372,7 @@ deleted, and the contents live only in AWS.
 - With the auth API unreachable at launch, a restored session has no
   profile until it answers: events recorded meanwhile wait, and get it
   then.
-- Any Google account can create a profile by signing in (one per subject;
+- Any Google account or Apple ID can create a profile by signing in (one per subject;
   `GET /api/auth/profile` is throttled to 20 requests/s, burst 50). A lost race
   leaves one unused profile row. Profiles are deleted only by their
   owner's [account deletion](account-deletion.md); unused rows stay.

@@ -246,6 +246,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authNoRoles => 'No roles yet';
 
   @override
+  String get authNoVerifiedEmail => 'This account has no verified email.';
+
+  @override
   String get authNotSignedIn => 'Not signed in.';
 
   @override
@@ -334,6 +337,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authProfile => 'Profile';
 
   @override
+  String get authProviderNotConfigured =>
+      'This sign-in isn\'t set up on the server yet.';
+
+  @override
   String get authRbacrText =>
       'Voucher codes and maintenance mode are managed in rbacr, which keeps every role. Members redeem codes on the Sign up sheet.';
 
@@ -365,6 +372,15 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get authSessionEnded => 'Your session ended. Sign in again.';
+
+  @override
+  String get authSessionRefused => 'Presence didn\'t accept this sign-in.';
+
+  @override
+  String get authSessionUnreachable => 'Couldn\'t reach Presence. Try again.';
+
+  @override
   String authShowDevice(String device) {
     return 'Show $device\'s events';
   }
@@ -374,6 +390,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authSignInToPresence => 'Sign in to Presence';
+
+  @override
+  String get authSignInWithApple => 'Sign in with Apple';
 
   @override
   String get authSignInWithGoogle => 'Sign in with Google';

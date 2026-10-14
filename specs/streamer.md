@@ -36,12 +36,12 @@ A device's **stream key** (`psk_` and 32 random bytes, base64url) lets the
 streamer get its profile's credentials with no Google account:
 
 - **Made by the app** (`POST /api/auth/profile/stream-key`, the device ID
-  as the body, with a member's Google ID token): a new device ID
+  as the body, with a member's [session token](sessions.md)): a new device ID
   (`DeviceId.generate`) and its key, replacing any key that device had.
   The auth API keeps only the key's SHA-256, with who made it (email and
-  Google `sub`) and when, in `StreamKeysTable`. It also links the
-  profile to its Cognito identity then, with the member's token, since the
-  streamer has none. The key is shown once, in the command. Every key of
+  the sign-in's subject, `idp_sub`: the Google `sub` for a Google account)
+  and when, in `StreamKeysTable`. It also makes sure the profile has its
+  Cognito identity, linked to the profile, before the streamer asks. The key is shown once, in the command. Every key of
   a profile is deleted with it when its owner deletes their account
   ([Account deletion](account-deletion.md)).
 - **Used by the streamer** (`POST /api/auth/stream/credentials`, no
@@ -90,8 +90,13 @@ again. A refused key or a free profile stops it (exit 2 or 3).
    a URL (google.com/device) and a code that someone enters on a phone or
    computer, with an account of that profile. The scope is `openid email`.
    The refresh token is kept, so later starts (and the service) need no one.
+   Each Google ID token is exchanged for a Presence
+   [session token](sessions.md) (`POST /api/auth/session`, `"refresh":
+   false`: no Presence refresh token), kept until a minute before it
+   expires; the calls below carry that, since the auth API takes no
+   Google tokens.
 3. **Checks**, before the sign-in is kept and at every renewal:
-   - `GET /api/auth/profile` with the ID token must answer the **profile
+   - `GET /api/auth/profile` with the session token must answer the **profile
      given** (when one was). Otherwise it stops: "this Google account's profile is X,
      not Y". **A profile ID alone grants nothing**, since only an account of
      the profile can sign in to it.
@@ -489,16 +494,15 @@ cameras' clips, each camera a device of its own: see
   codes, and its token endpoint takes the secret (`authorization_pending`,
   not `invalid_client`). Builds and deploys from before it was set have no
   client: the next release and deploy carry it.
-- **The auth API accepts its ID tokens:** the JWT authorizer's audiences
-  are the web client and `GoogleDeviceClientId` (from
-  `GOOGLE_DEVICE_CLIENT_ID`, passed by `scripts/deploy.sh` and the deploy
-  workflows), when set ([Auth API](auth-api.md)). The tokens carry the same
-  Google `sub`, so the same account finds the same profile.
+- **The auth API accepts its ID tokens:** the session exchange takes
+  Google ID tokens issued for the web client or `GoogleDeviceClientId`
+  (from `GOOGLE_DEVICE_CLIENT_ID`, passed by `scripts/deploy.sh` and the
+  deploy workflows), when set ([Sessions](sessions.md)). The tokens carry
+  the same Google `sub`, so the same account finds the same profile.
 - **The credentials answer names the bucket** (`bucket`).
-- The identity pool trusts only the web client's Google tokens, so a
-  profile's Cognito identity must have been made by the app (its first
-  credentials) before the streamer's first call. It always has: the
-  profile ID comes from the app's account sheet.
+- A profile's Cognito identity is made by the auth API for the profile
+  (its developer identifier), whoever asks first; the streamer's Google
+  tokens never reach Cognito.
 
 ## Verified
 

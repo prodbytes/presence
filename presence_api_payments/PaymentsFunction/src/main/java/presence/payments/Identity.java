@@ -10,10 +10,13 @@ import java.util.Map;
  * identity from a request, so a new kind of token (another sign-in) needs
  * a change here only.
  *
- * <p>Today the HTTP API's JWT authorizer verifies a Google ID token and
- * passes its claims through; the caller is its {@code email}, when Google
- * verified it ({@code email_verified}). Admin rights, store purchases and
- * rbacr grants are all keyed by that email.
+ * <p>The HTTP API's JWT authorizer verifies a Presence session token (the
+ * auth API's issuer, audience {@code presence}; specs/sessions.md) and
+ * passes its claims through; the caller is its {@code email}, which the
+ * sign-in provider (Google or Apple) verified ({@code email_verified},
+ * always true in a session token). Admin rights, store purchases and
+ * rbacr grants are all keyed by that email. The provider's identity
+ * ({@code idp}, {@code idp_sub}) isn't needed here.
  */
 final class Identity {
 

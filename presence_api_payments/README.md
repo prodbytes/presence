@@ -29,8 +29,10 @@ distribution (see [specs/payments-api.md](../specs/payments-api.md)).
 - **`POST /api/payments/store/apple-notifications`**: App Store Server
   Notifications V2 (no JWT; Apple's signature checks it): renewals extend
   the grant, refunds and expiries end it.
-- A Google JWT authorizer refuses calls without a valid ID token (401)
-  before the function runs (all but Apple's notifications);
+- A JWT authorizer refuses calls without a valid Presence session token
+  (401) before the function runs (all but Apple's notifications): issuer
+  the auth API's (`SessionIssuer`, `https://<site>/api/auth`), audience
+  `presence` (see [specs/sessions.md](../specs/sessions.md));
   `Identity.verifiedEmail` is the one place the caller's email is read.
 
 It never sees a Stripe payment: the links are Stripe's checkout pages, and

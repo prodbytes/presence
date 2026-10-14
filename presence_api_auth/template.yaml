@@ -7,13 +7,13 @@ Description: >
   account shares from the profile's owner (only presence_user and
   presence_premium) and its accounts; /api/auth/credentials and
   /api/auth/profile/* give a profile's cloud credentials and link its
-  accounts. A JWT authorizer checks the Google ID token first. GET
-  /api/auth/anonymous (no token) returns the execution mode and which
-  settings are set. Every role comes from rbacr (its presence system:
-  free, premium, admin; its roots get all): the app asks rbacr directly
-  for the user's own roles, maintenance mode and vouchers, which admins
-  manage in rbacr. GET /health is presence_health, which imports the
-  tables' exports. Served under /api/* by CloudFront.
+  accounts. /api/auth/session trades a Google or Apple ID token for a
+  Presence session (a KMS-signed JWT and a refresh token); a JWT
+  authorizer checks that token on every other route. GET
+  /api/auth/anonymous (no token) returns the execution mode and settings.
+  Every role comes from rbacr: the app asks it directly. GET /health is
+  presence_health, which imports the tables' exports. Served under /api/*
+  by CloudFront.
   (CloudFormation caps this description at 1024 characters.)
 
 Parameters:
@@ -31,8 +31,67 @@ Parameters:
     Description: >
       The Google OAuth client presence-streamer signs in with (a "TVs and
       Limited Input devices" client, for Google's device flow); its ID tokens
-      are accepted too. Empty: only the web client's.
+      are exchanged for sessions too. Empty: only the web client's.
     AllowedPattern: '([0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com)?'
+  DomainName:
+    Type: String
+    Default: ''
+    Description: >
+      The site's host (presence.nu01.com, rc.presence.nu01.com): the session
+      tokens' issuer is https://<it>/api/auth, which CloudFront routes here, so
+      API Gateway's JWT authorizers (this API's and the payments API's) and
+      rbacr fetch its /.well-known/openid-configuration and keys through the
+      site. scripts/deploy.sh passes it.
+    AllowedPattern: '([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]*[a-z0-9])?|'
+  SessionIssuer:
+    Type: String
+    Default: ''
+    Description: >
+      Overrides the issuer (https://<DomainName>/api/auth). Only the local
+      stack sets it (presence_floci: the local HTTP API on Floci's loopback
+      address, which its JWT authorizer can reach). Empty: from DomainName.
+    AllowedPattern: '(https?://[A-Za-z0-9.:-]+(/[A-Za-z0-9._/$-]*)?)?'
+  SigningKeyArn:
+    Type: String
+    Default: ''
+    Description: >
+      An existing KMS key (RSA_2048, SIGN_VERIFY) to sign session tokens with,
+      instead of the stack's own (SessionSigningKey). Only the local stack sets
+      it: Floci's CloudFormation makes symmetric keys whatever the KeySpec, so
+      presence_floci makes the key with the KMS API. Empty in AWS.
+    AllowedPattern: '(arn:aws[a-z-]*:kms:[a-z0-9-]+:[0-9]{12}:key/[0-9a-f-]+)?'
+  AppleClientIds:
+    Type: String
+    Default: com.nu01.presence
+    Description: >
+      Sign in with Apple: the clients (the iOS app's bundle ID, comma-separated)
+      whose Apple ID tokens are exchanged for sessions (their aud). Empty: no
+      Apple sign-in.
+    AllowedPattern: '[A-Za-z0-9.,-]*'
+  AppleTeamId:
+    Type: String
+    Default: ''
+    Description: >
+      Sign in with Apple's key, to revoke a user's Apple tokens when their
+      account is deleted (Apple requires it): the Apple Developer team ID.
+      With AppleKeyId and AppleKeyParameter; any empty: no revocation.
+    AllowedPattern: '([A-Z0-9]{10})?'
+  AppleKeyId:
+    Type: String
+    Default: ''
+    Description: The ID of the Sign in with Apple key (a .p8 from Apple Developer, Keys).
+    AllowedPattern: '([A-Z0-9]{10})?'
+  AppleKeyParameter:
+    Type: String
+    Default: ''
+    Description: >
+      The SSM SecureString parameter holding the Sign in with Apple key (the
+      .p8 file's PEM), put there by an administrator, never in the repository
+      or a template, under the stage's prefix (the permissions boundary allows
+      only /<prefix>/*): /presence/apple-signin-key, /presence-rc/apple-signin-key.
+      Only its name is passed; the session function reads it
+      (ssm:GetParameter on it alone).
+    AllowedPattern: '(/[A-Za-z0-9_.-]+)*'
   IdentityPoolId:
     Type: String
     Default: ''
@@ -128,6 +187,13 @@ Conditions:
   HasDeviceClient: !And
     - !Condition HasGoogleClient
     - !Not [!Equals [!Ref GoogleDeviceClientId, '']]
+  HasSessionIssuer: !Not [!Equals [!Ref SessionIssuer, '']]
+  HasDomain: !Not [!Equals [!Ref DomainName, '']]
+  CreateSigningKey: !Equals [!Ref SigningKeyArn, '']
+  HasAppleKey: !And
+    - !Not [!Equals [!Ref AppleTeamId, '']]
+    - !Not [!Equals [!Ref AppleKeyId, '']]
+    - !Not [!Equals [!Ref AppleKeyParameter, '']]
   HasIdentityPool: !Not [!Equals [!Ref IdentityPoolId, '']]
   HasUserDataBucket: !Not [!Equals [!Ref UserDataBucket, '']]
   HasIotPolicy: !Not [!Equals [!Ref IotPolicyName, '']]
@@ -260,6 +326,162 @@ Resources:
       SSESpecification:
         SSEEnabled: true
 
+  # Presence sessions' refresh tokens and their families
+  # (presence.auth.DynamoSessions): "t#<SHA-256 of the token>" -> {family,
+  # idp, idpSub, email, name, picture, hd, used, expiresAt}, and
+  # "f#<family>" -> {familySubject (<idp>#<sub>, indexed for account
+  # deletion), revoked, expiresAt}. expiresAt (epoch s) is the TTL: 60 days
+  # after a token's last use. Holds emails: AWS only. Not kept on stack
+  # deletion (losing it signs everyone out, nothing more).
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: familySubject
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: subject
+          KeySchema:
+            - AttributeName: familySubject
+              KeyType: HASH
+          Projection:
+            ProjectionType: KEYS_ONLY
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # What's kept of a provider identity beyond its sessions
+  # (presence.auth.Identities): {"subject": "<idp>#<sub>", "name" (Apple's,
+  # given only at the first sign-in), "appleClientId", "appleRefreshToken"
+  # (KMS-encrypted with SessionDataKey, for revocation at account
+  # deletion), "updatedAt"}. Kept on stack deletion.
+  IdentitiesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: subject
+          AttributeType: S
+      KeySchema:
+        - AttributeName: subject
+          KeyType: HASH
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+  # Signs Presence session tokens (RS256). The private key never leaves
+  # KMS. The key policy keeps administration with the account (IAM, as for
+  # any key), and lets only this stack's roles that IAM also allows (the
+  # session function's) sign with it or read its public key. Asymmetric
+  # keys don't rotate automatically: see specs/sessions.md for rotating it.
+  SessionSigningKey:
+    Type: AWS::KMS::Key
+    Condition: CreateSigningKey
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub Signs Presence session tokens (${AWS::StackName})
+      KeySpec: RSA_2048
+      KeyUsage: SIGN_VERIFY
+      Tags:
+        - Key: presence:stack
+          Value: !Ref AWS::StackName
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Administration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          - Sid: SignSessions
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Sign
+              - kms:GetPublicKey
+            Resource: '*'
+            Condition:
+              ArnLike:
+                aws:PrincipalArn: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+
+  # Encrypts Apple's refresh tokens (IdentitiesTable), with the identity as
+  # encryption context. Only with Apple's key configured.
+  SessionDataKey:
+    Type: AWS::KMS::Key
+    Condition: HasAppleKey
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: !Sub Encrypts Sign in with Apple refresh tokens (${AWS::StackName})
+      EnableKeyRotation: true
+      Tags:
+        - Key: presence:stack
+          Value: !Ref AWS::StackName
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Administration
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          # The session function seals them; account deletion (the profile
+          # function) opens them to revoke them. IAM says which does which.
+          - Sid: SealAppleTokens
+            Effect: Allow
+            Principal:
+              AWS: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:root
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+            Resource: '*'
+            Condition:
+              ArnLike:
+                aws:PrincipalArn: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AWS::StackName}-*
+
   AuthHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -311,22 +533,41 @@ Resources:
         "POST /api/recognition/describe":
           ThrottlingBurstLimit: 20
           ThrottlingRateLimit: 5
+        # Sessions (public: each request carries its own proof). A sign-in
+        # verifies the provider's token and writes; a refresh is hourly per
+        # signed-in device; the documents are fetched by the authorizers
+        # and rbacr, which cache them.
+        "POST /api/auth/session":
+          ThrottlingBurstLimit: 20
+          ThrottlingRateLimit: 10
+        "POST /api/auth/session/refresh":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        "POST /api/auth/session/revoke":
+          ThrottlingBurstLimit: 10
+          ThrottlingRateLimit: 5
+        "GET /api/auth/.well-known/openid-configuration":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        "GET /api/auth/.well-known/jwks.json":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
       Auth:
-        DefaultAuthorizer: GoogleIdToken
+        DefaultAuthorizer: PresenceSession
         Authorizers:
-          # Rejects missing, expired, forged or foreign tokens with 401
-          # before the function runs.
-          GoogleIdToken:
+          # Presence session tokens only (POST /api/auth/session makes them):
+          # missing, expired, forged or foreign tokens get 401 before the
+          # function runs. API Gateway finds the keys at the issuer's
+          # /.well-known/openid-configuration, through the site.
+          PresenceSession:
             IdentitySource: $request.header.Authorization
             JwtConfiguration:
-              issuer: https://accounts.google.com
-              # Without a client (DEV), no token can match: only the
-              # anonymous route answers. presence-streamer's device sign-in
-              # client is accepted too, when there is one.
-              audience: !If
-                - HasDeviceClient
-                - [!Ref GoogleWebClientId, !Ref GoogleDeviceClientId]
-                - [!If [HasGoogleClient, !Ref GoogleWebClientId, no-oidc-client]]
+              issuer: !If
+                - HasSessionIssuer
+                - !Ref SessionIssuer
+                - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+              audience:
+                - presence
 
   AuthFunction:
     Type: AWS::Serverless::Function
@@ -349,6 +590,126 @@ Resources:
           Properties:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/anonymous
+            Method: get
+            Auth:
+              Authorizer: NONE
+
+  # Presence sessions (presence.auth.SessionHandler): the exchange, refresh
+  # and revocation, and the issuer's public documents. Public routes: the
+  # provider's ID token or the refresh token is the proof.
+  SessionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: AuthFunction
+      Handler: presence.auth.SessionHandler::handleRequest
+      Environment:
+        Variables:
+          SESSION_ISSUER: !If
+            - HasSessionIssuer
+            - !Ref SessionIssuer
+            - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+          SIGNING_KEY_ARN: !If [CreateSigningKey, !GetAtt SessionSigningKey.Arn, !Ref SigningKeyArn]
+          SESSIONS_TABLE: !Ref SessionsTable
+          IDENTITIES_TABLE: !Ref IdentitiesTable
+          # Google ID tokens must be for these clients (the web client, which
+          # every platform's app asks tokens for, and the streamer's).
+          GOOGLE_AUDIENCES: !If
+            - HasDeviceClient
+            - !Sub "${GoogleWebClientId},${GoogleDeviceClientId}"
+            - !Ref GoogleWebClientId
+          APPLE_AUDIENCES: !Ref AppleClientIds
+          APPLE_TEAM_ID: !If [HasAppleKey, !Ref AppleTeamId, '']
+          APPLE_KEY_ID: !If [HasAppleKey, !Ref AppleKeyId, '']
+          APPLE_KEY_PARAMETER: !If [HasAppleKey, !Ref AppleKeyParameter, '']
+          DATA_KEY_ARN: !If [HasAppleKey, !GetAtt SessionDataKey.Arn, '']
+      Policies:
+        - Statement:
+            # Signs session tokens and publishes the public key; nothing else
+            # with the key.
+            - Effect: Allow
+              Action:
+                - kms:Sign
+                - kms:GetPublicKey
+              Resource: !If [CreateSigningKey, !GetAtt SessionSigningKey.Arn, !Ref SigningKeyArn]
+            # Refresh tokens: started, read, rotated (a transaction of
+            # updates and a put) and revoked; families found by identity.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:ConditionCheckItem
+              Resource: !GetAtt SessionsTable.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub "${SessionsTable.Arn}/index/subject"
+            # Apple's name and refresh token, by identity.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt IdentitiesTable.Arn
+            # Sign in with Apple's key (an SSM SecureString, decrypted by
+            # SSM with its KMS key) and the data key for Apple's tokens.
+            # Without Apple's key: a parameter and key that don't exist.
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub
+                - "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Name}"
+                - Name: !If [HasAppleKey, !Ref AppleKeyParameter, /none]
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+              Condition:
+                StringEquals:
+                  kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+            - Effect: Allow
+              Action:
+                - kms:Encrypt
+                - kms:Decrypt
+              Resource: !If
+                - HasAppleKey
+                - !GetAtt SessionDataKey.Arn
+                - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/none"
+      Events:
+        Exchange:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/session
+            Method: post
+            Auth:
+              Authorizer: NONE
+        Refresh:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/session/refresh
+            Method: post
+            Auth:
+              Authorizer: NONE
+        Revoke:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/session/revoke
+            Method: post
+            Auth:
+              Authorizer: NONE
+        Discovery:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/.well-known/openid-configuration
+            Method: get
+            Auth:
+              Authorizer: NONE
+        Keys:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref AuthHttpApi
+            Path: /api/auth/.well-known/jwks.json
             Method: get
             Auth:
               Authorizer: NONE
@@ -383,8 +744,52 @@ Resources:
           IOT_POLICY_NAME: !Ref IotPolicyName
           # The local stack only: no Cognito Identity (LocalCloudBackend).
           LOCAL_CLOUD: !Ref LocalCloud
+          # Account deletion ends the accounts' sign-ins (AccountSessions):
+          # their sessions, and Sign in with Apple's tokens at Apple.
+          SESSIONS_TABLE: !Ref SessionsTable
+          IDENTITIES_TABLE: !Ref IdentitiesTable
+          APPLE_TEAM_ID: !If [HasAppleKey, !Ref AppleTeamId, '']
+          APPLE_KEY_ID: !If [HasAppleKey, !Ref AppleKeyId, '']
+          APPLE_KEY_PARAMETER: !If [HasAppleKey, !Ref AppleKeyParameter, '']
+          DATA_KEY_ARN: !If [HasAppleKey, !GetAtt SessionDataKey.Arn, '']
       Policies:
         - Statement:
+            # Account deletion: revokes the accounts' session families
+            # (found by identity), and forgets their identities after
+            # revoking their Apple refresh tokens (read with Apple's key,
+            # decrypted with the data key). Without Apple's key: a parameter
+            # and key that don't exist.
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+              Resource: !GetAtt SessionsTable.Arn
+            - Effect: Allow
+              Action: dynamodb:Query
+              Resource: !Sub "${SessionsTable.Arn}/index/subject"
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt IdentitiesTable.Arn
+            - Effect: Allow
+              Action: ssm:GetParameter
+              Resource: !Sub
+                - "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${Name}"
+                - Name: !If [HasAppleKey, !Ref AppleKeyParameter, /none]
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*"
+              Condition:
+                StringEquals:
+                  kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+            - Effect: Allow
+              Action: kms:Decrypt
+              Resource: !If
+                - HasAppleKey
+                - !GetAtt SessionDataKey.Arn
+                - !Sub "arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/none"
             # Links, moves and unlinks subjects; lists a profile's.
             - Effect: Allow
               Action:
@@ -438,12 +843,11 @@ Resources:
               Resource: !Sub
                 - "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Table}"
                 - Table: !If [HasFeedbackTable, !Ref FeedbackTable, none]
-            # Finds an account's existing identity (GetId), issues the
-            # profile's tokens, and deletes the identity with its owner's
-            # account. Only this pool ("none" when it isn't set).
+            # Makes a profile's identity, issues its tokens, and deletes the
+            # identity with its owner's account. Only this pool ("none" when
+            # it isn't set).
             - Effect: Allow
               Action:
-                - cognito-identity:GetId
                 - cognito-identity:GetOpenIdTokenForDeveloperIdentity
                 - cognito-identity:DeleteIdentities
               Resource: !Sub
@@ -531,7 +935,7 @@ Resources:
             ApiId: !Ref AuthHttpApi
             Path: /api/auth/account/delete
             Method: post
-        # The streamer's: no Google token (no authorizer); its stream key,
+        # The streamer's: no session token (no authorizer); its stream key,
         # checked by the function, is the proof.
         StreamCredentials:
           Type: HttpApi
@@ -771,3 +1175,17 @@ Outputs:
   RecognitionTableName:
     Description: Cloud recognition (profile, label#<id> or model -> embeddings, weights)
     Value: !Ref RecognitionTable
+  SessionIssuer:
+    Description: >
+      The session tokens' issuer, which every Presence API's JWT authorizer
+      (the payments API's: scripts/deploy.sh passes it) and rbacr trust
+    Value: !If
+      - HasSessionIssuer
+      - !Ref SessionIssuer
+      - !If [HasDomain, !Sub "https://${DomainName}/api/auth", https://no-session-issuer.invalid/api/auth]
+  SessionsTableName:
+    Description: Presence sessions' refresh tokens and families
+    Value: !Ref SessionsTable
+  IdentitiesTableName:
+    Description: Provider identities' kept name and Apple refresh token
+    Value: !Ref IdentitiesTable

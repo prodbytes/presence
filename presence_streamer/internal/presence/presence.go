@@ -1,6 +1,8 @@
 // Package presence asks the auth API who the signed-in account is and for
 // its profile's credentials, as the app does (see specs/auth-api.md and
 // specs/cloud-sync.md), and trades them with Cognito for AWS credentials.
+// A Google sign-in's ID token is first exchanged for a Presence session
+// token (POST /api/auth/session), which the other calls carry.
 package presence
 
 import (
@@ -13,20 +15,34 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 )
 
 // API is the auth API of a Presence site (https://presence.nu01.com).
+// Signed in with Google, it calls the API with the Presence session token
+// it exchanges the Google ID token for (the APIs take no Google tokens).
 type API struct {
 	BaseURL string
 	HTTP    *http.Client
 	// CognitoURL overrides Cognito's endpoint (tests); empty is AWS's for
 	// the identity's region.
 	CognitoURL string
+
+	// mu guards session: the session token last exchanged.
+	mu      sync.Mutex
+	session *sessionToken
 }
 
-// ErrUnauthorized is the auth API refusing the ID token (expired, or not
-// for its client).
+// sessionToken is a Presence session token and the Google ID token it was
+// exchanged for.
+type sessionToken struct {
+	idToken, token string
+	expires        time.Time
+}
+
+// ErrUnauthorized is the auth API refusing the Google ID token (expired, or
+// not for its client).
 var ErrUnauthorized = errors.New("the auth API refused the Google sign-in")
 
 // ErrKeyRefused is the auth API refusing the stream key: not this device's
@@ -85,8 +101,47 @@ func (a *API) http() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second}
 }
 
+// call calls the auth API as the Google sign-in idToken: with the Presence
+// session token it exchanges idToken for.
 func (a *API) call(ctx context.Context, method, path, idToken string, body io.Reader, out any) error {
-	return a.callAs(ctx, method, path, idToken, ErrUnauthorized, body, out)
+	token, err := a.sessionToken(ctx, idToken)
+	if err != nil {
+		return err
+	}
+	return a.callAs(ctx, method, path, token, ErrUnauthorized, body, out)
+}
+
+// sessionToken is the Presence session token for the Google ID token
+// idToken: the one exchanged before, until a minute before it expires, or a
+// new one (POST /api/auth/session). It asks for no refresh token: the
+// streamer keeps Google's refresh token and exchanges each new ID token.
+func (a *API) sessionToken(ctx context.Context, idToken string) (string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if s := a.session; s != nil && s.idToken == idToken && time.Now().Before(s.expires.Add(-time.Minute)) {
+		return s.token, nil
+	}
+	body, err := json.Marshal(map[string]any{"provider": "google", "idToken": idToken, "refresh": false})
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(a.BaseURL, "/")+"/api/auth/session", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	var answer struct {
+		Token     string `json:"token"`
+		ExpiresAt int64  `json:"expiresAt"`
+	}
+	if err := a.do(req, ErrUnauthorized, &answer); err != nil {
+		return "", err
+	}
+	if answer.Token == "" {
+		return "", errors.New("the auth API answered no session token")
+	}
+	a.session = &sessionToken{idToken: idToken, token: answer.Token, expires: time.Unix(answer.ExpiresAt, 0)}
+	return answer.Token, nil
 }
 
 // callAs calls the auth API with bearer as the Authorization; a 401 is
@@ -100,6 +155,12 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 	if body != nil {
 		req.Header.Set("Content-Type", "text/plain")
 	}
+	return a.do(req, refused, out)
+}
+
+// do sends req to the auth API and reads its answer into out; a 401 is
+// refused.
+func (a *API) do(req *http.Request, refused error, out any) error {
 	res, err := a.http().Do(req)
 	if err != nil {
 		return err
@@ -117,12 +178,13 @@ func (a *API) callAs(ctx context.Context, method, path, bearer string, refused e
 			Error string `json:"error"`
 		}
 		_ = json.Unmarshal(data, &e)
-		return fmt.Errorf("%s %s: HTTP %d %s", method, path, res.StatusCode, e.Error)
+		return fmt.Errorf("%s %s: HTTP %d %s", req.Method, req.URL.Path, res.StatusCode, e.Error)
 	}
 	return json.Unmarshal(data, out)
 }
 
-// Profile is the signed-in account's profile ID (GET /api/auth/profile).
+// Profile is the profile ID of the account signed in with the Google ID
+// token idToken (GET /api/auth/profile, with its session token).
 func (a *API) Profile(ctx context.Context, idToken string) (string, error) {
 	var answer struct {
 		Profile string `json:"profile"`

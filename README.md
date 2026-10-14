@@ -174,9 +174,11 @@ display), then opens https://presence.nu01.com in the browser instead.
 | Local cloud ([presence_floci/](presence_floci)) | [Floci](https://floci.io/), a local AWS emulator, in Docker | A local CloudFront in front of the app, the index page and the API |
 | Dev environment | [Devbox](https://www.jetify.com/devbox) (Nix) in a [Dev Container](https://containers.dev/) | process-compose for the services, GitHub Actions for CI/CD |
 
-Sign-in uses Google. Its token gets the user's roles from the auth API, and
-an AWS identity from Cognito, which can read and write only that user's own
-data in S3.
+Sign-in uses Google, and on iOS Sign in with Apple too. The app trades the
+provider's ID token for a Presence [session token](specs/sessions.md),
+which every Presence API and rbacr take: it gets the user's roles, and,
+through the auth API, an AWS identity from Cognito, which can read and
+write only that user's own data in S3.
 
 The toolchain is pinned in [devbox.json](devbox.json) and locked in
 [devbox.lock](devbox.lock):
@@ -305,14 +307,16 @@ in, so never add a secret to that list.
 
 | Variable | Purpose | Where it comes from |
 |---|---|---|
-| `GOOGLE_WEB_CLIENT_ID` | Google sign-in. Every platform's ID token is issued for this client, and Cognito and the auth API trust it | Google Cloud: the Web application client |
+| `GOOGLE_WEB_CLIENT_ID` | Google sign-in. Every platform's ID token is issued for this client: the auth API's session exchange accepts it, and Cognito lists it for Google | Google Cloud: the Web application client |
 | `GOOGLE_IOS_CLIENT_ID` | Google sign-in on iOS (its reversed ID is the app's URL scheme) | Google Cloud: the iOS client |
 | `GOOGLE_ANDROID_CLIENT_ID` | Reference only. Google matches Android by package name and signing key, so the app doesn't use it | Google Cloud: the Android client |
 | `GOOGLE_WEB_CLIENT_SECRET` | Not used by the app. It's kept for a future backend and is never passed to Flutter | Google Cloud: the Web application client |
 | `AWS_REGION` | The region of the cloud-sync resources (`us-east-1`) | Your choice |
-| `COGNITO_IDENTITY_POOL_ID` | Cloud sync: trades the Google ID token for temporary AWS credentials | Output `IdentityPoolId` of the `presence-identity` stack |
+| `COGNITO_IDENTITY_POOL_ID` | Cloud sync: trades the auth API's token for the user's profile for temporary AWS credentials | Output `IdentityPoolId` of the `presence-identity` stack |
 | `USER_DATA_BUCKET` | Cloud sync: the S3 bucket for clips and events | Output `UserDataBucketName` of the `presence-user-data` stack |
 | `HOSTED_ZONE_ID` | Deploys only: the Route 53 zone of the site's domain | Route 53 |
+| `APPLE_CLIENT_IDS` | Deploys only: the clients Sign in with Apple's ID tokens may be for (default `com.nu01.presence`) | The app's bundle ID |
+| `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER` | Deploys only, both or neither (with `APPLE_TEAM_ID`): Apple's Sign in with Apple key, so account deletion can revoke Apple's tokens; the parameter names the SSM SecureString, under `/<stage prefix>/`, with the `.p8` ([Sessions](specs/sessions.md)) | Apple Developer: a Sign in with Apple key |
 
 ## Run it locally with devbox
 

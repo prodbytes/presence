@@ -181,6 +181,7 @@
   "authNoEvents": "No events",
   "authNoFeedback": "No feedback yet.",
   "authNoRoles": "No roles yet",
+  "authNoVerifiedEmail": "This account has no verified email.",
   "authNotSignedIn": "Not signed in.",
   "authOpenHost": "Open {host}",
   "@authOpenHost": {
@@ -275,6 +276,7 @@
   "@authProfile": {
     "description": "Account sheet: label above the profile ID"
   },
+  "authProviderNotConfigured": "This sign-in isn't set up on the server yet.",
   "authRbacrText": "Voucher codes and maintenance mode are managed in rbacr, which keeps every role. Members redeem codes on the Sign up sheet.",
   "authRedeem": "Redeem",
   "authReload": "Reload",
@@ -310,6 +312,12 @@
       }
     }
   },
+  "authSessionEnded": "Your session ended. Sign in again.",
+  "@authSessionEnded": {
+    "description": "Message when a Sign in with Apple session can't be renewed"
+  },
+  "authSessionRefused": "Presence didn't accept this sign-in.",
+  "authSessionUnreachable": "Couldn't reach Presence. Try again.",
   "authShowDevice": "Show {device}'s events",
   "@authShowDevice": {
     "placeholders": {
@@ -320,9 +328,13 @@
   },
   "authSignIn": "Sign in",
   "@authSignIn": {
-    "description": "Account button tooltip, signed out"
+    "description": "Account button tooltip, signed out; on iOS also the app bar's button that opens the sheet with Apple and Google sign-in"
   },
   "authSignInToPresence": "Sign in to Presence",
+  "authSignInWithApple": "Sign in with Apple",
+  "@authSignInWithApple": {
+    "description": "Apple's sign-in button (iOS); Apple's standard wording"
+  },
   "authSignInWithGoogle": "Sign in with Google",
   "authSignOut": "Sign out",
   "authSignUp": "Sign up",

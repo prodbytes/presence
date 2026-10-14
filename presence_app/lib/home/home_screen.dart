@@ -404,17 +404,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (!_hasAccess) _tabs.jumpTo(HomeTab.camera);
     _tabs.restore(hasAccess: _hasAccess);
     final error = widget.auth.error;
-    if (error != null && error != _shownError && mounted) {
+    final problem = widget.auth.problem;
+    // The problem too: the same text may come with another meaning.
+    final shown = error == null ? null : '${problem?.name}:$error';
+    if (shown != null && shown != _shownError && mounted) {
+      final text = authErrorText(widget.auth, context.l10n) ?? error!;
       _showMessage(
         CameraMessage(
           icon: Icons.error_outline,
-          label: context.l10n.homeSignInFailed(error),
+          // A session that ended isn't a failed sign-in: it says so alone.
+          label: problem == AuthProblem.sessionEnded
+              ? text
+              : context.l10n.homeSignInFailed(text),
           error: true,
         ),
         elsewhere: true,
       );
     }
-    _shownError = error;
+    _shownError = shown;
     setState(() {});
   }
 

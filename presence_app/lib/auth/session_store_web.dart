@@ -1,13 +1,22 @@
 import 'package:web/web.dart' as web;
 
-/// The browser's localStorage, under one key. Google Identity Services on
-/// web keeps no session of its own, so without this a reload signs out.
-class SessionStore {
-  const SessionStore();
+import 'session_store.dart';
+
+SessionStore platformSessionStore() => const WebSessionStore();
+
+/// The browser's localStorage, under one key, so a reload stays signed in.
+///
+/// Trade-off: script running on the app's origin (an XSS) could read the
+/// refresh token, which lasts up to 60 days. An httpOnly cookie would keep
+/// it out of script's reach, but needs the API to set and read it;
+/// acceptable for now.
+class WebSessionStore extends SessionStore {
+  const WebSessionStore();
 
   static const String _key = 'presence.session';
 
-  String? load() {
+  @override
+  Future<String?> load() async {
     try {
       return web.window.localStorage.getItem(_key);
     } catch (_) {
@@ -15,13 +24,15 @@ class SessionStore {
     }
   }
 
-  void save(String session) {
+  @override
+  Future<void> save(String session) async {
     try {
       web.window.localStorage.setItem(_key, session);
     } catch (_) {}
   }
 
-  void clear() {
+  @override
+  Future<void> clear() async {
     try {
       web.window.localStorage.removeItem(_key);
     } catch (_) {}

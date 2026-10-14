@@ -18,7 +18,7 @@ import static presence.payments.Http.response;
 /**
  * The payments API (presence_api_payments): the Stripe Payment Links a
  * free member upgrades to Premium with. Every route is behind the HTTP
- * API's Google JWT authorizer.
+ * API's JWT authorizer (Presence session tokens).
  * <ul>
  *   <li>{@code GET /api/payments/links}: the links, {@code {"monthly",
  *       "yearly", "saved"}}: what an admin saved, or the deploy's defaults

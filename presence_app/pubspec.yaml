@@ -58,6 +58,11 @@ dependencies:
   # Live sync: MQTT over WebSockets to AWS IoT Core (pinned).
   mqtt_client: 10.11.11
   cryptography: 2.9.0
+  # The Presence session (its refresh token) in the Keychain / Keystore
+  # (pinned).
+  flutter_secure_storage: 11.1.1
+  # Sign in with Apple on iOS (pinned).
+  sign_in_with_apple: 8.2.0
   # Premium in the App Store (StoreKit 2) and Google Play on iOS and
   # Android (pinned): lib/auth/store_billing.dart, specs/upgrade.md.
   in_app_purchase: 3.3.1

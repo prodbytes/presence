@@ -5,7 +5,24 @@
 # its Google JWT authorizer, and DynamoDB tables (profiles, their subjects
 # and link codes) as in AWS. Floci
 # runs the functions in Docker containers (hence the Docker socket in
-# compose.yaml) and verifies Google ID tokens against Google's JWKS.
+# compose.yaml).
+#
+# Sessions (specs/sessions.md): the app trades its Google ID token for a
+# Presence session token at POST /api/auth/session, and every other route
+# takes only that token. Locally:
+# - the signing key is made here with the KMS API (RSA_2048, SIGN_VERIFY)
+#   and passed as SigningKeyArn: Floci's CloudFormation makes symmetric
+#   keys whatever the KeySpec. Floci keeps nothing (memory mode), so each
+#   start has a new key and signs everyone out;
+# - the issuer is the local HTTP API's path form on Floci's loopback
+#   address ($ISSUER): Floci's JWT authorizer fetches
+#   <issuer>/.well-known/openid-configuration from inside the container,
+#   and fetches HTTP or private addresses only with
+#   FLOCI_SECURITY_ALLOW_PRIVATE_JWT_TARGETS (compose.yaml), and then
+#   only from a literal IP, not a host name;
+# - rbacr's RC can't reach that issuer, so it can't verify local session
+#   tokens: the app's own roles check (GET /api/me) fails locally. See the
+#   known limitations in specs/sessions.md.
 #
 # CloudFront only reaches private origins allowlisted by exact name
 # (compose.yaml), but CloudFormation gives the stack's HTTP API a random ID.
@@ -49,6 +66,10 @@ case "$(uname -m)" in
   *) ARCH=x86_64 ;;
 esac
 
+ISSUER="http://127.0.0.1:4566/execute-api/$API_ID/\$default/api/auth"
+signing_key=$(aws kms create-key --key-spec RSA_2048 --key-usage SIGN_VERIFY \
+  --description "Signs local Presence session tokens" --query KeyMetadata.Arn --output text)
+
 aws s3 mb s3://presence-local-sam >/dev/null
 aws cloudformation package --template-file "$BUILD/template.yaml" \
   --s3-bucket presence-local-sam --output-template-file /tmp/presence-auth-api.yaml >/dev/null
@@ -63,7 +84,8 @@ aws cloudformation deploy --stack-name "$STACK" \
   --parameter-overrides "GoogleWebClientId=$CLIENT_ID" "Architecture=$ARCH" \
     "IdentityPoolId=${COGNITO_IDENTITY_POOL_ID:-}" "UserDataBucket=${USER_DATA_BUCKET:-}" \
     "RbacrUrl=${RBACR_URL:-https://rc.rbacr.nu01.com}" "RbacrToken=${RBACR_TOKEN:-}" \
-    "RbacrSystem=${RBACR_SYSTEM:-presence}" "LocalCloud=true" >/dev/null
+    "RbacrSystem=${RBACR_SYSTEM:-presence}" "LocalCloud=true" \
+    "SessionIssuer=$ISSUER" "SigningKeyArn=$signing_key" >/dev/null
 
 function_arn() { # function_arn <logical ID>
   name=$(aws cloudformation describe-stack-resource --stack-name "$STACK" \
@@ -93,10 +115,17 @@ route() { # route <"METHOD /path"> <function logical ID> [authorizer ID]
 # Public, as in template.yaml: the execution mode and the anonymous roles.
 route "GET /api/auth/anonymous" AuthFunction
 if [ -n "$CLIENT_ID" ]; then
-  # As in template.yaml: only Google ID tokens issued for the web client.
-  authorizer=$(aws apigatewayv2 create-authorizer --api-id "$api" --name GoogleIdToken \
+  # Public too: sessions (the provider's token or the refresh token is the
+  # proof) and the issuer's documents.
+  route "POST /api/auth/session" SessionFunction
+  route "POST /api/auth/session/refresh" SessionFunction
+  route "POST /api/auth/session/revoke" SessionFunction
+  route "GET /api/auth/.well-known/openid-configuration" SessionFunction
+  route "GET /api/auth/.well-known/jwks.json" SessionFunction
+  # As in template.yaml: only Presence session tokens.
+  authorizer=$(aws apigatewayv2 create-authorizer --api-id "$api" --name PresenceSession \
     --authorizer-type JWT --identity-source '$request.header.Authorization' \
-    --jwt-configuration "Issuer=https://accounts.google.com,Audience=$CLIENT_ID" \
+    --jwt-configuration "Issuer=$ISSUER,Audience=presence" \
     --query AuthorizerId --output text)
   # Profiles: the listing, which makes the profile at the first sign-in.
   # Without an identity pool (COGNITO_IDENTITY_POOL_ID), only the listing
@@ -111,7 +140,7 @@ if [ -n "$CLIENT_ID" ]; then
   # Account deletion: the account, or its whole profile for the owner
   # (Floci's tables and bucket; no Feedback table locally).
   route "POST /api/auth/account/delete" ProfileFunction "$authorizer"
-  # The streamer's: no Google token, its stream key is checked by the function.
+  # The streamer's: no session token, its stream key is checked by the function.
   route "POST /api/auth/stream/credentials" ProfileFunction
   # Cloud recognition (premium only). Locally the models come from Hugging
   # Face at each function's first use (no bucket here keeps them): DINOv2

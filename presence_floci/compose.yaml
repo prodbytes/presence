@@ -54,6 +54,12 @@ services:
       # Lambda containers are named presence-lambda-*, so shutdown can find
       # them (process-compose.yaml).
       FLOCI_SERVICES_LAMBDA_CONTAINER_NAME_PREFIX: presence-lambda
+      # The local auth API's JWT authorizer trusts the local session issuer,
+      # which is Floci itself on http://127.0.0.1:4566 (05-auth-api.sh); Floci
+      # fetches JWT issuers' keys from private or HTTP addresses only with
+      # this. Safe here: Floci's ports are bound to 127.0.0.1 and only the
+      # init hooks configure it.
+      FLOCI_SECURITY_ALLOW_PRIVATE_JWT_TARGETS: "true"
       # 05-auth-api.sh deploys a stack, which takes longer than the default 30 s.
       FLOCI_INIT_HOOKS_TIMEOUT_SECONDS: "180"
     volumes:

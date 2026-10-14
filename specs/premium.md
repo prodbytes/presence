@@ -18,8 +18,8 @@ decides who is premium, as it decides every role ([Auth API](auth-api.md)).
   `admin`** there is premium. That includes holding it through a grant to
   its domain, a global grant, an implied role, or being an rbacr root. Its
   `free` role alone is a free member; no role at all, no member.
-- **The app** asks rbacr itself (`GET /api/me`, with the user's ID
-  token; see [Sign-in](sign-in.md)) and maps `premium` or `admin` to
+- **The app** asks rbacr itself (`GET /api/me`, with the user's
+  [session token](sessions.md); see [Sign-in](sign-in.md)) and maps `premium` or `admin` to
   **`presence_premium`**, so it knows (`RolesService.isPremium`).
 - **The auth API**, which enforces it, asks rbacr too (`Rbacr`,
   [presence_api_auth](../presence_api_auth/AuthFunction/src/main/java/presence/auth/Rbacr.java))

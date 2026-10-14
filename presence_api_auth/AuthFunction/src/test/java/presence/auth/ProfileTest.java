@@ -34,7 +34,7 @@ class ProfileTest {
     /** The profiles and subjects tables, link codes, and what Cognito and S3 hold. */
     private final MemoryProfiles store = new MemoryProfiles();
     private final Map<String, ProfileHandler.LinkCode> codes = new HashMap<>();
-    /** Google ID token -> the identity it signs in to directly (GetId). */
+    /** "tok-<owner sub>" -> the identity Cognito makes for that owner's profile (newIdentity). */
     private final Map<String, String> googleIdentities = new HashMap<>();
     /** Identity -> the developer identifier (profile) linked to it. */
     private final Map<String, String> linked = new HashMap<>();
@@ -70,41 +70,43 @@ class ProfileTest {
         }
 
         @Override
-        public String googleIdentity(String googleIdToken) {
-            return googleIdentities.computeIfAbsent(googleIdToken, t -> "us-east-1:new-" + googleIdentities.size());
-        }
-
-        @Override
-        public String openIdToken(String identityId, String profileId, String googleIdToken) {
+        public String newIdentity(String profileId) {
             if (cognitoFails != null) {
                 throw cognitoFails;
             }
-            // As Cognito: a developer identifier belongs to one identity, and
-            // linking it to one Google sign-in made needs that Google login.
-            var was = linked.get(identityId);
-            if (was == null) {
-                assertTrue(!googleIdentities.containsValue(identityId)
-                        || identityId.equals(googleIdentities.get(googleIdToken)),
-                        "linking " + identityId + " without its Google login");
-                linked.put(identityId, profileId);
+            // The identity made for the profile: the one a test named for its
+            // owner ("tok-<sub>"), or a new one. Made linked to the profile.
+            var owner = store.profile(profileId).ownerSubject();
+            var identity = googleIdentities.computeIfAbsent("tok-" + owner.substring(owner.indexOf('#') + 1),
+                    t -> "us-east-1:new-" + googleIdentities.size());
+            assertNull(linked.putIfAbsent(identity, profileId) == null ? null : linked.get(identity).equals(profileId)
+                    ? null : "identity " + identity + " relinked");
+            return identity;
+        }
+
+        @Override
+        public String openIdToken(String identityId, String profileId) {
+            if (cognitoFails != null) {
+                throw cognitoFails;
             }
+            // As Cognito: a developer identifier belongs to one identity.
+            linked.putIfAbsent(identityId, profileId);
             assertEquals(profileId, linked.get(identityId), "identity " + identityId + " relinked");
             tokensIssued.add(identityId + "|" + profileId);
             return "token-for-" + identityId;
         }
 
         @Override
-        public String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
-            var token = openIdToken(identityId, profileId, googleIdToken);
+        public String openIdToken(String identityId, String profileId, String tier) {
+            var token = openIdToken(identityId, profileId);
             tiers.add(tier);
             return token;
         }
 
         @Override
-        public String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
-                                  boolean admin) {
+        public String openIdToken(String identityId, String profileId, String tier, boolean admin) {
             admins.add(admin);
-            return openIdToken(identityId, profileId, googleIdToken, tier);
+            return openIdToken(identityId, profileId, tier);
         }
 
         @Override
@@ -319,9 +321,20 @@ class ProfileTest {
 
     private final Roles roles = new Roles(e -> rbacr.getOrDefault(e, Set.of()));
 
+    /** The subjects whose sign-ins a deletion ended (sessions, Apple tokens), in order. */
+    private final List<String> signInsEnded = new ArrayList<>();
+    /** Whether Apple can't be told (AccountSessions.end answers false). */
+    private boolean appleUnreachable;
+
     private ProfileHandler handler(boolean configured) {
         var profiles = new Profiles(store, clock, () -> "profile_" + (++ids));
-        return new ProfileHandler(roles, profiles, backend, configured, new SecureRandom());
+        return new ProfileHandler(roles, profiles, backend, configured, new SecureRandom(), null, subject -> {
+            if (appleUnreachable) {
+                return false;
+            }
+            signInsEnded.add(subject);
+            return true;
+        });
     }
 
     /** The profile {@code sub}'s subject is linked to. */
@@ -474,13 +487,13 @@ class ProfileTest {
     void anOwnerWithoutRolesSharesNoMembership() {
         // rbacr gives mallory@nu01.com nothing.
         var event = call("POST /api/auth/profile/link-code", "mallory", "mallory@nu01.com", null);
-        event.getRequestContext().getAuthorizer().getJwt().setClaims(Map.of("iss", GOOGLE, "sub", "mallory",
+        event.getRequestContext().getAuthorizer().getJwt().setClaims(Map.of("idp", GOOGLE, "idp_sub", "mallory",
                 "email", "mallory@nu01.com", "email_verified", "true"));
         assertEquals(403, profiles.handleRequest(event, null).getStatusCode());
         // Even linked by hand, its accounts get nothing from it.
         var owner = profileOf("mallory");
         store.links.put(GOOGLE + "#home", owner.id());
-        assertEquals(Set.of(), roles.of(Caller.of(Map.of("iss", GOOGLE, "sub", "home",
+        assertEquals(Set.of(), roles.of(Caller.of(Map.of("idp", GOOGLE, "idp_sub", "home",
                 "email", "julio@gmail.com", "email_verified", "true")), store.profile(owner.id())));
     }
 
@@ -493,8 +506,7 @@ class ProfileTest {
 
     @Test
     void aRefusedLinkLeavesTheCodeUsable() {
-        googleIdentities.put("tok-home", "us-east-1:home");
-        foldersWithData.add("us-east-1:home");
+        ownData("home", "julio@gmail.com", "us-east-1:home");
         var code = linkCode("work", "julio@nu01.com");
         assertEquals(409, link("home", "julio@gmail.com", code).getStatusCode());
         assertEquals(1, codes.size());
@@ -538,8 +550,7 @@ class ProfileTest {
 
     @Test
     void anAccountWithItsOwnDataIsntLinked() {
-        googleIdentities.put("tok-home", "us-east-1:home");
-        foldersWithData.add("us-east-1:home");
+        ownData("home", "julio@gmail.com", "us-east-1:home");
         var code = linkCode("work", "julio@nu01.com");
         var response = link("home", "julio@gmail.com", code);
         assertEquals(409, response.getStatusCode());
@@ -602,7 +613,7 @@ class ProfileTest {
     void anUnverifiedEmailIsRefused() {
         var event = call("POST /api/auth/credentials", "work", "julio@nu01.com", null);
         event.getRequestContext().getAuthorizer().getJwt().setClaims(
-                Map.of("iss", GOOGLE, "sub", "work", "email", "julio@nu01.com", "email_verified", "false"));
+                Map.of("idp", GOOGLE, "idp_sub", "work", "email", "julio@nu01.com", "email_verified", "false"));
         assertEquals(403, profiles.handleRequest(event, null).getStatusCode());
         assertTrue(store.links.isEmpty());
     }
@@ -698,11 +709,11 @@ class ProfileTest {
 
     @Test
     void aLinkedAccountSharesOnlyTheOwnersMembership() {
-        var gmail = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "julio@gmail.com", "email_verified", "true"));
+        var gmail = Caller.of(Map.of("idp", GOOGLE, "idp_sub", "home", "email", "julio@gmail.com", "email_verified", "true"));
         var owned = new Profiles.Profile("p", "", GOOGLE + "#work", "julio@nu01.com", "nu01.com");
         assertEquals(Set.of(), roles.of(gmail));
         assertEquals(Set.of(Roles.USER), roles.of(gmail, owned));
-        var unverified = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "julio@gmail.com",
+        var unverified = Caller.of(Map.of("idp", GOOGLE, "idp_sub", "home", "email", "julio@gmail.com",
                 "email_verified", "false"));
         assertEquals(Set.of(), roles.of(unverified, owned));
         assertEquals(Set.of(), roles.of(gmail, null));
@@ -783,6 +794,36 @@ class ProfileTest {
         assertEquals(4, recognition.get("profile_1"));
         assertEquals("{\"profile\":\"profile_1\",\"shared\":[],\"accounts\":["
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":true}]}", listing("work", "julio@nu01.com"));
+    }
+
+    @Test
+    void deletingTheProfileEndsEveryAccountsSignIns() {
+        ownerWithLinkedAccountAndData();
+        assertEquals(200, deleteAccount("work", "julio@nu01.com", "profile_1").getStatusCode());
+        assertEquals(Set.of(GOOGLE + "#work", GOOGLE + "#home"), Set.copyOf(signInsEnded));
+    }
+
+    @Test
+    void aLinkedAccountEndsOnlyItsOwnSignIns() {
+        ownerWithLinkedAccountAndData();
+        assertEquals(200, deleteAccount("home", "julio@gmail.com", "profile_1").getStatusCode());
+        assertEquals(List.of(GOOGLE + "#home"), signInsEnded);
+    }
+
+    @Test
+    void whenAppleCantBeToldNothingMoreIsDeletedAndARetryFinishes() {
+        ownerWithLinkedAccountAndData();
+        appleUnreachable = true;
+        var refused = deleteAccount("home", "julio@gmail.com", "profile_1");
+        assertEquals(503, refused.getStatusCode());
+        assertEquals("profile_1", store.links.get(GOOGLE + "#home"));
+        var owner = deleteAccount("work", "julio@nu01.com", "profile_1");
+        assertEquals(503, owner.getStatusCode());
+        assertNotNull(store.profile("profile_1"));
+        assertEquals("profile_1", store.links.get(GOOGLE + "#work"));
+        appleUnreachable = false;
+        assertEquals(200, deleteAccount("work", "julio@nu01.com", "profile_1").getStatusCode());
+        assertNull(store.profile("profile_1"));
     }
 
     @Test
@@ -910,7 +951,6 @@ class ProfileTest {
         return profiles.handleRequest(call("POST /api/auth/profile/link", sub, email, code), null);
     }
 
-    /** A request the JWT authorizer let through: Google account {@code sub}, its token {@code tok-<sub>}. */
     @Test
     void aCognitoFailureSaysWhichServiceAndErrorWithoutAwsDetails() {
         googleIdentities.put("tok-work", "us-east-1:work");
@@ -960,11 +1000,19 @@ class ProfileTest {
         assertEquals("IllegalStateException", Aws.cause(new IllegalStateException("x")));
     }
 
+    /** {@code sub} signs in, and its profile has an identity whose folder holds data. */
+    private void ownData(String sub, String email, String identity) {
+        profiles.handleRequest(call("GET /api/auth/profile", sub, email, null), null);
+        store.identity(profileOf(sub).id(), identity);
+        foldersWithData.add(identity);
+    }
+
+    /** A request the JWT authorizer let through: a session of Google account {@code sub}. */
     private static APIGatewayV2HTTPEvent call(String route, String sub, String email, String body) {
         var jwt = new APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT();
         var claims = RolesTest.verified(email);
-        claims.put("iss", GOOGLE);
-        claims.put("sub", sub);
+        claims.put("idp", GOOGLE);
+        claims.put("idp_sub", sub);
         jwt.setClaims(claims);
         var authorizer = new APIGatewayV2HTTPEvent.RequestContext.Authorizer();
         authorizer.setJwt(jwt);
@@ -973,7 +1021,6 @@ class ProfileTest {
         var event = new APIGatewayV2HTTPEvent();
         event.setRequestContext(context);
         event.setRouteKey(route);
-        event.setHeaders(Map.of("authorization", "Bearer tok-" + sub));
         event.setBody(body);
         return event;
     }

@@ -98,6 +98,18 @@ account that moved meanwhile isn't deleted by mistake.
   link (`ProfileSubjectsTable`) are deleted. **200** `{"deleted":
   "account", "profile", "accounts": 1, "objects": 0, "feedback",
   "identity": false, "complete": true}`.
+- **Sign-ins end** with the account (`AccountSessions.end`, see
+  [Sessions](sessions.md#sign-in-with-apples-revocation)): every
+  [session](sessions.md) of the deleted accounts is revoked (their
+  refresh tokens stop working; session tokens already issued expire
+  within the hour), and a **Sign in with Apple** account's Apple refresh
+  token is revoked at Apple (`https://appleid.apple.com/auth/revoke`), as
+  Apple requires, and what's kept of the identity (its name) forgotten.
+  A linked account's own, before its link goes; for the owner, every
+  account of the profile's, after the folder, the Feedback conversation
+  and the identity are gone and before anything else. When Apple can't
+  be told, the answer is **503** `{"error", "complete": false}` with
+  nothing more deleted, and the app's retry does it.
 - **The owner**, in this order:
   1. **the cloud folder**: every object under `<identityId>/` in the
      user-data bucket, listed 1000 at a time and deleted with
@@ -133,9 +145,10 @@ account that moved meanwhile isn't deleted by mistake.
   owner and no folder: made again by a sign-in meanwhile), while the
   caller is still linked to it is one whose deletion stopped half-way:
   whoever calls finishes it as the owner's.
-- **Keyed by the subject and the profile only** (`<iss>#<sub>`, the
-  identity mapping the auth API keeps), so accounts of any sign-in
-  provider are deleted the same way.
+- **Keyed by the subject and the profile only** (`<iss>#<sub>`, from the
+  session token's `idp` and `idp_sub`, the identity mapping the auth API
+  keeps), so accounts of any sign-in provider, Google or Apple, are
+  deleted the same way.
 - **Not touched:** rbacr's roles and grants (kept by email; a subscription
   keeps working if the person comes back), the subscription itself, which
   must be cancelled where it was bought (Stripe, the App Store or Google
@@ -251,4 +264,8 @@ The Play Console's Data safety form gives this page as the deletion link.
 - **Stream keys a linked account made** stay with the profile (they're its
   devices'), with that account's email as `createdBy`.
 - **No undo**, and no grace period: the deletion is immediate.
+- **Apple's tokens are revoked only with the stack's Sign in with Apple
+  key** configured, and only for sign-ins since it was (the auth API
+  keeps an Apple refresh token from the sign-in's authorization code).
+  Without it the account is deleted and Apple isn't told.
 - Requests by email are handled by hand.

@@ -90,7 +90,7 @@ class RecognitionTest {
         var event = new APIGatewayV2HTTPEvent();
         event.setRouteKey(route);
         event.setBody(body == null ? null : JSON.std.asString(body));
-        var claims = Map.of("iss", "https://accounts.google.com", "sub", "123",
+        var claims = Map.of("idp", "https://accounts.google.com", "idp_sub", "123",
                 "email", "julio@example.com", "email_verified", Boolean.toString(verified));
         var jwt = APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT.builder().withClaims(claims).build();
         var authorizer = APIGatewayV2HTTPEvent.RequestContext.Authorizer.builder().withJwt(jwt).build();

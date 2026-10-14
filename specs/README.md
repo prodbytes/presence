@@ -73,18 +73,27 @@ their data.
   3 hours (30 min to a day, in Settings, with a countdown).
 - [Profiles](profiles.md): **the owner of a user's data and events.**
   None signed out; an account's first sign-in makes it and later ones, on
-  any device, load it (by subject, `<iss>#<sub>`); IDs like
+  any device, load it (by the provider's subject, `<iss>#<sub>`); IDs like
   `automatic_paranoid_axolotl`, never repeated.
-- [Sign-in](sign-in.md): Google sign-in, the role-gated UI (roles from
-  rbacr's `GET /api/me` and the auth API's `GET /api/auth/profile`, asked
-  at once with the user's ID token), the account sheet (the profile ID
-  and its devices, from events and the auth API's list) and the OAuth
-  clients.
+- [Sign-in](sign-in.md): Google sign-in, and Sign in with Apple on iOS
+  beside it; the session kept (secure storage, or `localStorage` on web)
+  and refreshed; the role-gated UI (roles from rbacr's `GET /api/me` and
+  the auth API's `GET /api/auth/profile`, asked at once with the session
+  token), the account sheet (the profile ID and its devices, from events
+  and the auth API's list) and the OAuth clients.
+- [Sessions](sessions.md): Presence's own session tokens. A Google or
+  Apple ID token is traded at `POST /api/auth/session` for a KMS-signed
+  JWT (1 hour, issuer `https://<site>/api/auth`, audience `presence`,
+  the provider's identity in `idp`/`idp_sub`) and a rotating refresh
+  token (60 days, reuse revokes the session); every API's authorizer and
+  rbacr trust only it. Sign in with Apple's tokens are revoked at account
+  deletion.
 - [Account deletion](account-deletion.md): the account sheet's **Delete
   account** (after a confirmation that says what goes and that Premium
   isn't cancelled): the profile's owner deletes the whole profile (its
   cloud folder, identity, feedback, recognition, stream keys and every
-  linked account's link), a linked account only leaves it; this device
+  linked account's link), a linked account only leaves it; the deleted
+  accounts' sessions end and Apple's tokens are revoked; this device
   forgets the profile and signs out. `POST /api/auth/account/delete`,
   idempotent; without the app, `/delete-account` says how by email.
 - [Premium and free](premium.md): rbacr says who is premium (its
@@ -216,8 +225,9 @@ their data.
   execution mode and which settings are set, no token) and the
   [profile](profiles.md) routes: `GET /api/auth/profile` (the signed-in
   user's profile, made at the first sign-in, and the membership a linked
-  account shares), credentials and linking (SAM, Java 25; Google JWT
-  authorizer). Roles (`presence_user`, `presence_premium`,
+  account shares), credentials and linking, and the
+  [session](sessions.md) routes (SAM, Java 25; a JWT authorizer for
+  Presence's session tokens). Roles (`presence_user`, `presence_premium`,
   `presence_admin`, `presence_root`), maintenance mode and vouchers are
   rbacr's, which the app asks directly.
 - [Payments API](payments-api.md): `presence_api_payments` (Lambda,

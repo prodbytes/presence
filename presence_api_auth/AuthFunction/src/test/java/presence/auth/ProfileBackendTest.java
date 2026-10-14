@@ -41,11 +41,11 @@ class ProfileBackendTest {
 
     private static final String DEV = "login.presence.profiles";
 
-    /** As Cognito, for an identity Google sign-in made: a profile ID links to it only beside its Google login. */
+    /** As Cognito: a developer identifier is linked to the identity made for it, and only to that one. */
     private static final class Cognito implements CognitoIdentityClient {
         final List<Map<String, String>> calls = new ArrayList<>();
         final List<Map<String, String>> tags = new ArrayList<>();
-        String linkedProfile;
+        final Map<String, String> identities = new java.util.HashMap<>();
 
         @Override
         public GetOpenIdTokenForDeveloperIdentityResponse getOpenIdTokenForDeveloperIdentity(
@@ -54,10 +54,11 @@ class ProfileBackendTest {
             calls.add(logins);
             tags.add(request.principalTags());
             var profile = logins.get(DEV);
-            if (linkedProfile == null && "google-token".equals(logins.get(ProfileBackend.GOOGLE))) {
-                linkedProfile = profile;
+            if (request.identityId() == null) {
+                var made = identities.computeIfAbsent(profile, p -> "us-east-1:made-" + p);
+                return GetOpenIdTokenForDeveloperIdentityResponse.builder().identityId(made).token("token").build();
             }
-            if (linkedProfile == null || !linkedProfile.equals(profile)) {
+            if (!request.identityId().equals(identities.get(profile))) {
                 throw NotAuthorizedException.builder().message("Logins don't match.").build();
             }
             return GetOpenIdTokenForDeveloperIdentityResponse.builder()
@@ -92,37 +93,39 @@ class ProfileBackendTest {
     private final ProfileBackend backend = new ProfileBackend(null, cognito, null, "codes", "pool", DEV, "bucket");
 
     @Test
-    void theFirstTokenLinksTheProfileWithTheGoogleLogin() {
-        assertEquals("token", backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token"));
-        assertEquals(List.of(
-                Map.of(DEV, "savvy_plaice"),
-                Map.of(DEV, "savvy_plaice", ProfileBackend.GOOGLE, "google-token")), cognito.calls);
+    void aNewProfileGetsAnIdentityMadeForIt() {
+        var identity = backend.newIdentity("savvy_plaice");
+        assertEquals("us-east-1:made-savvy_plaice", identity);
+        // Asked again (a lost race), Cognito answers the same one.
+        assertEquals(identity, backend.newIdentity("savvy_plaice"));
+        assertEquals(List.of(Map.of(DEV, "savvy_plaice"), Map.of(DEV, "savvy_plaice")), cognito.calls);
 
-        // Linked: the profile ID alone from now on, from any linked account.
+        // Its tokens: the profile ID alone, from any linked account.
         cognito.calls.clear();
-        assertEquals("token", backend.openIdToken("us-east-1:id", "savvy_plaice", "member-token"));
+        assertEquals("token", backend.openIdToken(identity, "savvy_plaice"));
         assertEquals(List.of(Map.of(DEV, "savvy_plaice")), cognito.calls);
     }
 
     @Test
     void administratorsTokensAlsoCarryTheAdminTag() {
-        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.FREE, true);
-        assertEquals(List.of(Map.of("tier", "free", "admin", "true"), Map.of("tier", "free", "admin", "true")),
-                cognito.tags);
+        var identity = backend.newIdentity("savvy_plaice");
         cognito.tags.clear();
-        // Linked now: one try, without the admin tag for a member.
-        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.FREE, false);
+        backend.openIdToken(identity, "savvy_plaice", ProfileHandler.FREE, true);
+        assertEquals(List.of(Map.of("tier", "free", "admin", "true")), cognito.tags);
+        cognito.tags.clear();
+        backend.openIdToken(identity, "savvy_plaice", ProfileHandler.FREE, false);
         assertEquals(List.of(Map.of("tier", "free")), cognito.tags);
     }
 
     @Test
     void tokensCarryTheTierAsAPrincipalTag() {
-        backend.openIdToken("us-east-1:id", "savvy_plaice", "google-token", ProfileHandler.PREMIUM);
-        // Both tries (unlinked, then with the Google login) are tagged.
-        assertEquals(List.of(Map.of("tier", "premium"), Map.of("tier", "premium")), cognito.tags);
+        var identity = backend.newIdentity("savvy_plaice");
+        cognito.tags.clear();
+        backend.openIdToken(identity, "savvy_plaice", ProfileHandler.PREMIUM);
+        assertEquals(List.of(Map.of("tier", "premium")), cognito.tags);
         cognito.tags.clear();
         // Without a tier (a link code's token): free, never premium.
-        backend.openIdToken("us-east-1:id", "savvy_plaice", null);
+        backend.openIdToken(identity, "savvy_plaice");
         assertEquals(List.of(Map.of("tier", "free")), cognito.tags);
     }
 
@@ -406,10 +409,8 @@ class ProfileBackendTest {
     }
 
     @Test
-    void anotherGoogleAccountCantLinkIt() {
-        assertThrows(NotAuthorizedException.class,
-                () -> backend.openIdToken("us-east-1:id", "savvy_plaice", "member-token"));
-        assertThrows(NotAuthorizedException.class,
-                () -> backend.openIdToken("us-east-1:id", "savvy_plaice", null));
+    void anotherProfileCantUseTheIdentity() {
+        var identity = backend.newIdentity("savvy_plaice");
+        assertThrows(NotAuthorizedException.class, () -> backend.openIdToken(identity, "other_profile"));
     }
 }

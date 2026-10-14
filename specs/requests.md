@@ -5925,3 +5925,46 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        only when set; otherwise the template's defaults (store purchases
        off) apply. Spec: [Production deploy](deploy.md) unchanged (the
        defaults were already described).
+
+426. **Sign in with Apple, on Presence's own session tokens.** (2026-10-14)
+     - Asked: App Store 4.8 needs Sign in with Apple beside Google on
+       iOS. Apple's ID tokens last about 10 minutes and can't be renewed
+       quietly, while every API (and rbacr) took the sign-in's ID token as
+       the bearer, so build a Presence session layer: exchange any
+       provider's token for a Presence-signed token with a refresh token,
+       switch every authorizer to it, keep profiles mapping, offer Apple
+       on iOS, and revoke Apple's tokens at account deletion.
+     - Changed: the auth API's `POST /api/auth/session` verifies Google's
+       or Apple's ID token itself (JWKS, issuer, audience, expiry,
+       verified email; Apple's nonce) and answers a KMS-signed RS256
+       session token (1 hour; `idp`/`idp_sub` carry the provider's
+       identity, so profiles keep their `<iss>#<sub>` links) and a
+       refresh token (256 bits, hashed, 60 days sliding, rotated, reuse
+       revokes the session, a minute's grace for retries); `/refresh`,
+       `/revoke`, and the issuer's openid-configuration and JWKS. The
+       auth API's and payments API's JWT authorizers trust only it;
+       rbacr through `RBACR_TRUSTED_ISSUERS`. Apple's name is kept from
+       the first sign-in; with Apple's key (SSM), Apple's refresh token is
+       kept KMS-encrypted and account deletion (merged from
+       `account-deletion`) revokes it and every session. Cognito
+       identities are made for the profile's developer identifier (no
+       more `GetId` with a Google token). The app exchanges every sign-in,
+       uses the session token as every bearer, refreshes it (Android's
+       silent Google sign-in as the fallback), keeps it in secure storage
+       (`localStorage` on web), and on iOS shows Sign in with Apple beside
+       Google (entitlement added). The streamer exchanges its Google
+       tokens. Deploy: new parameters, KMS and SSM permissions in
+       `presence-github-deploy`, smoke test of the issuer; local Floci
+       makes the key with the KMS API and needs
+       `FLOCI_SECURITY_ALLOW_PRIVATE_JWT_TARGETS`. Specs: new
+       [Sessions](sessions.md); [Sign-in](sign-in.md),
+       [Auth API](auth-api.md), [Payments API](payments-api.md),
+       [Profiles](profiles.md), [Account deletion](account-deletion.md),
+       [iOS](ios.md), [Production deploy](deploy.md),
+       [Store readiness](store-readiness.md), [Streamer](streamer.md),
+       [Cloud sync](cloud-sync.md), [Configuration](configuration.md),
+       [Membership](membership.md), [Maintenance mode](maintenance.md),
+       [Premium and free](premium.md), [Execution mode](execution-mode.md),
+       [Local CDN](local-cdn.md), [Local cloud](local-cloud.md),
+       [Health check](health-check.md), [Origin check](origin-check.md),
+       [Languages](i18n.md).

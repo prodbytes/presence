@@ -20,14 +20,15 @@ Premium](upgrade.md#how-it-becomes-premium)).
 
 ## Routes
 
-A Google JWT authorizer (issuer `https://accounts.google.com`, audience
-the web client, as the auth API's) refuses calls without a valid ID token
-(401) before the function runs; only Apple's notifications route has
-none. The caller is the token's email when Google verified it
-(`email_verified`), lowercased: `Identity.verifiedEmail`
+A JWT authorizer refuses calls without a valid Presence
+[session token](sessions.md) (401) before the function runs; only
+Apple's notifications route has none. Its issuer is the auth API stack's
+`SessionIssuer` output (`https://<site>/api/auth`, passed by
+`deploy.sh`), its audience `presence`. The caller is the token's email,
+which the sign-in provider (Google or Apple) verified (`email_verified`,
+always true in a session token), lowercased: `Identity.verifiedEmail`
 ([Identity.java](../presence_api_payments/PaymentsFunction/src/main/java/presence/payments/Identity.java)),
-the one place a request's identity is read, so another sign-in's token
-needs a change there only.
+the one place a request's identity is read.
 
 - **`GET /api/payments/links`** (any signed-in user; 20 requests/s, burst
   50): `{"monthly": "https://buy.stripe.com/…", "yearly": "…", "saved":
@@ -177,8 +178,9 @@ It holds emails: AWS only.
 `scripts/deploy.sh` deploys it after the auth API and the health check,
 and passes its domain to the site stack (`PaymentsApiDomainName`):
 
-- `GoogleWebClientId`, `PermissionsBoundary`, and rbacr's `RbacrUrl`,
-  `RbacrToken` and `RbacrSystem`, the auth API's;
+- `SessionIssuer` (the auth API stack's output, which `deploy.sh` checks
+  is `https://<site>/api/auth`), `PermissionsBoundary`, and rbacr's
+  `RbacrUrl`, `RbacrToken` and `RbacrSystem`, the auth API's;
 - **`RbacrGrantToken`** (NoEcho): `RBACR_GRANT_TOKEN` from the
   environment (the `RBACR_GRANT_TOKEN` repository secret in CI), else
   `.env`; never logged. An API token owned by an **rbacr root**: only
@@ -224,7 +226,7 @@ put and update items in its table only.
 - **`PaymentsService`**
   ([lib/auth/payments_client.dart](../presence_app/lib/auth/payments_client.dart))
   asks `GET /api/payments/links` (on the site's origin, `ApiConfig`) with
-  the user's ID token at each sign-in, and forgets the links at sign-out.
+  the user's session token at each sign-in, and forgets the links at sign-out.
   Its `links` are null while unknown: signed out, loading, or when the API
   didn't answer. The app keeps only HTTPS stripe.com links of the answer.
 - **The upgrade buttons** ([Upgrade to Premium](upgrade.md)) use them.

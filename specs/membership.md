@@ -3,8 +3,8 @@
 Who may use Presence, how people get access (they subscribe at
 nu01.com), and the voucher codes that let them in too. Roles come from
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role
-manager, which the app asks directly with the user's Google ID token
-(see [Sign-in](sign-in.md)); its `presence` system's roles, in brackets
+manager, which the app asks directly with the user's Presence
+[session token](sessions.md) (see [Sign-in](sign-in.md)); its `presence` system's roles, in brackets
 below:
 
 | Who | Roles | Sees |
@@ -49,7 +49,7 @@ opens "Subscribe" (`SignUpSheet`):
   Redeem it to get in right away."): disabled while the field is blank;
   Enter redeems too. The field takes up to 64 characters (hint
   `2026Q4-OTTER-FALCON-LEMUR`). It redeems the code with **rbacr**, `POST
-  /api/vouchers/redeem` `{"code": "..."}` with the user's ID token, which
+  /api/vouchers/redeem` `{"code": "..."}` with the user's session token, which
   grants the voucher's roles to the caller (see [Voucher
   codes](#voucher-codes)). A valid code clears the field and checks the
   roles again, so the user gets in at once; if they still have no

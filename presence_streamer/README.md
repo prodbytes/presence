@@ -21,8 +21,10 @@ sudo presence-streamer setup
 
 `setup` asks for the **profile ID** (the app shows it in the account
 sheet), then for a **Google sign-in**. You enter a code at
-google.com/device on your phone, with an account of that profile. It checks
-the profile is Premium, then starts `presence-streamer.service`, which runs
+google.com/device on your phone, with an account of that profile. It keeps
+Google's refresh token and trades each Google ID token for a Presence
+session token (`POST /api/auth/session`), which its auth API calls carry.
+It checks the profile is Premium, then starts `presence-streamer.service`, which runs
 at every boot. A free profile is refused: the streamer exits.
 
 - Follow it: `journalctl -fu presence-streamer`

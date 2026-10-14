@@ -45,12 +45,12 @@ class LocalCloudBackendTest {
         }
 
         @Override
-        public String googleIdentity(String googleIdToken) {
-            throw new AssertionError("Floci has no GetId");
+        public String newIdentity(String profileId) {
+            throw new AssertionError("Floci has no Cognito Identity");
         }
 
         @Override
-        public String openIdToken(String identityId, String profileId, String googleIdToken) {
+        public String openIdToken(String identityId, String profileId) {
             throw new AssertionError("Floci has no GetOpenIdTokenForDeveloperIdentity");
         }
 
@@ -69,22 +69,13 @@ class LocalCloudBackendTest {
     private final LocalCloudBackend local = new LocalCloudBackend(floci, "us-east-1", new SecureRandom(),
             Clock.fixed(NOW, ZoneOffset.UTC));
 
-    /** A JWT-shaped token with these claims (the authorizer has checked the real ones). */
-    private static String jwt(String iss, String sub) {
-        var encoder = Base64.getUrlEncoder().withoutPadding();
-        var payload = "{\"iss\":\"" + iss + "\",\"sub\":\"" + sub + "\",\"email\":\"x@example.com\"}";
-        return encoder.encodeToString("{\"alg\":\"RS256\"}".getBytes(StandardCharsets.UTF_8)) + "."
-                + encoder.encodeToString(payload.getBytes(StandardCharsets.UTF_8)) + ".sig";
-    }
-
     @Test
-    void aGoogleAccountAlwaysGetsTheSameIdentity() {
-        var ana = local.googleIdentity(jwt(GOOGLE, "111"));
+    void aProfileAlwaysGetsTheSameIdentity() {
+        var ana = local.newIdentity("happy_quiet_otter");
         assertTrue(ana.matches("us-east-1:[0-9a-f-]{36}"), ana);
-        assertEquals(ana, local.googleIdentity(jwt(GOOGLE, "111")));
-        assertEquals(LocalCloudBackend.identityOf("us-east-1", GOOGLE, "111"), ana);
-        assertNotEquals(ana, local.googleIdentity(jwt(GOOGLE, "222")));
-        assertThrows(IllegalArgumentException.class, () -> local.googleIdentity("not-a-jwt"));
+        assertEquals(ana, local.newIdentity("happy_quiet_otter"));
+        assertEquals(LocalCloudBackend.identityOf("us-east-1", "profile", "happy_quiet_otter"), ana);
+        assertNotEquals(ana, local.newIdentity("brave_little_lamp"));
     }
 
     @Test
@@ -103,8 +94,8 @@ class LocalCloudBackendTest {
         var handler = new ProfileHandler(roles, profiles, local, true, new SecureRandom(), "presence-local-user-data");
 
         var claims = RolesTest.verified("julio@nu01.com");
-        claims.put("iss", GOOGLE);
-        claims.put("sub", "111");
+        claims.put("idp", GOOGLE);
+        claims.put("idp_sub", "111");
         var jwt = new APIGatewayV2HTTPEvent.RequestContext.Authorizer.JWT();
         jwt.setClaims(claims);
         var authorizer = new APIGatewayV2HTTPEvent.RequestContext.Authorizer();
@@ -114,13 +105,12 @@ class LocalCloudBackendTest {
         var event = new APIGatewayV2HTTPEvent();
         event.setRequestContext(context);
         event.setRouteKey("POST /api/auth/credentials");
-        event.setHeaders(Map.of("authorization", "Bearer " + jwt(GOOGLE, "111")));
         event.setBody("happy_quiet_otter");
 
         var response = handler.handleRequest(event, null);
 
         assertEquals(200, response.getStatusCode(), response.getBody());
-        var identity = LocalCloudBackend.identityOf("us-east-1", GOOGLE, "111");
+        var identity = LocalCloudBackend.identityOf("us-east-1", "profile", "profile_1");
         assertTrue(response.getBody().startsWith("{\"identityId\":\"" + identity + "\",\"token\":\"local\","),
                 response.getBody());
         assertTrue(response.getBody().contains(",\"tier\":\"premium\",\"bucket\":\"presence-local-user-data\""

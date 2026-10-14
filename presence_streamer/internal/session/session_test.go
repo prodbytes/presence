@@ -3,10 +3,12 @@ package session
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,7 @@ type fake struct {
 	tier, profile string
 	refreshes     int
 	streams       int
+	exchanges     int
 	expires       time.Time
 }
 
@@ -28,10 +31,32 @@ func (f *fake) server(t *testing.T) (*google.Client, *presence.API) {
 		token := "h." + base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"42"}`)) + ".s"
 		fmt.Fprintf(w, `{"id_token":%q}`, token)
 	})
+	// The Google ID token for a Presence session token.
+	mux.HandleFunc("/api/auth/session", func(w http.ResponseWriter, r *http.Request) {
+		f.exchanges++
+		var req struct {
+			Provider, IDToken string
+			Refresh           *bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Provider != "google" || !strings.HasPrefix(req.IDToken, "h.") || req.Refresh == nil || *req.Refresh {
+			t.Errorf("session request %+v, %v", req, err)
+			w.WriteHeader(401)
+			return
+		}
+		fmt.Fprintf(w, `{"token":"pst","expiresAt":%d}`, time.Now().Add(time.Hour).Unix())
+	})
 	mux.HandleFunc("/api/auth/profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer pst" {
+			w.WriteHeader(401)
+			return
+		}
 		fmt.Fprintf(w, `{"profile":%q}`, f.profile)
 	})
 	mux.HandleFunc("/api/auth/credentials", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer pst" {
+			w.WriteHeader(401)
+			return
+		}
 		fmt.Fprintf(w, `{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","tier":%q,"bucket":"user-data-test"}`, f.tier)
 	})
 	mux.HandleFunc("/api/auth/stream/credentials", func(w http.ResponseWriter, r *http.Request) {
@@ -61,8 +86,8 @@ func TestRenewsBeforeExpiry(t *testing.T) {
 		t.Fatalf("%+v %v", aws, err)
 	}
 	s.AWS(ctx)
-	if f.refreshes != 1 || s.UserID() != "42" {
-		t.Fatalf("refreshed %d times, user %q", f.refreshes, s.UserID())
+	if f.refreshes != 1 || s.UserID() != "42" || f.exchanges != 1 {
+		t.Fatalf("refreshed %d times, %d session exchanges, user %q", f.refreshes, f.exchanges, s.UserID())
 	}
 	now = now.Add(56 * time.Minute)
 	s.AWS(ctx)
@@ -102,8 +127,8 @@ func TestStreamKeyWithoutGoogle(t *testing.T) {
 	if err != nil || aws.AccessKeyID != "AK" {
 		t.Fatalf("aws %+v, %v", aws, err)
 	}
-	if s.UserID() != "7" || f.refreshes != 0 || f.streams != 1 {
-		t.Fatalf("user %q, %d Google refreshes, %d stream calls", s.UserID(), f.refreshes, f.streams)
+	if s.UserID() != "7" || f.refreshes != 0 || f.streams != 1 || f.exchanges != 0 {
+		t.Fatalf("user %q, %d Google refreshes, %d stream calls, %d session exchanges", s.UserID(), f.refreshes, f.streams, f.exchanges)
 	}
 	// Renewed with the key too.
 	now = now.Add(56 * time.Minute)
