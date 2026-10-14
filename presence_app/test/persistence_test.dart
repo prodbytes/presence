@@ -512,19 +512,20 @@ void main() {
       log.firstWhere((e) => e.title == 'Door opened').os,
       DeviceOs.current,
     );
+    // On the card, the OS's icon: Android's, and the unknown one's.
     expect(
       find.descendant(
         of: find.byKey(const Key('event-device-phone-event')),
-        matching: find.text(' · Android'),
+        matching: find.byIcon(Icons.android),
       ),
       findsOneWidget,
     );
     expect(
       find.descendant(
         of: find.byKey(const Key('event-device-old-event')),
-        matching: find.byKey(const Key('event-device-os')),
+        matching: find.byIcon(Icons.devices_other),
       ),
-      findsNothing,
+      findsOneWidget,
     );
   });
 

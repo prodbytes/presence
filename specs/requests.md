@@ -5636,3 +5636,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        A click on the frame puts a ring there and focuses the field; the
        name goes at the ring, or at the frame's middle without a click.
        Renaming still uses its dialog. Spec: [Clips](clips.md).
+
+405. **No OS name on the event cards.** (2026-10-14)
+     - Asked: the card view doesn't need the operating system, only the
+       device name and its little icon, for more room.
+     - Changed: the card's device tag shows the OS's icon and the device
+       ID, no "· iOS"; the ID has the whole row. The details still name
+       the OS. Spec: [Events](events.md).
