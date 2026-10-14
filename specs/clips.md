@@ -140,8 +140,8 @@ After Tags, below a divider, the details end with
   scrolls the details. Without a location it says "No location for this
   event".
 - **Device** (`EventDevice`): the recording device's operating system
-  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID in body
-  text (`bodyMedium`, 14 sp; selectable; with access, in the accent
+  icon ([`DeviceOs.iconOf`](devices-users-places.md)), its ID in small
+  body text (`bodySmall`, 12 sp, so a long ID fits a small phone; selectable; with access, in the accent
   color, and a tap closes the
   player and shows the device's events in Monitoring, the search set to
   its ID: see [Navigation](navigation.md)), "this device" for this one,

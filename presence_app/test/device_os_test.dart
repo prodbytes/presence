@@ -201,7 +201,7 @@ void main() {
     expect(find.byKey(const Key('event-device-os')), findsOneWidget);
   });
 
-  testWidgets("the details' device: the ID and its OS in small text", (
+  testWidgets("the details' device: the ID in small text, its OS smaller", (
     tester,
   ) async {
     final event = AppEvent(
@@ -219,7 +219,12 @@ void main() {
     final id = tester.widget<SelectableText>(
       find.byKey(const Key('event-device-id')),
     );
-    expect(id.style!.fontSize, theme.textTheme.bodyMedium!.fontSize);
+    expect(id.style!.fontSize, theme.textTheme.bodySmall!.fontSize);
+    expect(
+      id.style!.fontSize,
+      lessThan(theme.textTheme.bodyMedium!.fontSize!),
+      reason: 'a long ID fits a small phone',
+    );
     final os = tester.widget<Text>(
       find.byKey(const Key('event-device-os-name')),
     );

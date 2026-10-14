@@ -331,7 +331,8 @@ class EventDevice extends StatelessWidget {
                       device,
                       key: const Key('event-device-id'),
                       onTap: onTap,
-                      style: theme.textTheme.bodyMedium?.copyWith(
+                      // bodySmall: a long ID fits a small phone.
+                      style: theme.textTheme.bodySmall?.copyWith(
                         color: onTap == null ? null : theme.colorScheme.primary,
                       ),
                     ),

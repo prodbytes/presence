@@ -5536,3 +5536,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        coats, which join the result; if they don't answer, it ends in the
        error icon ("Cloud recognition didn't answer"). Specs:
        [Recognition](recognition.md), [iOS](ios.md).
+
+398. **A smaller device ID in the event details.** (2026-10-14)
+     - Asked: in the event details view the device name is too large;
+       make it a bit smaller.
+     - Changed: the details' device ID is `bodySmall` (12 sp), not
+       `bodyMedium` (14 sp); the OS name under it stays `labelSmall`.
+       Spec: [Clips](clips.md).
