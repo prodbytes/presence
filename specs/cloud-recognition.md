@@ -103,8 +103,13 @@ found by a detector:
   surer one saw them: tagged from the auto-tag level (90 %), asked about
   ("Is this Rex?") from 50 %, as before. A subject only the cloud knows is
   tagged too. Subjects already on the clip are skipped.
-- A failed request (offline, a cold start past 30 s) leaves the device's
-  own verdict; it's logged.
+- A request the gateway cuts short (502, 503 or 504: a new instance
+  loading its model past the API's 30 s) or that times out is **sent once
+  more, 3 s later** (`HttpCloudRecognitionClient`, `retryAfter`): the
+  instance goes on loading, and the second request finds it ready.
+  Identify, describe, status and labels are; training never is (it would
+  train twice). Still failing (offline), it leaves the device's own
+  verdict; it's logged.
 
 ## Breeds and coats
 
@@ -274,6 +279,27 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   it) answered 8 crops in 6.7 s, a warm one in 1.1 s.
 - **Throttles**: labels 2/s (burst 10), train 1/s (burst 5), identify 5/s
   (burst 20), describe 5/s (burst 20).
+- **The input** goes to ONNX Runtime in a direct buffer, in the machine's
+  byte order, which it reads in place (a heap buffer was copied first).
+
+### Timing
+
+Each step logs one line to the function's CloudWatch log (`Timing`,
+[Timing.java](../presence_api_auth/RecognitionFunction/src/main/java/presence/auth/Timing.java)),
+with the threads ONNX Runtime runs on and the function's memory:
+
+- `presence: timing fetch dinov2-large 14210 ms from=bucket threads=2
+  memory=3008MB`: a new instance fetching a model (`from=bucket` or
+  `huggingface`);
+- `presence: timing load dinov2-large 9120 ms ...`: ONNX Runtime loading
+  it;
+- `presence: timing identify 412 ms crops=8 model=0ms embed=380ms ...`:
+  a request, with its wait for the model (its fetch and load on a new
+  instance, 0 after) and the embedding; likewise `describe` and `labels`
+  (training's crops).
+
+Lambda's own `REPORT` line gives the whole invocation (duration, billed
+duration, init, memory used).
 
 ### The classifier
 

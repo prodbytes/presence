@@ -5,7 +5,8 @@ import ai.onnxruntime.OrtEnvironment;
 import ai.onnxruntime.OrtException;
 import ai.onnxruntime.OrtSession;
 
-import java.nio.FloatBuffer;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -32,15 +33,17 @@ final class Dinov2 implements Embedder {
     private final OrtSession session;
 
     Dinov2(Path model) {
+        var started = System.nanoTime();
         try {
             env = OrtEnvironment.getEnvironment();
             var options = new OrtSession.SessionOptions();
-            options.setIntraOpNumThreads(Math.max(1, Runtime.getRuntime().availableProcessors()));
+            options.setIntraOpNumThreads(Timing.threads());
             options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
             session = env.createSession(model.toString(), options);
         } catch (OrtException e) {
             throw new IllegalStateException("DINOv2 didn't load", e);
         }
+        Timing.log("load dinov2-large", Timing.since(started), "");
     }
 
     /** The function instance's model, fetched ({@link ModelFile}) and loaded at its first use. */
@@ -57,7 +60,9 @@ final class Dinov2 implements Embedder {
         if (n == 0) {
             return new float[0][];
         }
-        var input = FloatBuffer.allocate(n * 3 * SIZE * SIZE);
+        // Direct, in native order: ONNX Runtime reads it in place, no copy.
+        var input = ByteBuffer.allocateDirect(n * 3 * SIZE * SIZE * Float.BYTES)
+                .order(ByteOrder.nativeOrder()).asFloatBuffer();
         for (var crop : crops) {
             if (crop.length != PIXELS) {
                 throw new IllegalArgumentException("a crop is " + PIXELS + " bytes");

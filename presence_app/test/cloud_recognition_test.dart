@@ -446,6 +446,50 @@ void main() {
       expect(labels['1'], isEmpty);
     });
 
+    test('cut short by the gateway (a new instance loading its model), it '
+        'asks once more; training never twice; a refusal never', () async {
+      var calls = 0;
+      HttpCloudRecognitionClient client(List<int> statuses) {
+        calls = 0;
+        return HttpCloudRecognitionClient(
+          Uri.parse('https://presence.example/'),
+          retryAfter: Duration.zero,
+          client: MockClient((r) async {
+            final status = statuses[calls.clamp(0, statuses.length - 1)];
+            calls++;
+            return http.Response(
+              r.url.path.endsWith('train')
+                  ? '{"trainedAt":1}'
+                  : '{"model":"m","results":[]}',
+              status,
+            );
+          }),
+        );
+      }
+
+      final pixels = Uint8List(CloudCrop.side * CloudCrop.side * 3);
+      expect(
+        await client([503, 200]).describe('tok', {'0': ('cat', pixels)}),
+        isEmpty,
+      );
+      expect(calls, 2);
+      await expectLater(
+        client([504, 504]).describe('tok', {'0': ('cat', pixels)}),
+        throwsA(isA<RolesException>()),
+      );
+      expect(calls, 2, reason: 'once more only');
+      await expectLater(
+        client([503, 200]).train('tok', {'l': 'Rex'}, const []),
+        throwsA(isA<RolesException>()),
+      );
+      expect(calls, 1, reason: 'training never twice');
+      await expectLater(
+        client([403, 200]).status('tok'),
+        throwsA(isA<RolesException>()),
+      );
+      expect(calls, 1, reason: 'a refusal is final');
+    });
+
     test('a refusal throws its status', () async {
       final client = HttpCloudRecognitionClient(
         Uri.parse('https://presence.example/'),

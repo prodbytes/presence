@@ -73,6 +73,7 @@ public class InferenceHandler implements RequestHandler<APIGatewayV2HTTPEvent, A
     }
 
     private APIGatewayV2HTTPResponse identify(String profile, Map<String, Object> body) {
+        var started = System.nanoTime();
         var crops = RecognitionApi.objects(body, "crops");
         if (crops == null || crops.isEmpty() || crops.size() > RecognitionApi.MAX_CROPS) {
             return Http.response(400, "{\"error\":\"crops: 1 to " + RecognitionApi.MAX_CROPS
@@ -95,7 +96,12 @@ public class InferenceHandler implements RequestHandler<APIGatewayV2HTTPEvent, A
             out.put("results", List.of());
             return json(200, out);
         }
-        var vectors = embedder.get().embed(pixels);
+        var model0 = System.nanoTime();
+        var dinov2 = embedder.get();
+        var modelMs = Timing.since(model0);
+        var embed0 = System.nanoTime();
+        var vectors = dinov2.embed(pixels);
+        var embedMs = Timing.since(embed0);
         var results = new ArrayList<Map<String, Object>>();
         for (var i = 0; i < crops.size(); i++) {
             var kind = Classifier.kind(crops.get(i).get("kind"));
@@ -111,6 +117,7 @@ public class InferenceHandler implements RequestHandler<APIGatewayV2HTTPEvent, A
         }
         out.put("trainedAt", model.trainedAt());
         out.put("results", results);
+        Timing.request("identify", crops.size(), modelMs, embedMs, Timing.since(started));
         return json(200, out);
     }
 }

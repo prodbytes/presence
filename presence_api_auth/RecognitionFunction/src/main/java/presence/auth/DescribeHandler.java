@@ -66,6 +66,7 @@ public class DescribeHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
     }
 
     private APIGatewayV2HTTPResponse describe(Map<String, Object> body) {
+        var started = System.nanoTime();
         var crops = RecognitionApi.objects(body, "crops");
         if (crops == null || crops.isEmpty() || crops.size() > RecognitionApi.MAX_CROPS) {
             return Http.response(400, "{\"error\":\"crops: 1 to " + RecognitionApi.MAX_CROPS
@@ -81,7 +82,12 @@ public class DescribeHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
             }
             pixels.add(p);
         }
-        var vectors = embedder.get().embed(pixels);
+        var model0 = System.nanoTime();
+        var siglip2 = embedder.get();
+        var modelMs = Timing.since(model0);
+        var embed0 = System.nanoTime();
+        var vectors = siglip2.embed(pixels);
+        var embedMs = Timing.since(embed0);
         var results = new ArrayList<Map<String, Object>>();
         for (var i = 0; i < crops.size(); i++) {
             var labels = PetLabels.describe(vectors[i], PetLabels.species(crops.get(i).get("kind"))).stream()
@@ -93,6 +99,7 @@ public class DescribeHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
         var out = new LinkedHashMap<String, Object>();
         out.put("model", MODEL);
         out.put("results", List.copyOf(results));
+        Timing.request("describe", crops.size(), modelMs, embedMs, Timing.since(started));
         return json(200, out);
     }
 }
