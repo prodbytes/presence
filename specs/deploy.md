@@ -44,7 +44,8 @@ One CloudFront distribution serves the whole site, laid out like the local
     which imports the auth API's table exports.
   - [presence_api_payments/template.yaml](../presence_api_payments/template.yaml)
     (SAM), stack `presence-payments`: the [payments API](payments-api.md)
-    (the Premium plans' Stripe Payment Links) and its table.
+    (the Premium plans' Stripe Payment Links, and App Store and Google
+    Play purchases) and its table.
   - [presence_ingest/template.yaml](../presence_ingest/template.yaml)
     (SAM), stack `presence-ingest`: the [streamer](streamer.md#cloud-detection)'s
     cloud detector, a Python Lambda the user-data bucket notifies of each
@@ -90,7 +91,9 @@ One CloudFront distribution serves the whole site, laid out like the local
   URL, token and system, and `STRIPE_MONTHLY_LINK` and
   `STRIPE_YEARLY_LINK` as its default links: from the environment, else
   `.env`, else the links in `deploy.sh`; each must be empty or an HTTPS
-  link on stripe.com). Then `site.yaml` (with the three APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
+  link on stripe.com; and for store purchases `RBACR_GRANT_TOKEN`,
+  `GOOGLE_PLAY_SECRET` and `STORE_ALLOW_SANDBOX`, off while the grant
+  token is unset; see [Payments API](payments-api.md#deploying)). Then `site.yaml` (with the three APIs' domains), uploads, invalidates, and **smoke-tests the live site**:
   `/app/version.json` must report the tag's version, `/` must be the index
   page, `/app/` must answer, and `/api/auth/profile` and
   `/api/payments/links` must refuse a request without a token (401), and `/api/auth/anonymous` must answer exactly

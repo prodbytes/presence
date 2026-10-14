@@ -18,6 +18,7 @@ import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
 import 'plan_notice.dart';
 import 'payments_client.dart';
+import 'store_billing.dart';
 import 'streamer_command.dart';
 import 'profile_client.dart';
 import 'roles_service.dart';
@@ -132,6 +133,7 @@ class AccountSheet extends StatelessWidget {
     this.roles,
     this.profiles,
     this.payments,
+    this.store,
     this.log,
     this.deviceId,
     this.showDevice,
@@ -168,6 +170,10 @@ class AccountSheet extends StatelessWidget {
   /// The Premium plans' Stripe links, for the plan box's upgrade buttons.
   final PaymentsService? payments;
 
+  /// The App Store's or Google Play's subscriptions (iOS, Android), for
+  /// the plan box instead of Stripe's.
+  final StoreBilling? store;
+
   /// The events whose device IDs list the profile's devices (see
   /// [profileDevices]), and this device's ID, listed first.
   final EventLog? log;
@@ -186,6 +192,7 @@ class AccountSheet extends StatelessWidget {
         ?sync,
         ?sync?.live,
         ?payments,
+        ?store,
       ]),
       builder: (context, _) {
         final user = auth.user;
@@ -323,6 +330,7 @@ class AccountSheet extends StatelessWidget {
                         },
                         email: auth.user?.email,
                         links: payments?.links,
+                        store: store,
                         profileId: roles.profile,
                         onCheckAgain: roles.refresh,
                         openLink: openLink,

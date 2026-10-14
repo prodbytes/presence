@@ -1,25 +1,28 @@
 # Store readiness
 
 What the App Store (iOS) and Google Play (Android) require that Presence
-does and doesn't meet yet. Audited 2026-10-14 against the code on `main`.
+does and doesn't meet yet. Audited 2026-10-14 against the code on `main`;
+store billing added the same day.
 Presence isn't in either store: Android ships as a side-loaded APK, iOS as
 an unsigned development build ([Release builds](release.md)).
 
 ## Blockers: both stores
 
-- **Premium is sold through Stripe.** [Upgrade](upgrade.md) opens a
-  Stripe checkout for a digital subscription (cloud backup, more devices).
-  - App Store 3.1.1: outside the US storefront, the app may not link to
-    or offer another way to buy (the EU, Japan and Brazil allow it with an
-    entitlement, and Apple still takes a commission). In the US storefront
-    a link out is allowed (since May 2025).
-  - Google Play: Play Billing, unless the developer is enrolled in the
-    alternative billing or external-links programs (the US, the UK and
-    the EEA from 2026-06-30, with a service fee).
-  - Either way, it needs store products and a server that checks
-    purchases and grants `premium` in rbacr, or hiding the buttons in
-    store builds (and selling only on the web, without mentioning it in
-    the app).
+- **Store billing needs its store setup.** The code is done: on iOS and
+  Android [Premium](upgrade.md#on-ios-and-android-the-stores) is sold
+  only as App Store and Google Play subscriptions (StoreKit 2, Play
+  Billing), verified server-side by the [payments API](payments-api.md#store-purchases),
+  with Restore purchases, Manage subscription and the terms and privacy
+  links by the buttons (App Store 3.1.1, 3.1.2; Play's payments policy);
+  Stripe stays on the web and is never shown, linked or named in the
+  mobile apps. Still to do, outside the code: the subscriptions, trial
+  and server notification URL in App Store Connect, the subscriptions,
+  base plans, trial offer and service account in Play Console, and the
+  deploy's `RBACR_GRANT_TOKEN` and `GOOGLE_PLAY_SECRET` ([Upgrade:
+  Setting it up](upgrade.md#setting-it-up)).
+  - The Terms of Service, linked from the app, still name Stripe as the
+    web's processor (not a link or a call to buy); App Review rarely
+    objects to that, but it's a judgment call.
 - **No account deletion.** Users can delete devices and events, not their
   account and profile. The privacy policy only offers deletion on request
   by email.
@@ -82,7 +85,12 @@ an unsigned development build ([Release builds](release.md)).
   - age rating;
   - review notes: a Google test account and how to get past the
     [consent](consent.md) screen, plus Premium access, or the reviewer
-    can't see the features.
+    can't see the features;
+  - while a build is in review, GA must take sandbox purchases
+    (`STORE_ALLOW_SANDBOX=true`, [Payments API](payments-api.md#deploying)):
+    the reviewer buys Premium in the sandbox with the production build;
+  - the subscriptions submitted with the version, with a review
+    screenshot each.
 - **Permission texts (iOS):** `NSCameraUsageDescription` says the app
   "shows live feeds", but it records video always. Apple rejects texts
   that understate the use (5.1.1(ii)), so it should say it records clips.
@@ -125,4 +133,5 @@ an unsigned development build ([Release builds](release.md)).
   background recording.
 - **Icons:** Android adaptive and density icons; the iOS set includes
   the 1024 px marketing icon ([App icon](app-icon.md)).
-- **Privacy policy and terms** are public at `/privacy` and `/tos`.
+- **Privacy policy and terms** are public at `/privacy` and `/tos`, and
+  linked next to the store purchase buttons in the iOS and Android apps.

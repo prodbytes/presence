@@ -133,6 +133,13 @@ Resources:
                 Condition:
                   StringEqualsIfExists:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+              # The payments API reads the stage's own secrets (the Google
+              # Play service account's key file, specs/payments-api.md),
+              # named <prefix>/...: presence/* never matches presence-rc/*.
+              - Sid: StageSecrets
+                Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Prefix}/*
               # GetId has no resource to scope (it takes the pool as a parameter).
               - Sid: IdentityLookup
                 Effect: Allow

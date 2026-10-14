@@ -5,8 +5,9 @@ profiles sync with the cloud (S3) and over live sync, and up to **50
 devices** show each other's events; free profiles' devices sync with each
 other over [live sync](live-sync.md) (MQTT) only, and only the profile's
 **first 2 devices** show each other's events. The account sheet says which
-the account is, and a free member [upgrades to Premium](upgrade.md) there
-(a Stripe subscription, US$20 a month, the first week free).
+the account is, and a free member [upgrades to Premium](upgrade.md) there:
+a Stripe subscription on the web (US$20 a month, the first week free), an
+App Store or Google Play subscription in the iOS and Android apps.
 [rbacr](https://github.com/prodbytes/rbacr), the organisation's role manager,
 decides who is premium, as it decides every role ([Auth API](auth-api.md)).
 
@@ -26,6 +27,11 @@ decides who is premium, as it decides every role ([Auth API](auth-api.md)).
   sends `POST /api/roles {"email"}`, with the email in the body and never
   the URL, and reads the `presence` system's roles from the answer, which
   it turns into `presence_premium` (`Roles.PREMIUM`).
+- **Store subscriptions** (iOS, Android) become a grant of `premium` in
+  rbacr too: the [payments API](payments-api.md#store-purchases) verifies
+  each purchase with its store and grants the role to the buyer's email
+  until the paid period ends (plus 2 days), with a root's token
+  (`RbacrGrantToken`).
 - **Only rbacr gives it**, and never for an unverified email. In
   [DEV](execution-mode.md) the anonymous user has every role, `presence_premium`
   included, but nothing syncs there.
@@ -175,10 +181,13 @@ they publish, receive and store events as before. Their events are
   - **Premium** (the `workspace_premium` icon): "Premium: cloud backup,
     and up to 50 devices sync."
   - **Free**: "Free: up to 2 devices sync with each other while online.
-    Premium adds cloud backup and up to 50 devices: US$20 a month, the
-    first week free.", **Premium monthly** and **Premium yearly** buttons
-    that open the plan's Stripe checkout, and **Check again** (see
-    [Upgrade to Premium](upgrade.md)).
+    Premium adds cloud backup and up to 50 devices", then by platform
+    ([Upgrade to Premium](upgrade.md)): on the web ": US$20 a month, the
+    first week free." with **Premium monthly** and **Premium yearly**
+    buttons to the plan's Stripe checkout; on iOS and Android the App
+    Store's or Google Play's plans with their own prices, Restore
+    purchases, Manage subscription and the terms; elsewhere no purchase
+    button. And **Check again**.
   - Past the limit, a line in the warning color: on this device, "This
     device is past your first 2: it syncs, but its events are hidden on
     your other devices, and theirs here."; otherwise how many devices are
@@ -191,7 +200,9 @@ they publish, receive and store events as before. Their events are
   hidden, a card above the search (`DeviceLimitNotice`): how many
   devices' events are hidden, or that the other devices' are hidden on
   this one, that Free shows the first 2, and for a free profile "Premium
-  shows up to 50." and an **Upgrade** button to the Stripe checkout.
+  shows up to 50." and an **Upgrade** button: to the Stripe checkout on
+  the web, to the Profile tab's store plans on iOS and Android, none
+  elsewhere.
 - **The connectivity check**: "Free: devices sync over live sync" instead
   of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see

@@ -8,8 +8,10 @@ Description: >
   presence system, or an rbacr root). Until an admin saves them, the
   deploy's MonthlyLink and YearlyLink. A JWT authorizer checks the Google ID
   token first. Its own HTTP API, served under /api/payments/* by the site's
-  CloudFront distribution. Payments themselves are Stripe's: rbacr syncs the
-  Stripe account's subscriptions into the premium role.
+  CloudFront distribution. Web payments are Stripe's: rbacr syncs the Stripe
+  account's subscriptions into the premium role. App Store and Google Play
+  subscriptions (the mobile apps) are verified here, server-side, and
+  granted in rbacr (/api/payments/store/*; specs/payments-api.md).
 
 Parameters:
   GoogleWebClientId:
@@ -52,6 +54,33 @@ Parameters:
     Default: presence
     AllowedPattern: '[a-z0-9][a-z0-9_.:-]{0,62}'
     Description: The rbacr system the app's roles are in.
+  RbacrGrantToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: >
+      An rbacr API token owned by an rbacr root (only roots may grant):
+      store purchases grant and revoke the presence system's premium role
+      with it. Empty: store purchases are off (the verify route answers
+      503). Set at deploy (RBACR_GRANT_TOKEN), never in the repository.
+  GooglePlaySecretName:
+    Type: String
+    Default: ''
+    AllowedPattern: '((presence|presence-rc)/[A-Za-z0-9/_+=.@-]{1,200})?'
+    Description: >
+      The Secrets Manager secret (name) holding the Google Cloud service
+      account's JSON key file that may read and acknowledge Presence's
+      Google Play subscriptions, under the stage's prefix (presence/... or
+      presence-rc/...), which the permissions boundary allows. Empty:
+      Google Play purchases are off.
+  StoreAllowSandbox:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      true: App Store sandbox purchases (TestFlight, App Review) and Google
+      Play test purchases (license testers) count, which cost nothing. The
+      RC's default; GA's only while a build is in App Review.
   OriginSecret:
     Type: String
     NoEcho: true
@@ -78,11 +107,15 @@ Parameters:
 
 Conditions:
   HasPermissionsBoundary: !Not [!Equals [!Ref PermissionsBoundary, '']]
+  HasGooglePlay: !Not [!Equals [!Ref GooglePlaySecretName, '']]
 
 Resources:
-  # Payments' settings, by "id". Now one item, "links": {"monthly",
+  # Payments' settings and store purchases, by "id": "links" {"monthly",
   # "yearly" (Stripe Payment Links, or empty), "updatedAt" (epoch ms),
-  # "updatedBy" (the admin's email)}. Holds an email: AWS only.
+  # "updatedBy" (the admin's email)}; "account:<email>" {"accountToken",
+  # "purchases", "grantedUntil"}; "purchase:ios:<originalTransactionId>"
+  # and "purchase:android:<sha256 of the token>" {"email", "productId",
+  # "expiresAt", "revoked", "updatedAt"}. Holds emails: AWS only.
   PaymentsTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -112,6 +145,18 @@ Resources:
         "PUT /api/payments/links":
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
+        # The mobile apps, at sign-in.
+        "GET /api/payments/store":
+          ThrottlingBurstLimit: 50
+          ThrottlingRateLimit: 20
+        # Each purchase, restore and daily re-check calls the store and rbacr.
+        "POST /api/payments/store/verify":
+          ThrottlingBurstLimit: 20
+          ThrottlingRateLimit: 5
+        # Apple's server, unauthenticated by JWT (its signature checks it).
+        "POST /api/payments/store/apple-notifications":
+          ThrottlingBurstLimit: 20
+          ThrottlingRateLimit: 5
       Auth:
         DefaultAuthorizer: GoogleIdToken
         Authorizers:
@@ -144,13 +189,25 @@ Resources:
           RBACR_URL: !Ref RbacrUrl
           RBACR_TOKEN: !Ref RbacrToken
           RBACR_SYSTEM: !Ref RbacrSystem
+          RBACR_GRANT_TOKEN: !Ref RbacrGrantToken
+          GOOGLE_PLAY_SECRET: !Ref GooglePlaySecretName
+          STORE_ALLOW_SANDBOX: !Ref StoreAllowSandbox
       Policies:
         - Statement:
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
+                - dynamodb:UpdateItem
               Resource: !GetAtt PaymentsTable.Arn
+            # The Google Play service account's key file: that secret only
+            # (its ARN ends in a random 6-character suffix).
+            - !If
+              - HasGooglePlay
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub arn:${AWS::Partition}:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${GooglePlaySecretName}-??????
+              - !Ref AWS::NoValue
       Events:
         GetLinks:
           Type: HttpApi
@@ -164,6 +221,27 @@ Resources:
             ApiId: !Ref PaymentsHttpApi
             Path: /api/payments/links
             Method: put
+        GetStore:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PaymentsHttpApi
+            Path: /api/payments/store
+            Method: get
+        VerifyStorePurchase:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PaymentsHttpApi
+            Path: /api/payments/store/verify
+            Method: post
+        AppleNotifications:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref PaymentsHttpApi
+            Path: /api/payments/store/apple-notifications
+            Method: post
+            # Apple sends no token: the function verifies Apple's signature.
+            Auth:
+              Authorizer: NONE
 
 Outputs:
   ApiDomain:
