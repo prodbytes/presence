@@ -288,6 +288,7 @@
   "eventNoLocation": "Este evento não tem local",
   "eventOsUnknown": "Sistema operacional desconhecido",
   "eventRecognitionComplete": "O reconhecimento foi feito por completo",
+  "eventRecognitionFailed": "O reconhecimento falhou: {reason}",
   "eventRecognitionNotRun": "O reconhecimento não foi feito",
   "eventRecognitionPartial": "O reconhecimento foi feito em parte",
   "eventRecognitionRerunning": "Executando o reconhecimento de novo…",

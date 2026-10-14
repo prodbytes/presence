@@ -251,8 +251,13 @@ Its tooltip (and screen-reader label) says the state, then each part:
 tags too even if they were searched before: "Running recognition
 again…", then what Auto would say ("Found Rex.", "Couldn't run
 recognition; try again."). A spinner stands in for the icon meanwhile,
-and a second tap waits for it. Not tappable where recognition doesn't
-run (no recognizer, or a platform without it).
+and a second tap waits for it. When it's done the icon is the brain
+again, showing the result (in color once both searches ran). When it
+**failed** (the models didn't load, or it couldn't run: low memory, an
+unsupported platform) the icon is an **error icon** (`error_outline`) in
+the error color, its tooltip "Recognition failed: …" with the reason,
+until the next tap. Not tappable where recognition doesn't run (no
+recognizer, or a platform without it).
 
 ## Auto, in the player
 

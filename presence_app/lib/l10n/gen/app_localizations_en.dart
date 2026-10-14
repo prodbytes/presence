@@ -1095,6 +1095,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get eventRecognitionComplete => 'Recognition ran in full';
 
   @override
+  String eventRecognitionFailed(String reason) {
+    return 'Recognition failed: $reason';
+  }
+
+  @override
   String get eventRecognitionNotRun => 'Recognition hasn\'t run';
 
   @override

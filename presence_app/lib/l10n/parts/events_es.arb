@@ -153,5 +153,6 @@
   "eventCloudDeleteFailed": "No se pudo borrar de la nube",
   "eventCopiesTapToShare": "Toca para sincronizar una copia en todos los dispositivos",
   "eventCopiesSharing": "Se pidió a los otros dispositivos que tomen una copia",
-  "eventCopiesShareFailed": "No se pudo llegar a los otros dispositivos: la sincronización en vivo está apagada o sin conexión"
+  "eventCopiesShareFailed": "No se pudo llegar a los otros dispositivos: la sincronización en vivo está apagada o sin conexión",
+  "eventRecognitionFailed": "El reconocimiento falló: {reason}"
 }

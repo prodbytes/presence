@@ -153,5 +153,6 @@
   "eventCloudDeleteFailed": "Não foi possível excluí-lo da nuvem",
   "eventCopiesTapToShare": "Toque para sincronizar uma cópia em todos os dispositivos",
   "eventCopiesSharing": "Os outros dispositivos foram chamados a pegar uma cópia",
-  "eventCopiesShareFailed": "Não foi possível alcançar os outros dispositivos: a sincronização ao vivo está desligada ou sem conexão"
+  "eventCopiesShareFailed": "Não foi possível alcançar os outros dispositivos: a sincronização ao vivo está desligada ou sem conexão",
+  "eventRecognitionFailed": "O reconhecimento falhou: {reason}"
 }

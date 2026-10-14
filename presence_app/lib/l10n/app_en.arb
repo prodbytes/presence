@@ -833,6 +833,14 @@
   "eventNoLocation": "No location for this event",
   "eventOsUnknown": "Operating system unknown",
   "eventRecognitionComplete": "Recognition ran in full",
+  "eventRecognitionFailed": "Recognition failed: {reason}",
+  "@eventRecognitionFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
   "eventRecognitionNotRun": "Recognition hasn't run",
   "eventRecognitionPartial": "Recognition ran in part",
   "eventRecognitionRerunning": "Running recognition again…",

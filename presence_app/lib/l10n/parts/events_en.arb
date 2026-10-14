@@ -429,5 +429,13 @@
   "eventCloudDeleteFailed": "Couldn't delete it from the cloud",
   "eventCopiesTapToShare": "Tap to sync a copy to every device",
   "eventCopiesSharing": "Asked the other devices to take a copy",
-  "eventCopiesShareFailed": "Couldn't reach the other devices: live sync is off or not connected"
+  "eventCopiesShareFailed": "Couldn't reach the other devices: live sync is off or not connected",
+  "eventRecognitionFailed": "Recognition failed: {reason}",
+  "@eventRecognitionFailed": {
+    "placeholders": {
+      "reason": {
+        "type": "String"
+      }
+    }
+  }
 }
