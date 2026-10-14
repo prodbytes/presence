@@ -236,14 +236,18 @@ account.
       flip), "Camera unavailable" (failed to open, or lost and being
       retried), else "Camera not ready".
 
-    Colors: **discreet**. The tone is only the **label's and icon's
-    color**; the background is the same quiet neutral for every state
+    Colors: **discreet**, except while recording. The tone is only the
+    **label's and icon's color**; the background is the same quiet
+    neutral for ready, cooldown and disabled
     (`ClipButtonColors.background`), so the button doesn't shout. On the
     dark theme the app uses, Gruvbox `bg1` (`#3C3836`, a step darker than
     Flip's) with Gruvbox Material's muted green `#A9B665`, amber
-    `#D8A657`, a soft red `#EC8F82`, and a warm grey `#B0A08A` when
-    disabled. A light theme gets Gruvbox's palest background `#F9F5D7`
-    with `#5F6A28`, `#8F5902`, `#A6453F` and `#6F6359`. Every pair is at
+    `#D8A657`, and a warm grey `#B0A08A` when disabled. A light theme gets
+    Gruvbox's palest background `#F9F5D7` with `#5F6A28`, `#8F5902` and
+    `#6F6359`. **While a clip is being taken** (its "after" seconds,
+    `ClipTone.recording`) the **whole button is red**, Gruvbox `#CC241D`
+    (`#9D0006` on a light theme) with the pale `#FBF1C7` label and icon
+    (`ClipButtonColors.recording`), so recording can't be missed. Every pair is at
     least 4.5:1 (tested), and the dark theme's are muted (saturation
     under 0.65, tested). The button refreshes twice a
     second, rebuilding only when what it shows changes.

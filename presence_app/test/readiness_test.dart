@@ -282,10 +282,12 @@ void main() {
         HSVColor hsv(ClipTone t) => HSVColor.fromColor(fg(t));
         expect(hsv(ClipTone.ready).hue, inInclusiveRange(55, 90));
         expect(hsv(ClipTone.cooldown).hue, inInclusiveRange(30, 50));
-        expect(
-          hsv(ClipTone.recording).hue,
-          anyOf(lessThan(15), greaterThan(345)),
+        // Recording: the whole button red, its label pale on it.
+        final red = HSVColor.fromColor(
+          ClipButtonColors.of(ClipTone.recording, brightness).$1,
         );
+        expect(red.hue, anyOf(lessThan(15), greaterThan(345)));
+        expect(red.saturation, greaterThan(0.8));
         expect(hsv(ClipTone.disabled).saturation, lessThan(0.25));
         // Muted on the dark theme (the app's), not Gruvbox's brightest.
         // (The light theme's are deep shades, saturated by nature.)
@@ -297,11 +299,13 @@ void main() {
       }
     });
 
-    test('the background is the same quiet neutral for every tone', () {
+    test('the background is the same quiet neutral for every tone but '
+        'recording', () {
       for (final brightness in Brightness.values) {
         final backgrounds = {
           for (final tone in ClipTone.values)
-            ClipButtonColors.of(tone, brightness).$1,
+            if (tone != ClipTone.recording)
+              ClipButtonColors.of(tone, brightness).$1,
         };
         expect(backgrounds, {ClipButtonColors.background(brightness)});
         expect(

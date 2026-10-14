@@ -95,40 +95,53 @@ class ClipButtonStatus {
 
 /// The Clip button's colors: background and foreground for a [ClipTone],
 /// in a dark or light theme. The background is the same quiet neutral for
-/// every tone; the tone shows only in the label and icon, in muted colors,
-/// so the button stays discreet. Each pair has a contrast of at least
-/// 4.5:1.
+/// every tone but one, which shows only in the label and icon, in muted
+/// colors, so the button stays discreet; while a clip is being taken (its
+/// "after" seconds, [ClipTone.recording]) the whole button is red, so it's
+/// plain that it's recording. Each pair has a contrast of at least 4.5:1.
 abstract final class ClipButtonColors {
   /// The background, whatever the tone: a step darker than the Flip
   /// button's on dark themes, Gruvbox's palest on light ones.
   static Color background(Brightness brightness) =>
       brightness == Brightness.dark ? Gruvbox.bg1 : const Color(0xFFF9F5D7);
 
+  /// The recording button's: Gruvbox's red (its deeper shade on light
+  /// themes), with its palest cream on it.
+  static (Color, Color) recording(Brightness brightness) => (
+    brightness == Brightness.dark
+        ? const Color(0xFFCC241D)
+        : const Color(0xFF9D0006),
+    const Color(0xFFFBF1C7),
+  );
+
   static (Color background, Color foreground) of(
     ClipTone tone,
     Brightness brightness,
-  ) => (
-    background(brightness),
-    switch ((tone, brightness)) {
-      // Gruvbox Material's muted green and amber, a soft red, and a warm
-      // grey, on dark themes; their deeper shades on light ones.
-      (ClipTone.ready, Brightness.dark) => const Color(0xFFA9B665),
-      (ClipTone.cooldown, Brightness.dark) => const Color(0xFFD8A657),
-      (ClipTone.recording, Brightness.dark) => const Color(0xFFEC8F82),
-      (ClipTone.disabled, Brightness.dark) => const Color(0xFFB0A08A),
-      (ClipTone.ready, Brightness.light) => const Color(0xFF5F6A28),
-      (ClipTone.cooldown, Brightness.light) => const Color(0xFF8F5902),
-      (ClipTone.recording, Brightness.light) => const Color(0xFFA6453F),
-      (ClipTone.disabled, Brightness.light) => const Color(0xFF6F6359),
-    },
-  );
+  ) => tone == ClipTone.recording
+      ? recording(brightness)
+      : (
+          background(brightness),
+          switch ((tone, brightness)) {
+            // Gruvbox Material's muted green and amber, a soft red, and a warm
+            // grey, on dark themes; their deeper shades on light ones.
+            (ClipTone.ready, Brightness.dark) => const Color(0xFFA9B665),
+            (ClipTone.cooldown, Brightness.dark) => const Color(0xFFD8A657),
+            (ClipTone.recording, Brightness.dark) => const Color(0xFFEC8F82),
+            (ClipTone.disabled, Brightness.dark) => const Color(0xFFB0A08A),
+            (ClipTone.ready, Brightness.light) => const Color(0xFF5F6A28),
+            (ClipTone.cooldown, Brightness.light) => const Color(0xFF8F5902),
+            (ClipTone.recording, Brightness.light) => const Color(0xFFA6453F),
+            (ClipTone.disabled, Brightness.light) => const Color(0xFF6F6359),
+          },
+        );
 }
 
 /// The Clip button, which also shows whether an automatic clip can be
 /// taken, by the color of its label and icon on a neutral background
 /// ([ClipButtonColors]): green and "Clip" when ready; amber with the
 /// cooldown's time left ("Clip · 4:59", or "4:59" where that's too wide)
-/// after a clip; red while that clip's "after" part is still saving; grey
+/// after a clip; filled red while that clip's "after" part is still being
+/// taken; grey
 /// and disabled when no clip can be taken (camera off, none, starting,
 /// failed or lost). A press during the cooldown or
 /// the saving still takes a clip, and restarts the cooldown. The tooltip

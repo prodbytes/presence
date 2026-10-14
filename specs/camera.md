@@ -3,7 +3,8 @@
 - The **Clip** floating action button starts a clip. See [Clips](clips.md).
   Its label's (and icon's) color is the readiness, discreet, on a
   neutral background: green when ready, amber with the time left during
-  the cooldown ("Clip · 4:59"), red while a clip is saving, and grey and
+  the cooldown ("Clip · 4:59"), the **whole button red** (a light label
+  on it) while a clip is being taken (its "after" seconds), and grey and
   disabled when no clip can be taken (see
   [Navigation](navigation.md)). With the All grid showing, it asks every device for one
   ([Capture all](#capture-all) below), as opening the grid does.
