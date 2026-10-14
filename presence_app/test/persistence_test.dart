@@ -246,17 +246,6 @@ void main() {
       (k) => k.startsWith('$prefix/events/'),
     );
     expect(events.length, greaterThanOrEqualTo(2));
-
-    // The account sheet says so.
-    await tester.tap(find.byKey(const Key('account-button')));
-    await tester.pumpAndSettle();
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('cloud-sync-status')),
-        matching: find.textContaining('Backed up'),
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('events recorded signed out become the user\'s at sign-in', (

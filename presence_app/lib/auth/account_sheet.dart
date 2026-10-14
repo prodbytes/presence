@@ -231,15 +231,11 @@ class AccountSheet extends StatelessWidget {
                       user.email,
                       style: TextStyle(color: scheme.onSurfaceVariant),
                     ),
+                    // Live sync and the cloud backup show on the other pages
+                    // (the Events tab, Setup), not here.
                     if (roles case final roles?) ...[
                       const SizedBox(height: 8),
                       AccountRoles(roles: roles),
-                      const SizedBox(height: 12),
-                      ConnectivityIndicator(roles: roles, sync: sync),
-                    ],
-                    if (sync case final sync?) ...[
-                      const SizedBox(height: 8),
-                      CloudSyncStatus(sync: sync),
                     ],
                     if (roles?.profile case final profile?) ...[
                       const SizedBox(height: 16),
@@ -855,77 +851,6 @@ class AccountRoles extends StatelessWidget {
           ),
         },
       ),
-    );
-  }
-}
-
-/// One line about cloud uploads: syncing, synced (and how many), or why not
-/// (with a Retry button once syncing has stopped). A free profile has no
-/// cloud backup: the line says its devices sync with each other instead
-/// ([PlanNotice] says what Premium adds).
-class CloudSyncStatus extends StatelessWidget {
-  const CloudSyncStatus({super.key, required this.sync});
-
-  final CloudSync sync;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ListenableBuilder(
-      listenable: sync,
-      builder: (context, _) {
-        final l10n = context.l10n;
-        final free = !sync.premium;
-        final (icon, text, color) = switch (sync.state) {
-          CloudSyncState.syncing || CloudSyncState.synced when free => (
-            Icons.devices_outlined,
-            l10n.authSyncFree,
-            scheme.onSurfaceVariant,
-          ),
-          CloudSyncState.off => (
-            Icons.cloud_off_outlined,
-            l10n.authBackupOff,
-            scheme.onSurfaceVariant,
-          ),
-          CloudSyncState.syncing => (
-            Icons.cloud_upload_outlined,
-            l10n.authUploading,
-            scheme.onSurfaceVariant,
-          ),
-          CloudSyncState.synced => (
-            Icons.cloud_done_outlined,
-            switch ((sync.uploaded, sync.downloaded)) {
-              (0, 0) => l10n.authBackedUp,
-              (final up, 0) => l10n.authBackedUpUploaded(up),
-              (0, final down) => l10n.authBackedUpRestored(down),
-              (final up, final down) => l10n.authBackedUpBoth(up, down),
-            },
-            scheme.onSurfaceVariant,
-          ),
-          CloudSyncState.error => (
-            Icons.cloud_off_outlined,
-            sync.error ?? l10n.authUploadFailed,
-            scheme.error,
-          ),
-        };
-        return Row(
-          key: const Key('cloud-sync-status'),
-          mainAxisSize: MainAxisSize.min,
-          spacing: 6,
-          children: [
-            Icon(icon, size: 18, color: color),
-            Flexible(
-              child: Text(text, style: TextStyle(color: color)),
-            ),
-            if (sync.stopped)
-              TextButton(
-                key: const Key('cloud-sync-retry'),
-                onPressed: sync.retry,
-                child: Text(l10n.authRetry),
-              ),
-          ],
-        );
-      },
     );
   }
 }

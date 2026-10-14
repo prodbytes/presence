@@ -399,8 +399,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
     example "the profile service failed");
   - other failures (S3, the network) show "Upload failed (HTTP …)" and a
     later pass tries again, after the back-off (see **When**).
-- **Status:** the account sheet shows a line under the email: "Cloud backup
-  is off", "Uploading…", "Backed up (N uploaded, M restored)", or the error.
+- **Status:** not on the account sheet (the Profile tab); the other pages
+  show it (the Events tab's sync, the Log tab's
+  [health panel](log.md)).
 - **Configuration** (`CloudConfig`, dart-defines like the Google client
   IDs): `AWS_REGION` (default `us-east-1`), `COGNITO_IDENTITY_POOL_ID` and
   `USER_DATA_BUCKET`, and for [live sync](live-sync.md) `IOT_ENDPOINT`
@@ -524,7 +525,7 @@ In [presence_infra/](../presence_infra):
     sign-in, under the identity; no duplicates; changed events again; new
     events; renewed credentials; "sign in again"; sign-out stops uploads.
 - An app-level test: signed in, a finished clip's video, thumbnail, details
-  and events upload, and the account sheet says "Backed up".
+  and events upload.
 - Against AWS:
   - the app's `S3Bucket` uploaded to the real bucket (a key containing `:`
     and a space) with session credentials: 200, stored encrypted;
