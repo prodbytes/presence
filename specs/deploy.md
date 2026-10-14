@@ -87,7 +87,10 @@ One CloudFront distribution serves the whole site, laid out like the local
   deploys the [auth API](auth-api.md) with SAM (with `IotPolicyName`, the
   live-sync policy it attaches to each identity; `DomainName`, which makes
   the [session](sessions.md) issuer `https://<site>/api/auth`, checked
-  against the stack's `SessionIssuer` output; and Sign in with Apple's
+  against the stack's `SessionIssuer` output; on a stage whose site
+  doesn't serve that issuer's `/.well-known/openid-configuration` yet, it
+  deploys first with `SessionAuthorizer=bootstrap` and again with `on`
+  once it's served, see [Sessions](sessions.md#the-authorizers); and Sign in with Apple's
   `APPLE_CLIENT_IDS` and, when set, its key: `APPLE_TEAM_ID`,
   `APPLE_SIGNIN_KEY_ID`, `APPLE_SIGNIN_KEY_PARAMETER`, also repository
   variables in CI) and the
