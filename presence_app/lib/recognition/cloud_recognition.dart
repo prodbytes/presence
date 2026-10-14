@@ -154,8 +154,15 @@ abstract class CloudRecognitionClient {
 }
 
 class HttpCloudRecognitionClient implements CloudRecognitionClient {
-  HttpCloudRecognitionClient(this.base, {http.Client? client})
-    : _client = client ?? http.Client();
+  HttpCloudRecognitionClient(
+    this.base, {
+    http.Client? client,
+    this.retryAfter = defaultRetryAfter,
+  }) : _client = client ?? http.Client();
+
+  /// How long a request the gateway cut short waits to go again.
+  static const Duration defaultRetryAfter = Duration(seconds: 3);
+  final Duration retryAfter;
 
   final Uri base;
   final http.Client _client;
@@ -163,12 +170,36 @@ class HttpCloudRecognitionClient implements CloudRecognitionClient {
   /// A request takes at most this long (the API gives up at 30 s).
   static const Duration timeout = Duration(seconds: 35);
 
+  /// [_once], and once more after [retryAfter] when the gateway cut it short
+  /// (502, 503, 504) or it timed out, if it's [retried]: a new function
+  /// instance loading its model (DINOv2 is 1.2 GB) can take longer than the
+  /// gateway's 30 s, and goes on loading after; the second request then
+  /// finds it ready. Training isn't retried (it would train twice).
   Future<Map<String, Object?>> _send(
     String method,
     String path,
     String idToken, [
     Object? body,
+    bool retried = true,
   ]) async {
+    try {
+      return await _once(method, path, idToken, body);
+    } on RolesException catch (e) {
+      if (!retried || !const {502, 503, 504}.contains(e.statusCode)) rethrow;
+    } on TimeoutException {
+      if (!retried) rethrow;
+    }
+    debugPrint('Presence: cloud recognition $path cut short; once more');
+    await Future<void>.delayed(retryAfter);
+    return _once(method, path, idToken, body);
+  }
+
+  Future<Map<String, Object?>> _once(
+    String method,
+    String path,
+    String idToken,
+    Object? body,
+  ) async {
     final request = http.Request(method, base.resolve(path))
       ..headers['authorization'] = 'Bearer $idToken';
     if (body != null) {
@@ -216,7 +247,7 @@ class HttpCloudRecognitionClient implements CloudRecognitionClient {
           {'id': key, 'name': value},
       ],
       'clips': [...clips],
-    });
+    }, false);
     return (body['trainedAt'] as num).toInt();
   }
 

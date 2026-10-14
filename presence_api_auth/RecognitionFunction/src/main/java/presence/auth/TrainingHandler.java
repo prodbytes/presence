@@ -130,7 +130,12 @@ public class TrainingHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
         if (stored.size() + added > MAX_LABELS) {
             return Http.response(413, "{\"error\":\"a profile keeps at most " + MAX_LABELS + " labels\"}");
         }
-        var vectors = embedder.get().embed(crops);
+        var model0 = System.nanoTime();
+        var dinov2 = embedder.get();
+        var modelMs = Timing.since(model0);
+        var embed0 = System.nanoTime();
+        var vectors = dinov2.embed(crops);
+        Timing.request("labels", crops.size(), modelMs, Timing.since(embed0), Timing.since(model0));
         for (var i = 0; i < entries.size(); i++) {
             var entry = entries.get(i);
             store.putLabel(profile, new Classifier.Label((String) entry.get("id"),

@@ -74,19 +74,27 @@ final class ModelFile {
         return "models/" + name + "-" + sha256.substring(0, 16) + ".onnx";
     }
 
-    /** The model's file, fetched if this instance hasn't yet. */
+    /** The model's file, fetched if this instance hasn't yet (its time logged, {@link Timing}). */
     Path path() {
         var file = dir.resolve(name + "-" + sha256.substring(0, 16) + ".onnx");
         if (Files.isRegularFile(file)) {
             return file;
         }
+        var started = System.nanoTime();
+        var fetched = fetch(file);
+        Timing.log("fetch " + name, Timing.since(started), "from=" + fetched);
+        return file;
+    }
+
+    /** Fetches the file into {@code file}; where from: "bucket" or "huggingface". */
+    private String fetch(Path file) {
         var partial = dir.resolve(file.getFileName() + ".part");
         if (bucket != null) {
             try (var s3 = s3()) {
                 try (var in = s3.getObject(b -> b.bucket(bucket).key(key()))) {
                     if (save(in, partial)) {
                         Files.move(partial, file, StandardCopyOption.REPLACE_EXISTING);
-                        return file;
+                        return "bucket";
                     }
                     System.err.println("presence: the model in the bucket isn't the right one; fetching it again");
                 } catch (RuntimeException | IOException e) {
@@ -109,7 +117,7 @@ final class ModelFile {
                 System.err.println("presence: couldn't keep the model in the bucket: " + Aws.cause(e));
             }
         }
-        return file;
+        return "huggingface";
     }
 
     private void download(Path partial) {

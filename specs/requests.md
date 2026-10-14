@@ -5584,3 +5584,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        4/255 in the dark. A Night mode switch in Settings (on), and a
        Night chip on the camera. Specs: [Night mode](night-mode.md) (new),
        [Motion clips](motion-clips.md), [Settings](settings.md).
+
+402. **Recognition performance: review, timing logs, memory sweet spot.** (2026-10-14)
+     - Asked: review the recognition pipeline's code for problems or
+       improvements; log its times in CloudWatch; run recognition on the
+       data samples against GA, raising the Lambda memory until it stops
+       getting faster, to find the sweet spot between cost and speed; then
+       redeploy everything, phones too (a barrel roll).
+     - Found: in CloudWatch, a new identify instance took 109 s and used
+       2,992 of its 3,008 MB (fetching and loading DINOv2's 1.2 GB), past
+       the API's 30 s, so the app's request failed; a training request
+       timed out at 120 s; a new describe instance took 12-13 s.
+     - Changed (first part): every step logs its time to CloudWatch
+       (`presence: timing ...`: model fetch, load, each request's model
+       wait and embedding); ONNX Runtime reads the input in place; the app
+       sends a request the gateway cut short once more, 3 s later (not
+       training). Spec: [Cloud recognition](cloud-recognition.md).
