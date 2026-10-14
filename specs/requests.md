@@ -6031,3 +6031,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        the same conditions (the stage's own resources, only `project` and
        `tenancy`); applied to `presence-github-deploy` (edge policies about
        5,930 characters). Spec: [Production deploy](deploy.md).
+
+431. **A hidden device: no recognition, nothing about it.** (2026-10-14)
+     - Asked: when a device is hidden on the Profile page, don't ask for
+       recognition of subjects, or show anything related to that device.
+     - Changed: questions about a hidden device's clips ("Is this Rex?")
+       leave the events, even when another device asked them; this device
+       no longer runs recognition on its clips, new or synced. (Its events
+       had already left the timeline, the subjects map and the All grid.)
+       Spec: [Hiding a device](device-hiding.md).
