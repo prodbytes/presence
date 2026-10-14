@@ -654,18 +654,6 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
-              # The cost-allocation tags (scripts/deploy.sh's stack tags,
-              # project and tenancy) alone, on the stage's own: adding them
-              # to an existing resource needn't repeat presence:stage.
-              - Sid: CloudFrontCostTags
-                Effect: Allow
-                Action: cloudfront:TagResource
-                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
-                Condition:
-                  StringEquals:
-                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
-                  ForAllValues:StringEquals:
-                    aws:TagKeys: [project, tenancy]
               # ACM: the same, by the certificate's tag.
               - Sid: CertificateReads
                 Effect: Allow
@@ -702,15 +690,6 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
-              - Sid: CertificateCostTags
-                Effect: Allow
-                Action: acm:AddTagsToCertificate
-                Resource: !Sub arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*
-                Condition:
-                  StringEquals:
-                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
-                  ForAllValues:StringEquals:
-                    aws:TagKeys: [project, tenancy]
               # Cognito identity pools (identity.yaml), by the pool's tag.
               # SetIdentityPoolRoles has no resource to scope (see
               # specs/deploy.md); PassRole still limits it to the stage's roles.
@@ -755,10 +734,19 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
-              - Sid: IdentityPoolCostTags
+              # The cost-allocation tags (scripts/deploy.sh's stack tags,
+              # project and tenancy) alone, on the stage's own distribution,
+              # certificate and identity pool: adding them to an existing
+              # resource needn't repeat presence:stage. One statement on '*'
+              # (the conditions scope it), since this policy is near IAM's
+              # 6,144-character limit for a managed policy.
+              - Sid: CostTags
                 Effect: Allow
-                Action: cognito-identity:TagResource
-                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Action:
+                  - cloudfront:TagResource
+                  - acm:AddTagsToCertificate
+                  - cognito-identity:TagResource
+                Resource: '*'
                 Condition:
                   StringEquals:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
