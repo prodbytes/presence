@@ -16,7 +16,7 @@ import static presence.payments.Http.response;
 /**
  * The payments API (presence_api_payments): the Stripe Payment Links a
  * free member upgrades to Premium with. Every route is behind the HTTP
- * API's Google JWT authorizer.
+ * API's JWT authorizer (Presence session tokens).
  * <ul>
  *   <li>{@code GET /api/payments/links}: the links, {@code {"monthly",
  *       "yearly", "saved"}}: what an admin saved, or the deploy's defaults
@@ -98,7 +98,12 @@ public class PaymentsHandler implements RequestHandler<APIGatewayV2HTTPEvent, AP
         return response(200, links.toJson());
     }
 
-    /** The caller's email, lowercase, if Google verified it; else null. */
+    /**
+     * The caller's email, lowercase, if verified; else null. The one place the
+     * handler reads who calls: the claims of the Presence session token the
+     * JWT authorizer verified ({@code email}, which the sign-in provider
+     * verified; rbacr is asked about it).
+     */
     static String verifiedEmail(Map<String, String> claims) {
         var email = claims.get("email");
         var verified = "true".equalsIgnoreCase(claims.getOrDefault("email_verified", ""));

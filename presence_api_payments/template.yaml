@@ -6,18 +6,19 @@ Description: >
   and yearly. GET /api/payments/links answers them to any signed-in user;
   PUT /api/payments/links saves them, for admins only (admin in rbacr's
   presence system, or an rbacr root). Until an admin saves them, the
-  deploy's MonthlyLink and YearlyLink. A JWT authorizer checks the Google ID
-  token first. Its own HTTP API, served under /api/payments/* by the site's
+  deploy's MonthlyLink and YearlyLink. A JWT authorizer checks the Presence
+  session token (the auth API's) first. Its own HTTP API, served under /api/payments/* by the site's
   CloudFront distribution. Payments themselves are Stripe's: rbacr syncs the
   Stripe account's subscriptions into the premium role.
 
 Parameters:
-  GoogleWebClientId:
+  SessionIssuer:
     Type: String
     Description: >
-      The Google web OAuth client; ID tokens must be issued for it (their
-      aud), as for the auth API.
-    AllowedPattern: '[0-9]+-[0-9a-z]+\.apps\.googleusercontent\.com'
+      The Presence session tokens' issuer (the auth API stack's SessionIssuer
+      output, https://<site>/api/auth): only its tokens, for the audience
+      presence, are accepted. scripts/deploy.sh passes it.
+    AllowedPattern: 'https://[A-Za-z0-9.-]+(:[0-9]+)?/api/auth'
   MonthlyLink:
     Type: String
     Default: ''
@@ -113,16 +114,16 @@ Resources:
           ThrottlingBurstLimit: 5
           ThrottlingRateLimit: 1
       Auth:
-        DefaultAuthorizer: GoogleIdToken
+        DefaultAuthorizer: PresenceSession
         Authorizers:
           # Rejects missing, expired, forged or foreign tokens with 401
-          # before the function runs.
-          GoogleIdToken:
+          # before the function runs: Presence session tokens only.
+          PresenceSession:
             IdentitySource: $request.header.Authorization
             JwtConfiguration:
-              issuer: https://accounts.google.com
+              issuer: !Ref SessionIssuer
               audience:
-                - !Ref GoogleWebClientId
+                - presence
 
   PaymentsFunction:
     Type: AWS::Serverless::Function

@@ -2,7 +2,7 @@
   "@@locale": "en",
   "authSignIn": "Sign in",
   "@authSignIn": {
-    "description": "Account button tooltip, signed out"
+    "description": "Account button tooltip, signed out; on iOS also the app bar's button that opens the sheet with Apple and Google sign-in"
   },
   "authSignedInAs": "Signed in as {identity}",
   "@authSignedInAs": {
@@ -13,6 +13,18 @@
     }
   },
   "authSignInWithGoogle": "Sign in with Google",
+  "authSignInWithApple": "Sign in with Apple",
+  "@authSignInWithApple": {
+    "description": "Apple's sign-in button (iOS); Apple's standard wording"
+  },
+  "authSessionEnded": "Your session ended. Sign in again.",
+  "@authSessionEnded": {
+    "description": "Message when a Sign in with Apple session can't be renewed"
+  },
+  "authSessionRefused": "Presence didn't accept this sign-in.",
+  "authNoVerifiedEmail": "This account has no verified email.",
+  "authProviderNotConfigured": "This sign-in isn't set up on the server yet.",
+  "authSessionUnreachable": "Couldn't reach Presence. Try again.",
   "authUnavailable": "Sign-in is unavailable.",
   "authSignInToPresence": "Sign in to Presence",
   "authSignOut": "Sign out",

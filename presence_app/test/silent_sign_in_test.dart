@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in_platform_interface/google_sign_in_platform_interface.dart';
 import 'package:presence_app/auth/auth_service.dart';
+import 'package:presence_app/auth/auth_session.dart';
 import 'package:presence_app/auth/google_auth_service.dart';
+import 'package:presence_app/auth/saved_session.dart';
+import 'package:presence_app/auth/session_store.dart';
 import 'package:presence_app/auth/silent_sign_in.dart';
 
-import 'session_test.dart' show token;
+import 'session_test.dart' show FakeSessionApi, presenceToken, settle, token;
 
 /// Google's library, without Google: counts the quiet checks.
 class FakeGooglePlatform extends GoogleSignInPlatform {
@@ -90,50 +93,88 @@ void main() {
   const ana = AuthUser(id: '7', email: 'ana@example.com', name: 'Ana');
   const ids = (clientId: null, serverClientId: 'web-client');
   late FakeGooglePlatform google;
+  late FakeSessionApi api;
+  late MemorySessionStore store;
 
-  setUp(() => GoogleSignInPlatform.instance = google = FakeGooglePlatform());
+  setUp(() {
+    GoogleSignInPlatform.instance = google = FakeGooglePlatform();
+    api = FakeSessionApi(() => now);
+    store = MemorySessionStore();
+  });
 
-  Future<void> settle() async {
-    for (var i = 0; i < 10; i++) {
-      await Future<void>.delayed(Duration.zero);
-    }
-  }
-
-  test(
-    'a remembered account signs back in silently, without the quiet check',
-    () async {
-      final fresh = token(now.add(const Duration(hours: 1)));
-      final silent = FakeSilentSignIn(
-        email: 'ana@example.com',
-        results: [(user: ana, idToken: fresh)],
-      );
-      final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
-      await auth.init();
-      expect(silent.asked, ['ana@example.com']);
-      expect(google.lightweight, 0);
-      expect(auth.user?.id, '7');
-      expect(auth.user?.email, 'ana@example.com');
-      expect(auth.idToken, fresh);
-      expect(auth.checking, isFalse);
-      expect(auth.error, isNull);
-      auth.dispose();
-    },
+  GoogleAuthService service(
+    SilentSignIn? silent, {
+    Duration retryUnit = const Duration(minutes: 1),
+  }) => GoogleAuthService(
+    silent: silent,
+    ids: ids,
+    now: () => now,
+    api: api,
+    store: store,
+    appleAvailable: false,
+    retryUnit: retryUnit,
+    exchangeDelays: const [Duration.zero, Duration.zero],
   );
+
+  /// A Google session kept from before, whose token has [left].
+  void keep(Duration left) => store.value = SavedSession(
+    provider: SessionProvider.google,
+    user: ana,
+    token: presenceToken(now.add(left)),
+    expiresAt: now.add(left),
+    refreshToken: 'rt-0',
+  ).encode();
+
+  test('a remembered account signs back in silently, without the quiet '
+      'check; its Google token is exchanged for a Presence session', () async {
+    final fresh = token(now.add(const Duration(hours: 1)));
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      results: [(user: ana, idToken: fresh)],
+    );
+    final auth = service(silent);
+    await auth.init();
+    await auth.stored;
+    expect(silent.asked, ['ana@example.com']);
+    expect(google.lightweight, 0);
+    expect(api.exchanges.single['provider'], 'google');
+    expect(api.exchanges.single['idToken'], fresh);
+    expect(auth.user?.id, '7');
+    expect(auth.user?.email, 'ana@example.com');
+    expect(auth.idToken, isNot(fresh), reason: 'the Presence token');
+    expect(SavedSession.decode(store.value)!.token, auth.idToken);
+    expect(auth.checking, isFalse);
+    expect(auth.error, isNull);
+    auth.dispose();
+  });
+
+  test('a kept session needs no silent sign-in and no quiet check', () async {
+    keep(const Duration(minutes: 30));
+    final silent = FakeSilentSignIn(email: 'ana@example.com');
+    final auth = service(silent);
+    await auth.init();
+    expect(auth.user?.email, 'ana@example.com');
+    expect(silent.asked, isEmpty);
+    expect(google.lightweight, 0);
+    expect(api.exchanges, isEmpty);
+    auth.dispose();
+  });
 
   test('no remembered account: Google\'s quiet check, as before', () async {
     final silent = FakeSilentSignIn();
+    final googleToken = token(now.add(const Duration(hours: 1)));
     google.lightweightResult = AuthenticationResults(
       user: const GoogleSignInUserData(email: 'ana@example.com', id: '7'),
-      authenticationTokens: AuthenticationTokenData(
-        idToken: token(now.add(const Duration(hours: 1))),
-      ),
+      authenticationTokens: AuthenticationTokenData(idToken: googleToken),
     );
-    final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
+    final auth = service(silent);
     await auth.init();
     await settle();
     expect(silent.asked, isEmpty);
     expect(google.lightweight, 1);
+    expect(api.exchanges.single['idToken'], googleToken);
     expect(auth.user?.email, 'ana@example.com');
+    expect(auth.idToken, isNotNull);
     // Signed in: remembered for the next restart.
     expect(silent.email, 'ana@example.com');
     auth.dispose();
@@ -146,12 +187,7 @@ void main() {
       email: 'ana@example.com',
       results: [null, null, (user: ana, idToken: fresh)],
     );
-    final auth = GoogleAuthService(
-      silent: silent,
-      ids: ids,
-      now: () => now,
-      retryUnit: const Duration(milliseconds: 5),
-    );
+    final auth = service(silent, retryUnit: const Duration(milliseconds: 5));
     await auth.init();
     expect(silent.asked, ['ana@example.com']);
     expect(auth.user, isNull);
@@ -159,7 +195,55 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 60));
     await settle();
     expect(silent.asked, hasLength(3));
-    expect(auth.idToken, fresh);
+    expect(api.exchanges.single['idToken'], fresh);
+    expect(auth.idToken, isNotNull);
+    expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('a silent sign-in whose exchange can\'t reach the API is retried '
+      'quietly', () async {
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      results: [
+        (user: ana, idToken: token(now.add(const Duration(hours: 1)))),
+        (user: ana, idToken: token(now.add(const Duration(hours: 1)))),
+      ],
+    );
+    api.exchangeResults.addAll([
+      const SessionUnavailable(),
+      const SessionUnavailable(),
+      const SessionUnavailable(),
+    ]);
+    final auth = service(silent, retryUnit: const Duration(milliseconds: 5));
+    await auth.init();
+    expect(auth.user, isNull);
+    expect(auth.error, isNull, reason: 'quiet');
+    expect(auth.silentFailures, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    await settle();
+    expect(silent.asked, hasLength(2));
+    expect(api.exchanges, hasLength(4));
+    expect(auth.user?.email, 'ana@example.com');
+    expect(auth.silentFailures, 0);
+    expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('a silent sign-in whose token the API refuses shows the error and '
+      'isn\'t retried', () async {
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      results: [(user: ana, idToken: token(now.add(const Duration(hours: 1))))],
+    );
+    api.exchangeResults.add(const SessionRefused(401));
+    final auth = service(silent, retryUnit: const Duration(milliseconds: 5));
+    await auth.init();
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(auth.user, isNull);
+    expect(auth.problem, AuthProblem.refused);
+    expect(silent.asked, hasLength(1));
+    expect(api.exchanges, hasLength(1));
     expect(google.lightweight, 0);
     auth.dispose();
   });
@@ -169,7 +253,7 @@ void main() {
       email: 'ana@example.com',
       results: [const SilentSignInRequired('ana@example.com')],
     );
-    final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
+    final auth = service(silent);
     await auth.init();
     expect(silent.asked, ['ana@example.com']);
     expect(google.lightweight, 1);
@@ -177,33 +261,71 @@ void main() {
     auth.dispose();
   });
 
-  test('a failed refresh keeps the session and retries quietly', () async {
-    final old = token(now.add(const Duration(minutes: 2)));
+  test('a dead refresh token falls back to the silent sign-in of the same '
+      'account', () async {
+    keep(const Duration(minutes: 2));
+    api.refreshResults.add(const SessionRefused(401));
     final fresh = token(now.add(const Duration(hours: 1)));
     final silent = FakeSilentSignIn(
       email: 'ana@example.com',
-      // Launch, then the refresh fails twice (status 8), then works.
+      results: [(user: ana, idToken: fresh)],
+    );
+    final auth = service(silent);
+    await auth.init();
+    await settle();
+    await auth.stored;
+    expect(api.refreshes, ['rt-0']);
+    expect(silent.asked, ['ana@example.com']);
+    expect(api.exchanges.single['idToken'], fresh);
+    expect(auth.user?.email, 'ana@example.com');
+    expect(SavedSession.decode(store.value)!.refreshToken, 'rt-1');
+    expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('a failed fallback keeps the session and retries quietly', () async {
+    keep(const Duration(minutes: 2));
+    api.refreshResults.add(const SessionRefused(401));
+    final silent = FakeSilentSignIn(
+      email: 'ana@example.com',
+      // The silent sign-in fails twice (status 8), then works.
       results: [
-        (user: ana, idToken: old),
         null,
         null,
-        (user: ana, idToken: fresh),
+        (user: ana, idToken: token(now.add(const Duration(hours: 1)))),
       ],
     );
-    final auth = GoogleAuthService(
-      silent: silent,
-      ids: ids,
-      now: () => now,
-      retryUnit: const Duration(milliseconds: 5),
-    );
+    final auth = service(silent, retryUnit: const Duration(milliseconds: 5));
     await auth.init();
     await settle();
     expect(auth.user?.email, 'ana@example.com', reason: 'still signed in');
+    expect(auth.idToken, isNotNull);
     await Future<void>.delayed(const Duration(milliseconds: 60));
     await settle();
-    expect(silent.asked, hasLength(4));
-    expect(auth.idToken, fresh);
+    expect(silent.asked, hasLength(3));
+    expect(api.exchanges, hasLength(1));
+    expect(auth.user?.email, 'ana@example.com');
     expect(google.lightweight, 0);
+    auth.dispose();
+  });
+
+  test('off Android, a dead refresh token gets Google\'s quiet check, whose '
+      'token is exchanged', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    keep(const Duration(minutes: 2));
+    api.refreshResults.add(const SessionRefused(401));
+    final googleToken = token(now.add(const Duration(hours: 1)));
+    google.lightweightResult = AuthenticationResults(
+      user: const GoogleSignInUserData(email: 'ana@example.com', id: '7'),
+      authenticationTokens: AuthenticationTokenData(idToken: googleToken),
+    );
+    final auth = service(null);
+    await auth.init();
+    await settle();
+    expect(google.lightweight, 1);
+    expect(api.exchanges.single['idToken'], googleToken);
+    expect(auth.user?.email, 'ana@example.com');
     auth.dispose();
   });
 
@@ -214,12 +336,7 @@ void main() {
     debugPrint = (message, {wrapWidth}) => printed.add('$message');
     addTearDown(() => debugPrint = print);
     final silent = FakeSilentSignIn(email: 'ana@example.com');
-    final auth = GoogleAuthService(
-      silent: silent,
-      ids: ids,
-      now: () => now,
-      retryUnit: const Duration(milliseconds: 5),
-    );
+    final auth = service(silent, retryUnit: const Duration(milliseconds: 5));
     await auth.init();
     await Future<void>.delayed(const Duration(milliseconds: 30));
     await settle();
@@ -232,52 +349,20 @@ void main() {
     auth.dispose();
   });
 
-  test('signing out forgets the account', () async {
+  test('signing out forgets the account and revokes the session', () async {
     final silent = FakeSilentSignIn(
       email: 'ana@example.com',
       results: [(user: ana, idToken: token(now.add(const Duration(hours: 1))))],
     );
-    final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
+    final auth = service(silent);
     await auth.init();
     expect(auth.user, isNotNull);
     await auth.signOut();
+    await auth.stored;
     expect(auth.user, isNull);
     expect(silent.email, isNull);
-    auth.dispose();
-  });
-
-  test('the token is refreshed silently, for the same account', () async {
-    // Expires in two minutes: refreshed at once.
-    final old = token(now.add(const Duration(minutes: 2)));
-    final fresh = token(now.add(const Duration(hours: 1)));
-    final silent = FakeSilentSignIn(
-      email: 'ana@example.com',
-      results: [(user: ana, idToken: old), (user: ana, idToken: fresh)],
-    );
-    final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
-    await auth.init();
-    await settle();
-    expect(silent.asked, ['ana@example.com', 'ana@example.com']);
-    expect(auth.idToken, fresh);
-    expect(google.lightweight, 0);
-    auth.dispose();
-  });
-
-  test('the same cached token back is retried later, not at once', () async {
-    final old = token(now.add(const Duration(minutes: 2)));
-    final silent = FakeSilentSignIn(
-      email: 'ana@example.com',
-      results: [
-        (user: ana, idToken: old),
-        (user: ana, idToken: old),
-        (user: ana, idToken: old),
-      ],
-    );
-    final auth = GoogleAuthService(silent: silent, ids: ids, now: () => now);
-    await auth.init();
-    await settle();
-    expect(silent.asked, hasLength(2));
-    expect(google.lightweight, 0);
+    expect(store.value, isNull);
+    expect(api.revoked, ['rt-1']);
     auth.dispose();
   });
 

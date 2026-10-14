@@ -138,6 +138,35 @@ Resources:
                 Effect: Allow
                 Action: cognito-identity:GetId
                 Resource: '*'
+              # Presence sessions (the auth API's session function): signs
+              # session tokens with the stage's KMS key and seals Sign in with
+              # Apple's refresh tokens with its data key; only keys the
+              # stage's auth stack made (their presence:stack tag).
+              - Sid: SessionKeys
+                Effect: Allow
+                Action:
+                  - kms:Sign
+                  - kms:GetPublicKey
+                  - kms:Encrypt
+                  - kms:Decrypt
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringLike:
+                    aws:ResourceTag/presence:stack: !Sub ${Prefix}-*
+              # Sign in with Apple's key, an SSM SecureString an administrator
+              # puts under /<prefix>/ (e.g. /presence-rc/apple-signin-key),
+              # decrypted by SSM with its own key.
+              - Sid: AppleKey
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${Prefix}/*
+              - Sid: AppleKeyDecrypt
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub ssm.${AWS::Region}.amazonaws.com
               # Live sync: the auth API attaches the IoT policy (AttachPolicy
               # can't be scoped to an identity), and signed-in users use
               # their stage's topics.
@@ -370,6 +399,39 @@ Resources:
                 Effect: Allow
                 Action: iam:GetPolicy
                 Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${Prefix}-app-boundary
+              # The auth API's KMS keys (session signing; Apple tokens'
+              # data key): made only tagged presence:stack=<the stage's
+              # stack>, and managed only by that tag. Never used here (Sign,
+              # Encrypt and Decrypt are the functions', within the boundary).
+              - Sid: KeysCreate
+                Effect: Allow
+                Action:
+                  - kms:CreateKey
+                  - kms:TagResource
+                Resource: '*'
+                Condition:
+                  StringLike:
+                    aws:RequestTag/presence:stack: !Sub ${Prefix}-*
+              - Sid: Keys
+                Effect: Allow
+                Action:
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:PutKeyPolicy
+                  - kms:GetKeyRotationStatus
+                  - kms:EnableKeyRotation
+                  - kms:DisableKeyRotation
+                  - kms:ListResourceTags
+                  - kms:TagResource
+                  - kms:UntagResource
+                  - kms:UpdateKeyDescription
+                  - kms:EnableKey
+                  - kms:DisableKey
+                  - kms:ScheduleKeyDeletion
+                Resource: !Sub arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/*
+                Condition:
+                  StringLike:
+                    aws:ResourceTag/presence:stack: !Sub ${Prefix}-*
               # Live sync (identity.yaml): the IoT policy attached to each
               # identity, and the account's IoT data endpoint for the app's
               # build (scripts/deploy.sh).

@@ -165,10 +165,10 @@ public final class Profiles {
         var claims = new HashMap<String, String>();
         claims.put("email_verified", "true");
         if (issuer != null) {
-            claims.put("iss", issuer);
+            claims.put("idp", issuer);
         }
         if (sub != null) {
-            claims.put("sub", sub);
+            claims.put("idp_sub", sub);
         }
         if (email != null) {
             claims.put("email", email);
@@ -177,7 +177,7 @@ public final class Profiles {
     }
 
     /**
-     * The profile of the caller's subject (its {@code iss} and {@code sub}):
+     * The profile of the caller's subject (its provider's {@code idp} and {@code idp_sub}):
      * the one it's linked to, or a new one it owns and is linked to from now
      * on. The new one gets the ID {@code requested}, the app's own profile
      * ID, if it's a {@link ProfileId#valid valid} one no profile has;

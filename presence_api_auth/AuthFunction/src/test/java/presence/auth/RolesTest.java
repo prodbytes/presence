@@ -127,7 +127,7 @@ class RolesTest {
 
     /** A verified Google account, subject {@code sub}. */
     private static Caller caller(String sub, String email) {
-        return Caller.of(Map.of("iss", GOOGLE, "sub", sub, "email", email, "email_verified", "true"));
+        return Caller.of(Map.of("idp", GOOGLE, "idp_sub", sub, "email", email, "email_verified", "true"));
     }
 
     /** A profile {@code sub} (with {@code email}) owns. */
@@ -155,7 +155,7 @@ class RolesTest {
         assertEquals(Set.of(), roles.shared(linked, null));
         assertEquals(Set.of(), roles.shared(linked, ownedBy("pat", null)));
         // An unverified caller shares nothing.
-        var unverified = Caller.of(Map.of("iss", GOOGLE, "sub", "home", "email", "someone@example.com",
+        var unverified = Caller.of(Map.of("idp", GOOGLE, "idp_sub", "home", "email", "someone@example.com",
                 "email_verified", "false"));
         assertEquals(Set.of(), roles.shared(unverified, ownedBy("pat", "pat@example.com")));
     }

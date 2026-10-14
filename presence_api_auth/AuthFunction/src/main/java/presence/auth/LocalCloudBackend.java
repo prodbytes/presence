@@ -7,7 +7,6 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
  * The local stack's backend ({@code LOCAL_CLOUD=true}, set only by
@@ -16,9 +15,9 @@ import java.util.regex.Pattern;
  * GetCredentialsForIdentity}), so this stands in for it. Link codes and
  * the bucket stay {@code aws}'s (Floci's DynamoDB and S3).
  * <ul>
- *   <li>A Google account's identity is made up from its subject:
- *       {@code <region>:<UUID of "presence-local|<iss>#<sub>">}, the same on
- *       every call, as {@code GetId} would be.</li>
+ *   <li>A profile's identity is made up from its ID:
+ *       {@code <region>:<UUID of "presence-local|profile#<id>">}, the same on
+ *       every call, as Cognito's would be.</li>
  *   <li>The credentials route answers {@link #credentials credentials}
  *       itself, random ones for an hour, which the app uses as it would
  *       Cognito's: Floci doesn't check them.</li>
@@ -32,8 +31,6 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
     /** How long the made-up credentials are said to last, as Cognito's. */
     static final Duration CREDENTIALS_FOR = Duration.ofHours(1);
 
-    private static final Pattern CLAIM_ISS = Pattern.compile("\"iss\"\\s*:\\s*\"([^\"\\\\]+)\"");
-    private static final Pattern CLAIM_SUB = Pattern.compile("\"sub\"\\s*:\\s*\"([^\"\\\\]+)\"");
 
     private final ProfileHandler.Backend aws;
     private final String region;
@@ -72,19 +69,10 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
         return aws.takeCode(hash, now);
     }
 
-    /**
-     * The identity of the token's Google account: from its {@code iss} and
-     * {@code sub} claims, which the HTTP API's JWT authorizer has verified.
-     */
+    /** The profile's identity, made up from its ID: the same on every call, as Cognito's would be. */
     @Override
-    public String googleIdentity(String googleIdToken) {
-        var claims = claims(googleIdToken);
-        var iss = match(CLAIM_ISS, claims);
-        var sub = match(CLAIM_SUB, claims);
-        if (iss == null || sub == null) {
-            throw new IllegalArgumentException("the ID token names no subject");
-        }
-        return identityOf(region, iss, sub);
+    public String newIdentity(String profileId) {
+        return identityOf(region, "profile", profileId);
     }
 
     /** {@code <region>:<UUID>}, as Cognito's identity IDs look. */
@@ -95,7 +83,7 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
 
     /** No token to trade: the credentials come with the answer ({@link #credentials}). */
     @Override
-    public String openIdToken(String identityId, String profileId, String googleIdToken) {
+    public String openIdToken(String identityId, String profileId) {
         return "local";
     }
 
@@ -142,23 +130,5 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
         var raw = new byte[bytes];
         random.nextBytes(raw);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(raw).replace('-', 'x').replace('_', 'y');
-    }
-
-    /** The JWT's payload, as text; empty when it isn't one. */
-    private static String claims(String jwt) {
-        var parts = jwt == null ? new String[0] : jwt.split("\\.");
-        if (parts.length < 2) {
-            return "";
-        }
-        try {
-            return new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException e) {
-            return "";
-        }
-    }
-
-    private static String match(Pattern claim, String json) {
-        var m = claim.matcher(json);
-        return m.find() ? m.group(1) : null;
     }
 }

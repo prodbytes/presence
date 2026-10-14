@@ -16,8 +16,10 @@ distribution (see [specs/payments-api.md](../specs/payments-api.md)).
   `admin` in rbacr's `presence` system, or an rbacr root): saves both. Each
   must be empty or an HTTPS link on `stripe.com`, at most 512 characters,
   with no query. 403 for anyone else, 400 otherwise.
-- A Google JWT authorizer refuses calls without a valid ID token (401)
-  before the function runs.
+- A JWT authorizer refuses calls without a valid Presence session token
+  (401) before the function runs: issuer the auth API's (`SessionIssuer`,
+  `https://<site>/api/auth`), audience `presence` (see
+  [specs/sessions.md](../specs/sessions.md)).
 
 It never sees a payment: the links are Stripe's checkout pages, and rbacr
 syncs the Stripe account's subscriptions into the `premium` role.

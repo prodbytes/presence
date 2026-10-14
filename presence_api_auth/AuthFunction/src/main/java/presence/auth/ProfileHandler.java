@@ -103,41 +103,40 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         Optional<LinkCode> takeCode(String hash, Instant now);
 
         /**
-         * The Cognito identity the Google ID token signs in to directly
-         * ({@code GetId}): where its data went before profiles, or a new,
-         * empty identity.
+         * A new Cognito identity for the profile, linked to its developer
+         * identifier (the profile ID) as it's made ({@code
+         * GetOpenIdTokenForDeveloperIdentity} without an identity): the
+         * profile's folder. Cognito answers the identity the profile is
+         * already linked to, if any.
          */
-        String googleIdentity(String googleIdToken);
+        String newIdentity(String profileId);
 
         /**
          * An OpenID token for the profile's identity
-         * ({@code GetOpenIdTokenForDeveloperIdentity}). The first call links
-         * the profile to the identity, which Cognito allows only with one of
-         * the identity's logins: the caller's Google ID token, when it signs
-         * in to that identity.
+         * ({@code GetOpenIdTokenForDeveloperIdentity}, the profile ID as the
+         * developer identifier, which is linked to it).
          */
-        String openIdToken(String identityId, String profileId, String googleIdToken);
+        String openIdToken(String identityId, String profileId);
 
         /**
-         * {@link #openIdToken(String, String, String)}, tagged with the
+         * {@link #openIdToken(String, String)}, tagged with the
          * profile's {@link #TIER_TAG} ({@link #PREMIUM} or {@link #FREE}):
          * Cognito puts it on the credentials' session, and the role's S3
          * permissions require {@link #PREMIUM} (presence_infra/identity.yaml).
          */
-        default String openIdToken(String identityId, String profileId, String googleIdToken, String tier) {
-            return openIdToken(identityId, profileId, googleIdToken);
+        default String openIdToken(String identityId, String profileId, String tier) {
+            return openIdToken(identityId, profileId);
         }
 
         /**
-         * {@link #openIdToken(String, String, String, String)}, also tagged
+         * {@link #openIdToken(String, String, String)}, also tagged
          * {@link #ADMIN_TAG} {@code true} for an administrator (from the
          * caller's own email, never a linked owner's): the role's Feedback
          * permissions let it read every conversation and reply
          * (presence_infra/identity.yaml).
          */
-        default String openIdToken(String identityId, String profileId, String googleIdToken, String tier,
-                                   boolean admin) {
-            return openIdToken(identityId, profileId, googleIdToken, tier);
+        default String openIdToken(String identityId, String profileId, String tier, boolean admin) {
+            return openIdToken(identityId, profileId, tier);
         }
 
         /** Whether the identity's folder in the bucket holds nothing. */
@@ -301,7 +300,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         var tier = premium ? PREMIUM : FREE;
         // Administration is never shared with a linked owner (Roles.of).
         var admin = granted.contains(Roles.ADMIN);
-        var token = backend.openIdToken(profile.identityId(), profile.id(), caller.idToken(), tier, admin);
+        var token = backend.openIdToken(profile.identityId(), profile.id(), tier, admin);
         backend.allowLiveSync(profile.identityId());
         // Every device is listed, up to Premium's limit, whatever the tier:
         // a profile that becomes premium shows the devices it already had.
@@ -343,9 +342,8 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         profile = withIdentity(caller, profile);
-        // Links the profile to its identity now, with the caller's Google
-        // token: the streamer has none, and Cognito links only beside one.
-        backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
+        // The profile is linked to its identity before the streamer asks.
+        backend.openIdToken(profile.identityId(), profile.id());
         var raw = new byte[32];
         random.nextBytes(raw);
         var key = "psk_" + java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
@@ -391,7 +389,7 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
         // The profile's folder is its owner's, and so is its tier.
         var premium = profile.ownerEmail() != null
                 && roles.of(profile.ownerEmail(), true).contains(Roles.PREMIUM);
-        var token = backend.openIdToken(profile.identityId(), profile.id(), null, premium ? PREMIUM : FREE, false);
+        var token = backend.openIdToken(profile.identityId(), profile.id(), premium ? PREMIUM : FREE, false);
         backend.allowLiveSync(profile.identityId());
         var devices = profiles.store().addDevice(profile.id(), device, PREMIUM_DEVICES);
         var subject = stored.get().subject();
@@ -441,9 +439,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             return response(403, "{\"error\":\"presence_user is required\"}");
         }
         // The folder is settled, and the profile linked to it, before anyone
-        // joins it: a member's Google token can't link it.
+        // joins it.
         profile = withIdentity(caller, profile);
-        backend.openIdToken(profile.identityId(), profile.id(), caller.idToken());
+        backend.openIdToken(profile.identityId(), profile.id());
         var code = newCode(random);
         var expiresAt = profiles.clock().instant().plus(CODE_TTL);
         backend.saveCode(hash(code), new LinkCode(profile.id(), caller.verifiedEmail(), expiresAt));
@@ -479,8 +477,9 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
             }
             // A profile of its own keeps its data where it is: link it only
             // when there's none, so nothing is stranded.
-            var own = current.hasIdentity() ? current.identityId() : backend.googleIdentity(caller.idToken());
-            if (!own.equals(target.identityId()) && !backend.folderEmpty(own)) {
+            // Without an identity yet, it has no folder, so no data.
+            var own = current.hasIdentity() ? current.identityId() : null;
+            if (own != null && !own.equals(target.identityId()) && !backend.folderEmpty(own)) {
                 return response(409, "{\"error\":\"this account already has cloud data of its own\"}");
             }
         }
@@ -537,12 +536,12 @@ public class ProfileHandler implements RequestHandler<APIGatewayV2HTTPEvent, API
                 .collect(Collectors.joining(",")) + "]}");
     }
 
-    /** The profile, with its identity: the caller's Google one if it had none yet. */
+    /** The profile, with its identity: a new one, linked to the profile, if it had none yet. */
     private Profiles.Profile withIdentity(Caller caller, Profiles.Profile profile) {
         if (profile.hasIdentity()) {
             return profile;
         }
-        return profiles.store().identity(profile.id(), backend.googleIdentity(caller.idToken()));
+        return profiles.store().identity(profile.id(), backend.newIdentity(profile.id()));
     }
 
     private boolean isUser(Caller caller, Profiles.Profile profile) {

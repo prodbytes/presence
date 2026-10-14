@@ -85,10 +85,30 @@ func TestEndToEnd(t *testing.T) {
 		token := "h." + base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"1077","email":"a@b.c"}`)) + ".s"
 		fmt.Fprintf(w, `{"id_token":%q}`, token)
 	})
+	mux.HandleFunc("/api/auth/session", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Provider, IDToken string
+			Refresh           *bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Provider != "google" || !strings.HasPrefix(req.IDToken, "h.") || req.Refresh == nil || *req.Refresh {
+			t.Errorf("session request %+v, %v", req, err)
+			w.WriteHeader(401)
+			return
+		}
+		fmt.Fprintf(w, `{"token":"pst","expiresAt":%d}`, time.Now().Add(time.Hour).Unix())
+	})
 	mux.HandleFunc("/api/auth/profile", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer pst" {
+			w.WriteHeader(401)
+			return
+		}
 		w.Write([]byte(`{"profile":"automatic_paranoid_axolotl"}`))
 	})
 	mux.HandleFunc("/api/auth/credentials", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer pst" {
+			w.WriteHeader(401)
+			return
+		}
 		w.Write([]byte(`{"identityId":"us-east-1:0f3c1a2b-4d5e-4f60-8a7b-9c0d1e2f3a4b","token":"tok","tier":"premium","bucket":"bucket"}`))
 	})
 	mux.HandleFunc("/cognito", func(w http.ResponseWriter, r *http.Request) {

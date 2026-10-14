@@ -10,13 +10,16 @@
 #      with the pool, bucket and IoT endpoint from step 1 and rbacr's URL
 #      and system (the app asks rbacr for its roles itself)
 #   3. deploys the auth API (sam build + sam deploy: presence_api_auth, stack
-#      presence-auth-api / presence-rc-auth-api) and its health check
+#      presence-auth-api / presence-rc-auth-api: also the Presence session
+#      issuer, https://<site>/api/auth, whose tokens every API accepts) and
+#      its health check
 #      (presence_health, stack presence-health / presence-rc-health: GET
 #      /health, which imports the auth API's table exports): an existing
 #      health stack first, so it lets go of exports the auth API drops; a
 #      new stage's after, once the exports it imports exist; and the
 #      payments API (presence_api_payments, stack presence-payments /
-#      presence-rc-payments: the Stripe Payment Links, /api/payments/*)
+#      presence-rc-payments: the Stripe Payment Links, /api/payments/*,
+#      whose authorizer trusts the auth API's session issuer)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
 #      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
 #      health check of /health with its alarm emails)
@@ -28,8 +31,16 @@
 #      version, / must be the index page, /privacy and /tos the legal pages, and /api/auth/profile must refuse
 #      a request without a token (401: the route and its authorizer are live),
 #      and so must /api/payments/links,
-#      and /api/auth/anonymous must report RBAC mode, and /health must say
-#      every dependency is ok
+#      and /api/auth/anonymous must report RBAC mode, the session issuer's
+#      /.well-known/openid-configuration must name https://<site>/api/auth
+#      and its jwks.json an RSA key, and /health must say every dependency
+#      is ok
+#
+# Order across systems when sessions first ship (specs/sessions.md):
+# rbacr with RBACR_TRUSTED_ISSUERS naming this stage's issuer first (the
+# app sends rbacr the session token), then this deploy (the backends, then
+# the web app), then the Android and iOS builds. presence-github-deploy
+# must be updated before it (KMS and SSM permissions).
 #
 # Every role the stacks create carries the stage's permissions boundary
 # (<prefix>-app-boundary), and SAM uploads to the stage's own bucket
@@ -53,7 +64,14 @@
 #   INGEST_CONCURRENCY  the cloud detector's reserved concurrency (default 0:
 #                none; the account's Lambda quota must leave 10 unreserved)
 #   GOOGLE_DEVICE_CLIENT_ID  presence-streamer's device sign-in client, whose
-#                ID tokens the auth API accepts too (optional; also .env)
+#                ID tokens the auth API exchanges for sessions too (optional; also .env)
+#   APPLE_CLIENT_IDS  Sign in with Apple's clients, the iOS bundle ID
+#                (default com.nu01.presence; also .env)
+#   APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_KEY_PARAMETER  Sign in with Apple's
+#                key, to revoke users' Apple tokens when they delete their
+#                account: the team, the key's ID and the SSM SecureString
+#                parameter an administrator put the .p8 in (never the key
+#                itself; all three or none; also .env)
 #   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
 #                recovers, comma-separated (default julio+health@nu01.com;
 #                also from .env). Each must confirm AWS's subscription email.
@@ -183,6 +201,35 @@ if [[ -z "${GOOGLE_DEVICE_CLIENT_ID:-}" && -f .env ]]; then
   GOOGLE_DEVICE_CLIENT_ID="$(sed -n 's/^GOOGLE_DEVICE_CLIENT_ID=//p' .env | tail -1)"
 fi
 GOOGLE_DEVICE_CLIENT_ID="${GOOGLE_DEVICE_CLIENT_ID:-}"
+
+# Sign in with Apple (environment, else .env): its clients, and the key that
+# revokes users' Apple tokens (optional: all three or none). Only the key's
+# SSM parameter name is passed, never the key.
+for name in APPLE_CLIENT_IDS APPLE_TEAM_ID APPLE_KEY_ID APPLE_KEY_PARAMETER; do
+  if [[ -z "${!name:-}" && -f .env ]]; then
+    printf -v "$name" '%s' "$(sed -n "s/^$name=//p" .env | tail -1)"
+  fi
+done
+APPLE_CLIENT_IDS="${APPLE_CLIENT_IDS:-com.nu01.presence}"
+APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
+APPLE_KEY_ID="${APPLE_KEY_ID:-}"
+APPLE_KEY_PARAMETER="${APPLE_KEY_PARAMETER:-}"
+if [[ ! "$APPLE_CLIENT_IDS" =~ ^[A-Za-z0-9.-]+(,[A-Za-z0-9.-]+)*$ ]]; then
+  echo "error: APPLE_CLIENT_IDS must be comma-separated bundle IDs" >&2
+  exit 1
+fi
+apple_key=()
+if [[ -n "$APPLE_TEAM_ID$APPLE_KEY_ID$APPLE_KEY_PARAMETER" ]]; then
+  if [[ ! "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ || ! "$APPLE_KEY_ID" =~ ^[A-Z0-9]{10}$
+        || ! "$APPLE_KEY_PARAMETER" =~ ^(/[A-Za-z0-9_.-]+)+$ ]]; then
+    echo "error: APPLE_TEAM_ID and APPLE_KEY_ID must be Apple's 10-character IDs and APPLE_KEY_PARAMETER an SSM parameter name (all three, or none)" >&2
+    exit 1
+  fi
+  apple_key=("AppleTeamId=$APPLE_TEAM_ID" "AppleKeyId=$APPLE_KEY_ID" "AppleKeyParameter=$APPLE_KEY_PARAMETER")
+  echo "    Sign in with Apple: $APPLE_CLIENT_IDS, with a key for revocation"
+else
+  echo "    Sign in with Apple: $APPLE_CLIENT_IDS (no key: Apple tokens aren't revoked at account deletion)"
+fi
 
 # Health alarm emails: from the environment, else .env, else the default.
 if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
@@ -426,6 +473,7 @@ echo "==> deploying $AUTH_STACK"
     --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$AUTH_STACK" \
     --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
       "GoogleDeviceClientId=$GOOGLE_DEVICE_CLIENT_ID" \
+      "DomainName=$DOMAIN" "AppleClientIds=$APPLE_CLIENT_IDS" ${apple_key[@]+"${apple_key[@]}"} \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" \
@@ -435,6 +483,12 @@ echo "==> deploying $AUTH_STACK"
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
+session_issuer="$(stack_output "$AUTH_STACK" SessionIssuer)"
+if [[ "$session_issuer" != "https://$DOMAIN/api/auth" ]]; then
+  echo "error: the auth API's session issuer is '$session_issuer', want https://$DOMAIN/api/auth" >&2
+  exit 1
+fi
+echo "    session issuer: $session_issuer"
 if [[ "$health_first" != 1 ]]; then
   deploy_health
 fi
@@ -446,7 +500,7 @@ echo "==> deploying $PAYMENTS_STACK"
   sam build
   sam deploy --stack-name "$PAYMENTS_STACK" --region "$AWS_REGION" \
     --s3-bucket "$SAM_ARTIFACT_BUCKET" --s3-prefix "$PAYMENTS_STACK" \
-    --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
+    --parameter-overrides "SessionIssuer=$session_issuer" \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "MonthlyLink=$STRIPE_MONTHLY_LINK" "YearlyLink=$STRIPE_YEARLY_LINK" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
@@ -503,6 +557,17 @@ check() {
   local payments
   payments="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$DOMAIN/api/payments/links")"
   [[ "$payments" == 401 ]] || { echo "    /api/payments/links without a token answered $payments, want 401"; return 1; }
+  # The session issuer, which the APIs' JWT authorizers and rbacr fetch
+  # through the site: it names itself, and its key set has an RSA key.
+  local discovery
+  discovery="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/.well-known/openid-configuration")" \
+    || { echo "    /api/auth/.well-known/openid-configuration failed"; return 1; }
+  python3 -c 'import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if d.get("issuer")==sys.argv[2] and d.get("jwks_uri")==sys.argv[2]+"/.well-known/jwks.json" else 1)' \
+    "$discovery" "https://$DOMAIN/api/auth" \
+    || { echo "    openid-configuration answered $discovery, want issuer https://$DOMAIN/api/auth"; return 1; }
+  curl -fsS --max-time 20 "https://$DOMAIN/api/auth/.well-known/jwks.json" \
+    | python3 -c 'import json,sys; k=json.load(sys.stdin)["keys"]; sys.exit(0 if k and all(x.get("kty")=="RSA" and x.get("kid") and x.get("n") for x in k) else 1)' \
+    || { echo "    /api/auth/.well-known/jwks.json has no RSA key"; return 1; }
   # Never DEV in AWS: that would give anonymous users every role. And AWS
   # must have every expected setting.
   local anonymous

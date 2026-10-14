@@ -183,6 +183,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authNoRoles => 'Aún no hay roles';
 
   @override
+  String get authNoVerifiedEmail =>
+      'Esta cuenta no tiene un correo verificado.';
+
+  @override
   String get authNotSignedIn => 'No has iniciado sesión.';
 
   @override
@@ -271,6 +275,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authProfile => 'Perfil';
 
   @override
+  String get authProviderNotConfigured =>
+      'Este inicio de sesión aún no está configurado en el servidor.';
+
+  @override
   String get authRbacrText =>
       'Los códigos de cupón y el modo de mantenimiento se gestionan en rbacr, que guarda todos los roles. Los miembros canjean códigos en la hoja Suscribirse.';
 
@@ -302,6 +310,16 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get authSessionEnded => 'Tu sesión terminó. Vuelve a iniciar sesión.';
+
+  @override
+  String get authSessionRefused => 'Presence no aceptó este inicio de sesión.';
+
+  @override
+  String get authSessionUnreachable =>
+      'No se pudo conectar con Presence. Inténtalo de nuevo.';
+
+  @override
   String authShowDevice(String device) {
     return 'Mostrar los eventos de $device';
   }
@@ -311,6 +329,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authSignInToPresence => 'Inicia sesión en Presence';
+
+  @override
+  String get authSignInWithApple => 'Iniciar sesión con Apple';
 
   @override
   String get authSignInWithGoogle => 'Iniciar sesión con Google';

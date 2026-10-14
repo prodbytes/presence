@@ -340,6 +340,12 @@ abstract class AppLocalizations {
   /// **'No roles yet'**
   String get authNoRoles;
 
+  /// No description provided for @authNoVerifiedEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'This account has no verified email.'**
+  String get authNoVerifiedEmail;
+
   /// No description provided for @authNotSignedIn.
   ///
   /// In en, this message translates to:
@@ -484,6 +490,12 @@ abstract class AppLocalizations {
   /// **'Profile'**
   String get authProfile;
 
+  /// No description provided for @authProviderNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'This sign-in isn\'t set up on the server yet.'**
+  String get authProviderNotConfigured;
+
   /// No description provided for @authRbacrText.
   ///
   /// In en, this message translates to:
@@ -532,13 +544,31 @@ abstract class AppLocalizations {
   /// **'Roles: {roles}'**
   String authRolesSemantics(String roles);
 
+  /// Message when a Sign in with Apple session can't be renewed
+  ///
+  /// In en, this message translates to:
+  /// **'Your session ended. Sign in again.'**
+  String get authSessionEnded;
+
+  /// No description provided for @authSessionRefused.
+  ///
+  /// In en, this message translates to:
+  /// **'Presence didn\'t accept this sign-in.'**
+  String get authSessionRefused;
+
+  /// No description provided for @authSessionUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t reach Presence. Try again.'**
+  String get authSessionUnreachable;
+
   /// No description provided for @authShowDevice.
   ///
   /// In en, this message translates to:
   /// **'Show {device}\'s events'**
   String authShowDevice(String device);
 
-  /// Account button tooltip, signed out
+  /// Account button tooltip, signed out; on iOS also the app bar's button that opens the sheet with Apple and Google sign-in
   ///
   /// In en, this message translates to:
   /// **'Sign in'**
@@ -549,6 +579,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sign in to Presence'**
   String get authSignInToPresence;
+
+  /// Apple's sign-in button (iOS); Apple's standard wording
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Apple'**
+  String get authSignInWithApple;
 
   /// No description provided for @authSignInWithGoogle.
   ///
