@@ -5643,3 +5643,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the card's device tag shows the OS's icon and the device
        ID, no "· iOS"; the ID has the whole row. The details still name
        the OS. Spec: [Events](events.md).
+
+406. **No live sync or cloud backup line on the profile page.** (2026-10-14)
+     - Asked: remove the live sync box and the cloud backup indicator
+       from the profile page; they're only needed on the other pages.
+     - Changed: the account sheet (Profile tab) no longer shows the
+       connectivity row (`ConnectivityIndicator`) or the cloud backup line
+       (`CloudSyncStatus`); both widgets went, as nothing else used them.
+       This device's dot in the device list keeps its color from the
+       same checks (`Connectivity.of`). Specs: [Sign-in](sign-in.md),
+       [Cloud sync](cloud-sync.md), [Premium](premium.md).

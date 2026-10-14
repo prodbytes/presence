@@ -192,8 +192,6 @@ they publish, receive and store events as before. Their events are
   devices' events are hidden, or that the other devices' are hidden on
   this one, that Free shows the first 2, and for a free profile "Premium
   shows up to 50." and an **Upgrade** button to the Stripe checkout.
-- **The account sheet's** sync line, for a free profile: "Your devices
-  sync with each other while online" (`CloudSyncStatus`).
 - **The connectivity check**: "Free: devices sync over live sync" instead
   of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see

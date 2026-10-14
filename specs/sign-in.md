@@ -180,36 +180,18 @@ there's no separate sign-in screen:
     Access, Root" for screen readers. "No roles yet" without any (a
     signed-in account without access), "Checking roles…" while rbacr and the
     auth API are asked. The anonymous role isn't shown.
-  - **Connectivity** (`ConnectivityIndicator`,
-    [lib/connectivity.dart](../presence_app/lib/connectivity.dart)), under
-    the email: one rounded row, tinted in its color, with a dot and a
-    headline for **this device**, built from the health checks
-    (`SystemHealth.statusOf`, the same as the Log tab's
-    [health panel](log.md)): the auth API, cloud sync (AWS) and
-    [live sync](live-sync.md). The worst check decides (`Connectivity.of`):
-    - 🟢 **green** only when the auth API answers, cloud sync is set (or
-      syncing: its 15 s passes don't flicker it) and live sync is
-      **connected**: "Online · live sync connected";
-    - 🟡 **amber** when degraded: checking the API ("Checking the
-      connection…"), "Connecting to live sync…", "Live sync idle · next
-      in 0:42" (counting down each second), "Live sync connects once
-      synced", "Live sync is off" (Never), "Live sync isn't set up in
-      this build" (no `IOT_ENDPOINT`), "Cloud sync isn't set up in this
-      build", or set on one side only;
-    - 🔴 **red** when a check failed: "Offline: can't reach the server"
-      (the auth API didn't answer), "Cloud sync failed", "Live sync
-      failed". Among checks of the same color, the API speaks first, then
-      cloud sync, then live sync.
-
-    Tapping it expands (and collapses) each check's line with its emoji
-    and explanation, the error included ("❌ Live: failed (…)"), and a
-    note that other devices see this one live only while live sync is
-    connected. Its tooltip and screen-reader label (a button, with its
-    expanded state) read "Connectivity: <headline>" and the three
-    explanations. It asks the auth API again (`RolesService.checkApi`)
-    when the sheet opens and every 15 s (DEV) or 60 s (RBAC) while it's
-    open, and updates as the checks change. It fits 320 dp at a 2x
-    system font (the headline wraps).
+  - **No live sync or cloud backup line** here: they show on the other
+    pages (the Events tab's sync, the Log tab's
+    [health panel](log.md)). This device's **dot** in the device list
+    still takes its color from the same checks (`Connectivity.of`,
+    [lib/connectivity.dart](../presence_app/lib/connectivity.dart):
+    `SystemHealth.statusOf` for the auth API, cloud sync and
+    [live sync](live-sync.md); the worst decides, the API first among
+    equals): 🟢 when the API answers, cloud sync is set and live sync is
+    connected; 🟡 when degraded (checking, connecting, idle, off, not set
+    up in this build); 🔴 when a check failed. Its tooltip reads "This
+    device — <headline>" ("Live sync idle", "Offline: can't reach the
+    server"…).
   - **Profile:** the [profile](profiles.md) ID
     (`automatic_paranoid_axolotl`), the profile's only name, selectable to
     copy, in `titleMedium` (16 sp).
