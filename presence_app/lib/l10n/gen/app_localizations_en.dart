@@ -686,10 +686,19 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get clipNameAdd => 'Add';
+
+  @override
+  String get clipNameFrameHint => 'Name someone on this frame';
+
+  @override
   String get clipNameHint => 'Name';
 
   @override
   String get clipNameMore => 'Name more subjects on this frame';
+
+  @override
+  String get clipNameSpotHint => 'Who is at the ring?';
 
   @override
   String get clipNameSubject => 'Name subject';
@@ -805,7 +814,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String clipTagHint(String time) {
-    return 'Click each person or pet on the video to name them as a subject (frame at $time).';
+    return 'Click where a person or pet is on the picture, then type their name below; or just type the name for this frame (at $time).';
   }
 
   @override

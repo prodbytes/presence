@@ -689,10 +689,19 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String get clipNameAdd => 'Adicionar';
+
+  @override
+  String get clipNameFrameHint => 'Nomeie alguém neste quadro';
+
+  @override
   String get clipNameHint => 'Nome';
 
   @override
   String get clipNameMore => 'Nomear mais sujeitos neste quadro';
+
+  @override
+  String get clipNameSpotHint => 'Quem está no círculo?';
 
   @override
   String get clipNameSubject => 'Nomear sujeito';
@@ -808,7 +817,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String clipTagHint(String time) {
-    return 'Clique em cada pessoa ou pet no vídeo para nomeá-lo como sujeito (quadro em $time).';
+    return 'Clique onde está uma pessoa ou pet na imagem e digite o nome abaixo; ou só digite o nome para este quadro (em $time).';
   }
 
   @override

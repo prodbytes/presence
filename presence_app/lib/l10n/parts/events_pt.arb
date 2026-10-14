@@ -99,7 +99,7 @@
   "clipAuto": "Auto",
   "clipNameSubject": "Nomear sujeito",
   "clipDone": "Concluído",
-  "clipTagHint": "Clique em cada pessoa ou pet no vídeo para nomeá-lo como sujeito (quadro em {time}).",
+  "clipTagHint": "Clique onde está uma pessoa ou pet na imagem e digite o nome abaixo; ou só digite o nome para este quadro (em {time}).",
   "clipAutoLooking": "Buscando os sujeitos já nomeados…",
   "clipAutoWaiting": "Aguardando o clipe terminar de gravar…",
   "clipIdentifyHint": "{label}: clique no vídeo para nomeá-lo, ou tente Auto.",
@@ -155,5 +155,8 @@
   "eventCopiesTapToShare": "Toque para sincronizar uma cópia em todos os dispositivos",
   "eventCopiesSharing": "Os outros dispositivos foram chamados a pegar uma cópia",
   "eventCopiesShareFailed": "Não foi possível alcançar os outros dispositivos: a sincronização ao vivo está desligada ou sem conexão",
-  "eventRecognitionFailed": "O reconhecimento falhou: {reason}"
+  "eventRecognitionFailed": "O reconhecimento falhou: {reason}",
+  "clipNameSpotHint": "Quem está no círculo?",
+  "clipNameFrameHint": "Nomeie alguém neste quadro",
+  "clipNameAdd": "Adicionar"
 }

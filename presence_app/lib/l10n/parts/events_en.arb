@@ -289,7 +289,7 @@
   "clipAuto": "Auto",
   "clipNameSubject": "Name subject",
   "clipDone": "Done",
-  "clipTagHint": "Click each person or pet on the video to name them as a subject (frame at {time}).",
+  "clipTagHint": "Click where a person or pet is on the picture, then type their name below; or just type the name for this frame (at {time}).",
   "@clipTagHint": {
     "placeholders": {
       "time": {
@@ -446,5 +446,8 @@
         "type": "String"
       }
     }
-  }
+  },
+  "clipNameSpotHint": "Who is at the ring?",
+  "clipNameFrameHint": "Name someone on this frame",
+  "clipNameAdd": "Add"
 }

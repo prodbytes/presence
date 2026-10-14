@@ -555,8 +555,11 @@
       }
     }
   },
+  "clipNameAdd": "Add",
+  "clipNameFrameHint": "Name someone on this frame",
   "clipNameHint": "Name",
   "clipNameMore": "Name more subjects on this frame",
+  "clipNameSpotHint": "Who is at the ring?",
   "clipNameSubject": "Name subject",
   "clipNamesAnd": "{first} and {last}",
   "@clipNamesAnd": {
@@ -681,7 +684,7 @@
     }
   },
   "clipSubjects": "Subjects",
-  "clipTagHint": "Click each person or pet on the video to name them as a subject (frame at {time}).",
+  "clipTagHint": "Click where a person or pet is on the picture, then type their name below; or just type the name for this frame (at {time}).",
   "@clipTagHint": {
     "placeholders": {
       "time": {

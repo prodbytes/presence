@@ -18,11 +18,15 @@ class FrameTagger extends StatelessWidget {
     required this.frame,
     required this.tags,
     required this.onTap,
+    this.spot,
   });
 
   final TagFrame frame;
   final List<Annotation> tags;
   final void Function(Offset fraction) onTap;
+
+  /// Where the next name goes, clicked but not named yet: a ring there.
+  final Offset? spot;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +60,22 @@ class FrameTagger extends StatelessWidget {
                         key: Key('marker-${a.id}'),
                         annotation: a,
                         box: box.biggest,
+                      ),
+                    if (spot case final spot?)
+                      Positioned(
+                        key: const Key('tag-spot'),
+                        left: spot.dx * box.maxWidth - 10,
+                        top: spot.dy * box.maxHeight - 10,
+                        child: IgnorePointer(
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),

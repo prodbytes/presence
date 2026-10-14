@@ -173,17 +173,22 @@ needed. Each name is on a frame of the clip, at the spot clicked
   picture (not on the browser's controls bar at the bottom, nor on the
   letterbox bars). On Android and iOS, **long-press** instead, since a tap
   plays and pauses. The click pauses the player and grabs the frame it
-  shows. The frame then takes the player's place, and **"Who is this?"**
-  asks for the name for that spot. Save tags it (a blank name, or Cancel,
-  goes back to the video). Further clicks on the frame tag more people.
-  **Done** brings the video back.
+  shows. The frame then takes the player's place, with a white **ring**
+  where the click was, and a **name field under the frame** (no dialog)
+  takes the focus: "Who is at the ring?". **Add** (or Enter) tags that
+  name there. A click on the frame moves the ring for the next name.
+  Without a click, the field says "Name someone on this frame" and the
+  name is tagged for the frame at its middle. A blank name adds nothing.
+  **Done** brings the video back (a ring left unnamed tags nothing).
+  Renaming a subject still asks in a dialog.
 - Opened from a card's yellow **unidentified** flag (**Identify**), the
   player starts paused where the first person or pet was seen and says
   "Unidentified subject: click them on the video to name them, or try
   Auto." until everyone's named (see [Event flags](event-flags.md)).
 - **Name subject** grabs the frame the same way, without a first name;
-  the frame then says "Click each person or pet on the video to name them
-  as a subject".
+  the frame then says "Click where a person or pet is on the picture, then
+  type their name below; or just type the name for this frame", with the
+  name field under it.
   This is also how tagging works with a screen reader, whose layer covers
   the `<video>`.
 - **Auto**, beside it, tags whoever it recognizes among the subjects
