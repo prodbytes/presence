@@ -988,6 +988,18 @@ abstract class AppLocalizations {
   /// **'Unattended'**
   String get cameraModeUnattended;
 
+  /// No description provided for @cameraNight.
+  ///
+  /// In en, this message translates to:
+  /// **'Night'**
+  String get cameraNight;
+
+  /// No description provided for @cameraNightTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Night mode: as bright as it goes, and lit while a clip records'**
+  String get cameraNightTooltip;
+
   /// No description provided for @cameraNotFound.
   ///
   /// In en, this message translates to:
@@ -3435,6 +3447,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next clip in {time}'**
   String settingsNextClipIn(String time);
+
+  /// No description provided for @settingsNightMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Night mode'**
+  String get settingsNightMode;
+
+  /// No description provided for @settingsNightModeSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'When it\'s dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)'**
+  String get settingsNightModeSubtitle;
 
   /// No description provided for @settingsObjectsSubtitle.
   ///

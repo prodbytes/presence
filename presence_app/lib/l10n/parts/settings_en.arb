@@ -267,5 +267,7 @@
         "type": "String"
       }
     }
-  }
+  },
+  "settingsNightMode": "Night mode",
+  "settingsNightModeSubtitle": "When it's dark: the brightest picture, and a light while a clip records (the torch, or the screen facing the scene)"
 }

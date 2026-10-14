@@ -292,6 +292,11 @@ class PresenceCamerasPlugin(
                     camera(call)?.setBrightness((call.argument<Number>("ev") ?: 0).toFloat())
                     result.success(null)
                 }
+                "setTorch" -> result.success(camera(call)?.setTorch(call.argument<Boolean>("on") == true) ?: false)
+                "setScreenLight" -> {
+                    (activity as? MainActivity)?.setScreenLight(call.argument<Boolean>("on") == true)
+                    result.success(null)
+                }
                 "setPreRoll" -> {
                     camera(call)?.setPreRoll(call.longArg("preRollMs"))
                     result.success(null)

@@ -1264,8 +1264,7 @@ void main() {
     await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
     // Under the location map, which spans the width.
-    await tester.ensureVisible(find.byKey(const Key('motion-switch')));
-    await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('motion-switch')));
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
     await settleStorage(tester);
@@ -1333,6 +1332,7 @@ void main() {
     // Changed here, so the local settings are newer than the cloud's below.
     await tester.tap(find.byTooltip('Setup'));
     await tester.pumpAndSettle();
+    await scrollSettingsTo(tester, find.byKey(const Key('motion-switch')));
     await tester.tap(find.byKey(const Key('motion-switch')));
     await tester.pumpAndSettle();
     await settleStorage(tester);

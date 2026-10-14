@@ -162,6 +162,18 @@ final class RollingCamera: NSObject, FlutterTexture,
     }
   }
 
+  /// Turns the camera's torch on or off (night mode, while a clip
+  /// records); false, and nothing done, when it has none (front cameras).
+  func setTorch(on: Bool) -> Bool {
+    guard device.hasTorch, device.isTorchModeSupported(.on) else { return false }
+    sessionQueue.async {
+      guard (try? self.device.lockForConfiguration()) != nil else { return }
+      self.device.torchMode = on ? .on : .off
+      self.device.unlockForConfiguration()
+    }
+    return true
+  }
+
   // MARK: - Clips
 
   func requestClip(beforeMs: Int, afterMs: Int) -> Int {

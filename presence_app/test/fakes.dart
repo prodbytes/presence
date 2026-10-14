@@ -33,8 +33,15 @@ class FakeCameraSource implements CameraSource {
     this.supportsVideo = true,
     this.immediatePast,
     this.facing = CameraFacing.back,
+    this.hasTorch = false,
     String? id,
   }) : id = id ?? 'cam-$label';
+
+  /// Whether it has a light ([setLight] lights it).
+  final bool hasTorch;
+
+  /// Each [setLight] asked, in order.
+  final List<bool> lights = [];
 
   final CameraFacing facing;
 
@@ -86,6 +93,12 @@ class FakeCameraSource implements CameraSource {
 
   @override
   Future<void> setBrightness(double ev) async => brightness.add(ev);
+
+  @override
+  Future<bool> setLight(bool on) async {
+    lights.add(on);
+    return hasTorch;
+  }
 
   /// Completes [lost], as when Android takes the camera away. Each
   /// opening gets a new one (the fake is reused, unlike real cameras).

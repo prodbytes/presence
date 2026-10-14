@@ -114,5 +114,7 @@
   "settingsDeleteDeviceConfirm": "Borrar videos",
   "settingsDeleteDeviceRemoved": "{deviceId} quitado de la lista; sus videos se quedan",
   "settingsDeleteDeviceDone": "{deviceId} borrado: {count, plural, =1{1 evento oculto} other{{count} eventos ocultos}}",
-  "settingsDeleteDeviceFailed": "No se pudo borrar {deviceId}"
+  "settingsDeleteDeviceFailed": "No se pudo borrar {deviceId}",
+  "settingsNightMode": "Modo noche",
+  "settingsNightModeSubtitle": "Cuando está oscuro: la imagen más brillante, y una luz mientras graba un clip (la linterna, o la pantalla hacia la escena)"
 }

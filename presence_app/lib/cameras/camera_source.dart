@@ -195,6 +195,11 @@ abstract class CameraSource {
   /// compensation in EV. Best effort: ignored where unsupported.
   Future<void> setBrightness(double ev);
 
+  /// Turns the camera's own light (its flash, as a torch) on or off, for
+  /// night mode while a clip records. Returns whether it has one that it
+  /// lit (or put out); false where there's none or it can't.
+  Future<bool> setLight(bool on);
+
   /// Stops recording and releases the camera. Completes once the camera is
   /// fully closed, so another one can be opened (phones allow only one).
   Future<void> dispose();

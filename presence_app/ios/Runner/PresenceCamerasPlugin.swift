@@ -141,6 +141,11 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     case "setBrightness":
       camera?.setBrightness(ev: (args["ev"] as? NSNumber)?.floatValue ?? 0)
       result(nil)
+    case "setTorch":
+      result(camera?.setTorch(on: args["on"] as? Bool == true) ?? false)
+    case "setScreenLight":
+      setScreenLight(args["on"] as? Bool == true)
+      result(nil)
     case "requestClip":
       result(camera?.requestClip(beforeMs: int("beforeMs"), afterMs: int("afterMs")))
     case "clipPast":
@@ -192,6 +197,21 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       }
     default:
       result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// The screen's brightness before night mode lit it, restored after.
+  private var brightnessBeforeLight: CGFloat?
+
+  /// The screen as a light for night mode: full brightness while [on],
+  /// then back to what it was.
+  private func setScreenLight(_ on: Bool) {
+    if on {
+      if brightnessBeforeLight == nil { brightnessBeforeLight = UIScreen.main.brightness }
+      UIScreen.main.brightness = 1
+    } else if let before = brightnessBeforeLight {
+      UIScreen.main.brightness = before
+      brightnessBeforeLight = nil
     }
   }
 

@@ -186,6 +186,14 @@ class _SettingsViewState extends State<SettingsView> {
                   onChanged: (ev) =>
                       setCamera((c) => c.copyWith(brightness: ev)),
                 ),
+                SwitchListTile(
+                  key: const Key('night-switch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(l.settingsNightMode),
+                  subtitle: Text(l.settingsNightModeSubtitle),
+                  value: camera.night,
+                  onChanged: (on) => setCamera((c) => c.copyWith(night: on)),
+                ),
               ],
             ),
             SettingsSection(

@@ -11,7 +11,13 @@ requested", and its stored event has `trigger: "motion"`.
   platforms):
   - Cameras supply 64×48 grayscale frames, about 5 per second.
   - The score is the **percentage of pixels whose brightness changed by
-    more than 24/255** since the previous frame.
+    more than a step** since the previous frame.
+  - **The step follows the light** (`MotionDetector.stepFor`): a quarter
+    of the two frames' mean brightness, from 4 to **24/255**. A lit scene
+    (mean 96 or more) keeps 24; a dark one (mean 10) is 4, where an animal
+    crossing at night changes few pixels by 24, as the Raspberry Pi
+    streamer does it ([Streamer](streamer.md)). See
+    [Night mode](night-mode.md).
   - Overall brightness shifts (auto-exposure, a light switching on) are
     removed first, by subtracting the **median** per-pixel change. A moving
     object covering less than half the picture doesn't shift the median,

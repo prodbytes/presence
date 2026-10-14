@@ -580,6 +580,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get cameraModeUnattended => 'Desatendido';
 
   @override
+  String get cameraNight => 'Noite';
+
+  @override
+  String get cameraNightTooltip =>
+      'Modo noturno: o mais claro possível, e iluminado enquanto grava um clipe';
+
+  @override
   String get cameraNotFound => 'Nenhuma câmera encontrada';
 
   @override
@@ -2139,6 +2146,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String settingsNextClipIn(String time) {
     return 'Próximo clipe em $time';
   }
+
+  @override
+  String get settingsNightMode => 'Modo noturno';
+
+  @override
+  String get settingsNightModeSubtitle =>
+      'Quando está escuro: a imagem mais clara, e uma luz enquanto grava um clipe (a lanterna, ou a tela voltada para a cena)';
 
   @override
   String get settingsObjectsSubtitle =>

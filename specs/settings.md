@@ -40,7 +40,9 @@
   after a flip or restart, get the current value. On Android it's clamped to what
   the camera supports (the S40: −2 to +2 EV). On web it uses the browser's
   `exposureCompensation` constraint, where the camera supports it, and does
-  nothing elsewhere.
+  nothing elsewhere. Under it, a **Night mode** switch (default on): when
+  it's dark, the camera is as bright as it goes and a clip recording
+  lights the scene. See [Night mode](night-mode.md).
 - **Motion** section:
   - A **Clip automatically on motion** switch (default on).
   - **Motion threshold**, 1–50% of the picture (the share of pixels that
