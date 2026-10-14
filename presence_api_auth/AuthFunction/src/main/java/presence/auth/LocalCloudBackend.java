@@ -120,6 +120,37 @@ final class LocalCloudBackend implements ProfileHandler.Backend {
     }
 
     @Override
+    public ProfileHandler.FolderDeletion deleteFolder(String identityId, java.time.Instant deadline) {
+        return aws.deleteFolder(identityId, deadline);
+    }
+
+    /** A made-up identity is nowhere to delete it from: gone already. */
+    @Override
+    public boolean deleteIdentity(String identityId) {
+        return true;
+    }
+
+    @Override
+    public int deleteFeedback(String identityId, String email) {
+        return aws.deleteFeedback(identityId, email);
+    }
+
+    @Override
+    public int deleteRecognition(String profileId) {
+        return aws.deleteRecognition(profileId);
+    }
+
+    @Override
+    public int deleteStreamKeys(String profileId) {
+        return aws.deleteStreamKeys(profileId);
+    }
+
+    @Override
+    public int deleteLinkCodes(String profileId) {
+        return aws.deleteLinkCodes(profileId);
+    }
+
+    @Override
     public void allowLiveSync(String identityId) {
         // Floci's broker has no policies.
     }

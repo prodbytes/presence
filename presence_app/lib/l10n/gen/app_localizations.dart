@@ -178,6 +178,102 @@ abstract class AppLocalizations {
   /// **'Checking roles…'**
   String get authCheckingRoles;
 
+  /// The account sheet's last button, and the confirmation dialog's delete button.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get authDeleteAccount;
+
+  /// No description provided for @authDeleteAccountCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get authDeleteAccountCancel;
+
+  /// No description provided for @authDeleteAccountChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account\'s profile changed. Close this and try again.'**
+  String get authDeleteAccountChanged;
+
+  /// No description provided for @authDeleteAccountConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'I understand that this can\'t be undone'**
+  String get authDeleteAccountConfirm;
+
+  /// No description provided for @authDeleteAccountDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device\'s copies of the profile\'s events and clips are deleted too, and you\'re signed out. This can\'t be undone.'**
+  String get authDeleteAccountDevice;
+
+  /// No description provided for @authDeleteAccountDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account and its profile were deleted'**
+  String get authDeleteAccountDone;
+
+  /// No description provided for @authDeleteAccountFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete the account ({error}). Try again.'**
+  String authDeleteAccountFailed(String error);
+
+  /// No description provided for @authDeleteAccountLinked.
+  ///
+  /// In en, this message translates to:
+  /// **'{email} is linked to the profile {profile}, owned by {owner}. Deleting your account unlinks it and deletes your Feedback & Help messages; the profile and its data stay its owner\'s.'**
+  String authDeleteAccountLinked(String email, String profile, String owner);
+
+  /// No description provided for @authDeleteAccountManage.
+  ///
+  /// In en, this message translates to:
+  /// **'How to cancel a subscription'**
+  String get authDeleteAccountManage;
+
+  /// No description provided for @authDeleteAccountOthers.
+  ///
+  /// In en, this message translates to:
+  /// **'These accounts linked to it lose access too: {emails}.'**
+  String authDeleteAccountOthers(String emails);
+
+  /// No description provided for @authDeleteAccountOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'You own the profile {profile}. Deleting your account deletes the whole profile: its events, clips, recordings and settings in the cloud, its Feedback & Help messages, its recognition labels and its devices\' stream keys.'**
+  String authDeleteAccountOwner(String profile);
+
+  /// No description provided for @authDeleteAccountSignInAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again, then delete the account.'**
+  String get authDeleteAccountSignInAgain;
+
+  /// No description provided for @authDeleteAccountSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting your account doesn\'t cancel a Premium subscription: cancel it first, from the link in your Stripe receipt, or ask us.'**
+  String get authDeleteAccountSubscription;
+
+  /// No description provided for @authDeleteAccountTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete your account?'**
+  String get authDeleteAccountTitle;
+
+  /// No description provided for @authDeleteAccountUnfinished.
+  ///
+  /// In en, this message translates to:
+  /// **'The cloud data is still being deleted. Try again in a minute to finish.'**
+  String get authDeleteAccountUnfinished;
+
+  /// No description provided for @authDeleteAccountUnlinked.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account was deleted and unlinked from the profile'**
+  String get authDeleteAccountUnlinked;
+
   /// No description provided for @authDeleteDevice.
   ///
   /// In en, this message translates to:

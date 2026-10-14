@@ -377,5 +377,58 @@
         "type": "String"
       }
     }
-  }
+  },
+  "authDeleteAccount": "Delete account",
+  "@authDeleteAccount": {
+    "description": "The account sheet's last button, and the confirmation dialog's delete button."
+  },
+  "authDeleteAccountTitle": "Delete your account?",
+  "authDeleteAccountOwner": "You own the profile {profile}. Deleting your account deletes the whole profile: its events, clips, recordings and settings in the cloud, its Feedback & Help messages, its recognition labels and its devices' stream keys.",
+  "@authDeleteAccountOwner": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountOthers": "These accounts linked to it lose access too: {emails}.",
+  "@authDeleteAccountOthers": {
+    "placeholders": {
+      "emails": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountLinked": "{email} is linked to the profile {profile}, owned by {owner}. Deleting your account unlinks it and deletes your Feedback & Help messages; the profile and its data stay its owner's.",
+  "@authDeleteAccountLinked": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      },
+      "profile": {
+        "type": "String"
+      },
+      "owner": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountDevice": "This device's copies of the profile's events and clips are deleted too, and you're signed out. This can't be undone.",
+  "authDeleteAccountSubscription": "Deleting your account doesn't cancel a Premium subscription: cancel it first, from the link in your Stripe receipt, or ask us.",
+  "authDeleteAccountManage": "How to cancel a subscription",
+  "authDeleteAccountConfirm": "I understand that this can't be undone",
+  "authDeleteAccountCancel": "Cancel",
+  "authDeleteAccountDone": "Your account and its profile were deleted",
+  "authDeleteAccountUnlinked": "Your account was deleted and unlinked from the profile",
+  "authDeleteAccountFailed": "Couldn't delete the account ({error}). Try again.",
+  "@authDeleteAccountFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authDeleteAccountUnfinished": "The cloud data is still being deleted. Try again in a minute to finish.",
+  "authDeleteAccountChanged": "Your account's profile changed. Close this and try again.",
+  "authDeleteAccountSignInAgain": "Sign in again, then delete the account."
 }

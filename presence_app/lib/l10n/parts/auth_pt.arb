@@ -123,5 +123,21 @@
   "authStreamerCopied": "Comando copiado: cole-o no Raspberry Pi",
   "authStreamerCreate": "Criar comando",
   "authStreamerKeyOnce": "Ele contém a chave deste dispositivo, mostrada só agora: mantenha-a privada. Excluir o dispositivo o interrompe; criar outro comando cria outro dispositivo.",
-  "authStreamerFailed": "Não foi possível criar o comando ({error})"
+  "authStreamerFailed": "Não foi possível criar o comando ({error})",
+  "authDeleteAccount": "Excluir conta",
+  "authDeleteAccountTitle": "Excluir sua conta?",
+  "authDeleteAccountOwner": "Você é o dono do perfil {profile}. Excluir sua conta exclui o perfil inteiro: seus eventos, clipes, gravações e configurações na nuvem, suas mensagens de Feedback e ajuda, seus rótulos de reconhecimento e as chaves de transmissão dos seus dispositivos.",
+  "authDeleteAccountOthers": "Estas contas vinculadas a ele também perdem o acesso: {emails}.",
+  "authDeleteAccountLinked": "{email} está vinculada ao perfil {profile}, de {owner}. Excluir sua conta a desvincula e exclui suas mensagens de Feedback e ajuda; o perfil e seus dados continuam do dono.",
+  "authDeleteAccountDevice": "As cópias dos eventos e clipes do perfil neste dispositivo também são excluídas, e você sai da conta. Não dá para desfazer.",
+  "authDeleteAccountSubscription": "Excluir sua conta não cancela uma assinatura Premium: cancele-a antes, pelo link do seu recibo do Stripe, ou fale conosco.",
+  "authDeleteAccountManage": "Como cancelar uma assinatura",
+  "authDeleteAccountConfirm": "Entendo que não dá para desfazer",
+  "authDeleteAccountCancel": "Cancelar",
+  "authDeleteAccountDone": "Sua conta e o perfil dela foram excluídos",
+  "authDeleteAccountUnlinked": "Sua conta foi excluída e desvinculada do perfil",
+  "authDeleteAccountFailed": "Não foi possível excluir a conta ({error}). Tente de novo.",
+  "authDeleteAccountUnfinished": "Os dados na nuvem ainda estão sendo excluídos. Tente de novo em um minuto para terminar.",
+  "authDeleteAccountChanged": "O perfil da sua conta mudou. Feche isto e tente de novo.",
+  "authDeleteAccountSignInAgain": "Entre de novo e depois exclua a conta."
 }

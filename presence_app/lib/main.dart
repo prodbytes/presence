@@ -504,6 +504,41 @@ class _PresenceAppState extends State<PresenceApp> {
     return deleted;
   }
 
+  /// Whether the sign-out under way is an account deletion's: its event
+  /// then names no email ([_onAuthChanged]).
+  bool _deletingAccount = false;
+
+  /// Deletes the signed-in account at the auth API (a linked account
+  /// leaves the profile; its owner deletes the whole profile and its cloud
+  /// data), then signs out, so nothing syncs for the profile any more, and
+  /// forgets the profile here (`Persistence.deleteProfile`: its events,
+  /// clips and recordings, and its devices' keys) along with the devices
+  /// hidden or taken off the list. When the API hasn't finished deleting
+  /// the cloud folder, nothing here changes (asked again, it carries on).
+  Future<AccountDeletion> _deleteAccount() async {
+    final profile = _roles.profile;
+    final token = _auth.idToken;
+    if (profile == null || token == null) throw RolesException(401);
+    final result = await _profiles.deleteAccount(token, profile);
+    if (!result.complete) return result;
+    _deletingAccount = true;
+    try {
+      await _auth.signOut();
+    } finally {
+      _deletingAccount = false;
+    }
+    final deleted = await _persistence.deleteProfile(profile);
+    debugPrint(
+      'Presence: deleted the account; $deleted records of $profile '
+      'deleted on this device',
+    );
+    _log.hiddenDevices = const {};
+    _persistence.saveHiddenDevices(const {}).ignore();
+    _log.removedDevices = const {};
+    _persistence.saveRemovedDevices(const {}).ignore();
+    return result;
+  }
+
   /// Shows or hides [deviceId]'s events here, and remembers it.
   void _showDevice(String deviceId, bool shown) {
     final hidden = {..._log.hiddenDevices};
@@ -687,6 +722,12 @@ class _PresenceAppState extends State<PresenceApp> {
     _bus.publish(
       email != null
           ? AppEvent(icon: Icons.login, title: 'Signed in', detail: email)
+          // A deleted account's email isn't kept, even here.
+          : _deletingAccount
+          ? AppEvent(
+              icon: Icons.person_remove_outlined,
+              title: 'Account deleted',
+            )
           : AppEvent(icon: Icons.logout, title: 'Signed out', detail: previous),
     );
   }
@@ -801,6 +842,7 @@ class _PresenceAppState extends State<PresenceApp> {
         tabMemory: widget.tabMemory,
         showDevice: _showDevice,
         deleteDevice: _deleteDevice,
+        deleteAccount: _deleteAccount,
         screenOff: _screenOff,
       ),
     },

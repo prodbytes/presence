@@ -123,5 +123,21 @@
   "authStreamerCopied": "Comando copiado: pégalo en la Raspberry Pi",
   "authStreamerCreate": "Crear comando",
   "authStreamerKeyOnce": "Contiene la clave de este dispositivo, que solo se muestra ahora: mantenla privada. Borrar el dispositivo lo detiene; crear otro comando crea otro dispositivo.",
-  "authStreamerFailed": "No se pudo crear el comando ({error})"
+  "authStreamerFailed": "No se pudo crear el comando ({error})",
+  "authDeleteAccount": "Eliminar cuenta",
+  "authDeleteAccountTitle": "¿Eliminar tu cuenta?",
+  "authDeleteAccountOwner": "Eres el dueño del perfil {profile}. Eliminar tu cuenta elimina todo el perfil: sus eventos, clips, grabaciones y ajustes en la nube, sus mensajes de Comentarios y ayuda, sus etiquetas de reconocimiento y las claves de transmisión de sus dispositivos.",
+  "authDeleteAccountOthers": "Estas cuentas vinculadas a él también pierden el acceso: {emails}.",
+  "authDeleteAccountLinked": "{email} está vinculada al perfil {profile}, de {owner}. Eliminar tu cuenta la desvincula y elimina tus mensajes de Comentarios y ayuda; el perfil y sus datos siguen siendo de su dueño.",
+  "authDeleteAccountDevice": "También se eliminan las copias de los eventos y clips del perfil en este dispositivo, y se cierra tu sesión. No se puede deshacer.",
+  "authDeleteAccountSubscription": "Eliminar tu cuenta no cancela una suscripción Premium: cancélala antes, desde el enlace de tu recibo de Stripe, o escríbenos.",
+  "authDeleteAccountManage": "Cómo cancelar una suscripción",
+  "authDeleteAccountConfirm": "Entiendo que no se puede deshacer",
+  "authDeleteAccountCancel": "Cancelar",
+  "authDeleteAccountDone": "Se eliminaron tu cuenta y su perfil",
+  "authDeleteAccountUnlinked": "Se eliminó tu cuenta y se desvinculó del perfil",
+  "authDeleteAccountFailed": "No se pudo eliminar la cuenta ({error}). Inténtalo de nuevo.",
+  "authDeleteAccountUnfinished": "Los datos en la nube aún se están eliminando. Inténtalo de nuevo en un minuto para terminar.",
+  "authDeleteAccountChanged": "El perfil de tu cuenta cambió. Cierra esto e inténtalo de nuevo.",
+  "authDeleteAccountSignInAgain": "Vuelve a iniciar sesión y luego elimina la cuenta."
 }

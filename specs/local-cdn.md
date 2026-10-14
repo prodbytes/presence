@@ -145,8 +145,9 @@ asks directly (see Roles below):
   `GOOGLE_WEB_CLIENT_ID` from `.env`) and the template's routes:
   `GET /api/auth/anonymous` (`AuthFunction`) and the `ProfileFunction`
   routes (`POST /api/auth/credentials`, `GET /api/auth/profile`,
-  `POST /api/auth/profile/link-code`, `/link`, `/unlink` and
-  `/devices/remove`). `10-cloudfront.sh` then routes `/api/*` to
+  `POST /api/auth/profile/link-code`, `/link`, `/unlink`,
+  `/devices/remove` and `/stream-key`, and `POST /api/auth/account/delete`).
+  `10-cloudfront.sh` then routes `/api/*` to
   `presence.execute-api.localhost.floci.io:4566`. Keep the hook's routes in
   step with `template.yaml`.
 - **Roles** come from **rbacr's RC** (https://rc.rbacr.nu01.com, its own
