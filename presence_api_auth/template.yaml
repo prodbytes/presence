@@ -615,7 +615,10 @@ Resources:
     Properties:
       CodeUri: .
       Handler: presence.auth.DescribeHandler::handleRequest
-      MemorySize: 2048
+      # The account's most (3008 MB): measured fastest of 1769 to 3008 MB
+      # (8 crops warm in 2.4 s, 3.4 s at 2048), for some 6 % more a call
+      # (specs/cloud-recognition.md, "Memory").
+      MemorySize: 3008
       Timeout: 60
       Environment:
         Variables:

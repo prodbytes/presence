@@ -116,7 +116,7 @@ class RecognitionResult {
 /// isn't searched again.
 ///
 /// For a premium profile with a trained cloud model ([cloud]), up to
-/// [maxCloudCrops] of the people and pets seen are also sent to cloud
+/// [maxIdentifyCrops] of the people and pets seen are also sent to cloud
 /// recognition (DINOv2-L), and each subject's confidence is the higher of
 /// the two, the tag placed where the surer one saw them.
 ///
@@ -185,6 +185,10 @@ class SubjectRecognizer {
   /// [cloudCropsPerFrame] a frame.
   static const int maxCloudCrops = CloudRecognitionClient.maxBatch;
   static const int cloudCropsPerFrame = 2;
+
+  /// The most people and pets of a clip sent to identify (DINOv2, slower
+  /// than the breeds' model): [CloudRecognitionClient.maxSubjectBatch].
+  static const int maxIdentifyCrops = CloudRecognitionClient.maxSubjectBatch;
 
   /// Cloud recognition, for premium profiles; null: on the device only.
   final CloudIdentifier? cloud;
@@ -565,11 +569,11 @@ class SubjectRecognizer {
         }
       }
       TagFrame? tagFrame;
-      if (useCloud && lookForSubjects && cloudCrops.length < maxCloudCrops) {
+      if (useCloud && lookForSubjects && cloudCrops.length < maxIdentifyCrops) {
         final seen = [...analysis.seen]
           ..sort((a, b) => b.detection.score.compareTo(a.detection.score));
         for (final s in seen.take(cloudCropsPerFrame)) {
-          if (cloudCrops.length >= maxCloudCrops) break;
+          if (cloudCrops.length >= maxIdentifyCrops) break;
           tagFrame ??= await _tagFrame(event, frame);
           if (tagFrame == null) break;
           cloudCrops.add(

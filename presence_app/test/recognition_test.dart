@@ -1830,31 +1830,37 @@ void main() {
         );
       });
 
-      test('sends at most 8 crops, 2 a frame, best first', () async {
-        log.addHistory([
-          tagged(1, ['Rex']),
-        ]);
-        Seen at(double x, double score) => Seen(
-          Detection(Box(x, 0.2, x + 0.1, 1), score, SeenKind.person),
-          lookVector: direction(90),
-        );
-        final vision = FakeVision(
-          {
-            for (var i = 0; i < 6; i++)
-              i: [at(0, 0.5), at(0.2, 0.9), at(0.4, 0.7)],
-          },
-          {
-            1: [seenAt(body, look: 0)],
-          },
-        );
-        final cloud = _FakeCloud({});
-        await withCloud(
-          vision,
-          FakeSampler(6),
-          cloud,
-        ).recognize(ClipRequested(clip(), id: 'new'));
-        expect(cloud.asked.single, hasLength(8));
-      });
+      test(
+        'sends at most 4 crops to identify, 2 a frame, best first',
+        () async {
+          log.addHistory([
+            tagged(1, ['Rex']),
+          ]);
+          Seen at(double x, double score) => Seen(
+            Detection(Box(x, 0.2, x + 0.1, 1), score, SeenKind.person),
+            lookVector: direction(90),
+          );
+          final vision = FakeVision(
+            {
+              for (var i = 0; i < 6; i++)
+                i: [at(0, 0.5), at(0.2, 0.9), at(0.4, 0.7)],
+            },
+            {
+              1: [seenAt(body, look: 0)],
+            },
+          );
+          final cloud = _FakeCloud({});
+          await withCloud(
+            vision,
+            FakeSampler(6),
+            cloud,
+          ).recognize(ClipRequested(clip(), id: 'new'));
+          expect(
+            cloud.asked.single,
+            hasLength(SubjectRecognizer.maxIdentifyCrops),
+          );
+        },
+      );
 
       test('not asked when the cloud isn\'t available', () async {
         log.addHistory([

@@ -151,6 +151,12 @@ abstract class CloudRecognitionClient {
 
   /// The most crops or labels in one request.
   static const int maxBatch = 8;
+
+  /// The most crops DINOv2 embeds in one request (identify, and training's
+  /// labels): in Lambda, at the account's most memory, it takes some 3 s a
+  /// crop, so 8 came close to the API's 30 s (specs/cloud-recognition.md,
+  /// "Memory").
+  static const int maxSubjectBatch = 4;
 }
 
 class HttpCloudRecognitionClient implements CloudRecognitionClient {
@@ -451,7 +457,7 @@ class CloudTrainer {
   static const Duration maxAge = Duration(days: 7);
   static const int minNewLabels = 5;
   static const int minFirstLabels = 3;
-  static const int maxBatch = CloudRecognitionClient.maxBatch;
+  static const int maxBatch = CloudRecognitionClient.maxSubjectBatch;
 
   /// How often the timer looks whether a check is due.
   static const Duration tick = Duration(minutes: 15);
