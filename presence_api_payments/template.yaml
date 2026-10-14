@@ -18,9 +18,10 @@ Parameters:
     Type: String
     Description: >
       The Presence session tokens' issuer (the auth API stack's SessionIssuer
-      output, https://<site>/api/auth): only its tokens, for the audience
-      presence, are accepted. scripts/deploy.sh passes it.
-    AllowedPattern: 'https://[A-Za-z0-9.-]+(:[0-9]+)?/api/auth'
+      output: https://<site>, its documents at the site's root; earlier
+      https://<site>/api/auth): only its tokens, for the audience presence,
+      are accepted. scripts/deploy.sh passes it.
+    AllowedPattern: 'https://[A-Za-z0-9.-]+(:[0-9]+)?(/api/auth)?'
   MonthlyLink:
     Type: String
     Default: ''

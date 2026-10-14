@@ -6059,3 +6059,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        (applied). Specs: [Sessions](sessions.md), [Production
        deploy](deploy.md), [Auth API](auth-api.md),
        [Payments API](payments-api.md), [README](README.md).
+
+433. **Sign-in with no roles: the auth API's routes, and payments' issuer.** (2026-10-15)
+     - Asked: sign-in worked but got no roles; is rbacr updating?
+     - Found: rbacr answers and holds the roles (julio@nu01.com root;
+       Presence admin, premium), redeployed at 21:36 UTC with its Google
+       audiences and trusted issuers. The cause was the release with
+       session tokens (0.6.202610142135 live): its auth API had lost its
+       protected routes (`/api/auth/profile` 404), as the session issuer's
+       documents weren't fetchable; #371 moved the issuer to the site's
+       root and copies them there. Its GA deploy (0.6.202610142202) fixed
+       the auth API (`/api/auth/profile` 401 without a token, the site's
+       `/.well-known/jwks.json` 200), then stopped: the payments template
+       still required an issuer ending in `/api/auth`.
+     - Changed: the payments API's `SessionIssuer` may be the site's root
+       (or, as before, `/api/auth`). Spec: none changed (the template's
+       pattern).
