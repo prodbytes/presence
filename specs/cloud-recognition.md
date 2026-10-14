@@ -66,7 +66,7 @@ found by a detector:
       after it, or not held by the API at all); or
     - **7 days** have passed since the last training.
   - **training**: the crops of the labels the API doesn't hold yet (newest
-    first, **8** per request), then the profile's labels; not at all when
+    first, **4** per request, see Memory), then the profile's labels; not at all when
     no label could be sent or is held (no crop: an empty model never
     replaces one, "no labels"). The time it
     trained is kept in the settings (`recognition.cloudTrainedAt`, synced
@@ -94,7 +94,7 @@ found by a detector:
 - **On each clip** the device searches for subjects, when the profile is
   premium and its model trained (`CloudIdentifier`): the people and pets
   seen are cropped as above, at most **2 a frame** (the surest
-  detections) and **8 a clip**, each with the frame's JPEG (a tag frame),
+  detections) and **4 a clip** (see Memory), each with the frame's JPEG (a tag frame),
   and sent in one request after the clip is sampled.
 - **The answer**: each crop's likeliest subjects of its sort (up to 3,
   from 5 %). Each subject's cloud confidence is pooled as on the device
@@ -257,9 +257,10 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   the pooled output, made unit length.
 - **The files** (too big for a package; `ModelFile`, one `Source` per
   model): fetched at an instance's first use into `/tmp`, from the
-  user-data bucket's `models/` (a prefix only the functions reach), or else
-  from Hugging Face at a pinned revision and then kept in the bucket. Its
-  SHA-256 must match, or it isn't used. The bucket's lifecycle expires
+  user-data bucket's `models/` (a prefix only the functions reach), in **8
+  ranges at once** (`fetchInParts`: one stream gave DINOv2 some 20 MB/s,
+  55 to 77 s), or else from Hugging Face at a pinned revision and then
+  kept in the bucket. Its SHA-256 must match, or it isn't used. The bucket's lifecycle expires
   them after 90 days; the next instance fetches them again.
   - DINOv2: `models/dinov2-large-305351060a1939d9.onnx` (1.2 GB, 3 GB of
     ephemeral storage), revision `4b3550c5…`, SHA-256 `30535106…7d6ac`;
@@ -273,14 +274,42 @@ caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
   [pom.xml](../presence_api_auth/RecognitionFunction/pom.xml) compiles the
   auth API's sources with its own (the caller, profiles, roles), adds ONNX
   Runtime with only its Linux libraries (47 MB jar) and jackson-jr.
-- **`RecognitionDescribeFunction`**: the same jar, Java 25, **2048 MB**,
-  60 s timeout. In the Lambda Java 25 image (arm64, 2 GB, 1.2 CPUs): a
-  cold request (fetching SigLIP2 from Hugging Face, checking and loading
-  it) answered 8 crops in 6.7 s, a warm one in 1.1 s.
+- **`RecognitionDescribeFunction`**: the same jar, Java 25, **3008 MB**
+  (see Memory), 60 s timeout.
 - **Throttles**: labels 2/s (burst 10), train 1/s (burst 5), identify 5/s
   (burst 20), describe 5/s (burst 20).
 - **The input** goes to ONNX Runtime in a direct buffer, in the machine's
   byte order, which it reads in place (a heap buffer was copied first).
+
+### Memory
+
+Measured on GA (2026-10-14, `bench.py` in the session's scratchpad: each
+memory size set on the function, which starts a new instance, then one
+call and five more, each with 8 crops of the test photos, invoked directly
+with the owner's claims; nothing kept). The account allows **at most 3008
+MB** (and 10 concurrent executions); more needs AWS Support. Instances of
+the same size differ: some answer twice as fast, so each size ran on 3 to
+4 instances. ONNX Runtime ran 2 threads at every size.
+
+| Describe (SigLIP2, int8), 8 crops | 1769 MB | 2048 MB | 2560 MB | 3008 MB |
+|---|---|---|---|---|
+| Warm, usual instance | 3.5 s | 3.4 s | 2.9 s | **2.4 s** |
+| Warm, fastest seen | 2.0 s | 1.5 s | 1.3 s | 1.3 s |
+| A new instance | 9.5-12 s | 9-12 s | 6-11 s | 7-11 s |
+| Cost of a warm call (GB-s) | 6.0 | 6.7 | 7.2 | 7.1 |
+
+- **Describe: 3008 MB**: still getting faster at the account's most, for
+  some 6 % more a call than 2048 MB.
+- **Identify and training (DINOv2-L, fp32): 3008 MB**, the most there is:
+  a new instance used 2,984 MB of 3008 (2,537 of 2560). 8 crops took
+  **22-29 s** warm (some 3 s a crop), near the API's 30 s, so the app
+  sends at most **4** a request (`CloudRecognitionClient.maxSubjectBatch`:
+  identify's crops of a clip, `SubjectRecognizer.maxIdentifyCrops`, and
+  training's labels, `CloudTrainer.maxBatch`). A new instance fetched
+  DINOv2 from the bucket in 55-77 s with one stream; now in ranges.
+- What would be faster: more CPU (memory past 3008 MB, after AWS
+  Support), or a smaller model (DINOv2-B, or int8 L, which matched worse,
+  above).
 
 ### Timing
 
@@ -351,13 +380,13 @@ model from Hugging Face at its first use (DINOv2 1.2 GB, SigLIP2 95 MB).
   renamed, not recognition's; the JSON round-trip; an older tag's time
   from its ID; the settings' round-trip; the check: not premium, 3 for a
   first training, 5 new (sending only the new crops), 7 days with nothing
-  new, every 24 h unless forced, a failure retried after 15 min, 8 crops
+  new, every 24 h unless forced, a failure retried after 15 min, 4 crops
   a request and labels without a crop left out, Train now, becoming
   premium checks at once; the HTTP client's requests and answers; the
   Settings line before and after Train now.
 - `recognition_test.dart`: the cloud surer than the device tags where it
   saw them (a person, 224 × 224 × 3 bytes); someone only the cloud knows,
-  unsure, is asked about; 8 crops at most, 2 a frame; not asked when
+  unsure, is asked about; 4 crops at most, 2 a frame; not asked when
   unavailable; a label's crop is its detection's, its sort `pet`, and
   null where nobody is.
 - `DescribeTest` (JUnit, a fake embedder that returns a label's text

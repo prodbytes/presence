@@ -5600,3 +5600,12 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        wait and embedding); ONNX Runtime reads the input in place; the app
        sends a request the gateway cut short once more, 3 s later (not
        training). Spec: [Cloud recognition](cloud-recognition.md).
+     - Measured (second part): the account allows at most 3008 MB (and 10
+       concurrent executions; more needs AWS Support). Describe was
+       fastest at 3008 MB (2.4 s for 8 crops, 3.4 s at 2048), for some 6 %
+       more a call: set to 3008. DINOv2 needs 3008 (it used 2,984 MB) and
+       took 22-29 s for 8 crops warm, and 55-77 s to fetch with one
+       stream. Changed: models come from the bucket in 8 ranges at once;
+       the app sends DINOv2 at most 4 crops a request (identify and
+       training). Spec: [Cloud recognition](cloud-recognition.md),
+       "Memory".

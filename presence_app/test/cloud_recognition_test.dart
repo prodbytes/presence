@@ -243,7 +243,11 @@ void main() {
       labeled('Fido', 1, at: 7000);
       client.nextTrainedAt = 8000;
       expect(await t.check(force: true), TrainingOutcome.trained);
-      expect(client.uploads.last, hasLength(5));
+      expect(
+        [for (final u in client.uploads.skip(1)) u.length],
+        [4, 1],
+        reason: 'the 5 new ones, 4 to a request',
+      );
       expect(client.trainings.last.$1, hasLength(9));
       expect(config.recognition.cloudTrainedAt, 8000);
     });
@@ -284,14 +288,14 @@ void main() {
       expect(await t.check(), TrainingOutcome.trained);
     });
 
-    test('crops go 8 to a request; labels without one are left out', () async {
+    test('crops go 4 to a request; labels without one are left out', () async {
       labeled('Suerte', 11, at: 10);
       labeled('Ghost', 2, at: 10);
       expect(
         await trainer(nobody: {'Ghost'}).check(force: true),
         TrainingOutcome.trained,
       );
-      expect([for (final u in client.uploads) u.length], [8, 3]);
+      expect([for (final u in client.uploads) u.length], [4, 4, 3]);
       expect(client.trainings.single.$1, hasLength(11));
     });
 
