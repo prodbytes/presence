@@ -260,7 +260,10 @@ again, showing the result (in color once both searches ran). When it
 unsupported platform; or the server's breeds and coats didn't answer,
 `RecognitionResult.cloudFailed`: "… Cloud recognition didn't answer
 (breeds and coats); try again.") the icon is an **error icon** (`error_outline`) in
-the error color, its tooltip "Recognition failed: …" with the reason,
+the error color, its tooltip "Recognition failed: …" with the reason
+(for an error, its first line too: "Couldn't run recognition; try
+again. (Bad state: no models)", so it can be told: a release build's
+log isn't at hand),
 until the next tap. Not tappable where recognition doesn't run (no
 recognizer, or a platform without it).
 

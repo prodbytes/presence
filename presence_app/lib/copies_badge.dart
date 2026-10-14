@@ -436,8 +436,12 @@ class _EventRecognitionBadgeState extends State<EventRecognitionBadge> {
         failed = message;
       }
     } catch (e) {
-      debugPrint('Presence: recognition failed again on ${clip.id}: $e');
-      message = l.clipAutoFailed;
+      debugPrint('Presence: recognition failed on ${clip.id}: $e');
+      // What went wrong, briefly, so it can be told (a release build's log
+      // isn't at hand).
+      final first = '$e'.split('\n').first;
+      final why = first.length > 160 ? '${first.substring(0, 160)}…' : first;
+      message = '${l.clipAutoFailed} ($why)';
       failed = message;
     }
     // Done: the brain shows the result; failed: the error icon, till the
