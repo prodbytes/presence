@@ -9,6 +9,10 @@ https://presence.nu01.com/tos, and the RC's), as static pages of the
   and [site/tos/index.html](../presence_index/site/tos/index.html), with a
   shared stylesheet, [site/legal.css](../presence_index/site/legal.css).
   No scripts and no external fonts or images.
+- **The app links to them** ([About](about.md)): the account sheet's
+  About, the [consent](consent.md) screen, and signed out the bottom of
+  the camera, on the same site as the app's API. Google's OAuth consent
+  screen can point at them too.
 - Each links to the other and to the app (`/app/`), with a canonical URL
   and an effective date (11 October 2026). The operator is **ProdBytes**;
   the contact is julio@nu01.com.
@@ -68,6 +72,3 @@ https://presence.nu01.com/tos, and the RC's), as static pages of the
   of the effective date; a lawyer should review them, and they name no
   governing law or registered address.
 - **English only**, unlike the app.
-- **Not linked from the app yet** (the account sheet's About, sign-in):
-  only from each other. Google's OAuth consent screen can now point at
-  them.

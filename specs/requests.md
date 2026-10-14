@@ -5767,6 +5767,22 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        with a dot and their name at the tagged spot; otherwise the clip's
        thumbnail as before. Spec: [Clips](clips.md).
 
+418. **Store readiness: iOS permission texts, iPhone only, export
+     compliance, and the privacy policy and terms in the app.** (2026-10-14)
+     - Asked: fix the App Store items of the [store readiness](store-readiness.md)
+       audit: a truthful camera text, `ITSAppUsesNonExemptEncryption`,
+       iPhone only, and links to the Privacy Policy and Terms of Service
+       in the app, signed in and out.
+     - Changed: `Info.plist`'s camera text says it records video
+       continuously while open and saves clips (microphone likewise);
+       `ITSAppUsesNonExemptEncryption` is `false`; `TARGETED_DEVICE_FAMILY`
+       is `1` and the iPad orientations are gone. "Privacy Policy · Terms
+       of Service" links (to the API site's `/privacy` and `/tos`) are in
+       the account sheet's About, on the consent screen, and signed out
+       at the bottom of the camera, in English, Spanish and Portuguese.
+       Specs: [iOS](ios.md), [About](about.md), [Legal](legal.md),
+       [Consent](consent.md), [Store readiness](store-readiness.md).
+
 419. **Store readiness: the Android capture notification, and no
      background starts.** (2026-10-14)
      - Asked: on Android 13+ ask for `POST_NOTIFICATIONS` so the capture

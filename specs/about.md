@@ -20,5 +20,21 @@ There's no About button or screen any more, and no call to become a member.
     `github.com/prodbytes/presence`. Tapping it opens it outside the app
     (`url_launcher`); when it can't open, it's copied, saying "Link
     copied".
+  - **"Privacy Policy · Terms of Service"** (`LegalLinks`), two small
+    links to the site's `/privacy` and `/tos` ([Legal](legal.md)), opened
+    the same way.
+- **The legal links elsewhere:** on the [consent](consent.md) screen,
+  under **I agree**; and signed out (no account sheet then), centred at
+  the bottom of the camera on a dark scrim (`SignedOutLegalLinks`), where
+  nothing else is shown signed out. With access they're only in the
+  Profile tab's About. So they're reachable signed in and out, on every
+  platform.
+- **Where they point:** the same site as the app's API
+  (`ApiConfig.baseUrl`, `LegalPages`): the page's own origin on web, and
+  on Android and iOS `API_BASE_URL` (the RC's site in RC builds) or
+  https://presence.nu01.com.
 - Tests: `about_test.dart` (the paragraph after Sign out at 320 wide,
-  with no membership pitch; the link opening, or copied when it can't).
+  with no membership pitch; the link opening, or copied when it can't;
+  the legal links in the account sheet, on the consent screen at 360 ×
+  640, and signed out at the bottom of the camera, each opening `/privacy`
+  and `/tos`; none over the camera with access).
