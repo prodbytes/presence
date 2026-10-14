@@ -9,6 +9,7 @@ import '../cameras/camera_source.dart';
 import '../clips.dart';
 import '../config.dart';
 import '../crypto/media_seal.dart';
+import '../device_memory.dart';
 import '../events.dart';
 import '../subjects.dart';
 import 'cloud_recognition.dart';
@@ -243,7 +244,16 @@ class SubjectRecognizer {
   static final _tight = RecognitionResult(RecognitionOutcome.deferred);
 
   /// Whether recognition can run on this platform.
-  bool get supported => _runtime.supported && _sampler.supported;
+  bool get supported =>
+      _runtime.supported &&
+      _sampler.supported &&
+      !(totalMemoryMb != null && totalMemoryMb! < minRecognitionMemoryMb);
+
+  /// This device's total memory in MB, once known (`deviceMemoryMb`):
+  /// under [minRecognitionMemoryMb] (a Raspberry Pi, an old phone)
+  /// recognition doesn't run here; the cloud and the profile's other
+  /// devices do it. Unknown, it runs.
+  int? totalMemoryMb;
 
   /// Completes once every clip queued so far is done (for tests).
   Future<void> get idle => !_running && _pending.isEmpty && _parked.isEmpty

@@ -73,7 +73,8 @@ void main() {
     test("each device's OS and latest event, from its events", () {
       final events = [
         eventOf('brave_quiet_lamp', minutesAgo: 5),
-        eventOf('brave_quiet_lamp', minutesAgo: 9, os: 'Android'),
+        eventOf('brave_quiet_lamp', minutesAgo: 9, os: 'Android')
+          ..memoryMb = 3700,
         eventOf('brave_quiet_lamp', minutesAgo: 30, os: 'iOS'),
         eventOf('zesty_calm_kettle', minutesAgo: 2, profile: 'other_owl'),
       ];
@@ -85,11 +86,18 @@ void main() {
         ),
         [
           // No events yet: this device's own OS.
-          (id: 'happy_tidy_gadget', os: DeviceOs.current, lastEvent: null),
+          (
+            id: 'happy_tidy_gadget',
+            os: DeviceOs.current,
+            lastEvent: null,
+            memoryMb: null,
+          ),
           (
             id: 'brave_quiet_lamp',
             os: 'Android',
             lastEvent: DateTime(2026, 10, 5, 11, 55),
+            // Its latest event that says.
+            memoryMb: 3700,
           ),
         ],
       );
@@ -223,6 +231,7 @@ void main() {
                     id: 'calm_sunny_radio_with_a_long_name',
                     os: 'Web (Firefox, Windows)',
                     lastEvent: now.subtract(const Duration(minutes: 5)),
+                    memoryMb: null,
                   ),
                 ],
               ),
@@ -314,7 +323,7 @@ void main() {
   });
 
   for (final scale in [2.0]) {
-    testWidgets('the profile ID is larger, the device IDs body-sized, and '
+    testWidgets('the profile ID is larger, the device IDs small, and '
         'they fit 320 dp at ${scale}x text', (tester) async {
       tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1;
@@ -340,6 +349,7 @@ void main() {
                       id: 'calm_sunny_radio_with_a_long_name',
                       os: 'Android',
                       lastEvent: now,
+                      memoryMb: null,
                     ),
                   ],
                 ),
@@ -361,7 +371,7 @@ void main() {
       );
       final style = tester.widget<SelectableText>(device).style!;
       // bodyMedium: a long ID fits a small phone beside its eye button.
-      expect(style.fontSize, text.bodyMedium!.fontSize);
+      expect(style.fontSize, text.bodySmall!.fontSize);
       expect(tester.getTopRight(device).dx, lessThanOrEqualTo(320));
       expect(
         tester

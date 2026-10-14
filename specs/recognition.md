@@ -54,7 +54,14 @@ confidence is the higher of the two:
 - A new clip already searched with **Auto** while it was recording isn't
   searched again once it's done (it has its object tags by then, too).
 - Only on a platform that has the runtime: **web**, **Android** and
-  **iOS**, with the same models (see [Platforms](platforms.md)).
+  **iOS**, with the same models (see [Platforms](platforms.md)), and
+  only on a device with **about 2 GB of memory or more**
+  (`SubjectRecognizer.totalMemoryMb`, from `deviceMemoryMb`: from 1800
+  MB, `minRecognitionMemoryMb`, as a "2 GB" device reports a little
+  less). Below it (a Raspberry Pi, an old phone, a browser saying 1 GB)
+  it's as on a platform without the runtime: the cloud and the profile's
+  other devices recognize its clips. Memory unknown (Safari, Firefox):
+  it runs.
 - **On request, on any clip:** the player's **Auto** button (see
   [Clips](clips.md), "Naming subjects") runs the same search on the
   clip it shows: restored and synced clips too, and even with **Recognize

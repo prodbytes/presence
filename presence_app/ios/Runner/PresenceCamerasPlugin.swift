@@ -143,6 +143,9 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       result(nil)
     case "setTorch":
       result(camera?.setTorch(on: args["on"] as? Bool == true) ?? false)
+    case "totalMemory":
+      // The device's memory, for the device list and recognition's gate.
+      result(NSNumber(value: ProcessInfo.processInfo.physicalMemory))
     case "setScreenLight":
       setScreenLight(args["on"] as? Bool == true)
       result(nil)

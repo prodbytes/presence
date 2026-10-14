@@ -5728,3 +5728,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: a failed run's tooltip and message include the error's
        first line, to find the cause. Spec:
        [Subject recognition](recognition.md).
+
+415. **Device memory: shown, and recognition only from about 2 GB.** (2026-10-14)
+     - Asked: devices with less than 2 GB of memory don't run recognition
+       (not on a Pi; on the iPhone, the cloud or powerful devices); show
+       each device's memory in the device list; and the device list's
+       name, labels and details a little smaller.
+     - Changed: each event records its device's total memory (`memoryMb`:
+       Android's total, iOS's `physicalMemory` over `totalMemory` on
+       `presence/cameras`, a browser's `navigator.deviceMemory`); the
+       device list shows it ("Android · 3.5 GB · 5 min ago"); recognition
+       doesn't run under 1800 MB (a "2 GB" device reports a little less).
+       The row's ID and labels are 12 sp (were 14), its details 11 sp,
+       its OS icon 16 px. Specs: [Sign-in](sign-in.md),
+       [Subject recognition](recognition.md),
+       [Data formats](data-formats.md).

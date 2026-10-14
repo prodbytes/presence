@@ -6,6 +6,7 @@ import '../cloud/cloud_sync.dart';
 import '../delete_device.dart';
 import '../show_device.dart';
 import '../device_events.dart';
+import '../device_memory.dart';
 import '../cloud/live_sync.dart';
 import '../connectivity.dart';
 import '../device_presence.dart';
@@ -410,7 +411,12 @@ List<String> profileDevices(
 /// its operating system ([AppEvent.os] of its latest event that has one;
 /// [DeviceOs.current] for this device when none does) and the time of its
 /// latest event (null: none yet).
-typedef ProfileDevice = ({String id, String? os, DateTime? lastEvent});
+typedef ProfileDevice = ({
+  String id,
+  String? os,
+  DateTime? lastEvent,
+  int? memoryMb,
+});
 
 /// [profileDevices], each with its operating system and latest event (see
 /// [ProfileDevice]). Events not saved yet, without a device ID, are
@@ -425,6 +431,7 @@ List<ProfileDevice> profileDeviceDetails(
 }) {
   final latest = <String, DateTime>{};
   final os = <String, (DateTime, String)>{};
+  final memory = <String, (DateTime, int)>{};
   for (final event in events) {
     if (event.profileId != profileId) continue;
     final device = EventTimeline.deviceOf(event, thisDevice);
@@ -436,6 +443,11 @@ List<ProfileDevice> profileDeviceDetails(
     final named = os[device];
     if (name != null && (named == null || time.isAfter(named.$1))) {
       os[device] = (time, name);
+    }
+    final mb = event.memoryMb;
+    final known = memory[device];
+    if (mb != null && (known == null || time.isAfter(known.$1))) {
+      memory[device] = (time, mb);
     }
   }
   return [
@@ -449,6 +461,7 @@ List<ProfileDevice> profileDeviceDetails(
         id: id,
         os: os[id]?.$2 ?? (id == thisDevice ? DeviceOs.current : null),
         lastEvent: latest[id],
+        memoryMb: memory[id]?.$2,
       ),
   ];
 }
@@ -519,7 +532,12 @@ class ProfileDevices extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = TextStyle(color: theme.colorScheme.onSurfaceVariant);
-    final small = theme.textTheme.bodySmall?.copyWith(
+    // A device's row is small (asked for: it was too big): its ID in
+    // bodySmall (12 sp), its labels too, its details in labelSmall (11 sp).
+    final label = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    final small = theme.textTheme.labelSmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
     final at = (now ?? DateTime.now)();
@@ -548,7 +566,7 @@ class ProfileDevices extends StatelessWidget {
                 child: Icon(
                   DeviceOs.iconOf(device.os),
                   key: Key('profile-device-os-${device.id}'),
-                  size: 18,
+                  size: 16,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -585,8 +603,7 @@ class ProfileDevices extends StatelessWidget {
                             device.id,
                             key: Key('profile-device-id-${device.id}'),
                             onTap: onTap,
-                            // bodyMedium: a long ID fits a small phone.
-                            style: theme.textTheme.bodyMedium?.copyWith(
+                            style: theme.textTheme.bodySmall?.copyWith(
                               color: onTap == null
                                   ? null
                                   : theme.colorScheme.primary,
@@ -594,14 +611,14 @@ class ProfileDevices extends StatelessWidget {
                           ),
                         ),
                         if (device.id == thisDevice)
-                          Text(l10n.authThisDevice, style: muted),
+                          Text(l10n.authThisDevice, style: label),
                         if (hidden.contains(device.id))
                           Tooltip(
                             message: l10n.authHiddenTooltip,
                             child: Text(
                               l10n.authHidden,
                               key: Key('profile-device-hidden-${device.id}'),
-                              style: muted.copyWith(
+                              style: label.copyWith(
                                 color: theme.colorScheme.tertiary,
                               ),
                             ),
@@ -616,6 +633,8 @@ class ProfileDevices extends StatelessWidget {
                           children: [
                             if (device.os case final os?)
                               TextSpan(text: '$os · '),
+                            if (device.memoryMb case final mb?)
+                              TextSpan(text: '${formatMemory(mb)} · '),
                             TextSpan(
                               text: switch (device.lastEvent) {
                                 null => l10n.authNoEvents,

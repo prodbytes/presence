@@ -115,6 +115,10 @@ class Persistence implements DeviceSettings {
   /// every event it saves.
   final String os;
 
+  /// This device's total memory in MB, once known (`deviceMemoryMb`),
+  /// recorded on every event it saves after.
+  int? memoryMb;
+
   final Future<EventStore> _store;
   late final Future<MediaStore> _media;
   late final Future<DeviceIdentity> _identity;
@@ -910,6 +914,7 @@ class Persistence implements DeviceSettings {
     event.profileId ??= currentProfile?.call();
     event.location ??= currentLocation?.call();
     event.os ??= os;
+    event.memoryMb ??= memoryMb;
     _track(() async {
       final store = await _store;
       try {
@@ -1158,6 +1163,7 @@ class Persistence implements DeviceSettings {
     ..location ??= DeviceLocation.fromJson(record['location'])
     ..profileId ??= AppEvent.profileOf(record)
     ..os ??= AppEvent.osOf(record)
+    ..memoryMb ??= AppEvent.memoryOf(record)
     ..deletedAt ??= AppEvent.deletedAtOf(record);
 
   AppEvent _restoreEventOnly(

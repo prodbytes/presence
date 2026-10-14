@@ -78,6 +78,7 @@ One per event (see [Events](events.md)), about 100–600 bytes:
 | `time` | integer (ms, UTC) | when it happened; also its partition |
 | `cameraId`, `deviceId`, `userId`, `profileId` | string | see [Devices, users and places](devices-users-places.md); `profileId` is missing on events uploaded before 2026-10-05 |
 | `location` | object | `{lat, lng, accuracy, source, time}`: where the device was (see [Device location](device-location.md)); may be null |
+| `memoryMb` | number | the recording device's total memory in MB (Android's `ActivityManager`, iOS's `physicalMemory`, a browser's `navigator.deviceMemory`, rounded); missing where it doesn't say, and on events saved before 2026-10-14 |
 | `os` | string | the recording device's operating system: `Android`, `iOS`, `macOS`, `Windows`, `Linux`, or `Web (<browser>, <system>)` (see [Events](events.md)); missing on events saved before 2026-10-06 |
 | `deletedAt` | integer (ms, UTC) | when the event was deleted, alone from its details or with its device ([Device deletion](device-deletion.md)): the event is hidden on every device; missing on events that aren't deleted. Once set it stays (a copy without it doesn't undo it) |
 

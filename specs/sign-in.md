@@ -204,8 +204,9 @@ there's no separate sign-in screen:
     streamer that hasn't seen anyone yet: no OS, no latest event). This device comes
     first, labelled "this device", even before it has an event; the rest
     are sorted. The list updates while the sheet is open, and scrolls when
-    long. Each ID is selectable, in `bodyMedium` (14 sp, so a long ID fits
-    a small phone); with access it's
+    long. A row is small: each ID is selectable, in `bodySmall` (12 sp),
+    "this device" too, its details in `labelSmall` (11 sp), its OS icon 16
+    px; with access the ID is
     in the accent color and a tap **shows the device's events**: the
     sheet closes and Monitoring opens with the search set to the ID (see
     [Navigation](navigation.md)); "this device"
@@ -225,8 +226,11 @@ there's no separate sign-in screen:
       an icon before the ID (Android `Icons.android`, iOS
       `phone_iphone`, macOS `laptop_mac`, Windows `desktop_windows`,
       Linux `computer`, web `language`; `devices_other` when unknown,
-      with the name in its tooltip) and, under the ID, the name and **how
-      long ago its latest event was**: `Android · 5 min ago` ("just
+      with the name in its tooltip) and, under the ID, the name, its
+      **memory** when it says (`Android · 3.5 GB · 5 min ago`: whole or
+      half GB, MB under one, `formatMemory`; from its latest event that
+      records it, [`memoryMb`](data-formats.md)), and **how
+      long ago its latest event was** ("just
       now", "5 min ago", "3 h ago", "2 d ago"), with the exact time
       (`2026-10-06 14:05:09`) in a tooltip on that line, or `No events`.
       The line is plain text, so a large system font scales it once and
