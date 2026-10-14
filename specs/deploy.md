@@ -247,7 +247,9 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
     Cognito identity pools (update, delete) likewise;
   - tagging only with the stage's tag and only resources with that tag or
     none yet (a new one), or only the cost-allocation tags (`project`,
-    `tenancy`) on the stage's own; untagging never removes `presence:stage`;
+    `tenancy`) on the stage's own (one `CostTags` statement for the
+    distribution, certificate and pool, on `*` scoped by those
+    conditions); untagging never removes `presence:stage`;
   - CloudFront functions by name (`<prefix>-*`);
   - creating distributions, functions, certificates, pools, origin access
     controls and response headers policies, and reading CloudFront, ACM
@@ -444,7 +446,9 @@ strict-origin-when-cross-origin`, `X-XSS-Protection: 1; mode=block`), with
   `prod` never, writing only its own SAM bucket, and changing records only
   under `rc.presence.nu01.com`; and refuses the prod role its own role,
   its stack, and `DeleteRolePermissionsBoundary`. Every managed policy is
-  under IAM's 6,144-character limit (the largest about 5,650). SAM
+  under IAM's 6,144-character limit (the largest, the edge policy, about
+  5,930 with `CostTags`: three separate statements took it over, and
+  that update failed and rolled back on 2026-10-14). SAM
   translates `Globals.Function.PermissionsBoundary` onto all six function
   roles. Not yet deployed (see the steps above).
 - The app's CSP (2026-10-07), injected into the live

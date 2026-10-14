@@ -6017,3 +6017,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        and `scripts/deploy.sh` deploys with `bootstrap` while the site
        doesn't serve the issuer's document, waits for it, then deploys with
        `on`. Specs: [Sessions](sessions.md), [Production deploy](deploy.md).
+
+430. **The deploy roles couldn't add the cost tags.** (2026-10-14)
+     - Asked: (during the release) fix the failed deploy, so the phone can
+       be updated.
+     - Found: the release after the session-token fix failed at the
+       identity pool: the deploy roles may not add the new cost-allocation
+       tags. The `presence-github-deploy` template that allows it (from the
+       cost tagging change) couldn't be applied: its three new statements
+       took the edge policy past IAM's 6,144-character limit (the update
+       rolled back).
+     - Changed: the three are one `CostTags` statement on `*`, scoped by
+       the same conditions (the stage's own resources, only `project` and
+       `tenancy`); applied to `presence-github-deploy` (edge policies about
+       5,930 characters). Spec: [Production deploy](deploy.md).
