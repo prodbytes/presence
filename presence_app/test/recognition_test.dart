@@ -2361,7 +2361,7 @@ void main() {
         0.5,
         0.5,
         frame: testFrame(onePixelPng, 2000),
-        source: TagSource.confirmed,
+        source: TagSource.suggested,
         confidence: 0.89,
       )!;
       final event = ClipRequested(clip(), annotations: a, id: 'c1');
@@ -2405,7 +2405,7 @@ void main() {
         final style = tester.widget<Text>(title).style!;
         expect(tester.getSize(title).height, lessThan(style.fontSize! * 2));
       }
-      expect(find.text('Tagged as Suerte'), findsOneWidget);
+      expect(find.byKey(const Key('suggestion-yes')), findsOneWidget);
     });
   }
 
@@ -2440,7 +2440,9 @@ void main() {
     await tester.tap(find.byKey(const Key('suggestion-yes')));
     await tester.pump();
     expect(a.byId(s.id)!.source, TagSource.confirmed);
+    // Answered: the answer in the question's place, nothing asked again.
     expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(find.text('Is this Ana?'), findsNothing);
     expect(find.byKey(const Key('suggestion-yes')), findsNothing);
 
     // No removes it.
@@ -2458,6 +2460,7 @@ void main() {
     await tester.pump();
     expect(a.byId(t.id), isNull);
     expect(find.text('Not Bo'), findsOneWidget);
+    expect(find.text('Is this Bo?'), findsNothing);
   });
 }
 

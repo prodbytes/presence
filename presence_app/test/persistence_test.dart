@@ -1687,6 +1687,7 @@ void main() {
     await tester.pumpAndSettle();
     await settleStorage(tester);
     expect(find.text('Tagged as Ana'), findsOneWidget);
+    expect(inEvents(find.text('Is this Ana?')), findsNothing);
     expect(find.byKey(const Key('event-subject-ana')), findsOneWidget);
 
     // The answer is saved too.

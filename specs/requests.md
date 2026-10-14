@@ -5670,3 +5670,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        No feature lost its coverage. Specs: [About](about.md),
        [Hiding a device](device-hiding.md),
        [Device deletion](device-deletion.md).
+
+408. **An answered suggestion stops asking.** (2026-10-14)
+     - Asked: once a subject identification is answered, remove the "Is
+       this Suerte?" label: it's tagged, and the card already says so.
+     - Changed: an answered suggestion card shows the answer ("Tagged as
+       Suerte" with a check, or "Not Suerte") in the question's place, and
+       no separate answer line. Spec: [Subject recognition](recognition.md).
