@@ -708,7 +708,7 @@ void main() {
       const r = RecognitionConfig();
       expect(r.enabled, isTrue);
       expect(r.objects, isTrue);
-      expect(r.autoTag, 0.90);
+      expect(r.autoTag, 0.85);
       expect(RecognitionConfig.askFloor, 0.5);
       expect(r.copyWith(autoTag: 2).autoTag, RecognitionConfig.maxConfidence);
       expect(r.copyWith(autoTag: 0).autoTag, RecognitionConfig.minConfidence);
@@ -726,13 +726,25 @@ void main() {
         }).recognition,
         r.copyWith(autoTag: 0.7),
       );
-      // Left at the old default (85 %): the new one. Chosen: kept, at least
-      // the new floor.
-      RecognitionConfig stored(double autoTag) => PresenceConfig.fromJson({
-        'version': 1,
-        'recognition': {'autoTag': autoTag},
-      }).recognition;
-      expect(stored(0.85).autoTag, RecognitionConfig.defaultAutoTag);
+      // A version 1 record left at its default (90 %): the new one, once.
+      // Chosen: kept, at least the floor. Saved again (version 2), a 90 %
+      // chosen later stays.
+      RecognitionConfig stored(double autoTag, {int version = 1}) =>
+          PresenceConfig.fromJson({
+            'version': version,
+            'recognition': {'autoTag': autoTag},
+          }).recognition;
+      expect(stored(0.90).autoTag, 0.85);
+      expect(stored(0.90, version: 2).autoTag, 0.90);
+      expect(stored(0.85).autoTag, 0.85);
+      expect(
+        PresenceConfig.fromJson(
+          const PresenceConfig()
+              .copyWith(recognition: r.copyWith(autoTag: 0.9))
+              .toJson(),
+        ).recognition.autoTag,
+        0.9,
+      );
       expect(stored(0.95).autoTag, 0.95);
       expect(stored(0.8).autoTag, 0.8);
       expect(stored(0.3).autoTag, RecognitionConfig.minConfidence);
@@ -998,8 +1010,8 @@ void main() {
         final vision = FakeVision(
           {
             0: [
-              // Ana at 85 %: under the 90 % default, so asked, not tagged.
-              seenAt(left, faceVector: axis(0, cos: faceCos(0.85))),
+              // Ana at 80 %: under the 85 % default, so asked, not tagged.
+              seenAt(left, faceVector: axis(0, cos: faceCos(0.80))),
               // Bo at 55 %: just over the 50 % floor, asked.
               seenAt(middle, faceVector: axis(1, cos: faceCos(0.55))),
               // Cy at 40 %: under the floor, a stranger; not asked.
