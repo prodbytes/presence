@@ -5520,3 +5520,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        affected.
      - Changed: `dart-defines.sh` falls back to the main checkout's `.env`
        in a worktree. Spec: [Configuration](configuration.md).
+
+397. **Recognition on the iPhone, and the card's spinner until the server answers.** (2026-10-14)
+     - Asked: tapping the recognition indicator on an event card did
+       nothing; recognition is the most important part of the app, so make
+       it work, make it clear that it ran and whether it went well, and
+       let it be run again, to find the cat. Then: keep the spinner while
+       the server side runs, and show success or failure when it answers.
+     - Cause: the iPhone had no recognition (no frame sampler in Swift),
+       so the indicator wasn't tappable there and its clips were never
+       searched on it.
+     - Changed: iOS recognizes, as Android does: `keyframesAt` and
+       `encodeJpeg` in Swift, the LiteRT runtime on iOS. A tapped
+       indicator's spinner now also waits for the cloud's breeds and
+       coats, which join the result; if they don't answer, it ends in the
+       error icon ("Cloud recognition didn't answer"). Specs:
+       [Recognition](recognition.md), [iOS](ios.md).

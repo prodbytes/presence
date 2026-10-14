@@ -369,6 +369,15 @@
     }
   },
   "clipAutoTags": "{subjects} Tags: {tags}.",
+  "clipAutoCloudFailed": "{subjects} Cloud recognition didn't answer (breeds and coats); try again.",
+  "@clipAutoCloudFailed": {
+    "description": "After a requested recognition run, when the cloud's breeds and coats request failed; {subjects} is the on-device result message.",
+    "placeholders": {
+      "subjects": {
+        "type": "String"
+      }
+    }
+  },
   "@clipAutoTags": {
     "placeholders": {
       "subjects": {

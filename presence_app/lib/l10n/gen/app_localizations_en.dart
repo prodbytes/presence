@@ -597,6 +597,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Every subject named before is already on this clip.';
 
   @override
+  String clipAutoCloudFailed(String subjects) {
+    return '$subjects Cloud recognition didn\'t answer (breeds and coats); try again.';
+  }
+
+  @override
   String get clipAutoDeferred =>
       'The phone is low on memory: try again in a moment.';
 

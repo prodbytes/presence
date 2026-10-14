@@ -51,6 +51,77 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
     return UIImage(cgImage: image).jpegData(compressionQuality: 0.85)
   }
 
+  /// The frames of the recording at [path] nearest each of [times] (ms),
+  /// for subject recognition: the nearest keyframe (the cheapest frame to
+  /// decode), each once, upright, at most [maxWidth] px wide, as raw RGBA
+  /// `{ms, width, height, pixels}`. As Android's `keyframesAt`.
+  static func keyframes(at path: String, times: [Int], maxWidth: Int) -> [[String: Any]] {
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: path)))
+    generator.appliesPreferredTrackTransform = true
+    // Any tolerance: the generator takes the nearest keyframe.
+    generator.requestedTimeToleranceBefore = .positiveInfinity
+    generator.requestedTimeToleranceAfter = .positiveInfinity
+    generator.maximumSize = CGSize(width: CGFloat(maxWidth), height: 0)
+    var seen = Set<Int>()
+    var out: [[String: Any]] = []
+    for ms in times {
+      var actual = CMTime.zero
+      // One unreadable frame doesn't lose the others.
+      guard
+        let image = try? generator.copyCGImage(
+          at: CMTime(value: CMTimeValue(ms), timescale: 1000), actualTime: &actual)
+      else { continue }
+      let at = Int((CMTimeGetSeconds(actual) * 1000).rounded())
+      guard seen.insert(at).inserted, let rgba = rgbaOf(image) else { continue }
+      out.append([
+        "ms": at, "width": image.width, "height": image.height,
+        "pixels": FlutterStandardTypedData(bytes: rgba),
+      ])
+    }
+    return out
+  }
+
+  /// [image]'s pixels as RGBA bytes, row after row, opaque.
+  static func rgbaOf(_ image: CGImage) -> Data? {
+    let width = image.width
+    let height = image.height
+    var data = Data(count: width * height * 4)
+    let drawn = data.withUnsafeMutableBytes { raw -> Bool in
+      guard
+        let context = CGContext(
+          data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8,
+          bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+      else { return false }
+      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return true
+    }
+    guard drawn else { return nil }
+    // noneSkipLast leaves the fourth byte undefined: opaque.
+    data.withUnsafeMutableBytes { raw in
+      let bytes = raw.bindMemory(to: UInt8.self)
+      var i = 3
+      while i < bytes.count {
+        bytes[i] = 255
+        i += 4
+      }
+    }
+    return data
+  }
+
+  /// [rgba] ([width] × [height], as [keyframes] gives it) as a JPEG.
+  static func jpegOf(width: Int, height: Int, rgba: Data) -> Data? {
+    guard width > 0, height > 0, rgba.count == width * height * 4,
+      let provider = CGDataProvider(data: rgba as CFData),
+      let image = CGImage(
+        width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+        bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+        provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+    else { return nil }
+    return UIImage(cgImage: image).jpegData(compressionQuality: 0.85)
+  }
+
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any] ?? [:]
     let id = args["id"] as? String ?? ""
@@ -94,6 +165,22 @@ final class PresenceCamerasPlugin: NSObject, FlutterPlugin, FlutterStreamHandler
       let maxWidth = max(1, int("maxWidth"))
       DispatchQueue.global(qos: .userInitiated).async {
         let jpeg = Self.frame(at: path, ms: ms, maxWidth: maxWidth)
+        DispatchQueue.main.async { result(jpeg.map { FlutterStandardTypedData(bytes: $0) }) }
+      }
+    case "keyframesAt":
+      guard let path = args["path"] as? String else { return result([]) }
+      let times = (args["ms"] as? [NSNumber] ?? []).map { $0.intValue }
+      let maxWidth = max(1, int("maxWidth"))
+      DispatchQueue.global(qos: .utility).async {
+        let frames = Self.keyframes(at: path, times: times, maxWidth: maxWidth)
+        DispatchQueue.main.async { result(frames) }
+      }
+    case "encodeJpeg":
+      guard let pixels = args["pixels"] as? FlutterStandardTypedData else { return result(nil) }
+      let width = int("width")
+      let height = int("height")
+      DispatchQueue.global(qos: .utility).async {
+        let jpeg = Self.jpegOf(width: width, height: height, rgba: pixels.data)
         DispatchQueue.main.async { result(jpeg.map { FlutterStandardTypedData(bytes: $0) }) }
       }
     case "close":

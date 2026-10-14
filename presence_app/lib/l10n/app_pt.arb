@@ -154,6 +154,7 @@
   "cameraTurnOn": "Ligar",
   "clipAuto": "Auto",
   "clipAutoAllTagged": "Todos os sujeitos já nomeados estão neste clipe.",
+  "clipAutoCloudFailed": "{subjects} O reconhecimento na nuvem não respondeu (raças e pelagens); tente de novo.",
   "clipAutoDeferred": "O celular está com pouca memória: tente de novo daqui a pouco.",
   "clipAutoFailed": "Não foi possível executar o reconhecimento; tente de novo.",
   "clipAutoFound": "Encontrado: {names}.",

@@ -154,6 +154,7 @@
   "cameraTurnOn": "Encender",
   "clipAuto": "Auto",
   "clipAutoAllTagged": "Todos los sujetos ya nombrados están en este clip.",
+  "clipAutoCloudFailed": "{subjects} El reconocimiento en la nube no respondió (razas y pelajes); inténtalo de nuevo.",
   "clipAutoDeferred": "El teléfono tiene poca memoria: inténtalo de nuevo en un momento.",
   "clipAutoFailed": "No se pudo ejecutar el reconocimiento; inténtalo de nuevo.",
   "clipAutoFound": "Encontrado: {names}.",

@@ -44,7 +44,8 @@ The Swift counterpart of the Android layer
   ships through CocoaPods (`TensorFlowLiteC` 2.12), so the project has a
   `Podfile`, `Podfile.lock` and the Pods in its Xcode project;
   `flutter build ios` runs `pod install` (CocoaPods must be installed, as
-  on GitHub's macOS runners). Recognition itself isn't on iOS yet.
+  on GitHub's macOS runners). [Recognition](recognition.md) runs on iOS
+  with it (frames from `keyframesAt` in Swift).
 - `Info.plist` declares camera and **microphone** usage, locks iPhone to
   portrait, and names the app "Presence".
 - **Verified:** it builds with Xcode 27, and on the iOS simulator the

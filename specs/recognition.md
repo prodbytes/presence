@@ -22,7 +22,7 @@ confidence is the higher of the two:
   them, and one still recording doesn't hold up the others (nor Auto on
   another clip). Restored and synced clips aren't run, except:
 - **Synced clips nobody searched for subjects** (no `subjectSearch`):
-  an iPhone's (iOS can't recognize yet) and a Raspberry Pi
+  one from an older iPhone build (before iOS recognized) and a Raspberry Pi
   [streamer](streamer.md)'s (its cloud detector only tags objects, with
   YOLOv4-tiny: it called a black cat in the dark "bear"). Synced here from
   the cloud or live sync, they're queued like this device's new clips
@@ -53,8 +53,8 @@ confidence is the higher of the two:
   clip. Elsewhere there's no such check.
 - A new clip already searched with **Auto** while it was recording isn't
   searched again once it's done (it has its object tags by then, too).
-- Only on a platform that has the runtime: **web** and **Android**. iOS
-  comes next, with the same models (see [Platforms](platforms.md)).
+- Only on a platform that has the runtime: **web**, **Android** and
+  **iOS**, with the same models (see [Platforms](platforms.md)).
 - **On request, on any clip:** the player's **Auto** button (see
   [Clips](clips.md), "Naming subjects") runs the same search on the
   clip it shows: restored and synced clips too, and even with **Recognize
@@ -251,10 +251,15 @@ Its tooltip (and screen-reader label) says the state, then each part:
 tags too even if they were searched before: "Running recognition
 again…", then what Auto would say ("Found Rex.", "Couldn't run
 recognition; try again."). A spinner stands in for the icon meanwhile,
-and a second tap waits for it. When it's done the icon is the brain
+and a second tap waits for it. The spinner keeps turning while the
+**server's part** runs too: `recognizeNow` waits for cloud recognition's
+breeds and coats of the clip's pets (premium), which otherwise come on
+their own, and adds them to its result. When it's done the icon is the brain
 again, showing the result (in color once both searches ran). When it
 **failed** (the models didn't load, or it couldn't run: low memory, an
-unsupported platform) the icon is an **error icon** (`error_outline`) in
+unsupported platform; or the server's breeds and coats didn't answer,
+`RecognitionResult.cloudFailed`: "… Cloud recognition didn't answer
+(breeds and coats); try again.") the icon is an **error icon** (`error_outline`) in
 the error color, its tooltip "Recognition failed: …" with the reason,
 until the next tap. Not tappable where recognition doesn't run (no
 recognizer, or a platform without it).
@@ -279,7 +284,7 @@ recognizer, or a platform without it).
     tight (Android);
   - followed by "Tags: cat, bicycle." when it tagged objects (only on a
     clip without tags yet); they show in the Tags section at once.
-- Where recognition can't run (Android and iOS for now) the button is
+- Where recognition can't run (no runtime: desktop) the button is
   disabled, with the tooltip "Not available on this device yet".
 - Each run returns a `RecognitionResult` (`SubjectRecognizer.recognizeNow`):
   its outcome for subjects, the names tagged and asked about, and the
@@ -339,10 +344,14 @@ recognizer, or a platform without it).
   JPEG is only made (`encodeJpeg`) when a tag or suggestion keeps it.
   Reference frames (JPEGs) are still decoded by the engine
   (`instantiateImageCodec`). See [Android](android.md).
-- **iOS:** not yet (the switch says "Not available on this device yet").
-  `tflite_flutter` supports iOS, so it needs `keyframesAt` and
-  `encodeJpeg` in Swift; the iOS app already links its `TensorFlowLiteC`
-  2.12 through CocoaPods.
+- **iOS:** as on Android: LiteRT through `tflite_flutter` (the app links
+  `TensorFlowLiteC` 2.12 through CocoaPods) in the worker isolate, the
+  models bundled. `keyframesAt` (`AVAssetImageGenerator` with any time
+  tolerance, so each time gets its nearest keyframe, upright, at most
+  `maxWidth` wide, each once) and `encodeJpeg` are in Swift
+  ([PresenceCamerasPlugin.swift](../presence_app/ios/Runner/PresenceCamerasPlugin.swift)).
+  No memory check (`memoryStatus` is Android's): it runs unless the models
+  fail to load.
 - **Models** (`assets/models/`, 26 MB; on web fetched only when
   recognition first runs, in the Android app bundled): see [assets/models/README.md](../presence_app/assets/models/README.md)
   for sources, checksums and licenses.
@@ -498,7 +507,6 @@ recognizer, or a platform without it).
 - Sampling keyframes a second apart can miss someone seen for less than
   a second, and a tag's time is its keyframe's, up to half a second from
   when it was asked for.
-- iOS doesn't recognize yet.
 - A tag made on the **preview** (before the full clip was recorded) keeps
   the preview file's time; once the full clip replaces it, clicking that
   label may open a little off, since the two files start at different

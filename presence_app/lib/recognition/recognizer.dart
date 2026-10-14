@@ -54,12 +54,31 @@ class RecognitionResult {
     this.tagged = const [],
     this.asked = const [],
     this.objects = const [],
+    this.cloudFailed = false,
   });
 
   final RecognitionOutcome outcome;
   final List<String> tagged;
   final List<String> asked;
   final List<String> objects;
+
+  /// Cloud recognition's breeds and coats were asked for and it didn't
+  /// answer ([SubjectRecognizer.recognizeNow] waits for them).
+  final bool cloudFailed;
+
+  /// This, with cloud recognition's answer: its [labels] among [objects],
+  /// or null if it failed.
+  RecognitionResult withCloud(List<String>? labels) => RecognitionResult(
+    outcome,
+    tagged: tagged,
+    asked: asked,
+    objects: [
+      ...objects,
+      for (final label in labels ?? const <String>[])
+        if (!objects.contains(label)) label,
+    ],
+    cloudFailed: labels == null,
+  );
 }
 
 /// Searches every new clip, once its full recording (before + after) is
@@ -176,6 +195,10 @@ class SubjectRecognizer {
   /// Breeds and coats asked for and not answered yet.
   final _describing = <Future<void>>{};
 
+  /// The breeds and coats asked for on a clip [recognizeNow] runs, by its
+  /// event ID, till it waits for them.
+  final _describingFor = <String, Future<List<String>?>>{};
+
   final AppEventBus _bus;
   final EventLog log;
   final ConfigController config;
@@ -285,10 +308,20 @@ class SubjectRecognizer {
   /// for again too, even if it was searched for them before (a tap on the
   /// recognition indicator re-runs it all). Throws if the models can't
   /// load.
+  ///
+  /// It also waits for cloud recognition's breeds and coats of the clip's
+  /// pets, when they're asked for, and adds them to the result (or notes
+  /// that it didn't answer, [RecognitionResult.cloudFailed]): the one
+  /// asking sees the whole run end, the server's part too.
   Future<RecognitionResult> recognizeNow(
     ClipRequested event, {
     bool again = false,
-  }) => _enqueue(event, onRequest: true, again: again);
+  }) async {
+    final result = await _enqueue(event, onRequest: true, again: again);
+    final asking = _describingFor.remove(event.id);
+    if (asking == null) return result;
+    return result.withCloud(await asking);
+  }
 
   Future<RecognitionResult> _enqueue(
     ClipRequested event, {
@@ -588,6 +621,8 @@ class SubjectRecognizer {
       final asking = _describe(event, petCrops);
       _describing.add(asking);
       unawaited(asking.whenComplete(() => _describing.remove(asking)));
+      // Asked for: recognizeNow waits for it.
+      if (onRequest) _describingFor[event.id] = asking;
     }
     // Each subject's verdict: on the device, or the cloud's when surer.
     final verdicts = <String, _Verdict>{
@@ -666,12 +701,17 @@ class SubjectRecognizer {
 
   /// Cloud recognition's breeds and coats of [crops] (a clip's cats and
   /// dogs), added to [event]'s object tags when they come: each label once,
-  /// from the crop it was surest on.
-  Future<void> _describe(ClipRequested event, List<_PetCrop> crops) async {
+  /// from the crop it was surest on. Returns the labels, or null if it
+  /// couldn't ask.
+  Future<List<String>?> _describe(
+    ClipRequested event,
+    List<_PetCrop> crops,
+  ) async {
     final answer = await describer?.describe({
       for (final c in crops) c.id: (c.species, c.pixels),
     });
-    if (answer == null || _disposed) return;
+    if (answer == null) return null;
+    if (_disposed) return const [];
     final byId = {for (final c in crops) c.id: c};
     final best = <String, ObjectTag>{};
     for (final MapEntry(key: cropId, value: labels) in answer.entries) {
@@ -691,6 +731,7 @@ class SubjectRecognizer {
       'Presence: cloud recognition saw ${best.keys.join(', ')} on '
       '${crops.length} pet(s) of ${event.id}',
     );
+    return best.keys.toList();
   }
 
   /// Notes on [event] that its search for subjects ran to the end, as
