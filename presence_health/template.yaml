@@ -6,7 +6,7 @@ Description: >
   settings, its DynamoDB tables, the user-data bucket, the identity pool,
   Google's token signing keys and rbacr) and answers 200 "status":"ok" or
   503 "status":"fail". Its own HTTP API, served under /health by the site's
-  CloudFront distribution and polled by its Route 53 health check. Read-only:
+  CloudFront distribution and polled by the central nu01-monitor. Read-only:
   it only describes the auth API's tables (imported from the auth API
   stack's exports), heads the bucket and describes the pool. A new stage
   deploys it after the auth API stack; an existing one before it.
@@ -97,8 +97,8 @@ Resources:
           ThrottlingRateLimit: 20
 
   # GET /health: whether every dependency of the auth API answers
-  # (presence.health.HealthHandler), polled by the site's Route 53 health
-  # check. Read-only: it only describes the tables, heads the bucket and
+  # (presence.health.HealthHandler), polled by the central nu01-monitor
+  # (nu01 repo). Read-only: it only describes the tables, heads the bucket and
   # describes the pool.
   HealthFunction:
     Type: AWS::Serverless::Function

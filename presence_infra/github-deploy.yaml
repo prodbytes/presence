@@ -10,7 +10,8 @@ Description: >
   rc: presence-rc-*), from one definition: the deploy policies, the
   permissions boundary every role the stage's stacks create must carry, and
   the bucket SAM uploads the auth API's code to. Deployed by an
-  administrator, by hand (see presence_infra/README.md).
+  administrator, by hand (see presence_infra/README.md), tagged
+  project=presence tenancy=shared (it serves both stages).
 
 Parameters:
   GitHubRepository:
@@ -260,7 +261,9 @@ Resources:
                   - cloudformation:ListStacks
                   - cloudformation:ListExports
                 Resource: '*'
-              # SAM (the auth API) and Fn::ForEach (site.yaml)
+              # SAM (the auth API) and Fn::ForEach (site.yaml's former health
+              # email subscriptions: LanguageExtensions can be dropped with
+              # the health check permissions below)
               - Sid: Transforms
                 Effect: Allow
                 Action: cloudformation:CreateChangeSet
@@ -495,8 +498,8 @@ Resources:
                   - !Sub arn:${AWS::Partition}:s3:::presence-sam-artifacts-${AWS::AccountId}
                   - !Sub arn:${AWS::Partition}:s3:::presence-rc-sam-artifacts-${AWS::AccountId}
 
-      # The site: CloudFront, its certificate, DNS records and health check,
-      # and the identity pool. Resources without names to scope by are
+      # The site: CloudFront, its certificate, DNS records (and its former
+      # health check, until deleted), and the identity pool. Resources without names to scope by are
       # scoped by their presence:stage tag (site.yaml, identity.yaml,
       # presence_sh/template.yaml).
       EdgePolicy&{Prefix}:
@@ -507,8 +510,14 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
-              # The site's health check (site.yaml): Route 53 health checks
-              # have no names to scope by, so any in the account.
+              # The site's former health check, alarm and email topic
+              # (site.yaml no longer has them: the central nu01-monitor stack
+              # in the nu01 repo polls /health now). Kept so the next deploy
+              # can delete them, and re-create them if that deploy rolls
+              # back. HealthCheckCreate, HealthChecks, Alarms and Topics can
+              # be dropped after the next GA (and RC) site deploy succeeds.
+              # Route 53 health checks have no names to scope by, so any in
+              # the account.
               - Sid: HealthCheckCreate
                 Effect: Allow
                 Action: route53:CreateHealthCheck
@@ -625,7 +634,8 @@ Resources:
                   StringEquals:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
               # Tagging: only with the stage's tag, on a resource that has it
-              # or no tag yet (a new one), and never removing it.
+              # or no tag yet (a new one), and never removing it; or only the
+              # cost-allocation tags (below).
               - Sid: CloudFrontTag
                 Effect: Allow
                 Action: cloudfront:TagResource
@@ -644,6 +654,18 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
+              # The cost-allocation tags (scripts/deploy.sh's stack tags,
+              # project and tenancy) alone, on the stage's own: adding them
+              # to an existing resource needn't repeat presence:stage.
+              - Sid: CloudFrontCostTags
+                Effect: Allow
+                Action: cloudfront:TagResource
+                Resource: !Sub arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringEquals:
+                    aws:TagKeys: [project, tenancy]
               # ACM: the same, by the certificate's tag.
               - Sid: CertificateReads
                 Effect: Allow
@@ -680,6 +702,15 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
+              - Sid: CertificateCostTags
+                Effect: Allow
+                Action: acm:AddTagsToCertificate
+                Resource: !Sub arn:${AWS::Partition}:acm:${AWS::Region}:${AWS::AccountId}:certificate/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringEquals:
+                    aws:TagKeys: [project, tenancy]
               # Cognito identity pools (identity.yaml), by the pool's tag.
               # SetIdentityPoolRoles has no resource to scope (see
               # specs/deploy.md); PassRole still limits it to the stage's roles.
@@ -724,6 +755,15 @@ Resources:
                     aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
                   ForAllValues:StringNotEquals:
                     aws:TagKeys: presence:stage
+              - Sid: IdentityPoolCostTags
+                Effect: Allow
+                Action: cognito-identity:TagResource
+                Resource: !Sub arn:${AWS::Partition}:cognito-identity:${AWS::Region}:${AWS::AccountId}:identitypool/*
+                Condition:
+                  StringEquals:
+                    aws:ResourceTag/presence:stage: !FindInMap [Stages, !Ref Prefix, Stage]
+                  ForAllValues:StringEquals:
+                    aws:TagKeys: [project, tenancy]
 
   DeployRole:
     Type: AWS::IAM::Role

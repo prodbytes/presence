@@ -34,8 +34,8 @@ import java.util.concurrent.TimeoutException;
 
 /**
  * {@code GET /health} (public, no token): whether everything the auth API
- * (presence_api_auth) needs works, for the site's Route 53 health check
- * (presence_infra/site.yaml). Its own stack (presence_health/template.yaml),
+ * (presence_api_auth) needs works, for the central nu01-monitor (nu01
+ * repo), which polls it through the site. Its own stack (presence_health/template.yaml),
  * with read-only access to what it checks.
  * Each {@link Check} runs at once, in parallel, within {@link #BUDGET}:
  * <ul>

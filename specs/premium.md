@@ -218,8 +218,8 @@ they publish, receive and store events as before. Their events are
 
 - **`/health`** ([Health check](health-check.md), its own module,
   `presence_health`) has an **`rbacr`** check when rbacr is configured: rbacr's own public `/health`
-  must answer 200 within the budget. The site's Route 53 health check polls
-  it, so an rbacr outage sets off the health alarm email (there's no DNS
+  must answer 200 within the budget. The central nu01-monitor polls
+  it, so an rbacr outage sets off its alert email (there's no DNS
   failover), and fails a deploy's smoke test.
 - **`GET /api/auth/anonymous`** reports `"rbacr": true|false` in its
   settings, as for `oidc` and `aws`, and `scripts/deploy.sh`'s smoke test

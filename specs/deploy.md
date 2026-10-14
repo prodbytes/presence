@@ -32,9 +32,10 @@ One CloudFront distribution serves the whole site, laid out like the local
     only by the distribution (OAC), the distribution (HTTP/2 and HTTP/3,
     HTTPS only, TLS 1.2+, its own [response headers
     policies](#response-headers) with a Content Security Policy), Route
-    53 A/AAAA aliases, and the Route 53 [health check](health-check.md)
-    of `/health` with its alarm and email topic (`HealthNotificationEmails`,
-    from `PRESENCE_HEALTH_EMAILS`, default `julio+health@nu01.com`). The
+    53 A/AAAA aliases. `/health` ([health check](health-check.md)) is
+    monitored by the central `nu01-monitor` stack (nu01 repo), which
+    emails `julio+health@nu01.com` when it fails; the site stack no
+    longer has a Route 53 health check, alarm or email topic. The
     certificate and distribution carry the tag `presence:stage` (`Stage`:
     `prod` or `rc`), which the deploy roles are scoped by.
   - [presence_api_auth/template.yaml](../presence_api_auth/template.yaml)
@@ -56,6 +57,17 @@ One CloudFront distribution serves the whole site, laid out like the local
     [scripts/deploy-sh.sh](../scripts/deploy-sh.sh).
   - Everything is in `us-east-1`, in the account recorded in the private
     repo (`setec-astronomy`, `presence.nu01/README.md`).
+  - **Cost-allocation tags:** every stack is deployed with the stack tags
+    `project=presence` and `tenancy=GA` (`presence-rc-*`: `tenancy=RC`;
+    `presence-github-deploy`, which serves both: `tenancy=shared`), which
+    CloudFormation copies to each taggable resource, so Cost Explorer
+    splits costs by project and tenancy. They're in addition to
+    `presence:stage`.
+  - **Log retention:** the Lambdas' log groups are created by Lambda on
+    first run, not by the stacks, so they have no retention (never
+    expire); an administrator sets it on the live log groups (e.g. `aws
+    logs put-retention-policy`). The templates don't declare them, since
+    a `AWS::Logs::LogGroup` with an existing group's name fails to create.
 - **Content:** files are uploaded with `Cache-Control: no-cache`, because
   Flutter's web files aren't content-hashed, and every deploy invalidates
   `/*`. Unknown paths return 404 (the bucket policy allows `ListBucket` for
@@ -218,8 +230,9 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
   - denied: anything on the `presence-github-deploy*` roles or the
     `presence-github-deploy` stack, `DeleteRolePermissionsBoundary`
     anywhere, and changing the artifact buckets' settings.
-- **`<prefix>-github-deploy-edge`**: the [health check](health-check.md)'s
-  Route 53 health checks, `<prefix>-*` alarms and SNS topics; DNS records
+- **`<prefix>-github-deploy-edge`**: the former [health check](health-check.md)'s
+  Route 53 health checks, `<prefix>-*` alarms and SNS topics (kept only
+  so the next deploy can delete them; to be dropped after it); DNS records
   only for the stage's domain and names under it
   (`route53:ChangeResourceRecordSetsNormalizedRecordNames`: prod
   `presence.nu01.com` and `*.presence.nu01.com`, which covers
@@ -230,7 +243,8 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
     certificates (delete, update options) only with the stage's tag;
     Cognito identity pools (update, delete) likewise;
   - tagging only with the stage's tag and only resources with that tag or
-    none yet (a new one); untagging never removes `presence:stage`;
+    none yet (a new one), or only the cost-allocation tags (`project`,
+    `tenancy`) on the stage's own; untagging never removes `presence:stage`;
   - CloudFront functions by name (`<prefix>-*`);
   - creating distributions, functions, certificates, pools, origin access
     controls and response headers policies, and reading CloudFront, ACM
@@ -278,7 +292,8 @@ What the RC role still can't be kept from, in the same account:
   the RC role could set prod's pool's roles, though only to `presence-rc-*`
   roles (`PassRole`), whose trust is the RC pool, so it would break prod
   sign-in rather than reach prod data.
-- **Route 53 health checks** have no names: either role can change any.
+- **Route 53 health checks** have no names: either role can change any
+  (until those permissions are dropped).
 - `iot:DescribeEndpoint`, `cloudformation:ListExports` and creating the
   untaggable CloudFront resources are account-wide (read-only or new
   resources).

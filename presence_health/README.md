@@ -4,7 +4,7 @@ The site's health check, **`GET /health`**: an
 [AWS SAM](https://aws.amazon.com/serverless/sam/) application with one
 Java 25 Lambda (`java25`, arm64) behind its own API Gateway **HTTP API**,
 served under **`/health`** by the site's CloudFront distribution and polled
-by its Route 53 health check (see [specs/health-check.md](../specs/health-check.md)).
+by the central nu01-monitor (nu01 repo; see [specs/health-check.md](../specs/health-check.md)).
 
 It checks, in parallel within 1.5 s, everything the
 [auth API](../presence_api_auth) needs: its settings (an OIDC client, the

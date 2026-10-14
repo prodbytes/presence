@@ -5985,3 +5985,19 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        **Night** status pill (a moon) at the top left, after the battery
        and temperature pills (`CameraStatus`, `StatusPill`), shown while
        it's night with night mode on. Spec: [Night mode](night-mode.md).
+
+429. **Cost: the central monitor replaces the site's Route 53 health
+     check.** (2026-10-14)
+     - Asked: cut AWS cost across nu01 projects: tag every stack for cost
+       allocation, and replace each project's Route 53 health check (paid
+       HTTPS and string-match options) with one central monitor
+       (`nu01-monitor`, nu01 repo) that checks every project's endpoints
+       every 5 minutes and emails julio+health@nu01.com.
+     - Changed: every stack is deployed with `project=presence` and
+       `tenancy=GA`/`RC`/`shared`. `site.yaml` drops the health check, its
+       alarm, the SNS topic and subscriptions, `HealthNotificationEmails`
+       and the `LanguageExtensions` transform; `scripts/deploy.sh` and the
+       workflows drop `PRESENCE_HEALTH_EMAILS`. `/health` stays. The deploy
+       roles keep the health check, alarm and topic permissions until the
+       next deploy has deleted them. Specs: [Health check](health-check.md),
+       [Production deploy](deploy.md).

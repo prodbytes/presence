@@ -1,8 +1,9 @@
 # Health check (`/health`)
 
-Route 53 watches each deployed site (https://presence.nu01.com and
-https://rc.presence.nu01.com) through a public **`GET /health`** endpoint,
-and emails when it fails or recovers.
+Each deployed site (https://presence.nu01.com and
+https://rc.presence.nu01.com) has a public **`GET /health`** endpoint,
+which the central `nu01-monitor` (nu01 repo) polls and emails about when
+it fails.
 
 ## The endpoint
 
@@ -15,9 +16,8 @@ and emails when it fails or recovers.
   `HealthFunction` (`presence.health.HealthHandler`) answers it without a
   token. Throttled to 20 requests/s (burst 50). The
   [auth API](auth-api.md) no longer has a `/health` route.
-- It runs every check at once, in parallel, within **1.5 s** in all (Route
-  53 wants an answer within 2 s of connecting). A check that takes longer
-  fails:
+- It runs every check at once, in parallel, within **1.5 s** in all, so
+  a monitor gets a prompt answer. A check that takes longer fails:
   - **`settings`**: an OIDC client (so RBAC mode), the identity pool and
     the user-data bucket are configured (as in `GET /api/auth/anonymous`).
     `scripts/deploy.sh` passes the health stack the same
@@ -79,40 +79,28 @@ and emails when it fails or recovers.
   whose CloudFront has no `/health` route. The identity pool and bucket in
   `.env` are AWS's, which the Lambdas running in Floci can't reach.
 
-## The Route 53 check and its emails
+## Monitoring and alerts
 
-In [presence_infra/site.yaml](../presence_infra/site.yaml), stacks
-`presence-web` and `presence-rc-web`:
-
-- **`HealthCheck`**: an `HTTPS_STR_MATCH` check of
-  `https://<DomainName>/health` (port 443, SNI), every 30 s from three
-  regions (us-east-1, us-west-2, eu-west-1, the fewest allowed). It is
-  healthy only when the body contains `"status":"ok"`. A checker reports
-  the site unhealthy after 3 failures in a row. It covers the whole path:
-  DNS, CloudFront, the API and its dependencies.
-- **`HealthAlarm`** (`<stack>-health`): `AWS/Route53` `HealthCheckStatus`
-  (minimum) below 1 for 2 one-minute periods. Missing data counts as
-  failing. It notifies both on alarm and on recovery (OK).
-- **`HealthTopic`** (`<stack>-health`, SNS): one email subscription per
-  address in the **`HealthNotificationEmails`** parameter
-  (comma-separated; default **`julio+health@nu01.com`**). The template's
-  `AWS::LanguageExtensions` `Fn::ForEach` makes the subscriptions, so
-  adding or removing an address adds or removes its subscription. Each
-  address must confirm AWS's "Subscription Confirmation" email before it
-  receives alarms.
-- [scripts/deploy.sh](../scripts/deploy.sh) passes
-  `HealthNotificationEmails` from **`PRESENCE_HEALTH_EMAILS`**: the
-  environment, else `.env`, else the default. The script accepts only
-  comma-separated emails and logs how many there are, never the
-  addresses. The Deploy and Deploy RC workflows set it from the optional
-  repository variable `PRESENCE_HEALTH_EMAILS`. The site stack is
-  deployed with `CAPABILITY_AUTO_EXPAND`, which the transform needs.
+- The site stacks no longer have their own monitoring: the central
+  **`nu01-monitor`** stack (in the nu01 repo) checks every nu01 project's
+  endpoints, `https://presence.nu01.com/health` and
+  `https://rc.presence.nu01.com/health` among them, every 5 minutes, and
+  emails **`julio+health@nu01.com`** when one fails. Its checks, schedule
+  and recipients are configured there, not in this repo.
+- Until 2026-10, [presence_infra/site.yaml](../presence_infra/site.yaml)
+  had a Route 53 `HTTPS_STR_MATCH` health check of `/health`, a
+  CloudWatch alarm on it and an SNS email topic (`HealthNotificationEmails`,
+  from `PRESENCE_HEALTH_EMAILS`); they were removed to cut cost (Route 53
+  bills the HTTPS and string-match options per check). The next site
+  deploy of each stage deletes them.
 - The deploy's smoke test also requires `/health` to answer
   `"status":"ok"` (see [Production deploy](deploy.md)).
 - **Deploy permissions:** both GitHub deploy roles
-  ([github-deploy.yaml](../presence_infra/github-deploy.yaml)) may use the
-  `LanguageExtensions` transform and manage Route 53 health checks, the
-  `presence-*` (RC: `presence-rc-*`) alarms and the SNS topics.
+  ([github-deploy.yaml](../presence_infra/github-deploy.yaml)) keep, for
+  now, the Route 53 health check, `presence-*` (RC: `presence-rc-*`) alarm
+  and SNS topic permissions and the `LanguageExtensions` transform, so
+  that deploy can delete the old resources (and re-create them if it rolls
+  back). They can be dropped once both stages have deployed.
 
 ## Known limitations
 
@@ -120,18 +108,16 @@ In [presence_infra/site.yaml](../presence_infra/site.yaml), stacks
   auth API to `presence-health` in one run: the auth API update removes
   its route, and `/health` answers 404 (through the auth API origin)
   until the site stack points the distribution at the new origin, a few
-  minutes later. Route 53 may email a failure and a recovery then.
+  minutes later. The monitor may email a failure then.
 - Putting back a release from before the split fails at its auth API
   update: it drops the table exports that `presence-health` imports.
   Delete the `<prefix>-health` stack first (an administrator, or the
   stage's deploy role), then redeploy that release.
 
-- Route 53 health checks have no names to scope IAM by, so the RC deploy
-  role can change any health check in the account, prod's included.
-- The topic uses SNS's default encryption settings (none). A KMS key
-  would need a key policy that lets CloudWatch publish; alarm emails only
-  carry the alarm's name and state.
-- The `github-deploy.yaml` change only takes effect once an administrator
-  redeploys that stack (see
-  [presence_infra/README.md](../presence_infra/README.md)). Until then,
-  tag deploys fail when they create the health check.
+- Putting back a release from before the monitor change re-creates the
+  Route 53 health check, alarm and topic (and their cost), and needs the
+  deploy roles' permissions for them; drop those permissions only once
+  such releases won't be redeployed.
+- Until those permissions are dropped, Route 53 health checks have no
+  names to scope IAM by, so the RC deploy role can change any health check
+  in the account.

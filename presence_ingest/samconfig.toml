@@ -13,5 +13,8 @@ lint = true
 [default.deploy.parameters]
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = true
+# Cost-allocation tags of the default (production) stack; scripts/deploy.sh
+# passes each stage's own (tenancy=RC for the RC).
+tags = "project=\"presence\" tenancy=\"GA\""
 # No resolve_s3: scripts/deploy.sh passes each stage's own artifact bucket
 # (--s3-bucket <prefix>-sam-artifacts-<account>).

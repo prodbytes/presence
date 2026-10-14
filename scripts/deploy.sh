@@ -21,8 +21,8 @@
 #      presence-rc-payments: the Stripe Payment Links, /api/payments/*,
 #      whose authorizer trusts the auth API's session issuer)
 #   4. deploys the site (CloudFormation presence_infra/site.yaml:
-#      presence-web: certificate, bucket, CloudFront, DNS, and the Route 53
-#      health check of /health with its alarm emails)
+#      presence-web: certificate, bucket, CloudFront, DNS; /health is
+#      polled and alerted on by the central nu01-monitor stack, nu01 repo)
 #   5. uploads the site pages (/, /privacy, /tos, /delete-account) and the web build (/app/), and
 #      invalidates the CloudFront cache
 #   6. smoke-tests the live site (and, once the APIs enforce the origin
@@ -46,8 +46,11 @@
 # (<prefix>-app-boundary), and SAM uploads to the stage's own bucket
 # (<prefix>-sam-artifacts-<account>), under each stack's own prefix; both
 # come from the presence-github-deploy stack
-# (presence_infra/github-deploy.yaml), which must be deployed first. If the deploy fails, it prints the version that
-# was live before and how to put it back.
+# (presence_infra/github-deploy.yaml), which must be deployed first. Every
+# stack carries the cost-allocation tags project=presence and tenancy=GA
+# (tenancy=RC for the RC), which CloudFormation copies to its resources. If
+# the deploy fails, it prints the version that was live before and how to
+# put it back.
 #
 # Run by .github/workflows/deploy.yml on *GA tags (deploy-rc.yml on *RC*
 # tags, STAGE=rc), or by hand with admin credentials. Settings, from the
@@ -73,9 +76,6 @@
 #                administrator put the .p8 in (never the key itself; both
 #                or neither; also .env), with APPLE_TEAM_ID, the team (as
 #                the App Store build's)
-#   PRESENCE_HEALTH_EMAILS who is emailed when the /health check fails or
-#                recovers, comma-separated (default julio+health@nu01.com;
-#                also from .env). Each must confirm AWS's subscription email.
 #   PERMISSIONS_BOUNDARY  the roles' boundary ARN (default: the stage's,
 #                arn:aws:iam::<account>:policy/<prefix>-app-boundary)
 #   SAM_ARTIFACT_BUCKET   where sam deploy uploads (default: the stage's,
@@ -120,6 +120,7 @@ STAGE="${STAGE:-prod}"
 case "$STAGE" in
   prod)
     stack_prefix=presence
+    tenancy=GA
     DOMAIN=presence.nu01.com
     # Local development syncs with the prod bucket (see specs/cloud-sync.md
     # and specs/deploy.md: a separate dev bucket is recommended).
@@ -127,6 +128,7 @@ case "$STAGE" in
     ;;
   rc)
     stack_prefix=presence-rc
+    tenancy=RC
     DOMAIN=rc.presence.nu01.com
     ORIGINS="https://$DOMAIN"
     ;;
@@ -139,6 +141,9 @@ INGEST_STACK=$stack_prefix-ingest
 PAYMENTS_STACK=$stack_prefix-payments
 USER_DATA_STACK=$stack_prefix-user-data
 IDENTITY_STACK=$stack_prefix-identity
+# Cost-allocation tags on every stack (and, through CloudFormation, its
+# resources): Cost Explorer splits by project and tenancy.
+STACK_TAGS=(project=presence "tenancy=$tenancy")
 
 if [[ "${TAG:-}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
   export VERSION_Z="${BASH_REMATCH[3]}"
@@ -243,17 +248,6 @@ if [[ -n "$APPLE_SIGNIN_KEY_ID$APPLE_SIGNIN_KEY_PARAMETER" ]]; then
 else
   echo "    Sign in with Apple: $APPLE_CLIENT_IDS (no key: Apple tokens aren't revoked at account deletion)"
 fi
-
-# Health alarm emails: from the environment, else .env, else the default.
-if [[ -z "${PRESENCE_HEALTH_EMAILS:-}" && -f .env ]]; then
-  PRESENCE_HEALTH_EMAILS="$(sed -n 's/^PRESENCE_HEALTH_EMAILS=//p' .env | tail -1)"
-fi
-PRESENCE_HEALTH_EMAILS="${PRESENCE_HEALTH_EMAILS:-julio+health@nu01.com}"
-if [[ ! "$PRESENCE_HEALTH_EMAILS" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+(,[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+)*$ ]]; then
-  echo "error: PRESENCE_HEALTH_EMAILS must be comma-separated emails" >&2
-  exit 1
-fi
-echo "    health alarm emails: $(tr ',' '\n' <<<"$PRESENCE_HEALTH_EMAILS" | grep -c .)"
 
 # The stage's permissions boundary and SAM bucket (presence-github-deploy).
 account="$(aws sts get-caller-identity --query Account --output text)"
@@ -365,7 +359,7 @@ deploy_user_data() {
   aws cloudformation deploy --stack-name "$USER_DATA_STACK" \
     --template-file presence_infra/user-data.yaml \
     --parameter-overrides "AllowedOrigins=$ORIGINS" "IngestFunctionArn=$1" \
-    --no-fail-on-empty-changeset
+    --tags "${STACK_TAGS[@]}" --no-fail-on-empty-changeset
 }
 INGEST_ARN="$(ingest_function_arn)"
 [[ "$INGEST_ARN" == None ]] && INGEST_ARN=
@@ -375,7 +369,7 @@ aws cloudformation deploy --stack-name "$IDENTITY_STACK" \
   --parameter-overrides "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" \
     "UserDataStackName=$USER_DATA_STACK" "IdentityPoolName=$stack_prefix" \
     "Stage=$STAGE" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
-  --no-fail-on-empty-changeset
+  --tags "${STACK_TAGS[@]}" --no-fail-on-empty-changeset
 # The app reads these at build time (scripts/dart-defines.sh).
 export USER_DATA_BUCKET COGNITO_IDENTITY_POOL_ID IOT_ENDPOINT FEEDBACK_TABLE
 USER_DATA_BUCKET="$(stack_output "$USER_DATA_STACK" UserDataBucketName)"
@@ -412,7 +406,7 @@ bash scripts/models.sh presence_ingest/IngestFunction/models
     --parameter-overrides "UserDataBucket=$USER_DATA_BUCKET" \
       "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
       "IngestConcurrency=${INGEST_CONCURRENCY:-0}" \
-    --no-confirm-changeset --no-fail-on-empty-changeset
+    --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
 )
 NEW_INGEST_ARN="$(ingest_function_arn)"
 if [[ ! "$NEW_INGEST_ARN" =~ ^arn:aws:lambda:[a-z0-9-]+:[0-9]{12}:function:$stack_prefix-[A-Za-z0-9_-]+$ ]]; then
@@ -483,7 +477,7 @@ deploy_health() {
         "GoogleWebClientId=$GOOGLE_WEB_CLIENT_ID" "PermissionsBoundary=$PERMISSIONS_BOUNDARY" \
         "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
         "RbacrUrl=$RBACR_URL" ${origin_override[@]+"${origin_override[@]}"} \
-      --no-confirm-changeset --no-fail-on-empty-changeset
+      --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
   )
 }
 # The APIs refuse requests without the origin secret only once the site
@@ -523,7 +517,7 @@ echo "==> deploying $AUTH_STACK"
       "IotPolicyName=$LIVE_POLICY_NAME" "FeedbackTable=$FEEDBACK_TABLE" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
       "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
-    --no-confirm-changeset --no-fail-on-empty-changeset
+    --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
 )
 api_domain="$(stack_output "$AUTH_STACK" ApiDomain)"
 echo "    API origin: $api_domain"
@@ -556,24 +550,22 @@ echo "==> deploying $PAYMENTS_STACK"
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
       ${store_overrides[@]+"${store_overrides[@]}"} \
       ${origin_override[@]+"${origin_override[@]}"} \
-    --no-confirm-changeset --no-fail-on-empty-changeset
+    --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
 )
 payments_domain="$(stack_output "$PAYMENTS_STACK" ApiDomain)"
 echo "    payments origin: $payments_domain"
 
 # 4. The site
 echo "==> deploying $SITE_STACK"
-# AUTO_EXPAND: the template's Fn::ForEach (AWS::LanguageExtensions).
 aws cloudformation deploy --stack-name "$SITE_STACK" \
-  --template-file presence_infra/site.yaml --capabilities CAPABILITY_AUTO_EXPAND \
+  --template-file presence_infra/site.yaml \
   --parameter-overrides "DomainName=$DOMAIN" "Stage=$STAGE" \
     "HostedZoneId=$HOSTED_ZONE_ID" "ApiDomainName=$api_domain" \
     "HealthApiDomainName=$health_domain" \
     "PaymentsApiDomainName=$payments_domain" \
     "RbacrUrl=$RBACR_URL" \
-    "HealthNotificationEmails=$PRESENCE_HEALTH_EMAILS" \
     "OriginSecret=$ORIGIN_SECRET" \
-  --no-fail-on-empty-changeset
+  --tags "${STACK_TAGS[@]}" --no-fail-on-empty-changeset
 bucket="$(stack_output "$SITE_STACK" SiteBucketName)"
 distribution="$(stack_output "$SITE_STACK" DistributionId)"
 echo "    bucket: $bucket, distribution: $distribution"
@@ -630,7 +622,7 @@ check() {
   anonymous="$(curl -fsS --max-time 20 "https://$DOMAIN/api/auth/anonymous")" || { echo "    /api/auth/anonymous failed"; return 1; }
   [[ "$anonymous" == '{"mode":"RBAC","roles":["presence_anonymous"],"settings":{"oidc":true,"aws":true,"rbacr":true}}' ]] \
     || { echo "    /api/auth/anonymous answered $anonymous, want RBAC with presence_anonymous only and every setting"; return 1; }
-  # What the Route 53 health check polls (presence_health): every
+  # What the central nu01-monitor polls (presence_health): every
   # dependency must be ok, and the health stack must be this release.
   local health
   health="$(curl -s --max-time 20 "https://$DOMAIN/health")"

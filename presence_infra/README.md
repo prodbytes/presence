@@ -5,7 +5,7 @@ templates.
 
 | Template | Stack | Holds |
 |---|---|---|
-| [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution with its response headers policies (CSP, Permissions-Policy), the Route 53 A/AAAA aliases, and the `/health` check with its alarm |
+| [site.yaml](site.yaml) | `presence-web` | https://presence.nu01.com: the ACM certificate (DNS-validated in the `nu01.com` zone), a private S3 bucket, a CloudFront distribution with its response headers policies (CSP, Permissions-Policy), the Route 53 A/AAAA aliases (`/health` is monitored by the central `nu01-monitor` stack, nu01 repo) |
 | [user-data.yaml](user-data.yaml) | `presence-user-data` | The bucket for users' clips and events: private, encrypted, versioned, S3 Intelligent-Tiering, with CORS for the app's origins |
 | [identity.yaml](identity.yaml) | `presence-identity` | The Cognito identity pool (Google sign-in only) and the role that lets each signed-in user read and write their own `<identityId>/` prefix, and use live sync on their own MQTT topics (`presence/<stage>/<identityId>/*`), with the `presence-live-sync` IoT policy the auth API attaches to each identity. See [specs/cloud-sync.md](../specs/cloud-sync.md) and [specs/live-sync.md](../specs/live-sync.md) |
 | [github-deploy.yaml](github-deploy.yaml) | `presence-github-deploy` | The GitHub OIDC identity provider, the `presence-github-deploy` role (Deploy workflow, `*GA` tags) and the `presence-github-deploy-rc` role (Deploy RC workflow: `*RC*` tags and manual runs from `main`); per stage, from one `Fn::ForEach` definition: the deploy policies, the permissions boundary of every role the stage's stacks create (`<prefix>-app-boundary`), and the SAM artifact bucket (`<prefix>-sam-artifacts-<account>`) |
@@ -77,7 +77,8 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
      --stack-name presence-github-deploy \
      --template-file presence_infra/github-deploy.yaml \
      --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
-     --parameter-overrides "HostedZoneId=$HOSTED_ZONE_ID"   # from the private .env
+     --parameter-overrides "HostedZoneId=$HOSTED_ZONE_ID" \
+     --tags project=presence tenancy=shared   # HostedZoneId: from the private .env
    ```
 
    The prod role trusts only tokens for `*GA` tags, the RC role `*RC*`
@@ -94,6 +95,10 @@ devbox): `TAG=0.1.<Z>-GA bash scripts/deploy.sh`.
    [specs/deploy.md](../specs/deploy.md#github-access) for the details and
    what can't be separated by stage in one account. Run the same command
    again whenever `github-deploy.yaml` changes, before the next deploy.
+
+   Every stack carries the cost-allocation tags `project=presence` and
+   `tenancy` (`GA`, `RC`, or `shared` for this one); the deploy roles may
+   add them to the stage's tagged resources.
 
    Resources created before the `presence:stage` tags existed need them
    once, before the stack is updated:
