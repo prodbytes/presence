@@ -335,8 +335,11 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
       devices when the sheet opens and every 30 s while it's open.
     - It fits a 320 dp phone: long IDs wrap and the second line ends with
       an ellipsis.
-  - Devices past the plan's limit are labelled **hidden**, and under the
-    list a box says whether the account is **Free** or **Premium**, what
+  - Devices past the plan's limit are labelled **hidden**; under the list,
+    when any are, one small muted line says how many ("3 devices hidden",
+    or "This device doesn't sync"), with a discreet **Upgrade** link on
+    the web ([Premium and free](premium.md#in-the-app)). Below it a box
+    says whether the account is **Free** or **Premium**, what
     that gives, and for Free how to buy Premium (on the web **Premium
     monthly** and **Premium yearly**, the plans' Stripe checkouts; on iOS
     and Android the App Store's or Google Play's plans, Restore purchases

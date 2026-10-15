@@ -253,7 +253,8 @@ are **hidden**, and the user is asked to upgrade: a free one to
   (`pastDeviceLimit`, `deviceSlots`). Cloud sync stops on it as on any
   refusal, without trying again by itself (until sign-in, **Retry**, or a
   change of plan, which reconnects), and takes the slots, so the plan box
-  and the Monitoring tab's card say this device is past the limit.
+  and the Profile tab's hidden-devices line say this device doesn't
+  sync.
 - **Every device agrees**, since the list is the auth API's, not worked
   out from events, which differ from device to device (a free device has
   no history from before it connected).
@@ -308,27 +309,24 @@ are **hidden**, and the user is asked to upgrade: a free one to
     Android "." and the App Store's or Google Play's plans with their own
     prices, Restore purchases, Manage subscription and the terms;
     elsewhere no purchase button. And **Check again**.
-  - Past the limit, a line in the warning color: on this device, "This
-    device is past your plan's first 10: it doesn't sync, so only its own
-    events show here."; otherwise how many devices are past it ("1 more
-    device doesn't sync, and its events are hidden: Free syncs your first
-    10.").
+  - Past the limit, one small muted line (body-small, the muted text
+    color; no card, banner or warning color) between the device list and
+    the plan box (`HiddenDevicesLine`): "This device doesn't sync" on a
+    device past the limit, otherwise how many are hidden ("3 devices
+    hidden"); and, on the web only, " · **Upgrade**", a small underlined
+    link: for a free profile to Premium's checkout (its monthly link, else
+    its yearly, else nu01.com), for a premium one to Pro's (its monthly
+    link, else its yearly; no link until one is set), for Pro none. On iOS
+    and Android no link (the store's plans are in the plan box just
+    below) and never Pro. Nothing when nothing's hidden.
   - Each hidden device in the list is labelled **hidden** (tooltip: past
     the plan's device limit: it doesn't sync).
   - Not shown in DEV or without access.
 - **The account roles chip** says Free Access, Premium Access, Pro Access
   or Admin Access.
-- **The Monitoring tab** ([Monitoring](monitoring.md)), when events are
-  hidden, a card above the search (`DeviceLimitNotice`): how many
-  devices' events are hidden, or that this device doesn't sync, that the
-  plan (Free, Premium) syncs the first 10 or 25, and the next plan:
-  - Free: "Premium shows up to 25." and an **Upgrade** button: to the
-    Stripe checkout on the web, to the Profile tab's store plans on iOS
-    and Android, none elsewhere;
-  - Premium, on the web only: "Pro shows up to 50." and, once a Pro
-    Stripe link is set, an **Upgrade** button to Pro's checkout (its
-    monthly link, else its yearly);
-  - Pro: no upgrade.
+- **The Monitoring tab** ([Monitoring](monitoring.md)) says nothing about
+  the plan or hidden devices: it stays lean, and the call to upgrade is on
+  the Profile tab only.
 - **The connectivity check**: "Free: devices share events every 15 min"
   instead of "Cloud sync on".
 - **The health panel's RBACR card** (🛂, `SystemHealth.rbacrOf`; see

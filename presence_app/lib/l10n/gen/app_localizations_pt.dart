@@ -139,19 +139,6 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String authDevicesHidden(int count, String plan, int limit) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          'Os eventos de $count dispositivos estão ocultos: $plan mostra seus primeiros $limit dispositivos.',
-      one:
-          'Os eventos de 1 dispositivo estão ocultos: $plan mostra seus primeiros $limit dispositivos.',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get authFeedback => 'Feedback';
 
   @override
@@ -169,6 +156,17 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get authHidden => 'oculto';
+
+  @override
+  String authHiddenCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count dispositivos ocultos',
+      one: '1 dispositivo oculto',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get authHiddenTooltip =>
@@ -228,19 +226,6 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authLinkedToProfile => 'Vinculada ao perfil.';
 
   @override
-  String authMoreHidden(int count, String plan, int limit) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other:
-          'Mais $count dispositivos não sincronizam, e os eventos deles ficam ocultos: $plan sincroniza seus primeiros $limit.',
-      one:
-          'Mais 1 dispositivo não sincroniza, e os eventos dele ficam ocultos: $plan sincroniza seus primeiros $limit.',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get authNoEvents => 'Sem eventos';
 
   @override
@@ -264,17 +249,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authOsUnknown => 'Sistema operacional desconhecido';
 
   @override
-  String authOthersHidden(String plan, int limit) {
-    return 'Este dispositivo não sincroniza, e os eventos dos seus outros dispositivos ficam ocultos nele: $plan sincroniza seus primeiros $limit dispositivos.';
-  }
-
-  @override
   String get authOwner => 'Proprietária';
-
-  @override
-  String authPastLimit(int limit) {
-    return 'Este dispositivo passou dos primeiros $limit do seu plano: não sincroniza, então só os eventos dele aparecem aqui.';
-  }
 
   @override
   String get authPaymentsDefaults =>
@@ -349,20 +324,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get authPremiumMonthly => 'Premium mensal';
 
   @override
-  String authPremiumShowsUpTo(String text, int limit) {
-    return '$text O Premium mostra até $limit.';
-  }
-
-  @override
   String get authPremiumYearly => 'Premium anual';
 
   @override
   String get authProMonthly => 'Pro mensal';
-
-  @override
-  String authProShowsUpTo(String text, int limit) {
-    return '$text O Pro mostra até $limit.';
-  }
 
   @override
   String get authProYearly => 'Pro anual';
@@ -493,6 +458,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get authThisDevice => 'este dispositivo';
+
+  @override
+  String get authThisDeviceHidden => 'Este dispositivo não sincroniza';
 
   @override
   String get authUnavailable => 'Não é possível entrar.';
