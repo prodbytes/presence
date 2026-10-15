@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/auth/account_sheet.dart';
 import 'package:presence_app/auth/auth_service.dart';
+import 'package:presence_app/auth/brand_buttons.dart';
 import 'package:presence_app/auth/google_auth_service.dart';
 import 'package:presence_app/auth/session_store.dart';
 import 'package:presence_app/l10n/gen/app_localizations.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import 'fakes.dart';
 import 'session_test.dart' show FakeSessionApi;
@@ -17,6 +17,13 @@ Widget _app(Widget child, {ThemeData? theme}) => MaterialApp(
   supportedLocales: AppLocalizations.supportedLocales,
   home: Scaffold(body: child),
 );
+
+/// The fill of the button under [key].
+Color? _fill(WidgetTester tester, Key key) => tester
+    .widget<Material>(
+      find.descendant(of: find.byKey(key), matching: find.byType(Material)),
+    )
+    .color;
 
 void main() {
   const apple = Key('apple-sign-in');
@@ -58,10 +65,25 @@ void main() {
     final a = tester.getSize(find.byKey(apple));
     final g = tester.getSize(find.byKey(google));
     expect(a, g);
-    // Black in light mode.
+    expect(a.height, brandButtonHeight);
+    // Apple's black and Google's white in light mode, each with its logo.
+    expect(_fill(tester, apple), Colors.black);
+    expect(_fill(tester, google), Colors.white);
     expect(
-      tester.widget<SignInWithAppleButton>(find.byKey(apple)).style,
-      SignInWithAppleButtonStyle.black,
+      find.descendant(
+        of: find.byKey(apple),
+        matching: find.byIcon(Icons.apple),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(google),
+        matching: find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is GoogleLogoPainter,
+        ),
+      ),
+      findsOneWidget,
     );
 
     await tester.tap(find.byKey(apple));
@@ -84,10 +106,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<SignInWithAppleButton>(find.byKey(apple)).style,
-      SignInWithAppleButtonStyle.white,
-    );
+    expect(_fill(tester, apple), Colors.white);
+    expect(_fill(tester, google), const Color(0xFF131314));
     expect(find.text('Iniciar sesión con Apple'), findsOneWidget);
   });
 

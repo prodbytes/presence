@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart'
-    show SignInWithAppleButton, SignInWithAppleButtonStyle;
 
 import '../about.dart';
 import '../camera_feeds.dart' show describeAge;
@@ -16,6 +14,7 @@ import '../events.dart';
 import '../identity/device_os.dart';
 import '../l10n/l10n.dart';
 import 'auth_service.dart';
+import 'brand_buttons.dart';
 import 'delete_account.dart';
 import 'linked_accounts_sheet.dart';
 import 'rbacr_client.dart';
@@ -105,7 +104,7 @@ class AccountButton extends StatelessWidget {
 }
 
 /// The app bar's sign-in control while signed out: "Sign in with Google"
-/// (Google's own button on web). On iOS, where Sign in with Apple sits
+/// ([GoogleSignInButton]; Google's own button on web). On iOS, where Sign in with Apple sits
 /// beside Google and two buttons don't fit a 320 dp app bar, one "Sign
 /// in" button opens [SignInSheet] with both. Nothing while the launch
 /// check runs; if sign-in isn't set up, a person icon whose sheet says so.
@@ -135,10 +134,10 @@ class SignInAction extends StatelessWidget {
     return Center(
       child:
           auth.buildSignInButton() ??
-          FilledButton.icon(
+          GoogleSignInButton(
             key: const Key('google-sign-in'),
-            icon: const Icon(Icons.login, size: 18),
-            label: Text(context.l10n.authSignInWithGoogle),
+            height: 40,
+            text: context.l10n.authSignInWithGoogle,
             onPressed: auth.signIn,
           ),
     );
@@ -159,56 +158,36 @@ String? authErrorText(AuthService auth, AppLocalizations l10n) =>
 
 /// The ways to sign in: Google's button and, on iOS, Sign in with Apple
 /// above it, with equal prominence (App Store guideline 4.8): both full
-/// width, the same height and shape. Apple's is its own (`sign_in_with_apple`'s
-/// button, per Apple's guidelines: black in light mode, white in dark).
-/// Elsewhere, Google's alone.
+/// width, the same height and shape, each in its brand's style
+/// ([AppleSignInButton], [GoogleSignInButton]). Elsewhere, Google's alone
+/// (Google's own rendered button on web).
 class SignInButtons extends StatelessWidget {
   const SignInButtons({super.key, required this.auth});
 
   final AuthService auth;
 
-  /// Apple's recommended button height; Google's matches it.
-  static const double height = 48;
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    if (!auth.appleAvailable) {
-      return auth.buildSignInButton() ??
-          FilledButton.icon(
-            key: const Key('google-sign-in'),
-            icon: const Icon(Icons.login),
-            label: Text(l10n.authSignInWithGoogle),
-            onPressed: auth.signIn,
-          );
-    }
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    const radius = BorderRadius.all(Radius.circular(height / 2));
+    final google =
+        auth.buildSignInButton() ??
+        GoogleSignInButton(
+          key: const Key('google-sign-in'),
+          text: l10n.authSignInWithGoogle,
+          onPressed: auth.signIn,
+        );
+    if (!auth.appleAvailable) return google;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SignInWithAppleButton(
+        AppleSignInButton(
           key: const Key('apple-sign-in'),
           text: l10n.authSignInWithApple,
-          height: height,
-          borderRadius: radius,
-          style: dark
-              ? SignInWithAppleButtonStyle.white
-              : SignInWithAppleButtonStyle.black,
           onPressed: auth.signInWithApple,
         ),
         const SizedBox(height: 12),
-        FilledButton.icon(
-          key: const Key('google-sign-in'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size.fromHeight(height),
-            shape: const RoundedRectangleBorder(borderRadius: radius),
-          ),
-          icon: const Icon(Icons.login),
-          label: Text(l10n.authSignInWithGoogle),
-          onPressed: auth.signIn,
-        ),
+        google,
       ],
     );
   }
