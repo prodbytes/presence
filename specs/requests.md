@@ -6198,3 +6198,77 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Event copies](event-copies.md),
        [Live sync](live-sync.md), [Camera](camera.md#all-devices),
        [Premium](premium.md).
+
+441. **Plans by devices: Free 10, Premium 25, Pro 50.** (2026-10-15)
+     - Asked: tiers limited by devices only, for now: **Free** up to 10
+       devices, **Premium** up to 25, and a new **Pro** up to 50 with
+       everything Premium has (cloud sync to S3, cloud recognition,
+       Raspberry Pi and Blink streamers); admins keep their behavior and
+       get at least Pro's limit. Enforce the limit on the server (a device
+       past it gets no credentials), make streamers Premium-only on the
+       server, show Free, Premium or Pro in the account sheet, point
+       premium users past their limit at Pro, and sell Pro only the
+       data-driven way the payment links already work (no invented
+       prices or product IDs).
+     - Changed:
+       - **Roles**: rbacr's new `pro` role (and `admin`) gives
+         `presence_pro`, and `pro` also gives `presence_premium` and
+         `presence_user` (`Roles` in the auth API, `presenceRoles` in the
+         app); a linked account shares the owner's `presence_pro`. The app
+         has `RolesService.isPro` and `plan` (Pro for pro or admin,
+         Premium, Free).
+       - **Limits**, one source per side: the auth API's
+         `ProfileHandler.deviceLimit` (`FREE_DEVICES` 10,
+         `PREMIUM_DEVICES` 25, `PRO_DEVICES` 50, `MAX_DEVICES` 50 listed),
+         and the app's `Plan` / `DeviceSlots.freeLimit`, `premiumLimit`,
+         `proLimit`.
+       - **Enforced**: `POST /api/auth/credentials` and `POST
+         /api/auth/stream/credentials` still list every device (up to 50),
+         but only one within the plan's limit gets a token; otherwise 403
+         `{"reason": "deviceLimit", "deviceLimit", "devices"}`. An empty
+         body (an older app) gets credentials only while the profile has
+         no more devices than its limit. The app's `CognitoException`
+         carries those slots; cloud sync stops without retrying by itself
+         and shows the device as past the limit. The past-limit texts now
+         say such a device doesn't sync.
+       - **Streamers Premium-only**: `POST /api/auth/profile/stream-key`
+         needs `presence_premium` (403), and a free owner's profile's
+         stream credentials get 403 instead of a free token.
+       - **S3 for Pro**: Pro's credentials carry the same `tier=premium`
+         tag (Pro always holds `presence_premium`), so identity.yaml's
+         `aws:PrincipalTag/tier = premium` condition is unchanged: no new
+         tag value or infra deploy, and only holders of rbacr's
+         `premium`, `pro` or `admin` reach the bucket, as before.
+       - **The plan box** says Free, Premium or Pro with each limit; the
+         roles chip adds Pro Access; the health panel's RBACR card says
+         Pro. On the web a premium member is told Pro has 50 devices,
+         with **Pro monthly** and **Pro yearly** buttons once their links
+         exist; the Monitoring card points a premium profile past 25 at
+         Pro. The iOS and Android apps don't mention Pro.
+       - **Payments API**: the links gain `proMonthly` and `proYearly`
+         (stored, answered, saved by admins in the Admin tab's two new
+         fields; optional in `PUT`, kept when left out; no deploy
+         defaults; the `PUT` body limit is 4 KB).
+       - Tests: auth API (`RolesTest`, `ProfileTest`: the plans' limits,
+         Pro tagged premium, an admin's 50, a device past the limit
+         refused and let in after an upgrade, the empty-body rule,
+         streamers refused for free profiles and past the limit), payments
+         API (`PaymentsTest`: Pro's links saved, kept by an older editor,
+         Stripe's only), app (`device_slots_test`, `cloud_sync_test`,
+         `payments_test`, `rbacr_client_test`, `roles_test`,
+         `store_billing_test`). 126 auth API, 18 recognition and 51
+         payments API tests pass; 1004 Flutter tests pass and `flutter
+         analyze` is clean.
+     - Outside the repo, still to do: create the **`pro` role** in
+       rbacr's `presence` system, and a Stripe sync that grants it to Pro
+       subscribers (rbacr grants one `subscriberRole` per system today, so
+       Pro's links must not be saved before that); the Stripe product,
+       prices and Payment Links for Pro; App Store and Google Play Pro
+       products (none yet, so Pro isn't sold in the apps); and the
+       presence-streamer's handling of the new 403 for a free profile.
+     - Specs: [Plans](premium.md) (retitled "Plans: Free, Premium and
+       Pro"), [Upgrade](upgrade.md#pro), [Payments API](payments-api.md),
+       [Monitoring](monitoring.md), [Membership](membership.md),
+       [Auth API](auth-api.md), [Profiles](profiles.md),
+       [Cloud sync](cloud-sync.md), [Streamer](streamer.md), and the
+       [index](README.md).

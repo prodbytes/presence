@@ -29,6 +29,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authAccessPremium => 'Premium Access';
 
   @override
+  String get authAccessPro => 'Pro Access';
+
+  @override
   String get authBackedUp => 'Clips and events are backed up';
 
   @override
@@ -169,7 +172,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authHiddenTooltip =>
-      'Past the plan\'s device limit: it syncs, but its events are hidden here';
+      'Past the plan\'s device limit: it doesn\'t sync, and its events are hidden here';
 
   @override
   String authHideDevice(String device) {
@@ -229,9 +232,9 @@ class AppLocalizationsEn extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count more devices sync, but their events are hidden: $plan shows your first $limit.',
+          '$count more devices don\'t sync, and their events are hidden: $plan syncs your first $limit.',
       one:
-          '1 more device syncs, but its events are hidden: $plan shows your first $limit.',
+          '1 more device doesn\'t sync, and its events are hidden: $plan syncs your first $limit.',
     );
     return '$_temp0';
   }
@@ -261,7 +264,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String authOthersHidden(String plan, int limit) {
-    return 'Your other devices\' events are hidden on this one: $plan shows your first $limit devices.';
+    return 'This device doesn\'t sync, and your other devices\' events are hidden on it: $plan syncs your first $limit devices.';
   }
 
   @override
@@ -269,7 +272,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String authPastLimit(int limit) {
-    return 'This device is past your first $limit: it syncs, but its events are hidden on your other devices, and theirs here.';
+    return 'This device is past your plan\'s first $limit: it doesn\'t sync, so only its own events show here.';
   }
 
   @override
@@ -278,13 +281,19 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authPaymentsIntro =>
-      'The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.';
+      'The Stripe Payment Links free members upgrade to Premium with, and members to Pro. Leave one empty not to offer that plan.';
 
   @override
   String get authPaymentsInvalid => 'Empty, or an https link on stripe.com';
 
   @override
   String get authPaymentsMonthly => 'Monthly plan link';
+
+  @override
+  String get authPaymentsProMonthly => 'Pro monthly plan link';
+
+  @override
+  String get authPaymentsProYearly => 'Pro yearly plan link';
 
   @override
   String get authPaymentsSave => 'Save links';
@@ -310,16 +319,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authPlanFree => 'Free';
 
   @override
-  String authPlanFreeText(int free, int premium) {
-    return 'Free: up to $free devices sync with each other while online. Premium adds cloud backup and up to $premium devices: US\$20 a month, the first week free.';
+  String authPlanFreeText(int free, int premium, int pro) {
+    return 'Free: up to $free devices sync with each other while online. Premium adds cloud backup and up to $premium devices: US\$20 a month, the first week free. Pro: up to $pro devices.';
   }
 
   @override
   String get authPlanPremium => 'Premium';
 
   @override
+  String authPlanPremiumProText(int limit, int pro) {
+    return 'Premium: cloud backup, and up to $limit devices sync. Pro: up to $pro devices.';
+  }
+
+  @override
   String authPlanPremiumText(int limit) {
     return 'Premium: cloud backup, and up to $limit devices sync.';
+  }
+
+  @override
+  String get authPlanPro => 'Pro';
+
+  @override
+  String authPlanProText(int limit) {
+    return 'Pro: cloud backup, and up to $limit devices sync.';
   }
 
   @override
@@ -332,6 +354,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authPremiumYearly => 'Premium yearly';
+
+  @override
+  String get authProMonthly => 'Pro monthly';
+
+  @override
+  String authProShowsUpTo(String text, int limit) {
+    return '$text Pro shows up to $limit.';
+  }
+
+  @override
+  String get authProYearly => 'Pro yearly';
 
   @override
   String get authProfile => 'Profile';
@@ -1636,6 +1669,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get healthRbacrPremium =>
       'RBACR: set; this profile is Premium (cloud backup)';
+
+  @override
+  String get healthRbacrPro => 'RBACR: set; this profile is Pro (cloud backup)';
 
   @override
   String get healthRbacrSet => 'RBACR: set; gives the roles';

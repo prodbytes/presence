@@ -7,14 +7,17 @@ import 'auth_service.dart';
 import 'premium_checkout.dart';
 import 'roles_service.dart';
 
-/// The Premium plans' Stripe Payment Links, as the payments API
+/// The Premium and Pro plans' Stripe Payment Links, as the payments API
 /// (presence_api_payments) answers them: each an HTTPS link on stripe.com,
-/// or empty when that plan isn't offered.
+/// or empty when that plan isn't offered (Pro's, until an admin saves
+/// them; an older API doesn't answer them).
 @immutable
 class PaymentLinks {
   const PaymentLinks({
     this.monthly = '',
     this.yearly = '',
+    this.proMonthly = '',
+    this.proYearly = '',
     this.saved = false,
     this.updatedAt,
   });
@@ -22,6 +25,8 @@ class PaymentLinks {
   factory PaymentLinks.fromJson(Map<String, Object?> json) => PaymentLinks(
     monthly: _link(json['monthly']),
     yearly: _link(json['yearly']),
+    proMonthly: _link(json['proMonthly']),
+    proYearly: _link(json['proYearly']),
     saved: json['saved'] == true,
     updatedAt: switch (json['updatedAt']) {
       final int ms => DateTime.fromMillisecondsSinceEpoch(ms),
@@ -36,8 +41,13 @@ class PaymentLinks {
     return url != null && PremiumCheckout.isStripe(url) ? link : '';
   }
 
+  /// Premium's plans.
   final String monthly;
   final String yearly;
+
+  /// Pro's plans.
+  final String proMonthly;
+  final String proYearly;
 
   /// Whether an admin saved them (else they're the deploy's defaults).
   final bool saved;
@@ -45,19 +55,25 @@ class PaymentLinks {
   /// When an admin saved them.
   final DateTime? updatedAt;
 
-  /// Whether no plan is offered.
+  /// Whether no Premium plan is offered.
   bool get isEmpty => monthly.isEmpty && yearly.isEmpty;
+
+  /// Whether no Pro plan is offered.
+  bool get proIsEmpty => proMonthly.isEmpty && proYearly.isEmpty;
 
   @override
   bool operator ==(Object other) =>
       other is PaymentLinks &&
       other.monthly == monthly &&
       other.yearly == yearly &&
+      other.proMonthly == proMonthly &&
+      other.proYearly == proYearly &&
       other.saved == saved &&
       other.updatedAt == updatedAt;
 
   @override
-  int get hashCode => Object.hash(monthly, yearly, saved, updatedAt);
+  int get hashCode =>
+      Object.hash(monthly, yearly, proMonthly, proYearly, saved, updatedAt);
 }
 
 /// The payments API's routes, with the user's Google ID token. Failures
@@ -68,10 +84,13 @@ abstract class PaymentsClient {
   Future<PaymentLinks> links(String idToken);
 
   /// Saves the links, for admins (`PUT /api/payments/links`); what's saved.
+  /// Pro's are left as they are when null.
   Future<PaymentLinks> save(
     String idToken, {
     required String monthly,
     required String yearly,
+    String? proMonthly,
+    String? proYearly,
   });
 }
 
@@ -105,6 +124,8 @@ class HttpPaymentsClient implements PaymentsClient {
     String idToken, {
     required String monthly,
     required String yearly,
+    String? proMonthly,
+    String? proYearly,
   }) async => _read(
     await _client.put(
       base.resolve('/api/payments/links'),
@@ -112,7 +133,15 @@ class HttpPaymentsClient implements PaymentsClient {
         'authorization': 'Bearer $idToken',
         'content-type': 'application/json',
       },
-      body: jsonEncode({'monthly': monthly.trim(), 'yearly': yearly.trim()}),
+      body: jsonEncode({
+        'monthly': monthly.trim(),
+        'yearly': yearly.trim(),
+        // Both or neither: the API keeps Pro's when they're left out.
+        if (proMonthly != null && proYearly != null) ...{
+          'proMonthly': proMonthly.trim(),
+          'proYearly': proYearly.trim(),
+        },
+      }),
     ),
   );
 }
@@ -161,10 +190,18 @@ class PaymentsService extends ChangeNotifier {
   Future<PaymentLinks> save({
     required String monthly,
     required String yearly,
+    String? proMonthly,
+    String? proYearly,
   }) async {
     final token = auth.idToken;
     if (token == null) throw RolesException(401, 'Payments API');
-    final links = await client.save(token, monthly: monthly, yearly: yearly);
+    final links = await client.save(
+      token,
+      monthly: monthly,
+      yearly: yearly,
+      proMonthly: proMonthly,
+      proYearly: proYearly,
+    );
     if (!_disposed) {
       _links = links;
       notifyListeners();

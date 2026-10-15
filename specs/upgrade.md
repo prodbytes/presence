@@ -1,7 +1,8 @@
-# Upgrade to Premium
+# Upgrade to Premium (and Pro)
 
 A free member upgrades to [Premium](premium.md) from the app, where its
-build sells it:
+build sells it; a premium member upgrades to Pro on the web, once Pro is
+configured ([Pro](#pro)):
 
 | Build | How Premium is bought |
 |---|---|
@@ -28,15 +29,15 @@ the fallback when the payments API doesn't answer.
   profile's devices (`PlanNotice`,
   [plan_notice.dart](../presence_app/lib/auth/plan_notice.dart)), for a
   free member only (not `isPremium` or `isAdmin`):
-  - **Web**: the Free text ends "Premium adds cloud backup and up to 50
-    devices: US$20 a month, the first week free."; **Premium monthly** and
+  - **Web**: the Free text ends "Premium adds cloud backup and up to 25
+    devices: US$20 a month, the first week free. Pro: up to 50 devices."; **Premium monthly** and
     **Premium yearly** (filled buttons, the `workspace_premium` icon), one
     per plan the payments API has a link for, open that plan's checkout in
     the browser, or copy its link where it can't open; with neither link
     (the API didn't answer, or offers no plan), a single **Upgrade to
     Premium** opens https://nu01.com instead.
   - **iOS and Android**: the Free text without a price ("… Premium adds
-    cloud backup and up to 50 devices."), then the store's plans
+    cloud backup and up to 25 devices."), then the store's plans
     (`StorePlans`, [store_plans.dart](../presence_app/lib/auth/store_plans.dart)).
   - **Elsewhere**: the Free text without a price, and no purchase button.
   - **Check again** beside them checks the roles again
@@ -45,10 +46,45 @@ the fallback when the payments API doesn't answer.
   - A member who is Premium through a subscription verified in this
     store (iOS, Android) gets **Manage subscription** in the box.
 - **The Monitoring tab's** hidden-devices card (`DeviceLimitNotice`), for
-  a free profile: "… Premium shows up to 50." and an **Upgrade** button:
+  a free profile: "… Premium shows up to 25." and an **Upgrade** button:
   on the web, to the monthly plan's checkout (the yearly's when there's no
   monthly link, nu01.com when neither); on iOS and Android, to the Profile
-  tab, where the store's plans are; elsewhere, no button.
+  tab, where the store's plans are; elsewhere, no button. For a premium
+  profile on the web, "… Pro shows up to 50." and, with a Pro link, an
+  **Upgrade** button to Pro's checkout ([below](#pro)).
+
+## Pro
+
+A premium member upgrades to [Pro](premium.md) (50 devices instead of
+25, everything else as Premium) **on the web only**, and only once it's
+configured: nothing about Pro's prices or products is in this repo.
+
+- **The links** are data, as Premium's: the payments API's `GET
+  /api/payments/links` answers **`proMonthly`** and **`proYearly`** too
+  (empty until an admin saves them; they have no deploy defaults), and the
+  Admin tab's Payments section has a **Pro monthly plan link** and a **Pro
+  yearly plan link** field ([Payments API](payments-api.md)). Each must be
+  empty or a Stripe HTTPS link, as Premium's.
+- **The buttons**: a premium member's plan box shows **Pro monthly** and
+  **Pro yearly**, one per Pro link set, opening the checkout as Premium's
+  do (`PremiumCheckout.checkout`: the email locked, the profile as
+  `client_reference_id`). With no Pro link, no Pro button, though the plan
+  text still says Pro has 50 devices. A free member sees Premium's buttons
+  only; a Pro member or an admin, none.
+- **How it becomes Pro**: rbacr's Stripe sync must grant the `presence`
+  system's **`pro`** role to a Pro subscriber (and `premium` to a Premium
+  one). Today rbacr grants one `subscriberRole` per system to every
+  subscriber of its Stripe account, so selling Pro needs rbacr to map
+  Pro's Stripe product (or price) to `pro`. Until then, **don't save Pro's
+  links**: a Pro checkout would grant `premium`.
+- **Not in the stores yet**: there are no Pro App Store or Google Play
+  products; the iOS and Android apps don't offer or mention Pro, and the
+  payments API's store verification knows Premium's products only (and
+  grants `premium`). Selling Pro there needs its products in both stores,
+  their IDs in `StorePurchase.PRODUCTS` and `StoreBilling`, and the grant
+  of `pro` for them.
+- **Switching from Premium to Pro** on the web is a second Stripe
+  subscription: the member cancels Premium's in Stripe themselves.
 
 ## On the web: Stripe
 
@@ -184,6 +220,11 @@ See [Payments API](payments-api.md#store-purchases) for what's checked.
 3. The links: the deploy's defaults (`STRIPE_MONTHLY_LINK`,
    `STRIPE_YEARLY_LINK`; see [Payments API](payments-api.md#deploying)),
    or an admin's, saved in the Admin tab's Payments.
+4. **Pro** (when it's to be sold): in rbacr, the `presence` system's
+   `pro` role, and a Stripe sync that grants it to Pro's subscribers;
+   in Stripe, a product "Presence Pro" with its prices and a Payment Link
+   each; then the links saved in the Admin tab's Pro fields
+   ([Pro](#pro)).
 
 ### App Store Connect (iOS)
 

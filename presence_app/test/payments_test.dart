@@ -32,12 +32,16 @@ class FakePaymentsClient implements PaymentsClient {
     String idToken, {
     required String monthly,
     required String yearly,
+    String? proMonthly,
+    String? proYearly,
   }) async {
     tokens.add(idToken);
     if (status case final s?) throw RolesException(s, 'Payments API');
     return stored = PaymentLinks(
       monthly: monthly,
       yearly: yearly,
+      proMonthly: proMonthly ?? stored.proMonthly,
+      proYearly: proYearly ?? stored.proYearly,
       saved: true,
       updatedAt: DateTime(2026, 10, 11),
     );
@@ -61,6 +65,16 @@ void main() {
         DateTime.fromMillisecondsSinceEpoch(1790000000000),
       );
       expect(PaymentLinks.fromJson({}).isEmpty, isTrue);
+      // Pro's: none from an older API, Stripe's only.
+      expect(PaymentLinks.fromJson({}).proIsEmpty, isTrue);
+      final pro = PaymentLinks.fromJson({
+        'proMonthly': 'https://buy.stripe.com/pm00',
+        'proYearly': 'javascript:alert(1)',
+      });
+      expect(pro.proMonthly, 'https://buy.stripe.com/pm00');
+      expect(pro.proYearly, '');
+      expect(pro.isEmpty, isTrue);
+      expect(pro.proIsEmpty, isFalse);
     });
   });
 
@@ -106,6 +120,22 @@ void main() {
       expect(jsonDecode(requests.last.body), {
         'monthly': monthly,
         'yearly': yearly,
+      });
+
+      // With Pro's: all four.
+      final pro = await client.save(
+        'tok',
+        monthly: monthly,
+        yearly: '',
+        proMonthly: ' https://buy.stripe.com/pm00 ',
+        proYearly: '',
+      );
+      expect(pro.proMonthly, 'https://buy.stripe.com/pm00');
+      expect(jsonDecode(requests.last.body), {
+        'monthly': monthly,
+        'yearly': '',
+        'proMonthly': 'https://buy.stripe.com/pm00',
+        'proYearly': '',
       });
     });
 
@@ -195,7 +225,18 @@ void main() {
       await tester.pumpAndSettle();
       expect(client.stored.yearly, yearly);
       expect(client.stored.monthly, monthly);
+      expect(client.stored.proMonthly, '');
       expect(payments.links!.saved, isTrue);
+
+      // Pro's links too.
+      await tester.enterText(
+        find.byKey(const Key('admin-payments-pro-monthly')),
+        'https://buy.stripe.com/pm00',
+      );
+      await tester.tap(find.byKey(const Key('admin-payments-save')));
+      await tester.pumpAndSettle();
+      expect(client.stored.proMonthly, 'https://buy.stripe.com/pm00');
+      expect(client.stored.proYearly, '');
       expect(find.text('Payment links saved'), findsOneWidget);
       expect(find.byKey(const Key('admin-payments-defaults')), findsNothing);
     });
@@ -203,7 +244,7 @@ void main() {
     testWidgets('refuses links that are not Stripe\'s', (tester) async {
       await show(tester);
       await tester.enterText(
-        find.byKey(const Key('admin-payments-monthly')),
+        find.byKey(const Key('admin-payments-pro-yearly')),
         'https://evil.example/pay',
       );
       await tester.pump();

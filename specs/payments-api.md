@@ -2,7 +2,9 @@
 
 The Premium plans' **Stripe Payment Links**, monthly and yearly, which a
 free member [upgrades to Premium](upgrade.md) with on the web (admins set
-them in the Admin tab; until then, the deploy's), and the **App Store and
+them in the Admin tab; until then, the deploy's), the Pro plans' links,
+which a premium member [upgrades to Pro](upgrade.md#pro) with (none until
+an admin sets them), and the **App Store and
 Google Play subscriptions** of the iOS and Android apps, which it verifies
 with the store and grants in rbacr ([below](#store-purchases)). Its own
 module,
@@ -16,7 +18,9 @@ auth API's `/api/*`; see [Production deploy](deploy.md)).
 It never sees a Stripe payment: the links are Stripe's checkout pages,
 and [rbacr](https://github.com/prodbytes/rbacr) syncs the Stripe account's
 subscriptions into the `premium` role (see [Upgrade to
-Premium](upgrade.md#how-it-becomes-premium)).
+Premium](upgrade.md#how-it-becomes-premium)), and must sync Pro's into the
+`pro` role before Pro's links are saved ([Pro](upgrade.md#pro)). Store
+purchases are Premium's only: there are no Pro store products yet.
 
 ## Routes
 
@@ -31,23 +35,27 @@ always true in a session token), lowercased: `Identity.verifiedEmail`
 the one place a request's identity is read.
 
 - **`GET /api/payments/links`** (any signed-in user; 20 requests/s, burst
-  50): `{"monthly": "https://buy.stripe.com/…", "yearly": "…", "saved":
-  true, "updatedAt": 1790000000000}`. What an admin saved, or until one
-  does the stack's `MonthlyLink` and `YearlyLink` (`"saved": false`, no
-  `updatedAt`). An empty link is a plan that isn't offered. Who saved them
-  isn't answered.
-- **`PUT /api/payments/links`** `{"monthly": "…", "yearly": "…"}` (1
-  request/s, burst 5): saves both, and answers them as `GET` does.
+  50): `{"monthly": "https://buy.stripe.com/…", "yearly": "…",
+  "proMonthly": "…", "proYearly": "…", "saved": true, "updatedAt":
+  1790000000000}`. What an admin saved, or until one does the stack's
+  `MonthlyLink` and `YearlyLink` (`"saved": false`, no `updatedAt`; Pro's
+  empty: they have no deploy defaults). An empty link is a plan that isn't
+  offered. Who saved them isn't answered.
+- **`PUT /api/payments/links`** `{"monthly": "…", "yearly": "…",
+  "proMonthly": "…", "proYearly": "…"}` (1 request/s, burst 5): saves
+  them, and answers them as `GET` does. Pro's keys are optional: one
+  left out (an older app's editor sends neither) keeps its link as it is.
   - Only **admins**: the caller's Google-verified email holds `admin` in
     rbacr's `presence` system, or is an rbacr root. rbacr is asked with the
     auth API's token (`POST /api/roles`, server-side; answers reused for
     60 s; fails closed). Anyone else: **403**.
-  - The body is exactly those two keys, plain strings (no escapes), at
-    most 2 KB; each link empty or an **HTTPS link on `stripe.com`** (or a
+  - The body is `monthly` and `yearly`, and optionally `proMonthly` and
+    `proYearly`, no other keys, each once, plain strings (no escapes), at
+    most 4 KB (four links of 512); each link empty or an **HTTPS link on `stripe.com`** (or a
     subdomain), a path of URL-safe characters only (no query), at most 512
     characters. Otherwise **400**.
-  - Saving replaces both: a field left empty stops offering that plan,
-    even if the deploy has a default for it.
+  - Saving replaces those sent: a field left empty stops offering that
+    plan, even if the deploy has a default for it.
 - **`GET /api/payments/store`**, **`POST /api/payments/store/verify`**
   and **`POST /api/payments/store/apple-notifications`**: store purchases,
   [below](#store-purchases).
@@ -161,7 +169,8 @@ the platform, product and outcome.
 `PaymentsTable` (on-demand, encrypted, point-in-time recovery, kept when
 the stack is deleted), keyed by `id`:
 
-- **`links`**: `monthly`, `yearly`, `updatedAt` (epoch ms) and
+- **`links`**: `monthly`, `yearly`, `proMonthly`, `proYearly` (missing
+  from an item saved before Pro: empty), `updatedAt` (epoch ms) and
   `updatedBy` (the admin's email);
 - **`account:<email>`**: `accountToken` (the UUID), `purchases` (a set
   of the purchase items' keys) and `grantedUntil` (the end of the rbacr
@@ -238,13 +247,14 @@ put and update items in its table only.
 between Feedback and Vouchers and maintenance
 ([Membership](membership.md#the-admin-tab)):
 
-- "The Stripe Payment Links free members upgrade to Premium with. Leave
-  one empty not to offer that plan.";
+- "The Stripe Payment Links free members upgrade to Premium with, and
+  members to Pro. Leave one empty not to offer that plan.";
 - "Not saved yet: these are the deploy's links." while `saved` is false,
   or "The payments API didn't answer." (the fields disabled) when there
   are no links;
-- **Monthly plan link** and **Yearly plan link**, filled with the
-  current links; a field that isn't empty or an HTTPS stripe.com link
+- **Monthly plan link**, **Yearly plan link**, **Pro monthly plan link**
+  and **Pro yearly plan link**, filled with the current links (all four
+  are sent); a field that isn't empty or an HTTPS stripe.com link
   without a query says "Empty, or an https link on stripe.com", and
   **Save links** stays disabled;
 - **Save links** sends `PUT /api/payments/links`: "Payment links saved",

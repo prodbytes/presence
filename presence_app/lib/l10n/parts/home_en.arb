@@ -297,6 +297,7 @@
   "healthRbacrMissing": "RBACR: not set on the auth API; nobody who signs in has a role",
   "healthRbacrSet": "RBACR: set; gives the roles",
   "healthRbacrPremium": "RBACR: set; this profile is Premium (cloud backup)",
+  "healthRbacrPro": "RBACR: set; this profile is Pro (cloud backup)",
   "healthRbacrFree": "RBACR: set; this profile is Free (its devices sync with each other)",
   "healthLiveNotSet": "Live: not set; events arrive with each sync (15 s)",
   "healthLiveNever": "Live: off (Never); events arrive with each sync (15 s)",

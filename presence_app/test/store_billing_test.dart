@@ -473,7 +473,7 @@ void main() {
           home: Scaffold(
             body: SingleChildScrollView(
               child: PlanNotice(
-                premium: premium,
+                plan: premium ? Plan.premium : Plan.free,
                 email: 'ana@example.com',
                 onCheckAgain: () async {},
                 store: billing,
