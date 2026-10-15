@@ -94,8 +94,22 @@ found by a detector:
 - **On each clip** the device searches for subjects, when the profile is
   premium and its model trained (`CloudIdentifier`): the people and pets
   seen are cropped as above, at most **2 a frame** (the surest
-  detections) and **4 a clip** (see Memory), each with the frame's JPEG (a tag frame),
-  and sent in one request after the clip is sampled.
+  detections), and the **2 surest of the clip** are kept (by the
+  detector's score, over all the frames searched), each with the frame's
+  JPEG (a tag frame), and sent in one request after the clip is sampled.
+  **Auto** (asked for, on the player) keeps up to **4** (see Memory).
+- **Only clips with someone to identify**: identify is called only when the
+  detector found a person or pet on the clip that could be someone known
+  (people if a person is known, pets if a pet is) and someone known isn't
+  tagged on it yet; a clip with nobody seen sends nothing. A clip is
+  identified once: a new clip when it's recorded, a synced one only if no
+  device searched it for subjects yet (no `subjectSearch`); restored,
+  re-synced, edited or reopened clips aren't sent again, only on Auto.
+- **Cost**: DINOv2-L takes some 3 s a crop at 3008 MB, about 9 GB-s, so
+  a crop costs about US$0.00012 (Lambda's arm64 price). At 2 crops a clip
+  (down from 4), a heavy profile's 36,000 clips a month cost at most
+  about **US$9** for identify (was about $17), less as many clips have
+  nobody, or one person, on them.
 - **The answer**: each crop's likeliest subjects of its sort (up to 3,
   from 5 %). Each subject's cloud confidence is pooled as on the device
   (the mean of their best 3 crops). **Each subject's confidence is the
@@ -202,9 +216,10 @@ which also measures them (`--eval`):
   in new clips**, or Auto), for a premium profile signed in
   (`CloudDescriber`), trained or not, with or without subjects: the cats
   and dogs the detector finds (`FrameAnalysis.pets`, the boxes only),
-  at most **2 a frame** (the surest) and **8 a clip**, cropped as for
+  at most **2 a frame** (the surest), and the **4 surest of the clip**
+  (by the detector's score; Auto keeps up to **8**), cropped as for
   identify (`CloudCrop`, 224 × 224), sent in one request once the clip is
-  sampled.
+  sampled. None seen, nothing is sent.
 - **Not waited for**: the device's object tags are set as soon as the clip
   is sampled; then this request and the subjects' (identify) go out side by
   side, and each places its answer when it comes. A late answer from one
@@ -313,8 +328,9 @@ the same size differ: some answer twice as fast, so each size ran on 3 to
   a new instance used 2,984 MB of 3008 (2,537 of 2560). 8 crops took
   **22-29 s** warm (some 3 s a crop), near the API's 30 s, so the app
   sends at most **4** a request (`CloudRecognitionClient.maxSubjectBatch`:
-  identify's crops of a clip, `SubjectRecognizer.maxIdentifyCrops`, and
-  training's labels, `CloudTrainer.maxBatch`). A new instance fetched
+  Auto's identify crops, `SubjectRecognizer.maxIdentifyCropsOnRequest`,
+  and training's labels, `CloudTrainer.maxBatch`); a new clip sends 2
+  (`SubjectRecognizer.maxIdentifyCrops`), for cost. A new instance fetched
   DINOv2 from the bucket in 55-77 s, in ranges or one stream alike: see
   Warm-up.
 - What would be faster: more CPU (memory past 3008 MB, after AWS
@@ -419,8 +435,8 @@ model from Hugging Face at its first use (DINOv2 1.2 GB, SigLIP2 95 MB).
   Settings line before and after Train now.
 - `recognition_test.dart`: the cloud surer than the device tags where it
   saw them (a person, 224 × 224 × 3 bytes); someone only the cloud knows,
-  unsure, is asked about; 4 crops at most, 2 a frame; not asked when
-  unavailable; a label's crop is its detection's, its sort `pet`, and
+  unsure, is asked about; a new clip's 2 surest crops over the clip,
+  Auto's 4, 2 a frame; not asked with nobody seen, or when unavailable; a label's crop is its detection's, its sort `pet`, and
   null where nobody is.
 - `DescribeTest` (JUnit, a fake embedder that returns a label's text
   embedding): premium only, a verified email; bad crops refused (9, none,
@@ -433,8 +449,8 @@ model from Hugging Face at its first use (DINOv2 1.2 GB, SigLIP2 95 MB).
   with no subject known (cats and dogs sent as such, each label from its
   surest crop); neither request waits for the other (the breeds in while
   identify is still out, and the subjects tagged while describe is); not
-  asked unless premium, or with object tags off; 8 pets at most, 2 a
-  frame; a failure adds nothing. `cloud_recognition_test.dart`: the
+  asked unless premium, or with object tags off; a new clip's 4 surest
+  pets, Auto's 8, 2 a frame; a failure adds nothing. `cloud_recognition_test.dart`: the
   describe request and answer (confidences clamped, blank labels
   dropped); `addObjects` keeps the surer of a label.
 - `sam build` packages the three functions (47 MB each).
