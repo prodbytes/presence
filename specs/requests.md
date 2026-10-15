@@ -6392,3 +6392,39 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Auth API](auth-api.md),
        [Maintenance](maintenance.md), [Sign-in](sign-in.md),
        [Cloud recognition](cloud-recognition.md), [Deploy](deploy.md).
+
+446. **Fewer S3 LISTs for premium sync.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit): S3 LISTs ($0.005 per 1000, 12 times a GET) were still the
+       biggest S3 request cost, about 6 per own clip and 7 per received
+       clip, from passes that a save or a live message started listing
+       the day partitions again, and from each received clip's record
+       and media being listed before being got.
+     - Changed:
+       - A pass started by a save here or a live message skips the day
+         partitions' listing while the last listing is under 2 min old
+         (`CloudSync._mustList`, `_lastListing`, against `liveInterval`);
+         the timer's passes, the hourly full fetch, the Sync button,
+         Retry, a sign-in and a failed pass's retry still list. Live
+         events still come in the message, and their clips are wanted and
+         fetched by key at that pass.
+       - A clip's record, thumbnail and tagged frames are got by their
+         known keys (`_Fetcher._getIfThere`), no longer listed (the exact
+         record key, and `media/<clipId>` via `_Pass.mediaKeys`, removed);
+         a 404 is "not there yet", keeping the 10-minute wanted-clip
+         window. Should S3 answer AccessDenied for a missing key (the
+         role's `ListBucket` has an `s3:prefix` condition), that key is
+         listed to tell missing from refused, so the pass doesn't fail.
+         A complete clip's recording is pending at the key its `mimeType`
+         gives (only complete clips' recordings go up).
+       - Cost: a clip adds no LIST any more (about $0.25 a month per
+         device saved at 2 clips an hour each among 5 devices, about
+         $1.20 for such a profile); listing stays at most one per 2 min
+         per device (about $0.22 a month) plus the hourly full listing.
+       - Tests: `cloud_sync_test` (a save's pass skips the listing, a
+         retry lists, a save 2 min later lists), `live_sync_test` (a
+         received clip by GETs alone, no LIST; a missing one looked for
+         by GET for 10 min; AccessDenied for a missing key listed to tell,
+         the pass going on); the fake S3 answers 404 (or 403) for a
+         missing key. `flutter analyze` is clean, `flutter test` passes.
+     - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md).

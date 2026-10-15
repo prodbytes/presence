@@ -195,7 +195,6 @@ class _Fetcher {
         for (final frameId in _frameIds(event)) {
           if (have.containsKey(frameId) || clipId is! String) continue;
           final frameKey = CloudSync.frameKeyOf(clipId, frameId);
-          if (!(await pass.mediaKeys(clipId)).contains(frameKey)) continue;
           if (await _getSealedOrSkip(session, frameKey) case final frame?) {
             frames[frameId] = frame;
             await pass.synced(frameKey, frameId);
@@ -244,14 +243,33 @@ class _Fetcher {
     }
   }
 
+  /// Downloads [key], known but not listed (a clip's record or media), or
+  /// null when it isn't there (yet). Got rather than listed first, as a
+  /// LIST costs 12 times a GET: the role may list the folder, so a missing
+  /// key answers 404. Should S3 answer AccessDenied instead, the key is
+  /// listed, to tell a missing one from credentials refused.
+  static Future<Uint8List?> _getIfThere(
+    CloudSession session,
+    String key,
+  ) async {
+    try {
+      return await session.get(key);
+    } on S3Exception catch (e) {
+      if (e.statusCode == 404) return null;
+      if (e.statusCode != 403 || !e.body.contains('AccessDenied')) rethrow;
+      if ((await session.list(key)).contains(key)) rethrow;
+      return null;
+    }
+  }
+
   /// Downloads the image at [key] (a thumbnail or tagged frame), or null
-  /// when it's gone, or isn't sealed (logged): images are only ever taken
-  /// sealed.
+  /// when it isn't there ([_getIfThere]), or isn't sealed (logged): images
+  /// are only ever taken sealed.
   static Future<Uint8List?> _getSealedOrSkip(
     CloudSession session,
     String key,
   ) async {
-    final bytes = await _getOrSkip(session, key);
+    final bytes = await _getIfThere(session, key);
     if (bytes == null || SealFormat.isSealed(bytes)) return bytes;
     debugPrint('Presence: skipped $key: not sealed');
     return null;
@@ -317,10 +335,8 @@ class _Fetcher {
       final frames = <String, Uint8List>{};
       final clipId = event['clipId'];
       if (clipId is String) {
-        final ofClip = await pass.mediaKeys(clipId);
         for (final frameId in _frameIds(event)) {
           final frameKey = CloudSync.frameKeyOf(clipId, frameId);
-          if (!ofClip.contains(frameKey)) continue;
           if (await _getSealedOrSkip(session, frameKey) case final frame?) {
             frames[frameId] = frame;
             await pass.synced(frameKey, frameId);
@@ -368,9 +384,8 @@ class _Fetcher {
       if (localClips.contains(id) || !Records.isSafeId(id)) continue;
       final key = CloudSync.clipRecordKey(id, time);
       if (_damaged.containsKey(pass.objectKey(key))) continue;
-      if (!(await session.list(key)).contains(key)) continue;
-      final ofClip = await pass.mediaKeys(id);
-      final bytes = await _getOrSkip(session, key);
+      // Not up yet: its device uploads it once the clip completes.
+      final bytes = await _getIfThere(session, key);
       if (bytes == null) continue;
       final decoded = Records.decode(bytes, what: key);
       final clip = decoded == null
@@ -386,20 +401,16 @@ class _Fetcher {
       if (ref is Map) {
         // Safe: [Records.tryParseClip] checked it.
         final mediaId = ref['mediaId']! as String;
-        // Where it is, or, for a complete clip whose recording is still
-        // going up from its device, where it'll be.
-        final video =
-            _recordingKeys(id).where(ofClip.contains).firstOrNull ??
-            (clip['state'] == 'complete'
-                ? 'media/$id.${_extOf(ref['mimeType'] as String?)}'
-                : null);
-        if (video != null) await pass.pending(video, mediaId, time);
-      }
-      if (ofClip.contains('media/$id.jpg')) {
-        if (await _getSealedOrSkip(session, 'media/$id.jpg') case final jpeg?) {
-          clip['thumbnail'] = jpeg;
-          await pass.synced('media/$id.jpg', 'thumbnail');
+        // Where its device uploads the recording of a complete clip (only
+        // complete clips go up): there now, or still going up.
+        if (clip['state'] == 'complete') {
+          final video = 'media/$id.${_extOf(ref['mimeType'] as String?)}';
+          await pass.pending(video, mediaId, time);
         }
+      }
+      if (await _getSealedOrSkip(session, 'media/$id.jpg') case final jpeg?) {
+        clip['thumbnail'] = jpeg;
+        await pass.synced('media/$id.jpg', 'thumbnail');
       }
       clips.add(clip);
     }
@@ -475,8 +486,6 @@ class _Fetcher {
     }
     wanted.removeWhere((id, _) => localClips.contains(id));
     if (wanted.isEmpty) return;
-    // Listed afresh: what the fetch listed may have come since.
-    pass.forgetMediaKeys();
     final clips = <Map<String, Object?>>[];
     final fetched = <String>[];
     for (final MapEntry(key: id, value: (:time, serial: _)) in wanted.entries) {

@@ -9,7 +9,9 @@ message gets the event from the bucket. Nothing is deleted. While live
 sync works (connected, or idle between scheduled connections) cloud
 sync's timer lists the bucket only every **2 min** instead of every
 15 s, as a backstop (`CloudSync.liveInterval`): listings are billed per
-request, and live sync brings new events first.
+request, and live sync brings new events first. The pass a received
+message starts lists nothing while the last listing is under 2 min old:
+it only gets the wanted clip, by its known keys (GETs, never a LIST).
 
 This is phase 1, plus **copy acknowledgements**: a device that has stored
 a full copy of another device's event (with its media) says so with a
@@ -431,10 +433,14 @@ query holds the session token.
     isn't put back (nor published) by the pass; an event received while
     signing out (its frame still downloading) isn't taken; a wanted clip
     whose fetch fails comes at the next pass; after a restart, the first
-    pass fetches the clip of an event whose clip never came; a clip not in
-    the bucket yet is looked for at each pass for 10 minutes, then no
-    longer; while live sync is connected the timer's passes come only
-    every `liveInterval` (a received event still starts one at once), and
+    pass fetches the clip of an event whose clip never came; a received
+    clip comes by GETs of its record and thumbnail, with no LIST, its
+    recording pending at its `mimeType`'s key; a clip not in the bucket
+    yet is looked for (a GET, 404) at each pass for 10 minutes, then no
+    longer, and, should S3 answer AccessDenied for a missing key, is
+    listed to tell, without failing the pass or renewing credentials; while live sync is connected the timer's passes come only
+    every `liveInterval` (a received event still starts one at once, which
+    gets its clip's record by its key and lists nothing), and
     while it fails (and retries) every `interval` again; signing out
     disconnects; without an endpoint, events still go up through the
     bucket.

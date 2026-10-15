@@ -106,7 +106,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   state, and the reconnect attempts after it) the timer passes every 15 s
   as before; a reconnect attempt doesn't change which applies. Saves
   here, received events, the **Sync** button and **Retry** start passes
-  at once either way, and any pass restarts the 2 min. 2 min is live
+  at once either way, and any pass restarts the 2 min. A pass started by
+  a save here or a live message **lists nothing** while the last listing
+  is under 2 min old (`CloudSync._mustList`, the age against
+  `liveInterval`): the message brought the event, and its clip is got by
+  its known keys (wanted, see **Fetch**). The timer's passes, the hourly
+  full fetch, the Sync button, Retry, a sign-in and a failed pass's retry
+  always list. 2 min is live
   sync's own slowest retry and its devices' "seen lately" window, and the
   slowest default scheduled connection (every minute) still comes within
   it; with live sync set to connect every 5 min or more, events missed
@@ -130,8 +136,13 @@ an Athena table are in [Recording and data formats](data-formats.md).
   - at most **1000 events per pass** (`CloudSync.maxFetch`), the newest
     first; any rest come down in later passes;
   - only the clips those events use: each record read from its event's
-    day partition (`clips/year=…/day=…/<clipId>.json`, listed first), and
-    its media found by listing just its own keys (`media/<clipId>`);
+    day partition (`clips/year=…/day=…/<clipId>.json`), and its thumbnail
+    (`media/<clipId>.jpg`) and tagged frames (`media/<clipId>/frames/…`),
+    all **got by their known keys, never listed** (a LIST costs $0.005
+    per 1000, 12 times a GET's $0.0004). The role may list the folder, so
+    a missing key answers **404**: "not there yet", not an error. Should
+    S3 answer `AccessDenied` (403) instead, that one key is listed to tell
+    a missing object from refused credentials (`_Fetcher._getIfThere`);
   - they're handed over **in batches of 25 events**
     (`CloudSync.fetchBatch`, with their clips, thumbnails and frames),
     marked as synced, so they aren't uploaded back, stored
@@ -144,9 +155,11 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Recordings** (about 6 MB each: the same profile's 123 were 756 MB)
   come down **only when wanted**, never with their events, on every
   platform:
-  - when a fetched clip has one (`media/<clipId>.webm` or `.mp4`, listed;
-    or, for a complete clip whose device is still uploading it, where it
-    will be), its key is **marked as synced** at once, since it's in the
+  - when a fetched clip is complete (only complete clips go up), its
+    recording's key, from the clip record's `mimeType`
+    (`media/<clipId>.mp4` for MP4, else `.webm`, as its device uploads
+    it; there now, or still going up), is **marked as synced** at once,
+    since it's in the
     cloud, so a reconciliation never tries to upload a recording that
     isn't here; and it's noted as **pending** in the `synced` store, as
     `fetch:<object key>` = `<event time>:<mediaId>`;
@@ -247,13 +260,21 @@ an Athena table are in [Recording and data formats](data-formats.md).
     `CloudSync.fetchingHistory` is set, and the events list shows a
     spinner below its cards (see [Events](events.md));
   - every other pass, only **today's and yesterday's** partitions, where
-    other devices' new events land. Every 15 s that's about 11,500
-    listings a day per device (about 345,000 a month, $1.73 at S3's
-    $0.005 per 1000; $0.43 a day for listing the whole window every
-    15 s). While live sync works, every 2 min: about 1,440 a day (43,200
-    a month, about $0.22), plus the hourly full listings (15 an hour,
-    about 10,800 a month, $0.05) and a listing per wanted clip per pass.
-    For 5 devices that's about $1.40 a month instead of about $9.
+    other devices' new events land; except a pass for a save here or a
+    live message within 2 min of the last listing, which lists nothing
+    (see above). Every 15 s that's about 11,500 listings a day per device
+    (about 345,000 a month, $1.73 at S3's $0.005 per 1000; $0.43 a day
+    for listing the whole window every 15 s). While live sync works, at
+    most one listing (2 LISTs) per 2 min, however busy: about 1,440 a day
+    (43,200 a month, about $0.22), plus the hourly full listings (15 an
+    hour, about 10,800 a month, $0.05). A clip, its own or received, adds
+    no LIST: before 2026-10-15 each pass a save or a live message started
+    listed again, and each received clip had its record and its media
+    listed, about 6 LISTs per own clip and 7 per received one (about
+    $0.25 a month per device at 2 clips an hour each among 5 devices, so
+    about $1.20 for the profile). Now a received clip costs GETs: its
+    record and thumbnail, plus one per pass while it's wanted and not up
+    yet (about $0.007 a month per device at the same rate).
 - A new device (or one whose storage was cleared) therefore starts with
   two weeks of history, rather than everything in the bucket. Events from
   other devices of the same profile (any of its linked Google accounts,
@@ -283,7 +304,9 @@ an Athena table are in [Recording and data formats](data-formats.md).
     images are small and keep a signed SHA-256 payload.
 - Tests: `cloud_sync_test.dart` ("a new device gets only the last two
   weeks"; another device's event on the next pass, listing only today and
-  yesterday; the hourly full listing; at most `maxFetch` per pass, newest
+  yesterday; a pass for a save skips the listing while the last is under
+  2 min old, a retry still lists, and a save 2 min later lists; the
+  hourly full listing; at most `maxFetch` per pass, newest
   first; another device's change comes down once, as `updated`, and
   doesn't go back up, then again when it changes once more; a change here
   not uploaded yet wins; events synced before ETags were kept are fetched
@@ -339,7 +362,8 @@ an Athena table are in [Recording and data formats](data-formats.md).
   these, is **skipped and logged**, the rest of the pass goes on (the
   other events, the uploads), and it isn't downloaded again until its
   listed ETag changes (a clip record: until the next start); an object
-  deleted between listing and download (404) is skipped too. A clip
+  deleted between listing and download (404) is skipped too, as is a
+  clip's record, thumbnail or frame not there (yet). A clip
   whose recording reference is damaged comes without it. Settings in the
   cloud that aren't JSON, or have no `config`, count as none: the local
   ones are uploaded over them.
