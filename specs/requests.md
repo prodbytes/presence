@@ -6099,3 +6099,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        committed), installed 0.6.202610150825 on the iPhone 12 mini and
        launched it; it runs, and Apple sign-in fails on that build. Spec:
        [iOS](ios.md).
+
+436. **Estimate the AWS cost per user per month.** (2026-10-15)
+     - Asked: the AWS cost per user per month, for 5 devices recording
+       full time and about 10 events an hour each.
+     - Answered (us-east-1 list prices, 15 s clips of about 4 MB, 36,000
+       clips a month, all 5 devices prefetching each other's recordings):
+       about **US$80 a month**, against Premium's US$20. Out of that:
+       - S3 data transfer out: about $52. Each recording is downloaded by
+         the 4 other devices, about 576 GB a month.
+       - S3 requests: about $12, mostly the LIST every 15 s.
+       - Recognition Lambdas: about $8 if half the clips are identified.
+       - S3 storage: about $8 at steady state, about 576 GB over 120 days.
+       - IoT Core: about $2–3.
+       - The APIs: under $1.
+       Without the prefetch it is about $30. Shared fixed costs (KMS keys,
+       Secrets Manager, Route 53) come to about $5–10 a month in total.
+     - Changed: nothing. Spec: none changed.
