@@ -563,7 +563,7 @@ deploy_auth() {
       "IdentityPoolId=$COGNITO_IDENTITY_POOL_ID" "UserDataBucket=$USER_DATA_BUCKET" \
       "IotPolicyName=$LIVE_POLICY_NAME" "FeedbackTable=$FEEDBACK_TABLE" \
       "RbacrUrl=$RBACR_URL" "RbacrToken=$RBACR_TOKEN" "RbacrSystem=$RBACR_SYSTEM" \
-      "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
+      "Stage=$STAGE" "LocalCloud=false" ${origin_override[@]+"${origin_override[@]}"} \
     --tags "${STACK_TAGS[@]}" --no-confirm-changeset --no-fail-on-empty-changeset
   )
 }
