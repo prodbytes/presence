@@ -140,10 +140,17 @@ How live sync connects depends on the user's roles too
   whatever the setting says, so their devices (often unattended) are
   always reachable and their Live check shows ✅ connected. Their slider
   shows Always, locked.
-- **Everyone else** (members) connects as set, but **at most every 30 s**:
+- **Premium members** connect as set, but **at most every 30 s**:
   Always isn't theirs, and a saved Always (or an interval under 30 s)
-  connects every 30 s. Their slider goes from Never to every 60 min. Free
-  and premium members ([Premium and free](premium.md)) get the same rules.
+  connects every 30 s. Their slider goes from Never to every 60 min.
+- **Free members** ([Premium and free](premium.md),
+  `effective(isPremium: false)`, `LiveConfig.free`) connect **at most
+  every 15 min**: Never stays Never; anything faster (Always included)
+  is every 15 min, and 30 or 60 min stay. Their slider offers Never, then
+  15, 30 and 60 min (a faster step snaps to 15 min), and its note says
+  "Free: connects every 15 min to share this device's events with your
+  other devices and take theirs. Premium syncs them instantly." The free
+  schedule differs from a member's ([Free](#free)).
 - The saved setting is never rewritten for the roles: an admin who stops
   being one gets their own choice back (clamped), and a member made admin
   is always connected at once.
@@ -190,6 +197,30 @@ live sync are off, as before.
   - **The IoT policy** needs nothing more: `iot:Connect` on
     `client/<identityId>-*` matches both client IDs, and persistent
     sessions need only connect, subscribe and receive.
+
+### Free
+
+A free profile's devices (`LiveConfig.free`) cost almost nothing in AWS
+([Premium and free](premium.md#free-in-aws)):
+
+- **Connections:** at start, at sign-in (live sync starts with the
+  profile), then every 15 min (plus the 0–10 s jitter), on the persistent
+  session as above. **A new event never connects**: it waits on the
+  device. Once a connection is up, `LiveLink.onShare` publishes what
+  waited (cloud sync's `_LivePublisher`: each new event once, final, with
+  a thumbnail of at most 12 KB), then it drains what the broker kept and
+  closes.
+- **The broker keeps** a persistent session's QoS 1 messages while the
+  device is away, until the session expires: **1 h** after it
+  disconnected (AWS IoT's default, adjustable up to 7 days in the
+  account's settings). A 15-min gap fits with room; a device away longer
+  than the session misses what came meanwhile.
+- **The Sync button** connects at once (its `sync` request, which also
+  shares what waited), **at most every 5 min** (`freeSyncEvery`; members:
+  10 s).
+- **Nothing else connects it:** no pings (device presence comes from a
+  [heartbeat](device-presence.md#free-devices-heartbeat), on connections
+  of its own), and `copied` acks wait for the next connection.
 
 ## Topics and messages
 
@@ -272,8 +303,11 @@ already keeps other profiles off the topic.
   [identity.yaml](../presence_infra/identity.yaml)): `iot:Connect` on
   `client/${cognito-identity.amazonaws.com:sub}-*`, `iot:Publish` and
   `iot:Receive` on `topic/presence/<Stage>/${…:sub}/*`, `iot:Subscribe` on
-  `topicfilter/presence/<Stage>/${…:sub}/*`. A profile reaches only its
-  own topics, as with its S3 prefix.
+  `topicfilter/presence/<Stage>/${…:sub}/*`, and `iot:RetainPublish` on
+  `topic/presence/<Stage>/${…:sub}/beats/*` (free devices' retained
+  heartbeat). A profile reaches only its own topics, as with its S3
+  prefix. Free and premium identities get the same permissions: a free
+  profile's lower use is the app's schedule, not a policy.
 - **The IoT policy** `presence-live-sync` (`presence-rc-live-sync` for the
   RC; `LivePolicy`, output `LivePolicyName`): the same statements, with the
   identity as a policy variable. AWS IoT requires a policy attached to an
@@ -433,7 +467,15 @@ query holds the session token.
 - Scheduled connections are tested with a fake broker and short
   intervals, not yet against AWS IoT's persistent sessions; a session
   expiry other than the 1 h default would change which intervals keep
-  their queue (the bucket still carries everything).
+  their queue (the bucket still carries everything for premium; a free
+  device misses what expired).
+- **Free limits are the app's**, not the server's: a modified app with a
+  free profile's credentials could connect and publish as often as a
+  premium one (AWS IoT bills per message). No alarm or budget watches IoT
+  spending yet: the account's monitoring (alarms, their email) moved to
+  the central nu01-monitor stack (nu01 repo), so an AWS Budget or a
+  CloudWatch alarm on `AWS/IoT` `PublishIn.Success` belongs there (a
+  follow-up).
 
 - The automated tests use a fake broker. Live sync has been deployed to
   prod and RC since `0.6.202610061801` (2026-10-06, with the updated

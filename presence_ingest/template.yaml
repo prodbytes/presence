@@ -35,6 +35,15 @@ Conditions:
   HasConcurrency: !Not [!Equals [!Ref IngestConcurrency, 0]]
 
 Resources:
+  # IngestFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  IngestFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-IngestFunction
+      RetentionInDays: 30
+
   IngestFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -42,6 +51,9 @@ Resources:
       # cryptography) and the model, whatever machine builds it.
       BuildMethod: makefile
     Properties:
+      # Its own log group, kept 30 days (IngestFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref IngestFunctionLogs
       CodeUri: .
       Handler: ingest.app.handler
       Runtime: python3.13

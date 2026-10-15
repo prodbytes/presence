@@ -242,6 +242,10 @@ own jar), under `/api/recognition/*` behind the same Google JWT
 authorizer, CloudFront `/api/*` origin and throttles. Every route needs a
 verified email and a **premium** profile (`presence_premium`, as the
 caller's or the profile owner's; [Premium](premium.md)): 403 otherwise.
+A free caller is refused before anything is written: its roles (with
+those its existing profile's owner shares, `Profiles.existing`, reads
+only) are checked first, and only a premium caller's profile is then
+signed in (`lastSignInAt`) or made (`RecognitionApi.access`).
 
 | Route | Function | Body | Answer |
 |---|---|---|---|

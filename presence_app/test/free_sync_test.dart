@@ -7,6 +7,7 @@ import 'package:idb_shim/idb_shim.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/cloud/cloud_sync.dart';
 import 'package:presence_app/cloud/live_sync.dart';
+import 'package:presence_app/config.dart';
 import 'package:presence_app/storage/event_store.dart';
 import 'package:presence_app/storage/media_store.dart';
 
@@ -154,11 +155,20 @@ void main() {
       roles = RolesService(auth: auth, client: client);
       broker = FakeBroker();
       remote = [];
+      // As the app sets it for a free member (LiveConfig.effective), on
+      // a short schedule.
       live = LiveSync(
         endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
         region: 'us-east-1',
         connect: broker.connect,
+        config: const LiveConfig(
+          every: Duration(milliseconds: 400),
+          free: true,
+        ),
         minRetry: const Duration(milliseconds: 5),
+        drainQuiet: const Duration(milliseconds: 150),
+        maxJitter: const Duration(milliseconds: 1),
+        beatFirst: const Duration(hours: 1),
       );
       sync = CloudSync(
         auth: auth,
@@ -182,7 +192,8 @@ void main() {
       await auth.signIn();
       await until(() => roles.hasAccess);
       await sync.idle();
-      await until(() => live.state == LiveSyncState.connected);
+      // Connected at start, then idle until the next one.
+      await until(() => live.state == LiveSyncState.idle);
     });
 
     tearDown(() {
@@ -195,6 +206,20 @@ void main() {
 
     int now() => DateTime.now().millisecondsSinceEpoch;
 
+    Iterable<Map<String, Object?>> eventsSent() => [
+      for (final c in broker.connections)
+        for (final (topic, payload) in c.published)
+          if (topic == eventsTopic)
+            (jsonDecode(utf8.decode(payload)) as Map).cast<String, Object?>(),
+    ];
+
+    /// Waits for the next scheduled connection to come and go.
+    Future<void> nextConnection() async {
+      final n = broker.connections.length;
+      await until(() => broker.connections.length > n);
+      await until(() => live.state == LiveSyncState.idle);
+    }
+
     test('syncs over live sync only: nothing to or from the bucket', () async {
       expect(sync.premium, isFalse);
       expect(sync.state, CloudSyncState.synced);
@@ -205,8 +230,9 @@ void main() {
       expect(backend.tokens, isNotEmpty);
     });
 
-    test('an event saved here goes to the other devices with its clip, once '
-        'per version', () async {
+    test('an event saved here waits for the next scheduled connection, and '
+        'goes once, final, with its clip', () async {
+      await nextConnection();
       final event = {
         'id': 'event-1',
         'profileId': profile,
@@ -218,28 +244,50 @@ void main() {
       await store.putClip(clipRecord(state: 'recording'));
       changes.add({'event-1'});
       await sync.idle();
-      await until(() => broker.last.published.isNotEmpty);
-      var sent = broker.last.sent.single;
-      expect((sent['event']! as Map)['id'], 'event-1');
-      // Still recording: no clip yet.
-      expect(sent.containsKey('clip'), isFalse);
+      // Not at once: no connection for it.
+      expect(eventsSent(), isEmpty);
+      // Still recording at the next connection: it waits.
+      await nextConnection();
+      expect(eventsSent(), isEmpty);
 
-      // Nothing new: not again.
-      changes.add({'event-1'});
-      await sync.idle();
-      expect(broker.last.published, hasLength(1));
-
-      // Its clip completes: again, with the clip and its thumbnail, sealed.
+      // Its clip completes: the next connection sends it, with the clip
+      // and its thumbnail, sealed.
       final thumb = thumbnail();
       await store.putClip(clipRecord(thumbnail: thumb));
       changes.add({'event-1'});
       await sync.idle();
-      await until(() => broker.last.published.length == 2);
-      sent = broker.last.sent.last;
+      await until(() => eventsSent().isNotEmpty);
+      final sent = eventsSent().single;
+      expect((sent['event']! as Map)['id'], 'event-1');
       final clip = sent['clip']! as Map;
       expect(clip['id'], 'clip-1');
       expect(clip['thumbnail'], base64Encode(thumb));
+
+      // Changed later: never again.
+      await store.putEvent({...event, 'title': 'Changed'});
+      changes.add({'event-1'});
+      await sync.idle();
+      await nextConnection();
+      await nextConnection();
+      expect(eventsSent(), hasLength(1));
       expect(backend.uploads, isEmpty);
+    });
+
+    test('a thumbnail over 12 KB stays out of a free message', () async {
+      await store.putEvent({
+        'id': 'event-1',
+        'profileId': profile,
+        'type': 'clip_requested',
+        'time': now(),
+        'clipId': 'clip-1',
+      });
+      await store.putClip(clipRecord(thumbnail: thumbnail(20 * 1024)));
+      changes.add({'event-1'});
+      await sync.idle();
+      await until(() => eventsSent().isNotEmpty);
+      final clip = eventsSent().single['clip']! as Map;
+      expect(clip['id'], 'clip-1');
+      expect(clip.containsKey('thumbnail'), isFalse);
     });
 
     test('another device\'s event comes with its clip from the message, '
@@ -251,6 +299,8 @@ void main() {
         'time': now(),
         'clipId': 'clip-1',
       };
+      // Delivered during a scheduled connection.
+      await until(() => live.state == LiveSyncState.connected);
       broker.last.deliver(eventsTopic, {
         ...messageOf(event),
         'clip': LiveSync.clipMessageOf(clipRecord(thumbnail: thumbnail())),

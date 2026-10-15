@@ -96,6 +96,15 @@ Resources:
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
 
+  # HealthFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  HealthFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-HealthFunction
+      RetentionInDays: 30
+
   # GET /health: whether every dependency of the auth API answers
   # (presence.health.HealthHandler), polled by the central nu01-monitor
   # (nu01 repo). Read-only: it only describes the tables, heads the bucket and
@@ -103,6 +112,9 @@ Resources:
   HealthFunction:
     Type: AWS::Serverless::Function
     Properties:
+      # Its own log group, kept 30 days (HealthFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref HealthFunctionLogs
       CodeUri: HealthFunction
       Handler: presence.health.HealthHandler::handleRequest
       Runtime: java25

@@ -320,7 +320,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String authPlanFreeText(int free, int premium, int pro) {
-    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta $premium dispositivos: US\$20 al mes, la primera semana gratis. Pro: hasta $pro dispositivos.';
+    return 'Gratis: cada dispositivo guarda sus eventos, y hasta $free dispositivos los comparten cada 15 minutos. Premium los sincroniza al instante, con copia en la nube y hasta $premium dispositivos: US\$20 al mes, la primera semana gratis. Pro: hasta $pro dispositivos.';
   }
 
   @override
@@ -485,7 +485,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authSyncFree =>
-      'Tus dispositivos se sincronizan entre sí cuando están en línea';
+      'Cada dispositivo guarda sus eventos; tus dispositivos los comparten cada 15 minutos (Premium: al instante)';
 
   @override
   String get authThisAccount => 'Esta cuenta';
@@ -1043,7 +1043,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get connectivityFree =>
-      'Free: los dispositivos se sincronizan en vivo';
+      'Free: los dispositivos comparten eventos cada 15 min';
 
   @override
   String connectivityLabel(String headline) {
@@ -1680,7 +1680,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get healthRbacrFree =>
-      'RBACR: configurado; este perfil es Free (sus dispositivos se sincronizan entre sí)';
+      'RBACR: configurado; este perfil es Free (sus dispositivos comparten eventos cada 15 min)';
 
   @override
   String get healthRbacrMissing =>
@@ -2238,6 +2238,11 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String settingsLiveFreeNote(String interval) {
+    return 'Gratis: se conecta cada $interval para compartir los eventos de este dispositivo con tus otros dispositivos y recibir los suyos. Premium los sincroniza al instante.';
+  }
+
+  @override
   String get settingsLiveNever => 'Nunca';
 
   @override
@@ -2520,7 +2525,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String storePlanFreeText(int free, int premium) {
-    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta $premium dispositivos.';
+    return 'Gratis: cada dispositivo guarda sus eventos, y hasta $free dispositivos los comparten cada 15 minutos. Premium los sincroniza al instante, con copia en la nube y hasta $premium dispositivos.';
   }
 
   @override

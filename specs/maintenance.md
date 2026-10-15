@@ -44,9 +44,14 @@ shows every signed-in user **no UI at all**: only a sorry message.
   [lib/auth/rbacr_client.dart](../presence_app/lib/auth/rbacr_client.dart)).
 - It asks **at each roles check** (with `GET /api/me` and the auth API's
   `GET /api/auth/profile`; see [Sign-in](sign-in.md)) and then **every
-  minute** (`RolesService.maintenanceCheckInterval`, with the auth API's
-  health check `checkApi`), so a running app (an unattended phone)
-  follows a switch within a minute (`RolesService.checkMaintenance`).
+  minute** (`RolesService.maintenanceCheckInterval`; rbacr isn't AWS), so
+  a running app (an unattended phone) follows a switch within a minute
+  (`RolesService.checkMaintenance`). The auth API's health check
+  (`checkApi`, `GET /api/auth/anonymous`, in AWS) has its own, far rarer
+  timer: every 15 min (`apiCheckInterval`), when the app comes back to the
+  foreground (`onResume`, if the last check is over a minute old) and
+  soon after a failed check (5 s, 15 s, 30 s, then every minute, until it
+  answers).
 - `RolesService.inMaintenance` is rbacr's last answer. If the status
   can't be fetched, the last answer stands (it starts off). When rbacr
   says it's off again, the roles are checked again at once: the checks

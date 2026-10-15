@@ -20,7 +20,8 @@ class DevicePresence {
   final String reason;
 
   /// A device that answered a ping within this is live (green): three
-  /// rounds of the 30 s pings the All grid and the devices list send.
+  /// rounds of the 30 s pings the All grid and the devices list send. A
+  /// free profile's devices beat instead ([LiveSync.liveWithin], 11 min).
   static const Duration liveWithin = Duration(seconds: 90);
 
   /// A device heard from (an answer, or an event) within this is recently
@@ -31,8 +32,10 @@ class DevicePresence {
   /// [answeredAt] ([LiveSync.seenOf]) and whose latest event is from
   /// [lastEvent], at [now]. [liveAvailable]: live sync is on here (without
   /// it nothing answers, so nothing is green, and the reason says so).
-  /// [thisDevice]: this one, green while [connected] to live sync. The
-  /// reason is worded in [l], English by default.
+  /// [thisDevice]: this one, green while [connected] to live sync (for a
+  /// free device: its last heartbeat recent, [LiveSync.showsLive]). Heard
+  /// from within [within] is green ([LiveSync.liveWithin]). The reason is
+  /// worded in [l], English by default.
   factory DevicePresence.of({
     AppLocalizations? l,
     DateTime? answeredAt,
@@ -41,6 +44,7 @@ class DevicePresence {
     required bool liveAvailable,
     bool thisDevice = false,
     bool connected = false,
+    Duration within = DevicePresence.liveWithin,
   }) {
     final t = l ?? lookupAppLocalizations(const Locale('en'));
     if (thisDevice) {
@@ -56,7 +60,7 @@ class DevicePresence {
     final unavailable = liveAvailable ? '' : t.connectivityPresenceUnavailable;
     if (liveAvailable && answeredAt != null) {
       final age = now.difference(answeredAt);
-      if (age < liveWithin) {
+      if (age < within) {
         return DevicePresence(
           PresenceLevel.live,
           t.connectivityPresenceAnswered(describeSince(age, t)),

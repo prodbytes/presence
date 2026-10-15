@@ -51,6 +51,13 @@ class _LiveBridge {
         onCopied: _sync._copyTracker.onCopied,
         // Another device's Sync button: a full pass here too.
         onSync: _sync.syncFull,
+        // Free: a scheduled connection is up; what waited here goes out.
+        onShare: () async {
+          if (_sync.premium || _sync._owner != owner || _sync._disposed) {
+            return;
+          }
+          await _sync._publisher.publish(owner, _sync._epoch, null);
+        },
         mediaKey: switch (_sync.seal.keys.keyOf(deviceId)) {
           final key? => MediaKeys.encode(key),
           null => null,

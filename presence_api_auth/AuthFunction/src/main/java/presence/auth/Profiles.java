@@ -180,6 +180,19 @@ public final class Profiles {
     }
 
     /**
+     * The profile the caller's subject is already linked to, read only:
+     * nothing made, nothing written (no {@code lastSignInAt}); null without
+     * a subject or a profile.
+     */
+    public Profile existing(Caller caller) {
+        if (!caller.hasSubject()) {
+            return null;
+        }
+        var linked = store.linked(caller.subject());
+        return linked == null ? null : store.profile(linked);
+    }
+
+    /**
      * The profile of the caller's subject (its provider's {@code idp} and {@code idp_sub}):
      * the one it's linked to, or a new one it owns and is linked to from now
      * on. The new one gets the ID {@code requested}, the app's own profile

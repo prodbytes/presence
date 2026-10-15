@@ -209,6 +209,11 @@ Resources:
               - Effect: Allow
                 Action: iot:Subscribe
                 Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
+              # Free devices' heartbeat (specs/device-presence.md): retained,
+              # on the profile's own beats topics only.
+              - Effect: Allow
+                Action: iot:RetainPublish
+                Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/beats/*
 
   # Live sync's IoT policy, attached to each profile's identity by the auth
   # API (POST /api/auth/credentials: iot:AttachPolicy): AWS IoT requires one
@@ -233,6 +238,9 @@ Resources:
           - Effect: Allow
             Action: iot:Subscribe
             Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/*
+          - Effect: Allow
+            Action: iot:RetainPublish
+            Resource: !Sub arn:${AWS::Partition}:iot:${AWS::Region}:${AWS::AccountId}:topic/presence/${Stage}/${!cognito-identity.amazonaws.com:sub}/beats/*
 
   IdentityPoolRoles:
     Type: AWS::Cognito::IdentityPoolRoleAttachment

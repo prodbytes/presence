@@ -216,9 +216,14 @@ class _PresenceAppState extends State<PresenceApp> {
       client:
           widget.rolesClient ??
           HttpRolesClient(ApiConfig.baseUrl, rbacr: _rbacr),
-      // rbacr's maintenance mode reaches a running app within a minute.
+      // rbacr's maintenance mode reaches a running app within a minute
+      // (rbacr isn't AWS)...
       maintenanceCheckInterval: const Duration(minutes: 1),
+      // ...while the auth API (Lambda, in AWS) is asked whether it answers
+      // every 15 min, on resume and soon after a failure.
+      apiCheckInterval: const Duration(minutes: 15),
     );
+    _lifecycle = AppLifecycleListener(onResume: _roles.onResume);
     _payments = PaymentsService(
       auth: _auth,
       client: widget.paymentsClient ?? HttpPaymentsClient(ApiConfig.baseUrl),
@@ -409,8 +414,10 @@ class _PresenceAppState extends State<PresenceApp> {
     // do (sign-in, a role granted or taken, sign-out). The saved setting
     // is left as it is.
     if (_sync?.live case final live?) {
-      void applyLive() =>
-          live.config = _config.config.live.effective(isAdmin: _roles.isAdmin);
+      void applyLive() => live.config = _config.config.live.effective(
+        isAdmin: _roles.isAdmin,
+        isPremium: _roles.isPremium,
+      );
       applyLive();
       _config.addListener(applyLive);
       _roles.addListener(applyLive);
@@ -749,8 +756,12 @@ class _PresenceAppState extends State<PresenceApp> {
     );
   }
 
+  /// Checks the auth API when the app comes back ([RolesService.onResume]).
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void dispose() {
+    _lifecycle.dispose();
     _settingsWait?.cancel();
     _auth.removeListener(_onAuthChanged);
     _links?.cancel();

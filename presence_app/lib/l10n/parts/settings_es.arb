@@ -44,6 +44,7 @@
   "settingsLiveNeverNote": "Los eventos de otros dispositivos llegan con cada sincronización (15 s), y los de este les llegan igual.",
   "settingsLiveAlwaysNote": "Se mantiene conectado: los eventos de otros dispositivos llegan en un segundo.",
   "settingsLiveScheduledNote": "Se conecta cada {interval} aprox. para recibir lo que enviaron otros dispositivos, y al instante para enviar los eventos de este.",
+  "settingsLiveFreeNote": "Gratis: se conecta cada {interval} para compartir los eventos de este dispositivo con tus otros dispositivos y recibir los suyos. Premium los sincroniza al instante.",
   "settingsAdvancedSection": "Avanzado",
   "settingsShowLog": "Mostrar la pestaña Registro",
   "settingsShowLogSubtitle": "Los últimos mensajes y el estado de la app",

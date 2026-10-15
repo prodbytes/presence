@@ -27,15 +27,30 @@ final class RecognitionApi {
     private RecognitionApi() {
     }
 
-    /** The caller's profile, and whether it's premium (cloud recognition is premium only). */
+    /**
+     * The caller's profile, and whether it's premium (cloud recognition is
+     * premium only); a free caller's profile isn't looked up for its own
+     * sake, so it may be null.
+     */
     record Access(String profileId, boolean premium) {
     }
 
-    /** From the environment: the caller's profile (made at its first sign-in) and roles from rbacr. */
+    /**
+     * From the environment: the caller's roles from rbacr, with those its
+     * existing profile's owner shares (reads only), and only for a premium
+     * caller its profile as sign-in gives it (made at its first sign-in,
+     * {@code lastSignInAt} written): a free caller is refused before any
+     * write.
+     */
     static Function<Caller, Access> accessFromEnvironment() {
-        var profiles = Profiles.fromEnvironment();
-        var roles = Roles.fromEnvironment();
+        return access(Profiles.fromEnvironment(), Roles.fromEnvironment());
+    }
+
+    static Function<Caller, Access> access(Profiles profiles, Roles roles) {
         return caller -> {
+            if (!roles.of(caller, profiles.existing(caller)).contains(Roles.PREMIUM)) {
+                return new Access(null, false);
+            }
             var profile = profiles.profile(caller, null);
             return new Access(profile == null ? null : profile.id(),
                     roles.of(caller, profile).contains(Roles.PREMIUM));
@@ -73,11 +88,11 @@ final class RecognitionApi {
         if (!caller.hasSubject() || caller.verifiedEmail() == null) {
             return Http.response(403, "{\"error\":\"a verified email is required\"}");
         }
-        if (access.profileId() == null) {
-            return Http.response(403, "{\"error\":\"no profile\"}");
-        }
         if (!access.premium()) {
             return Http.response(403, "{\"error\":\"cloud recognition is premium only\"}");
+        }
+        if (access.profileId() == null) {
+            return Http.response(403, "{\"error\":\"no profile\"}");
         }
         return null;
     }

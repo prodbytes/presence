@@ -498,6 +498,40 @@ Resources:
                   - !Sub arn:${AWS::Partition}:s3:::presence-sam-artifacts-${AWS::AccountId}
                   - !Sub arn:${AWS::Partition}:s3:::presence-rc-sam-artifacts-${AWS::AccountId}
 
+      # The functions' own log groups (3 of 3): apart, since the other
+      # two are near IAM's 6144-character limit for a managed policy.
+      LogsPolicy&{Prefix}:
+        Type: AWS::IAM::ManagedPolicy
+        Properties:
+          ManagedPolicyName: !Sub ${Prefix}-github-deploy-logs
+          Description: !Sub What the ${Prefix} deploy role may do to the ${Prefix}-* functions' log groups (3 of 3)
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # The functions' own log groups, kept 30 days
+              # (AWS::Logs::LogGroup /aws/lambda/<stack>-<function>).
+              - Sid: FunctionLogGroups
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                  - logs:TagLogGroup
+                  - logs:UntagLogGroup
+                  - logs:ListTagsLogGroup
+                Resource:
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*
+                  - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*:*
+              # CloudFormation's log group handler lists groups (read-only).
+              - Sid: FunctionLogGroupReads
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+
       # The site: CloudFront, its certificate, DNS records (and its former
       # health check, until deleted), and the identity pool. Resources without names to scope by are
       # scoped by their presence:stage tag (site.yaml, identity.yaml,
@@ -780,6 +814,7 @@ Resources:
       ManagedPolicyArns:
         - !Ref DeployPolicypresence
         - !Ref EdgePolicypresence
+        - !Ref LogsPolicypresence
 
   RcDeployRole:
     Type: AWS::IAM::Role
@@ -809,6 +844,7 @@ Resources:
       ManagedPolicyArns:
         - !Ref DeployPolicypresencerc
         - !Ref EdgePolicypresencerc
+        - !Ref LogsPolicypresencerc
 
 Outputs:
   DeployRoleArn:

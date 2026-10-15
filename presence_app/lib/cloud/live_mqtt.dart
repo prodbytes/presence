@@ -100,12 +100,21 @@ class MqttLiveConnection implements LiveConnection {
   /// the connection lasts, resends it until the broker acknowledges it);
   /// doesn't wait for the acknowledgement. [LiveSync.sent] counts these.
   @override
-  Future<void> publish(String topic, Uint8List payload) async {
+  Future<void> publish(
+    String topic,
+    Uint8List payload, {
+    bool retain = false,
+  }) async {
     final builder = MqttClientPayloadBuilder();
     for (final byte in payload) {
       builder.addByte(byte);
     }
-    _client.publishMessage(topic, MqttQos.atLeastOnce, builder.payload!);
+    _client.publishMessage(
+      topic,
+      MqttQos.atLeastOnce,
+      builder.payload!,
+      retain: retain,
+    );
   }
 
   @override

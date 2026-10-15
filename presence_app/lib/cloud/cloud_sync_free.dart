@@ -1,13 +1,16 @@
 part of 'cloud_sync.dart';
 
 /// Syncing a free profile ([CloudSync.premium] false): no bucket, only live
-/// sync. Each event the profile saves here is published to its other
-/// devices with its clip's record and thumbnail ([LiveSync.publishEvent]),
-/// once per version of the event and of its clip (`live/<event id>` in the
-/// synced store), and those devices store it as if fetched. Recordings,
+/// sync, every 15 min. Live sync's scheduled connections (at start, at
+/// sign-in, then every 15 min; `LiveLink.onShare`) publish the events the
+/// profile saved here since the last one to its other devices, each
+/// **once** (`live/<event id>` in the synced store), when it's final: its
+/// clip complete (or failed), with the clip's record and a thumbnail of at
+/// most 12 KB ([LiveSync.publishEvent]); those devices store it as if
+/// fetched. A later change to an event isn't sent again. Recordings,
 /// tagged frames, settings and history stay on the device that made them:
-/// a device only hears what's published while it's connected (or what its
-/// persistent session kept, on a schedule).
+/// a device hears what its persistent session kept while it was away (1 h
+/// at AWS IoT's default) at its next connection.
 class _LivePublisher {
   _LivePublisher(this._sync);
 
@@ -21,11 +24,14 @@ class _LivePublisher {
   /// The synced-store key remembering what was published of event [id].
   static String keyOf(String id) => 'live/$id';
 
+  /// An event whose clip has no record yet is final after this (its clip
+  /// was never saved, or deleted).
+  static const Duration clipGrace = Duration(minutes: 10);
+
   /// Publishes the profile's events [only] names (all of the last
-  /// [reconcileWindow] when null) that changed since they were published:
-  /// new ones, and those whose clip completed since. One that can't be sent
-  /// now (live sync off, or not connected in time) is tried again at the
-  /// next pass.
+  /// [reconcileWindow] when null) not published yet that are final (no
+  /// clip, or its clip complete or failed). One that can't be sent now
+  /// (live sync off, or not connected) is tried at the next connection.
   Future<void> publish(String owner, int epoch, Iterable<String>? only) async {
     final live = _sync.live;
     if (live == null || !live.enabled) return;
@@ -60,20 +66,26 @@ class _LivePublisher {
       if (time is! int || now - time >= _sync._window.inMilliseconds) {
         continue;
       }
+      // Once: never again, whatever changes.
+      if (synced[keyOf(id)] != null) continue;
       final clipId = record['clipId'];
       final clip = clipId is String ? await store.getClip(clipId) : null;
+      // Final only: a clip still recording waits for the next connection.
+      if (clipId is String) {
+        final state = clip?['state'];
+        final waiting = clip == null
+            ? now - time < clipGrace.inMilliseconds
+            : state != 'complete' && state != 'failed';
+        if (waiting) continue;
+      }
       final json = _eventJson(record);
-      // Published again when the event changes, or its clip completes.
-      final version =
-          '${_fingerprint(json)}:${clip?['state'] == 'complete' ? clipId : ''}';
-      if (synced[keyOf(id)] == version) continue;
       final sent = await live.publishEvent(
         (jsonDecode(utf8.decode(json)) as Map).cast<String, Object?>(),
         key: CloudSync.eventKey(record),
         clip: clip,
       );
       if (!sent || epoch != _sync._epoch) continue;
-      await _sync._markSynced(store, keyOf(id), version);
+      await _sync._markSynced(store, keyOf(id), 'sent');
     }
   }
 }

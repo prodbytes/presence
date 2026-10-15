@@ -776,7 +776,9 @@ class ProfileDevices extends StatelessWidget {
                               now: at,
                               liveAvailable: available,
                               thisDevice: device.id == thisDevice,
-                              connected: live?.state == LiveSyncState.connected,
+                              connected: live?.showsLive ?? false,
+                              within:
+                                  live?.liveWithin ?? DevicePresence.liveWithin,
                             ),
                           },
                         ),

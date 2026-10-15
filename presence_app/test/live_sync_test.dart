@@ -22,6 +22,9 @@ class FakeLiveConnection implements LiveConnection {
   final _done = Completer<void>();
   final subscriptions = <String>[];
   final published = <(String, Uint8List)>[];
+
+  /// The topics of what was published retained.
+  final retained = <String>[];
   bool closed = false;
 
   @override
@@ -34,8 +37,14 @@ class FakeLiveConnection implements LiveConnection {
   Future<void> subscribe(String topic) async => subscriptions.add(topic);
 
   @override
-  Future<void> publish(String topic, Uint8List payload) async =>
-      published.add((topic, payload));
+  Future<void> publish(
+    String topic,
+    Uint8List payload, {
+    bool retain = false,
+  }) async {
+    published.add((topic, payload));
+    if (retain) retained.add(topic);
+  }
 
   @override
   Future<void> close() async => closed = true;
@@ -1383,6 +1392,228 @@ void main() {
       await auth.signOut();
       expect(live.state, LiveSyncState.off);
       expect(broker.last.closed, isTrue);
+    });
+  });
+
+  group('free (LiveConfig.free)', () {
+    late FakeBroker broker;
+    late List<LiveEvent> received;
+    var shares = 0;
+    final made = <LiveSync>[];
+
+    LiveLink link({Future<void> Function()? onShare}) => LiveLink(
+      identityId: identity,
+      deviceId: 'this_device_one',
+      credentials: () async => credentials,
+      onEvent: (e) async => received.add(e),
+      onShare: onShare ?? () async => shares++,
+    );
+
+    LiveSync make({
+      Duration every = const Duration(minutes: 15),
+      Duration beatFirst = const Duration(hours: 1),
+    }) {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: LiveConfig(every: every, free: true),
+        random: Random(1),
+        minRetry: const Duration(milliseconds: 5),
+        drainQuiet: const Duration(milliseconds: 40),
+        drainMax: const Duration(milliseconds: 400),
+        maxJitter: const Duration(milliseconds: 1),
+        beatLinger: Duration.zero,
+        beatFirst: beatFirst,
+      );
+      made.add(live);
+      return live;
+    }
+
+    setUp(() {
+      broker = FakeBroker();
+      received = [];
+      shares = 0;
+    });
+
+    tearDown(() {
+      for (final live in made) {
+        live.dispose();
+      }
+      made.clear();
+    });
+
+    Iterable<(String, Uint8List)> publishedOn(String topic) => broker
+        .connections
+        .expand((c) => c.published)
+        .where((p) => p.$1 == topic);
+
+    test('connects at start, shares what waited, and never connects for a '
+        'new event', () async {
+      final live = make()..start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      expect(shares, 1);
+      expect(broker.persistent.single, isTrue);
+      // A new event: not sent, and no connection for it.
+      expect(
+        await live.publishEvent({'id': 'e-1', 'time': 5}, key: 'k'),
+        isFalse,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(broker.connections, hasLength(1));
+      expect(publishedOn(eventsTopic), isEmpty);
+      expect(live.state, LiveSyncState.idle);
+    });
+
+    test(
+      'events go out during the scheduled connection, then it closes',
+      () async {
+        late LiveSync live;
+        var sent = false;
+        live = make(every: const Duration(milliseconds: 150))
+          ..start(
+            link(
+              onShare: () async {
+                shares++;
+                sent = await live.publishEvent({
+                  'id': 'e-1',
+                  'time': 5,
+                }, key: 'k');
+              },
+            ),
+          );
+        await until(() => shares >= 1 && live.state == LiveSyncState.idle);
+        expect(sent, isTrue);
+        expect(publishedOn(eventsTopic), hasLength(1));
+        // And again on schedule.
+        await until(() => broker.connections.length >= 2, reason: 'on time');
+        expect(broker.persistent, everyElement(isTrue));
+      },
+    );
+
+    test('the Sync button connects early, at most every 5 min', () async {
+      final live = make()..start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      final sync = live.requestSync();
+      await until(() => broker.connections.length == 2);
+      expect(await sync, isTrue);
+      await until(() => live.state == LiveSyncState.idle);
+      expect(await live.requestSync(), isFalse);
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(broker.connections, hasLength(2));
+    });
+
+    test('the heartbeat: retained, on its own topic, over a connection of '
+        'its own that takes nothing', () async {
+      final live = make()..start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      final before = broker.connections.length;
+      expect(live.showsLive, isFalse);
+      expect(await live.beat(), isTrue);
+      expect(broker.connections, hasLength(before + 1));
+      final beat = broker.last;
+      expect(broker.clientIds.last, '$identity-this_device_one-b');
+      expect(broker.persistent.last, isFalse);
+      expect(beat.subscriptions, isEmpty);
+      expect(beat.closed, isTrue);
+      const topic = 'presence/prod/$identity/beats/this_device_one';
+      expect(beat.retained, [topic]);
+      final message = beat.sent.single;
+      expect(message['kind'], 'beat');
+      expect(message['deviceId'], 'this_device_one');
+      expect(message['identityId'], identity);
+      expect(message['sentAt'], isA<int>());
+      // Tiny: one billed message (5 KB).
+      expect(beat.published.single.$2.length, lessThan(512));
+      // This device shows live for 11 min after it.
+      expect(live.showsLive, isTrue);
+      expect(live.liveWithin, const Duration(minutes: 11));
+    });
+
+    test('beats soon after start, then every 5 min', () async {
+      final live = make(beatFirst: const Duration(milliseconds: 20))
+        ..start(link());
+      await until(() => live.lastBeat != null);
+      expect(
+        broker.connections.expand((c) => c.retained),
+        contains('presence/prod/$identity/beats/this_device_one'),
+      );
+      expect(LiveSync.beatEvery, const Duration(minutes: 5));
+    });
+
+    test('a ping watches the beats on a clean session: each device\'s '
+        'retained beat, never its own', () async {
+      final live = make()..start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      expect(await live.ping(), isTrue);
+      final watch = broker.last;
+      expect(broker.clientIds.last, '$identity-this_device_one-w');
+      expect(broker.persistent.last, isFalse);
+      expect(watch.subscriptions, ['presence/prod/$identity/beats/+']);
+      final sentAt = DateTime.now()
+          .subtract(const Duration(minutes: 4))
+          .millisecondsSinceEpoch;
+      Map<String, Object?> beatOf(String device) => {
+        'v': 1,
+        'kind': 'beat',
+        'deviceId': device,
+        'identityId': identity,
+        'sentAt': sentAt,
+      };
+      watch.deliver(
+        'presence/prod/$identity/beats/other_device_one',
+        beatOf('other_device_one'),
+      );
+      // Its topic must be its own: dropped.
+      watch.deliver(
+        'presence/prod/$identity/beats/other_device_two',
+        beatOf('other_device_three'),
+      );
+      // Another identity's: dropped.
+      watch.deliver('presence/prod/$identity/beats/other_device_two', {
+        ...beatOf('other_device_two'),
+        'identityId': 'us-east-1:else',
+      });
+      watch.deliver(
+        'presence/prod/$identity/beats/this_device_one',
+        beatOf('this_device_one'),
+      );
+      await until(() => live.seenOf('other_device_one') != null);
+      expect(live.seenOf('other_device_one')!.millisecondsSinceEpoch, sentAt);
+      expect(live.seenOf('other_device_two'), isNull);
+      expect(live.seenOf('other_device_three'), isNull);
+      expect(live.seenOf('this_device_one'), isNull);
+      // A ping while watching: the same connection.
+      final connections = broker.connections.length;
+      expect(await live.ping(), isTrue);
+      expect(broker.connections, hasLength(connections));
+      // A beat while watching goes over it.
+      expect(await live.beat(), isTrue);
+      expect(broker.connections, hasLength(connections));
+      expect(watch.retained, ['presence/prod/$identity/beats/this_device_one']);
+      // Stopped: the watch closes.
+      live.stop();
+      expect(live.watching, isFalse);
+      expect(watch.closed, isTrue);
+    });
+
+    test('a premium device never beats or watches', () async {
+      final live = LiveSync(
+        endpoint: 'abc-ats.iot.us-east-1.amazonaws.com',
+        region: 'us-east-1',
+        connect: broker.connect,
+        config: const LiveConfig(every: Duration(minutes: 1)),
+        drainQuiet: const Duration(milliseconds: 40),
+        beatFirst: const Duration(milliseconds: 5),
+      );
+      made.add(live);
+      live.start(link());
+      await until(() => live.state == LiveSyncState.idle);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(await live.beat(), isFalse);
+      expect(live.lastBeat, isNull);
+      expect(broker.connections.expand((c) => c.retained), isEmpty);
+      expect(live.liveWithin, const Duration(seconds: 90));
     });
   });
 }

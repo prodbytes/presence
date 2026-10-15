@@ -5,6 +5,7 @@ import com.amazonaws.services.lambda.runtime.RequestHandler;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPEvent;
 import com.amazonaws.services.lambda.runtime.events.APIGatewayV2HTTPResponse;
 
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static presence.auth.Http.response;
@@ -14,7 +15,9 @@ import static presence.auth.Http.response;
  * {@link ExecutionMode}, the anonymous user's roles and which expected
  * {@link Settings} are set, as {@code {"mode": "RBAC", "roles":
  * ["presence_anonymous"], "settings": {"oidc": true, "aws": true,
- * "rbacr": true}}}. The app asks it before it shows anything.
+ * "rbacr": true}}}. The app asks it before it shows anything, and then
+ * every 15 min. The answer is the same for every caller, so the site's
+ * CDN keeps it for {@link #MAX_AGE} (presence_infra/site.yaml).
  *
  * <p>A signed-in user's own roles, maintenance mode and vouchers are
  * rbacr's: the app asks rbacr for them directly with the user's Google ID
@@ -24,6 +27,9 @@ import static presence.auth.Http.response;
 public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGatewayV2HTTPResponse> {
 
     static final String ANONYMOUS_ROUTE = "GET /api/auth/anonymous";
+
+    /** How long the CDN (and a browser) may keep the anonymous answer: {@code Cache-Control: max-age}. */
+    static final int MAX_AGE = 60;
 
     private final ExecutionMode mode;
     private final Settings settings;
@@ -51,8 +57,12 @@ public class AuthHandler implements RequestHandler<APIGatewayV2HTTPEvent, APIGat
         if (!ANONYMOUS_ROUTE.equals(Http.route(event))) {
             return response(404, "{\"error\":\"no such route\"}");
         }
-        return response(200, "{\"mode\":" + Json.string(mode.name()) + ",\"roles\":["
+        var answer = response(200, "{\"mode\":" + Json.string(mode.name()) + ",\"roles\":["
                 + Roles.anonymous(mode).stream().map(Json::string).collect(Collectors.joining(","))
                 + "],\"settings\":" + settings.toJson() + "}");
+        // Nothing in it is the caller's: shared caches may keep it.
+        answer.setHeaders(Map.of("Content-Type", "application/json",
+                "Cache-Control", "public, max-age=" + MAX_AGE));
+        return answer;
     }
 }

@@ -691,6 +691,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     _ => null,
                   },
                   liveAdmin: widget.roles.isAdmin,
+                  liveFree:
+                      widget.roles.hasAccess &&
+                      !widget.roles.isAdmin &&
+                      !widget.roles.isPremium,
                 ),
               ),
               if (_tabs.shows(HomeTab.log))

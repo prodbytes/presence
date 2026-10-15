@@ -6314,3 +6314,81 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Auth API](auth-api.md), [Profiles](profiles.md),
        [Cloud sync](cloud-sync.md), [Streamer](streamer.md), and the
        [index](README.md).
+
+445. **Free costs almost nothing in AWS: a 15-minute live sync, a
+     heartbeat, and the cloud's other free costs removed.** (2026-10-15)
+     - Asked: free members must cost almost nothing on AWS: no S3 sync, no
+       cloud recognition or other cloud processing, only their own
+       devices' compute and storage (local events and the local pipeline
+       are fine), while keeping a 15-minute live sync between their
+       devices; a cheap heartbeat (every 5 min) for the presence dots,
+       read only while someone looks; the once-a-minute auth API check
+       much rarer, cached at the CDN; 30-day log retention for the
+       Lambdas; and cloud recognition refusing a free caller before any
+       write.
+     - Changed:
+       - **Free live sync** (`LiveConfig.free`, from
+         `effective(isPremium: false)`): connects at start, at sign-in and
+         every 15 min (30 or 60 as set; never faster, never Always); a new
+         event never connects. Each connection publishes what waited
+         (`LiveLink.onShare`): each new event once, when final (clip
+         complete or failed), with a thumbnail of at most 12 KB. The Sync
+         button may connect early, at most every 5 min. The broker keeps
+         the persistent session's QoS 1 messages for 1 h (AWS IoT's
+         default), so a 15-min gap fits. Settings offer free members
+         Never or 15/30/60 min, with a note that Premium syncs instantly;
+         the plan notice, store plans, connectivity and RBACR texts say
+         free devices keep their events and share them every 15 minutes
+         (en, es, pt).
+       - **Heartbeat** (`LiveSync.beat`): a free device publishes a
+         retained ~150-byte beat on `presence/<stage>/<identity>/beats/<device>`
+         every 5 min, over a clean connection of its own (`-b`, nothing
+         subscribed, closed at once); the All grid and devices list
+         (`ping()`) watch `beats/+` on a clean `-w` connection while they
+         show (75 s after the last ping), never on the persistent session.
+         Free dots are green within 11 min of a beat. Retained costs one
+         more unit per beat than plain (3 vs 2) but makes the dots right
+         as soon as the view opens. `iot:RetainPublish` on the identity's
+         own `beats/*` only, in the role and the IoT policy
+         (identity.yaml).
+       - **The auth API check** (`GET /api/auth/anonymous`): every 15 min
+         (`apiCheckInterval`), on resume (`onResume`) and soon after a
+         failure, on its own timer; rbacr's maintenance check stays every
+         minute. The answer (the same for everyone) says `Cache-Control:
+         public, max-age=60`, and the CDN has a cached
+         `/api/auth/anonymous` behavior ahead of `/api/*`
+         (Managed-CachingOptimized, nothing of the viewer's forwarded).
+       - **Log retention**: each Lambda (auth, session, profile, the
+         three recognition, payments, health, ingest) logs to a declared
+         `/aws/lambda/<stack>-<Function>` group with 30-day retention
+         (`LoggingConfig`); a new name, since the implicit groups exist
+         and a same-name LogGroup would fail the deploy. The deploy roles
+         get a `<prefix>-github-deploy-logs` policy for it.
+       - **Cloud recognition** refuses a free caller after read-only
+         lookups (`Profiles.existing`), before the sign-in write.
+       - Not done: the server-side live-sync cut first asked for (detach
+         the IoT policy, a tier condition) was dropped when free kept live
+         sync; free limits are the app's, so a modified app could still
+         publish more. No IoT budget or alarm: monitoring with its email
+         lives in the central nu01-monitor stack (a follow-up there).
+       - Cost: the audit estimated ~$0.64 a month for 2 free devices
+         before. Now ≈ $0.05 per free device a month at 2 clips an hour
+         (heartbeat ≈ $0.026, connections ≈ $0.012, events ≈ $0.012), so
+         ≈ $0.10 for 2 devices; a 10-device free profile ≈ $1 (event
+         deliveries grow with devices²).
+       - Tests: `live_sync_test` (free schedule, sharing, Sync limit,
+         heartbeat, watching), `free_sync_test` (queued until the next
+         connection, once, final, 12 KB thumbnails), `config_test`,
+         `roles_test` (split timers, resume, retry), `device_presence_test`,
+         `system_health_test`, `device_slots_test`; `RolesTest`
+         (`Cache-Control`), `RecognitionTest` (no write for a free
+         caller). Flutter, auth API and recognition tests pass;
+         `flutter analyze` is clean; cfn-lint passes on the changed
+         templates.
+       - Deploy: deploy the updated `presence-github-deploy` stack first
+         (the logs policy), or the stacks' new log groups fail to create.
+     - Specs: [Plans](premium.md#free-in-aws), [Live sync](live-sync.md#free),
+       [Device presence](device-presence.md#free-devices-heartbeat),
+       [Cloud sync](cloud-sync.md), [Auth API](auth-api.md),
+       [Maintenance](maintenance.md), [Sign-in](sign-in.md),
+       [Cloud recognition](cloud-recognition.md), [Deploy](deploy.md).

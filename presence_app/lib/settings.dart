@@ -32,6 +32,7 @@ class SettingsView extends StatefulWidget {
     this.liveSync = false,
     this.memory = DeviceMemory.read,
     this.liveAdmin = false,
+    this.liveFree = false,
   });
 
   /// Whether this build has live sync (an IoT endpoint, and cloud sync):
@@ -43,6 +44,11 @@ class SettingsView extends StatefulWidget {
   /// may pick from Never to every 60 min (every 30 s the most often), and
   /// a saved Always shows as every 30 s.
   final bool liveAdmin;
+
+  /// The user is a free member: live sync connects every 15 min at the
+  /// most often ([LiveConfig.freeMinEvery]), so the slider offers Never or
+  /// every 15 min and slower, and its note says Premium syncs instantly.
+  final bool liveFree;
 
   /// For admins, an **Advanced** section with a **Show the Log tab** switch, on by default when this is
   /// true (DEV); null hides the switch.
@@ -140,7 +146,10 @@ class _SettingsViewState extends State<SettingsView> {
         final l = context.l10n;
         // How live sync connects for this user (admins: always; others:
         // as saved, at most every 30 s), not just what's saved.
-        final live = config.live.effective(isAdmin: widget.liveAdmin);
+        final live = config.live.effective(
+          isAdmin: widget.liveAdmin,
+          isPremium: !widget.liveFree,
+        );
         final liveMax = widget.liveAdmin
             ? LiveConfig.steps - 1
             : LiveConfig.memberMaxStep;
@@ -473,14 +482,25 @@ class _SettingsViewState extends State<SettingsView> {
                     onChanged: widget.liveAdmin
                         ? null
                         : (v) => config.update(
-                            (x) =>
-                                x.copyWith(live: LiveConfig.ofStep(v.round())),
+                            (x) => x.copyWith(
+                              live: LiveConfig.ofStep(
+                                // Free: nothing faster than every 15 min.
+                                widget.liveFree &&
+                                        v.round() > 0 &&
+                                        v.round() < LiveConfig.freeMinStep
+                                    ? LiveConfig.freeMinStep
+                                    : v.round(),
+                              ),
+                            ),
                           ),
                   ),
                   Text(
                     switch (live.mode) {
                       _ when widget.liveAdmin => l.settingsLiveAdminNote,
                       LiveMode.never => l.settingsLiveNeverNote,
+                      _ when live.free => l.settingsLiveFreeNote(
+                        LiveConfig.formatEvery(live.every),
+                      ),
                       LiveMode.always => l.settingsLiveAlwaysNote,
                       LiveMode.scheduled => l.settingsLiveScheduledNote(
                         LiveConfig.formatEvery(live.every),

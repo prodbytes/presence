@@ -63,11 +63,20 @@ One CloudFront distribution serves the whole site, laid out like the local
     CloudFormation copies to each taggable resource, so Cost Explorer
     splits costs by project and tenancy. They're in addition to
     `presence:stage`.
-  - **Log retention:** the Lambdas' log groups are created by Lambda on
-    first run, not by the stacks, so they have no retention (never
-    expire); an administrator sets it on the live log groups (e.g. `aws
-    logs put-retention-policy`). The templates don't declare them, since
-    a `AWS::Logs::LogGroup` with an existing group's name fails to create.
+  - **Log retention: 30 days.** Each Lambda function of the auth API
+    (auth, session, profile, the three recognition ones), payments,
+    health and ingest stacks logs to a log group its stack declares
+    (`<Function>Logs`, `AWS::Logs::LogGroup`, `RetentionInDays: 30`),
+    named `/aws/lambda/<stack>-<Function>` and set as the function's
+    `LoggingConfig.LogGroup`. Not `/aws/lambda/<function name>`: Lambda
+    made those on first run, so they exist, and a LogGroup with an
+    existing group's name fails to create (and so the deploy). The new
+    names have no random suffix, so they're new. The old implicit groups
+    get no new logs; they keep what they had, with no retention, until an
+    administrator deletes them or sets theirs (`aws logs
+    put-retention-policy --retention-in-days 30`, a one-time step). The
+    names are under `/aws/lambda/<prefix>-*`, which the stage's
+    permissions boundary already lets the functions write.
 - **Content:** files are uploaded with `Cache-Control: no-cache`, because
   Flutter's web files aren't content-hashed, and every deploy invalidates
   `/*`. Unknown paths return 404 (the bucket policy allows `ListBucket` for
@@ -235,6 +244,13 @@ in prefix, `presence:stage` tag value and domain. For each stage it makes:
   - denied: anything on the `presence-github-deploy*` roles or the
     `presence-github-deploy` stack, `DeleteRolePermissionsBoundary`
     anywhere, and changing the artifact buckets' settings.
+- **`<prefix>-github-deploy-logs`**: the functions' log groups:
+  create, delete, retention and tags on `/aws/lambda/<prefix>-*`, and
+  `logs:DescribeLogGroups` (read-only, any group, as CloudFormation's
+  handler lists them). Its own policy since the other two are near IAM's
+  6,144-character limit. **An administrator deploys the updated
+  `presence-github-deploy` stack before the next release** (as for any
+  change to it); without it, the stacks' new log groups fail to create.
 - **`<prefix>-github-deploy-edge`**: the former [health check](health-check.md)'s
   Route 53 health checks, `<prefix>-*` alarms and SNS topics (kept only
   so the next deploy can delete them; to be dropped after it); DNS records

@@ -592,9 +592,21 @@ Resources:
                 - [!Ref GoogleWebClientId]
                 - [presence]
 
+  # AuthFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  AuthFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-AuthFunction
+      RetentionInDays: 30
+
   AuthFunction:
     Type: AWS::Serverless::Function
     Properties:
+      # Its own log group, kept 30 days (AuthFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref AuthFunctionLogs
       CodeUri: AuthFunction
       Handler: presence.auth.AuthHandler::handleRequest
       Environment:
@@ -617,12 +629,24 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  # SessionFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  SessionFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-SessionFunction
+      RetentionInDays: 30
+
   # Presence sessions (presence.auth.SessionHandler): the exchange, refresh
   # and revocation, and the issuer's public documents. Public routes: the
   # provider's ID token or the refresh token is the proof.
   SessionFunction:
     Type: AWS::Serverless::Function
     Properties:
+      # Its own log group, kept 30 days (SessionFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref SessionFunctionLogs
       CodeUri: AuthFunction
       Handler: presence.auth.SessionHandler::handleRequest
       Environment:
@@ -737,9 +761,21 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  # ProfileFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  ProfileFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-ProfileFunction
+      RetentionInDays: 30
+
   ProfileFunction:
     Type: AWS::Serverless::Function
     Properties:
+      # Its own log group, kept 30 days (ProfileFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref ProfileFunctionLogs
       CodeUri: AuthFunction
       Handler: presence.auth.ProfileHandler::handleRequest
       # Account deletion deletes a profile's folder for up to 20 s a
@@ -969,6 +1005,15 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  # RecognitionTrainFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  RecognitionTrainFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-RecognitionTrainFunction
+      RetentionInDays: 30
+
   # Cloud recognition (premium only; specs/cloud-recognition.md): DINOv2-L
   # through ONNX Runtime, in its own jar (RecognitionFunction, built by the
   # Makefile), so the functions above don't carry it. The model (1.2 GB) is
@@ -981,6 +1026,9 @@ Resources:
     Metadata:
       BuildMethod: makefile
     Properties:
+      # Its own log group, kept 30 days (RecognitionTrainFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref RecognitionTrainFunctionLogs
       CodeUri: .
       Handler: presence.auth.TrainingHandler::handleRequest
       MemorySize: 3008
@@ -1053,11 +1101,23 @@ Resources:
             Path: /api/recognition/train
             Method: post
 
+  # RecognitionInferFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  RecognitionInferFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-RecognitionInferFunction
+      RetentionInDays: 30
+
   RecognitionInferFunction:
     Type: AWS::Serverless::Function
     Metadata:
       BuildMethod: makefile
     Properties:
+      # Its own log group, kept 30 days (RecognitionInferFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref RecognitionInferFunctionLogs
       CodeUri: .
       Handler: presence.auth.InferenceHandler::handleRequest
       MemorySize: 3008
@@ -1112,6 +1172,15 @@ Resources:
             Path: /api/recognition/identify
             Method: post
 
+  # RecognitionDescribeFunction's logs, kept 30 days. A new name (no random suffix), not the
+  # /aws/lambda/<function name> group Lambda made on its own, which
+  # exists already (a LogGroup of that name would fail to create).
+  RecognitionDescribeFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AWS::StackName}-RecognitionDescribeFunction
+      RetentionInDays: 30
+
   # Cloud recognition's breeds and coats (premium only): SigLIP2's image
   # tower (int8, 95 MB, fetched as DINOv2 is) against the labels' text
   # embeddings (pet-labels.bin). Its own function, so neither it nor
@@ -1121,6 +1190,9 @@ Resources:
     Metadata:
       BuildMethod: makefile
     Properties:
+      # Its own log group, kept 30 days (RecognitionDescribeFunctionLogs).
+      LoggingConfig:
+        LogGroup: !Ref RecognitionDescribeFunctionLogs
       CodeUri: .
       Handler: presence.auth.DescribeHandler::handleRequest
       # The account's most (3008 MB): measured fastest of 1769 to 3008 MB

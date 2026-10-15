@@ -76,9 +76,11 @@ an Athena table are in [Recording and data formats](data-formats.md).
 - **Premium only:** everything on this page is for a **premium** profile
   (`presence_premium`, from rbacr: Premium and Pro, whose credentials are
   both tagged `tier=premium`). A free profile's credentials can't
-  reach the bucket; its devices sync with each other over live sync alone,
-  each event published with its clip's record and thumbnail. A change of
-  tier starts the sync over. See [Premium and free](premium.md).
+  reach the bucket, and a free pass publishes nothing: each device keeps
+  its events, and live sync's scheduled connections (at start, at
+  sign-in, every 15 min) share each new event once, final, with its
+  clip's record and a thumbnail of at most 12 KB. A change of tier starts
+  the sync over. See [Premium and free](premium.md).
 - **This device's settings:** the first pass for a user (at start, sign-in
   or a user change) lists `devices/<deviceId>/` and, if the record is
   there, downloads it. It wins when it's newer, or when the local

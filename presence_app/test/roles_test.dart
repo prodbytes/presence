@@ -309,6 +309,61 @@ void main() {
       expect(roles.state, AccessState.granted);
     });
 
+    test('rbacr\'s maintenance every interval; the auth API (AWS) on its '
+        'own, far rarer timer, and on resume', () async {
+      final auth = FakeAuthService();
+      final client = FakeRolesClient([userRole]);
+      final roles = RolesService(
+        auth: auth,
+        client: client,
+        maintenanceCheckInterval: const Duration(milliseconds: 20),
+        apiCheckInterval: const Duration(milliseconds: 200),
+        resumeCheckAfter: const Duration(milliseconds: 50),
+      );
+      addTearDown(roles.dispose);
+      await auth.signIn();
+      await settle();
+      expect(client.anonymousCalls, 1);
+      final asked = client.maintenanceTokens.length;
+      await Future<void>.delayed(const Duration(milliseconds: 110));
+      // rbacr: several times; the auth API: not again yet.
+      expect(client.maintenanceTokens.length, greaterThanOrEqualTo(asked + 3));
+      expect(client.anonymousCalls, 1);
+      // Resumed: asked now, since the last check is old enough...
+      roles.onResume();
+      await settle();
+      expect(client.anonymousCalls, 2);
+      // ...but not again right after.
+      roles.onResume();
+      await settle();
+      expect(client.anonymousCalls, 2);
+      // And on its own timer.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(client.anonymousCalls, greaterThanOrEqualTo(3));
+    });
+
+    test('a failed auth API check is retried soon, until it answers', () async {
+      final client = FakeRolesClient();
+      final roles = RolesService(
+        auth: FakeAuthService(),
+        client: client,
+        retryDelays: const [Duration(milliseconds: 10)],
+      );
+      addTearDown(roles.dispose);
+      await settle();
+      expect(client.anonymousCalls, 1);
+      client.anonymousError = RolesException(502);
+      await roles.checkApi();
+      expect(client.anonymousCalls, 2);
+      expect(roles.apiError, isNotNull);
+      client.anonymousError = null;
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(client.anonymousCalls, 3);
+      expect(roles.apiError, isNull);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(client.anonymousCalls, 3);
+    });
+
     test('an unreachable API: dev without an OIDC client, else RBAC', () async {
       for (final (oidc, mode) in [
         (false, ExecutionMode.dev),

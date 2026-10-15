@@ -372,7 +372,14 @@ void main() {
         onCheckAgain: () async => checked++,
       );
       expect(find.text('Free'), findsOneWidget);
-      expect(find.textContaining('up to 10 devices sync'), findsOneWidget);
+      expect(
+        find.textContaining('up to 10 devices share them every 15 minutes'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Premium syncs them instantly'),
+        findsOneWidget,
+      );
       expect(find.textContaining('up to 25 devices'), findsOneWidget);
       expect(find.textContaining('Pro: up to 50 devices'), findsOneWidget);
       expect(

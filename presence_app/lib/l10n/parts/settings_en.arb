@@ -107,6 +107,14 @@
       }
     }
   },
+  "settingsLiveFreeNote": "Free: connects every {interval} to share this device's events with your other devices and take theirs. Premium syncs them instantly.",
+  "@settingsLiveFreeNote": {
+    "placeholders": {
+      "interval": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAdvancedSection": "Advanced",
   "settingsShowLog": "Show the Log tab",
   "settingsShowLogSubtitle": "The app's latest messages and health",
