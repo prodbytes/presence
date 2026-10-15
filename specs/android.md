@@ -6,7 +6,7 @@ Android uses the standard dashcam technique instead
 
 - **`RollingCamera`:** Camera2 feeds both the preview (a Flutter `Texture`)
   and a hardware **H.264** encoder, up to 1280×720, with a keyframe every
-  second, at 1.5 Mbps (1 Mbps below 1280 wide), variable bitrate where the
+  second, at 1.2 Mbps (0.8 Mbps below 1280 wide), variable bitrate where the
   encoder offers it (a still scene then costs fewer bits).
   - **Frame rate is variable, up to 30 fps** (for example 5–30 on the S40).
     A fixed 30 fps caps exposure at 1/30 s, which made the S40's picture
@@ -319,8 +319,8 @@ Android uses the standard dashcam technique instead
   - The camera opens, and the hardware H.264 encoder runs at ~30 fps.
   - Clips are written as a before part (15.7 s) and a full clip (30.1 s),
     each 1280×720 H.264 with AAC audio, with real sound (verified at
-    44.1 kHz and 2.5 Mbps; the 16 kHz audio and 1.5 Mbps VBR video of
-    2026-10-05 are not yet verified on the phone).
+    44.1 kHz and 2.5 Mbps; the 16 kHz audio of 2026-10-05 and the
+    1.2 Mbps VBR video of 2026-10-15 are not yet verified on the phone).
   - The full clip is saved, the before-only file is deleted, the thumbnail
     is an upright 480×853 JPEG, and clips and events survive relaunches.
   - Playback starts with audio.
