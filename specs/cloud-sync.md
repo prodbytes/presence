@@ -97,19 +97,36 @@ an Athena table are in [Recording and data formats](data-formats.md).
   recording completes (`Persistence.changes`).
 - **While live sync works, the timer's passes are a backstop.** When
   [live sync](live-sync.md) is connected, or idle between scheduled
-  connections (its broker keeps what comes meanwhile), the timer starts a
-  pass only **2 min** after the last pass (`CloudSync.liveInterval`, the
-  timer still ticking every 15 s): other devices' new events and
-  completed clips are announced over live sync, and each one starts a
-  pass at once for its clip (see [Live sync](live-sync.md)). Without live
+  connections (its broker keeps what comes meanwhile), other devices' new
+  events and completed clips are announced over live sync, and each one
+  starts a pass at once for its clip (see [Live sync](live-sync.md)). The
+  timer (still ticking every 15 s) then starts a pass:
+  - **every hour** since the last listing (`CloudSync.copiedInterval`)
+    while the profile's other devices hold **enough copies** of the
+    events this device published: at least `CloudSync.enoughCopies` (1)
+    other devices with a full copy (their `copied` acks, see [Event
+    copies](event-copies.md); the device that recorded an event holds
+    one), or fewer when the profile has fewer other devices (none for a
+    profile of one device). An event that hasn't had its grace yet
+    (`CloudSync.ackGrace`: 2 min plus two of live sync's scheduled
+    connections, counted at 1 min when connected always) doesn't count
+    as short;
+  - **every 2 min** after the last pass (`CloudSync.liveInterval`) while
+    an event published here is **short of copies** past its grace. It's
+    in the bucket, the backup, as events are published as they go up.
+    Polling stays frequent until it has them, or for at most an hour
+    more (`_CopyTracker.short`), so an unanswered event doesn't keep the
+    bucket polled often for good.
+  Only premium and Pro profiles sync with the bucket at all: a free
+  profile's devices sync over live sync alone. Without live
   sync (no IoT endpoint in the build, set to Never, or failing: its error
   state, and the reconnect attempts after it) the timer passes every 15 s
   as before; a reconnect attempt doesn't change which applies. Saves
   here, received events, the **Sync** button and **Retry** start passes
   at once either way, and any pass restarts the 2 min. A pass started by
   a save here or a live message **lists nothing** while the last listing
-  is under 2 min old (`CloudSync._mustList`, the age against
-  `liveInterval`): the message brought the event, and its clip is got by
+  is under 2 min old, or an hour while no event is short of copies
+  (`CloudSync._mustList`): the message brought the event, and its clip is got by
   its known keys (wanted, see **Fetch**). The timer's passes, the hourly
   full fetch, the Sync button, Retry, a sign-in and a failed pass's retry
   always list. 2 min is live
@@ -301,10 +318,12 @@ an Athena table are in [Recording and data formats](data-formats.md).
     live message within 2 min of the last listing, which lists nothing
     (see above). Every 15 s that's about 11,500 listings a day per device
     (about 345,000 a month, $1.73 at S3's $0.005 per 1000; $0.43 a day
-    for listing the whole window every 15 s). While live sync works, at
-    most one listing (2 LISTs) per 2 min, however busy: about 1,440 a day
-    (43,200 a month, about $0.22), plus the hourly full listings (15 an
-    hour, about 10,800 a month, $0.05). A clip, its own or received, adds
+    for listing the whole window every 15 s). While live sync works and
+    an event published here is short of copies, at most one listing (2
+    LISTs) per 2 min, however busy: about 1,440 a day (43,200 a month,
+    about $0.22), plus the hourly full listings (15 an hour, about 10,800
+    a month, $0.05). With enough copies, only the hourly full listings:
+    about $0.05 a month per device. A clip, its own or received, adds
     no LIST: before 2026-10-15 each pass a save or a live message started
     listed again, and each received clip had its record and its media
     listed, about 6 LISTs per own clip and 7 per received one (about

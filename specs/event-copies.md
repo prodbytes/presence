@@ -118,6 +118,16 @@ each of those would be taken as a change elsewhere: update churn, and
 loops between devices. A device without live sync knows only this device,
 the cloud and the recording device.
 
+**How often the bucket is polled:** cloud sync lists the bucket only
+every hour while the events this device published have enough copies on
+other devices (1 other device with a full copy, or fewer when the profile
+has fewer), and every 2 min while one is short of copies past its grace,
+the bucket being its backup meanwhile (see [Cloud sync](cloud-sync.md)).
+Peers hold a full copy only once they have the recording, which they
+download when it's played or a copy is asked for (**Share copies**), so a
+clip nobody has played elsewhere keeps the bucket polled every 2 min for
+up to an hour past its grace.
+
 ## On screen
 
 Each event has **indicators**, small icons with a tooltip each
