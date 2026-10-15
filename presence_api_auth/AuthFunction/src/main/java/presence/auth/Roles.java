@@ -11,15 +11,17 @@ import java.util.function.Function;
  * kept: none by default, and for a verified email, the app's roles for what
  * rbacr gives it in the {@code presence} system:
  * <ul>
- *   <li>{@link #USER} for {@code free}, {@code premium} or {@code admin};</li>
- *   <li>{@link #PREMIUM} for {@code premium} or {@code admin};</li>
+ *   <li>{@link #USER} for {@code free}, {@code premium}, {@code pro} or {@code admin};</li>
+ *   <li>{@link #PREMIUM} for {@code premium}, {@code pro} or {@code admin}
+ *       (Pro has everything Premium has, the bucket included);</li>
+ *   <li>{@link #PRO} for {@code pro} or {@code admin};</li>
  *   <li>{@link #ADMIN} for {@code admin};</li>
  *   <li>{@link #ROOT}, and with it every role ({@link #ROOT_ROLES}), for an
  *       rbacr root (rbacr's root list).</li>
  * </ul>
- * (rbacr's implications, {@code admin → premium → free}, give the same, but
+ * (rbacr's implications, {@code admin → pro → premium → free}, give the same, but
  * the mapping doesn't count on them.) A subject linked to a profile another
- * account owns also gets {@link #USER} and {@link #PREMIUM} when the owner
+ * account owns also gets {@link #USER}, {@link #PREMIUM} and {@link #PRO} when the owner
  * has them, never the owner's {@link #ADMIN} or {@link #ROOT}
  * ({@link #shared}). Returned sorted.
  */
@@ -42,14 +44,21 @@ public final class Roles {
      */
     public static final String PREMIUM = "presence_premium";
 
+    /**
+     * Premium with more devices ({@link ProfileHandler#PRO_DEVICES}). It
+     * always comes with {@link #PREMIUM}, which gives the cloud access.
+     */
+    public static final String PRO = "presence_pro";
+
     /** For each of the app's roles, the rbacr roles (in the {@code presence} system) that give it. */
     static final Map<String, Set<String>> FROM = Map.of(
-            USER, Set.of("free", "premium", "admin"),
-            PREMIUM, Set.of("premium", "admin"),
+            USER, Set.of("free", "premium", "pro", "admin"),
+            PREMIUM, Set.of("premium", "pro", "admin"),
+            PRO, Set.of("pro", "admin"),
             ADMIN, Set.of("admin"));
 
     /** What an rbacr root gets. */
-    static final Set<String> ROOT_ROLES = Set.of(ROOT, ADMIN, USER, PREMIUM);
+    static final Set<String> ROOT_ROLES = Set.of(ROOT, ADMIN, USER, PREMIUM, PRO);
 
     /** Nobody signed in: may only sign in (or, in {@link ExecutionMode#DEV}, everything). */
     public static final String ANONYMOUS = "presence_anonymous";
@@ -111,8 +120,9 @@ public final class Roles {
      * The roles the caller gets from {@code profile}'s owner (null when
      * none): {@link #USER} when its account is linked to the profile, owned
      * by another account that is a member: one person, whichever of their
-     * accounts signs in, uses the app; and {@link #PREMIUM} when the owner
-     * has it, as the profile's cloud folder is the owner's. Empty for the
+     * accounts signs in, uses the app; and {@link #PREMIUM} and {@link
+     * #PRO} when the owner has them, as the profile's cloud folder and
+     * devices are the owner's. Empty for the
      * owner itself. Administration ({@link #ADMIN}, {@link #ROOT}) is never
      * shared: each account gets it only from its own email.
      */
@@ -129,6 +139,9 @@ public final class Roles {
         }
         if (owner.contains(PREMIUM)) {
             roles.add(PREMIUM);
+        }
+        if (owner.contains(PRO)) {
+            roles.add(PRO);
         }
         return roles;
     }

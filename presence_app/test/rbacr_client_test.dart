@@ -30,9 +30,16 @@ void main() {
         premiumRole,
         userRole,
       ]);
+      // Pro has everything Premium has.
+      expect(presenceRoles(me(['pro']), 'presence'), [
+        premiumRole,
+        proRole,
+        userRole,
+      ]);
       expect(presenceRoles(me(['admin']), 'presence'), [
         adminRole,
         premiumRole,
+        proRole,
         userRole,
       ]);
       // Another system's roles, or unknown ones, give nothing.
@@ -44,6 +51,7 @@ void main() {
       expect(presenceRoles(me([], root: true), 'presence'), [
         adminRole,
         premiumRole,
+        proRole,
         rootRole,
         userRole,
       ]);

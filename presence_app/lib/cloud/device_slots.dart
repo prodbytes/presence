@@ -1,17 +1,57 @@
+/// The plans a member can be on, and how many of a profile's devices show
+/// their events on each. The auth API decides the limit
+/// (`ProfileHandler.deviceLimit`); these say the same.
+enum Plan {
+  /// Live sync only: the first [DeviceSlots.freeLimit] devices show.
+  free(DeviceSlots.freeLimit),
+
+  /// Cloud backup: the first [DeviceSlots.premiumLimit] devices show.
+  premium(DeviceSlots.premiumLimit),
+
+  /// Premium with more devices: the first [DeviceSlots.proLimit] show.
+  /// Admins have it too.
+  pro(DeviceSlots.proLimit);
+
+  const Plan(this.deviceLimit);
+
+  /// How many of the profile's devices show their events.
+  final int deviceLimit;
+
+  /// The plan whose limit [limit] is (the auth API's `deviceLimit`): the
+  /// largest whose limit it reaches.
+  static Plan ofLimit(int limit) => limit >= DeviceSlots.proLimit
+      ? pro
+      : limit >= DeviceSlots.premiumLimit
+      ? premium
+      : free;
+
+  /// The plan with more devices, to upgrade to; null for Pro.
+  Plan? get next => switch (this) {
+    free => premium,
+    premium => pro,
+    pro => null,
+  };
+}
+
 /// A profile's devices as the auth API lists them (`POST
 /// /api/auth/credentials`): in the order they first asked for credentials,
-/// with how many of the first show their events, [freeLimit] for a free
-/// profile and [premiumLimit] for a premium one. The others still sync, but
+/// with how many of the first show their events ([Plan.deviceLimit]:
+/// [freeLimit] for a free profile, [premiumLimit] for a premium one,
+/// [proLimit] for a pro one or an admin's). The others still sync, but
 /// their events are hidden: on the devices that show, the others' events;
 /// on one that doesn't, every other device's.
 class DeviceSlots {
   const DeviceSlots({required this.limit, required this.devices});
 
   /// How many devices show for a free profile.
-  static const int freeLimit = 2;
+  static const int freeLimit = 10;
 
   /// How many devices show for a premium profile.
-  static const int premiumLimit = 50;
+  static const int premiumLimit = 25;
+
+  /// How many devices show for a pro profile (or an admin's), and the most
+  /// a profile lists.
+  static const int proLimit = 50;
 
   /// Where to sign up for Premium.
   static final Uri signUp = Uri.parse('https://nu01.com');
@@ -34,8 +74,8 @@ class DeviceSlots {
     );
   }
 
-  /// Whether this is Premium's limit.
-  bool get premium => limit >= premiumLimit;
+  /// The plan whose limit this is.
+  Plan get plan => Plan.ofLimit(limit);
 
   /// The devices that show: the first [limit] of [devices].
   List<String> get shown => devices.take(limit).toList();

@@ -42,7 +42,7 @@
   },
   "authOsUnknown": "Operating system unknown",
   "authThisDevice": "this device",
-  "authHiddenTooltip": "Past the plan's device limit: it syncs, but its events are hidden here",
+  "authHiddenTooltip": "Past the plan's device limit: it doesn't sync, and its events are hidden here",
   "authHidden": "hidden",
   "@authHidden": {
     "description": "A device whose events are hidden"
@@ -75,6 +75,7 @@
   "authLinkedAccounts": "Linked accounts",
   "authAccessAdmin": "Admin Access",
   "authAccessPremium": "Premium Access",
+  "authAccessPro": "Pro Access",
   "authAccessFree": "Free Access",
   "authRoleRoot": "Root",
   "@authRoleRoot": {
@@ -213,6 +214,10 @@
   "@authPlanPremium": {
     "description": "The paid plan's name"
   },
+  "authPlanPro": "Pro",
+  "@authPlanPro": {
+    "description": "The largest plan's name"
+  },
   "authPlanFree": "Free",
   "@authPlanFree": {
     "description": "The free plan's name"
@@ -225,7 +230,27 @@
       }
     }
   },
-  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free.",
+  "authPlanProText": "Pro: cloud backup, and up to {limit} devices sync.",
+  "@authPlanProText": {
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authPlanPremiumProText": "Premium: cloud backup, and up to {limit} devices sync. Pro: up to {pro} devices.",
+  "@authPlanPremiumProText": {
+    "description": "The Premium plan's text on the web, where Pro is offered",
+    "placeholders": {
+      "limit": {
+        "type": "int"
+      },
+      "pro": {
+        "type": "int"
+      }
+    }
+  },
+  "authPlanFreeText": "Free: up to {free} devices sync with each other while online. Premium adds cloud backup and up to {premium} devices: US$20 a month, the first week free. Pro: up to {pro} devices.",
   "@authPlanFreeText": {
     "placeholders": {
       "free": {
@@ -233,10 +258,13 @@
       },
       "premium": {
         "type": "int"
+      },
+      "pro": {
+        "type": "int"
       }
     }
   },
-  "authPastLimit": "This device is past your first {limit}: it syncs, but its events are hidden on your other devices, and theirs here.",
+  "authPastLimit": "This device is past your plan's first {limit}: it doesn't sync, so only its own events show here.",
   "@authPastLimit": {
     "placeholders": {
       "limit": {
@@ -244,7 +272,7 @@
       }
     }
   },
-  "authMoreHidden": "{count, plural, =1{1 more device syncs, but its events are hidden: {plan} shows your first {limit}.} other{{count} more devices sync, but their events are hidden: {plan} shows your first {limit}.}}",
+  "authMoreHidden": "{count, plural, =1{1 more device doesn't sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don't sync, and their events are hidden: {plan} syncs your first {limit}.}}",
   "@authMoreHidden": {
     "placeholders": {
       "count": {
@@ -260,7 +288,7 @@
   },
   "authUpgradePremium": "Upgrade to Premium",
   "authUpgrade": "Upgrade",
-  "authOthersHidden": "Your other devices' events are hidden on this one: {plan} shows your first {limit} devices.",
+  "authOthersHidden": "This device doesn't sync, and your other devices' events are hidden on it: {plan} syncs your first {limit} devices.",
   "@authOthersHidden": {
     "placeholders": {
       "plan": {
@@ -287,6 +315,17 @@
   },
   "authPremiumShowsUpTo": "{text} Premium shows up to {limit}.",
   "@authPremiumShowsUpTo": {
+    "placeholders": {
+      "text": {
+        "type": "String"
+      },
+      "limit": {
+        "type": "int"
+      }
+    }
+  },
+  "authProShowsUpTo": "{text} Pro shows up to {limit}.",
+  "@authProShowsUpTo": {
     "placeholders": {
       "text": {
         "type": "String"
@@ -359,10 +398,14 @@
   },
   "authPremiumMonthly": "Premium monthly",
   "authPremiumYearly": "Premium yearly",
+  "authProMonthly": "Pro monthly",
+  "authProYearly": "Pro yearly",
   "authPaymentsTitle": "Payments",
-  "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with. Leave one empty not to offer that plan.",
+  "authPaymentsIntro": "The Stripe Payment Links free members upgrade to Premium with, and members to Pro. Leave one empty not to offer that plan.",
   "authPaymentsMonthly": "Monthly plan link",
+  "authPaymentsProMonthly": "Pro monthly plan link",
   "authPaymentsYearly": "Yearly plan link",
+  "authPaymentsProYearly": "Pro yearly plan link",
   "authPaymentsSave": "Save links",
   "authPaymentsSaved": "Payment links saved",
   "authPaymentsSaveFailed": "Couldn't save the links ({error})",

@@ -97,21 +97,25 @@ their data.
   accounts' sessions end and Apple's tokens are revoked; this device
   forgets the profile and signs out. `POST /api/auth/account/delete`,
   idempotent; without the app, `/delete-account` says how by email.
-- [Premium and free](premium.md): rbacr says who is premium (its
-  `premium` or `admin` role): premium profiles sync with the cloud (S3,
-  enforced by a `tier` tag on their credentials); free ones' devices sync
-  with each other over live sync only, clips' thumbnails in the messages.
-  The profile's first 2 devices (free) or 50 (premium), as the auth API
-  lists them, show each other's events; later ones sync, their events
-  hidden, with a prompt to sign up at nu01.com. The account sheet says
-  Free or Premium.
-- [Upgrade to Premium](upgrade.md): on the web, a free member's
+- [Plans: Free, Premium and Pro](premium.md): three tiers, by devices
+  for now: **Free** syncs the profile's first **10** devices, **Premium**
+  25, **Pro** 50 (admins are Pro). rbacr says who is on which (its
+  `premium`, `pro` or `admin` role; `pro` must be created there): premium
+  and pro profiles sync with the cloud (S3, enforced by a `tier=premium`
+  tag on their credentials, which Pro shares), and only they may stream;
+  free ones' devices sync with each other over live sync only, clips'
+  thumbnails in the messages. The auth API gives no credentials to a
+  device past the plan's limit (403); its events are hidden, with a
+  prompt to upgrade. The account sheet says Free, Premium or Pro.
+- [Upgrade to Premium and Pro](upgrade.md): on the web, a free member's
   **Premium monthly** (US$20 a month, the first week free) and **Premium
   yearly** buttons open the plan's Stripe checkout (rbacr's Stripe sync
   grants `premium`); on iOS and Android, App Store and Google Play
   subscriptions (`in_app_purchase`) with the store's prices, Restore
   purchases and Manage subscription, verified by the payments API, and
-  never a mention of Stripe; elsewhere no purchase buttons.
+  never a mention of Stripe; elsewhere no purchase buttons. A premium
+  member's **Pro monthly** and **Pro yearly** buttons (web only) show
+  once an admin saves Pro's Stripe links; Pro isn't in the stores yet.
 - [Membership](membership.md): users without access subscribe at
   nu01.com or redeem a voucher code with rbacr on the Sign up sheet;
   vouchers are managed in rbacr, which the Admin tab (feedback) links to.

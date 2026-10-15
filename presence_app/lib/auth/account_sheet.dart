@@ -446,16 +446,15 @@ class AccountSheet extends StatelessWidget {
                         ),
                       ),
                     ],
-                    // Free or Premium, and what each gives, under the devices
-                    // it limits; not in DEV, where nothing syncs. An admin is
-                    // premium (as the auth API makes it), so only a free
-                    // member is asked to upgrade.
+                    // Free, Premium or Pro, and what each gives, under the
+                    // devices it limits; not in DEV, where nothing syncs. An
+                    // admin is Pro (as the auth API makes it).
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
                       const SizedBox(height: 12),
                       PlanNotice(
-                        premium: roles.isPremium || roles.isAdmin,
+                        plan: roles.plan,
                         slots: sync?.deviceSlots,
                         thisDevice: deviceId,
                         hidden: switch ((log, roles.profile)) {
@@ -955,7 +954,7 @@ class UserAvatar extends StatelessWidget {
 
 /// The signed-in user's roles, always shown under their email: a small
 /// chip for their access, as rbacr's `presence` system gives it ([accessOf]:
-/// Free Access, Premium Access or Admin Access, the rbacr role in its
+/// Free Access, Premium Access, Pro Access or Admin Access, the rbacr role in its
 /// tooltip), then one per other role ([labelOf]: Root, or the role's ID);
 /// "No roles yet" without any, and "Checking roles…" while the auth API is
 /// asked. The anonymous role isn't shown (it's everyone's before signing
@@ -965,12 +964,14 @@ class AccountRoles extends StatelessWidget {
 
   final RolesService roles;
 
-  /// The rbacr role (`free`, `premium` or `admin`) that gave [held], the
-  /// app's roles: the auth API turns `admin` into member, premium and
-  /// admin, `premium` into member and premium, `free` into member. Null
-  /// without membership.
+  /// The rbacr role (`free`, `premium`, `pro` or `admin`) that gave
+  /// [held], the app's roles: the auth API turns `admin` into member,
+  /// premium, pro and admin, `pro` into member, premium and pro, `premium`
+  /// into member and premium, `free` into member. Null without membership.
   static String? accessOf(List<String> held) => held.contains(adminRole)
       ? 'admin'
+      : held.contains(proRole)
+      ? 'pro'
       : held.contains(premiumRole)
       ? 'premium'
       : held.contains(userRole)
@@ -983,13 +984,14 @@ class AccountRoles extends StatelessWidget {
     final l = l10n ?? lookupAppLocalizations(const Locale('en'));
     return switch (access) {
       'admin' => l.authAccessAdmin,
+      'pro' => l.authAccessPro,
       'premium' => l.authAccessPremium,
       _ => l.authAccessFree,
     };
   }
 
   /// The roles [accessOf] stands for, which get no chip of their own.
-  static const _accessRoles = {userRole, premiumRole, adminRole};
+  static const _accessRoles = {userRole, premiumRole, proRole, adminRole};
 
   /// What another role is called here, in [l10n]'s language (English
   /// without); an unknown one keeps its ID.

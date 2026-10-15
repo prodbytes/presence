@@ -10,10 +10,11 @@ below:
 | Who | Roles | Sees |
 |---|---|---|
 | Unknown user | none | the camera, the account button and **Sign up**: nothing else |
-| Member (`free`) | `presence_user` | every feature: tabs, camera buttons; devices sync over live sync, at most every 30 s |
-| Premium member (`premium`) | `presence_user`, `presence_premium` | as Member, and cloud sync |
-| Admin (`admin`) | `presence_user`, `presence_premium`, `presence_admin` | every feature, plus the **Admin** tab (feedback, and a link to rbacr); live sync always connected |
-| Root (rbacr's root list) | all four, `presence_root` too | as Admin |
+| Member (`free`) | `presence_user` | every feature: tabs, camera buttons; the first 10 devices sync over live sync, at most every 30 s |
+| Premium member (`premium`) | `presence_user`, `presence_premium` | as Member, and cloud sync; the first 25 devices |
+| Pro member (`pro`) | `presence_user`, `presence_premium`, `presence_pro` | as Premium; the first 50 devices |
+| Admin (`admin`) | `presence_user`, `presence_premium`, `presence_pro`, `presence_admin` | every feature, plus the **Admin** tab (feedback, and a link to rbacr); Pro's devices; live sync always connected |
+| Root (rbacr's root list) | all five, `presence_root` too | as Admin |
 
 Roots are **rbacr's roots**: the addresses and domains on rbacr's root
 list (`@nu01.com` by default), configured in rbacr, not here. They get
@@ -23,13 +24,14 @@ sync gives `premium`), by [upgrading to Premium](upgrade.md) in the app
 (a free member; rbacr's same Stripe sync), by redeeming a voucher code, or from a grant in
 rbacr's pages. Admins (rbacr's `admin` in the `presence` system) are
 made in rbacr. An account linked to another's profile shares its
-membership (`presence_user`) and premium only, never `presence_admin` or
+membership (`presence_user`), premium and Pro only, never `presence_admin` or
 `presence_root`: the auth API answers them as `shared` in
 `GET /api/auth/profile` (see [Profiles](profiles.md)).
 
-Members are **premium** or **free** ([Premium and free](premium.md)):
-premium profiles sync with the cloud; free ones' devices sync with each
-other over live sync only. Roles also
+Members are on **Free**, **Premium** or **Pro** ([Plans](premium.md)):
+premium and pro profiles sync with the cloud; free ones' devices sync with
+each other over live sync only. The plan sets how many of the profile's
+devices sync: 10, 25 or 50. Roles also
 set limits: **Connect to live sync** is always connected for admins, and at
 most every 30 s for members (see [Live sync](live-sync.md#when-it-connects)).
 
@@ -118,7 +120,8 @@ reloads it too.
 **Payments**, after it (`PaymentLinksEditor`,
 [lib/auth/payment_links_editor.dart](../presence_app/lib/auth/payment_links_editor.dart)):
 the Premium plans' Stripe Payment Links, **Monthly plan link** and
-**Yearly plan link**, and **Save links**. See [Payments API](payments-api.md#in-the-admin-tab).
+**Yearly plan link**, the Pro plans' **Pro monthly plan link** and **Pro
+yearly plan link**, and **Save links**. See [Payments API](payments-api.md#in-the-admin-tab).
 
 **Vouchers and maintenance**, after it: "Voucher codes and maintenance
 mode are managed in rbacr, which keeps every role. Members redeem codes

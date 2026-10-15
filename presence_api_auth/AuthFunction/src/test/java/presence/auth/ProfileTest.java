@@ -211,9 +211,22 @@ class ProfileTest {
         return event;
     }
 
-    /** A member makes a stream key for {@code device} of their profile; the key. */
+    /**
+     * A member makes a stream key for {@code device} of their profile while
+     * premium (streamers are Premium's); the key. Their roles are as before
+     * after.
+     */
     private String streamKeyFor(String sub, String email, String device) {
+        var held = rbacr.get(email);
+        if (held == null || !(held.contains("premium") || held.contains("pro") || held.contains("admin"))) {
+            rbacr.put(email, Set.of("premium"));
+        }
         var response = profiles.handleRequest(call("POST /api/auth/profile/stream-key", sub, email, device), null);
+        if (held == null) {
+            rbacr.remove(email);
+        } else {
+            rbacr.put(email, held);
+        }
         assertEquals(200, response.getStatusCode(), response.getBody());
         var m = java.util.regex.Pattern.compile("\\\"key\\\":\\\"(psk_[A-Za-z0-9_-]{43})\\\"").matcher(response.getBody());
         assertTrue(m.find(), response.getBody());
@@ -235,7 +248,7 @@ class ProfileTest {
 
         assertEquals(200, response.getStatusCode(), response.getBody());
         assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
-                + "\"deviceLimit\":50,\"devices\":[\"calm_quiet_otter\"],\"tier\":\"premium\","
+                + "\"deviceLimit\":25,\"devices\":[\"calm_quiet_otter\"],\"tier\":\"premium\","
                 + "\"userId\":\"work\"}", response.getBody());
         assertEquals("premium", tiers.getLast());
         assertEquals(false, admins.getLast());
@@ -268,16 +281,49 @@ class ProfileTest {
     }
 
     @Test
-    void aFreeOwnersProfileStreamsFree() {
+    void streamersArePremiums() {
         googleIdentities.put("tok-work", "us-east-1:work");
+        // A free member makes no stream key.
+        var free = profiles.handleRequest(call("POST /api/auth/profile/stream-key", "work", "julio@nu01.com",
+                "calm_quiet_otter"), null);
+        assertEquals(403, free.getStatusCode(), free.getBody());
+        assertTrue(streamKeys.isEmpty());
+        // A key made while premium gets nothing once the owner is free: no free token.
+        var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
+        var issued = tokensIssued.size();
+        var response = profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null);
+        assertEquals(403, response.getStatusCode(), response.getBody());
+        assertEquals(issued, tokensIssued.size());
+        // Pro's streamers stream, with Premium's tag and Pro's devices.
+        rbacr.put("julio@nu01.com", Set.of("pro"));
+        var pro = profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null);
+        assertEquals(200, pro.getStatusCode(), pro.getBody());
+        assertTrue(pro.getBody().contains("\"deviceLimit\":50,"), pro.getBody());
+        assertEquals("premium", tiers.getLast());
+    }
+
+    @Test
+    void aStreamerPastThePlansLimitGetsNoCredentials() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        googleIdentities.put("tok-work", "us-east-1:work");
+        for (var i = 0; i < ProfileHandler.PREMIUM_DEVICES; i++) {
+            profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                    "device_" + (char) ('a' + i) + "_lamp"), null);
+        }
         var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
         var response = profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null);
-        assertEquals(200, response.getStatusCode());
-        assertTrue(response.getBody().contains("\"tier\":\"free\""), response.getBody());
+        assertEquals(403, response.getStatusCode(), response.getBody());
+        assertTrue(response.getBody().contains("\"reason\":\"deviceLimit\",\"deviceLimit\":25,"), response.getBody());
+        // Deleting one of the first gives it a place.
+        profiles.handleRequest(call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com",
+                "device_a_lamp"), null);
+        assertEquals(200, profiles.handleRequest(streamerCall(key, "profile_1 calm_quiet_otter"), null)
+                .getStatusCode());
     }
 
     @Test
     void aStreamKeyIsOnlyItsDevicesAndGoesWithIt() {
+        rbacr.put("julio@nu01.com", Set.of("premium"));
         googleIdentities.put("tok-work", "us-east-1:work");
         var key = streamKeyFor("work", "julio@nu01.com", "calm_quiet_otter");
         var other = streamKeyFor("work", "julio@nu01.com", "brave_little_lamp");
@@ -354,7 +400,7 @@ class ProfileTest {
 
         assertEquals(200, response.getStatusCode());
         assertEquals("{\"identityId\":\"us-east-1:work\",\"token\":\"token-for-us-east-1:work\","
-                + "\"deviceLimit\":2,\"devices\":[],\"tier\":\"free\"}", response.getBody());
+                + "\"deviceLimit\":10,\"devices\":[],\"tier\":\"free\"}", response.getBody());
         var profile = profileOf("work");
         assertEquals("profile_1", profile.id());
         assertEquals(GOOGLE + "#work", profile.ownerSubject());
@@ -384,7 +430,7 @@ class ProfileTest {
         googleIdentities.put("tok-work", "us-east-1:work");
         var first = profiles.handleRequest(
                 call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
-        assertTrue(first.getBody().contains(",\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\"],"),
+        assertTrue(first.getBody().contains(",\"deviceLimit\":10,\"devices\":[\"first_quiet_gadget\"],"),
                 first.getBody());
         profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "second_bold_lamp"), null);
         profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", "third_shy_kettle"), null);
@@ -396,11 +442,60 @@ class ProfileTest {
         // Without a device (an older app), the list as it is.
         var none = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null), null);
         assertTrue(none.getBody().contains("\"third_shy_kettle\"]"), none.getBody());
-        // Premium shows fifty.
+        // Premium shows twenty-five.
         rbacr.put("julio@nu01.com", Set.of("premium"));
         var premium = profiles.handleRequest(
                 call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
-        assertTrue(premium.getBody().contains(",\"deviceLimit\":50,"), premium.getBody());
+        assertTrue(premium.getBody().contains(",\"deviceLimit\":25,"), premium.getBody());
+        // Pro shows fifty, with Premium's cloud access: the same tier tag.
+        rbacr.put("julio@nu01.com", Set.of("pro"));
+        var pro = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(pro.getBody().contains(",\"deviceLimit\":50,"), pro.getBody());
+        assertTrue(pro.getBody().contains(",\"tier\":\"premium\""), pro.getBody());
+        assertEquals("premium", tiers.getLast());
+        // An admin gets at least Pro's.
+        rbacr.put("julio@nu01.com", Set.of("admin"));
+        var admin = profiles.handleRequest(
+                call("POST /api/auth/credentials", "work", "julio@nu01.com", "first_quiet_gadget"), null);
+        assertTrue(admin.getBody().contains(",\"deviceLimit\":50,"), admin.getBody());
+    }
+
+    @Test
+    void aDevicePastThePlansLimitIsListedButGetsNoCredentials() {
+        googleIdentities.put("tok-work", "us-east-1:work");
+        for (var i = 0; i < ProfileHandler.FREE_DEVICES; i++) {
+            var ok = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                    "device_" + (char) ('a' + i) + "_lamp"), null);
+            assertEquals(200, ok.getStatusCode(), ok.getBody());
+        }
+        // An empty body (an older app) is fine while nothing's past the limit.
+        assertEquals(200, profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null),
+                null).getStatusCode());
+        var issued = tokensIssued.size();
+        var eleventh = profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                "eleventh_shy_kettle"), null);
+        assertEquals(403, eleventh.getStatusCode(), eleventh.getBody());
+        assertTrue(eleventh.getBody().contains("\"reason\":\"deviceLimit\",\"deviceLimit\":10,\"devices\":["),
+                eleventh.getBody());
+        assertTrue(eleventh.getBody().contains("\"eleventh_shy_kettle\"]"), eleventh.getBody());
+        // Now one is past it, a device that doesn't say which it is gets nothing either.
+        assertEquals(403, profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com", null),
+                null).getStatusCode());
+        assertEquals(issued, tokensIssued.size());
+        // Premium's limit takes it in.
+        rbacr.put("julio@nu01.com", Set.of("premium"));
+        assertEquals(200, profiles.handleRequest(call("POST /api/auth/credentials", "work", "julio@nu01.com",
+                "eleventh_shy_kettle"), null).getStatusCode());
+    }
+
+    @Test
+    void theDeviceLimitFollowsThePlan() {
+        assertEquals(10, ProfileHandler.deviceLimit(Set.of()));
+        assertEquals(10, ProfileHandler.deviceLimit(Set.of(Roles.USER)));
+        assertEquals(25, ProfileHandler.deviceLimit(Set.of(Roles.USER, Roles.PREMIUM)));
+        assertEquals(50, ProfileHandler.deviceLimit(Set.of(Roles.USER, Roles.PREMIUM, Roles.PRO)));
+        assertEquals(50, ProfileHandler.MAX_DEVICES);
     }
 
     @Test
@@ -434,7 +529,7 @@ class ProfileTest {
         var removed = profiles.handleRequest(
                 call("POST /api/auth/profile/devices/remove", "work", "julio@nu01.com", "second_bold_lamp"), null);
         assertEquals(200, removed.getStatusCode());
-        assertEquals("{\"deviceLimit\":2,\"devices\":[\"first_quiet_gadget\",\"third_shy_kettle\"]}",
+        assertEquals("{\"deviceLimit\":10,\"devices\":[\"first_quiet_gadget\",\"third_shy_kettle\"]}",
                 removed.getBody());
         // Back again, it's last.
         var back = profiles.handleRequest(
@@ -468,8 +563,9 @@ class ProfileTest {
         var linkedResponse = profiles.handleRequest(
                 call("POST /api/auth/profile/link", "home", "julio@gmail.com", " " + code.toLowerCase() + " "), null);
         assertEquals(200, linkedResponse.getStatusCode());
-        // Shared from the admin owner: membership and premium, not administration.
-        assertEquals("{\"profile\":\"profile_1\",\"shared\":[\"presence_premium\",\"presence_user\"],\"accounts\":["
+        // Shared from the admin owner: membership, premium and pro, not administration.
+        assertEquals("{\"profile\":\"profile_1\",\"shared\":[\"presence_premium\",\"presence_pro\",\"presence_user\"],"
+                + "\"accounts\":["
                 + "{\"email\":\"julio@nu01.com\",\"owner\":true,\"current\":false},"
                 + "{\"email\":\"julio@gmail.com\",\"owner\":false,\"current\":true}]}", linkedResponse.getBody());
 
@@ -478,7 +574,10 @@ class ProfileTest {
         var response = profiles.handleRequest(call("POST /api/auth/credentials", "home", "julio@gmail.com", null), null);
         assertEquals(200, response.getStatusCode());
         assertTrue(response.getBody().contains("\"identityId\":\"us-east-1:work\""));
-        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
+        assertTrue(listing("home", "julio@gmail.com").contains(
+                "\"shared\":[\"presence_premium\",\"presence_pro\",\"presence_user\"]"));
+        // An admin owner's profile shows Pro's devices to its linked account too.
+        assertTrue(response.getBody().contains(",\"deviceLimit\":50,"), response.getBody());
         // The owner shares nothing with itself.
         assertTrue(listing("work", "julio@nu01.com").contains("\"shared\":[]"));
     }
@@ -648,7 +747,8 @@ class ProfileTest {
         assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
         // A root owner: never root or admin.
         rbacr.put("julio@nu01.com", Set.of(Rbacr.ROOT, "admin"));
-        assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[\"presence_premium\",\"presence_user\"]"));
+        assertTrue(listing("home", "julio@gmail.com").contains(
+                "\"shared\":[\"presence_premium\",\"presence_pro\",\"presence_user\"]"));
         // An owner no longer a member: nothing.
         rbacr.remove("julio@nu01.com");
         assertTrue(listing("home", "julio@gmail.com").contains("\"shared\":[]"));
@@ -718,9 +818,9 @@ class ProfileTest {
         assertEquals(Set.of(), roles.of(unverified, owned));
         assertEquals(Set.of(), roles.of(gmail, null));
         assertEquals(Set.of(), roles.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#work", null, null)));
-        // An admin owner shares membership and premium, never the administration.
+        // An admin owner shares membership, premium and pro, never the administration.
         var members = new Roles(e -> e.equals("ana@example.com") ? Set.of("admin") : Set.of());
-        assertEquals(Set.of(Roles.PREMIUM, Roles.USER),
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER),
                 members.of(gmail, new Profiles.Profile("p", "", GOOGLE + "#ana", "ana@example.com", null)));
     }
 

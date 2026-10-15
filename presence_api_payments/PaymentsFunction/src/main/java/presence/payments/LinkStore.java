@@ -18,7 +18,9 @@ interface LinkStore {
 
     /**
      * The payments table ({@code PAYMENTS_TABLE}): one item, {@code {"id":
-     * "links", "monthly", "yearly", "updatedAt" (epoch ms), "updatedBy"}}.
+     * "links", "monthly", "yearly", "proMonthly", "proYearly", "updatedAt"
+     * (epoch ms), "updatedBy"}} (Pro's are missing from an item saved before
+     * Pro: empty).
      */
     static LinkStore dynamo(String table) {
         var dynamo = DynamoDbClient.builder().httpClient(UrlConnectionHttpClient.create()).build();
@@ -31,6 +33,7 @@ interface LinkStore {
                     return Optional.empty();
                 }
                 return Optional.of(new PaymentLinks(text(item, "monthly"), text(item, "yearly"),
+                        text(item, "proMonthly"), text(item, "proYearly"),
                         Long.parseLong(item.getOrDefault("updatedAt", AttributeValue.fromN("1")).n()),
                         item.containsKey("updatedBy") ? item.get("updatedBy").s() : null));
             }
@@ -41,6 +44,8 @@ interface LinkStore {
                         "id", AttributeValue.fromS("links"),
                         "monthly", AttributeValue.fromS(links.monthly()),
                         "yearly", AttributeValue.fromS(links.yearly()),
+                        "proMonthly", AttributeValue.fromS(links.proMonthly()),
+                        "proYearly", AttributeValue.fromS(links.proYearly()),
                         "updatedAt", AttributeValue.fromN(Long.toString(links.updatedAt())),
                         "updatedBy", AttributeValue.fromS(links.updatedBy()))));
             }

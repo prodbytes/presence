@@ -2,22 +2,36 @@ package presence.payments;
 
 import java.net.URI;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
  * The Stripe Payment Links of the Premium subscription, monthly and
- * yearly. Each is an HTTPS link on {@code stripe.com} (such as {@code
+ * yearly, and of the Pro subscription, monthly and yearly. Each is an
+ * HTTPS link on {@code stripe.com} (such as {@code
  * https://buy.stripe.com/...}), or empty when that plan isn't offered.
+ * Pro's have no deploy defaults: they're offered once an admin saves them.
  *
- * @param monthly   the monthly plan's link, or empty
- * @param yearly    the yearly plan's link, or empty
+ * @param monthly    Premium's monthly plan's link, or empty
+ * @param yearly     Premium's yearly plan's link, or empty
+ * @param proMonthly Pro's monthly plan's link, or empty
+ * @param proYearly  Pro's yearly plan's link, or empty
  * @param updatedAt when an admin saved them (epoch ms), or 0 for the
  *                  deploy's defaults
  * @param updatedBy who saved them (an admin's email), or null; kept in the
  *                  table, never answered
  */
-record PaymentLinks(String monthly, String yearly, long updatedAt, String updatedBy) {
+record PaymentLinks(String monthly, String yearly, String proMonthly, String proYearly, long updatedAt,
+                    String updatedBy) {
+
+    /** Premium's links only, no Pro plan. */
+    PaymentLinks(String monthly, String yearly, long updatedAt, String updatedBy) {
+        this(monthly, yearly, "", "", updatedAt, updatedBy);
+    }
+
+    /** The keys a saved body may have: Premium's two (required) and Pro's two (optional). */
+    static final List<String> KEYS = List.of("monthly", "yearly", "proMonthly", "proYearly");
 
     /** The longest link taken. */
     static final int MAX_LENGTH = 512;
@@ -60,18 +74,24 @@ record PaymentLinks(String monthly, String yearly, long updatedAt, String update
         return updatedAt > 0;
     }
 
-    /** As answered: {@code {"monthly":"...","yearly":"...","saved":true,"updatedAt":...}}. */
+    /**
+     * As answered: {@code {"monthly":"...","yearly":"...","proMonthly":"...","proYearly":"...",
+     * "saved":true,"updatedAt":...}}.
+     */
     String toJson() {
         return "{\"monthly\":" + Json.string(monthly) + ",\"yearly\":" + Json.string(yearly)
+                + ",\"proMonthly\":" + Json.string(proMonthly) + ",\"proYearly\":" + Json.string(proYearly)
                 + ",\"saved\":" + saved() + (saved() ? ",\"updatedAt\":" + updatedAt : "") + "}";
     }
 
-    private static final Pattern ENTRY = Pattern.compile("\\s*\"([a-z]{1,16})\"\\s*:\\s*\"([^\"\\\\]*)\"\\s*(,|$)");
+    private static final Pattern ENTRY = Pattern.compile("\\s*\"([a-zA-Z]{1,16})\"\\s*:\\s*\"([^\"\\\\]*)\"\\s*(,|$)");
 
     /**
      * The links in a request body, {@code {"monthly": "...", "yearly":
-     * "..."}}: both keys, no others, plain strings (no escapes). Null when
-     * it isn't that; the links aren't checked here ({@link #valid}).
+     * "...", "proMonthly": "...", "proYearly": "..."}}: Premium's two keys,
+     * Pro's optionally (an older app sends none), no others, each once,
+     * plain strings (no escapes). Null when it isn't that; the links aren't
+     * checked here ({@link #valid}).
      */
     static Map<String, String> parse(String body) {
         if (body == null) {
@@ -90,11 +110,11 @@ record PaymentLinks(String monthly, String yearly, long updatedAt, String update
                 return null;
             }
             var key = entry.group(1);
-            if (!key.equals("monthly") && !key.equals("yearly") || found.put(key, entry.group(2)) != null) {
+            if (!KEYS.contains(key) || found.put(key, entry.group(2)) != null) {
                 return null;
             }
             at = entry.end();
         }
-        return found.size() == 2 ? found : null;
+        return found.containsKey("monthly") && found.containsKey("yearly") ? found : null;
     }
 }

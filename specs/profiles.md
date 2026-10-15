@@ -115,15 +115,15 @@
   that never had an identity gets a new, empty one, not its owner's
   pre-profile Google identity (whose data is past the bucket's 90 days).
 - **Roles:** a subject has its own roles (from rbacr, for its own email)
-  plus the owner's **membership** and premium: `presence_user` and
-  `presence_premium` when the **owner** (the subject that made the
-  profile) has them in rbacr, never the owner's `presence_admin` or
+  plus the owner's **membership**, premium and Pro: `presence_user`,
+  `presence_premium` and `presence_pro` when the **owner** (the subject
+  that made the profile) has them in rbacr, never the owner's `presence_admin` or
   `presence_root`, which
   each account gets only from its own email. The auth API computes the
   shared part (`Roles.shared`, with its root rbacr token) and answers it
   as `shared` in `GET /api/auth/profile`; the app adds it to the roles
-  rbacr gives the account itself (taking only `presence_user` and
-  `presence_premium` from it). The profile routes apply the same. A
+  rbacr gives the account itself (taking only `presence_user`,
+  `presence_premium` and `presence_pro` from it). The profile routes apply the same. A
   `julio@gmail.com` linked to a `julio@nu01.com` profile is a
   `presence_user`; it administers only if its own email does. (A link
   code is a one-time secret any member can make; administration must not
@@ -189,7 +189,7 @@
 
 | Route | Who | Answer |
 |---|---|---|
-| `POST /api/auth/credentials` | `presence_user` (body: this device's ID, or empty) | `{"identityId", "token", "deviceLimit", "devices", "tier"}`: the token tagged `tier` `premium` or `free`; the device added to the profile's `devices` ([Premium and free](premium.md#devices)) |
+| `POST /api/auth/credentials` | `presence_user` (body: this device's ID, or empty) | `{"identityId", "token", "deviceLimit", "devices", "tier"}`: the token tagged `tier` `premium` (Premium and Pro) or `free`; the device added to the profile's `devices`; 403 `{"reason": "deviceLimit", "deviceLimit", "devices"}` and no token for a device past the plan's limit ([Plans](premium.md#devices)) |
 | `GET /api/auth/profile` | any verified account | `{"profile", "shared", "accounts": [{email, owner, current}]}`: the subject's profile, made at its first sign-in (`?profile=` is ignored); `shared`, what it shares from the owner (`[]` for the owner) |
 | `POST /api/auth/profile/link-code` | `presence_user` | 201 `{"code": "ABCD-EFGH", "expiresAt"}` |
 | `POST /api/auth/profile/link` | any verified account (body: the code) | the listing, or 404 / 409 |

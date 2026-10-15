@@ -21,6 +21,7 @@ class PaymentsTest {
 
     private static final String MONTHLY = "https://buy.stripe.com/dRm9AT6F71VfbaN1tl2Ji03";
     private static final String YEARLY = "https://buy.stripe.com/test_yearly00";
+    private static final String PRO_MONTHLY = "https://buy.stripe.com/test_promonthly00";
 
     private PaymentLinks saved;
     private final List<String> asked = new ArrayList<>();
@@ -72,7 +73,8 @@ class PaymentsTest {
     void answersTheDeploysDefaultsUntilAnAdminSaves() {
         var reply = handler.handleRequest(event(PaymentsHandler.GET_LINKS, "ana@example.com", true, null), null);
         assertEquals(200, reply.getStatusCode());
-        assertEquals("{\"monthly\":\"" + MONTHLY + "\",\"yearly\":\"\",\"saved\":false}", reply.getBody());
+        assertEquals("{\"monthly\":\"" + MONTHLY + "\",\"yearly\":\"\",\"proMonthly\":\"\",\"proYearly\":\"\","
+                + "\"saved\":false}", reply.getBody());
         assertEquals("no-store", reply.getHeaders().get("Cache-Control"));
         // Reading needs no role.
         assertTrue(asked.isEmpty());
@@ -88,9 +90,34 @@ class PaymentsTest {
 
         var read = handler.handleRequest(event(PaymentsHandler.GET_LINKS, "ana@example.com", true, null), null);
         assertEquals("{\"monthly\":\"" + MONTHLY + "\",\"yearly\":\"" + YEARLY
-                + "\",\"saved\":true,\"updatedAt\":1790000000000}", read.getBody());
+                + "\",\"proMonthly\":\"\",\"proYearly\":\"\",\"saved\":true,\"updatedAt\":1790000000000}",
+                read.getBody());
         // Who saved them stays in the table.
         assertFalse(read.getBody().contains("boss"));
+    }
+
+    @Test
+    void anAdminSavesProsLinksAndAnOlderAppKeepsThem() {
+        var body = "{\"monthly\":\"" + MONTHLY + "\",\"yearly\":\"\",\"proMonthly\":\"" + PRO_MONTHLY
+                + "\",\"proYearly\":\"\"}";
+        assertEquals(200, handler.handleRequest(event(PaymentsHandler.PUT_LINKS, "boss@example.com", true, body), null)
+                .getStatusCode());
+        assertEquals(new PaymentLinks(MONTHLY, "", PRO_MONTHLY, "", 1_790_000_000_000L, "boss@example.com"), saved);
+        var read = handler.handleRequest(event(PaymentsHandler.GET_LINKS, "ana@example.com", true, null), null);
+        assertTrue(read.getBody().contains(",\"proMonthly\":\"" + PRO_MONTHLY + "\",\"proYearly\":\"\","),
+                read.getBody());
+        // An older app's editor sends Premium's only: Pro's stay.
+        assertEquals(200, handler.handleRequest(
+                event(PaymentsHandler.PUT_LINKS, "boss@example.com", true, put(MONTHLY, YEARLY)), null).getStatusCode());
+        assertEquals(new PaymentLinks(MONTHLY, YEARLY, PRO_MONTHLY, "", 1_790_000_000_000L, "boss@example.com"), saved);
+        // Pro's links are Stripe's too.
+        var bad = "{\"monthly\":\"\",\"yearly\":\"\",\"proMonthly\":\"https://evil.example/x\",\"proYearly\":\"\"}";
+        assertEquals(400, handler.handleRequest(event(PaymentsHandler.PUT_LINKS, "boss@example.com", true, bad), null)
+                .getStatusCode());
+        // Pro's alone isn't a body.
+        var proOnly = "{\"proMonthly\":\"\",\"proYearly\":\"\"}";
+        assertEquals(400, handler.handleRequest(event(PaymentsHandler.PUT_LINKS, "boss@example.com", true, proOnly), null)
+                .getStatusCode());
     }
 
     @Test

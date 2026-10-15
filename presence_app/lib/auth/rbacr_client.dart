@@ -43,15 +43,17 @@ abstract final class RbacrConfig {
 typedef RbacrMe = ({String email, bool root, Map<String, List<String>> roles});
 
 /// The app's roles for what rbacr gives the user in [system] (as the auth
-/// API maps them, `presence.auth.Roles`): [userRole] for free, premium or
-/// admin; [premiumRole] for premium or admin; [adminRole] for admin; and
+/// API maps them, `presence.auth.Roles`): [userRole] for free, premium, pro
+/// or admin; [premiumRole] for premium, pro or admin (Pro has everything
+/// Premium has); [proRole] for pro or admin; [adminRole] for admin; and
 /// every role, [rootRole] included, for an rbacr root. Sorted.
 List<String> presenceRoles(RbacrMe me, String system) {
   final held = me.roles[system] ?? const [];
   final roles = <String>{
-    if (me.root) ...[userRole, premiumRole, adminRole, rootRole],
-    if (held.any(const {'free', 'premium', 'admin'}.contains)) userRole,
-    if (held.any(const {'premium', 'admin'}.contains)) premiumRole,
+    if (me.root) ...[userRole, premiumRole, proRole, adminRole, rootRole],
+    if (held.any(const {'free', 'premium', 'pro', 'admin'}.contains)) userRole,
+    if (held.any(const {'premium', 'pro', 'admin'}.contains)) premiumRole,
+    if (held.any(const {'pro', 'admin'}.contains)) proRole,
     if (held.contains('admin')) adminRole,
   };
   return roles.toList()..sort();

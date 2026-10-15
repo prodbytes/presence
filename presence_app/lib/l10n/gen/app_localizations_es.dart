@@ -29,6 +29,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authAccessPremium => 'Acceso Premium';
 
   @override
+  String get authAccessPro => 'Acceso Pro';
+
+  @override
   String get authBackedUp => 'Los clips y eventos tienen copia de seguridad';
 
   @override
@@ -167,7 +170,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authHiddenTooltip =>
-      'Supera el límite de dispositivos del plan: se sincroniza, pero sus eventos se ocultan aquí';
+      'Supera el límite de dispositivos del plan: no se sincroniza, y sus eventos se ocultan aquí';
 
   @override
   String authHideDevice(String device) {
@@ -228,9 +231,9 @@ class AppLocalizationsEs extends AppLocalizations {
       count,
       locale: localeName,
       other:
-          '$count dispositivos más se sincronizan, pero sus eventos se ocultan: $plan muestra tus primeros $limit.',
+          '$count dispositivos más no se sincronizan, y sus eventos se ocultan: $plan sincroniza tus primeros $limit.',
       one:
-          '1 dispositivo más se sincroniza, pero sus eventos se ocultan: $plan muestra tus primeros $limit.',
+          '1 dispositivo más no se sincroniza, y sus eventos se ocultan: $plan sincroniza tus primeros $limit.',
     );
     return '$_temp0';
   }
@@ -261,7 +264,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String authOthersHidden(String plan, int limit) {
-    return 'Los eventos de tus otros dispositivos se ocultan en este: $plan muestra tus primeros $limit dispositivos.';
+    return 'Este dispositivo no se sincroniza, y los eventos de tus otros dispositivos se ocultan en él: $plan sincroniza tus primeros $limit dispositivos.';
   }
 
   @override
@@ -269,7 +272,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String authPastLimit(int limit) {
-    return 'Este dispositivo supera tus primeros $limit: se sincroniza, pero sus eventos se ocultan en tus otros dispositivos, y los de ellos aquí.';
+    return 'Este dispositivo supera los primeros $limit de tu plan: no se sincroniza, así que aquí solo se ven sus propios eventos.';
   }
 
   @override
@@ -278,13 +281,19 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authPaymentsIntro =>
-      'Los enlaces de pago de Stripe con los que los miembros gratuitos pasan a Premium. Deja uno vacío para no ofrecer ese plan.';
+      'Los enlaces de pago de Stripe con los que los miembros gratuitos pasan a Premium, y los miembros a Pro. Deja uno vacío para no ofrecer ese plan.';
 
   @override
   String get authPaymentsInvalid => 'Vacío, o un enlace https de stripe.com';
 
   @override
   String get authPaymentsMonthly => 'Enlace del plan mensual';
+
+  @override
+  String get authPaymentsProMonthly => 'Enlace del plan Pro mensual';
+
+  @override
+  String get authPaymentsProYearly => 'Enlace del plan Pro anual';
 
   @override
   String get authPaymentsSave => 'Guardar enlaces';
@@ -310,16 +319,29 @@ class AppLocalizationsEs extends AppLocalizations {
   String get authPlanFree => 'Gratis';
 
   @override
-  String authPlanFreeText(int free, int premium) {
-    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta $premium dispositivos: US\$20 al mes, la primera semana gratis.';
+  String authPlanFreeText(int free, int premium, int pro) {
+    return 'Gratis: hasta $free dispositivos se sincronizan entre sí en línea. Premium añade copia en la nube y hasta $premium dispositivos: US\$20 al mes, la primera semana gratis. Pro: hasta $pro dispositivos.';
   }
 
   @override
   String get authPlanPremium => 'Premium';
 
   @override
+  String authPlanPremiumProText(int limit, int pro) {
+    return 'Premium: copia en la nube y hasta $limit dispositivos sincronizados. Pro: hasta $pro dispositivos.';
+  }
+
+  @override
   String authPlanPremiumText(int limit) {
     return 'Premium: copia en la nube y hasta $limit dispositivos sincronizados.';
+  }
+
+  @override
+  String get authPlanPro => 'Pro';
+
+  @override
+  String authPlanProText(int limit) {
+    return 'Pro: copia en la nube y hasta $limit dispositivos sincronizados.';
   }
 
   @override
@@ -332,6 +354,17 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get authPremiumYearly => 'Premium anual';
+
+  @override
+  String get authProMonthly => 'Pro mensual';
+
+  @override
+  String authProShowsUpTo(String text, int limit) {
+    return '$text Pro muestra hasta $limit.';
+  }
+
+  @override
+  String get authProYearly => 'Pro anual';
 
   @override
   String get authProfile => 'Perfil';
@@ -1656,6 +1689,10 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get healthRbacrPremium =>
       'RBACR: configurado; este perfil es Premium (copia en la nube)';
+
+  @override
+  String get healthRbacrPro =>
+      'RBACR: configurado; este perfil es Pro (copia en la nube)';
 
   @override
   String get healthRbacrSet => 'RBACR: configurado; asigna los roles';

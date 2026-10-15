@@ -19,6 +19,7 @@ class RolesTest {
             "ana@example.com", Set.of("free"),
             "pat@example.com", Set.of("premium", "free"),
             "boss@example.com", Set.of("admin"),
+            "pia@example.com", Set.of("pro"),
             "julio@nu01.com", Set.of(Rbacr.ROOT, "admin", "free", "premium"),
             "vic@example.com", Set.of("viewer"));
     private final Roles roles = new Roles(email -> {
@@ -38,15 +39,19 @@ class RolesTest {
         assertEquals(Set.of(Roles.USER), roles.of("ana@example.com", true));
         assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of("pat@example.com", true));
         // Without counting on rbacr's implications: admin alone is all three.
-        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.USER), roles.of("boss@example.com", true));
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.PRO, Roles.USER), roles.of("boss@example.com", true));
+        // Pro alone is a premium member too (the bucket), with Pro's devices.
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER), roles.of("pia@example.com", true));
     }
 
     @Test
     void rbacrsRootsGetEveryRole() {
-        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.ROOT, Roles.USER), roles.of("julio@nu01.com", true));
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.PRO, Roles.ROOT, Roles.USER),
+                roles.of("julio@nu01.com", true));
         // Root alone (an rbacr whose presence system has no roles yet).
         var root = new Roles(email -> Set.of(Rbacr.ROOT));
-        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.ROOT, Roles.USER), root.of("julio@nu01.com", true));
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.PRO, Roles.ROOT, Roles.USER),
+                root.of("julio@nu01.com", true));
     }
 
     @Test
@@ -104,7 +109,7 @@ class RolesTest {
     @Test
     void theAnonymousUserGetsEveryRoleInDev() {
         var handler = new AuthHandler(ExecutionMode.DEV);
-        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_premium\",\"presence_root\",\"presence_user\"],"
+        assertEquals("{\"mode\":\"DEV\",\"roles\":[\"presence_admin\",\"presence_anonymous\",\"presence_premium\",\"presence_pro\",\"presence_root\",\"presence_user\"],"
                 + "\"settings\":{\"oidc\":false,\"aws\":false,\"rbacr\":false}}",
                 handler.handleRequest(anonymous(), null).getBody());
     }
@@ -148,6 +153,9 @@ class RolesTest {
         var linked = caller("home", "someone@example.com");
         assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("pat", "pat@example.com")));
         assertEquals(Set.of(Roles.USER), roles.shared(linked, ownedBy("ana", "ana@example.com")));
+        // A pro owner shares Pro too (its devices), never an admin's administration.
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER), roles.shared(linked, ownedBy("pia", "pia@example.com")));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER), roles.shared(linked, ownedBy("boss", "boss@example.com")));
         // An owner who isn't a member (or has a role the app doesn't use) shares nothing.
         assertEquals(Set.of(), roles.shared(linked, ownedBy("nobody", "nobody@example.com")));
         assertEquals(Set.of(), roles.shared(linked, ownedBy("vic", "vic@example.com")));
@@ -163,8 +171,8 @@ class RolesTest {
     @Test
     void administrationIsNeverShared() {
         var linked = caller("home", "someone@example.com");
-        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("boss", "boss@example.com")));
-        assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.shared(linked, ownedBy("julio", "julio@nu01.com")));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER), roles.shared(linked, ownedBy("boss", "boss@example.com")));
+        assertEquals(Set.of(Roles.PREMIUM, Roles.PRO, Roles.USER), roles.shared(linked, ownedBy("julio", "julio@nu01.com")));
     }
 
     @Test
@@ -177,7 +185,8 @@ class RolesTest {
         assertEquals(Set.of(Roles.PREMIUM, Roles.USER), roles.of(ana, pats));
         // An admin linked to a free owner keeps its own administration.
         var boss = caller("boss", "boss@example.com");
-        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.USER), roles.of(boss, ownedBy("ana", "ana@example.com")));
+        assertEquals(Set.of(Roles.ADMIN, Roles.PREMIUM, Roles.PRO, Roles.USER),
+                roles.of(boss, ownedBy("ana", "ana@example.com")));
     }
 
     static APIGatewayV2HTTPEvent anonymous() {
