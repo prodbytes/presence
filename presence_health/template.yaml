@@ -90,8 +90,8 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       RouteSettings:
-        # Public (no token): Route 53's health checkers, from several
-        # regions every 30 s. Answers are reused for 20 s (HealthHandler).
+        # Public (no token): the central nu01-monitor polls it every
+        # 5 minutes. Answers are reused for 20 s (HealthHandler).
         "GET /health":
           ThrottlingBurstLimit: 50
           ThrottlingRateLimit: 20
@@ -120,8 +120,9 @@ Resources:
       Runtime: java25
       Architectures:
         - !Ref Architecture
-      # More memory, more CPU: a cold start must still answer Route 53 in time.
-      MemorySize: 1024
+      # 512 MB: nu01-monitor waits 10 s (and retries once), so a cold start
+      # needs no extra CPU (1024 MB was for Route 53's 2 s, checks now gone).
+      MemorySize: 512
       Timeout: 10
       PermissionsBoundary: !If [HasPermissionsBoundary, !Ref PermissionsBoundary, !Ref AWS::NoValue]
       Environment:

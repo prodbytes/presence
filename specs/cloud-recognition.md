@@ -103,7 +103,9 @@ found by a detector:
   (people if a person is known, pets if a pet is) and someone known isn't
   tagged on it yet; a clip with nobody seen sends nothing. A clip is
   identified once: a new clip when it's recorded, a synced one only if no
-  device searched it for subjects yet (no `subjectSearch`); restored,
+  device searched it for subjects yet (no `subjectSearch`), by one
+  device elected for it ([Recognition](recognition.md), one device
+  recognizes each synced clip), not each one that can; restored,
   re-synced, edited or reopened clips aren't sent again, only on Auto.
 - **Cost**: DINOv2-L takes some 3 s a crop at 3008 MB, about 9 GB-s, so
   a crop costs about US$0.00012 (Lambda's arm64 price). At 2 crops a clip
@@ -343,21 +345,35 @@ the same size differ: some answer twice as fast, so each size ran on 3 to
 
 ### Warm-up
 
-A new identify or training instance takes **over a minute** before it
+A new identify or describe instance takes **over a minute** before it
 answers: 55 s to fetch DINOv2's 1.2 GB from the bucket (in ranges or one
 stream alike: the instance's bandwidth is the limit), 3 s to load it, then
 the crops. That's past the API's 30 s, and the app's second try finds
-another new instance, as the first is still busy. So each recognition
-function (identify, training, describe) has a **schedule**: EventBridge
-invokes it **every 5 minutes** with `{"rawPath": "/warmup"}`
+another new instance, as the first is still busy. So in **prod** the
+identify and describe functions each have a **schedule**: EventBridge
+invokes them **every 5 minutes** with `{"rawPath": "/warmup"}`
 (template.yaml, the `Warm` event), and the handler, before anything else,
 loads its model if that instance hasn't (`RecognitionApi.warmup`, `warm`:
 an event with no route, which the API always gives; logged as `presence:
 timing warm`). The instance stays loaded between requests, and when
-Lambda replaces it, the schedule pays the load, not a person.
+Lambda replaces it (some every 2 hours, an 81 s reload), the schedule pays
+the load, not a person.
 
-- Cost: some 8,600 invocations a month per function, a few milliseconds
-  each once loaded, plus one load per new instance.
+- **Prod only**: the auth API template's `Stage` parameter (`prod` by
+  default, `rc`; `scripts/deploy.sh` passes its `STAGE`) and the `WarmUp`
+  condition (`Stage` is `prod` and `LocalCloud` is `false`) set each
+  `Warm` rule's state: `ENABLED` in prod, `DISABLED` in the RC stage and
+  the local stack (the rule exists but never fires). The RC stage has
+  little traffic, so its first recognition request after a while may
+  time out once while the model loads.
+- **Training has no warm-up**: it runs in the background (daily), so a
+  cold start's minute doesn't matter; a request that times out at the
+  API still loads the model, and the next try finds it.
+- Cost: some 8,600 invocations a month per warmed function, a few
+  milliseconds each once loaded, plus a model load (about 81 s at
+  3008 MB) per new instance. Six warm-ups (three functions, two stages)
+  measured about **US$4.6 a month** in fixed cost; the two left (prod's
+  identify and describe) save about **US$2.9 a month** of it.
 - The deploy role may create these rules (`<prefix>-*` EventBridge rules,
   [presence_infra/github-deploy.yaml](../presence_infra/github-deploy.yaml);
   see [Production deploy](deploy.md)), applied by hand before the deploy.
