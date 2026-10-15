@@ -6739,3 +6739,18 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Its last step now says to update and relaunch the app on the
       connected iPhone and Android phone, if available, rather than on
       "connected usb devices".
+
+460. **Write the code that makes an HTML report of profiles, devices,
+     profiles per device and costs.** (2026-10-15)
+     - Asked: the number of profiles and devices, the average number of
+       profiles per device with its deviation beside it in smaller type,
+       the estimated cost per device per month and the total per month,
+       as accurately as possible.
+     - Added `scripts/cost-report.py` (Python, the AWS CLI only): profiles
+       and devices from each stage's ProfilesTable, costs from Cost
+       Explorer's usage charges over the last 30 full days (credits left
+       out), Presence's services only, split into per device and fixed,
+       scaled to a month. Tests: `scripts/cost_report_test.py` (7 pass).
+     - First run: 5 profiles, 4 devices, 1.00 ± 0.00 profiles per device,
+       $0.24 per device, $7.51 a month (Route 53 $6.28).
+     - Specs: [Cost report](cost-report.md) (new), [README](README.md).

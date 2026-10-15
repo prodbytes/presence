@@ -260,6 +260,9 @@ their data.
 
 - [Development environment](dev-environment.md): devbox, the dev container,
   and the Android and iOS toolchains.
+- [Cost report](cost-report.md): `scripts/cost-report.py`'s HTML page
+  of profiles, devices, profiles per device and AWS costs per device and
+  in all.
 - [Test data](test-data.md): real photos and clips (Suerte the cat, other
   cats) in `presence_app/test/data/`, cleaned for a public repo and
   labelled in `labels.csv`, with `import.sh` to add more.
