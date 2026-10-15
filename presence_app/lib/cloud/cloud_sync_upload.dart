@@ -268,6 +268,8 @@ class _Uploader {
           etag: etag,
           clip: publishedClip,
         );
+        // Until enough other devices hold it, the bucket is polled often.
+        _sync._copyTracker.published(id, event['deviceId'] as String?);
       }
     }
     _sync._copyTracker.note(uploadedEvents).ignore();

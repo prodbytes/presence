@@ -1283,6 +1283,7 @@ void main() {
     Future<(CloudSync, LiveSync)> another({
       Duration interval = const Duration(seconds: 15),
       Duration liveInterval = const Duration(minutes: 2),
+      Stream<Set<String>?> changes = const Stream.empty(),
       DateTime Function()? now,
     }) async {
       final own = LiveSync(
@@ -1297,7 +1298,7 @@ void main() {
         backend: backend,
         store: Future.value(store),
         media: Future.value(IdbMediaStore(store)),
-        changes: const Stream.empty(),
+        changes: changes,
         debounce: Duration.zero,
         interval: interval,
         liveInterval: liveInterval,
@@ -1356,6 +1357,65 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await other.idle();
       expect(backend.listings, isNotEmpty, reason: 'timer passes');
+    });
+
+    test('an event published here and short of copies past the grace polls '
+        'the bucket every liveInterval; once another device acks it, only '
+        'every copiedInterval', () async {
+      var clock = DateTime.now().toUtc();
+      final saved = StreamController<Set<String>?>.broadcast();
+      addTearDown(saved.close);
+      final (other, _) = await another(
+        interval: const Duration(milliseconds: 10),
+        liveInterval: const Duration(milliseconds: 50),
+        changes: saved.stream,
+        now: () => clock,
+      );
+      // Recorded there; its clip has no record here, so the group's own
+      // sync (same store) can't hold a full copy and ack it.
+      await store.putEvent({
+        'id': 'mine',
+        'profileId': '1',
+        'type': 'clip_requested',
+        'time': clock.millisecondsSinceEpoch,
+        'deviceId': other.copies.deviceId,
+        'clipId': 'mine-clip',
+      });
+      saved.add({'mine'});
+      await until(() => backend.uploads.keys.any((k) => k.contains('mine')));
+      await other.idle();
+
+      // Within the grace: not short yet, the backstop is hourly.
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isEmpty, reason: 'within the grace');
+
+      // Past it, no other device holds it: the bucket every liveInterval.
+      clock = clock.add(other.ackGrace);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isNotEmpty, reason: 'short of copies');
+
+      // Another device acks it: hourly again.
+      broker.last.deliver(acksTopic, {
+        'v': 1,
+        'kind': 'copied',
+        'deviceId': 'other_device_one',
+        'identityId': identity,
+        'sentAt': now(),
+        'eventIds': ['mine'],
+      });
+      await until(() => other.copies.of('mine')?.devices.isNotEmpty ?? false);
+      await other.idle();
+      backend.listings.clear();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await other.idle();
+      expect(backend.listings, isEmpty, reason: 'enough copies');
+
+      // An hour on, the backstop lists once.
+      clock = clock.add(const Duration(hours: 1));
+      await until(() => backend.listings.isNotEmpty, reason: 'hourly');
     });
 
     test(
