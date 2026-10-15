@@ -6563,3 +6563,33 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Clips](clips.md), [Event
        copies](event-copies.md).
+
+452. **Lean events view: no hidden-devices upsell.** (2026-10-15)
+     - Asked: remove the "hidden devices, Pro shows your first 50
+       devices" message from the events view, so it stays lean; a call to
+       action only in the Profile view, and discreetly.
+     - Changed:
+       - The Monitoring tab's hidden-devices card (`DeviceLimitNotice`,
+         with its "Premium/Pro shows up to …" text and Upgrade button) is
+         gone, with `MonitoringView.notice` and its wiring in the home
+         screen. No other non-profile view (Camera, Settings/Setup) had an
+         upgrade banner; Setup's informational Premium notes stay.
+       - The Profile tab: the plan box's warning-colored "past the limit"
+         line is replaced by one small muted line under the device list
+         (`HiddenDevicesLine`): "3 devices hidden" or "This device doesn't
+         sync", and on the web " · Upgrade", a small underlined link to
+         the next plan's checkout (Premium's for free, Pro's for premium
+         once its link is set). The store apps get no link and never a
+         Pro mention. The per-device **hidden** label stays.
+       - Strings: `authHiddenCount` and `authThisDeviceHidden` added (en,
+         es, pt); `authPastLimit`, `authMoreHidden`, `authOthersHidden`,
+         `authDevicesHidden`, `authPremiumShowsUpTo` and
+         `authProShowsUpTo` dropped.
+       - Tests: `monitoring_test` (no upsell even with hidden devices),
+         `device_slots_test` (the line: absent when nothing's hidden, the
+         count, this device, the web links; in the account sheet, present
+         with a hidden device, gone without), `store_billing_test` (no
+         link and no Pro in the store apps). `flutter analyze` is clean,
+         `flutter test` passes.
+     - Specs: [Monitoring](monitoring.md), [Premium and free](premium.md),
+       [Upgrade to Premium](upgrade.md), [Sign-in](sign-in.md).
