@@ -61,8 +61,8 @@ abstract class DeviceSettings {
 /// What a restore brought down from the cloud, one batch of it: records the
 /// device didn't have (with their thumbnails), and the events it has that
 /// changed elsewhere. The recordings their clips use aren't in it: they
-/// come down afterwards, into the `MediaStore` ([CloudSync.fetchRecording],
-/// and in the background off the web).
+/// come down only when played, into the `MediaStore`
+/// ([CloudSync.fetchRecording]).
 class RemoteRecords {
   const RemoteRecords({
     this.events = const [],
@@ -109,12 +109,11 @@ enum CloudSyncState { off, syncing, synced, error }
 /// - Recordings come down after their clips, never holding them up: each
 ///   one a fetched clip uses is remembered as pending (`fetch:` entries of
 ///   the synced store) and marked as synced at once, since it's in the
-///   cloud (so it's never uploaded back). With [prefetchRecordings] (not
-///   on the web, where they'd fill IndexedDB), a background download takes
-///   the pending ones after each pass, newest first, one at a time; one
-///   that fails is skipped until the next full fetch, and what's left
-///   resumes after the next pass. Playing a clip whose recording isn't here
-///   yet downloads it then ([fetchRecording]), on any platform.
+///   cloud (so it's never uploaded back). Nothing downloads them in the
+///   background: playing a clip whose recording isn't here yet downloads
+///   it then ([fetchRecording]), on any platform, and it's kept; so does
+///   another device asking for a copy ([shareCopies]). Each device taking
+///   every other device's recordings was most of the AWS bill.
 /// - Uploads look only at the events saved since the last pass (`changes`
 ///   names them), with their clips. A reconciliation, which looks at every
 ///   stored event, runs on the first pass for a user, with each full fetch
@@ -184,12 +183,10 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     this.live,
     MediaSeal? seal,
     EventCopies? copies,
-    bool? prefetchRecordings,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now,
        _ownsCopies = copies == null,
-       seal = seal ?? MediaSeal.instance,
-       prefetchRecordings = prefetchRecordings ?? !kIsWeb {
+       seal = seal ?? MediaSeal.instance {
     this.copies = copies ?? EventCopies(store: _store);
     auth.addListener(_onAuthChanged);
     roles?.addListener(_onAuthChanged);
@@ -265,11 +262,6 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   /// events uploaded late, by a device that was offline) rather than only
   /// today and yesterday.
   final Duration fullFetchEvery;
-
-  /// Whether fetched clips' recordings are downloaded in the background
-  /// after each pass (Android and desktop), rather than only when played
-  /// (the web, whose IndexedDB quota a profile's recordings would fill).
-  final bool prefetchRecordings;
   final DateTime Function() _now;
 
   /// Receives what a fetch downloaded, after it's marked as synced (the app
@@ -501,19 +493,16 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
   int get downloaded => _downloaded;
 
   /// Completes when the current sync (if any) has finished (for tests),
-  /// background downloads of recordings and copy checks included.
+  /// copy checks included.
   Future<void> idle() async {
     // Let pending change notifications reach the listener first.
     await Future<void>.delayed(Duration.zero);
-    while (_running != null ||
-        _recordings.running != null ||
-        (_timer?.isActive ?? false)) {
+    while (_running != null || (_timer?.isActive ?? false)) {
       if (_timer?.isActive ?? false) {
         _timer!.cancel();
         _startNow();
       }
       await _running;
-      await _recordings.running;
       await _copyTracker.checks;
       await Future<void>.delayed(Duration.zero);
     }
@@ -580,7 +569,6 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
     _dirty.clear();
     _failures = 0;
     _ticksToSkip = 0;
-    _recordings.forgetFailures();
     _fetcher.reset();
     _handedOver.clear();
   }
@@ -764,11 +752,7 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       final full =
           _forceFull || last == null || now.difference(last) >= fullFetchEvery;
       _forceFull = false;
-      if (full) {
-        reconcile = true;
-        // Recordings that failed get another try.
-        _recordings.forgetFailures();
-      }
+      if (full) reconcile = true;
       // Read again at each reconciliation, so entries pruned with the
       // events they were for go from memory too.
       if (_synced == null || reconcile) {
@@ -847,7 +831,6 @@ class CloudSync extends ChangeNotifier implements EventCopyActions {
       _failures = 0;
       _ticksToSkip = 0;
       _set(CloudSyncState.synced);
-      _recordings.start();
       if (used case final session?) await _liveBridge.start(session, owner);
     } on _Abandoned {
       // Signed out, another profile, or stopped meanwhile: whatever comes

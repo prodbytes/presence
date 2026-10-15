@@ -169,7 +169,6 @@ void main() {
         changes: changes.stream,
         debounce: Duration.zero,
         live: live,
-        prefetchRecordings: false,
         onRemote: (r) async {
           remote.add(r);
           for (final c in r.clips) {

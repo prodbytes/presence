@@ -840,7 +840,6 @@ void main() {
         changes: changes.stream,
         debounce: Duration.zero,
         live: live,
-        prefetchRecordings: false,
         onRemote: (r) async {
           remote.add(r);
           // As the app does (Persistence.importRemote).
@@ -1255,7 +1254,6 @@ void main() {
         media: Future.value(IdbMediaStore(store)),
         changes: const Stream.empty(),
         debounce: Duration.zero,
-        prefetchRecordings: false,
         onRemote: (r) async {
           arrived.add(r);
           for (final c in r.clips) {
@@ -1295,7 +1293,6 @@ void main() {
         interval: interval,
         liveInterval: liveInterval,
         live: own,
-        prefetchRecordings: false,
         now: now,
         onRemote: (r) async => remote.add(r),
       );

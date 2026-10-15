@@ -6171,3 +6171,30 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        LISTs per device drop from about 345,000 to about 54,000 a month
        (about $9 to $1.40 for 5 devices). Specs: [Cloud sync](cloud-sync.md),
        [Live sync](live-sync.md).
+
+440. **Cut the S3 transfer cost: recordings aren't prefetched.**
+     (2026-10-15)
+     - Asked: cut the S3 transfer cost by not prefetching recordings
+       (from the per-user cost estimate, request 436: each device
+       downloading every other device's recordings was about $52 of the
+       $80 a month).
+     - Changed: `CloudSync` no longer downloads pending recordings in the
+       background on Android, iOS and desktop (`prefetchRecordings` and
+       the background run in `_Recordings` removed). Events, clip records,
+       thumbnails and tagged frames sync as before; a recording comes down
+       only when its clip is played, or its frames read
+       (`CloudSync.fetchRecording` via `Persistence.fetchMissingMedia`,
+       the web's path, now every platform's), with the player's spinner
+       meanwhile, and is kept. A device asked for a copy of an event it
+       has unchanged ("Tap to sync a copy to every device") downloads its
+       recording then (`_Recordings.fetchPending`). So other devices'
+       clips count as held here only once played or asked for.
+     - Tests: `cloud_sync_test.dart` (no recording downloaded by passes
+       or a full fetch; one downloaded when played, kept, not downloaded
+       again; a failed one retried when played again; expired
+       credentials renewed) and `event_copies_test.dart` (the other
+       device holds the capture only once a copy is asked for). 995
+       Flutter tests pass; `flutter analyze` is clean.
+     - Specs: [Cloud sync](cloud-sync.md), [Event copies](event-copies.md),
+       [Live sync](live-sync.md), [Camera](camera.md#all-devices),
+       [Premium](premium.md).
