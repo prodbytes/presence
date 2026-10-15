@@ -33,7 +33,8 @@ record) says which part of the file the clip is; players start there. See
   key, AES-256-GCM in chunks; see [Media encryption](encryption.md)) in
   storage and in the bucket: the formats below are what's inside.
 - **Images** are JPEG: the clip's **thumbnail** (the camera's frame when
-  the clip was asked for, about 20 KB) and each **tagged frame** (the frame
+  the clip was asked for, about 20 KB, or a later frame of the recording
+  when that one was black) and each **tagged frame** (the frame
   someone tagged on, at most 960 px wide, about 50 KB; at most 1280 px for
   frames recognition tagged, a few times bigger, as sharp as the
   recording for later matching).
@@ -116,6 +117,12 @@ One per clip, about 400 bytes, in the same day partition as its event:
 | `supported` | boolean | whether the camera could record |
 | `state` | string | `recording`, `complete` or `failed`; only `complete` clips are uploaded |
 | `full` (or `past`) | object | the recording: `{mediaId, startMs, endMs, mimeType}`, the window inside the file and its type; `past` when only the before part was saved |
+| `thumbnailRedone` | integer (ms, UTC) | when the thumbnail, black or missing, was made again from the recording ([Clips](clips.md)); absent otherwise |
+
+The local record also has `thumbnail` (the sealed JPEG) and
+`thumbnailCheck` (`ok`, `dark` or `noRecording`: how the thumbnail was
+found, so it's checked once), neither uploaded; one fetched or received
+is checked again here.
 
 ### Device settings — `devices/<deviceId>/settings.json`
 

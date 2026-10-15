@@ -6610,7 +6610,48 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Monitoring](monitoring.md), [Premium and free](premium.md),
        [Upgrade to Premium](upgrade.md), [Sign-in](sign-in.md).
 
-454. **Set the Apple team ID (`LMX88986F3`), continue publishing the app,
+454. **Every event has a thumbnail: black ones made again.** (2026-10-15)
+     - Asked: "Got a black event. Make sure all events have a thumbnail;
+       regenerate if necessary."
+     - Cause: a clip's thumbnail is the camera's frame at the trigger
+       (`captureFrame`, the same on Android, iOS and the web), taken
+       while the night light (torch or screen) only starts with the clip,
+       or while a camera just opened is still opening up its exposure (a
+       Clip press or Capture all right after the camera opens), or a frame
+       that didn't decode: black. Nothing checked it, and the card showed
+       it as it was.
+     - Changed:
+       - `ThumbnailMaker` (`lib/clips/clip_thumbnail.dart`): a thumbnail
+         whose mean luma (BT.601, read 64 px wide on a grid of at most
+         64 × 64 pixels) is below 16 is black; a black or missing one is
+         made from the recording, from its middle on (middle, 0.7, 0.9:
+         the first frame that isn't black, 480 px wide, sealed), or, all
+         black (a night scene), the brightest, shown as a placeholder.
+         Frames come from the recognition sampler (`ClipFrameSampler`,
+         now with `from`), so no native code changed.
+       - `Persistence.thumbnails` (set where recordings can be read:
+         Android, iOS, web) checks each clip once (`thumbnailCheck` in its
+         local record): this device's clips as they're recorded, every
+         clip restored or fetched, one at a time 250 ms apart, and another
+         device's clip once its recording comes down to be played. Only
+         recordings stored here are read, never downloaded for it. A new
+         thumbnail is stored (`thumbnailRedone`), replaces the card's
+         (`VideoClip.replaceThumbnail`), and names its event changed.
+       - Cloud sync uploads a remade thumbnail again (fingerprint
+         `thumbnail@<thumbnailRedone>`), and never `thumbnailCheck`.
+       - The card shows a placeholder (camera icon) for a missing or
+         black thumbnail, never a black box; the All grid skips black
+         ones. Events of other kinds have no thumbnail and are unchanged.
+       - Tests: `clip_thumbnail_test` (black detection, the frame chosen
+         instead, all dark, no recording, regeneration in `Persistence`
+         stored and named changed, nothing fetched for another device's
+         clip, the card's placeholder and its update), `cloud_sync_test`
+         (a remade thumbnail goes up again, a check alone sends nothing).
+         `flutter analyze` is clean, `flutter test` passes.
+     - Specs: [Clips](clips.md), [Recording and data
+       formats](data-formats.md), [Cloud sync](cloud-sync.md).
+
+455. **Set the Apple team ID (`LMX88986F3`), continue publishing the app,
      and save all credentials to the credentials repo (setec astronomy),
      cloned one directory up.** (2026-10-15)
     - `APPLE_TEAM_ID` was already `LMX88986F3`, so it stays as it is.

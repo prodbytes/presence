@@ -22,6 +22,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
   Stream<SampledFrame> sample(
     ClipMedia media, {
     required Duration every,
+    Duration? from,
     int maxWidth = ClipFrameSampler.defaultMaxWidth,
   }) async* {
     // Held while sampling, so it isn't freed meanwhile (the clip being
@@ -49,7 +50,7 @@ class PlatformFrameSampler implements ClipFrameSampler {
       final context =
           canvas.getContext('2d', {'willReadFrequently': true}.jsify())!
               as web.CanvasRenderingContext2D;
-      for (var at = media.start; at < media.end; at += every) {
+      for (var at = from ?? media.start; at < media.end; at += every) {
         video.currentTime = at.inMicroseconds / 1e6;
         if (!await _once(video, 'seeked', seekTimeout)) continue;
         context.drawImage(video, 0, 0, canvas.width, canvas.height);

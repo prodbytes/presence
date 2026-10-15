@@ -14,6 +14,35 @@ file of *before* + *after* once the *after* seconds have passed.
    recording next 10 s…". On a narrow list the thumbnail is on top, 16:9
    at the card's width; from 600 dp on it sits beside the details, 16:9
    and 320 dp wide (`ClipEventCard.sideBySideWidth`).
+   - **Never a black box.** The camera's frame at the trigger is black
+     when the camera is still starting (its exposure opening up), at
+     night just before the torch or the screen lights the scene, or when
+     the frame couldn't be decoded. So once a clip is recorded, its
+     thumbnail is checked (`ThumbnailMaker`, `lib/clips/clip_thumbnail.dart`,
+     on Android, iOS and the web, where recordings can be read): read 64
+     px wide, its **mean luma** (BT.601, 0–255, on a grid of at most 64 ×
+     64 pixels) **below 16** (`ThumbnailMaker.darkBelow`) is black. 16 is
+     video's black level; a dim night picture is brighter (night starts
+     at 40, [Night mode](night-mode.md)), so it's kept. A black or missing
+     thumbnail is **made again from the recording**: its middle, then 0.7
+     and 0.9 of the way (the scene lit by then), the first frame that
+     isn't black, at most 480 px wide, sealed. If every frame is black
+     too (a real night scene), the brightest is kept (if brighter than
+     the thumbnail) and the card shows the **placeholder** (a camera icon
+     on the card's lowest surface color, as for a clip without a
+     thumbnail); so does the All grid, which takes the device's newest
+     clip with a thumbnail that isn't black.
+   - **Regenerated in the background:** `Persistence` checks each clip
+     once (`thumbnailCheck` in its local record): this device's clips as
+     they're recorded, every clip restored at launch or fetched (newest
+     first, one at a time, 250 ms apart), and another device's clip once
+     its recording comes down to be played. Only recordings stored on
+     the device are read: none is downloaded for it (cost). Another
+     device's black thumbnail whose recording isn't here shows the
+     placeholder until it is. A new thumbnail is stored, replaces the
+     card's at once, and names its event changed, so for a premium
+     profile cloud sync uploads it (`thumbnailRedone`, see [Cloud
+     sync](cloud-sync.md)).
    - **With a subject tagged**, the thumbnail is instead **the frame of
      the first subject seen** in the clip (`firstSubject`: of the tags
      with a frame, not suggestions, the earliest frame), whole on black so
