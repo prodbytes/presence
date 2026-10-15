@@ -559,6 +559,7 @@
   "@cameraClip": {
     "description": "The Clip button's label"
   },
+  "cameraClipArchived": "Archived: this video is in cold storage",
   "cameraClipCameraOff": "Camera off",
   "cameraClipCountdown": "Clip · {time}",
   "@cameraClipCountdown": {
@@ -951,6 +952,7 @@
   "eventAlreadyDeleted": "Event already deleted",
   "eventCancel": "Cancel",
   "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventCloudColdStorage": "Its recording is in cold storage: it can't be played from the cloud",
   "eventCloudDelete": "Delete",
   "eventCloudDeleteBody": "Its recording, thumbnail and tags are deleted from the cloud. This device won't upload it again unless you put it back.",
   "eventCloudDeleteFailed": "Couldn't delete it from the cloud",
@@ -972,6 +974,7 @@
     }
   },
   "eventCopiesCloud": "Cloud",
+  "eventCopiesCloudColdStorage": "Cloud (cold storage)",
   "eventCopiesLiveOff": "Live sync is off: other devices' copies are unknown",
   "eventCopiesNone": "No copy known",
   "eventCopiesNotSynced": "Not synced",

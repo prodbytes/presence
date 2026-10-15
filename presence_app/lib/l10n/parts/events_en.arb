@@ -424,6 +424,8 @@
     }
   },
   "eventCloudArchived": "Archived in the cloud (not on this device)",
+  "eventCloudColdStorage": "Its recording is in cold storage: it can't be played from the cloud",
+  "eventCopiesCloudColdStorage": "Cloud (cold storage)",
   "eventRecognitionTapToRerun": "Tap to run recognition",
   "eventRecognitionRerunning": "Running recognition…",
   "eventCloudTapToPut": "Tap to put it in the cloud",

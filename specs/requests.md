@@ -6508,3 +6508,38 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          the pass going on); the fake S3 answers 404 (or 403) for a
          missing key. `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md).
+
+450. **Archived recordings: cold storage after 67 days.** (2026-10-15)
+     - Asked: keep cloud data 67 days, then archive it to the coldest
+       Glacier tier, deleting everything after 365 days.
+     - Changed (the app's handling of archived recordings; the bucket's
+       lifecycle itself is in a separate PR):
+       - S3 errors are classified by their XML `<Code>`
+         (`S3Exception.code`): a GET of an object in Glacier Deep Archive
+         answers 403 `InvalidObjectState`, now `archived`, and never
+         `credentialsRejected` (only `AccessDenied`, `ExpiredToken`,
+         `InvalidToken`; by their words only without a code), so it never
+         renews the credentials or stops sync.
+       - `CloudSync.fetchRecording` returns `RecordingFetch` (`stored`,
+         `missing`, `archived`); an archived recording is remembered while
+         the app runs (no GET again), its load fails with
+         `RecordingArchived`, and the player (native and web) says
+         "Archived: this video is in cold storage" (en, es, pt) instead
+         of "Couldn't load this clip". Restoring isn't supported yet.
+       - A pass skips archived objects like gone ones
+         (`_Fetcher._getOrSkip`, `_getIfThere`): a thumbnail or frame left
+         out, the pass going on.
+       - Event copies: a clip older than 67 days held by the cloud is in
+         cold storage (`EventCopies.coldStorageAfter`,
+         `CopiesSummary.coldStorage`): the cloud indicator's tooltip says
+         its recording can't be played from the cloud, and the copies'
+         holders say "Cloud (cold storage)".
+       - Tests: `s3_test` (the codes), `cloud_sync_test` (an archived
+         recording, with the fake S3 answering 403 `InvalidObjectState`:
+         archived, not asked again, credentials not renewed, sync going
+         on; a pass meeting archived objects stays synced),
+         `persistence_test` (the player shows the archived message),
+         `event_copies_test` (cold storage in the summary and tooltips).
+         `flutter analyze` is clean, `flutter test` passes.
+     - Specs: [Cloud sync](cloud-sync.md), [Clips](clips.md), [Event
+       copies](event-copies.md).

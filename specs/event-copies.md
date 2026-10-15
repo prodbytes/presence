@@ -139,12 +139,22 @@ that size on a narrow card: the device's name beside them gives way
     color (Gruvbox aqua) when the cloud holds a copy and this device
     doesn't, or not in full, e.g. another device's clip whose recording
     isn't downloaded here ("Archived in the cloud (not on this device)").
+  - **Cold storage:** for a clip recorded more than **67 days** ago
+    (`EventCopies.coldStorageAfter`, `inColdStorage`) that the cloud
+    holds, the tooltip adds "Its recording is in cold storage: it can't
+    be played from the cloud": the bucket's lifecycle moved its
+    recording to S3 Glacier Deep Archive, and restoring isn't supported
+    yet (see [Cloud sync](cloud-sync.md), "Archived recordings"). It's
+    judged by the clip's time (its recording goes up soon after), at
+    display (`CopiesSummary.coldStorage`, from `summaryOf(clipTime:)`);
+    `copyOf` still counts it as a cloud copy.
 - **Copies:** an icon and **just the number of devices** holding a copy,
   this device and others; the cloud isn't counted, since it has its own
   indicator (`EventCopiesBadge`, `CopiesSummary.devices`). The tooltip and
   the screen-reader label say it ("On 2 devices") and list every holder,
   this device first, then the cloud, then devices ("This device, Cloud,
-  loud_shy_kettle"). One icon for one device, another for more.
+  loud_shy_kettle"). One icon for one device, another for more. The
+  cloud is "Cloud (cold storage)" there for a clip in cold storage.
 
 ### Tapped
 
@@ -236,6 +246,10 @@ They show:
   in the cloud, "2 copies" for one received from its device and not
   uploaded from here, "Not synced" for one held only here or not known); the holders survive
   a restart, bounded to the newest;
+- a clip older than 67 days held by the cloud is in cold storage ("This
+  device, Cloud (cold storage)"), one of 66 days isn't, nor an event
+  without a clip or one not in the cloud; its cloud indicator's and copies'
+  tooltips say so;
 - `copyOf`: an event without media, another device's clip (held here only
   with its recording downloaded), a clip recorded here (in the cloud once
   its recording is), tagged frames;

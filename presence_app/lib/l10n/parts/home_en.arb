@@ -247,6 +247,7 @@
   },
   "cameraAskedFreshGrab": "Asked for a fresh grab",
   "cameraClipLoadFailed": "Couldn't load this clip",
+  "cameraClipArchived": "Archived: this video is in cold storage",
   "cameraClipPreview": "Preview",
   "cameraClipRecordingNext": "Recording the next {seconds} s…",
   "@cameraClipRecordingNext": {

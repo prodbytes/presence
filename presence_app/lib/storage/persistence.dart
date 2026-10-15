@@ -8,7 +8,8 @@ import '../annotations.dart';
 import '../camera_feeds.dart';
 import '../cameras/cameras.dart';
 import '../clips.dart';
-import '../cloud/cloud_sync.dart' show CloudSync, DeviceSettings;
+import '../cloud/cloud_sync.dart'
+    show CloudSync, DeviceSettings, RecordingFetch;
 import '../events.dart';
 import '../config.dart';
 import '../consent/device_consent.dart';
@@ -98,8 +99,11 @@ class Persistence implements DeviceSettings {
   /// Downloads the recording [mediaId] of clip [clipId] into the media
   /// store when a clip is played and it isn't there (a clip fetched from
   /// the cloud whose recording hasn't come down yet), and says whether it
-  /// did. Set by the app to `CloudSync.fetchRecording`.
-  Future<bool> Function(String clipId, String mediaId)? fetchMissingMedia;
+  /// did ([RecordingFetch]). Set by the app to `CloudSync.fetchRecording`.
+  /// An archived one (cold storage) fails the load with
+  /// [RecordingArchived], which the player says.
+  Future<RecordingFetch> Function(String clipId, String mediaId)?
+  fetchMissingMedia;
 
   /// The signed-in user's ID, or null when nobody is signed in.
   final String? Function()? currentUser;
@@ -1292,8 +1296,15 @@ class Persistence implements DeviceSettings {
           return await media.load(mediaId, mimeType);
         } catch (_) {
           final fetch = fetchMissingMedia;
-          if (fetch == null || !await fetch(clipId, mediaId)) rethrow;
-          return media.load(mediaId, mimeType);
+          if (fetch == null) rethrow;
+          switch (await fetch(clipId, mediaId)) {
+            case RecordingFetch.stored:
+              return media.load(mediaId, mimeType);
+            case RecordingFetch.archived:
+              throw const RecordingArchived();
+            case RecordingFetch.missing:
+              rethrow;
+          }
         }
       },
       start: Duration(milliseconds: ref['startMs'] as int? ?? 0),

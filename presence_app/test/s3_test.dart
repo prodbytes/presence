@@ -9,6 +9,45 @@ import 'package:presence_app/cloud/sigv4.dart';
 void main() {
   group('clock skew', clockSkewTests);
 
+  group('errors', () {
+    S3Exception error(int status, String code, [String message = '']) =>
+        S3Exception(
+          status,
+          '<?xml version="1.0" encoding="UTF-8"?>\n'
+          '<Error><Code>$code</Code><Message>$message</Message></Error>',
+        );
+
+    test('an archived object (403 InvalidObjectState) is archived, never '
+        'rejected credentials', () {
+      final e = error(
+        403,
+        'InvalidObjectState',
+        // Even with words of other codes in its message.
+        "The operation is not valid for the object's storage class "
+            '(not AccessDenied, ExpiredToken, RequestTimeTooSkewed)',
+      );
+      expect(e.code, 'InvalidObjectState');
+      expect(e.archived, isTrue);
+      expect(e.credentialsRejected, isFalse);
+      expect(e.clockSkewed, isFalse);
+    });
+
+    test('the credentials are rejected by their codes only', () {
+      for (final code in ['AccessDenied', 'ExpiredToken', 'InvalidToken']) {
+        expect(error(403, code).credentialsRejected, isTrue, reason: code);
+        expect(error(403, code).archived, isFalse, reason: code);
+      }
+      expect(error(403, 'SignatureDoesNotMatch').credentialsRejected, isFalse);
+      expect(error(404, 'NoSuchKey').credentialsRejected, isFalse);
+      // Only a 403 is archived.
+      expect(error(404, 'InvalidObjectState').archived, isFalse);
+      // No code (a HEAD's empty answer, or not XML): by its words.
+      expect(S3Exception(403, 'AccessDenied').credentialsRejected, isTrue);
+      expect(S3Exception(403, '').credentialsRejected, isFalse);
+      expect(S3Exception(403, '').code, isNull);
+    });
+  });
+
   test('another endpoint (the local Floci) is reached path-style', () async {
     final sent = <http.BaseRequest>[];
     final bucket = S3Bucket(

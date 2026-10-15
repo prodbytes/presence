@@ -51,6 +51,13 @@ file of *before* + *after* once the *after* seconds have passed.
    Monitoring tab's timeline that takes a **long press**: a click there
    filters the events by the label instead (see [Events](events.md),
    "Tapping a tag or subject filters by it").
+   A clip fetched from the cloud whose recording isn't here downloads it
+   first (a spinner meanwhile). If it can't be had, the player says
+   "Couldn't load this clip"; if the cloud's copy is **archived** (S3
+   Glacier Deep Archive, 67 days after upload), it says **"Archived: this
+   video is in cold storage"** instead (`RecordingArchived`), with no
+   retry: restoring isn't supported yet. See [Cloud
+   sync](cloud-sync.md), "Archived recordings".
 4. **Playback has audio.** The player is never muted. If the browser blocks
    autoplay with sound, the player stays paused on its controls, and one tap
    on play starts it with audio.
