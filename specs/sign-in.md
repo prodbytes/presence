@@ -73,9 +73,13 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
 
 - Offered only on iOS (`appleSignInSupported`: never on web or Android),
   **beside Google with equal prominence**: the signed-out account sheet
-  stacks Apple's button (`SignInWithAppleButton`: black in light mode,
-  white in dark, Apple's logo, "Sign in with Apple" translated) over
-  Google's, both full width, 48 high, pill-shaped. The app bar has room
+  stacks Apple's button over Google's, both full width, 44 high (Apple's
+  minimum), pill-shaped, 16 sp medium titles
+  ([brand_buttons.dart](../presence_app/lib/auth/brand_buttons.dart)).
+  Apple's (`AppleSignInButton`) is the app's own, per Apple's guidelines:
+  black in light mode, white in dark, Apple's logo and "Sign in with
+  Apple" translated (the package's button forced a 21 sp SF title that
+  was too big and rendered badly). The app bar has room
   for one button at 320 dp, so on iOS it shows **Sign in**, which opens a
   sheet with both (`SignInSheet`); it closes once signed in.
 - It asks Apple for the **email and full name**, with a **nonce**: 32
@@ -158,7 +162,13 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
   `renderButton` with FedCM, medium size to fit the app bar), as Google
   Identity Services requires. On Android and iOS it's an app button that
   starts Google's sign-in: Credential Manager's Sign in with Google sheet,
-  or the Google SDK. While the launch check runs, the button is hidden. If
+  or the Google SDK. That button (`GoogleSignInButton`) follows Google's
+  branding guidelines: the four-colour "G" (painted from Google's SVG)
+  and "Sign in with Google", on white with a `#747775` border and
+  `#1F1F1F` text in light mode, on `#131314` with a `#8E918F` border and
+  `#E3E3E3` text in dark; pill-shaped, 40 high with a 14 sp title in the
+  app bar (it fits beside the account actions at 360 dp), 44 high in the
+  account sheet. While the launch check runs, the button is hidden. If
   no client ID is configured, a person icon opens a sheet saying sign-in
   isn't set up. Sign-in errors show as a message pill over the camera
   ("Sign-in failed: <reason>"; see [Navigation](navigation.md)), and are
@@ -393,8 +403,9 @@ Signing in unlocks the navigation; there's no separate sign-in screen:
   exchange unreachable retried quietly, refused not retried; off Android,
   the quiet check's token exchanged.
 - `apple_sign_in_test.dart`: Apple offered on iOS only; both buttons the
-  same size on iOS, Google alone on Android and web; Apple's button
-  white and translated in dark mode in Spanish; at 320 dp the app bar's
+  same size (44 high) on iOS, Google alone on Android and web; Apple's
+  button black and Google's white with their logos in light mode, Apple's
+  white and Google's `#131314` in dark mode, translated in Spanish; at 320 dp the app bar's
   **Sign in** opens both and closes once signed in.
 - `flutter build ios --simulator --debug` builds with the entitlement.
 

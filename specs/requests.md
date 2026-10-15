@@ -6075,3 +6075,17 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Changed: the payments API's `SessionIssuer` may be the site's root
        (or, as before, `/api/auth`). Spec: none changed (the template's
        pattern).
+
+434. **The sign-in buttons: Apple's broken and too big, Google's
+     unbranded.** (2026-10-15)
+     - Asked: Sign in with Apple's button was broken and too big, and Sign
+       in with Google's wasn't branded; fix both.
+     - Changed: both are now the app's own brand buttons
+       (`brand_buttons.dart`), 44 high and pill-shaped with 16 sp titles.
+       Apple's replaces `sign_in_with_apple`'s `SignInWithAppleButton`
+       (whose title was 43% of the height in a forced SF font): Apple's
+       logo on black, white in dark mode. Google's replaces the plain
+       Material button on Android and iOS with Google's branded one: the
+       four-colour "G" on white (light) or `#131314` (dark) with Google's
+       border and text colours; 40 high with a 14 sp title in the app bar.
+       Web keeps Google's rendered button. Spec: [Sign-in](sign-in.md).
