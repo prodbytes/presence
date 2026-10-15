@@ -26,6 +26,7 @@ can be viewed from another device.
 - Make a Raspberry Pi a camera that starts at boot: the
   `presence-<tag>-raspberrypi-arm64.deb` package; see
   [Raspberry Pi](#raspberry-pi).
+- What's planned but not built yet: [ROADMAP.md](ROADMAP.md).
 
 > [!IMPORTANT]
 > **Make sure you're allowed to record.** Presence records video *and
