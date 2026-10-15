@@ -6508,3 +6508,28 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          the pass going on); the fake S3 answers 404 (or 403) for a
          missing key. `flutter analyze` is clean, `flutter test` passes.
      - Specs: [Cloud sync](cloud-sync.md), [Live sync](live-sync.md).
+
+450. **"Who is this?": ask the user to tag an unnamed person or pet.** (2026-10-15)
+     - Asked: when a person or pet is detected but no subject tag is
+       found, request the user to tag it ("Who is this?").
+     - Changed:
+       - A new event, **"Who is this?"** (`SubjectRequest`,
+         `type: subject_request`, with `clipEventId`, `sorts` and `ms`),
+         published by the recognizer at the end of an automatic run when
+         the clip is still **unidentified** and no "Is this Rex?" was
+         asked on it; once per clip, not after Auto.
+       - Its card: the clip's thumbnail, "Who is this?", "A person was
+         seen · camera · time" and **Identify**, which opens the player
+         paused at the first sighting with the identify hint. Once
+         everyone's named it says "✓ Named Ana" instead.
+       - It's a grab (shows with system events hidden), searchable, saved
+         and synced, linked to its clip on restore, and deleted with its
+         clip like a suggestion (`_asksAboutClip` in persistence).
+       - Strings in English, Spanish and Portuguese.
+       - Tests: `recognition_test` (asked once, its sorts and sighting,
+         not for named clips, nothing seen, or Auto; round-trip; the
+         card's Identify and answer).
+     - Specs: [Event flags](event-flags.md#who-is-this),
+       [Recognition](recognition.md), [Subjects](subjects.md),
+       [Events](events.md), [Data formats](data-formats.md),
+       [Device deletion](device-deletion.md), [README](README.md).

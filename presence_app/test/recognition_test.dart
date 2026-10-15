@@ -11,6 +11,7 @@ import 'package:presence_app/cameras/clip_player_controller.dart';
 import 'package:presence_app/clips.dart';
 import 'package:presence_app/config.dart';
 import 'package:presence_app/copies_badge.dart';
+import 'package:presence_app/event_flags.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/auth/roles_service.dart';
 import 'package:presence_app/recognition/cloud_recognition.dart';
@@ -20,6 +21,7 @@ import 'package:presence_app/recognition/matching.dart';
 import 'package:presence_app/recognition/memory.dart';
 import 'package:presence_app/recognition/recognizer.dart';
 import 'package:presence_app/recognition/runtime.dart';
+import 'package:presence_app/recognition/subject_request.dart';
 import 'package:presence_app/recognition/suggestion.dart';
 import 'package:presence_app/recognition/vision.dart';
 import 'package:presence_app/subjects.dart';
@@ -846,6 +848,34 @@ void main() {
       expect(back.time, s.time);
       expect(SubjectSuggestion.fromRecord({'id': 'x', 'time': 0}), isNull);
     });
+
+    test('a "Who is this?" event round-trips', () {
+      final r = SubjectRequest(
+        clipEventId: 'c1',
+        sorts: {SubjectSort.pet},
+        ms: 2500,
+        cameraId: 'cam',
+        time: DateTime(2026, 10, 1, 12),
+        id: 'r1',
+      );
+      expect(r.title, 'Who is this?');
+      expect(r.detail, 'A pet was seen');
+      expect(r.toRecord()['type'], 'subject_request');
+      final back = SubjectRequest.fromRecord(r.toRecord())!;
+      expect(back.clipEventId, 'c1');
+      expect(back.sorts, {SubjectSort.pet});
+      expect(back.ms, 2500);
+      expect(back.time, r.time);
+      expect(back.id, 'r1');
+      expect(SubjectRequest.fromRecord({'id': 'x', 'time': 0}), isNull);
+      expect(
+        SubjectRequest.fromRecord({
+          ...r.toRecord(),
+          'sorts': ['unicorn'],
+        }),
+        isNull,
+      );
+    });
   });
 
   group('recognizer', () {
@@ -1394,6 +1424,78 @@ void main() {
       expect(rerun.objects, ['human', 'cat', 'bicycle']);
       expect(vision.frameCalls, 8);
       expect(event.annotations.objects, hasLength(3));
+    });
+
+    test('"Who is this?": asked once about a person or pet nobody can '
+        'name', () async {
+      final vision = FakeVision(
+        {},
+        {},
+        objects: {
+          0: {'car': 0.9},
+          1: {'dog': 0.9, 'human': 0.9},
+          2: {'dog': 0.9, 'human': 0.9},
+        },
+      );
+      final r = recognizer(vision, FakeSampler(3));
+      final event = ClipRequested(clip(), id: 'new');
+      await r.recognize(event);
+      await Future<void>.delayed(Duration.zero);
+      final request = published.whereType<SubjectRequest>().single;
+      expect(request.clipEventId, 'new');
+      expect(request.sorts, {SubjectSort.person, SubjectSort.pet});
+      // Where the first of them was seen, not the car.
+      expect(request.ms, 2000);
+      expect(request.clip, same(event));
+      expect(request.detail, 'A person and a pet were seen');
+      expect(EventTimeline.isGrab(request), isTrue);
+      expect(
+        eventSearchFields(request),
+        containsAll(['Who is this?', 'Back camera']),
+      );
+
+      // Asked once: not when searched again, nor by Auto.
+      await r.recognize(event);
+      await r.recognizeNow(event, again: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(published.whereType<SubjectRequest>(), hasLength(1));
+    });
+
+    test('"Who is this?" not asked when they are named, nobody is seen, '
+        'or on request', () async {
+      final vision = FakeVision(
+        {},
+        {},
+        objects: {
+          0: {'human': 0.9},
+        },
+      );
+      final r = recognizer(vision, FakeSampler(1));
+      // Named already.
+      final named = ClipRequested(
+        clip(),
+        annotations: ClipAnnotations()..add('Ana', 0.5, 0.5),
+        id: 'named',
+      );
+      await r.recognize(named);
+      // Only a bicycle.
+      final bike = ClipRequested(clip(), id: 'bike');
+      await recognizer(
+        FakeVision(
+          {},
+          {},
+          objects: {
+            0: {'bicycle': 0.9},
+          },
+        ),
+        FakeSampler(1),
+      ).recognize(bike);
+      // Auto, in the player: it says so there.
+      final asked = ClipRequested(clip(), id: 'asked');
+      await r.recognizeNow(asked);
+      expect(unidentifiedOf(asked.annotations), isNotNull);
+      await Future<void>.delayed(Duration.zero);
+      expect(published.whereType<SubjectRequest>(), isEmpty);
     });
 
     test('object tags keep going once every subject is found', () async {
@@ -2723,6 +2825,60 @@ void main() {
     expect(a.byId(t.id), isNull);
     expect(find.text('Not Bo'), findsOneWidget);
     expect(find.text('Is this Bo?'), findsNothing);
+  });
+
+  testWidgets('"Who is this?" asks, Identify opens the player where they '
+      'were seen, and naming them answers it', (tester) async {
+    final a = ClipAnnotations()
+      ..setObjects(const [ObjectTag(label: 'human', ms: 2000, score: 0.9)]);
+    final event = ClipRequested(clip(), annotations: a, id: 'c1');
+    final request = SubjectRequest(
+      clipEventId: 'c1',
+      sorts: {SubjectSort.person},
+      ms: 2000,
+      clip: event,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: Builder(builder: request.buildCard)),
+      ),
+    );
+    expect(find.text('Who is this?'), findsOneWidget);
+    expect(
+      find.textContaining('A person was seen · Back camera · '),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('request-identify')));
+    await tester.pumpAndSettle();
+    final player = tester.widget<ClipPlayerDialog>(
+      find.byType(ClipPlayerDialog),
+    );
+    expect(player.startAt, const Duration(seconds: 2));
+    expect(player.identify, isTrue);
+    expect(find.byKey(const Key('identify-hint')), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    a.add('Ana', 0.5, 0.5);
+    await tester.pump();
+    expect(find.text('Named Ana'), findsOneWidget);
+    expect(find.text('Who is this?'), findsNothing);
+    expect(find.byKey(const Key('request-identify')), findsNothing);
+    // Without its clip: it says so.
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: SubjectRequest(
+              clipEventId: 'gone',
+              sorts: {SubjectSort.person},
+              ms: 0,
+            ).buildCard,
+          ),
+        ),
+      ),
+    );
+    expect(find.text('The clip is missing'), findsOneWidget);
   });
 }
 
