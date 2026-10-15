@@ -39,6 +39,7 @@ import '../system_health.dart';
 import '../tab_memory.dart';
 import 'camera_buttons.dart';
 import 'camera_messages.dart';
+import 'camera_mode_menu.dart';
 import 'camera_status.dart';
 import 'home_app_bar.dart';
 import 'home_navigation_bar.dart';
@@ -256,7 +257,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
-  /// What the mode button shows: Normal (this camera), All (the grid),
+  /// The mode the menu shows: Normal (this camera), All (the grid),
   /// Unattended (the screen off) or Stopped (the camera off,
   /// [CameraRig.paused], kept in the settings; syncing halted with it).
   CameraMode get _mode => CameraMode.of(
@@ -265,20 +266,24 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     showAll: _showAll,
   );
 
-  /// Normal → All → Unattended → Stopped → Normal.
-  void _nextMode() {
-    switch (_mode) {
+  /// Switches to [mode], picked from the mode menu: leaves the mode shown
+  /// (the grid, the screen off or the camera off), then enters [mode].
+  void _setMode(CameraMode mode) {
+    final was = _mode;
+    if (mode == was) return;
+    if (_showAll && mode != CameraMode.all) setState(() => _showAll = false);
+    if (was == CameraMode.unattended) _setUnattended(false);
+    if (was == CameraMode.stopped) widget.rig.setPaused(false);
+    switch (mode) {
       case CameraMode.normal:
+        break;
+      case CameraMode.all:
         setState(() => _showAll = true);
         _askForGrabs();
-      case CameraMode.all:
-        setState(() => _showAll = false);
-        _setUnattended(true);
       case CameraMode.unattended:
-        _setUnattended(false);
-        widget.rig.setPaused(true);
+        _setUnattended(true);
       case CameraMode.stopped:
-        widget.rig.setPaused(false);
+        widget.rig.setPaused(true);
     }
   }
 
@@ -595,6 +600,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         deleteDevice: widget.deleteDevice,
         deleteAccount: widget.deleteAccount,
         onHelp: _showHelp ? _openHelp : null,
+        modeMenu: _onCamera && _hasAccess
+            ? ListenableBuilder(
+                listenable: widget.rig,
+                builder: (context, _) =>
+                    CameraModeMenu(mode: _mode, onSelected: _setMode),
+              )
+            : null,
       ),
       body: Stack(
         children: [
@@ -783,13 +795,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           : null,
       // Signed out, the camera shows with no buttons at all.
       floatingActionButton: _onCamera && _hasAccess
-          ? CameraButtons(
-              rig: widget.rig,
-              unattended: _unattended,
-              showAll: _showAll,
-              onNextMode: _nextMode,
-              onClip: _clip,
-            )
+          ? CameraButtons(rig: widget.rig, onClip: _clip)
           : null,
     );
   }

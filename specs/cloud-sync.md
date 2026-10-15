@@ -44,7 +44,7 @@ an Athena table are in [Recording and data formats](data-formats.md).
 
 ## When
 
-- **Halted while the camera is Stopped** (the mode button's Stopped,
+- **Halted while the camera is Stopped** (the mode menu's Stopped,
   `camera.paused`; see [Camera screen](camera.md)): `CloudSync.setHalted`
   cancels the pending and periodic passes, stops [live sync](live-sync.md)
   and the recording downloads, and nothing starts again (not a change,

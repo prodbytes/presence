@@ -49,7 +49,7 @@ import 'storage/persistence.dart';
 import 'storage/retention.dart';
 import 'theme.dart';
 
-export 'home/camera_buttons.dart' show CameraMode;
+export 'home/camera_mode_menu.dart' show CameraMode;
 export 'home/camera_messages.dart' show CameraMessage, CameraMessagePill;
 export 'home/clip_button.dart'
     show ClipButton, ClipButtonColors, ClipButtonStatus, ClipTone;

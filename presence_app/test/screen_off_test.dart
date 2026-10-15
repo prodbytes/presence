@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:presence_app/main.dart';
 import 'package:presence_app/screen_off.dart';
 
-import 'camera_pause_test.dart' show pumpGate;
+import 'camera_pause_test.dart' show pickMode, pumpGate;
 import 'fakes.dart';
 
 /// Records what the Unattended mode asks of the platform.
@@ -38,7 +38,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  final mode = find.byKey(const Key('camera-mode'));
   final cover = find.byKey(const Key('screen-off-cover'));
 
   Future<void> tap(WidgetTester tester, Finder finder) async {
@@ -51,9 +50,9 @@ void main() {
   ) async {
     final screen = FakeScreenOff();
     await pumpApp(tester, screen);
-    await tap(tester, mode); // All
+    await pickMode(tester, CameraMode.all);
     expect(cover, findsNothing);
-    await tap(tester, mode); // Unattended
+    await pickMode(tester, CameraMode.unattended);
     expect(screen.calls, [true]);
     expect(cover, findsOneWidget);
     expect(find.textContaining('Tap to wake'), findsOneWidget);
@@ -62,7 +61,7 @@ void main() {
     await tap(tester, cover);
     expect(screen.calls, [true, false]);
     expect(cover, findsNothing);
-    expect(find.byTooltip('Stop: no capturing or syncing'), findsOneWidget);
+    expect(find.byKey(const Key('camera-mode')), findsOneWidget);
 
     // Touches keep it on; 15 s without one, it's dark again.
     await tester.pump(const Duration(seconds: 10));
@@ -75,10 +74,10 @@ void main() {
 
     // Woken and moved on: Stopped, the screen back for good.
     await tap(tester, cover);
-    await tap(tester, mode);
+    await pickMode(tester, CameraMode.stopped);
     expect(cover, findsNothing);
     expect(screen.calls.last, isFalse);
-    expect(find.byTooltip('Back to normal: this camera'), findsOneWidget);
+    expect(find.byKey(const Key('camera-paused')), findsOneWidget);
     await tester.pump(const Duration(seconds: 20));
     expect(cover, findsNothing);
   });
@@ -87,8 +86,7 @@ void main() {
     tester,
   ) async {
     await pumpApp(tester, FakeScreenOff(supported: false));
-    await tap(tester, mode);
-    await tap(tester, mode);
+    await pickMode(tester, CameraMode.unattended);
     expect(cover, findsOneWidget);
   });
 }
