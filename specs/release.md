@@ -100,8 +100,11 @@ folder, and removed at the end of the job, even after a failure.
   install; the workflow signs with the **upload key**, which Play checks.
   [scripts/android-upload-key.sh](../scripts/android-upload-key.sh)
   creates it with `keytool` (PKCS12, RSA 4096, alias `upload`, one
-  password, valid ~27 years) at `~/.config/presence/upload-keystore.jks`
-  by default (it refuses a path inside the repo), and prints its SHA-1
+  password, valid ~27 years) by default in the private credentials clone
+  next to the repo, at
+  `../setec-astronomy/presence.nu01/env.local/android/upload-keystore.jks`
+  (git-ignored there), or at `~/.config/presence/upload-keystore.jks`
+  without that clone (it refuses a path inside the repo), and prints its SHA-1
   and SHA-256 fingerprints and the `gh secret set` commands below. Given
   an existing keystore, it only prints those. Keep the keystore and
   password backed up: losing them means asking Google to reset the
@@ -126,7 +129,7 @@ folder, and removed at the end of the job, even after a failure.
 
   | Name | What |
   | --- | --- |
-  | `ANDROID_UPLOAD_KEYSTORE_BASE64` | the keystore, base64: `base64 < ~/.config/presence/upload-keystore.jks \| gh secret set ANDROID_UPLOAD_KEYSTORE_BASE64` |
+  | `ANDROID_UPLOAD_KEYSTORE_BASE64` | the keystore, base64: `base64 < ../setec-astronomy/presence.nu01/env.local/android/upload-keystore.jks \| gh secret set ANDROID_UPLOAD_KEYSTORE_BASE64` |
   | `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | its password: `gh secret set ANDROID_UPLOAD_KEYSTORE_PASSWORD` (asks for it) |
   | `ANDROID_UPLOAD_KEY_ALIAS` | optional, default `upload` |
   | `ANDROID_UPLOAD_KEY_PASSWORD` | optional, default the keystore's password |
@@ -191,6 +194,15 @@ folder, and removed at the end of the job, even after a failure.
   that App ID and certificate; create the app in App Store Connect; and,
   for uploads, an API key with the App Manager role (Users and Access →
   Integrations → App Store Connect API; the `.p8` downloads once).
+- **Where the files live:** every signing credential (the distribution
+  key, its CSR, `.cer` and `.p12` with its password, the App Store
+  profile, the API key's `.p8`, the Android upload keystore and its
+  password) is kept in the private credentials clone, under
+  `../setec-astronomy/presence.nu01/env.local/` (`apple/`, `android/`),
+  git-ignored there and listed in its README; never in this repo. The
+  distribution key and CSR are made there with `openssl req -new -newkey
+  rsa:2048 -nodes` rather than Keychain Access, so the `.p12` is built
+  from them with `openssl pkcs12 -export`.
 - The certificate and profile expire yearly; renew them and update the
   secrets.
 

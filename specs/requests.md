@@ -6579,3 +6579,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       refused in a later release.
     - Specs: [Origin check](origin-check.md) now says it's live and links
       the roadmap, and so does the index.
+
+453. **Set the Apple team ID (`LMX88986F3`), continue publishing the app,
+     and save all credentials to the credentials repo (setec astronomy),
+     cloned one directory up.** (2026-10-15)
+    - `APPLE_TEAM_ID` was already `LMX88986F3`, so it stays as it is.
+    - Credentials now live in `../setec-astronomy/presence.nu01/env.local/`
+      (git-ignored there, listed in its README). The Apple Distribution
+      private key and CSR were made there for the App Store signing setup.
+    - [scripts/android-upload-key.sh](../scripts/android-upload-key.sh)
+      now creates the Play upload keystore there by default, falling back to
+      `~/.config/presence/` without that clone.
+    - Specs: [Release](release.md) says where each signing file lives and
+      uses that path in the Play secret command.

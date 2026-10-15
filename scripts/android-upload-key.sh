@@ -6,8 +6,11 @@
 #
 #   bash scripts/android-upload-key.sh [keystore path]
 #
-# The keystore defaults to ~/.config/presence/upload-keystore.jks, outside
-# the repo (PKCS12, alias "upload", one password for the store and the key).
+# The keystore defaults to the private credentials clone next to this repo,
+# ../setec-astronomy/presence.nu01/env.local/android/upload-keystore.jks
+# (git-ignored there), or ~/.config/presence/upload-keystore.jks without that
+# clone; never inside the repo (PKCS12, alias "upload", one password for the
+# store and the key).
 # It asks for the name on the certificate and the password, then prints the
 # key's SHA-1 and SHA-256 fingerprints and the commands that hand it to the
 # release workflow (`gh secret set`) and to local builds (key.properties).
@@ -15,11 +18,17 @@
 set -euo pipefail
 
 alias_name=upload
-keystore="${1:-$HOME/.config/presence/upload-keystore.jks}"
 
 command -v keytool >/dev/null || { echo "error: keytool (a JDK) isn't on PATH" >&2; exit 1; }
 
 repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+private_dir="$repo_root/../setec-astronomy/presence.nu01"
+if [[ -d "$private_dir" ]]; then
+  default_keystore="$(cd "$private_dir" && pwd)/env.local/android/upload-keystore.jks"
+else
+  default_keystore="$HOME/.config/presence/upload-keystore.jks"
+fi
+keystore="${1:-$default_keystore}"
 keystore_dir="$(mkdir -p "$(dirname "$keystore")" && cd "$(dirname "$keystore")" && pwd)"
 keystore="$keystore_dir/$(basename "$keystore")"
 case "$keystore" in
