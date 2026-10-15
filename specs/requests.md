@@ -6765,3 +6765,21 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
       13:00 UTC and runs at real speed, so the PIN wait still times out
       normally.
     - Specs: [Blink cameras](blink.md) (Tests).
+
+462. **Create cost-allocation tags to separate RC and GA, and apply them.**
+     (2026-10-15)
+     - Found: every Presence stack already carries the stack tags
+       `project=presence` and `tenancy=GA`/`RC`/`shared` (deploy.sh,
+       deploy-sh.sh, the samconfigs), copied to 174 resources, but neither
+       key was active in Billing, so Cost Explorer couldn't split by them.
+       Other projects in the account use the same keys.
+     - Done in AWS: activated `project` and `tenancy` as cost-allocation
+       tags, and asked for a backfill from 2025-11-01 (processing).
+     - Changed: `scripts/cost-report.py` reads only costs tagged
+       `project=presence` or untagged, splits them by `tenancy` (GA, RC,
+       both stages), shows a table by stage and one by service, each
+       stage's cost per device, and warns while no cost carries the tag.
+       Route 53 (a zone shared with other projects; Presence has no health
+       check) and Secrets Manager (other projects' secrets only) are no
+       longer counted: $0.97 a month rather than $7.51. Tests: 9 pass.
+     - Specs: [Cost report](cost-report.md), [Production deploy](deploy.md).

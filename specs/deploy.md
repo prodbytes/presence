@@ -62,7 +62,13 @@ One CloudFront distribution serves the whole site, laid out like the local
     `presence-github-deploy`, which serves both: `tenancy=shared`), which
     CloudFormation copies to each taggable resource, so Cost Explorer
     splits costs by project and tenancy. They're in addition to
-    `presence:stage`.
+    `presence:stage`. Both keys are **active cost-allocation tags** (Billing,
+    activated 2026-10-15 with `aws ce update-cost-allocation-tags-status`,
+    and backfilled from 2025-11-01 with `aws ce
+    start-cost-allocation-tag-backfill`): Cost Explorer only splits by a tag
+    once it's active. Other projects in the account use the same keys, each
+    with its own `project`. Usage no resource carries (IoT messages, data
+    transfer, DNS queries) stays untagged. See [Cost report](cost-report.md).
   - **Log retention: 30 days.** Each Lambda function of the auth API
     (auth, session, profile, the three recognition ones), payments,
     health and ingest stacks logs to a log group its stack declares
