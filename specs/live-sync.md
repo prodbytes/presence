@@ -271,13 +271,56 @@ A free profile's devices (`LiveConfig.free`) cost almost nothing in AWS
     `frames`, `thumbnail`, `recording`, `bytes` and `data`, and any value
     that is raw bytes (a byte array, or a list of more than 16 integers).
   - **`clip`, its clip's record and thumbnail**, once the clip is complete
-    (`LiveSync.clipMessageOf`): the record without media bytes, with the
-    thumbnail as base64 when it's sealed ([Media encryption](encryption.md))
-    and at most 48 KB: an unsealed image is never sent. Its
-    recording and the tagged frames never go. A message that would pass
-    64 KB with it goes without it. Devices without the bucket (a
-    [free](premium.md) profile's) take the clip from here. Premium ones
-    take it from the bucket as before, where recordings and frames are.
+    (`LiveSync.clipMessageOf`), **only for devices without the bucket**:
+    the record without media bytes, with the thumbnail as base64 when it's
+    sealed ([Media encryption](encryption.md)) and at most 48 KB (12 KB
+    from a free device): an unsealed image is never sent. Its recording
+    and the tagged frames never go. A message that would pass 64 KB with
+    it goes without it. Devices without the bucket (a [free](premium.md)
+    profile's) take the clip from here.
+  - **A premium profile's messages carry no `clip`**
+    (`CloudSync.profilePremium`, `RolesService.isProfilePremium`): every
+    device of the profile takes clips from the bucket (`_onLive` never
+    reads `clip` there), so the upload's publish and a republish (a tap
+    on the copies indicator, `shareCopies`) leave it out; the clip isn't
+    even read from storage for it. The thumbnail on the All grid, in the
+    event cards and the notifications is the clip's as fetched from the
+    bucket. A profile is premium when its **owner** is
+    ([Premium and free](premium.md)): a linked account premium on its own
+    in a free owner's profile still sends the clip, for the owner's free
+    devices. The auth API says who owns the profile (`accounts`, the
+    `current` one's `owner`; `HttpRolesClient`), and a linked account
+    gets premium from the owner (`shared`); when it doesn't say, the
+    account's own tier stands.
+
+### Message sizes and cost
+
+AWS IoT bills every publish and every delivery as one message per started
+5 KB (about $1 per million). A message on the `events` topic is delivered
+to every connected (or persistent-session) device of the profile,
+**the sender included**: MQTT 3.1.1 has no "no local" option, so the
+broker echoes it back. The sender drops its own message as soon as its
+envelope says so (`deviceId`, before the event and clip are read), but
+its delivery is billed.
+
+| Message | Size | Billed units each |
+| --- | --- | --- |
+| Event (any tier, without `clip`) | about 1–2 KB | 1 |
+| Free event with its clip (thumbnail ≤ 12 KB) | ≤ about 18 KB | ≤ 4 |
+| Premium event with its clip (before; thumbnail ≤ 48 KB) | typically 30–45 KB, at most 64 KB | 7–13 |
+
+The message that carried the clip is the clip's completion. For a premium
+profile of **N** devices it costs `(1 + N)` deliveries-and-publish:
+
+- **N = 5:** 6 units now, against about 54 (a 30 KB thumbnail) to 78
+  (the 64 KB cap) before. At 2 clips an hour per device (7,200 clips a
+  month for the profile) that's about $0.04 a month instead of $0.39–0.56.
+- **N = 50:** 51 units now, against about 459 to 663 before. At the same
+  rate (72,000 clips a month) about $3.70 a month instead of $33–48.
+
+The cost still grows with N² (each device's clips go to every device);
+only per-device topics, or MQTT 5's no-local option, would also save the
+echo (not done).
 
 ### Validation
 
@@ -422,7 +465,10 @@ query holds the session token.
     same seed, and the 60 min step within the session's hour; a change of
     the setting applies at once (Always keeps a clean session and stays);
   - with `CloudSync`: a saved event goes up, then is published without its
-    frames (which are in the bucket), with the uploaded ETag; a received
+    frames (which are in the bucket), with the uploaded ETag (and, in
+    `free_sync_test.dart`, without a `clip` for a premium profile, upload
+    and republish alike, under 5 KB; with it, thumbnail included, for a
+    premium account in a free owner's profile); a received
     event is handed over at once and once, and is neither uploaded back
     nor downloaded again when the bucket lists it, nor echoed; a received
     clip event gets its clip and thumbnail (not its recording) from the

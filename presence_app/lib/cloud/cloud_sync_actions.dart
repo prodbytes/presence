@@ -196,7 +196,8 @@ class _EventActions {
             .cast<String, Object?>(),
         key: CloudSync.eventKey(record),
         etag: etag,
-        clip: clip,
+        // A premium profile's devices take it from the bucket.
+        clip: _sync.profilePremium ? null : clip,
       );
     } catch (e) {
       debugPrint('Presence: could not share $id with the other devices: $e');

@@ -917,7 +917,13 @@ class LiveSync extends ChangeNotifier {
       return;
     }
     if (topic != topicOf(stage, link.identityId, eventsKind)) return;
-    final event = parse(payload, identityId: link.identityId);
+    final message = _eventEnvelope(payload, identityId: link.identityId);
+    // This device's own (MQTT 3.1.1 echoes it back; or another tab's on
+    // it): already here, so its event and clip aren't even read.
+    if (message != null && message['deviceId'] == link.deviceId) return;
+    final event = message == null
+        ? null
+        : _eventOf(message, identityId: link.identityId);
     if (event == null) {
       debugPrint(
         'Presence: live sync dropped a malformed message '
@@ -925,8 +931,6 @@ class LiveSync extends ChangeNotifier {
       );
       return;
     }
-    // This device's own (or another tab's on it): already here.
-    if (event.deviceId == link.deviceId) return;
     _received++;
     _inbox = _inbox.then((_) async {
       if (link != _link) return;
@@ -1634,13 +1638,27 @@ class LiveSync extends ChangeNotifier {
   /// identity's, or without an event ID and time. Inline media is dropped
   /// ([metadataOf]).
   static LiveEvent? parse(Uint8List payload, {required String identityId}) {
-    final message = _envelope(
-      payload,
-      maxBytes: maxMessageBytes,
-      kind: 'event',
-      identityId: identityId,
-    );
-    if (message == null) return null;
+    final message = _eventEnvelope(payload, identityId: identityId);
+    return message == null ? null : _eventOf(message, identityId: identityId);
+  }
+
+  /// [parse]'s envelope: the message, before its event and clip are read.
+  static Map<String, Object?>? _eventEnvelope(
+    Uint8List payload, {
+    required String identityId,
+  }) => _envelope(
+    payload,
+    maxBytes: maxMessageBytes,
+    kind: 'event',
+    identityId: identityId,
+  );
+
+  /// The event in [message], an [_eventEnvelope] that is right; null when
+  /// it isn't one ([parse]).
+  static LiveEvent? _eventOf(
+    Map<String, Object?> message, {
+    required String identityId,
+  }) {
     final deviceId = message['deviceId']! as String;
     final event = message['event'];
     final etag = message['etag'];
