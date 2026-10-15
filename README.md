@@ -486,7 +486,8 @@ artifact bucket exist (both from the `presence-github-deploy` stack, see
 below), then deploys the stacks in this order:
 
 1. `presence-user-data`: the S3 bucket for users' clips and events.
-   Objects expire after 90 days.
+   Videos are archived (Glacier Deep Archive) after 67 days; everything
+   is erased after 365 days.
 2. `presence-identity`: the Cognito identity pool, and live sync's IoT
    policy.
 3. The auth API with SAM (`presence-auth-api`), uploaded to the stage's

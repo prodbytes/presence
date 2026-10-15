@@ -367,7 +367,7 @@ take too much of it. There the chunks are searched in the cloud instead:
   twice, within 6 hours; changing it needs
   `lambda:PutFunctionEventInvokeConfig`, which the deploy roles lack). One whose
   chunk is gone has its job deleted, and so does a broken one. What still
-  fails stays in ingest until the bucket's lifecycle expires it (90 days).
+  fails stays in ingest until the bucket's lifecycle erases it (365 days; archived after 67).
 - **The function** runs with 2048 MB, 120 s and 2 GB of `/tmp`. It has no
   reserved concurrency by default (`IngestConcurrency`, from
   `INGEST_CONCURRENCY` in `deploy.sh`, 0). The account's Lambda quota is
@@ -393,7 +393,7 @@ mode, their jobs) only while they're searched: each is moved to `media/`
 or deleted within moments. The app
 never lists it ([Cloud sync](cloud-sync.md) reads `events/`, `clips/`,
 `media/` and `devices/`). What a crash or a failed delete leaves expires
-with the bucket's 90-day lifecycle. The profile's role already allows its
+with the bucket's lifecycle (archived after 67 days, erased after 365). The profile's role already allows its
 whole folder, so it needed no infrastructure change.
 
 ## Package and builds

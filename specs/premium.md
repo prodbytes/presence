@@ -171,7 +171,7 @@ Pro syncs exactly as Premium; only its device limit differs.
   starts the sync over with new credentials (`CloudSync.reconnect`).
   Becoming premium uploads what's here; becoming free stops using the
   bucket. What a free profile had in the bucket stays until the bucket's
-  lifecycle expires it (90 days), and is found again if it becomes premium.
+  lifecycle erases it (365 days), and is found again if it becomes premium.
 - **Credentials from before the bucket required the tag** (the first hour
   after the release) are refused with `AccessDenied`. A pass takes that
   like expired credentials: it renews them once and tries again

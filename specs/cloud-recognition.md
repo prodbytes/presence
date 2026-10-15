@@ -291,7 +291,7 @@ signed in (`lastSignInAt`) or made (`RecognitionApi.access`).
   20 MB/s (DINOv2: 55 to 77 s; 8 ranges at once were no faster, so it's
   one stream), or else from Hugging Face at a pinned revision and then
   kept in the bucket. Its SHA-256 must match, or it isn't used. The bucket's lifecycle expires
-  them after 90 days; the next instance fetches them again.
+  them after 335 days (and archives the smaller one, over 128 KB, after 67, when the bucket can't serve it); the next instance fetches them again.
   - DINOv2: `models/dinov2-large-305351060a1939d9.onnx` (1.2 GB, 3 GB of
     ephemeral storage), revision `4b3550c5…`, SHA-256 `30535106…7d6ac`;
   - SigLIP2: `models/siglip2-base-vision-int8-0dd31785a2713f11.onnx`

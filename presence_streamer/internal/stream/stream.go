@@ -271,7 +271,7 @@ func (s *Streamer) Process(ctx context.Context, chunk string) error {
 	if p.Result.Subject == nil {
 		if err := s.Store.Delete(ctx, ingest); err != nil {
 			// Already gone (an earlier try), or the network: the bucket's
-			// lifecycle expires what's left (90 days).
+			// lifecycle erases what's left (365 days).
 			s.Logf("%s: couldn't delete it from ingest: %v", name, err)
 		}
 		s.Logf("%s: no one there, deleted", name)
