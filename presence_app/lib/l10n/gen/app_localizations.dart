@@ -1042,30 +1042,6 @@ abstract class AppLocalizations {
   /// **'Sent to {device}; it looks every 30 s…'**
   String blinkWaiting(String device);
 
-  /// No description provided for @cameraActionAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Show all devices'**
-  String get cameraActionAll;
-
-  /// No description provided for @cameraActionNormal.
-  ///
-  /// In en, this message translates to:
-  /// **'Back to normal: this camera'**
-  String get cameraActionNormal;
-
-  /// No description provided for @cameraActionStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop: no capturing or syncing'**
-  String get cameraActionStopped;
-
-  /// No description provided for @cameraActionUnattended.
-  ///
-  /// In en, this message translates to:
-  /// **'Go unattended: screen off, still capturing'**
-  String get cameraActionUnattended;
-
   /// No description provided for @cameraAgeDays.
   ///
   /// In en, this message translates to:
@@ -1255,14 +1231,32 @@ abstract class AppLocalizations {
   /// Camera mode: every device in a grid
   ///
   /// In en, this message translates to:
-  /// **'All'**
+  /// **'All devices'**
   String get cameraModeAll;
+
+  /// No description provided for @cameraModeAllHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Every device in a grid'**
+  String get cameraModeAllHint;
+
+  /// No description provided for @cameraModeMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera mode'**
+  String get cameraModeMenu;
 
   /// Camera mode: this device's camera
   ///
   /// In en, this message translates to:
-  /// **'Normal'**
+  /// **'This camera'**
   String get cameraModeNormal;
+
+  /// No description provided for @cameraModeNormalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Full screen'**
+  String get cameraModeNormalHint;
 
   /// Camera mode: nothing captured or synced
   ///
@@ -1270,11 +1264,23 @@ abstract class AppLocalizations {
   /// **'Stopped'**
   String get cameraModeStopped;
 
+  /// No description provided for @cameraModeStoppedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'No capturing or syncing'**
+  String get cameraModeStoppedHint;
+
   /// Camera mode: screen off, still capturing
   ///
   /// In en, this message translates to:
   /// **'Unattended'**
   String get cameraModeUnattended;
+
+  /// No description provided for @cameraModeUnattendedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen off, still capturing'**
+  String get cameraModeUnattendedHint;
 
   /// No description provided for @cameraNight.
   ///

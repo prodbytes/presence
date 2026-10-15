@@ -10,6 +10,7 @@ import 'package:presence_app/main.dart';
 import 'package:presence_app/config.dart';
 
 import 'fakes.dart';
+import 'camera_pause_test.dart' show pickMode;
 import 'motion_test.dart' show frame;
 
 final media = ClipMedia(
@@ -565,11 +566,12 @@ void main() {
         expect(tester.takeException(), isNull);
         final rect = tester.getRect(clip);
         final flip = tester.getRect(find.byTooltip('Flip camera'));
-        final view = tester.getRect(find.byKey(const Key('camera-mode')));
+        final menu = tester.getRect(find.byKey(const Key('camera-mode')));
         expect(rect.right, lessThanOrEqualTo(320 - 16));
-        expect(view.left, greaterThanOrEqualTo(16));
+        expect(flip.left, greaterThanOrEqualTo(16));
         expect(rect.overlaps(flip), isFalse);
-        expect(flip.overlaps(view), isFalse);
+        // The mode menu is up in the app bar.
+        expect(menu.bottom, lessThanOrEqualTo(kToolbarHeight));
         back.fullCompleters.last.complete(media);
         await tester.pump(const Duration(seconds: 5));
         await settleStorage(tester);
@@ -676,15 +678,8 @@ void main() {
       tester,
     ) async {
       await pumpApp(tester);
-      // Normal, All, Unattended (woken), then Stopped: the camera off.
-      await tester.tap(find.byKey(const Key('camera-mode')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('camera-mode')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('screen-off-cover')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('camera-mode')));
-      await tester.pumpAndSettle();
+      // Stopped, from the mode menu: the camera off.
+      await pickMode(tester, CameraMode.stopped);
       expect(button(tester).onPressed, isNull);
       expect(color(tester), tone(ClipTone.disabled));
       expect(find.byTooltip('Camera off'), findsOneWidget);

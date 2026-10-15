@@ -902,9 +902,12 @@ void main() {
         expect(status.overlaps(clip), isFalse);
         expect(status.overlaps(flip), isFalse);
         expect(status.bottom, lessThan(flip.top));
+        // Under the mode menu, up in the app bar.
         expect(
-          status.bottom,
-          lessThan(tester.getRect(find.byKey(const Key('camera-mode'))).top),
+          status.top,
+          greaterThan(
+            tester.getRect(find.byKey(const Key('camera-mode'))).bottom,
+          ),
         );
         expect(tester.takeException(), isNull);
       });

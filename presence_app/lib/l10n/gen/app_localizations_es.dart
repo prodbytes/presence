@@ -598,19 +598,6 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
-  String get cameraActionAll => 'Mostrar todos los dispositivos';
-
-  @override
-  String get cameraActionNormal => 'Volver a lo normal: esta cámara';
-
-  @override
-  String get cameraActionStopped => 'Detener: sin capturar ni sincronizar';
-
-  @override
-  String get cameraActionUnattended =>
-      'Modo desatendido: pantalla apagada, sigue capturando';
-
-  @override
   String cameraAgeDays(int days) {
     return 'hace $days d';
   }
@@ -729,16 +716,31 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cameraLive => 'en vivo';
 
   @override
-  String get cameraModeAll => 'Todas';
+  String get cameraModeAll => 'Todos los dispositivos';
 
   @override
-  String get cameraModeNormal => 'Normal';
+  String get cameraModeAllHint => 'Todos los dispositivos en cuadrícula';
+
+  @override
+  String get cameraModeMenu => 'Modo de la cámara';
+
+  @override
+  String get cameraModeNormal => 'Esta cámara';
+
+  @override
+  String get cameraModeNormalHint => 'Pantalla completa';
 
   @override
   String get cameraModeStopped => 'Detenido';
 
   @override
+  String get cameraModeStoppedHint => 'Sin capturar ni sincronizar';
+
+  @override
   String get cameraModeUnattended => 'Desatendido';
+
+  @override
+  String get cameraModeUnattendedHint => 'Pantalla apagada, sigue capturando';
 
   @override
   String get cameraNight => 'Noche';

@@ -14,6 +14,7 @@ import 'package:presence_app/config.dart';
 import 'package:presence_app/events.dart';
 import 'package:presence_app/main.dart';
 
+import 'camera_pause_test.dart' show pickMode;
 import 'fakes.dart';
 import 'live_sync_test.dart' show FakeBroker, eventsTopic, messageOf;
 
@@ -245,8 +246,7 @@ void main() {
       tester,
     ) async {
       final cloud = await launch(tester);
-      await tester.tap(find.byTooltip('Show all devices'));
-      await tester.pump();
+      await pickMode(tester, CameraMode.all);
       await clip(tester);
 
       final events = uploadedEvents(cloud);
@@ -298,27 +298,21 @@ void main() {
             .where((e) => e['type'] == AppEvent.captureAllType)
             .length;
 
-    /// All → Unattended (woken) → Stopped → Normal → All.
+    /// All → Unattended (woken) → Stopped → This camera → All.
     Future<void> reopenAll(WidgetTester tester) async {
-      await tester.tap(
-        find.byTooltip('Go unattended: screen off, still capturing'),
-      );
-      await tester.pump();
+      await pickMode(tester, CameraMode.unattended);
       await tester.tap(find.byKey(const Key('screen-off-cover')));
       await tester.pump();
-      await tester.tap(find.byTooltip('Stop: no capturing or syncing'));
-      await tester.pump();
-      await tester.tap(find.byTooltip('Back to normal: this camera'));
+      await pickMode(tester, CameraMode.stopped);
+      await pickMode(tester, CameraMode.normal);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Show all devices'));
-      await tester.pump();
+      await pickMode(tester, CameraMode.all);
     }
 
     testWidgets('opening All asks every device for a fresh grab, at most '
         'once a minute (with live sync off)', (tester) async {
       final cloud = await launch(tester);
-      await tester.tap(find.byTooltip('Show all devices'));
-      await tester.pump();
+      await pickMode(tester, CameraMode.all);
       expect(find.text('Asked every device for a fresh grab'), findsOneWidget);
       await settleStorage(tester);
       await settleStorage(tester);
@@ -349,8 +343,7 @@ void main() {
     testWidgets('in All, pressing Clip always asks every device again, '
         'within the minute of opening', (tester) async {
       final cloud = await launch(tester);
-      await tester.tap(find.byTooltip('Show all devices'));
-      await tester.pump();
+      await pickMode(tester, CameraMode.all);
       await settleStorage(tester);
       await settleStorage(tester);
       expect(requestsUploaded(cloud), 1);
