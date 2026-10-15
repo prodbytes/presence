@@ -395,8 +395,9 @@ class _PresenceAppState extends State<PresenceApp> {
               _log.addHistory(events);
               // Clips that events from live sync were waiting for.
               await _persistence.showArrivedClips(remote.clips, _log);
-              // An iPhone's clips (it can't recognize yet) are recognized
-              // here, once with their clip.
+              // Clips nobody searched for subjects (a streamer's, an older
+              // iPhone build's) are recognized by one device that can,
+              // once with their clip: here, when it's this one's turn.
               final arrived = {for (final c in remote.clips) c['eventId']};
               _recognizer.recognizeSynced([
                 ...events,
@@ -421,6 +422,9 @@ class _PresenceAppState extends State<PresenceApp> {
       applyLive();
       _config.addListener(applyLive);
       _roles.addListener(applyLive);
+      // Devices heard from over live sync count in the synced clips'
+      // elections (who recognizes each).
+      _recognizer.seenOf = live.seenOf;
     }
     // Only the events of the devices that show (a free profile's first
     // two): whenever the profile's devices or this device's ID are known
@@ -459,6 +463,8 @@ class _PresenceAppState extends State<PresenceApp> {
     )..start();
     _persistence.deviceId.then((id) {
       _copies.deviceId = id;
+      // Which synced clips this device recognizes (one device each).
+      _recognizer.deviceId = id;
       if (mounted) setState(() => _deviceId = id);
       _applyDeviceSlots();
     }, onError: (Object e) => debugPrint('Presence: no device ID: $e'));

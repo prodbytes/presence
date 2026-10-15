@@ -6392,3 +6392,26 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Cloud sync](cloud-sync.md), [Auth API](auth-api.md),
        [Maintenance](maintenance.md), [Sign-in](sign-in.md),
        [Cloud recognition](cloud-recognition.md), [Deploy](deploy.md).
+
+446. **One device recognizes each synced clip.** (2026-10-15)
+     - Asked: keep premium consumption from being excessive (premium cost
+       audit): every device that can recognize (the web app, Android with
+       2 GB or more) recognized every synced clip under a day old that
+       nobody searched for subjects (a Pi or Blink streamer's, an older
+       iPhone build's, a low-memory device's), each downloading the whole
+       recording and calling cloud identify and breeds and coats, so with
+       3 such devices the work and the egress were tripled.
+     - Changed: [Recognition](recognition.md): one device is elected for
+       each synced clip (`SubjectRecognizer.electionRank`). The candidates
+       are the profile's devices that can recognize (their latest event's
+       OS and memory) heard from within a day (an event, or live sync's
+       `seenOf`); the clip's own device goes first if it can recognize,
+       the rest in the order of SHA-1(event ID / device ID). Each waits
+       its rank times 5 minutes (rank 0 at once), then leaves the clip if
+       a `subjectSearch` arrived meanwhile, else downloads it and runs it:
+       the next one takes over when one is off. A device's own new clips
+       still run at once. [Cloud recognition](cloud-recognition.md) notes
+       it. Tests in `recognition_test` (rank 0 runs at once and the other
+       device is second; rank 1 waits and leaves the clip when a result
+       arrives; takes over when none does; candidates and the recorder
+       first).

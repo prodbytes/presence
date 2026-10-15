@@ -30,11 +30,35 @@ confidence is the higher of the two:
   they're under a day old (`recognizeSynced`). One that already has
   object tags (a streamer's) has them looked for again, with this
   device's detector and the cloud's breeds and coats ("black cat").
-  Their recording comes down as it's read. The results are saved on the
-  event, which syncs back, so every device shows them and the
-  recognition indicator turns on. Every device that can recognize does
-  this; their results merge like any change. It happens only while such
-  a device (the web app, an Android phone) is running.
+  The results are saved on the event, which syncs back, so every device
+  shows them and the recognition indicator turns on. It happens only
+  while a device that can recognize (the web app, an Android phone, an
+  iPhone) is running.
+- **One device recognizes each synced clip** (`electionRank`), not every
+  one that can: each would download the whole recording and pay for
+  cloud identify and breeds and coats again. Every device that can
+  recognize ranks itself among the **candidates**: the profile's devices
+  that can recognize (from their latest event's OS and memory: `Web …`,
+  `Android` or `iOS`, with 1800 MB or more or unknown; not a Pi streamer's
+  `Linux` nor `Blink`) and were heard from within a day (an event in the
+  log, or over live sync, `LiveSync.seenOf`), itself always among them.
+  This list is chosen because every device already has it (the events
+  that sync) without a new API call. The clip's own device goes first
+  when it can recognize (it searches its own new clips, and may not have
+  finished when the clip synced); the rest are ordered by the SHA-1 of
+  the clip's event ID and their device ID, the same on every device and
+  different for each clip, so the work spreads. A device waits its rank
+  times **5 minutes** (rank 0: at once), then leaves the clip if a
+  `subjectSearch` came meanwhile (cloud sync or live sync); otherwise it
+  downloads the recording and runs it. So normally one device does it,
+  and the next takes over when the one before it is off, or has
+  recognition off. Devices may see slightly different candidates; then
+  two may do a clip, or one waits longer, but never none. A device whose
+  ID isn't known yet runs it at once. On a free profile a result can
+  take up to 15 minutes (its live sync) to reach the others, so a device
+  ranked second may still repeat the work there (on its own device; free
+  has no cloud recognition). A device's own new clips aren't elected:
+  it recognizes them at once, as before.
 - **Backpressure:** at most the **latest 3 new clips** wait their turn;
   when another arrives the oldest waiting one is skipped (logged, outcome
   `deferred`). Auto is never skipped, and goes ahead of the new clips

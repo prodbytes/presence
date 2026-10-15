@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -142,6 +145,7 @@ class SubjectRecognizer {
     this.maxPending = defaultMaxPending,
     this.memoryRetryAfter = defaultMemoryRetryAfter,
     this.memoryRetries = defaultMemoryRetries,
+    this.electionStep = defaultElectionStep,
   }) : _bus = bus,
        _runtime = runtime ?? TfliteRuntime(),
        _sampler = sampler ?? ClipFrameSampler(),
@@ -173,6 +177,7 @@ class SubjectRecognizer {
   static const int defaultMaxPending = 3;
   static const Duration defaultMemoryRetryAfter = Duration(seconds: 30);
   static const int defaultMemoryRetries = 10;
+  static const Duration defaultElectionStep = Duration(minutes: 5);
 
   /// The most references kept per subject (from their latest tags).
   static const int referencesPerSubject = 10;
@@ -219,6 +224,10 @@ class SubjectRecognizer {
   final int maxPending;
   final Duration memoryRetryAfter;
   final int memoryRetries;
+
+  /// How long each device ahead of this one in a synced clip's election
+  /// ([electionRank]) is given to recognize it before this one does.
+  final Duration electionStep;
   final TfliteRuntime _runtime;
   final ClipFrameSampler _sampler;
   final MemoryMonitor _memory;
@@ -240,6 +249,10 @@ class SubjectRecognizer {
   /// The clips searched in full, by event ID; those no longer in the log
   /// are dropped ([_prune]).
   final _searched = <String>{};
+
+  /// Synced clips waiting for their turn here ([electionRank]), each until
+  /// its timer looks at it again, by event ID.
+  final _electing = <String, Timer>{};
 
   /// New clips out of the queue while memory is low, each until its timer
   /// puts it back.
@@ -288,18 +301,25 @@ class SubjectRecognizer {
   static const Duration syncedWithin = Duration(days: 1);
 
   /// Synced clips ([events], just added from another device's sync) that
-  /// weren't searched for subjects (no `subjectSearch`): an iPhone's (iOS
-  /// can't recognize yet) and a Raspberry Pi streamer's (its cloud
-  /// detector only tags objects, with a small model), queued like this
-  /// device's new clips: same settings, same backpressure. One with object
-  /// tags already has them looked for again ([recognizeNow]'s `again`),
-  /// with this device's detector and the cloud's breeds and coats ("black
-  /// cat"). Their recordings come down as they're read. The results are
-  /// saved on the event, which syncs back, so every device's indicator
-  /// shows them. Clips older than [syncedWithin] are left.
+  /// weren't searched for subjects (no `subjectSearch`): an iPhone's (an
+  /// older build, before iOS recognized) and a Raspberry Pi streamer's
+  /// (its cloud detector only tags objects, with a small model), queued
+  /// like this device's new clips: same settings, same backpressure. One
+  /// with object tags already has them looked for again ([recognizeNow]'s
+  /// `again`), with this device's detector and the cloud's breeds and
+  /// coats ("black cat"). The results are saved on the event, which syncs
+  /// back, so every device's indicator shows them. Clips older than
+  /// [syncedWithin] are left.
+  ///
+  /// One device does each clip, not every one that can: this one waits
+  /// its [electionRank] times [electionStep] (rank 0: at once), then
+  /// leaves the clip if a `subjectSearch` came meanwhile (sync, live
+  /// sync); otherwise it fetches the recording and runs it, taking over
+  /// from a device ahead of it that's off.
   void recognizeSynced(Iterable<AppEvent> events, {DateTime? now}) {
     if (!supported || _disposed) return;
-    final since = (now ?? DateTime.now()).subtract(syncedWithin);
+    final at = now ?? DateTime.now();
+    final since = at.subtract(syncedWithin);
     for (final event in events) {
       if (event is! ClipRequested) continue;
       // A device hidden here (the Profile tab): not recognized here.
@@ -308,22 +328,121 @@ class SubjectRecognizer {
       // by the clip then, Persistence.showArrivedClips).
       if (event.clip.awaitingRemote) continue;
       if (event.time.isBefore(since) || _searched.contains(event.id)) continue;
-      final a = event.annotations;
-      if (a.subjectSearch != null) continue;
+      if (event.annotations.subjectSearch != null) continue;
       if (_pending.any((j) => j.event.id == event.id)) continue;
-      // Tagged by a streamer's cloud detector: looked at again here.
-      final again = a.objects != null;
-      _full(event.clip)
-          .then<void>((media) async {
-            if (media == null || _disposed) return;
-            await _enqueue(event, onRequest: false, again: again);
-          })
-          .catchError(
-            (Object e, StackTrace stack) => debugPrint(
-              'Presence: recognition failed on synced ${event.id}: $e\n$stack',
-            ),
-          );
+      if (_electing.containsKey(event.id)) continue;
+      final rank = electionRank(event, now: at);
+      if (rank == 0) {
+        _recognizeSynced(event);
+        continue;
+      }
+      _electing[event.id] = Timer(electionStep * rank, () {
+        _electing.remove(event.id);
+        if (_disposed || _searched.contains(event.id)) return;
+        // Searched by a device ahead of this one: its result synced here.
+        final known = log.events.firstWhere(
+          (e) => e.id == event.id,
+          orElse: () => event,
+        );
+        if (known is! ClipRequested ||
+            known.deletedAt != null ||
+            known.annotations.subjectSearch != null ||
+            event.annotations.subjectSearch != null) {
+          return;
+        }
+        _recognizeSynced(known);
+      });
     }
+  }
+
+  /// Fetches [event]'s recording (it comes down as it's read) and queues
+  /// it, its object tags looked at again if it has some (a streamer's
+  /// cloud detector's).
+  void _recognizeSynced(ClipRequested event) {
+    final again = event.annotations.objects != null;
+    _full(event.clip)
+        .then<void>((media) async {
+          if (media == null || _disposed) return;
+          await _enqueue(event, onRequest: false, again: again);
+        })
+        .catchError(
+          (Object e, StackTrace stack) => debugPrint(
+            'Presence: recognition failed on synced ${event.id}: $e\n$stack',
+          ),
+        );
+  }
+
+  /// This device's ID (`DeviceId`), once known: the synced clips'
+  /// elections ([electionRank]) need it. Unknown, every synced clip runs
+  /// here at once.
+  String? deviceId;
+
+  /// When another of the profile's devices was last heard from over live
+  /// sync (`LiveSync.seenOf`), when it's on: a device running with no
+  /// recent event still counts in elections ([electionRank]).
+  DateTime? Function(String deviceId)? seenOf;
+
+  /// Whether a device that runs [os] (`AppEvent.os`) with [memoryMb] of
+  /// memory (`AppEvent.memoryMb`, null: unknown) can recognize: the web
+  /// app, Android and iOS, with [minRecognitionMemoryMb] or more
+  /// ([supported] there). A Raspberry Pi streamer (`Linux`) and a Blink
+  /// camera can't.
+  static bool canRecognize(String? os, int? memoryMb) =>
+      os != null &&
+      (os.startsWith('Web') || os == 'Android' || os == 'iOS') &&
+      !(memoryMb != null && memoryMb < minRecognitionMemoryMb);
+
+  /// This device's turn at the synced clip [event]: how many devices go
+  /// before it, each given [electionStep]. The candidates are the
+  /// profile's devices that can recognize ([canRecognize], from their
+  /// latest event's OS and memory) and were heard from within
+  /// [syncedWithin] of [now] (an event, or over live sync, [seenOf]),
+  /// this one always among them. The device that recorded the clip goes
+  /// first, if it can: it searches its own new clips (it may not have
+  /// finished yet). The rest are ordered by the SHA-1 of the clip's event
+  /// ID and their device ID, the same on every device, so each clip has
+  /// its own order and the work spreads. Devices may see different lists:
+  /// then two may do a clip, or one waits longer, never none. 0 with no
+  /// [deviceId], or for this device's own clip.
+  int electionRank(ClipRequested event, {DateTime? now}) {
+    final self = deviceId;
+    if (self == null || event.deviceId == self) return 0;
+    final since = (now ?? DateTime.now()).subtract(syncedWithin);
+    // Each device's latest event, and the latest that says its OS.
+    final latest = <String, DateTime>{};
+    final said = <String, AppEvent>{};
+    for (final e in log.events) {
+      final device = e.deviceId;
+      if (device == null) continue;
+      final last = latest[device];
+      if (last == null || e.time.isAfter(last)) latest[device] = e.time;
+      if (e.os == null) continue;
+      final known = said[device];
+      if (known == null || e.time.isAfter(known.time)) said[device] = e;
+    }
+    bool recent(String device) => [
+      latest[device],
+      seenOf?.call(device),
+    ].any((t) => t != null && !t.isBefore(since));
+    final recorder = event.deviceId;
+    final devices = {
+      self,
+      for (final MapEntry(key: device, value: e) in said.entries)
+        if (device != recorder &&
+            !log.hidesDevice(device) &&
+            recent(device) &&
+            canRecognize(e.os, e.memoryMb))
+          device,
+    }.toList();
+    String order(String device) =>
+        sha1.convert(utf8.encode('${event.id}/$device')).toString();
+    devices.sort((a, b) {
+      final byHash = order(a).compareTo(order(b));
+      return byHash != 0 ? byHash : a.compareTo(b);
+    });
+    final recorderFirst =
+        recorder != null && canRecognize(event.os, event.memoryMb);
+    return devices.indexOf(self) + (recorderFirst ? 1 : 0);
   }
 
   /// Runs recognition on [event]'s clip now, after any clip already being
@@ -1034,6 +1153,10 @@ class SubjectRecognizer {
       job.done.complete(const RecognitionResult(RecognitionOutcome.deferred));
     }
     _parked.clear();
+    for (final timer in _electing.values) {
+      timer.cancel();
+    }
+    _electing.clear();
     _drained?.complete();
     _drained = null;
     _release();

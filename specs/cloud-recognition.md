@@ -103,7 +103,9 @@ found by a detector:
   (people if a person is known, pets if a pet is) and someone known isn't
   tagged on it yet; a clip with nobody seen sends nothing. A clip is
   identified once: a new clip when it's recorded, a synced one only if no
-  device searched it for subjects yet (no `subjectSearch`); restored,
+  device searched it for subjects yet (no `subjectSearch`), by one
+  device elected for it ([Recognition](recognition.md), one device
+  recognizes each synced clip), not each one that can; restored,
   re-synced, edited or reopened clips aren't sent again, only on Auto.
 - **Cost**: DINOv2-L takes some 3 s a crop at 3008 MB, about 9 GB-s, so
   a crop costs about US$0.00012 (Lambda's arm64 price). At 2 crops a clip
