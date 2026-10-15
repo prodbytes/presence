@@ -435,7 +435,6 @@ void main() {
               child: PresencePinger(
                 live: live,
                 builder: (_) => ProfileDevices(
-                  profile: 'automatic_paranoid_axolotl',
                   thisDevice: 'calm_sunny_radio_with_a_long_name',
                   now: () => now,
                   live: live,
@@ -486,7 +485,6 @@ void main() {
         MaterialApp(
           home: Scaffold(
             body: ProfileDevices(
-              profile: 'p',
               thisDevice: 'this_device',
               now: () => now,
               live: live,

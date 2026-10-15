@@ -6199,7 +6199,49 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        [Live sync](live-sync.md), [Camera](camera.md#all-devices),
        [Premium](premium.md).
 
-441. **Plans by devices: Free 10, Premium 25, Pro 50.** (2026-10-15)
+441. **The profile view: device IDs on one line, the profile ID discreet
+     and at the bottom.** (2026-10-15)
+     - Asked: a device ID still broke over two lines (at the iPhone's large
+       text); make it a little smaller so it fits, and make the profile ID
+       more discreet and lower in the profile view.
+     - Changed: a device ID is 11 sp (was 12) on one line beside its
+       presence dot, scaled down to fit when still too long, never broken
+       mid-word; "this device" and "hidden" go under it. The profile ID
+       left the top of the device list for a small muted "Profile <ID>"
+       line at the bottom of the profile view, above About. Spec:
+       [Sign-in](sign-in.md).
+
+442. **Pricing tiers, and archiving unused data with Intelligent-Tiering.**
+     (2026-10-15)
+     - Asked: help think about pricing tiers (something like Blink's $9 a
+       month), make sure user data archives with S3 Intelligent-Tiering,
+       and estimate what to charge per tier from the existing data and
+       frequency.
+     - Answered:
+       - Intelligent-Tiering is already on from day 0 (user-data.yaml).
+         Data unread for 90 days moves by itself to Archive Instant Access
+         ($0.004/GB). Objects expire at 90 days, so almost nothing reaches
+         that tier. The opt-in Archive and Deep Archive tiers stay off: they
+         need a restore before a read, which the app can't do.
+       - Measured on prod (CloudWatch, 2026-10-08 to 10-14): the bucket
+         grew about 2.3 GB and 1,059 objects in its busiest day, roughly
+         1–2 clips an hour per device. Recognition's infer took 13.3 s on
+         average (216 calls), the ingest Lambda 7 s (674 calls). The health
+         Lambda ran 71k times in the week, far above the monitor's
+         5-minute poll: to look into.
+       - Modelled after the cost cuts (#377–#380): about $1 per device per
+         month at 2 clips an hour, and about $3.5 at 10 an hour.
+     - Changed: nothing. Spec: none changed.
+
+443. **The All grid: the time under the device ID.** (2026-10-15)
+     - Asked: in the All cameras view, put the time line below the device
+       ID so the label isn't one very long line.
+     - Changed: a grid cell's label is two lines: the device ID, then
+       "live" (this device) or the picture's age ("31 min ago") in a
+       muted color (`DeviceGridCell.detail`; the `cameraLiveLabel` string
+       became `cameraLive`). Spec: [Camera](camera.md).
+
+444. **Plans by devices: Free 10, Premium 25, Pro 50.** (2026-10-15)
      - Asked: tiers limited by devices only, for now: **Free** up to 10
        devices, **Premium** up to 25, and a new **Pro** up to 50 with
        everything Premium has (cloud sync to S3, cloud recognition,

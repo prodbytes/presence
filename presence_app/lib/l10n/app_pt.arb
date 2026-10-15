@@ -194,7 +194,7 @@
   "cameraErrorNoneFound": "Nenhuma câmera foi encontrada. Conecte uma e tente de novo.",
   "cameraErrorStopped": "A câmera parou (desconectada ou removida)",
   "cameraFlip": "Trocar câmera",
-  "cameraLiveLabel": "{device} · ao vivo",
+  "cameraLive": "ao vivo",
   "cameraModeAll": "Todas",
   "cameraModeNormal": "Normal",
   "cameraModeStopped": "Parado",

@@ -69,7 +69,6 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ProfileDevices(
-            profile: 'automatic_paranoid_axolotl',
             now: () => now,
             devices: [
               (

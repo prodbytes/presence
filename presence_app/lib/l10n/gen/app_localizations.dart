@@ -1264,11 +1264,11 @@ abstract class AppLocalizations {
   /// **'Flip camera'**
   String get cameraFlip;
 
-  /// No description provided for @cameraLiveLabel.
+  /// All grid: under this device's ID, its picture is live
   ///
   /// In en, this message translates to:
-  /// **'{device} · live'**
-  String cameraLiveLabel(String device);
+  /// **'live'**
+  String get cameraLive;
 
   /// Camera mode: every device in a grid
   ///

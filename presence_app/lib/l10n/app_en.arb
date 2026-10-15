@@ -616,13 +616,9 @@
   "cameraErrorNoneFound": "No camera was found. Connect one, then retry.",
   "cameraErrorStopped": "The camera stopped (unplugged or taken away)",
   "cameraFlip": "Flip camera",
-  "cameraLiveLabel": "{device} · live",
-  "@cameraLiveLabel": {
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
+  "cameraLive": "live",
+  "@cameraLive": {
+    "description": "All grid: under this device's ID, its picture is live"
   },
   "cameraModeAll": "All",
   "@cameraModeAll": {

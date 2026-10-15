@@ -754,9 +754,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get cameraFlip => 'Cambiar cámara';
 
   @override
-  String cameraLiveLabel(String device) {
-    return '$device · en vivo';
-  }
+  String get cameraLive => 'en vivo';
 
   @override
   String get cameraModeAll => 'Todas';
