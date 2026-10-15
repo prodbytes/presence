@@ -6089,3 +6089,13 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        four-colour "G" on white (light) or `#131314` (dark) with Google's
        border and text colours; 40 high with a 14 sp title in the app bar.
        Web keeps Google's rendered button. Spec: [Sign-in](sign-in.md).
+
+435. **Update and relaunch the app on the iPhone.** (2026-10-15)
+     - Asked: install the build with the fixed sign-in buttons on the
+       iPhone and start it.
+     - Changed: nothing in the app. The phone build failed to sign: Xcode
+       had no account, then only a free Personal Team, which can't have
+       Sign in with Apple. Built without that entitlement (locally, not
+       committed), installed 0.6.202610150825 on the iPhone 12 mini and
+       launched it; it runs, and Apple sign-in fails on that build. Spec:
+       [iOS](ios.md).
