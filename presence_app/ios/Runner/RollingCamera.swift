@@ -304,7 +304,7 @@ final class RollingCamera: NSObject, FlutterTexture,
     // No B-frames: samples arrive in presentation order, as the ring expects.
     VTSessionSetProperty(session, key: kVTCompressionPropertyKey_AllowFrameReordering, value: kCFBooleanFalse)
     VTSessionSetProperty(session, key: kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, value: 1 as CFNumber)
-    VTSessionSetProperty(session, key: kVTCompressionPropertyKey_AverageBitRate, value: 2_500_000 as CFNumber)
+    VTSessionSetProperty(session, key: kVTCompressionPropertyKey_AverageBitRate, value: 1_200_000 as CFNumber)
     VTSessionSetProperty(session, key: kVTCompressionPropertyKey_ProfileLevel, value: kVTProfileLevel_H264_High_AutoLevel)
     VTCompressionSessionPrepareToEncodeFrames(session)
     return session

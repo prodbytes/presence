@@ -1886,7 +1886,7 @@ void main() {
       });
 
       test(
-        'sends at most 4 crops to identify, 2 a frame, best first',
+        'sends a new clip\'s 2 surest crops to identify, Auto\'s 4',
         () async {
           log.addHistory([
             tagged(1, ['Rex']),
@@ -1895,10 +1895,11 @@ void main() {
             Detection(Box(x, 0.2, x + 0.1, 1), score, SeenKind.person),
             lookVector: direction(90),
           );
+          // Surer on each frame: the last frames' are the ones sent.
           final vision = FakeVision(
             {
               for (var i = 0; i < 6; i++)
-                i: [at(0, 0.5), at(0.2, 0.9), at(0.4, 0.7)],
+                i: [at(0, 0.1 * i + 0.1), at(0.2, 0.1 * i + 0.15), at(0.4, 0)],
             },
             {
               1: [seenAt(body, look: 0)],
@@ -1910,12 +1911,42 @@ void main() {
             FakeSampler(6),
             cloud,
           ).recognize(ClipRequested(clip(), id: 'new'));
-          expect(
-            cloud.asked.single,
-            hasLength(SubjectRecognizer.maxIdentifyCrops),
-          );
+          expect(SubjectRecognizer.maxIdentifyCrops, 2);
+          expect(cloud.asked.single.keys.toSet(), {
+            '10',
+            '11',
+          }, reason: 'the last frame\'s two, 2 a frame');
+
+          final asked = _FakeCloud({});
+          await withCloud(
+            vision,
+            FakeSampler(6),
+            asked,
+          ).recognize(ClipRequested(clip(), id: 'auto'), onRequest: true);
+          expect(asked.asked.single.keys.toSet(), {
+            '8',
+            '9',
+            '10',
+            '11',
+          }, reason: 'Auto, asked for, sends up to 4');
         },
       );
+
+      test('not asked when nobody is seen on the clip', () async {
+        log.addHistory([
+          tagged(1, ['Rex']),
+        ]);
+        final vision = FakeVision(const {}, {
+          1: [seenAt(body, look: 0)],
+        });
+        final cloud = _FakeCloud({});
+        await withCloud(
+          vision,
+          FakeSampler(3),
+          cloud,
+        ).recognize(ClipRequested(clip(), id: 'new'));
+        expect(cloud.asked, isEmpty);
+      });
 
       test('not asked when the cloud isn\'t available', () async {
         log.addHistory([
@@ -2145,38 +2176,39 @@ void main() {
           expect(premium.asked, isEmpty);
         });
 
-        test(
-          'at most 8 pets, 2 a frame, and a failure changes nothing',
-          () async {
-            final vision = FakeVision(
-              const {},
-              const {},
-              pets: {
-                for (var i = 0; i < 6; i++)
-                  i: [
-                    const Detection(left, 0.9, SeenKind.cat),
-                    const Detection(right, 0.8, SeenKind.cat),
-                    const Detection(right, 0.7, SeenKind.dog),
-                  ],
-              },
-            );
-            final describer = _FakeDescriber({});
-            final event = ClipRequested(clip(), id: 'new');
-            final r = withCloud(
-              vision,
-              FakeSampler(6),
-              null,
-              describer: describer,
-            );
-            await r.recognize(event);
-            await r.described;
-            expect(describer.asked.single, hasLength(8));
-            expect([
-              for (final (species, _) in describer.asked.single.values) species,
-            ], everyElement('cat'));
-            expect(event.annotations.objects, isEmpty);
-          },
-        );
+        test('a new clip\'s 4 surest pets, Auto\'s 8, and a failure changes '
+            'nothing', () async {
+          final vision = FakeVision(
+            const {},
+            const {},
+            pets: {
+              for (var i = 0; i < 6; i++)
+                i: [
+                  const Detection(left, 0.9, SeenKind.cat),
+                  const Detection(right, 0.8, SeenKind.cat),
+                  const Detection(right, 0.7, SeenKind.dog),
+                ],
+            },
+          );
+          final describer = _FakeDescriber({});
+          final event = ClipRequested(clip(), id: 'new');
+          final r = withCloud(
+            vision,
+            FakeSampler(6),
+            null,
+            describer: describer,
+          );
+          await r.recognize(event);
+          await r.described;
+          expect(describer.asked.single, hasLength(4));
+          expect([
+            for (final (species, _) in describer.asked.single.values) species,
+          ], everyElement('cat'));
+          expect(event.annotations.objects, isEmpty);
+          await r.recognize(ClipRequested(clip(), id: 'auto'), onRequest: true);
+          await r.described;
+          expect(describer.asked.last, hasLength(8));
+        });
       });
 
       test(
