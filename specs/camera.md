@@ -108,7 +108,7 @@ The mode button's **All** on the Camera tab (see
 profile (`CameraFeedsView.showAll`,
 [camera_feeds.dart](../presence_app/lib/camera_feeds.dart)):
 
-- **Top left:** this device's camera, live, labeled "<device ID> · live".
+- **Top left:** this device's camera, live, labeled with its device ID and, on a second line under it, "live".
   Its loading, error and no-camera states show in that cell.
 - **A presence dot** leads each cell's label: green (live: answered a
   ping within 90 s, or this device connected to live sync), yellow
@@ -126,7 +126,7 @@ profile (`CameraFeedsView.showAll`,
   going quiet), the cells move, sliding to their new place (300 ms, as
   the tabs). Without live sync, events alone decide. Each cell
   (`latestByDevice`) shows the thumbnail of its newest clip, shown whole,
-  labeled "<device ID> · 5 min ago" (refreshed every 30 s). A device with
+  labeled with its device ID and, on a second line under it in a muted color, how old the picture is ("5 min ago", refreshed every 30 s), so the label stays short. A device with
   events but no clip image shows a camera-off icon and the age of its
   latest event. Tapping a cell with a playable clip opens it in the clip
   player.

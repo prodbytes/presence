@@ -6233,3 +6233,11 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
          month at 2 clips an hour, and about $3.5 at 10 an hour.
      - Changed: nothing. Spec: none changed.
 
+443. **The All grid: the time under the device ID.** (2026-10-15)
+     - Asked: in the All cameras view, put the time line below the device
+       ID so the label isn't one very long line.
+     - Changed: a grid cell's label is two lines: the device ID, then
+       "live" (this device) or the picture's age ("31 min ago") in a
+       muted color (`DeviceGridCell.detail`; the `cameraLiveLabel` string
+       became `cameraLive`). Spec: [Camera](camera.md).
+

@@ -129,7 +129,8 @@ String describeAge(Duration age, [AppLocalizations? l]) {
   return l.cameraAgeDays(age.inDays);
 }
 
-/// A grid cell: its picture, with a label at the bottom left.
+/// A grid cell: its picture, with a label at the bottom left (the device
+/// ID, its [detail] under it).
 class DeviceGridCell extends StatelessWidget {
   const DeviceGridCell({
     super.key,
@@ -140,7 +141,12 @@ class DeviceGridCell extends StatelessWidget {
     this.refreshingKey,
     this.presence,
     this.device,
+    this.detail,
   });
+
+  /// A second line under the label (how old the picture is, or "live"),
+  /// so the label stays short.
+  final String? detail;
 
   /// The device shown: its label, tapped, shows its events
   /// ([DeviceEventsLink]).
@@ -163,12 +169,30 @@ class DeviceGridCell extends StatelessWidget {
   /// it lets taps through to the cell.
   Widget _label(String label) {
     final text = Builder(
-      builder: (context) => Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: Theme.of(context).textTheme.labelSmall,
-      ),
+      builder: (context) {
+        final style = Theme.of(context).textTheme.labelSmall;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+            if (detail case final detail?)
+              Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: style?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        );
+      },
     );
     final device = this.device;
     if (device == null) return IgnorePointer(child: text);
