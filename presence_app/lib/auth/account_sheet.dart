@@ -391,7 +391,6 @@ class AccountSheet extends StatelessWidget {
                       PresencePinger(
                         live: sync?.live,
                         builder: (_) => ProfileDevices(
-                          profile: profile,
                           devices: [
                             for (final d in profileDeviceDetails(
                               log?.events ?? const [],
@@ -540,6 +539,33 @@ class AccountSheet extends StatelessWidget {
                       style: TextStyle(color: scheme.error),
                     ),
                   ],
+                  // The profile's ID, discreet, at the bottom: it's for
+                  // support and copying, not for reading every time.
+                  if (user != null && roles?.profile != null) ...[
+                    const SizedBox(height: 16),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(text: '${context.l10n.authProfile} '),
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.baseline,
+                            baseline: TextBaseline.alphabetic,
+                            child: SelectableText(
+                              roles!.profile!,
+                              key: const Key('profile-id'),
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   const Divider(),
                   const SizedBox(height: 8),
@@ -638,14 +664,13 @@ String exactTime(DateTime time) {
       '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
 }
 
-/// The profile's ID and its devices, each with its operating system's
+/// The profile's devices, each with its operating system's
 /// icon and name and how long ago its latest event was (the exact time in
 /// a tooltip). IDs are selectable to copy; a tapped device ID shows its
 /// events ([DeviceEventsLink]).
 class ProfileDevices extends StatelessWidget {
   const ProfileDevices({
     super.key,
-    required this.profile,
     required this.devices,
     this.thisDevice,
     this.now,
@@ -670,7 +695,6 @@ class ProfileDevices extends StatelessWidget {
   /// presence dot ([DevicePresence]).
   final LiveSync? live;
 
-  final String profile;
   final List<ProfileDevice> devices;
 
   /// Whether a device's events show here (its eye button's state);
@@ -692,12 +716,16 @@ class ProfileDevices extends StatelessWidget {
   /// The time latest events are counted from; defaults to the clock.
   final DateTime Function()? now;
 
+  /// A device ID's font size, before it's scaled down to fit its line.
+  static const double deviceIdSize = 11;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = TextStyle(color: theme.colorScheme.onSurfaceVariant);
     // A device's row is small (asked for: it was too big): its ID in
-    // bodySmall (12 sp), its labels too, its details in labelSmall (11 sp).
+    // [deviceIdSize] (11 sp) on one line, its labels in bodySmall (12 sp),
+    // its details in labelSmall (11 sp).
     final label = (theme.textTheme.bodySmall ?? const TextStyle()).copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -712,13 +740,6 @@ class ProfileDevices extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: 4,
       children: [
-        Text(l10n.authProfile, style: muted),
-        SelectableText(
-          profile,
-          key: const Key('profile-id'),
-          style: theme.textTheme.titleMedium,
-        ),
-        const SizedBox(height: 8),
         Text(l10n.authDeviceCount(devices.length), style: muted),
         for (final device in devices)
           Row(
@@ -738,12 +759,11 @@ class ProfileDevices extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // A Wrap, not a Row: at a large system font
-                    // "this device" moves under the ID instead of
-                    // overflowing.
-                    Wrap(
+                    // The dot and the ID on one line, the ID scaled down
+                    // to fit rather than broken mid-word; its labels
+                    // ("this device", hidden) under it.
+                    Row(
                       spacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         PresenceDot(
                           key: Key('presence-${device.id}'),
@@ -761,34 +781,48 @@ class ProfileDevices extends StatelessWidget {
                             ),
                           },
                         ),
-                        DeviceEventsLink(
-                          device: device.id,
-                          builder: (context, onTap) => SelectableText(
-                            device.id,
-                            key: Key('profile-device-id-${device.id}'),
-                            onTap: onTap,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: onTap == null
-                                  ? null
-                                  : theme.colorScheme.primary,
-                            ),
-                          ),
-                        ),
-                        if (device.id == thisDevice)
-                          Text(l10n.authThisDevice, style: label),
-                        if (hidden.contains(device.id))
-                          Tooltip(
-                            message: l10n.authHiddenTooltip,
-                            child: Text(
-                              l10n.authHidden,
-                              key: Key('profile-device-hidden-${device.id}'),
-                              style: label.copyWith(
-                                color: theme.colorScheme.tertiary,
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerStart,
+                            child: DeviceEventsLink(
+                              device: device.id,
+                              builder: (context, onTap) => SelectableText(
+                                device.id,
+                                key: Key('profile-device-id-${device.id}'),
+                                onTap: onTap,
+                                maxLines: 1,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: deviceIdSize,
+                                  color: onTap == null
+                                      ? null
+                                      : theme.colorScheme.primary,
+                                ),
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
+                    if (device.id == thisDevice || hidden.contains(device.id))
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          if (device.id == thisDevice)
+                            Text(l10n.authThisDevice, style: label),
+                          if (hidden.contains(device.id))
+                            Tooltip(
+                              message: l10n.authHiddenTooltip,
+                              child: Text(
+                                l10n.authHidden,
+                                key: Key('profile-device-hidden-${device.id}'),
+                                style: label.copyWith(
+                                  color: theme.colorScheme.tertiary,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     _withExactTime(
                       device.lastEvent,
                       Text.rich(

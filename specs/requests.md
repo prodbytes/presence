@@ -6198,3 +6198,16 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
      - Specs: [Cloud sync](cloud-sync.md), [Event copies](event-copies.md),
        [Live sync](live-sync.md), [Camera](camera.md#all-devices),
        [Premium](premium.md).
+
+441. **The profile view: device IDs on one line, the profile ID discreet
+     and at the bottom.** (2026-10-15)
+     - Asked: a device ID still broke over two lines (at the iPhone's large
+       text); make it a little smaller so it fits, and make the profile ID
+       more discreet and lower in the profile view.
+     - Changed: a device ID is 11 sp (was 12) on one line beside its
+       presence dot, scaled down to fit when still too long, never broken
+       mid-word; "this device" and "hidden" go under it. The profile ID
+       left the top of the device list for a small muted "Profile <ID>"
+       line at the bottom of the profile view, above About. Spec:
+       [Sign-in](sign-in.md).
+

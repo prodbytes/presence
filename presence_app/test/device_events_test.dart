@@ -172,7 +172,6 @@ void main() {
               body: ShowDeviceEvents(
                 onShow: onShow,
                 child: ProfileDevices(
-                  profile: profile,
                   now: () => noon,
                   devices: [
                     (id: phone, os: 'Android', lastEvent: noon, memoryMb: null),

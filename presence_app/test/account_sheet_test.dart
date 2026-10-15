@@ -224,7 +224,6 @@ void main() {
           child: Scaffold(
             body: SingleChildScrollView(
               child: ProfileDevices(
-                profile: 'automatic_paranoid_axolotl',
                 now: () => now,
                 devices: [
                   (
@@ -323,8 +322,8 @@ void main() {
   });
 
   for (final scale in [2.0]) {
-    testWidgets('the profile ID is larger, the device IDs small, and '
-        'they fit 320 dp at ${scale}x text', (tester) async {
+    testWidgets('a long device ID stays on one line, small, and fits '
+        '320 dp at ${scale}x text', (tester) async {
       tester.view.physicalSize = const Size(320, 800);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -339,7 +338,6 @@ void main() {
             child: Scaffold(
               body: SingleChildScrollView(
                 child: ProfileDevices(
-                  profile: 'automatic_paranoid_axolotl',
                   thisDevice: 'calm_sunny_radio_with_a_long_name',
                   now: () => now,
                   // With its eye button, as the app shows it.
@@ -359,20 +357,22 @@ void main() {
         ),
       );
       expect(tester.takeException(), isNull);
-      final text = Theme.of(tester.element(find.byType(ProfileDevices)))
-          .textTheme;
-      final profile = tester.widget<SelectableText>(
-        find.byKey(const Key('profile-id')),
-      );
-      expect(profile.style!.fontSize, text.titleMedium!.fontSize);
-      expect(profile.style!.fontSize, greaterThan(text.titleSmall!.fontSize!));
+      // The profile ID isn't in the list: it's at the sheet's bottom.
+      expect(find.byKey(const Key('profile-id')), findsNothing);
       final device = find.byKey(
         const Key('profile-device-id-calm_sunny_radio_with_a_long_name'),
       );
-      final style = tester.widget<SelectableText>(device).style!;
-      // bodyMedium: a long ID fits a small phone beside its eye button.
-      expect(style.fontSize, text.bodySmall!.fontSize);
-      expect(tester.getTopRight(device).dx, lessThanOrEqualTo(320));
+      final widget = tester.widget<SelectableText>(device);
+      expect(widget.style!.fontSize, ProfileDevices.deviceIdSize);
+      expect(widget.maxLines, 1);
+      // Scaled down to fit beside the eye button, not broken mid-word.
+      final box = tester.getRect(device);
+      expect(box.right, lessThanOrEqualTo(320));
+      expect(
+        box.height,
+        lessThan(2 * ProfileDevices.deviceIdSize * scale),
+        reason: 'one line',
+      );
       expect(
         tester
             .getTopRight(
