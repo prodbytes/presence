@@ -87,7 +87,7 @@ The bucket enforces it, not just the app:
 |---|---|---|
 | New and changed events reach the profile's other devices | within a second (live sync), and every 15 s from the bucket | within a second, while both are connected (or within a scheduled device's next connection, while its persistent session keeps them) |
 | A clip's record and thumbnail | from the bucket | in the live message (thumbnails up to 48 KB) |
-| Recordings | from the bucket, on demand or in the background | only on the device that made them |
+| Recordings | from the bucket, when played | only on the device that made them |
 | Tagged frames | from the bucket | only on the device that made them |
 | History on a new device (two weeks) | from the bucket | none: only what's published after it connects |
 | This device's settings | backed up, restored at sign-in | stay on the device |

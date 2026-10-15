@@ -145,8 +145,8 @@ profile (`CameraFeedsView.showAll`,
   profile's devices with whatever they last uploaded (new events within
   15 s, the last two weeks on a new device). A new device shows them all
   within seconds of signing in: events, clip records and thumbnails come
-  down first, the recordings after them (in the background on Android,
-  when played on the web), so a cell's clip may download when tapped.
+  down first, the recordings only when played, so a cell's clip may
+  download when tapped.
   Nothing new is uploaded or fetched for it.
 - **Layout:** the columns that give the biggest 16:9 cells
   (`gridColumns`); the cells fill the screen below the app bar and a row

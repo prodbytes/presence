@@ -196,7 +196,6 @@ class Device {
       live: live,
       settings: Settings(id),
       seal: seal,
-      prefetchRecordings: true,
       onRemote: (r) async {
         // As the app does (Persistence.importRemote).
         for (final c in r.clips) {
@@ -659,9 +658,15 @@ void main() {
         'Cloud',
       ]);
 
-      // The other device gets it, its clip and its recording...
+      // The other device gets it and its clip, but not its recording:
+      // that comes down only when played, or when a copy is asked for...
       await until(() => b.live.received == 2);
       await b.live.drained;
+      await b.sync.idle();
+      expect(await b.store.getClip('clip-1'), isNotNull);
+      expect(await b.store.getMedia('clip-1-full'), isNull);
+      expect(b.sync.copies.of('cap-1')?.self ?? false, isFalse);
+      expect(await a.sync.shareCopies('cap-1'), isTrue);
       await until(
         () => b.sync.copies.of('cap-1')?.self ?? false,
         reason: 'copied with its media',

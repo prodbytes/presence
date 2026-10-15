@@ -521,7 +521,6 @@ void main() {
         changes: persistence.changes,
         debounce: Duration.zero,
         live: live,
-        prefetchRecordings: false,
         onRemote: (remote) async {
           final events = await persistence.importRemote(
             events: remote.events,

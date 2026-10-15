@@ -114,7 +114,7 @@ owned by `CloudSync`:
     event restored at launch before its clip came): its thumbnail
     appears on its card and in the Camera tab's [All](camera.md#all-devices)
     grid, and it plays. The recording follows cloud sync's usual rules
-    (in the background on Android and desktop, when played on the web).
+    (downloaded when played, on every platform).
     The bucket's listing catches a missed completion: a changed event
     whose clip isn't here asks for it too.
   - **Once it's copied** (the event, its frames, and its clip with the

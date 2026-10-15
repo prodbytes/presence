@@ -164,9 +164,8 @@ class _LiveBridge {
         await _sync._deliver(RemoteRecords(updated: [event], live: true));
       } else if (premium) {
         // The same again: its device asks for a copy (a tap on its copies
-        // indicator). Recordings that failed to come down try again.
-        _sync._recordings.forgetFailures();
-        _sync._recordings.start();
+        // indicator). Its recording comes down now, if it hasn't.
+        if (clipId is String) _sync._recordings.fetchPending(clipId).ignore();
       }
       if (_undeletes(event, local)) {
         // A copy that isn't deleted, of an event deleted here: it stays

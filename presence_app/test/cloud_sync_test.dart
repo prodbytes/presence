@@ -583,13 +583,13 @@ void main() {
         expect(opened(remote.single.clips.single['thumbnail']! as Uint8List), [
           5,
         ]);
-        // The recording is stored as it's downloaded, not handed over.
-        expect(opened((await store.getMedia('r1-full'))!), [7, 7, 7]);
+        // The recording isn't downloaded until it's played.
+        expect(await store.getMedia('r1-full'), isNull);
+        expect(backend.downloads, isNot(contains('media/r1.mp4')));
         expect(
           backend.downloads,
           containsAll([
             'clips/year=1970/day=001/r1.json',
-            'media/r1.mp4',
             'media/r1.jpg',
             'events/re1.json',
             'events/year=2026/day=269/re2.json',
@@ -686,6 +686,7 @@ void main() {
 
       expect(remote.single.events.map((e) => e['id']), ['new']);
       expect(remote.single.clips.map((c) => c['id']), ['c-new']);
+      expect(await sync.fetchRecording('c-new', 'c-new-full'), isTrue);
       expect(opened((await store.getMedia('c-new-full'))!), [1]);
       expect(await store.getMedia('c-old-full'), isNull);
       expect(
@@ -1158,7 +1159,7 @@ void main() {
       });
     });
 
-    group('recordings come down after their events', () {
+    group('recordings come down only when played', () {
       const prefix = 'us-east-1:identity';
       late List<RemoteRecords> remote;
       late DateTime clock;
@@ -1207,7 +1208,7 @@ void main() {
         );
       }
 
-      Future<void> start({required bool prefetch, int fetchBatch = 25}) async {
+      Future<void> start({int fetchBatch = 25}) async {
         sync.dispose();
         remote = [];
         downloadedAtDelivery = [];
@@ -1221,7 +1222,6 @@ void main() {
           debounce: Duration.zero,
           interval: const Duration(hours: 24),
           fetchBatch: fetchBatch,
-          prefetchRecordings: prefetch,
           onRemote: (r) async {
             remote.add(r);
             downloadedAtDelivery.add(List.of(backend.downloads));
@@ -1239,13 +1239,12 @@ void main() {
         await sync.idle();
       }
 
-      test('every event, clip and thumbnail is handed over before any '
-          'recording is downloaded; then they come down, newest first, '
-          'marked as synced', () async {
+      test('every event, clip and thumbnail is handed over, but no '
+          'recording: not by later passes, nor a full fetch', () async {
         remoteClip('r1', 1);
         remoteClip('r2', 2);
         remoteClip('r3', 3);
-        await start(prefetch: true, fetchBatch: 2);
+        await start(fetchBatch: 2);
 
         expect(remote, hasLength(2));
         expect(remote.expand((r) => r.events).map((e) => e['id']), [
@@ -1263,97 +1262,30 @@ void main() {
             [1],
           ],
         );
-        for (final downloaded in downloadedAtDelivery) {
-          expect(downloaded.where(isRecording), isEmpty);
-        }
-        // Then, in the background, the recordings, newest first.
-        expect(backend.downloads.where(isRecording), [
-          'media/r3.mp4',
-          'media/r2.mp4',
-          'media/r1.mp4',
-        ]);
-        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
-        expect(opened((await store.getMedia('r3-full'))!), [3, 3]);
+        expect(backend.downloads.where(isRecording), isEmpty);
+        expect(await store.getMedia('r1-full'), isNull);
         final synced = await store.syncedKeys();
-        expect(synced['$prefix/media/r1.mp4'], 'r1-full');
-        expect(synced.keys.where((k) => k.startsWith('fetch:')), isEmpty);
+        // Pending, and never uploaded back, though it isn't here.
+        expect(synced['fetch:$prefix/media/r2.mp4'], '2:r2-full');
+        expect(synced['$prefix/media/r2.mp4'], 'r2-full');
 
-        // Nothing goes back up, nor comes down again.
+        // A reconciliation, and a full fetch, leave them in the cloud.
         final before = Map.of(backend.uploads);
-        backend.downloads.clear();
         changes.add(null);
         await sync.idle();
+        clock = clock.add(const Duration(hours: 1));
+        changes.add({});
+        await sync.idle();
+        expect(sync.state, CloudSyncState.synced);
         expect(backend.uploads.keys, before.keys);
         expect(backend.downloads.where(isRecording), isEmpty);
       });
 
-      test("a recording that fails to download doesn't hold up events, nor "
-          'later passes; the next full fetch gets it', () async {
+      test('a recording comes down when played, is kept, and not '
+          'downloaded again', () async {
         remoteClip('r1', 1);
-        remoteClip('r2', 2);
-        backend.failGets.add('media/r2.mp4');
-        await start(prefetch: true);
+        await start();
 
-        expect(remote.single.events.map((e) => e['id']), ['e-r2', 'e-r1']);
-        expect(sync.state, CloudSyncState.synced);
-        // The other one came down.
-        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
-        expect(await store.getMedia('r2-full'), isNull);
-        final synced = await store.syncedKeys();
-        expect(synced['fetch:$prefix/media/r2.mp4'], '2:r2-full');
-        // Never uploaded back, though it isn't here.
-        expect(synced['$prefix/media/r2.mp4'], 'r2-full');
-
-        // An ordinary pass doesn't try it again…
-        backend.failGets.clear();
-        backend.downloads.clear();
-        changes.add({});
-        await sync.idle();
-        expect(sync.state, CloudSyncState.synced);
-        expect(backend.downloads.where(isRecording), isEmpty);
-
-        // …a full fetch does.
-        clock = clock.add(const Duration(hours: 1));
-        changes.add({});
-        await sync.idle();
-        expect(backend.downloads.where(isRecording), ['media/r2.mp4']);
-        expect(opened((await store.getMedia('r2-full'))!), [2, 2]);
-        expect(
-          (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
-          isEmpty,
-        );
-      });
-
-      test('a recording whose download meets expired credentials comes down '
-          'with new ones, in the same run', () async {
-        remoteClip('r1', 1);
-        backend.failGetsOnce['media/r1.mp4'] = S3Exception(
-          403,
-          '<Code>ExpiredToken</Code>',
-        );
-        await start(prefetch: true);
-        expect(backend.resets, greaterThan(0));
-        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
-        expect(
-          (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
-          isEmpty,
-        );
-      });
-
-      test('on the web, recordings come down only when played', () async {
-        remoteClip('r1', 1);
-        await start(prefetch: false);
-
-        expect(remote.single.clips.single['id'], 'r1');
-        expect(backend.downloads.where(isRecording), isEmpty);
-        expect(await store.getMedia('r1-full'), isNull);
-        // A reconciliation doesn't try to upload what isn't here.
-        changes.add(null);
-        await sync.idle();
-        expect(sync.state, CloudSyncState.synced);
-        expect(backend.downloads.where(isRecording), isEmpty);
-
-        // Played: downloaded then, and synced.
         expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
         expect(backend.downloads.where(isRecording), ['media/r1.mp4']);
         expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
@@ -1361,11 +1293,51 @@ void main() {
         expect(synced['$prefix/media/r1.mp4'], 'r1-full');
         expect(synced.containsKey('fetch:$prefix/media/r1.mp4'), isFalse);
 
+        // Nothing goes back up, nor comes down again.
+        final before = Map.of(backend.uploads);
+        backend.downloads.clear();
+        clock = clock.add(const Duration(hours: 1));
+        changes.add(null);
+        await sync.idle();
+        expect(backend.uploads.keys, before.keys);
+        expect(backend.downloads.where(isRecording), isEmpty);
+
         // Not in the cloud, or signed out: nothing to play.
         expect(await sync.fetchRecording('nope', 'nope-full'), isFalse);
         await auth.signOut();
         await sync.idle();
         expect(await sync.fetchRecording('r1', 'r1-full'), isFalse);
+      });
+
+      test('a recording that fails to download is tried again when played '
+          'again', () async {
+        remoteClip('r1', 1);
+        await start();
+        backend.failGets.add('media/r1.mp4');
+        expect(await sync.fetchRecording('r1', 'r1-full'), isFalse);
+        expect(await store.getMedia('r1-full'), isNull);
+        expect(sync.state, CloudSyncState.synced);
+
+        backend.failGets.clear();
+        expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
+      });
+
+      test('a recording whose download meets expired credentials comes down '
+          'with new ones', () async {
+        remoteClip('r1', 1);
+        await start();
+        backend.failGetsOnce['media/r1.mp4'] = S3Exception(
+          403,
+          '<Code>ExpiredToken</Code>',
+        );
+        expect(await sync.fetchRecording('r1', 'r1-full'), isTrue);
+        expect(backend.resets, greaterThan(0));
+        expect(opened((await store.getMedia('r1-full'))!), [1, 1]);
+        expect(
+          (await store.syncedKeys()).keys.where((k) => k.startsWith('fetch:')),
+          isEmpty,
+        );
       });
     });
   });

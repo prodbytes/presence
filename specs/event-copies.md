@@ -19,10 +19,10 @@ with a small **`copied` ack**.
    and clip record are in the bucket (the event's JSON changes, so it's
    uploaded and published again).
 3. **Copied:** each other connected device stores the event at once, then
-   fetches its clip record and thumbnail from S3 (the "wanted clips"), and
-   its recording: in the background on Android and desktop, when played
-   on the web. Without live sync, a device gets the same from the bucket's
-   15 s listing.
+   fetches its clip record and thumbnail from S3 (the "wanted clips");
+   its recording comes down only when it's played there, or when a copy
+   is asked for ("The copies" below). Without live sync, a device gets
+   the same from the bucket's 15 s listing.
 4. **Acked:** once a device holds a **full copy** of another device's
    event (see below), it publishes a `copied` ack on the profile's `acks`
    topic; every device that hears it records that device as a holder.
@@ -36,9 +36,9 @@ store:
   event once its record is here, with the frames its tags use, and, for a
   clip event, the clip's record with the **recording downloaded** (no
   pending `fetch:` entry), unless the clip failed there (no recording to
-  have). An event without a clip is held with its record alone. So on the
-  web, where recordings come down only when played, a clip from another
-  device counts as held here only after it's played.
+  have). An event without a clip is held with its record alone. So, as
+  recordings come down only when played (or asked for), a clip from
+  another device counts as held here only after that.
 - **The cloud** holds an event once its JSON is in the bucket (uploaded
   by this device, or seen there by a fetch or a live message), with its
   tagged frames and, for a clip event, its recording (uploaded, or listed
@@ -183,8 +183,10 @@ it they aren't buttons.
   `events` topic at once, with the ETag it has in the bucket (and its clip
   record, for devices without the bucket). Each device that hears it
   stores what it lacks, fetches its clip, and acks it once it holds it in
-  full; one that has it unchanged gives the recordings that failed to come
-  down another try. "Asked the other devices to take a copy", or
+  full; one that has it unchanged downloads its recording now, if it
+  hasn't (`_Recordings.fetchPending`), and acks it. A device that didn't
+  have the event gets its record and clip, not the recording: a second
+  tap brings that down too. "Asked the other devices to take a copy", or
   "Couldn't reach the other devices: live sync is off or not connected".
   Devices whose restore window it's older than ignore it.
 
@@ -239,8 +241,9 @@ They show:
   its recording is), tagged frames;
 - two devices over an in-memory broker and a shared bucket: a capture is
   held only on its device ("Not synced") until uploaded;
-  it's uploaded then published; the other device stores it, gets its
-  clip and recording when it completes, and acks it; the first then shows
+  it's uploaded then published; the other device stores it and gets its
+  clip when it completes, but not its recording (not held yet); asked for
+  a copy, it downloads the recording and acks it; the first then shows
   "3 copies" ("This device, Cloud, phone_b"); later passes don't ack again;
 - with live sync off: this device and the cloud, and the tooltip says
   other devices' copies are unknown;
@@ -268,7 +271,7 @@ is searched again.
   its History setting) isn't un-acked. A device that joins later doesn't
   hear acks sent before it connected (beyond what a scheduled
   connection's persistent session keeps, 1 h).
-- On the web, other devices' clips count as held here only once played
+- Other devices' clips count as held here only once played or asked for
   (their recordings aren't downloaded before).
 - Deleting from the cloud is this device's: the other devices still
   count the cloud as a holder (they don't hear of it), and one that
