@@ -6702,3 +6702,10 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Navigation](navigation.md) and [Camera screen](camera.md)
       describe the menu; [README](README.md), [Cloud sync](cloud-sync.md)
       and [Configuration](configuration.md) name it.
+
+458. **Do a barrel roll** (2026-10-15), with the pending edit to
+     [prompts/do-a-barrel-roll.md](../prompts/do-a-barrel-roll.md)
+     committed first.
+    - Its last step now says to update and relaunch the app on the
+      connected iPhone and Android phone, if available, rather than on
+      "connected usb devices".
