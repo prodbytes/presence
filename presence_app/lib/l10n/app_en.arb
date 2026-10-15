@@ -458,10 +458,6 @@
       }
     }
   },
-  "cameraActionAll": "Show all devices",
-  "cameraActionNormal": "Back to normal: this camera",
-  "cameraActionStopped": "Stop: no capturing or syncing",
-  "cameraActionUnattended": "Go unattended: screen off, still capturing",
   "cameraAgeDays": "{days} d ago",
   "@cameraAgeDays": {
     "placeholders": {
@@ -562,22 +558,27 @@
   "@cameraLive": {
     "description": "All grid: under this device's ID, its picture is live"
   },
-  "cameraModeAll": "All",
+  "cameraModeAll": "All devices",
   "@cameraModeAll": {
     "description": "Camera mode: every device in a grid"
   },
-  "cameraModeNormal": "Normal",
+  "cameraModeAllHint": "Every device in a grid",
+  "cameraModeMenu": "Camera mode",
+  "cameraModeNormal": "This camera",
   "@cameraModeNormal": {
     "description": "Camera mode: this device's camera"
   },
+  "cameraModeNormalHint": "Full screen",
   "cameraModeStopped": "Stopped",
   "@cameraModeStopped": {
     "description": "Camera mode: nothing captured or synced"
   },
+  "cameraModeStoppedHint": "No capturing or syncing",
   "cameraModeUnattended": "Unattended",
   "@cameraModeUnattended": {
     "description": "Camera mode: screen off, still capturing"
   },
+  "cameraModeUnattendedHint": "Screen off, still capturing",
   "cameraNight": "Night",
   "cameraNightTooltip": "Night mode: as bright as it goes, and lit while a clip records",
   "cameraNotFound": "No camera found",

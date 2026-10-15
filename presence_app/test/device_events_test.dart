@@ -10,6 +10,7 @@ import 'package:presence_app/main.dart';
 import 'package:presence_app/storage/event_store.dart';
 
 import 'event_details_test.dart' show clipEvent;
+import 'camera_pause_test.dart' show pickMode;
 import 'fakes.dart';
 
 /// A tapped device name, anywhere, shows the device's events: the
@@ -109,7 +110,7 @@ void main() {
     tester,
   ) async {
     await launch(tester);
-    await tester.tap(find.byTooltip('Show all devices'));
+    await pickMode(tester, CameraMode.all);
     await tester.pumpAndSettle();
     final label = find.byKey(const Key('device-label-$phone'));
     expect(label, findsOneWidget);

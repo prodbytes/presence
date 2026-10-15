@@ -132,11 +132,12 @@
       }
     }
   },
-  "cameraModeNormal": "Normal",
+  "cameraModeMenu": "Camera mode",
+  "cameraModeNormal": "This camera",
   "@cameraModeNormal": {
     "description": "Camera mode: this device's camera"
   },
-  "cameraModeAll": "All",
+  "cameraModeAll": "All devices",
   "@cameraModeAll": {
     "description": "Camera mode: every device in a grid"
   },
@@ -148,10 +149,10 @@
   "@cameraModeStopped": {
     "description": "Camera mode: nothing captured or synced"
   },
-  "cameraActionNormal": "Back to normal: this camera",
-  "cameraActionAll": "Show all devices",
-  "cameraActionUnattended": "Go unattended: screen off, still capturing",
-  "cameraActionStopped": "Stop: no capturing or syncing",
+  "cameraModeNormalHint": "Full screen",
+  "cameraModeAllHint": "Every device in a grid",
+  "cameraModeUnattendedHint": "Screen off, still capturing",
+  "cameraModeStoppedHint": "No capturing or syncing",
   "cameraFlip": "Flip camera",
   "cameraClip": "Clip",
   "@cameraClip": {

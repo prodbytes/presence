@@ -6685,7 +6685,25 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
     - Specs: [Release](release.md) says where each signing file lives and
       uses that path in the Play secret command.
 
-456. **Poll S3 often only while an event lacks copies on other devices.**
+457. **Instead of flipping camera modes on the button, make it a menu on
+     the navbar, default being this camera, with a drop-down to select the
+     other modes.** (2026-10-15)
+    - The round mode button by Flip, which cycled Normal → All →
+      Unattended → Stopped, is gone. A **mode menu** (`CameraModeMenu`,
+      `lib/home/camera_mode_menu.dart`) sits in the app bar over the
+      camera, top left: the mode's icon and name with a drop-down arrow,
+      "This camera" at launch. Its menu lists This camera, All devices,
+      Unattended and Stopped, each with a line on what it does, the
+      current one checked, and switches straight to the one picked
+      (`HomeScreen._setMode`).
+    - Normal is now labelled "This camera" and All "All devices" (es, pt
+      too); the tooltips that said what the next tap did became the menu's
+      hints.
+    - Specs: [Navigation](navigation.md) and [Camera screen](camera.md)
+      describe the menu; [README](README.md), [Cloud sync](cloud-sync.md)
+      and [Configuration](configuration.md) name it.
+
+458. **Poll S3 often only while an event lacks copies on other devices.**
      (2026-10-15)
      - Asked: no need to sync S3 so often; if other devices respond with
        enough copies of an event, check S3 about once an hour, and only
