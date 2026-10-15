@@ -292,12 +292,6 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 device} other{{count} devices}}'**
   String authDeviceCount(int count);
 
-  /// No description provided for @authDevicesHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 device\'s events are hidden: {plan} shows your first {limit} devices.} other{{count} devices\' events are hidden: {plan} shows your first {limit} devices.}}'**
-  String authDevicesHidden(int count, String plan, int limit);
-
   /// No description provided for @authFeedback.
   ///
   /// In en, this message translates to:
@@ -327,6 +321,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'hidden'**
   String get authHidden;
+
+  /// Under the Profile tab's device list: how many devices the plan hides.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 device hidden} other{{count} devices hidden}}'**
+  String authHiddenCount(int count);
 
   /// No description provided for @authHiddenTooltip.
   ///
@@ -418,12 +418,6 @@ abstract class AppLocalizations {
   /// **'Linked to the profile.'**
   String get authLinkedToProfile;
 
-  /// No description provided for @authMoreHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 more device doesn\'t sync, and its events are hidden: {plan} syncs your first {limit}.} other{{count} more devices don\'t sync, and their events are hidden: {plan} syncs your first {limit}.}}'**
-  String authMoreHidden(int count, String plan, int limit);
-
   /// No description provided for @authNoEvents.
   ///
   /// In en, this message translates to:
@@ -466,23 +460,11 @@ abstract class AppLocalizations {
   /// **'Operating system unknown'**
   String get authOsUnknown;
 
-  /// No description provided for @authOthersHidden.
-  ///
-  /// In en, this message translates to:
-  /// **'This device doesn\'t sync, and your other devices\' events are hidden on it: {plan} syncs your first {limit} devices.'**
-  String authOthersHidden(String plan, int limit);
-
   /// The profile's owner account
   ///
   /// In en, this message translates to:
   /// **'Owner'**
   String get authOwner;
-
-  /// No description provided for @authPastLimit.
-  ///
-  /// In en, this message translates to:
-  /// **'This device is past your plan\'s first {limit}: it doesn\'t sync, so only its own events show here.'**
-  String authPastLimit(int limit);
 
   /// No description provided for @authPaymentsDefaults.
   ///
@@ -604,12 +586,6 @@ abstract class AppLocalizations {
   /// **'Premium monthly'**
   String get authPremiumMonthly;
 
-  /// No description provided for @authPremiumShowsUpTo.
-  ///
-  /// In en, this message translates to:
-  /// **'{text} Premium shows up to {limit}.'**
-  String authPremiumShowsUpTo(String text, int limit);
-
   /// No description provided for @authPremiumYearly.
   ///
   /// In en, this message translates to:
@@ -621,12 +597,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pro monthly'**
   String get authProMonthly;
-
-  /// No description provided for @authProShowsUpTo.
-  ///
-  /// In en, this message translates to:
-  /// **'{text} Pro shows up to {limit}.'**
-  String authProShowsUpTo(String text, int limit);
 
   /// No description provided for @authProYearly.
   ///
@@ -843,6 +813,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'this device'**
   String get authThisDevice;
+
+  /// No description provided for @authThisDeviceHidden.
+  ///
+  /// In en, this message translates to:
+  /// **'This device doesn\'t sync'**
+  String get authThisDeviceHidden;
 
   /// No description provided for @authUnavailable.
   ///

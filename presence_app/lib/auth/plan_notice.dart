@@ -58,15 +58,12 @@ String planName(Plan plan, AppLocalizations l10n) => switch (plan) {
 ///   And **Check again** for once it's paid.
 /// - Premium bought in the store here: **Manage subscription**.
 ///
-/// Past the limit, it says so: this device doesn't sync, or how many
-/// devices don't.
+/// What's hidden past the limit is said under the device list
+/// ([HiddenDevicesLine]).
 class PlanNotice extends StatelessWidget {
   const PlanNotice({
     super.key,
     required this.plan,
-    this.slots,
-    this.thisDevice,
-    this.hidden = 0,
     this.email,
     this.profileId,
     this.links,
@@ -78,13 +75,6 @@ class PlanNotice extends StatelessWidget {
 
   /// The member's plan ([RolesService.plan]).
   final Plan plan;
-
-  /// The profile's devices, when the auth API has listed them.
-  final DeviceSlots? slots;
-  final String? thisDevice;
-
-  /// How many of the profile's devices are hidden here.
-  final int hidden;
 
   /// The signed-in account's email and profile, for the checkout.
   final String? email;
@@ -142,16 +132,6 @@ class PlanNotice extends StatelessWidget {
     final scheme = theme.colorScheme;
     final l10n = context.l10n;
     final free = plan == Plan.free;
-    final limit = slots?.limit ?? plan.deviceLimit;
-    final pastLimit = switch ((slots, thisDevice)) {
-      (final slots?, final device?) => !slots.shows(device),
-      _ => false,
-    };
-    final warning = pastLimit
-        ? l10n.authPastLimit(limit)
-        : hidden > 0
-        ? l10n.authMoreHidden(hidden, planName(plan, l10n), limit)
-        : null;
     // The plans' checkouts on the web: Premium's for a free member, Pro's
     // for a premium one (only those an admin saved).
     final checkouts = switch (plan) {
@@ -206,12 +186,6 @@ class PlanNotice extends StatelessWidget {
             key: const Key('plan-text'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
-          if (warning != null)
-            Text(
-              warning,
-              key: const Key('plan-warning'),
-              style: TextStyle(color: scheme.tertiary),
-            ),
           if (free && channel.isStore && store != null)
             StorePlans(
               billing: store!,
@@ -267,36 +241,37 @@ class PlanNotice extends StatelessWidget {
   }
 }
 
-/// Above the Monitoring tab's events, when devices' events are hidden
-/// (those past the plan's device limit): which, and the plan with more
-/// devices with an Upgrade button: for a free profile Premium's (on the
-/// web to its checkout, on iOS and Android [onUpgrade], the Profile tab
-/// where the store's plans are, elsewhere none); for a premium one Pro's,
-/// on the web only (to Pro's checkout, once an admin saved its link).
-/// Nothing when nothing's hidden.
-class DeviceLimitNotice extends StatelessWidget {
-  const DeviceLimitNotice({
+/// Under the Profile tab's device list, when devices' events are hidden
+/// (past the plan's device limit), one small muted line: how many are
+/// hidden (or that this device doesn't sync), and on the web an
+/// **Upgrade** link to the next plan's checkout: Premium's for a free
+/// profile, Pro's for a premium one once an admin saved its link. In the
+/// store apps, no link (the store's plans are in the plan box just below,
+/// and Pro isn't sold there). Nothing when nothing's hidden.
+class HiddenDevicesLine extends StatelessWidget {
+  const HiddenDevicesLine({
     super.key,
-    required this.log,
-    required this.slots,
-    required this.profileId,
-    this.thisDevice,
+    required this.plan,
+    this.hidden = 0,
+    this.pastLimit = false,
     this.email,
+    this.profileId,
     this.links,
-    this.onUpgrade,
     this._channel,
     LinkOpener? openLink,
   }) : openLink = openLink ?? launchLink;
 
-  final EventLog log;
+  final Plan plan;
 
-  /// The profile's devices (`CloudSync.deviceSlots`); null hides nothing.
-  final DeviceSlots? slots;
-  final String? profileId;
-  final String? thisDevice;
+  /// How many of the profile's devices are hidden here ([hiddenDevices]).
+  final int hidden;
 
-  /// The signed-in account's email, for the checkout.
+  /// Whether this device is past the plan's limit (it doesn't sync).
+  final bool pastLimit;
+
+  /// The signed-in account's email and profile, for the checkout.
   final String? email;
+  final String? profileId;
 
   /// The plans' Stripe links: Upgrade opens the next plan's monthly link
   /// (else its yearly's; for Premium, else nu01.com).
@@ -307,97 +282,69 @@ class DeviceLimitNotice extends StatelessWidget {
   PurchaseChannel get channel => _channel ?? PurchaseChannel.current;
   final PurchaseChannel? _channel;
 
-  /// Shows the store's plans (iOS, Android); no Upgrade button there
-  /// without it.
-  final VoidCallback? onUpgrade;
-
   @override
   Widget build(BuildContext context) {
-    final slots = this.slots;
-    final profileId = this.profileId;
-    if (slots == null || profileId == null || log.visibleDevices == null) {
-      return const SizedBox.shrink();
-    }
-    final pastLimit = thisDevice != null && !slots.shows(thisDevice!);
-    final hidden = hiddenDevices(
-      log,
-      profileId: profileId,
-      thisDevice: thisDevice,
-    ).length;
     if (!pastLimit && hidden == 0) return const SizedBox.shrink();
     final l10n = context.l10n;
-    final plan = slots.plan;
-    final name = planName(plan, l10n);
-    final text = pastLimit
-        ? l10n.authOthersHidden(name, slots.limit)
-        : l10n.authDevicesHidden(hidden, name, slots.limit);
-    final web = channel == PurchaseChannel.stripe;
-    // Pro isn't sold in the stores: the apps there don't mention it.
-    final message = switch (plan) {
-      Plan.free => l10n.authPremiumShowsUpTo(text, DeviceSlots.premiumLimit),
-      Plan.premium when web => l10n.authProShowsUpTo(
-        text,
-        DeviceSlots.proLimit,
-      ),
-      _ => text,
-    };
-    // Pro's checkout: its monthly link, else its yearly; none until saved.
-    final proLink = switch (links) {
-      final l? when l.proMonthly.isNotEmpty => l.proMonthly,
-      final l? when l.proYearly.isNotEmpty => l.proYearly,
-      _ => null,
-    };
-    final scheme = Theme.of(context).colorScheme;
-    return Card.outlined(
-      key: const Key('device-limit-notice'),
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-        child: Row(
-          spacing: 8,
-          children: [
-            Icon(Icons.visibility_off_outlined, color: scheme.tertiary),
-            Expanded(child: Text(message)),
-            if (plan == Plan.free && channel.isStore && onUpgrade != null)
-              TextButton(
-                key: const Key('device-limit-upgrade'),
-                onPressed: onUpgrade,
-                child: Text(l10n.authUpgrade),
-              )
-            else if (plan == Plan.free && web)
-              TextButton(
-                key: const Key('device-limit-upgrade'),
-                onPressed: () => openOrCopyLink(
-                  context,
-                  PremiumCheckout.checkout(
-                    email: email,
-                    profileId: profileId,
-                    link: switch (links) {
-                      final l? when l.monthly.isNotEmpty => l.monthly,
-                      final l? => l.yearly,
-                      null => null,
-                    },
-                  ),
-                  openLink,
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final style = theme.textTheme.bodySmall?.copyWith(color: muted);
+    // The checkout, on the web only: Premium's for a free profile (its
+    // monthly link, else its yearly, else nu01.com), Pro's for a premium
+    // one (none until an admin saves its link).
+    final String? link = channel != PurchaseChannel.stripe
+        ? null
+        : switch (plan) {
+            Plan.free => switch (links) {
+              final l? when l.monthly.isNotEmpty => l.monthly,
+              final l? => l.yearly,
+              null => '',
+            },
+            Plan.premium => switch (links) {
+              final l? when l.proMonthly.isNotEmpty => l.proMonthly,
+              final l? when l.proYearly.isNotEmpty => l.proYearly,
+              _ => null,
+            },
+            Plan.pro => null,
+          };
+    return Align(
+      key: const Key('hidden-devices-line'),
+      alignment: AlignmentDirectional.centerStart,
+      child: Wrap(
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            pastLimit
+                ? l10n.authThisDeviceHidden
+                : l10n.authHiddenCount(hidden),
+            style: style,
+          ),
+          if (link != null) ...[
+            Text(' · ', style: style),
+            TextButton(
+              key: const Key('hidden-devices-upgrade'),
+              style: TextButton.styleFrom(
+                foregroundColor: muted,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                minimumSize: const Size(0, 32),
+                visualDensity: VisualDensity.compact,
+                textStyle: theme.textTheme.labelSmall?.copyWith(
+                  decoration: TextDecoration.underline,
                 ),
-                child: Text(l10n.authUpgrade),
-              )
-            else if (plan == Plan.premium && web && proLink != null)
-              TextButton(
-                key: const Key('device-limit-upgrade-pro'),
-                onPressed: () => openOrCopyLink(
-                  context,
-                  PremiumCheckout.checkout(
-                    email: email,
-                    profileId: profileId,
-                    link: proLink,
-                  ),
-                  openLink,
-                ),
-                child: Text(l10n.authUpgrade),
               ),
+              onPressed: () => openOrCopyLink(
+                context,
+                PremiumCheckout.checkout(
+                  email: email,
+                  profileId: profileId,
+                  link: link,
+                ),
+                openLink,
+              ),
+              child: Text(l10n.authUpgrade),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

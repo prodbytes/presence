@@ -8,10 +8,10 @@ import 'package:http/testing.dart';
 import 'package:in_app_purchase_android/billing_client_wrappers.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 import 'package:in_app_purchase_platform_interface/in_app_purchase_platform_interface.dart';
+import 'package:presence_app/auth/payments_client.dart';
 import 'package:presence_app/auth/plan_notice.dart';
 import 'package:presence_app/auth/store_billing.dart';
 import 'package:presence_app/cloud/device_slots.dart';
-import 'package:presence_app/events.dart';
 
 import 'fakes.dart';
 
@@ -564,29 +564,28 @@ void main() {
     });
   });
 
-  group('the Monitoring notice on iOS and Android', () {
-    testWidgets('Upgrade goes to the plans, never to Stripe', (tester) async {
-      final bus = StreamController<AppEvent>.broadcast();
-      final log = EventLog(bus.stream);
-      addTearDown(() {
-        log.dispose();
-        bus.close();
-      });
-      const slots = DeviceSlots(limit: 2, devices: ['a_b_c', 'd_e_f', 'g_h_i']);
-      log.visibleDevices = slots.visibleFrom('g_h_i');
-      var upgraded = 0;
+  group("the Profile's hidden-devices line on iOS and Android", () {
+    testWidgets('says how many, with no link: never Stripe or Pro', (
+      tester,
+    ) async {
       final opened = <Uri>[];
-      Future<void> show({VoidCallback? onUpgrade, PurchaseChannel? channel}) =>
-          tester.pumpWidget(
+      for (final plan in [Plan.free, Plan.premium]) {
+        for (final channel in [
+          PurchaseChannel.googlePlay,
+          PurchaseChannel.appStore,
+          PurchaseChannel.none,
+        ]) {
+          await tester.pumpWidget(
             MaterialApp(
               home: Scaffold(
-                body: DeviceLimitNotice(
-                  log: log,
-                  slots: slots,
-                  profileId: 'automatic_paranoid_axolotl',
-                  thisDevice: 'g_h_i',
-                  channel: channel ?? PurchaseChannel.googlePlay,
-                  onUpgrade: onUpgrade,
+                body: HiddenDevicesLine(
+                  plan: plan,
+                  hidden: 3,
+                  channel: channel,
+                  links: const PaymentLinks(
+                    monthly: 'https://buy.stripe.com/m00',
+                    proMonthly: 'https://buy.stripe.com/pm00',
+                  ),
                   openLink: (url) async {
                     opened.add(url);
                     return true;
@@ -595,15 +594,12 @@ void main() {
               ),
             ),
           );
-      await show(onUpgrade: () => upgraded++);
-      await tester.tap(find.byKey(const Key('device-limit-upgrade')));
-      expect(upgraded, 1);
+          expect(find.text('3 devices hidden'), findsOneWidget);
+          expect(find.textContaining('Pro'), findsNothing);
+          expect(find.byKey(const Key('hidden-devices-upgrade')), findsNothing);
+        }
+      }
       expect(opened, isEmpty);
-
-      await show();
-      expect(find.byKey(const Key('device-limit-upgrade')), findsNothing);
-      await show(channel: PurchaseChannel.none, onUpgrade: () => upgraded++);
-      expect(find.byKey(const Key('device-limit-upgrade')), findsNothing);
     });
   });
 }

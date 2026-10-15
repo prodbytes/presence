@@ -14,15 +14,11 @@ the separate Events and Subjects tabs.
 
 ## Layout
 
-- **Above everything,** when devices' events are hidden (past the plan's
-  device limit: a free profile's first 10 devices, a premium one's 25, a
-  pro one's 50), a card says so, with an **Upgrade** button for a free
-  profile: the Premium checkout on the web, the Profile tab's store plans
-  on iOS and Android, none elsewhere; and for a premium profile on the
-  web, "Pro shows up to 50." with an **Upgrade** button to Pro's
-  checkout once its link is set ([Upgrade](upgrade.md#pro)); nothing
-  otherwise.
-  See [Premium and free](premium.md#devices).
+- **Lean:** no plan notice, upsell or upgrade button here, even when
+  devices' events are hidden (past the plan's device limit); hidden
+  devices' events just don't show. What's hidden, and a discreet
+  **Upgrade** link, are on the Profile tab only
+  ([Premium and free](premium.md#in-the-app)).
 - **At the top,** one compact row (40 dp): on the left the **events
   search**, a search icon that opens into a field when tapped (see
   [Events](events.md)), and its small **matching / all** event count

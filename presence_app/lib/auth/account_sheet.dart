@@ -452,11 +452,14 @@ class AccountSheet extends StatelessWidget {
                     if (roles case final roles?
                         when roles.hasAccess &&
                             roles.mode != ExecutionMode.dev) ...[
-                      const SizedBox(height: 12),
-                      PlanNotice(
+                      // What the plan hides, in one quiet line under the
+                      // list, with a discreet Upgrade link on the web.
+                      HiddenDevicesLine(
                         plan: roles.plan,
-                        slots: sync?.deviceSlots,
-                        thisDevice: deviceId,
+                        pastLimit: switch ((sync?.deviceSlots, deviceId)) {
+                          (final slots?, final device?) => !slots.shows(device),
+                          _ => false,
+                        },
                         hidden: switch ((log, roles.profile)) {
                           (final log?, final profile?) => hiddenDevices(
                             log,
@@ -465,6 +468,14 @@ class AccountSheet extends StatelessWidget {
                           ).length,
                           _ => 0,
                         },
+                        email: auth.user?.email,
+                        profileId: roles.profile,
+                        links: payments?.links,
+                        openLink: openLink,
+                      ),
+                      const SizedBox(height: 12),
+                      PlanNotice(
+                        plan: roles.plan,
                         email: auth.user?.email,
                         links: payments?.links,
                         store: store,
