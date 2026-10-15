@@ -97,7 +97,9 @@ and `main_blink.go`; on unless `--blink off`:
   cameras' devices (a new camera from a fetch gets one too), clips handed
   to their camera's device, the same request not handled twice; a wrong
   password said and nothing kept; a refused token stops fetching;
-  disconnect forgets the token. `rclone`: `Get`, and a missing object is
+  disconnect forgets the token. The tests' clock starts at 2026-10-14
+  13:00 UTC, an hour after the fake clips, and runs at real speed, so the
+  24-hour backfill always covers them. `rclone`: `Get`, and a missing object is
   `os.ErrNotExist`. `records`: a Blink camera's events say `os: Blink`.
 - The auth API (`ProfileTest`): a streamer's cameras join the profile's
   devices under its key; bad or too many camera IDs are refused; its
