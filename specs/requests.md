@@ -6116,3 +6116,20 @@ Also fixed along the way: relaxed the Dart SDK constraint from `^3.13.4` to
        Without the prefetch it is about $30. Shared fixed costs (KMS keys,
        Secrets Manager, Route 53) come to about $5–10 a month in total.
      - Changed: nothing. Spec: none changed.
+
+437. **Lower the recording bit rate.** (2026-10-15)
+     - Asked: lower the recording bit rate to cut storage and transfer
+       cost (from the per-user cost estimate).
+     - Changed: one modest target on every app platform, 720p at about
+       1.2 Mbps video and 32 kbps mono audio (the Raspberry Pi streamer is
+       unchanged):
+       - Android: H.264 at 1.2 Mbps (was 1.5), 0.8 Mbps below 1280 wide
+         (was 1); audio unchanged (16 kHz mono AAC, 32 kbps).
+       - iOS: H.264 at 1.2 Mbps average (was 2.5); clip audio AAC mono at
+         32 kbps (was 64 kbps, the microphone's channels).
+       - Web: `MediaRecorder` asked for 1.2 Mbps video and 32 kbps audio
+         (was the browser's default, ~3.4 Mbps); browsers that ignore the
+         hints keep their default.
+       - Fixed the stale Android row of the encoding table. Specs:
+         [Data formats](data-formats.md), [Android](android.md),
+         [iOS](ios.md).

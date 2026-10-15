@@ -7,7 +7,7 @@ The Swift counterpart of the Android layer
   **portrait** frames on the capture connection, unmirrored) with a BGRA
   `AVCaptureVideoDataOutput`. Each frame goes to:
   - the **preview**, as a Flutter texture (`FlutterTexture`);
-  - a hardware **H.264** encoder (VideoToolbox, 2.5 Mbps, a keyframe every
+  - a hardware **H.264** encoder (VideoToolbox, 1.2 Mbps, a keyframe every
     second, no B-frames);
   - **motion** sampling to 64×48 luma, every 200 ms.
 
@@ -17,7 +17,7 @@ The Swift counterpart of the Android layer
   `setExposureTargetBias`.
 - **`SampleRing.swift`:** the same ring and pruning model as Android.
   Clips are written with `AVAssetWriter`: H.264 passed through, and audio
-  encoded to AAC, starting at the keyframe at or before the window, with the
+  encoded to AAC (mono, 32 kbps), starting at the keyframe at or before the window, with the
   same window offsets. Each input (video, audio) is fed its own track in
   time order through `requestMediaDataWhenReady`. Feeding both from one
   list, in the order the samples arrived, deadlocked: the writer
